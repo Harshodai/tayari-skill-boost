@@ -1,0 +1,200 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Layout } from "@/components/layout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { ArrowLeft, Download, Check, Eye } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const templates = [
+  {
+    id: "modern",
+    name: "Modern",
+    description: "Clean and contemporary design with a focus on readability",
+    preview: "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-dark)) 100%)",
+    features: ["ATS-friendly", "Two-column layout", "Skills section"],
+  },
+  {
+    id: "professional",
+    name: "Professional",
+    description: "Classic layout perfect for traditional industries",
+    preview: "linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--success)) 100%)",
+    features: ["ATS-friendly", "Single column", "Formal styling"],
+  },
+  {
+    id: "creative",
+    name: "Creative",
+    description: "Stand out with a unique and eye-catching design",
+    preview: "linear-gradient(135deg, hsl(var(--warning)) 0%, hsl(var(--destructive)) 100%)",
+    features: ["Visual accents", "Infographic elements", "Bold typography"],
+  },
+  {
+    id: "minimal",
+    name: "Minimal",
+    description: "Simple and elegant with plenty of white space",
+    preview: "linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--accent)) 100%)",
+    features: ["ATS-friendly", "Clean layout", "Typography focused"],
+  },
+  {
+    id: "tech",
+    name: "Tech",
+    description: "Designed specifically for software engineering roles",
+    preview: "linear-gradient(135deg, hsl(var(--primary-dark)) 0%, hsl(var(--secondary)) 100%)",
+    features: ["Skills emphasis", "Project showcase", "GitHub integration"],
+  },
+  {
+    id: "executive",
+    name: "Executive",
+    description: "Sophisticated design for senior-level positions",
+    preview: "linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--card)) 100%)",
+    features: ["Leadership focus", "Achievement highlights", "Premium styling"],
+  },
+];
+
+const ResumeTemplates = () => {
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [hoveredTemplate, setHoveredTemplate] = useState<string | null>(null);
+
+  const handleDownload = () => {
+    // In production, this would generate and download the resume
+    alert(`Downloading resume with "${selectedTemplate}" template`);
+  };
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-12">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div>
+            <Button variant="ghost" asChild className="mb-2">
+              <Link to="/resume/results">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Results
+              </Link>
+            </Button>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+              Choose a Template
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Select a professional template for your optimized resume
+            </p>
+          </div>
+          <Button 
+            size="lg" 
+            variant="glow"
+            onClick={handleDownload}
+            disabled={!selectedTemplate}
+          >
+            <Download className="w-5 h-5 mr-2" />
+            Download Resume
+          </Button>
+        </div>
+
+        {/* Template Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {templates.map((template, index) => {
+            const isSelected = selectedTemplate === template.id;
+            const isHovered = hoveredTemplate === template.id;
+
+            return (
+              <Card
+                key={template.id}
+                className={cn(
+                  "relative overflow-hidden cursor-pointer transition-all duration-300 animate-fade-in-up",
+                  isSelected 
+                    ? "ring-2 ring-primary border-primary" 
+                    : "hover:border-primary/50"
+                )}
+                style={{ animationDelay: `${index * 0.1}s` }}
+                onClick={() => setSelectedTemplate(template.id)}
+                onMouseEnter={() => setHoveredTemplate(template.id)}
+                onMouseLeave={() => setHoveredTemplate(null)}
+              >
+                {/* Template Preview */}
+                <div 
+                  className="h-48 relative"
+                  style={{ background: template.preview }}
+                >
+                  {/* Preview placeholder - would be actual resume preview */}
+                  <div className="absolute inset-4 bg-background/90 rounded-lg p-4 flex flex-col gap-2">
+                    <div className="h-3 w-1/2 bg-foreground/20 rounded" />
+                    <div className="h-2 w-3/4 bg-foreground/10 rounded" />
+                    <div className="h-2 w-2/3 bg-foreground/10 rounded" />
+                    <div className="flex-1" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="h-2 bg-foreground/10 rounded" />
+                      <div className="h-2 bg-foreground/10 rounded" />
+                    </div>
+                  </div>
+
+                  {/* Hover Overlay */}
+                  {(isHovered || isSelected) && (
+                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center gap-2 animate-fade-in">
+                      <Button size="sm" variant="outline">
+                        <Eye className="w-4 h-4 mr-2" />
+                        Preview
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Selected Indicator */}
+                  {isSelected && (
+                    <div className="absolute top-3 right-3 flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground">
+                      <Check className="w-5 h-5" />
+                    </div>
+                  )}
+                </div>
+
+                <CardContent className="p-4">
+                  <h3 className="font-semibold text-foreground mb-1">
+                    {template.name}
+                  </h3>
+                  <p className="text-muted-foreground text-sm mb-3">
+                    {template.description}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {template.features.map((feature) => (
+                      <span 
+                        key={feature}
+                        className="text-xs px-2 py-1 rounded-full bg-accent text-muted-foreground"
+                      >
+                        {feature}
+                      </span>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Download Section */}
+        {selectedTemplate && (
+          <div className="fixed bottom-0 left-0 right-0 p-4 bg-card/95 backdrop-blur-sm border-t border-border animate-slide-in-right">
+            <div className="container mx-auto flex items-center justify-between">
+              <div>
+                <p className="text-foreground font-medium">
+                  Selected: {templates.find(t => t.id === selectedTemplate)?.name}
+                </p>
+                <p className="text-muted-foreground text-sm">
+                  Ready to download your optimized resume
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" onClick={() => setSelectedTemplate(null)}>
+                  Change Template
+                </Button>
+                <Button variant="glow" onClick={handleDownload}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Now
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+};
+
+export default ResumeTemplates;
