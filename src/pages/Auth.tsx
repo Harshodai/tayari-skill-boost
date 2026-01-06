@@ -1,16 +1,19 @@
-import { useState } from "react";
-import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Logo } from "@/components/Logo";
 import { Eye, EyeOff, Mail, Lock, User, Loader2, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+  const { user, signIn, signUp } = useAuth();
   
   const [isLogin, setIsLogin] = useState(searchParams.get("mode") !== "signup");
   const [showPassword, setShowPassword] = useState(false);
@@ -21,22 +24,46 @@ const Auth = () => {
     password: "",
   });
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (user) {
+      const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/resume";
+      navigate(from, { replace: true });
+    }
+  }, [user, navigate, location]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate authentication
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const { email, password, name } = formData;
 
-    toast({
-      title: isLogin ? "Welcome back!" : "Account created!",
-      description: isLogin 
-        ? "You've successfully signed in."
-        : "Welcome to Job Tayari. Let's get started!",
-    });
+    let result;
+    if (isLogin) {
+      result = await signIn(email, password);
+    } else {
+      result = await signUp(email, password, name);
+    }
+
+    if (result.error) {
+      toast({
+        title: "Error",
+        description: result.error,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: isLogin ? "Welcome back!" : "Account created!",
+        description: isLogin 
+          ? "You've successfully signed in."
+          : "Welcome to Job Tayari. Let's get started!",
+      });
+      
+      const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/resume";
+      navigate(from, { replace: true });
+    }
 
     setIsLoading(false);
-    navigate("/resume");
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,6 +72,11 @@ const Auth = () => {
       [e.target.name]: e.target.value,
     }));
   };
+
+  // Don't render if already logged in (will redirect)
+  if (user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-hero">
