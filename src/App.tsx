@@ -15,6 +15,14 @@ import InterviewComingSoon from "./pages/InterviewComingSoon";
 import JobsComingSoon from "./pages/JobsComingSoon";
 import FAQ from "./pages/FAQ";
 import Contact from "./pages/Contact";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import Pricing from "./pages/Pricing";
+import About from "./pages/About";
+import Careers from "./pages/Careers";
+import Blog from "./pages/Blog";
+import Help from "./pages/Help";
+import ForgotPassword from "./pages/ForgotPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +42,14 @@ const App = () => (
             <Route path="/contact" element={<Contact />} />
             <Route path="/interview" element={<InterviewComingSoon />} />
             <Route path="/jobs" element={<JobsComingSoon />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/careers" element={<Careers />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
             {/* Protected Routes */}
             <Route
