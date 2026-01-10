@@ -8,6 +8,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import Dashboard from "./pages/Dashboard";
+import Settings from "./pages/Settings";
 import ResumeUpload from "./pages/ResumeUpload";
 import ResumeResults from "./pages/ResumeResults";
 import ResumeTemplates from "./pages/ResumeTemplates";
@@ -52,6 +54,22 @@ const App = () => (
             <Route path="/forgot-password" element={<ForgotPassword />} />
 
             {/* Protected Routes */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/resume"
               element={
