@@ -38,7 +38,7 @@ const Settings = () => {
   
   // Form states
   const [profileData, setProfileData] = useState({
-    name: user?.name || "",
+    name: user?.user_metadata?.name || user?.email?.split("@")[0] || "",
     email: user?.email || "",
     phone: "",
     location: "",

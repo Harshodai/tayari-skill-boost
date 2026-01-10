@@ -6,6 +6,7 @@ import { ArrowLeft, Mail, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -22,10 +23,17 @@ const ForgotPassword = () => {
 
     setIsSubmitting(true);
 
-    // Simulate API call - will be replaced with Supabase
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth`,
+    });
 
     setIsSubmitting(false);
+    
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
     setIsSubmitted(true);
     toast.success("Password reset email sent!");
   };

@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
-import { Menu, X, LogOut, User } from "lucide-react";
+import { Menu, X, LogOut, User, LayoutDashboard, Settings, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -30,13 +31,23 @@ export function Header() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
     toast({
       title: "Signed out",
       description: "You've been successfully signed out.",
     });
     navigate("/");
+  };
+
+  const getUserDisplayName = () => {
+    if (!user) return "";
+    return user.user_metadata?.name || user.email?.split("@")[0] || "User";
+  };
+
+  const getUserInitials = () => {
+    const name = getUserDisplayName();
+    return name.slice(0, 2).toUpperCase();
   };
 
   return (
@@ -68,23 +79,41 @@ export function Header() {
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
-                      <User className="w-3.5 h-3.5 text-primary" />
-                    </div>
-                    <span className="max-w-[120px] truncate">{user.name}</span>
+                  <Button variant="ghost" className="gap-2 px-2 hover:bg-accent">
+                    <Avatar className="w-8 h-8">
+                      <AvatarFallback className="bg-primary/20 text-primary text-xs font-semibold">
+                        {getUserInitials()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="max-w-[120px] truncate font-medium">
+                      {getUserDisplayName()}
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem className="text-muted-foreground text-xs">
-                    {user.email}
-                  </DropdownMenuItem>
+                <DropdownMenuContent align="end" className="w-56">
+                  <div className="px-2 py-1.5">
+                    <p className="text-sm font-medium">{getUserDisplayName()}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link to="/resume">My Resumes</Link>
+                    <Link to="/dashboard" className="cursor-pointer">
+                      <LayoutDashboard className="w-4 h-4 mr-2" />
+                      Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/settings" className="cursor-pointer">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Settings
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                  <DropdownMenuItem 
+                    onClick={handleSignOut} 
+                    className="text-destructive focus:text-destructive cursor-pointer"
+                  >
                     <LogOut className="w-4 h-4 mr-2" />
                     Sign Out
                   </DropdownMenuItem>
@@ -134,10 +163,41 @@ export function Header() {
               <div className="flex flex-col gap-2 pt-4 mt-2 border-t border-border/50">
                 {user ? (
                   <>
-                    <div className="px-4 py-2 text-sm text-muted-foreground">
-                      Signed in as <span className="text-foreground">{user.email}</span>
+                    <div className="px-4 py-2 flex items-center gap-3">
+                      <Avatar className="w-10 h-10">
+                        <AvatarFallback className="bg-primary/20 text-primary font-semibold">
+                          {getUserInitials()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium">{getUserDisplayName()}</p>
+                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                      </div>
                     </div>
-                    <Button variant="ghost" onClick={handleSignOut} className="justify-start text-destructive">
+                    <Link
+                      to="/dashboard"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="px-4 py-3 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-2"
+                    >
+                      <LayoutDashboard className="w-4 h-4" />
+                      Dashboard
+                    </Link>
+                    <Link
+                      to="/settings"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="px-4 py-3 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-2"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Settings
+                    </Link>
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => {
+                        handleSignOut();
+                        setMobileMenuOpen(false);
+                      }} 
+                      className="justify-start text-destructive hover:text-destructive"
+                    >
                       <LogOut className="w-4 h-4 mr-2" />
                       Sign Out
                     </Button>
@@ -145,10 +205,10 @@ export function Header() {
                 ) : (
                   <>
                     <Button variant="ghost" asChild className="justify-start">
-                      <Link to="/auth">Sign In</Link>
+                      <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>Sign In</Link>
                     </Button>
                     <Button asChild className="justify-start">
-                      <Link to="/auth?mode=signup">Get Started</Link>
+                      <Link to="/auth?mode=signup" onClick={() => setMobileMenuOpen(false)}>Get Started</Link>
                     </Button>
                   </>
                 )}

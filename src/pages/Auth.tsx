@@ -38,6 +38,27 @@ const Auth = () => {
 
     const { email, password, name } = formData;
 
+    // Basic validation
+    if (!email || !password) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 8) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 8 characters long.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
     let result;
     if (isLogin) {
       result = await signIn(email, password);
@@ -47,10 +68,11 @@ const Auth = () => {
 
     if (result.error) {
       toast({
-        title: "Error",
+        title: "Authentication Error",
         description: result.error,
         variant: "destructive",
       });
+      setIsLoading(false);
     } else {
       toast({
         title: isLogin ? "Welcome back!" : "Account created!",
@@ -58,12 +80,8 @@ const Auth = () => {
           ? "You've successfully signed in."
           : "Welcome to Job Tayari. Let's get started!",
       });
-      
-      const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/resume";
-      navigate(from, { replace: true });
+      // Navigation happens via useEffect when user state changes
     }
-
-    setIsLoading(false);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
