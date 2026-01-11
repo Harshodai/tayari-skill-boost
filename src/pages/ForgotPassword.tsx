@@ -29,9 +29,10 @@ const ForgotPassword = () => {
 
     setIsSubmitting(false);
     
+    // Always show success to prevent email enumeration
+    // Log error internally but don't reveal it to users
     if (error) {
-      toast.error(error.message);
-      return;
+      console.warn('Password reset request failed (internal):', error.message);
     }
 
     setIsSubmitted(true);
