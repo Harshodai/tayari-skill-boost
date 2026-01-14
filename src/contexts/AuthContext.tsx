@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { getGenericAuthError } from "@/lib/auth-errors";
+import { checkRateLimit, recordFailedAttempt, resetRateLimit } from "@/lib/rate-limiter";
 
 interface AuthContextType {
   user: User | null;
@@ -42,16 +43,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
     try {
+      // Check rate limit before attempting login
+      const rateLimitCheck = checkRateLimit(email);
+      if (!rateLimitCheck.allowed) {
+        return { error: rateLimitCheck.message };
+      }
+
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
-        return { error: getGenericAuthError(error.message) };
+        // Record failed attempt and get rate limit message
+        const failureResult = recordFailedAttempt(email);
+        return { error: failureResult.message };
       }
+      
+      // Reset rate limit on successful login
+      resetRateLimit(email);
       return { error: null };
     } catch (err) {
+      recordFailedAttempt(email);
       return { error: 'Authentication failed. Please try again.' };
     }
   };

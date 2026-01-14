@@ -1,1 +1,4 @@
 project_id = "snvhgwconuidoymwdeae"
+
+[functions.check-rate-limit]
+verify_jwt = false

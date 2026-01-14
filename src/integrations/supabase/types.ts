@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      auth_attempts: {
+        Row: {
+          attempt_count: number
+          blocked_until: string | null
+          created_at: string
+          email: string
+          id: string
+          ip_hash: string | null
+          last_attempt_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          blocked_until?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          ip_hash?: string | null
+          last_attempt_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          blocked_until?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          ip_hash?: string | null
+          last_attempt_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -46,7 +76,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      cleanup_old_auth_attempts: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

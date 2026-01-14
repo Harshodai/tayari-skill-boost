@@ -6,6 +6,7 @@ import { UploadZone } from "@/components/ui/upload-zone";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   ArrowRight, 
   FileText, 
@@ -17,17 +18,20 @@ import {
   Target,
   Zap,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  LogIn
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useAuth } from "@/contexts/AuthContext";
 
 const ResumeUpload = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState("");
   const [customInstructions, setCustomInstructions] = useState("");
@@ -121,6 +125,22 @@ const ResumeUpload = () => {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-12">
+        {/* Sign-in prompt for guests */}
+        {!user && (
+          <Alert className="max-w-5xl mx-auto mb-8 border-primary/30 bg-primary/5">
+            <LogIn className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between flex-wrap gap-4">
+              <span>Sign in to save your results and access your history.</span>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/auth">
+                  Sign In
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-12">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-6">
