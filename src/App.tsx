@@ -70,14 +70,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/resume"
-              element={
-                <ProtectedRoute>
-                  <ResumeUpload />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/resume" element={<ResumeUpload />} />
             <Route
               path="/resume/results"
               element={

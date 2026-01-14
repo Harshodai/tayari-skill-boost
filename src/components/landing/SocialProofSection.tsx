@@ -1,35 +1,34 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Quote } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Sparkles, Rocket, Star, ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
-const testimonials = [
+const aspirationalCards = [
   {
-    name: "Sarah Chen",
-    role: "Software Engineer at Google",
-    avatar: "SC",
-    content: "Job Tayari helped me optimize my resume and land interviews at FAANG companies. The AI suggestions were incredibly accurate!",
-    rating: 5,
+    title: "Your Success Story",
+    description: "Share how Job Tayari helped you land your dream role at a top tech company.",
+    icon: Rocket,
+    cta: "Start Your Journey",
   },
   {
-    name: "Marcus Johnson",
-    role: "Senior Developer at Stripe",
-    avatar: "MJ",
-    content: "The mock interview feature is a game-changer. I felt so much more confident going into my actual interviews after practicing here.",
-    rating: 5,
+    title: "Your Testimonial",
+    description: "Be featured here after you've optimized your resume and aced your interviews.",
+    icon: Star,
+    cta: "Get Started Now",
   },
   {
-    name: "Priya Patel",
-    role: "Full Stack Developer at Airbnb",
-    avatar: "PP",
-    content: "Found my dream job through the personalized job matching. The platform understood exactly what I was looking for.",
-    rating: 5,
+    title: "Your Achievement",
+    description: "Join the community of engineers who transformed their careers with AI assistance.",
+    icon: Sparkles,
+    cta: "Begin Today",
   },
 ];
 
 const stats = [
-  { value: "10,000+", label: "Engineers Helped" },
-  { value: "95%", label: "Satisfaction Rate" },
-  { value: "2.5x", label: "More Interview Calls" },
-  { value: "45%", label: "Higher Offers" },
+  { value: "Join Us", label: "Be Our First Success" },
+  { value: "100%", label: "Commitment to You" },
+  { value: "AI", label: "Powered Insights" },
+  { value: "∞", label: "Career Possibilities" },
 ];
 
 export function SocialProofSection() {
@@ -57,51 +56,48 @@ export function SocialProofSection() {
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
           <h2 className="text-section font-bold text-foreground mb-4">
-            Loved by Engineers Worldwide
+            You Can Be The One Here
           </h2>
           <p className="text-muted-foreground text-lg">
-            Join thousands of software engineers who've accelerated their careers with Job Tayari.
+            Start your journey today and become one of the engineers who transform their careers with Job Tayari.
           </p>
         </div>
 
-        {/* Testimonials */}
+        {/* Aspirational Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
-          {testimonials.map((testimonial, index) => (
+          {aspirationalCards.map((card, index) => (
             <Card 
-              key={testimonial.name} 
-              className="relative animate-fade-in-up"
+              key={card.title} 
+              className="relative animate-fade-in-up group hover:border-primary/50 transition-colors"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
               <CardContent className="pt-6">
-                {/* Quote Icon */}
-                <Quote className="w-8 h-8 text-primary/20 mb-4" />
-
-                {/* Rating */}
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-warning text-warning" />
-                  ))}
+                {/* Icon */}
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
+                  <card.icon className="w-6 h-6 text-primary" />
                 </div>
 
-                {/* Content */}
-                <p className="text-foreground mb-6">
-                  "{testimonial.content}"
+                {/* Title */}
+                <h3 className="text-lg font-semibold text-foreground mb-3">
+                  {card.title}
+                </h3>
+
+                {/* Description */}
+                <p className="text-muted-foreground mb-6">
+                  {card.description}
                 </p>
 
-                {/* Author */}
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/20 text-primary font-semibold text-sm">
-                    {testimonial.avatar}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-foreground text-sm">
-                      {testimonial.name}
-                    </div>
-                    <div className="text-muted-foreground text-xs">
-                      {testimonial.role}
-                    </div>
-                  </div>
-                </div>
+                {/* CTA Button */}
+                <Button 
+                  variant="outline" 
+                  className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                  asChild
+                >
+                  <Link to="/resume">
+                    {card.cta}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           ))}
