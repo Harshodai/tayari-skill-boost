@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, Navigate } from "react-router-dom";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { ScoreDisplay } from "@/components/ui/score-display";
 import { 
   ArrowLeft, 
@@ -16,59 +17,35 @@ import {
   Target,
   Briefcase,
   GraduationCap,
-  FileText
+  FileText,
+  AlertCircle,
+  CheckCircle2,
+  XCircle
 } from "lucide-react";
+import type { ResumeAnalysisResult } from "@/types/resume";
 
-// Mock data - in production this would come from API
-const mockResults = {
-  overallScore: 78,
-  sections: [
-    {
-      name: "Skills Match",
-      score: 85,
-      icon: Target,
-      suggestions: [
-        "Add 'TypeScript' - mentioned 3 times in job description",
-        "Include 'AWS' experience - listed as required skill",
-        "Highlight 'React Testing Library' knowledge",
-      ],
-    },
-    {
-      name: "Experience Relevance",
-      score: 72,
-      icon: Briefcase,
-      suggestions: [
-        "Quantify your achievements with metrics (e.g., 'Improved load time by 40%')",
-        "Add more details about your team leadership experience",
-        "Mention experience with agile methodologies",
-      ],
-    },
-    {
-      name: "Education Fit",
-      score: 90,
-      icon: GraduationCap,
-      suggestions: [
-        "Your CS degree aligns well with requirements",
-        "Consider adding relevant certifications",
-      ],
-    },
-    {
-      name: "Formatting",
-      score: 65,
-      icon: FileText,
-      suggestions: [
-        "Use consistent bullet point formatting",
-        "Reduce resume to 2 pages or less",
-        "Add more white space between sections",
-        "Use stronger action verbs at the start of bullet points",
-      ],
-    },
-  ],
+// Icon mapping for sections
+const sectionIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  "Skills Match": Target,
+  "Experience Relevance": Briefcase,
+  "Education Fit": GraduationCap,
+  "Formatting": FileText,
 };
 
 const ResumeResults = () => {
-  const [expandedSections, setExpandedSections] = useState<string[]>(["Skills Match"]);
+  const location = useLocation();
+  const analysisResults = location.state?.analysisResults as ResumeAnalysisResult | undefined;
+  const resumeFileName = location.state?.resumeFileName as string | undefined;
+  
+  const [expandedSections, setExpandedSections] = useState<string[]>(
+    analysisResults?.sections?.[0]?.name ? [analysisResults.sections[0].name] : []
+  );
   const [appliedSuggestions, setAppliedSuggestions] = useState<string[]>([]);
+
+  // Redirect if no results
+  if (!analysisResults) {
+    return <Navigate to="/resume" replace />;
+  }
 
   const toggleSection = (sectionName: string) => {
     setExpandedSections((prev) =>
@@ -92,7 +69,7 @@ const ResumeResults = () => {
     return { text: "Needs Work", color: "text-destructive" };
   };
 
-  const overallLabel = getScoreLabel(mockResults.overallScore);
+  const overallLabel = getScoreLabel(analysisResults.overallScore);
 
   return (
     <Layout>
@@ -109,6 +86,11 @@ const ResumeResults = () => {
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">
               Resume Analysis Results
             </h1>
+            {resumeFileName && (
+              <p className="text-muted-foreground text-sm mt-1">
+                Analyzed: {resumeFileName}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <Button variant="outline" asChild>
@@ -132,37 +114,104 @@ const ResumeResults = () => {
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Overall Score Card */}
-          <Card className="lg:col-span-1 animate-fade-in-up">
-            <CardHeader className="text-center">
-              <CardTitle>Overall Match Score</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center">
-              <ScoreDisplay 
-                score={mockResults.overallScore} 
-                size="lg" 
-                showBar 
-                animated 
-              />
-              <div className={`mt-4 text-lg font-semibold ${overallLabel.color}`}>
-                {overallLabel.text}
-              </div>
-              <p className="text-muted-foreground text-sm text-center mt-2">
-                Your resume matches {mockResults.overallScore}% of the job requirements
-              </p>
-            </CardContent>
-          </Card>
+          {/* Left Column - Overall Score & Keywords */}
+          <div className="space-y-6">
+            {/* Overall Score Card */}
+            <Card className="animate-fade-in-up">
+              <CardHeader className="text-center">
+                <CardTitle>Overall Match Score</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center">
+                <ScoreDisplay 
+                  score={analysisResults.overallScore} 
+                  size="lg" 
+                  showBar 
+                  animated 
+                />
+                <div className={`mt-4 text-lg font-semibold ${overallLabel.color}`}>
+                  {overallLabel.text}
+                </div>
+                <p className="text-muted-foreground text-sm text-center mt-2">
+                  Your resume matches {analysisResults.overallScore}% of the job requirements
+                </p>
+              </CardContent>
+            </Card>
 
-          {/* Section Breakdown */}
+            {/* Keywords Card */}
+            <Card className="animate-fade-in-up" style={{ animationDelay: "0.1s" }}>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Target className="w-5 h-5 text-primary" />
+                  Keyword Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Matched Keywords */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 className="w-4 h-4 text-success" />
+                    <span className="text-sm font-medium">Matched Keywords</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {analysisResults.matchedKeywords.length > 0 ? (
+                      analysisResults.matchedKeywords.map((keyword) => (
+                        <Badge key={keyword} variant="outline" className="bg-success/10 border-success/30 text-success">
+                          {keyword}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground text-sm">No matched keywords found</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Missing Keywords */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <XCircle className="w-4 h-4 text-destructive" />
+                    <span className="text-sm font-medium">Missing Keywords</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {analysisResults.missingKeywords.length > 0 ? (
+                      analysisResults.missingKeywords.map((keyword) => (
+                        <Badge key={keyword} variant="outline" className="bg-destructive/10 border-destructive/30 text-destructive">
+                          {keyword}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground text-sm">Great! No critical keywords missing</span>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Summary Recommendation */}
+            <Card className="animate-fade-in-up" style={{ animationDelay: "0.2s" }}>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-primary" />
+                  AI Recommendation
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  {analysisResults.summaryRecommendation}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Column - Section Breakdown */}
           <div className="lg:col-span-2 space-y-4">
             <h2 className="text-xl font-semibold text-foreground mb-4">
               Detailed Breakdown
             </h2>
 
-            {mockResults.sections.map((section, index) => {
+            {analysisResults.sections.map((section, index) => {
               const isExpanded = expandedSections.includes(section.name);
               const scoreLabel = getScoreLabel(section.score);
-              const Icon = section.icon;
+              const Icon = sectionIcons[section.name] || FileText;
 
               return (
                 <Card 
@@ -193,7 +242,7 @@ const ResumeResults = () => {
                     </div>
                   </button>
 
-                  {isExpanded && (
+                  {isExpanded && section.suggestions.length > 0 && (
                     <CardContent className="pt-0 pb-4 px-4 border-t border-border/50">
                       <div className="pt-4">
                         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">

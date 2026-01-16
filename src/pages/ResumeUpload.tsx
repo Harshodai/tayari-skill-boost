@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +19,8 @@ import {
   Zap,
   ChevronDown,
   ChevronUp,
-  LogIn
+  LogIn,
+  AlertCircle
 } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import {
@@ -28,15 +29,23 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { extractTextFromFile } from "@/lib/resume-parser";
+import { toast } from "sonner";
+import type { AnalyzeResumeResponse } from "@/types/resume";
 
 const ResumeUpload = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeText, setResumeText] = useState<string>("");
+  const [parsingError, setParsingError] = useState<string | null>(null);
   const [jobDescription, setJobDescription] = useState("");
   const [customInstructions, setCustomInstructions] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // AI Workflow Options
   const [aiOptions, setAiOptions] = useState({
@@ -46,15 +55,96 @@ const ResumeUpload = () => {
     tailorSummary: true,
   });
 
+  // Extract text when file is selected
+  useEffect(() => {
+    if (!resumeFile) {
+      setResumeText("");
+      setParsingError(null);
+      return;
+    }
+
+    const extractText = async () => {
+      try {
+        setParsingError(null);
+        const text = await extractTextFromFile(resumeFile);
+        setResumeText(text);
+        console.log("Extracted resume text:", text.substring(0, 200) + "...");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to parse file";
+        setParsingError(message);
+        setResumeText("");
+        console.error("Resume parsing error:", err);
+      }
+    };
+
+    extractText();
+  }, [resumeFile]);
+
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
-    // Simulate AI processing time
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    setIsAnalyzing(false);
-    navigate("/resume/results");
+    setError(null);
+    setAnalysisStep(0);
+    
+    try {
+      // Step 1: Parsing resume content
+      setAnalysisStep(1);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Check if we have resume text
+      if (!resumeText && resumeFile) {
+        throw new Error("Could not extract text from your resume. Please try a different file.");
+      }
+      
+      // Step 2: Extracting job requirements
+      setAnalysisStep(2);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Step 3: Calling AI for analysis
+      setAnalysisStep(3);
+      
+      const { data, error: invokeError } = await supabase.functions.invoke<AnalyzeResumeResponse>(
+        'analyze-resume',
+        {
+          body: {
+            resumeText,
+            jobDescription,
+            customInstructions,
+            aiOptions,
+          },
+        }
+      );
+
+      if (invokeError) {
+        console.error("Edge function error:", invokeError);
+        throw new Error(invokeError.message || "Failed to analyze resume");
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.error || "Analysis failed");
+      }
+
+      // Step 4: Complete
+      setAnalysisStep(4);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Navigate to results with the analysis data
+      navigate("/resume/results", { 
+        state: { 
+          analysisResults: data.data,
+          resumeFileName: resumeFile?.name || "Resume",
+        } 
+      });
+      
+    } catch (err) {
+      console.error("Analysis error:", err);
+      const message = err instanceof Error ? err.message : "Failed to analyze resume";
+      setError(message);
+      toast.error(message);
+      setIsAnalyzing(false);
+    }
   };
 
-  const canAnalyze = resumeFile && jobDescription.trim().length > 50;
+  const canAnalyze = (resumeText || resumeFile) && jobDescription.trim().length > 50 && !parsingError;
 
   const handlePaste = async () => {
     try {
@@ -64,6 +154,13 @@ const ResumeUpload = () => {
       console.error("Failed to paste from clipboard");
     }
   };
+
+  const analysisSteps = [
+    { label: "Preparing analysis", done: analysisStep >= 1 },
+    { label: "Parsing resume content", done: analysisStep >= 2 },
+    { label: "Analyzing with AI", done: analysisStep >= 3 },
+    { label: "Generating recommendations", done: analysisStep >= 4 },
+  ];
 
   // Loading/Analyzing State
   if (isAnalyzing) {
@@ -92,12 +189,7 @@ const ResumeUpload = () => {
 
             {/* Progress steps */}
             <div className="space-y-4 text-left max-w-sm mx-auto">
-              {[
-                { label: "Parsing resume content", done: true },
-                { label: "Extracting job requirements", done: true },
-                { label: "Matching skills and experience", done: false },
-                { label: "Generating recommendations", done: false },
-              ].map((step, index) => (
+              {analysisSteps.map((step, index) => (
                 <div 
                   key={step.label} 
                   className="flex items-center gap-3 animate-fade-in-up"
@@ -141,6 +233,14 @@ const ResumeUpload = () => {
           </Alert>
         )}
 
+        {/* Error Alert */}
+        {error && (
+          <Alert variant="destructive" className="max-w-5xl mx-auto mb-8">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-12">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-6">
@@ -178,6 +278,19 @@ const ResumeUpload = () => {
                 accept=".pdf,.docx"
                 maxSize={5 * 1024 * 1024}
               />
+              {parsingError && (
+                <Alert variant="destructive" className="mt-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    {parsingError}
+                  </AlertDescription>
+                </Alert>
+              )}
+              {resumeText && !parsingError && (
+                <p className="text-success text-sm mt-2 flex items-center gap-2">
+                  <span>✓</span> Resume parsed successfully ({resumeText.length} characters)
+                </p>
+              )}
             </CardContent>
           </Card>
 
