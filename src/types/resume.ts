@@ -29,3 +29,22 @@ export interface AnalyzeResumeResponse {
   data?: ResumeAnalysisResult;
   error?: string;
 }
+
+// Types for resume PDF generation
+export interface GenerateResumeRequest {
+  resumeText: string;
+  analysisResults: ResumeAnalysisResult;
+  appliedSuggestions: string[];
+  template: string;
+  jobDescription?: string;
+}
+
+export interface GenerateResumeResponse {
+  success: boolean;
+  pdfGenerated?: boolean;
+  pdfBase64?: string;
+  latexSource?: string;
+  message?: string;
+  compilationLog?: string;
+  error?: string;
+}

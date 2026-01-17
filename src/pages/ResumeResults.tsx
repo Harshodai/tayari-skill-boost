@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation, Navigate } from "react-router-dom";
+import { Link, useLocation, Navigate, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -34,13 +34,28 @@ const sectionIcons: Record<string, React.ComponentType<{ className?: string }>> 
 
 const ResumeResults = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const analysisResults = location.state?.analysisResults as ResumeAnalysisResult | undefined;
   const resumeFileName = location.state?.resumeFileName as string | undefined;
+  const resumeText = location.state?.resumeText as string | undefined;
+  const jobDescription = location.state?.jobDescription as string | undefined;
   
   const [expandedSections, setExpandedSections] = useState<string[]>(
     analysisResults?.sections?.[0]?.name ? [analysisResults.sections[0].name] : []
   );
   const [appliedSuggestions, setAppliedSuggestions] = useState<string[]>([]);
+
+  const handleChooseTemplate = () => {
+    navigate("/resume/templates", {
+      state: {
+        analysisResults,
+        resumeFileName,
+        resumeText,
+        jobDescription,
+        appliedSuggestions,
+      },
+    });
+  };
 
   // Redirect if no results
   if (!analysisResults) {
@@ -93,15 +108,9 @@ const ResumeResults = () => {
             )}
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" asChild>
-              <Link to="/resume/templates">
-                <Edit className="w-4 h-4 mr-2" />
-                Choose Template
-              </Link>
-            </Button>
-            <Button variant="outline">
-              <Download className="w-4 h-4 mr-2" />
-              Download
+            <Button variant="outline" onClick={handleChooseTemplate}>
+              <Edit className="w-4 h-4 mr-2" />
+              Choose Template
             </Button>
             <Button variant="ghost" asChild>
               <Link to="/resume">
@@ -294,10 +303,8 @@ const ResumeResults = () => {
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-12">
-          <Button size="lg" variant="glow" asChild>
-            <Link to="/resume/templates">
-              Choose a Template & Download
-            </Link>
+          <Button size="lg" variant="glow" onClick={handleChooseTemplate}>
+            Choose a Template & Download
           </Button>
           <Button size="lg" variant="outline" asChild>
             <Link to="/resume">
