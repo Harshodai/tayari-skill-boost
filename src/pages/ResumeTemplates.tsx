@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, Navigate } from "react-router-dom";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Check, Eye } from "lucide-react";
+import { ArrowLeft, Download, Check, Eye, Loader2, FileCode } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import type { ResumeAnalysisResult, GenerateResumeResponse } from "@/types/resume";
 
 const templates = [
   {
@@ -52,12 +55,108 @@ const templates = [
 ];
 
 const ResumeTemplates = () => {
+  const location = useLocation();
+  const analysisResults = location.state?.analysisResults as ResumeAnalysisResult | undefined;
+  const resumeText = location.state?.resumeText as string | undefined;
+  const resumeFileName = location.state?.resumeFileName as string | undefined;
+  const jobDescription = location.state?.jobDescription as string | undefined;
+  const appliedSuggestions = location.state?.appliedSuggestions as string[] || [];
+
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [hoveredTemplate, setHoveredTemplate] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStep, setGenerationStep] = useState<string>("");
 
-  const handleDownload = () => {
-    // In production, this would generate and download the resume
-    alert(`Downloading resume with "${selectedTemplate}" template`);
+  // Redirect if no data passed
+  if (!analysisResults || !resumeText) {
+    return <Navigate to="/resume/results" replace />;
+  }
+
+  const handleDownload = async () => {
+    if (!selectedTemplate) return;
+
+    setIsGenerating(true);
+    setGenerationStep("Optimizing resume content...");
+
+    try {
+      const response = await supabase.functions.invoke<GenerateResumeResponse>("generate-resume-pdf", {
+        body: {
+          resumeText,
+          analysisResults,
+          appliedSuggestions,
+          template: selectedTemplate,
+          jobDescription,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to generate resume");
+      }
+
+      const data = response.data;
+
+      if (!data?.success) {
+        throw new Error(data?.error || "Failed to generate resume");
+      }
+
+      if (data.pdfGenerated && data.pdfBase64) {
+        setGenerationStep("Downloading PDF...");
+        // Download PDF
+        const binaryString = atob(data.pdfBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${resumeFileName?.replace(/\.[^/.]+$/, "") || "resume"}_optimized.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        toast.success("Resume PDF downloaded successfully!");
+      } else if (data.latexSource) {
+        // Download LaTeX source if PDF failed
+        setGenerationStep("Downloading LaTeX source...");
+        const blob = new Blob([data.latexSource], { type: "text/x-latex" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${resumeFileName?.replace(/\.[^/.]+$/, "") || "resume"}_optimized.tex`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        toast.info("PDF compilation failed. LaTeX source downloaded instead.", {
+          description: "You can compile it using Overleaf or a local LaTeX installation.",
+          duration: 5000,
+        });
+      }
+    } catch (error) {
+      console.error("Error generating resume:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate resume";
+      
+      if (errorMessage.includes("Too many requests")) {
+        toast.error("Rate limit exceeded", {
+          description: "Please wait a moment and try again.",
+        });
+      } else if (errorMessage.includes("credits")) {
+        toast.error("AI credits depleted", {
+          description: "Please add more credits to continue.",
+        });
+      } else {
+        toast.error("Failed to generate resume", {
+          description: errorMessage,
+        });
+      }
+    } finally {
+      setIsGenerating(false);
+      setGenerationStep("");
+    }
   };
 
   return (
@@ -83,10 +182,19 @@ const ResumeTemplates = () => {
             size="lg" 
             variant="glow"
             onClick={handleDownload}
-            disabled={!selectedTemplate}
+            disabled={!selectedTemplate || isGenerating}
           >
-            <Download className="w-5 h-5 mr-2" />
-            Download Resume
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                {generationStep || "Generating..."}
+              </>
+            ) : (
+              <>
+                <Download className="w-5 h-5 mr-2" />
+                Download Resume
+              </>
+            )}
           </Button>
         </div>
 
@@ -181,12 +289,21 @@ const ResumeTemplates = () => {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <Button variant="outline" onClick={() => setSelectedTemplate(null)}>
+                <Button variant="outline" onClick={() => setSelectedTemplate(null)} disabled={isGenerating}>
                   Change Template
                 </Button>
-                <Button variant="glow" onClick={handleDownload}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Now
+                <Button variant="glow" onClick={handleDownload} disabled={isGenerating}>
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      {generationStep || "Generating..."}
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Now
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
