@@ -3,12 +3,12 @@ import { Link, useLocation, Navigate } from "react-router-dom";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Check, Eye, Loader2, FileCode } from "lucide-react";
+import { ArrowLeft, Download, Check, Eye, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { ResumeAnalysisResult, GenerateResumeResponse } from "@/types/resume";
-
+import { ResumePreviewModal } from "@/components/resume/ResumePreviewModal";
+import type { ResumeAnalysisResult, GenerateResumeResponse, ParsedResume } from "@/types/resume";
 const templates = [
   {
     id: "modern",
@@ -61,12 +61,13 @@ const ResumeTemplates = () => {
   const resumeFileName = location.state?.resumeFileName as string | undefined;
   const jobDescription = location.state?.jobDescription as string | undefined;
   const appliedSuggestions = location.state?.appliedSuggestions as string[] || [];
+  const parsedResume = location.state?.parsedResume as ParsedResume | undefined;
 
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [hoveredTemplate, setHoveredTemplate] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState<string>("");
-
+  const [previewOpen, setPreviewOpen] = useState(false);
   // Redirect if no data passed
   if (!analysisResults || !resumeText) {
     return <Navigate to="/resume/results" replace />;
@@ -238,7 +239,15 @@ const ResumeTemplates = () => {
                   {/* Hover Overlay */}
                   {(isHovered || isSelected) && (
                     <div className="absolute inset-0 bg-background/80 flex items-center justify-center gap-2 animate-fade-in">
-                      <Button size="sm" variant="outline">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedTemplate(template.id);
+                          setPreviewOpen(true);
+                        }}
+                      >
                         <Eye className="w-4 h-4 mr-2" />
                         Preview
                       </Button>
@@ -308,6 +317,22 @@ const ResumeTemplates = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Preview Modal */}
+        {selectedTemplate && (
+          <ResumePreviewModal
+            open={previewOpen}
+            onOpenChange={setPreviewOpen}
+            parsedResume={parsedResume || null}
+            analysisResults={analysisResults}
+            resumeText={resumeText}
+            jobDescription={jobDescription}
+            appliedSuggestions={appliedSuggestions}
+            template={selectedTemplate}
+            templateName={templates.find(t => t.id === selectedTemplate)?.name || ""}
+            resumeFileName={resumeFileName}
+          />
         )}
       </div>
     </Layout>

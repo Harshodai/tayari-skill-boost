@@ -18,10 +18,15 @@ import {
   Eye,
   Download,
   Trash2,
-  Star
+  Star,
+  History
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { AnalysisHistoryList } from "@/components/resume/AnalysisHistoryList";
+import type { ResumeAnalysisRecord } from "@/types/resume";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -128,13 +133,41 @@ const getScoreColor = (score: number) => {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("resumes");
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("history");
+
+  // Fetch analysis history
+  const { data: analysisHistory = [], isLoading: isLoadingHistory } = useQuery({
+    queryKey: ["resume-analyses", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("resume_analyses")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      
+      if (error) throw error;
+      return (data || []) as unknown as ResumeAnalysisRecord[];
+    },
+    enabled: !!user,
+  });
+
+  const handleDeleteAnalysis = (id: string) => {
+    queryClient.setQueryData(
+      ["resume-analyses", user?.id],
+      (old: ResumeAnalysisRecord[] | undefined) => old?.filter(a => a.id !== id) || []
+    );
+  };
+
+  const avgScore = analysisHistory.length > 0 
+    ? Math.round(analysisHistory.reduce((acc, a) => acc + a.overall_score, 0) / analysisHistory.length)
+    : 0;
 
   const stats = {
     totalResumes: savedResumes.length,
+    analyses: analysisHistory.length,
     applications: applicationHistory.length,
-    interviews: applicationHistory.filter(a => a.status === "interview").length,
-    avgScore: Math.round(savedResumes.reduce((acc, r) => acc + r.score, 0) / savedResumes.length),
+    avgScore,
   };
 
   return (
@@ -154,8 +187,8 @@ const Dashboard = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {[
             { label: "Saved Resumes", value: stats.totalResumes, icon: FileText, color: "text-primary" },
-            { label: "Applications", value: stats.applications, icon: Briefcase, color: "text-secondary" },
-            { label: "Interviews", value: stats.interviews, icon: Calendar, color: "text-success" },
+            { label: "Analyses", value: stats.analyses, icon: History, color: "text-secondary" },
+            { label: "Applications", value: stats.applications, icon: Briefcase, color: "text-success" },
             { label: "Avg. Score", value: `${stats.avgScore}%`, icon: TrendingUp, color: "text-warning" },
           ].map((stat) => (
             <Card key={stat.label} className="animate-fade-in-up">
@@ -189,9 +222,19 @@ const Dashboard = () => {
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-card border border-border">
+            <TabsTrigger value="history">Analysis History</TabsTrigger>
             <TabsTrigger value="resumes">Saved Resumes</TabsTrigger>
-            <TabsTrigger value="applications">Application History</TabsTrigger>
+            <TabsTrigger value="applications">Applications</TabsTrigger>
           </TabsList>
+
+          {/* Analysis History Tab */}
+          <TabsContent value="history" className="space-y-4">
+            <AnalysisHistoryList 
+              analyses={analysisHistory}
+              onDelete={handleDeleteAnalysis}
+              isLoading={isLoadingHistory}
+            />
+          </TabsContent>
 
           {/* Saved Resumes Tab */}
           <TabsContent value="resumes" className="space-y-4">

@@ -71,6 +71,48 @@ export type Database = {
         }
         Relationships: []
       }
+      resume_analyses: {
+        Row: {
+          analysis_data: Json
+          company_name: string | null
+          created_at: string
+          id: string
+          job_description: string | null
+          job_title: string | null
+          overall_score: number
+          parsed_resume: Json | null
+          resume_filename: string
+          resume_text: string | null
+          user_id: string
+        }
+        Insert: {
+          analysis_data: Json
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          job_description?: string | null
+          job_title?: string | null
+          overall_score: number
+          parsed_resume?: Json | null
+          resume_filename: string
+          resume_text?: string | null
+          user_id: string
+        }
+        Update: {
+          analysis_data?: Json
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          job_description?: string | null
+          job_title?: string | null
+          overall_score?: number
+          parsed_resume?: Json | null
+          resume_filename?: string
+          resume_text?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
