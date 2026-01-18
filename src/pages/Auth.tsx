@@ -1,12 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Logo } from "@/components/Logo";
-import { Eye, EyeOff, Mail, Lock, User, Loader2, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Loader2, ArrowLeft, ShieldCheck, ShieldAlert, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { PasswordStrengthMeter } from "@/components/auth";
+import { isPasswordValid } from "@/lib/password-validator";
+import { supabase } from "@/integrations/supabase/client";
+
+interface BreachResult {
+  breached: boolean;
+  count?: number;
+}
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
@@ -24,6 +32,11 @@ const Auth = () => {
     password: "",
   });
 
+  // Password breach checking state
+  const [isCheckingBreach, setIsCheckingBreach] = useState(false);
+  const [breachResult, setBreachResult] = useState<BreachResult | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Redirect if already authenticated
   useEffect(() => {
     if (user) {
@@ -31,6 +44,60 @@ const Auth = () => {
       navigate(from, { replace: true });
     }
   }, [user, navigate, location]);
+
+  // Debounced breach check
+  const checkPasswordBreach = useCallback(async (password: string) => {
+    if (password.length < 8) {
+      setBreachResult(null);
+      return;
+    }
+
+    setIsCheckingBreach(true);
+    try {
+      const response = await supabase.functions.invoke("check-breached-password", {
+        body: { password },
+      });
+
+      if (response.data?.success) {
+        setBreachResult({
+          breached: response.data.breached,
+          count: response.data.count,
+        });
+      } else {
+        // Don't block on breach check failure - just warn
+        console.warn("Breach check failed:", response.data?.error);
+        setBreachResult(null);
+      }
+    } catch (error) {
+      console.error("Error checking password breach:", error);
+      setBreachResult(null);
+    } finally {
+      setIsCheckingBreach(false);
+    }
+  }, []);
+
+  // Handle password change with debounced breach check
+  useEffect(() => {
+    if (isLogin) return; // Only check on signup
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    if (formData.password.length >= 8) {
+      debounceTimerRef.current = setTimeout(() => {
+        checkPasswordBreach(formData.password);
+      }, 500);
+    } else {
+      setBreachResult(null);
+    }
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [formData.password, isLogin, checkPasswordBreach]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,14 +116,38 @@ const Auth = () => {
       return;
     }
 
-    if (password.length < 8) {
-      toast({
-        title: "Error",
-        description: "Password must be at least 8 characters long.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
+    // Enhanced password validation for signup
+    if (!isLogin) {
+      if (password.length < 12) {
+        toast({
+          title: "Password too short",
+          description: "Password must be at least 12 characters long.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      if (!isPasswordValid(password)) {
+        toast({
+          title: "Password doesn't meet requirements",
+          description: "Please ensure your password meets all the requirements below.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Block if password is breached
+      if (breachResult?.breached) {
+        toast({
+          title: "Password compromised",
+          description: "This password has been exposed in a data breach. Please choose a different password.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
     }
 
     let result;
@@ -85,16 +176,59 @@ const Auth = () => {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [name]: value,
     }));
   };
+
+  // Reset breach result when switching modes
+  useEffect(() => {
+    setBreachResult(null);
+    setFormData(prev => ({ ...prev, password: "" }));
+  }, [isLogin]);
 
   // Don't render if already logged in (will redirect)
   if (user) {
     return null;
   }
+
+  const getBreachIndicator = () => {
+    if (isLogin || formData.password.length < 8) return null;
+
+    if (isCheckingBreach) {
+      return (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse">
+          <Shield className="w-4 h-4" />
+          <span>Checking password security...</span>
+        </div>
+      );
+    }
+
+    if (breachResult?.breached) {
+      return (
+        <div className="flex items-center gap-2 text-sm text-destructive">
+          <ShieldAlert className="w-4 h-4" />
+          <span>
+            ⚠️ This password was found in {breachResult.count?.toLocaleString()} data breaches. 
+            Please choose a different password.
+          </span>
+        </div>
+      );
+    }
+
+    if (breachResult && !breachResult.breached) {
+      return (
+        <div className="flex items-center gap-2 text-sm text-success">
+          <ShieldCheck className="w-4 h-4" />
+          <span>Password not found in known data breaches ✓</span>
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-hero">
@@ -182,12 +316,12 @@ const Auth = () => {
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
+                    placeholder={isLogin ? "••••••••" : "Min 12 characters"}
                     className="pl-10 pr-10"
                     value={formData.password}
                     onChange={handleChange}
                     required
-                    minLength={8}
+                    minLength={isLogin ? 8 : 12}
                   />
                   <button
                     type="button"
@@ -197,6 +331,20 @@ const Auth = () => {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+
+                {/* Password Strength Meter - Only on signup */}
+                {!isLogin && formData.password.length > 0 && (
+                  <div className="mt-3 space-y-3">
+                    <PasswordStrengthMeter 
+                      password={formData.password} 
+                      showRequirements={true}
+                    />
+                    {/* Breach Check Indicator */}
+                    <div className="transition-all duration-300">
+                      {getBreachIndicator()}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {isLogin && (
@@ -207,7 +355,12 @@ const Auth = () => {
                 </div>
               )}
 
-              <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+              <Button 
+                type="submit" 
+                className="w-full" 
+                size="lg" 
+                disabled={isLoading || (!isLogin && (isCheckingBreach || breachResult?.breached))}
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />

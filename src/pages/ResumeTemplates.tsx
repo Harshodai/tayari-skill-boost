@@ -3,12 +3,13 @@ import { Link, useLocation, Navigate } from "react-router-dom";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Check, Eye, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, Check, Eye, Loader2, AlertTriangle, FileCode, CheckCircle2, CircleDot, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ResumePreviewModal } from "@/components/resume/ResumePreviewModal";
 import type { ResumeAnalysisResult, GenerateResumeResponse, ParsedResume } from "@/types/resume";
+
 const templates = [
   {
     id: "modern",
@@ -54,6 +55,14 @@ const templates = [
   },
 ];
 
+type StepStatus = 'pending' | 'active' | 'complete' | 'error';
+
+interface CompilationStep {
+  id: string;
+  label: string;
+  status: StepStatus;
+}
+
 const ResumeTemplates = () => {
   const location = useLocation();
   const analysisResults = location.state?.analysisResults as ResumeAnalysisResult | undefined;
@@ -66,18 +75,35 @@ const ResumeTemplates = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [hoveredTemplate, setHoveredTemplate] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationStep, setGenerationStep] = useState<string>("");
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [compilationSteps, setCompilationSteps] = useState<CompilationStep[]>([
+    { id: 'optimizing', label: 'Optimizing content', status: 'pending' },
+    { id: 'converting', label: 'Converting to LaTeX', status: 'pending' },
+    { id: 'compiling', label: 'Compiling PDF', status: 'pending' },
+    { id: 'downloading', label: 'Preparing download', status: 'pending' },
+  ]);
+
   // Redirect if no data passed
   if (!analysisResults || !resumeText) {
     return <Navigate to="/resume/results" replace />;
   }
 
+  const updateStepStatus = (stepId: string, status: StepStatus) => {
+    setCompilationSteps(prev => prev.map(step => 
+      step.id === stepId ? { ...step, status } : step
+    ));
+  };
+
+  const resetSteps = () => {
+    setCompilationSteps(prev => prev.map(step => ({ ...step, status: 'pending' })));
+  };
+
   const handleDownload = async () => {
     if (!selectedTemplate) return;
 
     setIsGenerating(true);
-    setGenerationStep("Optimizing resume content...");
+    resetSteps();
+    updateStepStatus('optimizing', 'active');
 
     try {
       const response = await supabase.functions.invoke<GenerateResumeResponse>("generate-resume-pdf", {
@@ -100,8 +126,14 @@ const ResumeTemplates = () => {
         throw new Error(data?.error || "Failed to generate resume");
       }
 
+      // Update progress based on response
+      updateStepStatus('optimizing', 'complete');
+      updateStepStatus('converting', 'complete');
+
       if (data.pdfGenerated && data.pdfBase64) {
-        setGenerationStep("Downloading PDF...");
+        updateStepStatus('compiling', 'complete');
+        updateStepStatus('downloading', 'active');
+
         // Download PDF
         const binaryString = atob(data.pdfBase64);
         const bytes = new Uint8Array(binaryString.length);
@@ -118,10 +150,14 @@ const ResumeTemplates = () => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        toast.success("Resume PDF downloaded successfully!");
+        updateStepStatus('downloading', 'complete');
+        toast.success("Resume PDF downloaded successfully!", {
+          description: data.compiler ? `Compiled with ${data.compiler}` : undefined,
+        });
       } else if (data.latexSource) {
-        // Download LaTeX source if PDF failed
-        setGenerationStep("Downloading LaTeX source...");
+        // PDF compilation failed - offer LaTeX download
+        updateStepStatus('compiling', 'error');
+        
         const blob = new Blob([data.latexSource], { type: "text/x-latex" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -132,14 +168,20 @@ const ResumeTemplates = () => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        toast.info("PDF compilation failed. LaTeX source downloaded instead.", {
-          description: "You can compile it using Overleaf or a local LaTeX installation.",
-          duration: 5000,
+        toast.info("PDF compilation failed. LaTeX source downloaded.", {
+          description: data.suggestion || "You can compile it using Overleaf or a local LaTeX installation.",
+          duration: 6000,
         });
       }
     } catch (error) {
       console.error("Error generating resume:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to generate resume";
+      
+      // Mark current step as error
+      const activeStep = compilationSteps.find(s => s.status === 'active');
+      if (activeStep) {
+        updateStepStatus(activeStep.id, 'error');
+      }
       
       if (errorMessage.includes("Too many requests")) {
         toast.error("Rate limit exceeded", {
@@ -156,7 +198,19 @@ const ResumeTemplates = () => {
       }
     } finally {
       setIsGenerating(false);
-      setGenerationStep("");
+    }
+  };
+
+  const getStepIcon = (status: StepStatus) => {
+    switch (status) {
+      case 'complete':
+        return <CheckCircle2 className="w-5 h-5 text-success" />;
+      case 'active':
+        return <Loader2 className="w-5 h-5 text-primary animate-spin" />;
+      case 'error':
+        return <AlertTriangle className="w-5 h-5 text-destructive" />;
+      default:
+        return <Circle className="w-5 h-5 text-muted-foreground" />;
     }
   };
 
@@ -188,7 +242,7 @@ const ResumeTemplates = () => {
             {isGenerating ? (
               <>
                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                {generationStep || "Generating..."}
+                Generating...
               </>
             ) : (
               <>
@@ -198,6 +252,44 @@ const ResumeTemplates = () => {
             )}
           </Button>
         </div>
+
+        {/* Progress Indicator */}
+        {isGenerating && (
+          <div className="max-w-lg mx-auto mb-8 animate-fade-in">
+            <Card className="overflow-hidden border-primary/30">
+              <CardContent className="p-6">
+                <h3 className="font-semibold mb-4 text-center">Generating Your Resume</h3>
+                <div className="space-y-3">
+                  {compilationSteps.map((step, index) => (
+                    <div 
+                      key={step.id}
+                      className={cn(
+                        "flex items-center gap-3 p-3 rounded-lg transition-all",
+                        step.status === 'active' && "bg-primary/10 border border-primary/30",
+                        step.status === 'complete' && "bg-success/10",
+                        step.status === 'error' && "bg-destructive/10"
+                      )}
+                    >
+                      {getStepIcon(step.status)}
+                      <span className={cn(
+                        "text-sm",
+                        step.status === 'active' && "font-medium text-foreground",
+                        step.status === 'complete' && "text-success",
+                        step.status === 'error' && "text-destructive",
+                        step.status === 'pending' && "text-muted-foreground"
+                      )}>
+                        {step.label}
+                      </span>
+                      {step.status === 'complete' && (
+                        <span className="ml-auto text-xs text-success">Complete</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Template Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -305,7 +397,7 @@ const ResumeTemplates = () => {
                   {isGenerating ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {generationStep || "Generating..."}
+                      Generating...
                     </>
                   ) : (
                     <>

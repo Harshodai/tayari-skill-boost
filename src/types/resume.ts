@@ -84,6 +84,15 @@ export interface GenerateResumeResponse {
   message?: string;
   compilationLog?: string;
   error?: string;
+  compiler?: string;
+  suggestion?: string;
+  errorType?: string;
+  errorMessage?: string;
+  progress?: {
+    step: 'optimizing' | 'converting' | 'compiling' | 'downloading';
+    message: string;
+    progress: number;
+  };
 }
 
 // Types for analysis history
