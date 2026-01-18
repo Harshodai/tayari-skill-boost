@@ -127,11 +127,31 @@ const ResumeUpload = () => {
       setAnalysisStep(4);
       await new Promise(resolve => setTimeout(resolve, 300));
       
+      // Save to history if logged in
+      if (user && data.data) {
+        try {
+          await supabase.from("resume_analyses").insert({
+            user_id: user.id,
+            resume_filename: resumeFile?.name || "Resume",
+            overall_score: data.data.overallScore,
+            analysis_data: data.data as any,
+            parsed_resume: data.parsedResume as any,
+            resume_text: resumeText,
+            job_description: jobDescription,
+          });
+        } catch (saveError) {
+          console.error("Failed to save analysis history:", saveError);
+        }
+      }
+
       // Navigate to results with the analysis data
       navigate("/resume/results", { 
         state: { 
           analysisResults: data.data,
+          parsedResume: data.parsedResume,
           resumeFileName: resumeFile?.name || "Resume",
+          resumeText,
+          jobDescription,
         } 
       });
       

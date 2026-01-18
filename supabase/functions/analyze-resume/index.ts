@@ -20,6 +20,34 @@ interface AnalyzeResumeRequest {
   };
 }
 
+interface ParsedResume {
+  name: string;
+  email?: string;
+  phone?: string;
+  linkedin?: string;
+  summary?: string;
+  experience: {
+    title: string;
+    company: string;
+    startDate: string;
+    endDate: string;
+    description?: string;
+    achievements: string[];
+  }[];
+  education: {
+    degree: string;
+    institution: string;
+    year: string;
+    gpa?: string;
+  }[];
+  skills: string[];
+  projects?: {
+    name: string;
+    description?: string;
+    technologies: string[];
+  }[];
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -103,7 +131,8 @@ Remember: Respond with ONLY valid JSON, no other text.`;
 
     console.log("Calling Lovable AI Gateway for resume analysis...");
 
-    const response = await fetch(LOVABLE_AI_URL, {
+    // Step 1: Analyze resume
+    const analysisResponse = await fetch(LOVABLE_AI_URL, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
@@ -120,8 +149,8 @@ Remember: Respond with ONLY valid JSON, no other text.`;
       }),
     });
 
-    if (!response.ok) {
-      const status = response.status;
+    if (!analysisResponse.ok) {
+      const status = analysisResponse.status;
       console.error(`AI Gateway error: ${status}`);
       
       if (status === 429) {
@@ -138,7 +167,7 @@ Remember: Respond with ONLY valid JSON, no other text.`;
         );
       }
 
-      const errorText = await response.text();
+      const errorText = await analysisResponse.text();
       console.error("AI error response:", errorText);
       return new Response(
         JSON.stringify({ success: false, error: "Failed to analyze resume. Please try again." }),
@@ -146,24 +175,23 @@ Remember: Respond with ONLY valid JSON, no other text.`;
       );
     }
 
-    const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content;
+    const aiAnalysisResponse = await analysisResponse.json();
+    const analysisContent = aiAnalysisResponse.choices?.[0]?.message?.content;
 
-    if (!content) {
-      console.error("No content in AI response:", aiResponse);
+    if (!analysisContent) {
+      console.error("No content in AI response:", aiAnalysisResponse);
       return new Response(
         JSON.stringify({ success: false, error: "Empty response from AI. Please try again." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("AI response received, parsing...");
+    console.log("AI analysis received, parsing...");
 
-    // Parse the JSON response
+    // Parse the analysis JSON response
     let analysisResult;
     try {
-      // Clean the response - remove markdown code blocks if present
-      let cleanedContent = content.trim();
+      let cleanedContent = analysisContent.trim();
       if (cleanedContent.startsWith("```json")) {
         cleanedContent = cleanedContent.slice(7);
       } else if (cleanedContent.startsWith("```")) {
@@ -176,7 +204,7 @@ Remember: Respond with ONLY valid JSON, no other text.`;
 
       analysisResult = JSON.parse(cleanedContent);
     } catch (parseError) {
-      console.error("Failed to parse AI response as JSON:", content);
+      console.error("Failed to parse AI analysis response as JSON:", analysisContent);
       console.error("Parse error:", parseError);
       return new Response(
         JSON.stringify({ success: false, error: "Failed to parse AI response. Please try again." }),
@@ -184,7 +212,7 @@ Remember: Respond with ONLY valid JSON, no other text.`;
       );
     }
 
-    // Validate the response structure
+    // Validate the analysis response structure
     if (
       typeof analysisResult.overallScore !== 'number' ||
       !Array.isArray(analysisResult.sections) ||
@@ -198,10 +226,111 @@ Remember: Respond with ONLY valid JSON, no other text.`;
       );
     }
 
+    // Step 2: Extract structured resume data
+    console.log("Extracting structured resume data...");
+    
+    const parseSystemPrompt = `You are an expert resume parser. Extract structured data from the resume text.
+
+You MUST respond with ONLY a valid JSON object (no markdown, no explanation) in this format:
+{
+  "name": "Full name of the candidate",
+  "email": "email@example.com or null if not found",
+  "phone": "phone number or null if not found",
+  "linkedin": "LinkedIn URL/username or null if not found",
+  "summary": "Professional summary or objective if present, or null",
+  "experience": [
+    {
+      "title": "Job Title",
+      "company": "Company Name",
+      "startDate": "Start date (e.g., Jan 2020)",
+      "endDate": "End date or Present",
+      "description": "Brief description if available",
+      "achievements": ["Achievement 1", "Achievement 2"]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Degree name",
+      "institution": "Institution name",
+      "year": "Graduation year or date range",
+      "gpa": "GPA if mentioned or null"
+    }
+  ],
+  "skills": ["Skill 1", "Skill 2", "Skill 3"],
+  "projects": [
+    {
+      "name": "Project name",
+      "description": "Brief description",
+      "technologies": ["Tech 1", "Tech 2"]
+    }
+  ]
+}
+
+Extract as much information as possible. Use null for fields that cannot be found.
+For arrays, use empty arrays [] if no items found.`;
+
+    const parseUserPrompt = `Extract structured data from this resume:
+
+${resumeText}
+
+Remember: Respond with ONLY valid JSON, no other text.`;
+
+    const parseResponse = await fetch(LOVABLE_AI_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: parseSystemPrompt },
+          { role: "user", content: parseUserPrompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 3000,
+      }),
+    });
+
+    let parsedResume: ParsedResume | null = null;
+
+    if (parseResponse.ok) {
+      const parseAiResponse = await parseResponse.json();
+      const parseContent = parseAiResponse.choices?.[0]?.message?.content;
+
+      if (parseContent) {
+        try {
+          let cleanedParseContent = parseContent.trim();
+          if (cleanedParseContent.startsWith("```json")) {
+            cleanedParseContent = cleanedParseContent.slice(7);
+          } else if (cleanedParseContent.startsWith("```")) {
+            cleanedParseContent = cleanedParseContent.slice(3);
+          }
+          if (cleanedParseContent.endsWith("```")) {
+            cleanedParseContent = cleanedParseContent.slice(0, -3);
+          }
+          cleanedParseContent = cleanedParseContent.trim();
+
+          parsedResume = JSON.parse(cleanedParseContent);
+          console.log("Successfully parsed resume structure");
+        } catch (parseError) {
+          console.error("Failed to parse structured resume:", parseError);
+          // Continue without parsed resume - not critical
+        }
+      }
+    } else {
+      console.error("Failed to extract structured resume data:", await parseResponse.text());
+      // Continue without parsed resume - not critical
+    }
+
     console.log("Resume analysis completed successfully");
 
     return new Response(
-      JSON.stringify({ success: true, data: analysisResult }),
+      JSON.stringify({ 
+        success: true, 
+        data: analysisResult,
+        parsedResume: parsedResume 
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 

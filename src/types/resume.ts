@@ -27,7 +27,43 @@ export interface AnalyzeResumeRequest {
 export interface AnalyzeResumeResponse {
   success: boolean;
   data?: ResumeAnalysisResult;
+  parsedResume?: ParsedResume;
   error?: string;
+}
+
+// Types for structured resume parsing
+export interface ParsedResume {
+  name: string;
+  email?: string;
+  phone?: string;
+  linkedin?: string;
+  summary?: string;
+  experience: ExperienceEntry[];
+  education: EducationEntry[];
+  skills: string[];
+  projects?: ProjectEntry[];
+}
+
+export interface ExperienceEntry {
+  title: string;
+  company: string;
+  startDate: string;
+  endDate: string;
+  description?: string;
+  achievements: string[];
+}
+
+export interface EducationEntry {
+  degree: string;
+  institution: string;
+  year: string;
+  gpa?: string;
+}
+
+export interface ProjectEntry {
+  name: string;
+  description?: string;
+  technologies: string[];
 }
 
 // Types for resume PDF generation
@@ -37,6 +73,7 @@ export interface GenerateResumeRequest {
   appliedSuggestions: string[];
   template: string;
   jobDescription?: string;
+  parsedResume?: ParsedResume;
 }
 
 export interface GenerateResumeResponse {
@@ -47,4 +84,19 @@ export interface GenerateResumeResponse {
   message?: string;
   compilationLog?: string;
   error?: string;
+}
+
+// Types for analysis history
+export interface ResumeAnalysisRecord {
+  id: string;
+  user_id: string;
+  resume_filename: string;
+  job_title?: string;
+  company_name?: string;
+  overall_score: number;
+  analysis_data: ResumeAnalysisResult;
+  parsed_resume?: ParsedResume;
+  resume_text?: string;
+  job_description?: string;
+  created_at: string;
 }
