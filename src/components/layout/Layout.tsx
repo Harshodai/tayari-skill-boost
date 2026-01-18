@@ -1,5 +1,6 @@
 import { Header } from "./Header";
 import { Footer } from "./Footer";
+import { ScrollToTop } from "@/components/ui/scroll-to-top";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,6 +15,7 @@ export function Layout({ children, showFooter = true }: LayoutProps) {
         {children}
       </main>
       {showFooter && <Footer />}
+      <ScrollToTop />
     </div>
   );
 }
