@@ -8,6 +8,7 @@ const corsHeaders = {
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LATEX_ONLINE_URL = "https://latexonline.cc/compile";
+const LATEX_YTOTECH_URL = "https://latex.ytotech.com/builds/sync";
 
 interface ResumeSection {
   name: string;
@@ -29,6 +30,22 @@ interface GenerateResumeRequest {
   appliedSuggestions: string[];
   template: string;
   jobDescription?: string;
+}
+
+interface ProgressUpdate {
+  step: 'optimizing' | 'converting' | 'compiling' | 'downloading';
+  message: string;
+  progress: number;
+  attempt?: number;
+  maxAttempts?: number;
+}
+
+interface CompileResult {
+  success: boolean;
+  pdfBase64?: string;
+  log?: string;
+  error?: string;
+  compiler?: string;
 }
 
 // LaTeX template preambles for each template type
@@ -155,6 +172,51 @@ const templatePreambles: Record<string, string> = {
 \\pagestyle{empty}`,
 };
 
+// Categorize LaTeX errors for better error messages
+function categorizeLatexError(log: string): { type: string; message: string; suggestion: string } {
+  if (log.includes("Undefined control sequence")) {
+    const match = log.match(/Undefined control sequence.*?\\(\w+)/);
+    return {
+      type: "undefined_command",
+      message: `Unknown command: \\${match?.[1] || "unknown"}`,
+      suggestion: "The LaTeX code uses a command that isn't defined. This might be due to a missing package.",
+    };
+  }
+  if (log.includes("Missing $ inserted") || log.includes("Missing \\$")) {
+    return {
+      type: "math_mode",
+      message: "Math mode error - special characters need escaping",
+      suggestion: "Characters like $ _ ^ % & need to be escaped with a backslash.",
+    };
+  }
+  if (log.includes("Package fontawesome5 Error") || log.includes("Font .* not found")) {
+    return {
+      type: "font_error",
+      message: "Font package not available",
+      suggestion: "The compiler doesn't have the required fonts. Try a different template.",
+    };
+  }
+  if (log.includes("File") && log.includes("not found")) {
+    return {
+      type: "missing_file",
+      message: "Required file not found",
+      suggestion: "A required file or package is missing from the compiler.",
+    };
+  }
+  if (log.includes("Too many }") || log.includes("Missing }")) {
+    return {
+      type: "bracket_mismatch",
+      message: "Bracket mismatch in LaTeX code",
+      suggestion: "There's an unmatched opening or closing bracket.",
+    };
+  }
+  return {
+    type: "general",
+    message: "LaTeX compilation failed",
+    suggestion: "The LaTeX code contains errors. Try downloading the .tex file and compiling locally.",
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -196,7 +258,11 @@ serve(async (req) => {
 
     if (!optimizedContent.success) {
       return new Response(
-        JSON.stringify({ success: false, error: optimizedContent.error }),
+        JSON.stringify({ 
+          success: false, 
+          error: optimizedContent.error,
+          progress: { step: 'optimizing', message: 'Failed to optimize content', progress: 0 }
+        }),
         { status: optimizedContent.status || 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -212,34 +278,41 @@ serve(async (req) => {
 
     if (!latexCode.success) {
       return new Response(
-        JSON.stringify({ success: false, error: latexCode.error }),
+        JSON.stringify({ 
+          success: false, 
+          error: latexCode.error,
+          progress: { step: 'converting', message: 'Failed to convert to LaTeX', progress: 25 }
+        }),
         { status: latexCode.status || 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Step 3: Compile LaTeX to PDF with retry logic
+    // Step 3: Compile LaTeX to PDF with fallback compilers
     console.log("Step 3: Compiling LaTeX to PDF...");
-    let pdfResult;
+    let pdfResult: CompileResult | null = null;
     let attempts = 0;
     const maxAttempts = 3;
     let currentLatex = latexCode.latex!;
+    let lastError = "";
 
     while (attempts < maxAttempts) {
       attempts++;
       console.log(`Compilation attempt ${attempts}/${maxAttempts}`);
       
-      pdfResult = await compileLatexToPdf(currentLatex);
+      // Try primary compiler first
+      pdfResult = await compileWithFallback(currentLatex);
       
       if (pdfResult.success) {
-        console.log("PDF compilation successful!");
+        console.log(`PDF compilation successful with ${pdfResult.compiler}!`);
         break;
       }
 
-      console.log(`Compilation failed: ${pdfResult.error}`);
+      lastError = pdfResult.error || pdfResult.log || "Unknown compilation error";
+      console.log(`Compilation failed: ${lastError}`);
       
       if (attempts < maxAttempts) {
         console.log("Attempting to fix LaTeX errors with AI...");
-        const fixedLatex = await fixLatexErrors(apiKey, currentLatex, pdfResult.log || pdfResult.error || "Unknown compilation error");
+        const fixedLatex = await fixLatexErrors(apiKey, currentLatex, lastError, template);
         
         if (fixedLatex.success) {
           currentLatex = fixedLatex.latex!;
@@ -253,13 +326,19 @@ serve(async (req) => {
     if (!pdfResult?.success) {
       // Return LaTeX source if PDF compilation fails
       console.log("PDF compilation failed after all attempts, returning LaTeX source");
+      const errorInfo = categorizeLatexError(lastError);
+      
       return new Response(
         JSON.stringify({ 
           success: true, 
           pdfGenerated: false,
           latexSource: currentLatex,
           message: "PDF compilation failed, returning LaTeX source for manual compilation",
-          compilationLog: pdfResult?.log
+          errorType: errorInfo.type,
+          errorMessage: errorInfo.message,
+          suggestion: errorInfo.suggestion,
+          compilationLog: pdfResult?.log?.substring(0, 500),
+          progress: { step: 'compiling', message: 'Compilation failed - LaTeX available', progress: 75 }
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -272,7 +351,9 @@ serve(async (req) => {
         success: true, 
         pdfGenerated: true,
         pdfBase64: pdfResult.pdfBase64,
-        latexSource: currentLatex
+        latexSource: currentLatex,
+        compiler: pdfResult.compiler,
+        progress: { step: 'downloading', message: 'PDF ready', progress: 100 }
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -285,6 +366,74 @@ serve(async (req) => {
     );
   }
 });
+
+async function compileWithFallback(latex: string): Promise<CompileResult> {
+  // Try primary compiler (latexonline.cc)
+  console.log("Trying primary compiler (latexonline.cc)...");
+  let result = await compileLatexToPdf(latex);
+  
+  if (result.success) {
+    return { ...result, compiler: "latexonline.cc" };
+  }
+
+  // Try fallback compiler (YtoTech)
+  console.log("Primary compiler failed, trying fallback (YtoTech)...");
+  result = await compileWithYtoTech(latex);
+  
+  if (result.success) {
+    return { ...result, compiler: "ytotech" };
+  }
+
+  return result;
+}
+
+async function compileWithYtoTech(latexSource: string): Promise<CompileResult> {
+  try {
+    const response = await fetch(LATEX_YTOTECH_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        compiler: "pdflatex",
+        resources: [{
+          main: true,
+          content: latexSource,
+        }],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("YtoTech compilation error:", errorText);
+      return { 
+        success: false, 
+        error: "YtoTech compilation failed", 
+        log: errorText.substring(0, 1000),
+        compiler: "ytotech"
+      };
+    }
+
+    const contentType = response.headers.get("content-type");
+    
+    if (contentType?.includes("application/pdf")) {
+      const pdfBuffer = await response.arrayBuffer();
+      const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
+      return { success: true, pdfBase64, compiler: "ytotech" };
+    } else {
+      const errorText = await response.text();
+      return { 
+        success: false, 
+        error: "YtoTech returned non-PDF response", 
+        log: errorText.substring(0, 1000),
+        compiler: "ytotech"
+      };
+    }
+  } catch (error) {
+    console.error("Error with YtoTech compiler:", error);
+    return { success: false, error: "Failed to connect to YtoTech compiler", compiler: "ytotech" };
+  }
+}
 
 async function generateOptimizedContent(
   apiKey: string,
@@ -393,6 +542,8 @@ RULES:
 4. Keep the content professional and clean
 5. Ensure the document compiles without errors
 6. Return ONLY the complete LaTeX document, starting with \\begin{document}
+7. AVOID using fontawesome5 icons if the template doesn't include that package
+8. Use simple formatting that works with basic LaTeX
 
 TEMPLATE PREAMBLE (use exactly this):
 ${preamble}
@@ -462,7 +613,7 @@ Remember: Return ONLY valid LaTeX code, nothing else. Start with \\begin{documen
   }
 }
 
-async function compileLatexToPdf(latexSource: string): Promise<{ success: boolean; pdfBase64?: string; log?: string; error?: string }> {
+async function compileLatexToPdf(latexSource: string): Promise<CompileResult> {
   try {
     // Use latexonline.cc for compilation
     const response = await fetch(LATEX_ONLINE_URL, {
@@ -511,19 +662,21 @@ async function compileLatexToPdf(latexSource: string): Promise<{ success: boolea
 async function fixLatexErrors(
   apiKey: string,
   latexSource: string,
-  errorLog: string
+  errorLog: string,
+  template: string
 ): Promise<{ success: boolean; latex?: string; error?: string }> {
   const systemPrompt = `You are a LaTeX debugging expert. Fix the provided LaTeX code based on the error log.
 
 RULES:
-1. Return ONLY the fixed LaTeX code
+1. Return ONLY the fixed LaTeX code (complete document from \\documentclass to \\end{document})
 2. Do not change the document structure or content, only fix errors
 3. Common fixes include:
-   - Missing packages
-   - Undefined commands
-   - Special character escaping
+   - Missing packages - remove commands that require them instead of adding packages
+   - Undefined commands - replace with simpler alternatives
+   - Special character escaping (_ becomes \\_, $ becomes \\$, etc.)
    - Bracket matching
-4. Ensure the document compiles correctly`;
+4. If fontawesome5 commands fail, replace icons with simple text alternatives
+5. Ensure the document compiles correctly with basic LaTeX`;
 
   const userPrompt = `Fix this LaTeX document:
 
@@ -533,7 +686,7 @@ ${latexSource}
 === Error Log ===
 ${errorLog}
 
-Return ONLY the fixed LaTeX code.`;
+Return ONLY the fixed LaTeX code (complete document).`;
 
   try {
     const response = await fetch(LOVABLE_AI_URL, {
