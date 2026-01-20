@@ -1,11 +1,13 @@
+
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
-import { Menu, X, LogOut, User, LayoutDashboard, Settings, ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { Menu, X, LogOut, LayoutDashboard, Settings, ChevronDown } from "lucide-react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { getNavLinks } from "@/config/features";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,21 +17,40 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-const navLinks = [
-  { href: "/", label: "Home" },
-  { href: "/resume", label: "Resume Optimizer" },
-  { href: "/interview", label: "Interview Prep" },
-  { href: "/jobs", label: "Job Search" },
-  { href: "/faq", label: "FAQ" },
-  { href: "/contact", label: "Contact" },
-];
-
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+
+  const navLinks = getNavLinks();
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      // Determine if scrolled (for background styling)
+      setIsScrolled(currentScrollY > 50);
+
+      // Determine scroll direction for hide/show logic
+      // Hide when scrolling down > 200px, show when scrolling up
+      if (currentScrollY > 200 && currentScrollY > lastScrollY && !mobileMenuOpen) {
+        setIsHidden(true);
+      } else {
+        setIsHidden(false);
+      }
+
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [lastScrollY, mobileMenuOpen]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -51,9 +72,15 @@ export function Header() {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
+    <header
+      className={cn(
+        "fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b border-transparent",
+        isScrolled ? "glass border-border/50 py-2" : "bg-transparent py-4",
+        isHidden ? "-translate-y-full" : "translate-y-0"
+      )}
+    >
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-12">
           <Logo />
 
           {/* Desktop Navigation */}
@@ -143,8 +170,8 @@ export function Header() {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="lg:hidden py-4 border-t border-border/50 animate-fade-in">
-            <nav className="flex flex-col gap-2">
+          <div className="lg:hidden py-4 border-t border-border/50 animate-fade-in bg-background/95 backdrop-blur-md absolute top-full left-0 right-0 shadow-lg">
+            <nav className="flex flex-col gap-2 px-4">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}

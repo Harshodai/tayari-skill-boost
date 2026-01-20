@@ -1,7 +1,9 @@
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Rocket, Star, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
+import { CountUp } from "@/components/ui/count-up";
 
 const aspirationalCards = [
   {
@@ -25,26 +27,35 @@ const aspirationalCards = [
 ];
 
 const stats = [
-  { value: "Join Us", label: "Be Our First Success" },
-  { value: "100%", label: "Commitment to You" },
-  { value: "AI", label: "Powered Insights" },
-  { value: "∞", label: "Career Possibilities" },
+  { value: "Join Us", label: "Be Our First Success", isText: true },
+  { value: 100, suffix: "%", label: "Commitment to You" },
+  { value: "AI", label: "Powered Insights", isText: true },
+  { value: "∞", label: "Career Possibilities", isText: true },
 ];
 
 export function SocialProofSection() {
   return (
-    <section className="py-20 lg:py-28">
+    <section className="py-20 lg:py-28 bg-accent/5">
       <div className="container mx-auto px-4">
         {/* Stats Bar */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 mb-20">
           {stats.map((stat, index) => (
             <div 
               key={stat.label} 
-              className="text-center p-6 rounded-xl bg-card border border-border/50 animate-fade-in-up"
+              className="text-center p-6 rounded-xl bg-card/50 border border-border/50 backdrop-blur-sm animate-fade-in-up hover:border-primary/30 transition-colors duration-300"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
-              <div className="text-3xl lg:text-4xl font-bold text-primary mb-2">
-                {stat.value}
+              <div className="text-3xl lg:text-4xl font-bold text-primary mb-2 flex justify-center items-center h-10">
+                {stat.isText ? (
+                  stat.value
+                ) : (
+                  <CountUp
+                    end={stat.value as number}
+                    suffix={stat.suffix}
+                    duration={2.5}
+                    delay={0.5 + (index * 0.1)}
+                  />
+                )}
               </div>
               <div className="text-muted-foreground text-sm">
                 {stat.label}
@@ -66,40 +77,45 @@ export function SocialProofSection() {
         {/* Aspirational Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
           {aspirationalCards.map((card, index) => (
-            <Card 
-              key={card.title} 
-              className="relative animate-fade-in-up group hover:border-primary/50 transition-colors"
+            <div
+              key={card.title}
+              className="group relative h-full animate-fade-in-up perspective-1000"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
-              <CardContent className="pt-6">
-                {/* Icon */}
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                  <card.icon className="w-6 h-6 text-primary" />
-                </div>
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-xl blur-lg opacity-0 group-hover:opacity-70 transition-opacity duration-500" />
+              <Card
+                className="relative h-full border-border/50 bg-card/80 backdrop-blur-sm transition-all duration-300 group-hover:translate-y-[-5px] group-hover:border-primary/30"
+              >
+                <CardContent className="pt-8 pb-8 flex flex-col h-full">
+                  {/* Icon */}
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                    <card.icon className="w-7 h-7 text-primary" />
+                  </div>
 
-                {/* Title */}
-                <h3 className="text-lg font-semibold text-foreground mb-3">
-                  {card.title}
-                </h3>
+                  {/* Title */}
+                  <h3 className="text-xl font-semibold text-foreground mb-3">
+                    {card.title}
+                  </h3>
 
-                {/* Description */}
-                <p className="text-muted-foreground mb-6">
-                  {card.description}
-                </p>
+                  {/* Description */}
+                  <p className="text-muted-foreground mb-8 flex-1 leading-relaxed">
+                    {card.description}
+                  </p>
 
-                {/* CTA Button */}
-                <Button 
-                  variant="outline" 
-                  className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
-                  asChild
-                >
-                  <Link to="/resume">
-                    {card.cta}
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
+                  {/* CTA Button */}
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-between group/btn hover:bg-primary/10 hover:text-primary"
+                    asChild
+                  >
+                    <Link to="/resume">
+                      <span className="font-semibold">{card.cta}</span>
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-1" />
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
           ))}
         </div>
       </div>

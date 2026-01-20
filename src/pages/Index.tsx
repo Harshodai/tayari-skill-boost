@@ -1,3 +1,4 @@
+
 import { Layout } from "@/components/layout";
 import {
   HeroSection,
@@ -6,14 +7,22 @@ import {
   SocialProofSection,
   CTASection,
 } from "@/components/landing";
+import { FEATURE_FLAGS } from "@/config/features";
 
 const Index = () => {
   return (
     <Layout>
       <HeroSection />
+
       <FeaturesSection />
-      <ProductsSection />
+
+      {/* Products Section - Only visible in Preview mode */}
+      {FEATURE_FLAGS.showFullProductsSection && (
+        <ProductsSection />
+      )}
+
       <SocialProofSection />
+
       <CTASection />
     </Layout>
   );

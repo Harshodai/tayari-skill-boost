@@ -1,7 +1,9 @@
+
 import { Link } from "react-router-dom";
-import { CardHover, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { Button } from "@/components/ui/button";
 import { FileText, MessageSquare, Briefcase, ArrowRight } from "lucide-react";
+import { FEATURE_FLAGS } from "@/config/features";
 
 const features = [
   {
@@ -11,6 +13,7 @@ const features = [
     href: "/resume",
     cta: "Optimize Now",
     available: true,
+    visible: true,
   },
   {
     icon: MessageSquare,
@@ -19,6 +22,7 @@ const features = [
     href: "/interview",
     cta: "Start Practicing",
     available: false,
+    visible: FEATURE_FLAGS.showComingSoonBadges, // Hide in production
   },
   {
     icon: Briefcase,
@@ -27,10 +31,13 @@ const features = [
     href: "/jobs",
     cta: "Find Jobs",
     available: false,
+    visible: FEATURE_FLAGS.showComingSoonBadges, // Hide in production
   },
 ];
 
 export function FeaturesSection() {
+  const visibleFeatures = features.filter(f => f.visible);
+
   return (
     <section className="py-20 lg:py-28">
       <div className="container mx-auto px-4">
@@ -46,33 +53,32 @@ export function FeaturesSection() {
 
         {/* Feature Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
-          {features.map((feature, index) => (
-            <CardHover 
+          {visibleFeatures.map((feature, index) => (
+            <SpotlightCard
               key={feature.title} 
-              className="flex flex-col animate-fade-in-up"
+              className="flex flex-col h-full animate-fade-in-up"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
-              <CardHeader>
-                <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-primary/10 mb-4">
-                  <feature.icon className="w-7 h-7 text-primary" />
-                </div>
-                <CardTitle className="flex items-center gap-2">
-                  {feature.title}
+              <div className="p-6 flex flex-col h-full">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-primary/10">
+                    <feature.icon className="w-7 h-7 text-primary" />
+                  </div>
                   {!feature.available && (
-                    <span className="text-xs font-normal px-2 py-1 rounded-full bg-warning/20 text-warning">
+                    <span className="text-xs font-normal px-2 py-1 rounded-full bg-warning/20 text-warning border border-warning/30">
                       Coming Soon
                     </span>
                   )}
-                </CardTitle>
-                <CardDescription className="text-base">
+                </div>
+
+                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+                <p className="text-muted-foreground mb-6 flex-1">
                   {feature.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1" />
-              <CardFooter>
+                </p>
+
                 <Button 
                   variant={feature.available ? "default" : "outline"} 
-                  className="w-full group"
+                  className="w-full group mt-auto"
                   asChild
                 >
                   <Link to={feature.href}>
@@ -80,8 +86,8 @@ export function FeaturesSection() {
                     <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
                   </Link>
                 </Button>
-              </CardFooter>
-            </CardHover>
+              </div>
+            </SpotlightCard>
           ))}
         </div>
       </div>

@@ -1,15 +1,21 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
+import { AnimatedGradientText } from "@/components/ui/animated-gradient-text";
+import { CountUp } from "@/components/ui/count-up";
+import { GradientOrb } from "@/components/ui/gradient-orb";
 
 export function HeroSection() {
   return (
     <section className="relative py-20 lg:py-32 overflow-hidden">
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/20 rounded-full blur-[100px] animate-pulse-slow" />
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-secondary/20 rounded-full blur-[120px] animate-pulse-slow" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[150px]" />
+        <GradientOrb variant="primary" size="sm" delay="none" className="top-20 left-10 opacity-40" />
+        <GradientOrb variant="secondary" size="md" delay="short" className="bottom-20 right-10 opacity-40" />
+        <GradientOrb variant="accent" size="lg" delay="long" className="top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20" />
+
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-[0.03] pointer-events-none" />
       </div>
 
       <div className="container mx-auto px-4 relative z-10">
@@ -23,7 +29,9 @@ export function HeroSection() {
           {/* Headline */}
           <h1 className="text-4xl md:text-5xl lg:text-hero font-bold text-foreground mb-6 animate-fade-in-up">
             Land Your Dream
-            <span className="text-gradient block mt-2">Software Engineering Job</span>
+            <span className="block mt-2">
+              <AnimatedGradientText>Software Engineering Job</AnimatedGradientText>
+            </span>
           </h1>
 
           {/* Subheadline */}
@@ -48,16 +56,22 @@ export function HeroSection() {
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-8 mt-16 pt-8 border-t border-border/50 animate-fade-in-up" style={{ animationDelay: "0.3s" }}>
-            <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-foreground">10K+</div>
+            <div className="text-center group hover:-translate-y-1 transition-transform duration-300">
+              <div className="text-3xl md:text-4xl font-bold text-foreground flex justify-center items-center">
+                <CountUp end={10} suffix="K+" duration={2.5} />
+              </div>
               <div className="text-muted-foreground text-sm mt-1">Resumes Optimized</div>
             </div>
-            <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-foreground">85%</div>
+            <div className="text-center group hover:-translate-y-1 transition-transform duration-300">
+              <div className="text-3xl md:text-4xl font-bold text-foreground flex justify-center items-center">
+                <CountUp end={85} suffix="%" duration={2.5} delay={0.2} />
+              </div>
               <div className="text-muted-foreground text-sm mt-1">Interview Success</div>
             </div>
-            <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-foreground">500+</div>
+            <div className="text-center group hover:-translate-y-1 transition-transform duration-300">
+              <div className="text-3xl md:text-4xl font-bold text-foreground flex justify-center items-center">
+                <CountUp end={500} suffix="+" duration={2.5} delay={0.4} />
+              </div>
               <div className="text-muted-foreground text-sm mt-1">Dream Jobs Landed</div>
             </div>
           </div>

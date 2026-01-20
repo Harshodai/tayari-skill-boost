@@ -1,10 +1,13 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { PageTransition } from "@/components/layout/PageTransition";
+import { FEATURE_FLAGS } from "@/config/features";
 
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -37,62 +40,89 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/faq" element={<FAQ />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/interview" element={<InterviewComingSoon />} />
-            <Route path="/jobs" element={<JobsComingSoon />} />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/careers" element={<Careers />} />
-            <Route path="/blog" element={<Blog />} />
-            <Route path="/blog/:slug" element={<BlogPost />} />
-            <Route path="/help" element={<Help />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
+          <PageTransition>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/faq" element={<FAQ />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
 
-            {/* Protected Routes */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/resume" element={<ResumeUpload />} />
-            <Route
-              path="/resume/results"
-              element={
-                <ProtectedRoute>
-                  <ResumeResults />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/resume/templates"
-              element={
-                <ProtectedRoute>
-                  <ResumeTemplates />
-                </ProtectedRoute>
-              }
-            />
+              {/* Conditionally Rendered Routes */}
+              {FEATURE_FLAGS.showInterviewPrep && (
+                <Route path="/interview" element={<InterviewComingSoon />} />
+              )}
+              {FEATURE_FLAGS.showJobSearch && (
+                <Route path="/jobs" element={<JobsComingSoon />} />
+              )}
+              {FEATURE_FLAGS.showPricing && (
+                <Route path="/pricing" element={<Pricing />} />
+              )}
+              {FEATURE_FLAGS.showCareers && (
+                <Route path="/careers" element={<Careers />} />
+              )}
+              {FEATURE_FLAGS.showBlog && (
+                <>
+                  <Route path="/blog" element={<Blog />} />
+                  <Route path="/blog/:slug" element={<BlogPost />} />
+                </>
+              )}
+              {FEATURE_FLAGS.showHelp && (
+                <Route path="/help" element={<Help />} />
+              )}
 
-            {/* Catch-all */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              {/* Redirects for disabled routes in Production */}
+              {!FEATURE_FLAGS.showInterviewPrep && (
+                <Route path="/interview" element={<Navigate to="/resume" replace />} />
+              )}
+              {!FEATURE_FLAGS.showJobSearch && (
+                <Route path="/jobs" element={<Navigate to="/resume" replace />} />
+              )}
+
+              <Route path="/about" element={<About />} />
+
+              {/* Protected Routes */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/resume" element={<ResumeUpload />} />
+              <Route
+                path="/resume/results"
+                element={
+                  <ProtectedRoute>
+                    <ResumeResults />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/resume/templates"
+                element={
+                  <ProtectedRoute>
+                    <ResumeTemplates />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Catch-all */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </PageTransition>
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
