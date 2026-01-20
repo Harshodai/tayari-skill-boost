@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Logo } from "@/components/Logo";
-import { Eye, EyeOff, Mail, Lock, User, Loader2, ArrowLeft, ShieldCheck, ShieldAlert, Shield } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Loader2, ArrowLeft, ShieldCheck, ShieldAlert, Shield, Github, Linkedin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { PasswordStrengthMeter } from "@/components/auth";
@@ -21,7 +21,7 @@ const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { user, signIn, signUp, signInWithGoogle } = useAuth();
+  const { user, signIn, signUp, signInWithGoogle, signInWithGithub, signInWithLinkedin } = useAuth();
   
   const [isLogin, setIsLogin] = useState(searchParams.get("mode") !== "signup");
   const [showPassword, setShowPassword] = useState(false);
@@ -383,7 +383,7 @@ const Auth = () => {
             </div>
 
             {/* Social Login */}
-            <div className="w-full">
+            <div className="w-full space-y-3">
               <Button 
                 variant="outline" 
                 type="button" 
@@ -421,6 +421,50 @@ const Auth = () => {
                   />
                 </svg>
                 Continue with Google
+              </Button>
+
+              <Button
+                variant="outline"
+                type="button"
+                disabled={isLoading}
+                onClick={async () => {
+                  setIsLoading(true);
+                  const result = await signInWithGithub();
+                  if (result.error) {
+                    toast({
+                      title: "GitHub Sign-In Error",
+                      description: result.error,
+                      variant: "destructive",
+                    });
+                    setIsLoading(false);
+                  }
+                }}
+                className="w-full"
+              >
+                <Github className="w-4 h-4 mr-2" />
+                Continue with GitHub
+              </Button>
+
+              <Button
+                variant="outline"
+                type="button"
+                disabled={isLoading}
+                onClick={async () => {
+                  setIsLoading(true);
+                  const result = await signInWithLinkedin();
+                  if (result.error) {
+                    toast({
+                      title: "LinkedIn Sign-In Error",
+                      description: result.error,
+                      variant: "destructive",
+                    });
+                    setIsLoading(false);
+                  }
+                }}
+                className="w-full"
+              >
+                <Linkedin className="w-4 h-4 mr-2 text-[#0077B5]" />
+                Continue with LinkedIn
               </Button>
             </div>
           </CardContent>
