@@ -12,6 +12,8 @@ const CONFIG = {
   // Key: Feature Name
   // Value: [ ProductionEnabled, PreviewEnabled ]
   features: {
+    resumeOptimizer: [true, true],
+    careerRoadmap: [true, true],
     interviewPrep: [true, true],
     jobSearch: [true, true],
     blog: [true, true],
@@ -24,7 +26,8 @@ const CONFIG = {
   // { label, href, feature (matches key above or null) }
   links: [
     { label: "Home", href: "/", feature: null },
-    { label: "Resume Optimizer", href: "/resume", feature: null },
+    { label: "Resume Optimizer", href: "/resume", feature: "resumeOptimizer" },
+    { label: "Career Roadmap", href: "/roadmap", feature: "careerRoadmap" },
     { label: "Interview Prep", href: "/interview", feature: "interviewPrep" },
     { label: "Job Search", href: "/jobs", feature: "jobSearch" },
     { label: "Blog", href: "/blog", feature: "blog" },

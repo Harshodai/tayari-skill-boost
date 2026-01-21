@@ -1,10 +1,9 @@
-
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { Button } from "@/components/ui/button";
 import { FileText, MessageSquare, Briefcase, ArrowRight } from "lucide-react";
-import { settings } from "@/config/features";
+import { settings, features as featureFlags } from "@/config/features";
 import {
   Carousel,
   CarouselApi,
@@ -22,8 +21,8 @@ const features = [
     description: "AI analyzes your resume against job descriptions to maximize your match score and highlight key skills.",
     href: "/resume",
     cta: "Optimize Now",
-    available: true,
-    visible: true,
+    available: featureFlags.resumeOptimizer,
+    visible: featureFlags.resumeOptimizer,
   },
   {
     icon: MessageSquare,
@@ -31,8 +30,8 @@ const features = [
     description: "Practice with AI-powered mock interviews, compete in coding challenges, and master technical questions.",
     href: "/interview",
     cta: "Start Practicing",
-    available: false,
-    visible: settings.showComingSoonBadges, // Hide in production
+    available: featureFlags.interviewPrep,
+    visible: settings.showFullProductsSection, // Controlled by feature flags
   },
   {
     icon: Briefcase,
@@ -40,8 +39,8 @@ const features = [
     description: "Get personalized job recommendations based on your skills, experience, and career preferences.",
     href: "/jobs",
     cta: "Find Jobs",
-    available: false,
-    visible: settings.showComingSoonBadges, // Hide in production
+    available: featureFlags.jobSearch,
+    visible: settings.showFullProductsSection, // Controlled by feature flags
   },
 ];
 

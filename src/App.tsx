@@ -9,6 +9,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { features } from "@/config/features";
 import { ScrollToTop } from "@/components/ui/ScrollToTop";
+import { ScrollToTopHandler } from "@/components/layout/ScrollToTopHandler";
 
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -18,6 +19,7 @@ import ResumeUpload from "./pages/ResumeUpload";
 import ResumeResults from "./pages/ResumeResults";
 import ResumeTemplates from "./pages/ResumeTemplates";
 import InterviewComingSoon from "./pages/InterviewComingSoon";
+import CareerRoadmap from "./pages/CareerRoadmap";
 import JobsComingSoon from "./pages/JobsComingSoon";
 import FAQ from "./pages/FAQ";
 import Contact from "./pages/Contact";
@@ -42,6 +44,7 @@ const App = () => (
         <Sonner />
         <ScrollToTop />
         <BrowserRouter>
+          <ScrollToTopHandler />
           <PageTransition>
             <Routes>
               {/* Public Routes */}
@@ -56,6 +59,9 @@ const App = () => (
               {/* Conditionally Rendered Routes */}
               {features.interviewPrep && (
                 <Route path="/interview" element={<InterviewComingSoon />} />
+              )}
+              {features.careerRoadmap && (
+                <Route path="/roadmap" element={<CareerRoadmap />} />
               )}
               {features.jobSearch && (
                 <Route path="/jobs" element={<JobsComingSoon />} />
@@ -79,6 +85,9 @@ const App = () => (
               {/* Redirects for disabled routes in Production */}
               {!features.interviewPrep && (
                 <Route path="/interview" element={<Navigate to="/resume" replace />} />
+              )}
+              {!features.careerRoadmap && (
+                <Route path="/roadmap" element={<Navigate to="/resume" replace />} />
               )}
               {!features.jobSearch && (
                 <Route path="/jobs" element={<Navigate to="/resume" replace />} />
