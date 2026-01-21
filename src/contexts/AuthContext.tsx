@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
     try {
       // Check rate limit before attempting login
-      const rateLimitCheck = checkRateLimit(email);
+      const rateLimitCheck = await checkRateLimit(email);
       if (!rateLimitCheck.allowed) {
         return { error: rateLimitCheck.message };
       }
@@ -58,15 +58,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         // Record failed attempt and get rate limit message
-        const failureResult = recordFailedAttempt(email);
+        const failureResult = await recordFailedAttempt(email);
         return { error: failureResult.message };
       }
-      
+
       // Reset rate limit on successful login
-      resetRateLimit(email);
+      await resetRateLimit(email);
       return { error: null };
     } catch (err) {
-      recordFailedAttempt(email);
+      await recordFailedAttempt(email);
       return { error: 'Authentication failed. Please try again.' };
     }
   };
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, name: string): Promise<{ error: string | null }> => {
     try {
       const redirectUrl = `${window.location.origin}/`;
-      
+
       const { error } = await supabase.auth.signUp({
         email,
         password,

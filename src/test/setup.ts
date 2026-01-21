@@ -5,3 +5,9 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator";
 GlobalRegistrator.register();
 expect.extend(matchers);
 
+// Mock window.scrollTo
+global.scrollTo = () => { };
+if (global.window) {
+    Object.defineProperty(global.window, 'scrollTo', { value: () => { }, writable: true });
+}
+

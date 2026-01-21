@@ -9,7 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "bun test --preload ./src/test/setup.ts"
+    "test": "bun test --dom --preload ./src/test/setup.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

@@ -60,7 +60,7 @@ export const features = Object.keys(CONFIG.features).reduce((acc, key) => {
 // Global UI Settings
 export const settings = {
   showFullProductsSection: features.interviewPrep,
-  showComingSoonBadges: !isProd,
+  showComingSoonBadges: true,
   showFullFooter: true,
   enableAllRoutes: true,
 } as const;
