@@ -32,6 +32,7 @@ import {
   BookmarkPlus
 } from "lucide-react";
 import DOMPurify from "dompurify";
+import { marked } from "marked";
 import { BlogPostCard } from "@/components/blog";
 
 interface BlogPost {
@@ -72,55 +73,10 @@ const categoryLabels: Record<string, string> = {
 
 // Simple markdown to HTML converter
 function renderMarkdown(content: string): string {
-  // 1. Escape HTML to prevent XSS from raw HTML
-  let html = content
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  // 1. Parse markdown using marked
+  const html = marked.parse(content, { async: false }) as string;
 
-  // Headers
-  html = html.replace(/^### (.+)$/gm, '<h3 class="text-xl font-semibold mt-8 mb-4 text-foreground">$1</h3>');
-  html = html.replace(/^## (.+)$/gm, '<h2 class="text-2xl font-bold mt-10 mb-4 text-foreground">$1</h2>');
-  html = html.replace(/^# (.+)$/gm, '<h1 class="text-3xl font-bold mt-10 mb-6 text-foreground">$1</h1>');
-
-  // Bold and italic
-  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>');
-  html = html.replace(/\*(.+?)\*/g, '<em class="italic">$1</em>');
-
-  // Links - with simple URL sanitization
-  html = html.replace(/\[(.+?)\]\((.+?)\)/g, (match, text, url) => {
-    // Basic protocol check
-    if (url.match(/^(https?:\/\/|mailto:|\/)/)) {
-      return `<a href="${url}" class="text-primary hover:underline">${text}</a>`;
-    }
-    return match; // return original if potentially unsafe (e.g. javascript:)
-  });
-
-  // Code blocks
-  html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-muted/50 rounded-lg p-4 my-4 overflow-x-auto"><code class="text-sm">$1</code></pre>');
-  html = html.replace(/`(.+?)`/g, '<code class="bg-muted/50 px-1.5 py-0.5 rounded text-sm">$1</code>');
-
-  // Blockquotes
-  html = html.replace(/^> (.+)$/gm, '<blockquote class="border-l-4 border-primary pl-4 py-2 my-4 italic text-muted-foreground">$1</blockquote>');
-
-  // Lists
-  html = html.replace(/^- (.+)$/gm, '<li class="ml-4 list-disc list-inside text-muted-foreground mb-2">$1</li>');
-  html = html.replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4 list-decimal list-inside text-muted-foreground mb-2">$2</li>');
-
-  // Paragraphs
-  html = html.split('\n\n').map(p => {
-    if (p.trim() === '') return '';
-    if (p.startsWith('<')) return p; // Already processed tags
-    return `<p class="text-muted-foreground leading-relaxed mb-4">${p}</p>`;
-  }).join('\n');
-
-
-
-  // 3. Final Sanitize Pass (DOMPurify)
-  // This removes any script tags or unsafe attributes that might have slipped through
+  // 2. Sanitize using DOMPurify
   return DOMPurify.sanitize(html);
 }
 
