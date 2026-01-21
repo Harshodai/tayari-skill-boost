@@ -71,8 +71,8 @@ export function getPasswordRequirements(password: string): PasswordRequirement[]
     {
       id: 'special',
       label: 'One special character (!@#$%^&*)',
-      test: (p) => /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;'/`~]/.test(p),
-      met: /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;'/`~]/.test(password),
+      test: (p) => /[!@#$%^&*(),.?":{}|<>_\-+=[\].\\;'/`~]/.test(p),
+      met: /[!@#$%^&*(),.?":{}|<>_\-+=[\].\\;'/`~]/.test(password),
     },
   ];
 }

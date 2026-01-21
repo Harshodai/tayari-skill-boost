@@ -108,7 +108,7 @@ export const LaTeXSourceView = ({
 function highlightLatex(line: string): React.ReactNode {
   // Highlight commands
   const parts: React.ReactNode[] = [];
-  let remaining = line;
+  const remaining = line;
   let key = 0;
 
   // Match LaTeX commands
