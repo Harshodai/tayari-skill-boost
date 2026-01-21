@@ -213,6 +213,8 @@ export default {
         "bounce-subtle": "bounce-subtle 2s ease-in-out infinite",
         "reveal-up": "reveal-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         "blob": "blob 7s infinite",
+        "blob-delayed": "blob 8s infinite 2s",
+        "blob-delayed-2": "blob 10s infinite 4s",
         "spotlight": "spotlight 2s ease forwards",
       },
       transitionTimingFunction: {
@@ -221,5 +223,6 @@ export default {
       },
     },
   },
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   plugins: [require("tailwindcss-animate")],
 } satisfies Config;

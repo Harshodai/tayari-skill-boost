@@ -134,7 +134,9 @@ const ResumeUpload = () => {
             user_id: user.id,
             resume_filename: resumeFile?.name || "Resume",
             overall_score: data.data.overallScore,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             analysis_data: data.data as any,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             parsed_resume: data.parsedResume as any,
             resume_text: resumeText,
             job_description: jobDescription,

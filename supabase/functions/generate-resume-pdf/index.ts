@@ -269,7 +269,7 @@ serve(async (req) => {
 
     // Step 2: Convert to LaTeX
     console.log("Step 2: Converting to LaTeX...");
-    let latexCode = await convertToLatex(
+    const latexCode = await convertToLatex(
       apiKey,
       optimizedContent.content!,
       template,

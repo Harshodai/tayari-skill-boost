@@ -11,6 +11,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: string | null }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
+  signInWithGithub: () => Promise<{ error: string | null }>;
+  signInWithLinkedin: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -93,6 +95,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const signInWithGithub = async (): Promise<{ error: string | null }> => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
+        options: {
+          redirectTo: `${window.location.origin}/resume`,
+        },
+      });
+
+      if (error) {
+        return { error: getGenericAuthError(error.message) };
+      }
+      return { error: null };
+    } catch (err) {
+      return { error: 'Social login failed. Please try again.' };
+    }
+  };
+
+  const signInWithLinkedin = async (): Promise<{ error: string | null }> => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'linkedin_oidc',
+        options: {
+          redirectTo: `${window.location.origin}/resume`,
+        },
+      });
+
+      if (error) {
+        return { error: getGenericAuthError(error.message) };
+      }
+      return { error: null };
+    } catch (err) {
+      return { error: 'Unable to create account. Please try again.' };
+    }
+  };
+
   const signInWithGoogle = async (): Promise<{ error: string | null }> => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -116,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, signIn, signUp, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, session, isLoading, signIn, signUp, signInWithGoogle, signInWithGithub, signInWithLinkedin, signOut }}>
       {children}
     </AuthContext.Provider>
   );
