@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://tayari-skill-boost.lovable.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -258,8 +258,8 @@ serve(async (req) => {
 
     if (!optimizedContent.success) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
+        JSON.stringify({
+          success: false,
           error: optimizedContent.error,
           progress: { step: 'optimizing', message: 'Failed to optimize content', progress: 0 }
         }),
@@ -278,8 +278,8 @@ serve(async (req) => {
 
     if (!latexCode.success) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
+        JSON.stringify({
+          success: false,
           error: latexCode.error,
           progress: { step: 'converting', message: 'Failed to convert to LaTeX', progress: 25 }
         }),
@@ -298,10 +298,10 @@ serve(async (req) => {
     while (attempts < maxAttempts) {
       attempts++;
       console.log(`Compilation attempt ${attempts}/${maxAttempts}`);
-      
+
       // Try primary compiler first
       pdfResult = await compileWithFallback(currentLatex);
-      
+
       if (pdfResult.success) {
         console.log(`PDF compilation successful with ${pdfResult.compiler}!`);
         break;
@@ -309,11 +309,11 @@ serve(async (req) => {
 
       lastError = pdfResult.error || pdfResult.log || "Unknown compilation error";
       console.log(`Compilation failed: ${lastError}`);
-      
+
       if (attempts < maxAttempts) {
         console.log("Attempting to fix LaTeX errors with AI...");
         const fixedLatex = await fixLatexErrors(apiKey, currentLatex, lastError, template);
-        
+
         if (fixedLatex.success) {
           currentLatex = fixedLatex.latex!;
         } else {
@@ -327,10 +327,10 @@ serve(async (req) => {
       // Return LaTeX source if PDF compilation fails
       console.log("PDF compilation failed after all attempts, returning LaTeX source");
       const errorInfo = categorizeLatexError(lastError);
-      
+
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           pdfGenerated: false,
           latexSource: currentLatex,
           message: "PDF compilation failed, returning LaTeX source for manual compilation",
@@ -347,8 +347,8 @@ serve(async (req) => {
     console.log("Resume PDF generated successfully!");
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         pdfGenerated: true,
         pdfBase64: pdfResult.pdfBase64,
         latexSource: currentLatex,
@@ -371,7 +371,7 @@ async function compileWithFallback(latex: string): Promise<CompileResult> {
   // Try primary compiler (latexonline.cc)
   console.log("Trying primary compiler (latexonline.cc)...");
   let result = await compileLatexToPdf(latex);
-  
+
   if (result.success) {
     return { ...result, compiler: "latexonline.cc" };
   }
@@ -379,7 +379,7 @@ async function compileWithFallback(latex: string): Promise<CompileResult> {
   // Try fallback compiler (YtoTech)
   console.log("Primary compiler failed, trying fallback (YtoTech)...");
   result = await compileWithYtoTech(latex);
-  
+
   if (result.success) {
     return { ...result, compiler: "ytotech" };
   }
@@ -406,25 +406,25 @@ async function compileWithYtoTech(latexSource: string): Promise<CompileResult> {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("YtoTech compilation error:", errorText);
-      return { 
-        success: false, 
-        error: "YtoTech compilation failed", 
+      return {
+        success: false,
+        error: "YtoTech compilation failed",
         log: errorText.substring(0, 1000),
         compiler: "ytotech"
       };
     }
 
     const contentType = response.headers.get("content-type");
-    
+
     if (contentType?.includes("application/pdf")) {
       const pdfBuffer = await response.arrayBuffer();
       const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
       return { success: true, pdfBase64, compiler: "ytotech" };
     } else {
       const errorText = await response.text();
-      return { 
-        success: false, 
-        error: "YtoTech returned non-PDF response", 
+      return {
+        success: false,
+        error: "YtoTech returned non-PDF response",
         log: errorText.substring(0, 1000),
         compiler: "ytotech"
       };
@@ -457,7 +457,7 @@ Use bullet points for achievements. Make improvements subtle but impactful.
 Add missing keywords naturally where appropriate.
 Quantify achievements with specific numbers where possible.`;
 
-  const suggestionsList = appliedSuggestions.length > 0 
+  const suggestionsList = appliedSuggestions.length > 0
     ? `\n\nApplied suggestions to incorporate:\n${appliedSuggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
     : '';
 
@@ -526,7 +526,7 @@ async function convertToLatex(
   feedbackResults: ResumeAnalysisResult | null
 ): Promise<{ success: boolean; latex?: string; error?: string; status?: number }> {
   const preamble = templatePreambles[template] || templatePreambles.professional;
-  
+
   const feedbackSection = feedbackResults ? `
 
 IMPORTANT: Since the overall score is below 80 (${feedbackResults.overallScore}), add a "Suggested Improvements" section at the END of the document (before \\end{document}) with these items:
@@ -631,15 +631,15 @@ async function compileLatexToPdf(latexSource: string): Promise<CompileResult> {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("LaTeX compilation error:", errorText);
-      return { 
-        success: false, 
-        error: "LaTeX compilation failed", 
-        log: errorText.substring(0, 1000) 
+      return {
+        success: false,
+        error: "LaTeX compilation failed",
+        log: errorText.substring(0, 1000)
       };
     }
 
     const contentType = response.headers.get("content-type");
-    
+
     if (contentType?.includes("application/pdf")) {
       const pdfBuffer = await response.arrayBuffer();
       const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
@@ -647,10 +647,10 @@ async function compileLatexToPdf(latexSource: string): Promise<CompileResult> {
     } else {
       // Compilation returned an error page
       const errorText = await response.text();
-      return { 
-        success: false, 
-        error: "LaTeX compilation returned errors", 
-        log: errorText.substring(0, 1000) 
+      return {
+        success: false,
+        error: "LaTeX compilation returned errors",
+        log: errorText.substring(0, 1000)
       };
     }
   } catch (error) {

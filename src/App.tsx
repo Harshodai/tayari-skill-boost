@@ -7,7 +7,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PageTransition } from "@/components/layout/PageTransition";
-import { FEATURE_FLAGS } from "@/config/features";
+import { features } from "@/config/features";
+import { ScrollToTop } from "@/components/ui/ScrollToTop";
 
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -39,6 +40,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <ScrollToTop />
         <BrowserRouter>
           <PageTransition>
             <Routes>
@@ -52,33 +54,33 @@ const App = () => (
               <Route path="/forgot-password" element={<ForgotPassword />} />
 
               {/* Conditionally Rendered Routes */}
-              {FEATURE_FLAGS.showInterviewPrep && (
+              {features.interviewPrep && (
                 <Route path="/interview" element={<InterviewComingSoon />} />
               )}
-              {FEATURE_FLAGS.showJobSearch && (
+              {features.jobSearch && (
                 <Route path="/jobs" element={<JobsComingSoon />} />
               )}
-              {FEATURE_FLAGS.showPricing && (
+              {features.pricing && (
                 <Route path="/pricing" element={<Pricing />} />
               )}
-              {FEATURE_FLAGS.showCareers && (
+              {features.careers && (
                 <Route path="/careers" element={<Careers />} />
               )}
-              {FEATURE_FLAGS.showBlog && (
+              {features.blog && (
                 <>
                   <Route path="/blog" element={<Blog />} />
                   <Route path="/blog/:slug" element={<BlogPost />} />
                 </>
               )}
-              {FEATURE_FLAGS.showHelp && (
+              {features.help && (
                 <Route path="/help" element={<Help />} />
               )}
 
               {/* Redirects for disabled routes in Production */}
-              {!FEATURE_FLAGS.showInterviewPrep && (
+              {!features.interviewPrep && (
                 <Route path="/interview" element={<Navigate to="/resume" replace />} />
               )}
-              {!FEATURE_FLAGS.showJobSearch && (
+              {!features.jobSearch && (
                 <Route path="/jobs" element={<Navigate to="/resume" replace />} />
               )}
 

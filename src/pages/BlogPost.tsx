@@ -71,7 +71,13 @@ const categoryLabels: Record<string, string> = {
 
 // Simple markdown to HTML converter
 function renderMarkdown(content: string): string {
-  let html = content;
+  // 1. Escape HTML to prevent XSS from raw HTML
+  let html = content
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
   
   // Headers
   html = html.replace(/^### (.+)$/gm, '<h3 class="text-xl font-semibold mt-8 mb-4 text-foreground">$1</h3>');
@@ -83,8 +89,14 @@ function renderMarkdown(content: string): string {
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em class="italic">$1</em>');
   
-  // Links
-  html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" class="text-primary hover:underline">$1</a>');
+  // Links - with simple URL sanitization
+  html = html.replace(/\[(.+?)\]\((.+?)\)/g, (match, text, url) => {
+    // Basic protocol check
+    if (url.match(/^(https?:\/\/|mailto:|\/)/)) {
+        return `<a href="${url}" class="text-primary hover:underline">${text}</a>`;
+    }
+    return match; // return original if potentially unsafe (e.g. javascript:)
+  });
   
   // Code blocks
   html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-muted/50 rounded-lg p-4 my-4 overflow-x-auto"><code class="text-sm">$1</code></pre>');
@@ -99,7 +111,8 @@ function renderMarkdown(content: string): string {
   
   // Paragraphs
   html = html.split('\n\n').map(p => {
-    if (p.startsWith('<')) return p;
+    if (p.trim() === '') return '';
+    if (p.startsWith('<')) return p; // Already processed tags
     return `<p class="text-muted-foreground leading-relaxed mb-4">${p}</p>`;
   }).join('\n');
   

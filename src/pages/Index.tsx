@@ -7,7 +7,7 @@ import {
   SocialProofSection,
   CTASection,
 } from "@/components/landing";
-import { FEATURE_FLAGS } from "@/config/features";
+import { features, settings } from "@/config/features";
 
 const Index = () => {
   return (
@@ -17,7 +17,7 @@ const Index = () => {
       <FeaturesSection />
 
       {/* Products Section - Only visible in Preview mode */}
-      {FEATURE_FLAGS.showFullProductsSection && (
+      {settings.showFullProductsSection && (
         <ProductsSection />
       )}
 

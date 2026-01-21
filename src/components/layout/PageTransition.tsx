@@ -22,11 +22,10 @@ export function PageTransition({ children }: PageTransitionProps) {
 
   return (
     <div
-      className={`transition-all duration-300 ease-out ${
-        isAnimating
-          ? "opacity-0 translate-y-4"
-          : "opacity-100 translate-y-0"
-      }`}
+      className={`transition-all duration-300 ease-out ${isAnimating
+        ? "opacity-0 translate-y-4"
+        : "opacity-100"
+        }`}
     >
       {displayChildren}
     </div>

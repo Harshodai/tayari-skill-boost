@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://tayari-skill-boost.lovable.app',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { email, action, ip_hash }: RateLimitRequest = await req.json();
@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
         .single();
 
       const newAttemptCount = (existing?.attempt_count || 0) + 1;
-      
+
       // Calculate lockout duration
       let lockoutSeconds = 0;
       for (const config of RATE_LIMIT_CONFIG.lockoutDurations) {
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const blockedUntil = lockoutSeconds > 0 
+      const blockedUntil = lockoutSeconds > 0
         ? new Date(Date.now() + lockoutSeconds * 1000).toISOString()
         : null;
 
@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
       }
 
       const remainingAttempts = Math.max(0, RATE_LIMIT_CONFIG.maxAttempts - newAttemptCount);
-      
+
       return new Response(
         JSON.stringify({
           recorded: true,

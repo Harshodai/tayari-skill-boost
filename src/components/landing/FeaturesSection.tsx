@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { Button } from "@/components/ui/button";
 import { FileText, MessageSquare, Briefcase, ArrowRight } from "lucide-react";
-import { FEATURE_FLAGS } from "@/config/features";
+import { settings } from "@/config/features";
 
 const features = [
   {
@@ -22,7 +22,7 @@ const features = [
     href: "/interview",
     cta: "Start Practicing",
     available: false,
-    visible: FEATURE_FLAGS.showComingSoonBadges, // Hide in production
+    visible: settings.showComingSoonBadges, // Hide in production
   },
   {
     icon: Briefcase,
@@ -31,7 +31,7 @@ const features = [
     href: "/jobs",
     cta: "Find Jobs",
     available: false,
-    visible: FEATURE_FLAGS.showComingSoonBadges, // Hide in production
+    visible: settings.showComingSoonBadges, // Hide in production
   },
 ];
 
@@ -55,7 +55,7 @@ export function FeaturesSection() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
           {visibleFeatures.map((feature, index) => (
             <SpotlightCard
-              key={feature.title} 
+              key={feature.title}
               className="flex flex-col h-full animate-fade-in-up"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
@@ -76,8 +76,8 @@ export function FeaturesSection() {
                   {feature.description}
                 </p>
 
-                <Button 
-                  variant={feature.available ? "default" : "outline"} 
+                <Button
+                  variant={feature.available ? "default" : "outline"}
                   className="w-full group mt-auto"
                   asChild
                 >

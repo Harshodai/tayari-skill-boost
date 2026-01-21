@@ -1,0 +1,45 @@
+import { describe, it, expect } from "bun:test";
+import { features, isProductionMode, getNavLinks } from '@/config/features';
+
+// We need to mock the config module itself OR relying on the fact that
+// in the test environment 'window' might not define the hostname we look for.
+
+// Actually, `isProductionMode` is calculated at module load time.
+// To test it effectively, we might need to rely on the static config we see in source.
+// But we definitely can test `getNavLinks` and `features` derivation.
+
+describe('Feature Flags Configuration', () => {
+    it('should have interviewPrep enabled in both environments (based on current config)', () => {
+        // Assuming config is: interviewPrep: [true, true]
+        expect(features.interviewPrep).toBe(true);
+    });
+
+    it('should generate navigation links', () => {
+        const links = getNavLinks();
+        expect(links.length).toBeGreaterThan(0);
+        const homeLink = links.find(l => l.href === '/');
+        expect(homeLink).toBeDefined();
+        expect(homeLink?.label).toBe('Home');
+    });
+
+    it('should filter links based on features', () => {
+        // If a feature is disabled, its link should not appear.
+        // In our current config, 'help' is [false, true].
+        // If we are in 'preview' (default for test/non-prod hostname), help should be visible?
+        // Wait, isProductionMode logic:
+        // typeof window !== 'undefined' && window.location.hostname === "tayari-skill-boost.lovable.app"
+        // In JSDOM, hostname is usually 'localhost', so isProductionMode should be false.
+
+        // Let's verify environment first
+        // expect(isProductionMode).toBe(false); 
+
+        // If !isProductionMode (Preview), 'help' is true.
+        // So help link should exist.
+
+        const links = getNavLinks();
+        // Start with a known check. Pricing was set to [false, false] recently by user in Step 339.
+        // So Pricing link should NOT exist.
+        const pricingLink = links.find(l => l.href === '/pricing');
+        expect(pricingLink).toBeUndefined();
+    });
+});

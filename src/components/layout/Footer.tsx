@@ -1,26 +1,26 @@
 import { Link } from "react-router-dom";
 import { Logo } from "@/components/Logo";
 import { Github, Twitter, Linkedin, Mail } from "lucide-react";
-import { FEATURE_FLAGS } from "@/config/features";
+import { features } from "@/config/features";
 
 export function Footer() {
   // Define links with visibility flags
   const footerSections = {
     product: [
       { label: "Resume Optimizer", href: "/resume", visible: true },
-      { label: "Interview Prep", href: "/interview", visible: FEATURE_FLAGS.showInterviewPrep },
-      { label: "Job Search", href: "/jobs", visible: FEATURE_FLAGS.showJobSearch },
-      { label: "Pricing", href: "/pricing", visible: FEATURE_FLAGS.showPricing },
+      { label: "Interview Prep", href: "/interview", visible: features.interviewPrep },
+      { label: "Job Search", href: "/jobs", visible: features.jobSearch },
+      { label: "Pricing", href: "/pricing", visible: features.pricing },
+      { label: "Careers", href: "/careers", visible: features.careers },
+      { label: "Blog", href: "/blog", visible: features.blog },
+      { label: "Help Center", href: "/help", visible: features.help },
+      { label: "Contact", href: "/contact", visible: true },
     ],
     company: [
       { label: "About Us", href: "/about", visible: true },
-      { label: "Careers", href: "/careers", visible: FEATURE_FLAGS.showCareers },
-      { label: "Blog", href: "/blog", visible: FEATURE_FLAGS.showBlog },
-      { label: "Contact", href: "/contact", visible: true },
     ],
     support: [
       { label: "FAQ", href: "/faq", visible: true },
-      { label: "Help Center", href: "/help", visible: FEATURE_FLAGS.showHelp },
       { label: "Privacy Policy", href: "/privacy", visible: true },
       { label: "Terms of Service", href: "/terms", visible: true },
     ],

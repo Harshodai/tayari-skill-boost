@@ -20,7 +20,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isHidden, setIsHidden] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
 
   const location = useLocation();
@@ -35,15 +34,8 @@ export function Header() {
       const currentScrollY = window.scrollY;
 
       // Determine if scrolled (for background styling)
+      // Determine if scrolled (for background styling)
       setIsScrolled(currentScrollY > 50);
-
-      // Determine scroll direction for hide/show logic
-      // Hide when scrolling down > 200px, show when scrolling up
-      if (currentScrollY > 200 && currentScrollY > lastScrollY && !mobileMenuOpen) {
-        setIsHidden(true);
-      } else {
-        setIsHidden(false);
-      }
 
       setLastScrollY(currentScrollY);
     };
@@ -74,9 +66,10 @@ export function Header() {
   return (
     <header
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b border-transparent",
-        isScrolled ? "glass border-border/50 py-2" : "bg-transparent py-4",
-        isHidden ? "-translate-y-full" : "translate-y-0"
+        "fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b",
+        isScrolled
+          ? "bg-background/80 backdrop-blur-md border-border/50 py-3 shadow-sm"
+          : "bg-transparent border-transparent py-3"
       )}
     >
       <div className="container mx-auto px-4">
@@ -137,8 +130,8 @@ export function Header() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={handleSignOut} 
+                  <DropdownMenuItem
+                    onClick={handleSignOut}
                     className="text-destructive focus:text-destructive cursor-pointer"
                   >
                     <LogOut className="w-4 h-4 mr-2" />
@@ -217,12 +210,12 @@ export function Header() {
                       <Settings className="w-4 h-4" />
                       Settings
                     </Link>
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       onClick={() => {
                         handleSignOut();
                         setMobileMenuOpen(false);
-                      }} 
+                      }}
                       className="justify-start text-destructive hover:text-destructive"
                     >
                       <LogOut className="w-4 h-4 mr-2" />

@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://tayari-skill-boost.lovable.app", // Strictly restricted
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -152,14 +152,14 @@ Remember: Respond with ONLY valid JSON, no other text.`;
     if (!analysisResponse.ok) {
       const status = analysisResponse.status;
       console.error(`AI Gateway error: ${status}`);
-      
+
       if (status === 429) {
         return new Response(
           JSON.stringify({ success: false, error: "Too many requests. Please wait a moment and try again." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      
+
       if (status === 402) {
         return new Response(
           JSON.stringify({ success: false, error: "AI credits depleted. Please add more credits to continue." }),
@@ -228,7 +228,7 @@ Remember: Respond with ONLY valid JSON, no other text.`;
 
     // Step 2: Extract structured resume data
     console.log("Extracting structured resume data...");
-    
+
     const parseSystemPrompt = `You are an expert resume parser. Extract structured data from the resume text.
 
 You MUST respond with ONLY a valid JSON object (no markdown, no explanation) in this format:
@@ -326,10 +326,10 @@ Remember: Respond with ONLY valid JSON, no other text.`;
     console.log("Resume analysis completed successfully");
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         data: analysisResult,
-        parsedResume: parsedResume 
+        parsedResume: parsedResume
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -345,26 +345,26 @@ Remember: Respond with ONLY valid JSON, no other text.`;
 
 function buildOptionsText(options: AnalyzeResumeRequest['aiOptions']): string {
   const parts: string[] = [];
-  
+
   if (options.emphasizeKeywords) {
     parts.push("- Pay special attention to keyword matching between resume and job description. Identify specific keywords that are present and missing.");
   }
-  
+
   if (options.quantifyAchievements) {
     parts.push("- Look for opportunities to add quantifiable metrics and numbers to achievements. Suggest specific ways to quantify accomplishments.");
   }
-  
+
   if (options.optimizeFormat) {
     parts.push("- Evaluate formatting, structure, and readability. Suggest formatting improvements.");
   }
-  
+
   if (options.tailorSummary) {
     parts.push("- Provide suggestions for tailoring the resume summary/objective to better match this specific job.");
   }
-  
+
   if (parts.length === 0) {
     return "";
   }
-  
+
   return `Focus areas based on user preferences:\n${parts.join('\n')}`;
 }

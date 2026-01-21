@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://tayari-skill-boost.lovable.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -25,9 +25,9 @@ serve(async (req) => {
     if (!password || typeof password !== "string") {
       return new Response(
         JSON.stringify({ error: "Password is required" }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
         }
       );
     }
@@ -55,14 +55,14 @@ serve(async (req) => {
       console.error("HIBP API error:", response.status);
       // On API error, don't block the user - just return false
       return new Response(
-        JSON.stringify({ 
-          breached: false, 
+        JSON.stringify({
+          breached: false,
           error: "Could not verify password security",
-          count: 0 
+          count: 0
         }),
-        { 
-          status: 200, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
         }
       );
     }
@@ -86,31 +86,31 @@ serve(async (req) => {
     console.log(`Password breach check complete: breached=${breached}, count=${count}`);
 
     return new Response(
-      JSON.stringify({ 
-        breached, 
+      JSON.stringify({
+        breached,
         count,
-        message: breached 
+        message: breached
           ? `This password has been found in ${count.toLocaleString()} data breaches. Please choose a different password.`
           : "Password has not been found in known data breaches."
       }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       }
     );
 
   } catch (error) {
     console.error("Error checking breached password:", error);
-    
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: "Failed to check password security",
         breached: false,
         count: 0
       }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       }
     );
   }
