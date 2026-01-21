@@ -1,73 +1,77 @@
-# Welcome to your Lovable project
+# Tayari Skill Boost
 
-## Project info
+Tayari Skill Boost is an AI-powered job preparation platform designed to help job seekers optimize their resumes, prepare for interviews, and plan their career roadmaps.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## 🚀 Key Features
 
-## How can I edit this code?
+- **Resume Optimizer**: AI-driven analysis of resumes against job descriptions to maximize match scores.
+- **Interview Prep**: Mock interviews with AI agents (Coming Soon).
+- **Job Matcher**: Personalized job recommendations (Coming Soon).
+- **Career Roadmap**: Tailored career path planning and skill gap analysis (Newly Added).
+- **Blog & Resources**: Career advice and industry insights.
 
-There are several ways of editing your application.
+## 🛠 Tech Stack
 
-**Use Lovable**
+- **Frontend**: React, TypeScript, Vite
+- **Styling**: Tailwind CSS, shadcn/ui
+- **Runtime**: [Bun](https://bun.sh/)
+- **Infrastructure**: Docker, Docker Compose
+- **Backend/Service**: Supabase (Integration)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## ⚙️ Configuration & Feature Flags
 
-Changes made via Lovable will be committed automatically to this repo.
+The application uses a centralized configuration system for feature management.
 
-**Use your preferred IDE**
+- **Config File**: [`src/config/features.ts`](src/config/features.ts)
+- **Feature Flags**: Control the visibility and availability of features (e.g., `resumeOptimizer`, `careerRoadmap`).
+- **Control**: You can enable/disable features or mark them as "Coming Soon" directly in this file.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🐳 Docker Deployment
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+The application is fully containerized using Docker.
 
-Follow these steps:
+### Prerequisites
+- Docker & Docker Compose
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Running with Docker
+To build and start the application:
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```bash
+docker-compose up --build -d
 ```
 
-**Edit a file directly in GitHub**
+The application will be available at **http://localhost:4173**.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+**Note on Environment Variables**:
+The `.env` file is included in the Docker build context to ensure variables (like Supabase keys) are baked into the static build. This prevents runtime crashes on the client side.
 
-**Use GitHub Codespaces**
+## 💻 Local Development
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+If you prefer running locally without Docker:
 
-## What technologies are used for this project?
+```bash
+# Install dependencies
+bun install
 
-This project is built with:
+# Run development server
+bun run dev
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## 🧪 Testing
 
-## How can I deploy this project?
+The project includes unit and integration tests.
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+### Running Tests Locally
+```bash
+bun run test
+```
 
-## Can I connect a custom domain to my Lovable project?
+### Tests in Docker
+Tests are automatically run during the Docker build process.
+- **Mocking**: We use `src/test/setup.ts` to mock environment variables (like `VITE_SUPABASE_URL`) during the build to ensure tests pass even without a `.env` file in the CI/CD pipeline (though for local Docker builds, we now include the .env).
 
-Yes, you can!
+## 🧩 Recent Implementations
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- **Career Roadmap Page**: A new "Coming Soon" style page for career planning.
+- **Navigation Scroll Fix**: Implemented `ScrollToTopHandler` to ensure pages start at the top on navigation.
+- **Production Visibility**: Offering cards (Resume, Interview, Job Search) are now visible in production based on feature flags.
