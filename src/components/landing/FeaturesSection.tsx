@@ -1,4 +1,5 @@
 
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,7 @@ import { FileText, MessageSquare, Briefcase, ArrowRight } from "lucide-react";
 import { settings } from "@/config/features";
 import {
   Carousel,
+  CarouselApi,
   CarouselContent,
   CarouselItem,
   CarouselNext,
@@ -46,6 +48,22 @@ const features = [
 export function FeaturesSection() {
   const visibleFeatures = features.filter(f => f.visible);
   const isSingleFeature = visibleFeatures.length === 1;
+  const [api, setApi] = useState<CarouselApi>();
+  const [current, setCurrent] = useState(0);
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
+
+    setCount(api.scrollSnapList().length);
+    setCurrent(api.selectedScrollSnap() + 1);
+
+    api.on("select", () => {
+      setCurrent(api.selectedScrollSnap() + 1);
+    });
+  }, [api]);
 
   return (
     <section className="py-20 lg:py-28">
@@ -73,10 +91,11 @@ export function FeaturesSection() {
           ) : (
             // Multiple Features - Carousel for sliding/dragging UX
             <Carousel
+              setApi={setApi}
               opts={{
                 align: "start",
                 loop: false,
-                dragFree: true,
+                dragFree: false,
               }}
               className="w-full"
             >
@@ -99,9 +118,22 @@ export function FeaturesSection() {
                   </CarouselItem>
                 ))}
               </CarouselContent>
-              <div className={cn("hidden md:block", visibleFeatures.length <= 3 && "lg:hidden")}>
+              <div className={cn("block", visibleFeatures.length <= 3 && "lg:hidden")}>
                 <CarouselPrevious className="-left-4 lg:-left-12" />
                 <CarouselNext className="-right-4 lg:-right-12" />
+              </div>
+              <div className="flex justify-center gap-2 mt-8">
+                {Array.from({ length: count }).map((_, index) => (
+                  <button
+                    key={index}
+                    className={cn(
+                      "h-2 rounded-full transition-all duration-300",
+                      current === index + 1 ? "bg-primary w-8" : "bg-primary/20 w-2 hover:bg-primary/40"
+                    )}
+                    onClick={() => api?.scrollTo(index)}
+                    aria-label={`Go to slide ${index + 1}`}
+                  />
+                ))}
               </div>
             </Carousel>
           )}

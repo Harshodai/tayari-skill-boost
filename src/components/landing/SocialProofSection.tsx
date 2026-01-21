@@ -40,8 +40,8 @@ export function SocialProofSection() {
         {/* Stats Bar */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 mb-20">
           {stats.map((stat, index) => (
-            <div 
-              key={stat.label} 
+            <div
+              key={stat.label}
               className="text-center p-6 rounded-xl bg-card/50 border border-border/50 backdrop-blur-sm animate-fade-in-up hover:border-primary/30 transition-colors duration-300"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
@@ -75,11 +75,11 @@ export function SocialProofSection() {
         </div>
 
         {/* Aspirational Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+        <div className="flex flex-nowrap overflow-x-auto snap-x snap-mandatory -mx-4 px-4 gap-4 pb-6 md:grid md:grid-cols-3 md:gap-6 md:pb-0 md:mx-0 md:px-0 lg:gap-8 scrollbar-hide">
           {aspirationalCards.map((card, index) => (
             <div
               key={card.title}
-              className="group relative h-full animate-fade-in-up perspective-1000"
+              className="group relative h-full animate-fade-in-up perspective-1000 min-w-[85vw] sm:min-w-[45vw] md:min-w-0 snap-center"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-xl blur-lg opacity-0 group-hover:opacity-70 transition-opacity duration-500" />

@@ -110,7 +110,7 @@ const Blog = () => {
   const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newsletterEmail) return;
-    
+
     setIsSubscribing(true);
     // Simulate API call - in production, connect to email service
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -180,7 +180,7 @@ const Blog = () => {
               <div className="max-w-5xl mx-auto mb-16">
                 <Skeleton className="h-80 rounded-2xl" />
               </div>
-              
+
               {/* Grid Skeleton */}
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
                 {Array.from({ length: 6 }).map((_, i) => (
@@ -249,7 +249,7 @@ const Blog = () => {
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
                     {paginatedPosts.map((post) => (
                       <BlogPostCard
                         key={post.id}

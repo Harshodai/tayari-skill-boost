@@ -31,6 +31,7 @@ import {
   Share2,
   BookmarkPlus
 } from "lucide-react";
+import DOMPurify from "dompurify";
 import { BlogPostCard } from "@/components/blog";
 
 interface BlogPost {
@@ -118,31 +119,9 @@ function renderMarkdown(content: string): string {
 
 
 
-  // 3. Final Sanitize Pass (Browser Native)
+  // 3. Final Sanitize Pass (DOMPurify)
   // This removes any script tags or unsafe attributes that might have slipped through
-  if (typeof DOMParser !== 'undefined') {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const scripts = doc.querySelectorAll('script, iframe, object, embed, form');
-    scripts.forEach(node => node.remove());
-
-    // Remove inline event handlers
-    const elements = doc.querySelectorAll('*');
-    elements.forEach(el => {
-      Array.from(el.attributes).forEach(attr => {
-        if (attr.name.startsWith('on') || attr.value.startsWith('javascript:')) {
-          el.removeAttribute(attr.name);
-        }
-      });
-      // Safety check for links
-      if (el.tagName === 'A' && el.getAttribute('href')?.startsWith('javascript:')) {
-        el.setAttribute('href', '#');
-      }
-    });
-
-    return doc.body.innerHTML;
-  }
-
-  return html;
+  return DOMPurify.sanitize(html);
 }
 
 const BlogPost = () => {

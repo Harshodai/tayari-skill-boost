@@ -321,3 +321,13 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 }
+
+/* Carousel touch optimization */
+[data-carousel] {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pinch-zoom;
+}
+
+.carousel-item {
+  scroll-snap-align: start;
+}

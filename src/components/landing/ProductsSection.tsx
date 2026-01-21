@@ -125,9 +125,9 @@ export function ProductsSection() {
         {/* Product Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
           {products.map((product, index) => (
-            <Card 
-              key={product.title} 
-              className="flex flex-col overflow-hidden animate-fade-in-up"
+            <Card
+              key={product.title}
+              className="flex flex-col h-full overflow-hidden animate-fade-in-up"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
               {/* Card Header with Gradient */}
@@ -167,8 +167,8 @@ export function ProductsSection() {
               </CardContent>
 
               <CardFooter>
-                <Button 
-                  variant={product.available ? "default" : "outline"} 
+                <Button
+                  variant={product.available ? "default" : "outline"}
                   className="w-full group"
                   asChild
                 >
