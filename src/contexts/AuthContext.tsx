@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return { error: null };
     } catch (err) {
-      return { error: 'Social login failed. Please try again.' };
+      return { error: 'Unable to create account. Please try again.' };
     }
   };
 
