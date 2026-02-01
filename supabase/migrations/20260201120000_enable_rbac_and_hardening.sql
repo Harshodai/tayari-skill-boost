@@ -36,7 +36,7 @@ BEGIN
     
     RETURN user_has_role;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- 3. Update RLS Policies for Profiles (Strict)
 DROP POLICY IF EXISTS "Public profiles access" ON public.profiles;
@@ -81,7 +81,8 @@ CREATE POLICY "Users can insert own analyses" ON public.resume_analyses
 DROP POLICY IF EXISTS "Users can update own analyses" ON public.resume_analyses;
 CREATE POLICY "Users can update own analyses" ON public.resume_analyses
     FOR UPDATE TO authenticated
-    USING (auth.uid() = user_id);
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Users can delete own analyses" ON public.resume_analyses;
 CREATE POLICY "Users can delete own analyses" ON public.resume_analyses

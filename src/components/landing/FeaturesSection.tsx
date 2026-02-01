@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/carousel";
 import { cn } from "@/lib/utils";
 
+import { FadeIn, SlideUp } from "@/components/ui/motion";
+
 const features = [
   {
     icon: FileText,
@@ -44,7 +46,7 @@ const features = [
   },
 ];
 
-import { FadeIn, SlideUp, StaggerContainer } from "@/components/ui/motion";
+
 
 // ... existing imports
 

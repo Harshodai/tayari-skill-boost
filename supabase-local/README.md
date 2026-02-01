@@ -48,7 +48,7 @@ To update your self-hosted Supabase instance:
 5. Stop services: `docker compose down`
 6. Start services with new configuration: `docker compose up -d`
 
-**Note:** Consider to always backup your database before updating.
+**Note:** Consider always backing up your database before updating.
 
 ## Community & Support
 

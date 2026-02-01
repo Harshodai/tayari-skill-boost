@@ -172,7 +172,12 @@ func (a *LocalAuth) VerifyToken(tokenString string) (*models.User, error) {
 		return nil, ErrInvalidToken
 	}
 
-	return &models.User{ID: userID}, nil
+	role, ok := claims["role"].(string)
+	if !ok {
+		return nil, ErrInvalidToken
+	}
+
+	return &models.User{ID: userID, Role: role}, nil
 }
 
 func (a *LocalAuth) generateToken(user *models.User) (string, error) {

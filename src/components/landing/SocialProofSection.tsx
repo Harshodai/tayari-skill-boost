@@ -5,6 +5,8 @@ import { Sparkles, Rocket, Star, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { CountUp } from "@/components/ui/count-up";
 
+import { FadeIn, SlideUp, StaggerContainer } from "@/components/ui/motion";
+
 const aspirationalCards = [
   {
     title: "Your Success Story",
@@ -33,7 +35,7 @@ const stats = [
   { value: "∞", label: "Career Possibilities", isText: true },
 ];
 
-import { FadeIn, SlideUp, StaggerContainer } from "@/components/ui/motion";
+
 
 // ... existing imports
 

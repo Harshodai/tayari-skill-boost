@@ -141,6 +141,18 @@ const Settings = () => {
     }
 
     try {
+      // Verify current password first
+      if (user?.email) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: user.email,
+          password: passwordData.currentPassword,
+        });
+
+        if (signInError) {
+          throw new Error("Incorrect current password");
+        }
+      }
+
       const { error } = await supabase.auth.updateUser({
         password: passwordData.newPassword
       });

@@ -143,7 +143,6 @@ alter user supabase_functions_admin with password :'new_passwd';
 alter user supabase_replication_admin with password :'new_passwd';
 alter user supabase_storage_admin with password :'new_passwd';
 
-DROP SCHEMA IF EXISTS _supavisor CASCADE;
 create schema if not exists _supavisor;
 alter schema _supavisor owner to supabase_admin;
 

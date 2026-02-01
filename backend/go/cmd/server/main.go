@@ -1,9 +1,11 @@
 package main
 
-import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"tayari-backend/internal/api"
@@ -44,7 +46,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database after %d attempts: %v", maxDBRetries, err)
 	}
-	defer db.Close()
+	// db.Close() is handled in the graceful shutdown section
 
 	// Init Concurrency Worker Pool for Audits
 	auditWorker := concurrency.NewAuditWorker(db, 100)
@@ -60,10 +62,42 @@ func main() {
 		authService = auth.NewLocalAuth(db, cfg, auditWorker)
 	}
 
-	server := api.NewServer(authService)
+	server := api.NewServer(authService, cfg)
 
-	log.Printf("Server starting on port %s", cfg.Port)
-	if err := http.ListenAndServe(":"+cfg.Port, server.Router); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+	srv := &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: server.Router,
 	}
+
+	go func() {
+		log.Printf("Server starting on port %s", cfg.Port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	}()
+
+	// Graceful Shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
+
+	// Create a deadline to wait for.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	// Stop workers
+	auditWorker.Stop()
+
+	// Close database
+	if err := db.Close(); err != nil {
+		log.Printf("Error closing database: %v", err)
+	}
+
+	log.Println("Server stopped gracefully")
 }

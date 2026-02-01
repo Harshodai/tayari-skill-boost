@@ -48,7 +48,7 @@ func (a *SupabaseAuth) VerifyToken(tokenString string) (*models.User, error) {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(a.Config.JWTSecret), nil
-	})
+	}, jwt.WithExpirationRequired())
 
 	if err != nil || !token.Valid {
 		return nil, ErrInvalidToken

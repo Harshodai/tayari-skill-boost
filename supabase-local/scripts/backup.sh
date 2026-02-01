@@ -5,7 +5,9 @@
 set -e
 
 # Load environment variables
-source ../.env
+# Load environment variables
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$DIR/../.env"
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 OUTPUT_FILE=${1:-"backup_${TIMESTAMP}.sql"}

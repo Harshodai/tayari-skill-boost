@@ -165,7 +165,7 @@ BEGIN
     
     RETURN user_has_role;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- ==========================================
 -- 8. Row Level Security (RLS)
@@ -225,11 +225,11 @@ CREATE POLICY "Users can manage own friendships" ON public.friendships
 CREATE POLICY "Service role can manage auth attempts" ON public.auth_attempts
     FOR ALL USING (auth.role() = 'service_role');
 CREATE POLICY "Backend can insert auth attempts" ON public.auth_attempts
-    FOR INSERT WITH CHECK (true);
+    FOR INSERT WITH CHECK (auth.role() = 'service_role');
 CREATE POLICY "Backend can update auth attempts" ON public.auth_attempts
-    FOR UPDATE USING (true);
+    FOR UPDATE USING (auth.role() = 'service_role');
 CREATE POLICY "Backend can delete auth attempts" ON public.auth_attempts
-    FOR DELETE USING (true);
+    FOR DELETE USING (auth.role() = 'service_role');
 
 -- ==========================================
 -- 9. Triggers for Auto-Updates
@@ -278,7 +278,7 @@ BEGIN
     
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 -- Trigger to create profile on new user
 CREATE OR REPLACE TRIGGER on_auth_user_created

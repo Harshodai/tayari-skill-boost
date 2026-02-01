@@ -96,6 +96,7 @@ case "$REPLY" in
         ;;
     *)
         echo "Not updating .env"
+        exit 0
         ;;
 esac
 

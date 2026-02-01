@@ -82,6 +82,11 @@ func (a *LocalAuth) SocialLogin(w http.ResponseWriter, r *http.Request) {
 	gothic.BeginAuthHandler(w, r)
 }
 
+// validateEmail performs basic email validation
+func validateEmail(email string) bool {
+	return email != "" && strings.Contains(email, "@") && len(email) > 3
+}
+
 // SocialCallback handles the callback from the provider with state validation
 func (a *LocalAuth) SocialCallback(w http.ResponseWriter, r *http.Request) {
 	// Validate CSRF state
@@ -116,6 +121,12 @@ func (a *LocalAuth) SocialCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *LocalAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request, gothUser goth.User) {
+	if !validateEmail(gothUser.Email) {
+		log.Printf("handleSocialCallback: invalid email from provider: %s", gothUser.Email)
+		http.Error(w, "Invalid email from provider", http.StatusBadRequest)
+		return
+	}
+
 	ctx := r.Context()
 	var dbUser models.User
 
@@ -169,7 +180,10 @@ func (a *LocalAuth) provisionSocialUser(ctx context.Context, gothUser goth.User)
 		"avatar_url": gothUser.AvatarURL,
 		"provider":   gothUser.Provider,
 	}
-	metaDataJSON, _ := json.Marshal(metaData)
+	metaDataJSON, err := json.Marshal(metaData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal user metadata: %w", err)
+	}
 
 	var user models.User
 	user.Email = gothUser.Email

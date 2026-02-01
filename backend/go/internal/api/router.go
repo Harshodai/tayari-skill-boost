@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -11,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"tayari-backend/internal/auth"
+	"tayari-backend/internal/config"
 	"tayari-backend/internal/models"
 )
 
@@ -22,12 +25,14 @@ const contextKeyUser contextKey = "user"
 type Server struct {
 	Router *chi.Mux
 	Auth   auth.AuthService
+	Config *config.Config
 }
 
-func NewServer(authService auth.AuthService) *Server {
+func NewServer(authService auth.AuthService, cfg *config.Config) *Server {
 	s := &Server{
 		Router: chi.NewRouter(),
 		Auth:   authService,
+		Config: cfg,
 	}
 	s.routes()
 	return s
@@ -36,8 +41,14 @@ func NewServer(authService auth.AuthService) *Server {
 func (s *Server) routes() {
 	s.Router.Use(middleware.Logger)
 	s.Router.Use(middleware.Recoverer)
+	
+	allowedOrigins := []string{"http://localhost:5173", "http://localhost:4173"}
+	if len(s.Config.AllowedOrigins) > 0 {
+		allowedOrigins = s.Config.AllowedOrigins
+	}
+
 	s.Router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:4173"},
+		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
@@ -55,13 +66,13 @@ func (s *Server) routes() {
 	// Inject provider param into context for Goth
 	s.Router.Get("/api/auth/{provider}", func(w http.ResponseWriter, r *http.Request) {
 		provider := chi.URLParam(r, "provider")
-		r = r.WithContext(context.WithValue(r.Context(), "provider", provider))
+		r = r.WithContext(context.WithValue(r.Context(), contextKey("provider"), provider))
 		s.Auth.SocialLogin(w, r)
 	})
 
 	s.Router.Get("/api/auth/{provider}/callback", func(w http.ResponseWriter, r *http.Request) {
 		provider := chi.URLParam(r, "provider")
-		r = r.WithContext(context.WithValue(r.Context(), "provider", provider))
+		r = r.WithContext(context.WithValue(r.Context(), contextKey("provider"), provider))
 		s.Auth.SocialCallback(w, r)
 	})
 
@@ -90,7 +101,10 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	user, err := s.Auth.Register(r.Context(), req.Email, req.Password)
 	if err != nil {
-		log.Printf("handleRegister: registration failed for %s: %v", req.Email, err)
+		// Hash email for privacy in error log
+		hash := sha256.Sum256([]byte(req.Email))
+		emailHash := hex.EncodeToString(hash[:16])
+		log.Printf("handleRegister: registration failed for hash:%s: %v", emailHash, err)
 		http.Error(w, "Registration failed", http.StatusInternalServerError)
 		return
 	}

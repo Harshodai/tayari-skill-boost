@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { marked } from "marked";
 import { BlogPostCard } from "@/components/blog";
+import { useToast } from "@/components/ui/use-toast";
 
 interface BlogPost {
   id: string;
@@ -63,6 +64,8 @@ interface BlogPost {
   }>;
 }
 
+import { sanitize } from "@/lib/utils";
+
 const categoryLabels: Record<string, string> = {
   "resume-tips": "Resume Tips",
   "interview-prep": "Interview Prep",
@@ -70,7 +73,7 @@ const categoryLabels: Record<string, string> = {
   "success-stories": "Success Story",
 };
 
-import { sanitize } from "@/lib/utils";
+
 
 // ...
 
@@ -86,6 +89,7 @@ function renderMarkdown(content: string): string {
 const BlogPost = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   // Fetch post by slug
   const { data: post, isLoading, error, refetch } = useQuery({
@@ -131,15 +135,28 @@ const BlogPost = () => {
     : "";
 
   const handleShare = async () => {
-    if (navigator.share) {
-      await navigator.share({
-        title: post?.title,
-        text: post?.excerpt,
-        url: window.location.href,
-      });
-    } else {
-      await navigator.clipboard.writeText(window.location.href);
-      // Show toast notification
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: post?.title,
+          text: post?.excerpt,
+          url: window.location.href,
+        });
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        toast({
+          title: "Link copied",
+          description: "The article link has been copied to your clipboard.",
+        });
+      }
+    } catch (error) {
+      if ((error as Error).name !== 'AbortError') {
+        toast({
+          title: "Share failed",
+          description: (error as Error).message,
+          variant: "destructive",
+        });
+      }
     }
   };
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+
 import { Layout } from "@/components/layout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -161,9 +161,8 @@ const Profile = () => {
                   {profile.weeklyGoals.map((goal) => (
                     <div
                       key={goal.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg border ${
-                        goal.completed ? "bg-success/10 border-success/20" : "border-border"
-                      }`}
+                      className={`flex items-center gap-3 p-3 rounded-lg border ${goal.completed ? "bg-success/10 border-success/20" : "border-border"
+                        }`}
                     >
                       {goal.completed ? (
                         <CheckCircle2 className="w-5 h-5 text-success" />
@@ -192,9 +191,8 @@ const Profile = () => {
                   {profile.badges.map((badge) => (
                     <div
                       key={badge.id}
-                      className={`flex flex-col items-center p-4 rounded-lg border ${
-                        badge.earned ? "border-border" : "border-border opacity-40"
-                      }`}
+                      className={`flex flex-col items-center p-4 rounded-lg border ${badge.earned ? "border-border" : "border-border opacity-40"
+                        }`}
                     >
                       <span className="text-3xl mb-2">{badge.icon}</span>
                       <span className="text-xs text-muted-foreground">{badge.name}</span>

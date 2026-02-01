@@ -29,10 +29,10 @@ parse_int = fn key, default ->
 end
 
 params = %{
-  "external_id" => System.get_env("POOLER_TENANT_ID"),
+  "external_id" => System.get_env("POOLER_TENANT_ID") || raise("POOLER_TENANT_ID is required"),
   "db_host" => "db",
   "db_port" => parse_int.("POSTGRES_PORT", 5432),
-  "db_database" => System.get_env("POSTGRES_DB"),
+  "db_database" => System.get_env("POSTGRES_DB") || raise("POSTGRES_DB is required"),
   "require_user" => false,
   "auth_query" => "SELECT * FROM pgbouncer.get_auth($1)",
   "default_max_clients" => parse_int.("POOLER_MAX_CLIENT_CONN", 100),
@@ -40,8 +40,8 @@ params = %{
   "default_parameter_status" => %{"server_version" => version},
   "users" => [%{
     "db_user" => "pgbouncer",
-    "db_password" => System.get_env("POSTGRES_PASSWORD"),
-    "mode_type" => System.get_env("POOLER_POOL_MODE"),
+  "db_password" => System.get_env("POSTGRES_PASSWORD") || raise("POSTGRES_PASSWORD is required"),
+    "mode_type" => System.get_env("POOLER_POOL_MODE") || raise("POOLER_POOL_MODE is required"),
     "pool_size" => parse_int.("POOLER_DEFAULT_POOL_SIZE", 20),
     "is_manager" => true
   }]

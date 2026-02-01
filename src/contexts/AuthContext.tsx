@@ -63,31 +63,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (USE_SELF_HOSTED) {
+      const controller = new AbortController();
       // Check for local JWT
       const token = localStorage.getItem('auth_token');
       if (token) {
         // Verify token with backend
         fetch(`${API_URL}/me`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal
         })
           .then(res => {
             if (res.ok) return res.json();
             throw new Error('Invalid token');
           })
           .then(userData => {
+            if (controller.signal.aborted) return;
             const mockUser = createMockUser(userData);
             setUser(mockUser);
             setSession(createMockSession(token, mockUser) as Session);
           })
-          .catch(() => {
+          .catch((err) => {
+            if (err.name === 'AbortError') return;
             localStorage.removeItem('auth_token');
             setUser(null);
             setSession(null);
           })
-          .finally(() => setIsLoading(false));
+          .finally(() => {
+            if (!controller.signal.aborted) setIsLoading(false);
+          });
       } else {
         setIsLoading(false);
       }
+      return () => controller.abort();
     } else {
       // Supabase logic
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
