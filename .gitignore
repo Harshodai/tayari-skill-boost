@@ -1,3 +1,10 @@
+# Helper Files
+.env
+.env.*
+!.env.example
+!.env.sample
+supabase-local/.env
+
 # Logs
 logs
 *.log
@@ -7,6 +14,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node
 node_modules
 dist
 dist-ssr
@@ -22,3 +30,39 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Go
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.manifest
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+ENV/
+env/
+
+# Docker
+.docker/
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini

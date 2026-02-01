@@ -10,6 +10,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PasswordStrengthMeter } from "@/components/auth";
 import { isPasswordValid } from "@/lib/password-validator";
 import { supabase } from "@/integrations/supabase/client";
+import { loginSchema, signupSchema } from "@/lib/schemas";
+import { checkRateLimit, recordFailedAttempt } from "@/lib/rate-limiter";
+import { FadeIn } from "@/components/ui/motion";
 
 interface BreachResult {
   breached: boolean;
@@ -22,7 +25,7 @@ const Auth = () => {
   const location = useLocation();
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, signInWithGithub, signInWithLinkedin } = useAuth();
-  
+
   const [isLogin, setIsLogin] = useState(searchParams.get("mode") !== "signup");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -105,44 +108,39 @@ const Auth = () => {
 
     const { email, password, name } = formData;
 
-    // Basic validation
-    if (!email || !password) {
+    // Zod Validation
+    const validationSchema = isLogin ? loginSchema : signupSchema;
+    const validationResult = validationSchema.safeParse(isLogin ? { email, password } : { email, password, fullName: name });
+
+    if (!validationResult.success) {
+      const errorMsg = validationResult.error.errors[0].message;
       toast({
-        title: "Error",
-        description: "Please fill in all required fields.",
+        title: "Validation Error",
+        description: errorMsg,
         variant: "destructive",
       });
       setIsLoading(false);
       return;
     }
 
-    // Enhanced password validation for signup
-    if (!isLogin) {
-      if (password.length < 12) {
-        toast({
-          title: "Password too short",
-          description: "Password must be at least 12 characters long.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-      }
+    // Additional check for breach if signing up
+    if (!isLogin && breachResult?.breached) {
+      toast({
+        title: "Password compromised",
+        description: "This password has been exposed in a data breach. Please choose a different password.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
 
-      if (!isPasswordValid(password)) {
+    // Rate Limit Check
+    if (isLogin) {
+      const rateLimit = await checkRateLimit(email);
+      if (!rateLimit.allowed) {
         toast({
-          title: "Password doesn't meet requirements",
-          description: "Please ensure your password meets all the requirements below.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // Block if password is breached
-      if (breachResult?.breached) {
-        toast({
-          title: "Password compromised",
-          description: "This password has been exposed in a data breach. Please choose a different password.",
+          title: "Too many attempts",
+          description: rateLimit.message || "Please try again later.",
           variant: "destructive",
         });
         setIsLoading(false);
@@ -158,6 +156,9 @@ const Auth = () => {
     }
 
     if (result.error) {
+      if (isLogin) {
+        await recordFailedAttempt(email);
+      }
       toast({
         title: "Authentication Error",
         description: result.error,
@@ -167,7 +168,7 @@ const Auth = () => {
     } else {
       toast({
         title: isLogin ? "Welcome back!" : "Account created!",
-        description: isLogin 
+        description: isLogin
           ? "You've successfully signed in."
           : "Welcome to Job Tayari. Let's get started!",
       });
@@ -211,7 +212,7 @@ const Auth = () => {
         <div className="flex items-center gap-2 text-sm text-destructive">
           <ShieldAlert className="w-4 h-4" />
           <span>
-            ⚠️ This password was found in {breachResult.count?.toLocaleString()} data breaches. 
+            ⚠️ This password was found in {breachResult.count?.toLocaleString()} data breaches.
             Please choose a different password.
           </span>
         </div>
@@ -253,235 +254,237 @@ const Auth = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center p-4 relative z-10">
-        <Card className="w-full max-w-md animate-fade-in-up">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">
-              {isLogin ? "Welcome Back" : "Create Your Account"}
-            </CardTitle>
-            <CardDescription>
-              {isLogin
-                ? "Sign in to continue your job preparation journey"
-                : "Join thousands of engineers landing their dream jobs"}
-            </CardDescription>
-          </CardHeader>
+        <FadeIn className="w-full max-w-md">
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl">
+                {isLogin ? "Welcome Back" : "Create Your Account"}
+              </CardTitle>
+              <CardDescription>
+                {isLogin
+                  ? "Sign in to continue your job preparation journey"
+                  : "Join thousands of engineers landing their dream jobs"}
+              </CardDescription>
+            </CardHeader>
 
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {!isLogin && (
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
-                    Full Name
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="name"
-                      name="name"
-                      placeholder="John Doe"
-                      className="pl-10"
-                      value={formData.name}
-                      onChange={handleChange}
-                      required={!isLogin}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    className="pl-10"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder={isLogin ? "••••••••" : "Min 12 characters"}
-                    className="pl-10 pr-10"
-                    value={formData.password}
-                    onChange={handleChange}
-                    required
-                    minLength={isLogin ? 8 : 12}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-
-                {/* Password Strength Meter - Only on signup */}
-                {!isLogin && formData.password.length > 0 && (
-                  <div className="mt-3 space-y-3">
-                    <PasswordStrengthMeter 
-                      password={formData.password} 
-                      showRequirements={true}
-                    />
-                    {/* Breach Check Indicator */}
-                    <div className="transition-all duration-300">
-                      {getBreachIndicator()}
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {!isLogin && (
+                  <div>
+                    <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
+                      Full Name
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="name"
+                        name="name"
+                        placeholder="John Doe"
+                        className="pl-10"
+                        value={formData.name}
+                        onChange={handleChange}
+                        required={!isLogin}
+                      />
                     </div>
                   </div>
                 )}
-              </div>
 
-              {isLogin && (
-                <div className="flex items-center justify-end">
-                  <Link to="/forgot-password" className="text-sm text-primary hover:underline">
-                    Forgot password?
-                  </Link>
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      className="pl-10"
+                      value={formData.email}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
                 </div>
-              )}
 
-              <Button 
-                type="submit" 
-                className="w-full" 
-                size="lg" 
-                disabled={isLoading || (!isLogin && (isCheckingBreach || breachResult?.breached))}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {isLogin ? "Signing in..." : "Creating account..."}
-                  </>
-                ) : (
-                  isLogin ? "Sign In" : "Create Account"
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder={isLogin ? "••••••••" : "Min 12 characters"}
+                      className="pl-10 pr-10"
+                      value={formData.password}
+                      onChange={handleChange}
+                      required
+                      minLength={isLogin ? 8 : 12}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  {/* Password Strength Meter - Only on signup */}
+                  {!isLogin && formData.password.length > 0 && (
+                    <div className="mt-3 space-y-3">
+                      <PasswordStrengthMeter
+                        password={formData.password}
+                        showRequirements={true}
+                      />
+                      {/* Breach Check Indicator */}
+                      <div className="transition-all duration-300">
+                        {getBreachIndicator()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {isLogin && (
+                  <div className="flex items-center justify-end">
+                    <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+                      Forgot password?
+                    </Link>
+                  </div>
                 )}
-              </Button>
-            </form>
 
-            {/* Divider */}
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border" />
+                <Button
+                  type="submit"
+                  className="w-full"
+                  size="lg"
+                  disabled={isLoading || (!isLogin && (isCheckingBreach || breachResult?.breached))}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      {isLogin ? "Signing in..." : "Creating account..."}
+                    </>
+                  ) : (
+                    isLogin ? "Sign In" : "Create Account"
+                  )}
+                </Button>
+              </form>
+
+              {/* Divider */}
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+                </div>
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+
+              {/* Social Login */}
+              <div className="w-full space-y-3">
+                <Button
+                  variant="outline"
+                  type="button"
+                  disabled={isLoading}
+                  onClick={async () => {
+                    setIsLoading(true);
+                    const result = await signInWithGoogle();
+                    if (result.error) {
+                      toast({
+                        title: "Google Sign-In Error",
+                        description: result.error,
+                        variant: "destructive",
+                      });
+                      setIsLoading(false);
+                    }
+                  }}
+                  className="w-full"
+                >
+                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
+                  Continue with Google
+                </Button>
+
+                <Button
+                  variant="outline"
+                  type="button"
+                  disabled={isLoading}
+                  onClick={async () => {
+                    setIsLoading(true);
+                    const result = await signInWithGithub();
+                    if (result.error) {
+                      toast({
+                        title: "GitHub Sign-In Error",
+                        description: result.error,
+                        variant: "destructive",
+                      });
+                      setIsLoading(false);
+                    }
+                  }}
+                  className="w-full"
+                >
+                  <Github className="w-4 h-4 mr-2" />
+                  Continue with GitHub
+                </Button>
+
+                <Button
+                  variant="outline"
+                  type="button"
+                  disabled={isLoading}
+                  onClick={async () => {
+                    setIsLoading(true);
+                    const result = await signInWithLinkedin();
+                    if (result.error) {
+                      toast({
+                        title: "LinkedIn Sign-In Error",
+                        description: result.error,
+                        variant: "destructive",
+                      });
+                      setIsLoading(false);
+                    }
+                  }}
+                  className="w-full"
+                >
+                  <Linkedin className="w-4 h-4 mr-2 text-[#0077B5]" />
+                  Continue with LinkedIn
+                </Button>
               </div>
-            </div>
+            </CardContent>
 
-            {/* Social Login */}
-            <div className="w-full space-y-3">
-              <Button 
-                variant="outline" 
-                type="button" 
-                disabled={isLoading}
-                onClick={async () => {
-                  setIsLoading(true);
-                  const result = await signInWithGoogle();
-                  if (result.error) {
-                    toast({
-                      title: "Google Sign-In Error",
-                      description: result.error,
-                      variant: "destructive",
-                    });
-                    setIsLoading(false);
-                  }
-                }}
-                className="w-full"
-              >
-                <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-                Continue with Google
-              </Button>
-
-              <Button
-                variant="outline"
-                type="button"
-                disabled={isLoading}
-                onClick={async () => {
-                  setIsLoading(true);
-                  const result = await signInWithGithub();
-                  if (result.error) {
-                    toast({
-                      title: "GitHub Sign-In Error",
-                      description: result.error,
-                      variant: "destructive",
-                    });
-                    setIsLoading(false);
-                  }
-                }}
-                className="w-full"
-              >
-                <Github className="w-4 h-4 mr-2" />
-                Continue with GitHub
-              </Button>
-
-              <Button
-                variant="outline"
-                type="button"
-                disabled={isLoading}
-                onClick={async () => {
-                  setIsLoading(true);
-                  const result = await signInWithLinkedin();
-                  if (result.error) {
-                    toast({
-                      title: "LinkedIn Sign-In Error",
-                      description: result.error,
-                      variant: "destructive",
-                    });
-                    setIsLoading(false);
-                  }
-                }}
-                className="w-full"
-              >
-                <Linkedin className="w-4 h-4 mr-2 text-[#0077B5]" />
-                Continue with LinkedIn
-              </Button>
-            </div>
-          </CardContent>
-
-          <CardFooter className="justify-center">
-            <p className="text-sm text-muted-foreground">
-              {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
-              <button
-                type="button"
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-primary hover:underline font-medium"
-              >
-                {isLogin ? "Sign up" : "Sign in"}
-              </button>
-            </p>
-          </CardFooter>
-        </Card>
+            <CardFooter className="justify-center">
+              <p className="text-sm text-muted-foreground">
+                {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+                <button
+                  type="button"
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="text-primary hover:underline font-medium"
+                >
+                  {isLogin ? "Sign up" : "Sign in"}
+                </button>
+              </p>
+            </CardFooter>
+          </Card>
+        </FadeIn>
       </main>
     </div>
   );

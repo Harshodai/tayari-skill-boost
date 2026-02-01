@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Map, Target, Briefcase, Bell, ArrowRight, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { FadeIn, StaggerContainer } from "@/components/ui/motion";
 
 const features = [
     {
@@ -60,12 +61,11 @@ const CareerRoadmap = () => {
                 </div>
 
                 {/* Feature Preview Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-16">
+                <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-16" staggerDelay={0.1}>
                     {features.map((feature, index) => (
-                        <Card
+                        <FadeIn
                             key={feature.title}
-                            className="overflow-hidden animate-fade-in-up"
-                            style={{ animationDelay: `${index * 0.1}s` }}
+                            className="overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm"
                         >
                             <div className={`bg-gradient-to-r ${feature.gradient} p-6`}>
                                 <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-background/20 backdrop-blur-sm">
@@ -80,9 +80,9 @@ const CareerRoadmap = () => {
                                     {feature.description}
                                 </p>
                             </CardContent>
-                        </Card>
+                        </FadeIn>
                     ))}
-                </div>
+                </StaggerContainer>
 
                 {/* Email Signup */}
                 <div className="max-w-md mx-auto text-center">

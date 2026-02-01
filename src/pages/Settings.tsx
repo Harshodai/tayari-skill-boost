@@ -9,13 +9,13 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { 
-  User, 
-  Mail, 
-  Lock, 
-  Bell, 
-  Palette, 
-  Shield, 
+import {
+  User,
+  Mail,
+  Lock,
+  Bell,
+  Palette,
+  Shield,
   CreditCard,
   Download,
   Trash2,
@@ -25,24 +25,35 @@ import {
   Smartphone,
   Globe,
   Eye,
-  EyeOff
+  EyeOff,
+  Loader2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { profileSchema, changePasswordSchema } from "@/lib/schemas";
+import { z } from "zod";
 
 const Settings = () => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("profile");
   const [showPassword, setShowPassword] = useState(false);
-  
+  const [isLoading, setIsLoading] = useState(false);
+
   // Form states
   const [profileData, setProfileData] = useState({
-    name: user?.user_metadata?.name || user?.email?.split("@")[0] || "",
+    name: user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split("@")[0] || "",
     email: user?.email || "",
-    phone: "",
-    location: "",
-    bio: "",
+    phone: user?.user_metadata?.phone || "",
+    location: user?.user_metadata?.location || "",
+    bio: user?.user_metadata?.bio || "",
+  });
+
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: ""
   });
 
   const [notifications, setNotifications] = useState({
@@ -58,17 +69,104 @@ const Settings = () => {
     autoSave: true,
   });
 
-  const handleSaveProfile = () => {
-    toast({
-      title: "Profile Updated",
-      description: "Your profile changes have been saved.",
-    });
+  const handleSaveProfile = async () => {
+    setIsLoading(true);
+    const validation = profileSchema.safeParse(profileData);
+
+    if (!validation.success) {
+      toast({
+        title: "Validation Error",
+        description: validation.error.errors[0].message,
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // Update Auth Metadata
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          full_name: profileData.name,
+          name: profileData.name, // Support both keys
+          phone: profileData.phone,
+          location: profileData.location,
+          bio: profileData.bio
+        }
+      });
+
+      if (authError) throw authError;
+
+      // Update Profiles Table (if exists and synced)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          full_name: profileData.name,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user?.id);
+
+      if (profileError) {
+        console.warn("Profile table update failed:", profileError);
+        // Don't block success if auth update worked, but log it
+      }
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile changes have been saved successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update profile",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setIsLoading(true);
+    const validation = changePasswordSchema.safeParse(passwordData);
+
+    if (!validation.success) {
+      toast({
+        title: "Validation Error",
+        description: validation.error.errors[0].message,
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Password Updated",
+        description: "Your password has been changed successfully.",
+      });
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update password",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSaveNotifications = () => {
     toast({
       title: "Notification Preferences Updated",
-      description: "Your notification settings have been saved.",
+      description: "Your notification settings have been saved locally (Demo).",
     });
   };
 
@@ -123,7 +221,7 @@ const Settings = () => {
                 <div className="flex items-center gap-6">
                   <div className="relative">
                     <Avatar className="w-24 h-24">
-                      <AvatarImage src="" />
+                      <AvatarImage src={user?.user_metadata?.avatar_url || ""} />
                       <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
                         {getInitials(profileData.name || "U")}
                       </AvatarFallback>
@@ -158,8 +256,8 @@ const Settings = () => {
                       id="email"
                       type="email"
                       value={profileData.email}
-                      onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                      placeholder="john@example.com"
+                      disabled
+                      className="opacity-70 cursor-not-allowed"
                     />
                   </div>
                   <div className="space-y-2">
@@ -180,11 +278,20 @@ const Settings = () => {
                       placeholder="San Francisco, CA"
                     />
                   </div>
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="bio">Bio</Label>
+                    <Input
+                      id="bio"
+                      value={profileData.bio}
+                      onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                      placeholder="Tell us a bit about yourself"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex justify-end">
-                  <Button onClick={handleSaveProfile}>
-                    <Save className="w-4 h-4 mr-2" />
+                  <Button onClick={handleSaveProfile} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                     Save Changes
                   </Button>
                 </div>
@@ -270,6 +377,8 @@ const Settings = () => {
                       id="current-password"
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter current password"
+                      value={passwordData.currentPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                     />
                     <button
                       type="button"
@@ -282,15 +391,28 @@ const Settings = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="new-password">New Password</Label>
-                  <Input id="new-password" type="password" placeholder="Enter new password" />
+                  <Input
+                    id="new-password"
+                    type="password"
+                    placeholder="Enter new password"
+                    value={passwordData.newPassword}
+                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">Min 8 chars, uppercase, lowercase, number, special char.</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirm-password">Confirm New Password</Label>
-                  <Input id="confirm-password" type="password" placeholder="Confirm new password" />
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={passwordData.confirmPassword}
+                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  />
                 </div>
                 <div className="flex justify-end">
-                  <Button>
-                    <Lock className="w-4 h-4 mr-2" />
+                  <Button onClick={handleChangePassword} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}
                     Update Password
                   </Button>
                 </div>

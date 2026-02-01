@@ -11,6 +11,7 @@ interface CountUpProps {
   separator?: string;
   className?: string;
   onComplete?: () => void;
+  delay?: number;
 }
 
 export function CountUp({
@@ -23,6 +24,7 @@ export function CountUp({
   separator = ",",
   className,
   onComplete,
+  delay = 0,
 }: CountUpProps) {
   const [count, setCount] = React.useState(start);
   const [hasAnimated, setHasAnimated] = React.useState(false);
@@ -41,11 +43,11 @@ export function CountUp({
     const tick = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
+
       // Easing function (ease-out-expo)
       const easedProgress = 1 - Math.pow(2, -10 * progress);
       const currentValue = start + difference * easedProgress;
-      
+
       setCount(currentValue);
 
       if (progress < 1) {

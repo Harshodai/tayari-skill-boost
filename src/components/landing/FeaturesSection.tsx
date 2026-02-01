@@ -44,6 +44,10 @@ const features = [
   },
 ];
 
+import { FadeIn, SlideUp, StaggerContainer } from "@/components/ui/motion";
+
+// ... existing imports
+
 export function FeaturesSection() {
   const visibleFeatures = features.filter(f => f.visible);
   const isSingleFeature = visibleFeatures.length === 1;
@@ -69,12 +73,14 @@ export function FeaturesSection() {
       <div className="container mx-auto px-4">
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <h2 className="text-section font-bold text-foreground mb-4">
-            Everything You Need to Succeed
-          </h2>
-          <p className="text-muted-foreground text-lg">
-            Our AI-powered tools help you prepare for every step of your job search journey.
-          </p>
+          <SlideUp>
+            <h2 className="text-section font-bold text-foreground mb-4">
+              Everything You Need to Succeed
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Our AI-powered tools help you prepare for every step of your job search journey.
+            </p>
+          </SlideUp>
         </div>
 
         {/* Feature Cards - Dynamic Layout */}
@@ -84,57 +90,61 @@ export function FeaturesSection() {
         )}>
           {isSingleFeature ? (
             // Single Feature - Centered & Premium
-            <div className="flex justify-center animate-fade-in-up">
-              <FeatureCard feature={visibleFeatures[0]} index={0} />
+            <div className="flex justify-center">
+              <FadeIn delay={0.2}>
+                <FeatureCard feature={visibleFeatures[0]} index={0} />
+              </FadeIn>
             </div>
           ) : (
             // Multiple Features - Carousel for sliding/dragging UX
-            <Carousel
-              setApi={setApi}
-              opts={{
-                align: "start",
-                loop: false,
-                dragFree: false,
-              }}
-              className="w-full"
-            >
-              <CarouselContent className="-ml-4 md:-ml-6">
-                {visibleFeatures.map((feature, index) => (
-                  <CarouselItem
-                    key={feature.title}
-                    className={cn(
-                      "pl-4 md:pl-6",
-                      // Mobile: Always 1 per slide (basis-full default)
-                      // Tablet (md): If 2+ items, show 2. 
-                      visibleFeatures.length >= 2 ? "md:basis-1/2" : "md:basis-full",
-                      // Desktop (lg): If 3+ items, show 3. If 2 items, show 2.
-                      visibleFeatures.length >= 3 ? "lg:basis-1/3" : "lg:basis-1/2"
-                    )}
-                  >
-                    <div className="h-full">
-                      <FeatureCard feature={feature} index={index} />
-                    </div>
-                  </CarouselItem>
-                ))}
-              </CarouselContent>
-              <div className={cn("block", visibleFeatures.length <= 3 && "lg:hidden")}>
-                <CarouselPrevious className="-left-4 lg:-left-12" />
-                <CarouselNext className="-right-4 lg:-right-12" />
-              </div>
-              <div className="flex justify-center gap-2 mt-8">
-                {Array.from({ length: count }).map((_, index) => (
-                  <button
-                    key={index}
-                    className={cn(
-                      "h-2 rounded-full transition-all duration-300",
-                      current === index + 1 ? "bg-primary w-8" : "bg-primary/20 w-2 hover:bg-primary/40"
-                    )}
-                    onClick={() => api?.scrollTo(index)}
-                    aria-label={`Go to slide ${index + 1}`}
-                  />
-                ))}
-              </div>
-            </Carousel>
+            <SlideUp delay={0.2}>
+              <Carousel
+                setApi={setApi}
+                opts={{
+                  align: "start",
+                  loop: false,
+                  dragFree: false,
+                }}
+                className="w-full"
+              >
+                <CarouselContent className="-ml-4 md:-ml-6">
+                  {visibleFeatures.map((feature, index) => (
+                    <CarouselItem
+                      key={feature.title}
+                      className={cn(
+                        "pl-4 md:pl-6",
+                        // Mobile: Always 1 per slide (basis-full default)
+                        // Tablet (md): If 2+ items, show 2. 
+                        visibleFeatures.length >= 2 ? "md:basis-1/2" : "md:basis-full",
+                        // Desktop (lg): If 3+ items, show 3. If 2 items, show 2.
+                        visibleFeatures.length >= 3 ? "lg:basis-1/3" : "lg:basis-1/2"
+                      )}
+                    >
+                      <div className="h-full">
+                        <FeatureCard feature={feature} index={index} />
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <div className={cn("block", visibleFeatures.length <= 3 && "lg:hidden")}>
+                  <CarouselPrevious className="-left-4 lg:-left-12" />
+                  <CarouselNext className="-right-4 lg:-right-12" />
+                </div>
+                <div className="flex justify-center gap-2 mt-8">
+                  {Array.from({ length: count }).map((_, index) => (
+                    <button
+                      key={index}
+                      className={cn(
+                        "h-2 rounded-full transition-all duration-300",
+                        current === index + 1 ? "bg-primary w-8" : "bg-primary/20 w-2 hover:bg-primary/40"
+                      )}
+                      onClick={() => api?.scrollTo(index)}
+                      aria-label={`Go to slide ${index + 1}`}
+                    />
+                  ))}
+                </div>
+              </Carousel>
+            </SlideUp>
           )}
         </div>
       </div>

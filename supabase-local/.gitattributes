@@ -1,0 +1,33 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# Force LF line endings for shell scripts
+*.sh text eol=lf
+
+# Force LF for Unix config files
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+
+# Force LF for SQL files
+*.sql text eol=lf
+
+# Force LF for TypeScript/JavaScript (Edge Functions)
+*.ts text eol=lf
+*.js text eol=lf
+
+# Force LF for Elixir files
+*.exs text eol=lf
+*.ex text eol=lf
+
+# Binary files - treat as binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary

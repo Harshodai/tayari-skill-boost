@@ -1,8 +1,31 @@
-node_modules
-.git
+# Exclude all by default? No, explicit excludes are safer for existing setup.
 
-.DS_Store
-dist
-coverage
+.git
+.gitignore
+.env
+.env.*
 .idea
 .vscode
+docker-compose.yml
+README.md
+
+# Directories to ignore
+node_modules
+dist
+coverage
+logs
+tmp
+temp
+supabase-local
+supabase-temp
+
+# Backend directories (not needed for frontend build)
+backend
+apps
+packages
+
+# Ignore large media/artifacts not in public
+*.mp4
+*.mov
+*.zip
+*.tar.gz

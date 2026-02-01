@@ -33,17 +33,20 @@ const stats = [
   { value: "∞", label: "Career Possibilities", isText: true },
 ];
 
+import { FadeIn, SlideUp, StaggerContainer } from "@/components/ui/motion";
+
+// ... existing imports
+
 export function SocialProofSection() {
   return (
     <section className="py-20 lg:py-28 bg-accent/5">
       <div className="container mx-auto px-4">
         {/* Stats Bar */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 mb-20">
+        <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 mb-20" staggerDelay={0.1}>
           {stats.map((stat, index) => (
-            <div
+            <SlideUp
               key={stat.label}
-              className="text-center p-6 rounded-xl bg-card/50 border border-border/50 backdrop-blur-sm animate-fade-in-up hover:border-primary/30 transition-colors duration-300"
-              style={{ animationDelay: `${index * 0.1}s` }}
+              className="text-center p-6 rounded-xl bg-card/50 border border-border/50 backdrop-blur-sm hover:border-primary/30 transition-colors duration-300"
             >
               <div className="text-3xl lg:text-4xl font-bold text-primary mb-2 flex justify-center items-center h-10">
                 {stat.isText ? (
@@ -60,27 +63,29 @@ export function SocialProofSection() {
               <div className="text-muted-foreground text-sm">
                 {stat.label}
               </div>
-            </div>
+            </SlideUp>
           ))}
-        </div>
+        </StaggerContainer>
 
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <h2 className="text-section font-bold text-foreground mb-4">
-            You Can Be The One Here
-          </h2>
-          <p className="text-muted-foreground text-lg">
-            Start your journey today and become one of the engineers who transform their careers with Job Tayari.
-          </p>
+          <SlideUp delay={0.2}>
+            <h2 className="text-section font-bold text-foreground mb-4">
+              You Can Be The One Here
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Start your journey today and become one of the engineers who transform their careers with Job Tayari.
+            </p>
+          </SlideUp>
         </div>
 
         {/* Aspirational Cards */}
-        <div className="flex flex-nowrap overflow-x-auto snap-x snap-mandatory -mx-4 px-4 gap-4 pb-6 md:grid md:grid-cols-3 md:gap-6 md:pb-0 md:mx-0 md:px-0 lg:gap-8 scrollbar-hide">
+        <StaggerContainer className="flex flex-nowrap overflow-x-auto snap-x snap-mandatory -mx-4 px-4 gap-4 pb-6 md:grid md:grid-cols-3 md:gap-6 md:pb-0 md:mx-0 md:px-0 lg:gap-8 scrollbar-hide" staggerDelay={0.2}>
           {aspirationalCards.map((card, index) => (
-            <div
+            <FadeIn
               key={card.title}
-              className="group relative h-full animate-fade-in-up perspective-1000 min-w-[85vw] sm:min-w-[45vw] md:min-w-0 snap-center"
-              style={{ animationDelay: `${index * 0.1}s` }}
+              className="group relative h-full perspective-1000 min-w-[85vw] sm:min-w-[45vw] md:min-w-0 snap-center"
+              delay={index * 0.1}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-xl blur-lg opacity-0 group-hover:opacity-70 transition-opacity duration-500" />
               <Card
@@ -115,9 +120,9 @@ export function SocialProofSection() {
                   </Button>
                 </CardContent>
               </Card>
-            </div>
+            </FadeIn>
           ))}
-        </div>
+        </StaggerContainer>
       </div>
     </section>
   );

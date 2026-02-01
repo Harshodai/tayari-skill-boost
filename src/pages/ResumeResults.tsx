@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScoreDisplay } from "@/components/ui/score-display";
-import { 
-  ArrowLeft, 
-  Download, 
-  Edit, 
-  RotateCcw, 
-  ChevronDown, 
-  ChevronUp, 
+import {
+  ArrowLeft,
+  Download,
+  Edit,
+  RotateCcw,
+  ChevronDown,
+  ChevronUp,
   Check,
   Lightbulb,
   Target,
@@ -23,6 +23,7 @@ import {
   XCircle
 } from "lucide-react";
 import type { ResumeAnalysisResult } from "@/types/resume";
+import { FadeIn, SlideUp, StaggerContainer } from "@/components/ui/motion";
 
 // Icon mapping for sections
 const sectionIcons: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -39,7 +40,7 @@ const ResumeResults = () => {
   const resumeFileName = location.state?.resumeFileName as string | undefined;
   const resumeText = location.state?.resumeText as string | undefined;
   const jobDescription = location.state?.jobDescription as string | undefined;
-  
+
   const [expandedSections, setExpandedSections] = useState<string[]>(
     analysisResults?.sections?.[0]?.name ? [analysisResults.sections[0].name] : []
   );
@@ -126,89 +127,95 @@ const ResumeResults = () => {
           {/* Left Column - Overall Score & Keywords */}
           <div className="space-y-6">
             {/* Overall Score Card */}
-            <Card className="animate-fade-in-up">
-              <CardHeader className="text-center">
-                <CardTitle>Overall Match Score</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center">
-                <ScoreDisplay 
-                  score={analysisResults.overallScore} 
-                  size="lg" 
-                  showBar 
-                  animated 
-                />
-                <div className={`mt-4 text-lg font-semibold ${overallLabel.color}`}>
-                  {overallLabel.text}
-                </div>
-                <p className="text-muted-foreground text-sm text-center mt-2">
-                  Your resume matches {analysisResults.overallScore}% of the job requirements
-                </p>
-              </CardContent>
-            </Card>
+            <SlideUp>
+              <Card>
+                <CardHeader className="text-center">
+                  <CardTitle>Overall Match Score</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center">
+                  <ScoreDisplay
+                    score={analysisResults.overallScore}
+                    size="lg"
+                    showBar
+                    animated
+                  />
+                  <div className={`mt-4 text-lg font-semibold ${overallLabel.color}`}>
+                    {overallLabel.text}
+                  </div>
+                  <p className="text-muted-foreground text-sm text-center mt-2">
+                    Your resume matches {analysisResults.overallScore}% of the job requirements
+                  </p>
+                </CardContent>
+              </Card>
+            </SlideUp>
 
             {/* Keywords Card */}
-            <Card className="animate-fade-in-up" style={{ animationDelay: "0.1s" }}>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Target className="w-5 h-5 text-primary" />
-                  Keyword Analysis
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Matched Keywords */}
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle2 className="w-4 h-4 text-success" />
-                    <span className="text-sm font-medium">Matched Keywords</span>
+            <SlideUp delay={0.1}>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Target className="w-5 h-5 text-primary" />
+                    Keyword Analysis
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Matched Keywords */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="w-4 h-4 text-success" />
+                      <span className="text-sm font-medium">Matched Keywords</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {analysisResults.matchedKeywords.length > 0 ? (
+                        analysisResults.matchedKeywords.map((keyword) => (
+                          <Badge key={keyword} variant="outline" className="bg-success/10 border-success/30 text-success">
+                            {keyword}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground text-sm">No matched keywords found</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {analysisResults.matchedKeywords.length > 0 ? (
-                      analysisResults.matchedKeywords.map((keyword) => (
-                        <Badge key={keyword} variant="outline" className="bg-success/10 border-success/30 text-success">
-                          {keyword}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground text-sm">No matched keywords found</span>
-                    )}
-                  </div>
-                </div>
 
-                {/* Missing Keywords */}
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <XCircle className="w-4 h-4 text-destructive" />
-                    <span className="text-sm font-medium">Missing Keywords</span>
+                  {/* Missing Keywords */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <XCircle className="w-4 h-4 text-destructive" />
+                      <span className="text-sm font-medium">Missing Keywords</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {analysisResults.missingKeywords.length > 0 ? (
+                        analysisResults.missingKeywords.map((keyword) => (
+                          <Badge key={keyword} variant="outline" className="bg-destructive/10 border-destructive/30 text-destructive">
+                            {keyword}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Great! No critical keywords missing</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {analysisResults.missingKeywords.length > 0 ? (
-                      analysisResults.missingKeywords.map((keyword) => (
-                        <Badge key={keyword} variant="outline" className="bg-destructive/10 border-destructive/30 text-destructive">
-                          {keyword}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground text-sm">Great! No critical keywords missing</span>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </SlideUp>
 
             {/* Summary Recommendation */}
-            <Card className="animate-fade-in-up" style={{ animationDelay: "0.2s" }}>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-primary" />
-                  AI Recommendation
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  {analysisResults.summaryRecommendation}
-                </p>
-              </CardContent>
-            </Card>
+            <SlideUp delay={0.2}>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-primary" />
+                    AI Recommendation
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    {analysisResults.summaryRecommendation}
+                  </p>
+                </CardContent>
+              </Card>
+            </SlideUp>
           </div>
 
           {/* Right Column - Section Breakdown */}
@@ -223,8 +230,8 @@ const ResumeResults = () => {
               const Icon = sectionIcons[section.name] || FileText;
 
               return (
-                <Card 
-                  key={section.name} 
+                <Card
+                  key={section.name}
                   className="animate-fade-in-up overflow-hidden"
                   style={{ animationDelay: `${index * 0.1}s` }}
                 >
@@ -262,13 +269,12 @@ const ResumeResults = () => {
                           {section.suggestions.map((suggestion) => {
                             const isApplied = appliedSuggestions.includes(suggestion);
                             return (
-                              <li 
+                              <li
                                 key={suggestion}
-                                className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${
-                                  isApplied 
-                                    ? "bg-success/10 border border-success/20" 
-                                    : "bg-accent/50"
-                                }`}
+                                className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${isApplied
+                                  ? "bg-success/10 border border-success/20"
+                                  : "bg-accent/50"
+                                  }`}
                               >
                                 <span className={`flex-1 text-sm ${isApplied ? "line-through text-muted-foreground" : "text-foreground"}`}>
                                   {suggestion}

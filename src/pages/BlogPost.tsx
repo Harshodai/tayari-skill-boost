@@ -31,7 +31,6 @@ import {
   Share2,
   BookmarkPlus
 } from "lucide-react";
-import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { BlogPostCard } from "@/components/blog";
 
@@ -71,13 +70,17 @@ const categoryLabels: Record<string, string> = {
   "success-stories": "Success Story",
 };
 
+import { sanitize } from "@/lib/utils";
+
+// ...
+
 // Simple markdown to HTML converter
 function renderMarkdown(content: string): string {
   // 1. Parse markdown using marked
   const html = marked.parse(content, { async: false }) as string;
 
-  // 2. Sanitize using DOMPurify
-  return DOMPurify.sanitize(html);
+  // 2. Sanitize using helper
+  return sanitize(html);
 }
 
 const BlogPost = () => {

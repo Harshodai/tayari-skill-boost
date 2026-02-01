@@ -7,12 +7,12 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  ArrowRight, 
-  FileText, 
-  Clipboard, 
-  Sparkles, 
-  Settings2, 
+import {
+  ArrowRight,
+  FileText,
+  Clipboard,
+  Sparkles,
+  Settings2,
   Loader2,
   Wand2,
   Target,
@@ -33,6 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { extractTextFromFile } from "@/lib/resume-parser";
 import { toast } from "sonner";
 import type { AnalyzeResumeResponse } from "@/types/resume";
+import { resumeUploadSchema } from "@/lib/schemas";
 
 const ResumeUpload = () => {
   const navigate = useNavigate();
@@ -46,7 +47,7 @@ const ResumeUpload = () => {
   const [analysisStep, setAnalysisStep] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // AI Workflow Options
   const [aiOptions, setAiOptions] = useState({
     emphasizeKeywords: true,
@@ -66,6 +67,16 @@ const ResumeUpload = () => {
     const extractText = async () => {
       try {
         setParsingError(null);
+
+        // Zod Validation
+        const validationResult = resumeUploadSchema.safeParse({ file: resumeFile });
+        if (!validationResult.success) {
+          const errorMsg = validationResult.error.errors[0].message;
+          setParsingError(errorMsg);
+          setResumeText("");
+          return;
+        }
+
         const text = await extractTextFromFile(resumeFile);
         setResumeText(text);
         console.log("Extracted resume text:", text.substring(0, 200) + "...");
@@ -84,24 +95,24 @@ const ResumeUpload = () => {
     setIsAnalyzing(true);
     setError(null);
     setAnalysisStep(0);
-    
+
     try {
       // Step 1: Parsing resume content
       setAnalysisStep(1);
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       // Check if we have resume text
       if (!resumeText && resumeFile) {
         throw new Error("Could not extract text from your resume. Please try a different file.");
       }
-      
+
       // Step 2: Extracting job requirements
       setAnalysisStep(2);
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       // Step 3: Calling AI for analysis
       setAnalysisStep(3);
-      
+
       const { data, error: invokeError } = await supabase.functions.invoke<AnalyzeResumeResponse>(
         'analyze-resume',
         {
@@ -126,7 +137,7 @@ const ResumeUpload = () => {
       // Step 4: Complete
       setAnalysisStep(4);
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       // Save to history if logged in
       if (user && data.data) {
         try {
@@ -147,16 +158,16 @@ const ResumeUpload = () => {
       }
 
       // Navigate to results with the analysis data
-      navigate("/resume/results", { 
-        state: { 
+      navigate("/resume/results", {
+        state: {
           analysisResults: data.data,
           parsedResume: data.parsedResume,
           resumeFileName: resumeFile?.name || "Resume",
           resumeText,
           jobDescription,
-        } 
+        }
       });
-      
+
     } catch (err) {
       console.error("Analysis error:", err);
       const message = err instanceof Error ? err.message : "Failed to analyze resume";
@@ -201,7 +212,7 @@ const ResumeUpload = () => {
                 </div>
               </div>
             </div>
-            
+
             <h2 className="text-2xl font-bold text-foreground mb-4">
               Analyzing Your Resume
             </h2>
@@ -212,8 +223,8 @@ const ResumeUpload = () => {
             {/* Progress steps */}
             <div className="space-y-4 text-left max-w-sm mx-auto">
               {analysisSteps.map((step, index) => (
-                <div 
-                  key={step.label} 
+                <div
+                  key={step.label}
                   className="flex items-center gap-3 animate-fade-in-up"
                   style={{ animationDelay: `${index * 0.2}s` }}
                 >
@@ -380,7 +391,7 @@ Include:
                   </div>
                 </CardHeader>
               </CollapsibleTrigger>
-              
+
               <CollapsibleContent>
                 <CardContent className="space-y-6 pt-0">
                   {/* AI Workflow Options */}
@@ -470,8 +481,8 @@ Examples:
 
         {/* Analyze Button */}
         <div className="flex justify-center mt-8 animate-fade-in-up" style={{ animationDelay: "0.3s" }}>
-          <Button 
-            size="xl" 
+          <Button
+            size="xl"
             variant="glow"
             onClick={handleAnalyze}
             disabled={!canAnalyze}
@@ -499,8 +510,8 @@ Examples:
               description: "Receive specific suggestions to improve your match rate",
             },
           ].map((item, index) => (
-            <div 
-              key={item.title} 
+            <div
+              key={item.title}
               className="text-center p-6 rounded-xl bg-card/50 border border-border/50 animate-fade-in-up"
               style={{ animationDelay: `${0.4 + index * 0.1}s` }}
             >

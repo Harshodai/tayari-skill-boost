@@ -1,11 +1,76 @@
-version: '3.8'
-
 services:
-  app:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: tayari-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-tayari}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - tayari-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-tayari}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend-go:
+    image: golang:1.25-alpine
+    container_name: tayari-backend-go
+    working_dir: /app
+    volumes:
+      - ./backend/go:/app
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:4173}
+      - PORT=8080
+      - USE_SUPABASE=false 
+    command: sh -c "go mod tidy && go run ./cmd/server/main.go" 
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - tayari-network
+
+  backend-ai:
+    image: python:3.11-slim
+    container_name: tayari-backend-ai
+    working_dir: /app
+    volumes:
+      - ./backend/python:/app
+    environment:
+      - PORT=8000
+    command: sh -c "pip install fastapi uvicorn && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+    networks:
+      - tayari-network
+
+  frontend:
     build: .
+    container_name: tayari-frontend
     ports:
       - "4173:4173"
-    env_file:
-      - .env
-    restart: always
-    container_name: tayari-skill-boost
+    environment:
+      - VITE_API_URL=http://localhost:8080/api
+    depends_on:
+      - backend-go
+    networks:
+      - tayari-network
+
+volumes:
+  postgres_data:
+
+networks:
+  tayari-network:
+    driver: bridge
