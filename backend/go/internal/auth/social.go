@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/mail"
 	"os"
+
 	"time"
 
 	"github.com/google/uuid"
@@ -84,7 +86,11 @@ func (a *LocalAuth) SocialLogin(w http.ResponseWriter, r *http.Request) {
 
 // validateEmail performs basic email validation
 func validateEmail(email string) bool {
-	return email != "" && strings.Contains(email, "@") && len(email) > 3
+	if email == "" {
+		return false
+	}
+	_, err := mail.ParseAddress(email)
+	return err == nil
 }
 
 // SocialCallback handles the callback from the provider with state validation

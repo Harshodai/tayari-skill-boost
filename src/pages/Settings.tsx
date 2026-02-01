@@ -26,7 +26,8 @@ import {
   Globe,
   Eye,
   EyeOff,
-  Loader2
+  Loader2,
+  Info
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -64,7 +65,6 @@ const Settings = () => {
   });
 
   const [preferences, setPreferences] = useState({
-    darkMode: true,
     compactView: false,
     autoSave: true,
   });
@@ -142,15 +142,22 @@ const Settings = () => {
 
     try {
       // Verify current password first
-      if (user?.email) {
+      // Verify current password first
+      if (!user?.email || user.email.trim() === "") {
+        throw new Error("Cannot verify current password: missing user email");
+      }
+
+      try {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: user.email,
           password: passwordData.currentPassword,
         });
 
-        if (signInError) {
-          throw new Error("Incorrect current password");
-        }
+        if (signInError) throw signInError;
+      } catch (error) {
+        // Log detailed error for debugging, but show generic message to user
+        console.error("Password verification failed:", error instanceof Error ? error.message : error);
+        throw new Error("Incorrect current password");
       }
 
       const { error } = await supabase.auth.updateUser({
@@ -183,7 +190,15 @@ const Settings = () => {
   };
 
   const getInitials = (name: string) => {
-    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+    const trimmed = name.trim();
+    if (!trimmed) return "";
+    return trimmed
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(n => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
@@ -444,9 +459,15 @@ const Settings = () => {
                       This will sign you out of all devices except this one
                     </p>
                   </div>
-                  <Button variant="outline">
+                  <Button
+                    variant="outline"
+                    disabled
+                    title="Coming soon"
+                    aria-disabled="true"
+                  >
                     <LogOut className="w-4 h-4 mr-2" />
                     Sign Out All
+                    <Info className="w-3 h-3 ml-1 opacity-50" />
                   </Button>
                 </div>
                 <div className="flex items-center justify-between p-4 rounded-lg border border-destructive/30 bg-destructive/5">
@@ -456,9 +477,15 @@ const Settings = () => {
                       Permanently delete your account and all data
                     </p>
                   </div>
-                  <Button variant="destructive">
+                  <Button
+                    variant="destructive"
+                    disabled
+                    title="Coming soon"
+                    aria-disabled="true"
+                  >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Delete Account
+                    <Info className="w-3 h-3 ml-1 opacity-50" />
                   </Button>
                 </div>
               </CardContent>
@@ -516,11 +543,6 @@ const Settings = () => {
               </CardHeader>
               <CardContent className="space-y-6">
                 {[
-                  {
-                    key: "darkMode",
-                    label: "Dark Mode",
-                    description: "Use dark theme across the application",
-                  },
                   {
                     key: "compactView",
                     label: "Compact View",

@@ -37,7 +37,7 @@ const stats = [
 
 
 
-// ... existing imports
+
 
 export function SocialProofSection() {
   return (

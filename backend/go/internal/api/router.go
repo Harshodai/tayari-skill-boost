@@ -7,14 +7,16 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/mail"
 	"strings"
+
+	"tayari-backend/internal/auth"
+	"tayari-backend/internal/config"
+	"tayari-backend/internal/models"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"tayari-backend/internal/auth"
-	"tayari-backend/internal/config"
-	"tayari-backend/internal/models"
 )
 
 // Context key type to avoid collisions
@@ -41,9 +43,9 @@ func NewServer(authService auth.AuthService, cfg *config.Config) *Server {
 func (s *Server) routes() {
 	s.Router.Use(middleware.Logger)
 	s.Router.Use(middleware.Recoverer)
-	
+
 	allowedOrigins := []string{"http://localhost:5173", "http://localhost:4173"}
-	if len(s.Config.AllowedOrigins) > 0 {
+	if s.Config != nil && len(s.Config.AllowedOrigins) > 0 {
 		allowedOrigins = s.Config.AllowedOrigins
 	}
 
@@ -66,12 +68,24 @@ func (s *Server) routes() {
 	// Inject provider param into context for Goth
 	s.Router.Get("/api/auth/{provider}", func(w http.ResponseWriter, r *http.Request) {
 		provider := chi.URLParam(r, "provider")
+
+		// Gothic expects provider in query params
+		q := r.URL.Query()
+		q.Add("provider", provider)
+		r.URL.RawQuery = q.Encode()
+
 		r = r.WithContext(context.WithValue(r.Context(), contextKey("provider"), provider))
 		s.Auth.SocialLogin(w, r)
 	})
 
 	s.Router.Get("/api/auth/{provider}/callback", func(w http.ResponseWriter, r *http.Request) {
 		provider := chi.URLParam(r, "provider")
+
+		// Gothic expects provider in query params
+		q := r.URL.Query()
+		q.Add("provider", provider)
+		r.URL.RawQuery = q.Encode()
+
 		r = r.WithContext(context.WithValue(r.Context(), contextKey("provider"), provider))
 		s.Auth.SocialCallback(w, r)
 	})
@@ -96,6 +110,33 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Printf("handleRegister: failed to decode request body: %v", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Trim email only (passwords should be used as-is)
+	req.Email = strings.TrimSpace(req.Email)
+
+	// Validate email is non-empty and valid format
+	if req.Email == "" {
+		log.Printf("handleRegister: validation failed - empty email")
+		http.Error(w, "Email is required", http.StatusBadRequest)
+		return
+	}
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		log.Printf("handleRegister: validation failed - invalid email format")
+		http.Error(w, "Invalid email format", http.StatusBadRequest)
+		return
+	}
+
+	// Validate password constraints
+	if req.Password == "" {
+		log.Printf("handleRegister: validation failed - empty password")
+		http.Error(w, "Password is required", http.StatusBadRequest)
+		return
+	}
+	if len(req.Password) < 8 {
+		log.Printf("handleRegister: validation failed - password too short")
+		http.Error(w, "Password must be at least 8 characters", http.StatusBadRequest)
 		return
 	}
 

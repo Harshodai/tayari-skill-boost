@@ -8,7 +8,7 @@ import { FadeIn, SlideUp, StaggerContainer } from "@/components/ui/motion";
 
 export function HeroSection() {
   return (
-    <section className="relative py-20 lg:py-32 overflow-hidden">
+    <section className="relative py-20 lg:py-32 overflow-hidden bg-gradient-hero">
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <GradientOrb variant="primary" size="sm" delay="none" className="top-20 left-10 opacity-40" />

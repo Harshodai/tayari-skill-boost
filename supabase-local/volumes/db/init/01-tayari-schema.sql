@@ -116,10 +116,10 @@ CREATE TABLE IF NOT EXISTS public.user_streaks (
 -- 5. Security Tables
 -- ==========================================
 
--- AUTH ATTEMPTS (for rate limiting)
+-- AUTH ATTEMPTS (for rate limiting) - uses hashed email for privacy
 CREATE TABLE IF NOT EXISTS public.auth_attempts (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    email text NOT NULL UNIQUE,
+    email_hash text NOT NULL UNIQUE,
     ip_hash text,
     attempt_count integer DEFAULT 1 NOT NULL,
     last_attempt_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS public.auth_attempts (
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_auth_attempts_email ON public.auth_attempts(email);
+CREATE INDEX IF NOT EXISTS idx_auth_attempts_email_hash ON public.auth_attempts(email_hash);
 
 -- ==========================================
 -- 6. Social Features Tables

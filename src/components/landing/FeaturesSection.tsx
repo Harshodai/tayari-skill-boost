@@ -48,7 +48,7 @@ const features = [
 
 
 
-// ... existing imports
+
 
 export function FeaturesSection() {
   const visibleFeatures = features.filter(f => f.visible);

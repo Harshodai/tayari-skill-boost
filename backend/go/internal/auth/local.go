@@ -6,17 +6,19 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 	"tayari-backend/internal/concurrency"
 	"tayari-backend/internal/config"
 	"tayari-backend/internal/database"
 	"tayari-backend/internal/models"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type LocalAuth struct {
@@ -121,7 +123,8 @@ func (a *LocalAuth) LoginWithRequest(ctx context.Context, email, password string
 				IPHash:    ipHash,
 			}:
 			default:
-				// Channel full, drop log to avoid blocking login
+				// Channel full, log warning to avoid losing security-critical audit events
+				log.Printf("WARNING: Audit queue full, dropping event: Action=LOGIN_ATTEMPT Success=%v IPHash=%s", success, ipHash)
 			}
 		}
 	}
@@ -172,9 +175,17 @@ func (a *LocalAuth) VerifyToken(tokenString string) (*models.User, error) {
 		return nil, ErrInvalidToken
 	}
 
+	// Validate issuer before any fallback logic
+	iss, issOk := claims["iss"].(string)
+	if !issOk || iss != "tayari-backend" {
+		return nil, ErrInvalidToken
+	}
+
 	role, ok := claims["role"].(string)
 	if !ok {
-		return nil, ErrInvalidToken
+		// Fallback for older tokens or missing role (only trusted since issuer is validated)
+		log.Println("Token missing role claim, defaulting to 'user'")
+		role = "user"
 	}
 
 	return &models.User{ID: userID, Role: role}, nil

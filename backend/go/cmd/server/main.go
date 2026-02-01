@@ -1,5 +1,6 @@
 package main
 
+import (
 	"context"
 	"log"
 	"net/http"
@@ -55,7 +56,7 @@ func main() {
 	var authService auth.AuthService
 	if cfg.UseSupabase {
 		log.Println("Using Supabase Authentication Strategy")
-		authService = auth.NewSupabaseAuth(cfg)
+		authService = auth.NewSupabaseAuth(cfg, db)
 	} else {
 		log.Println("Using Local Postgres Authentication Strategy")
 

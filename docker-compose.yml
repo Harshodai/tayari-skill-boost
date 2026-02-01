@@ -1,46 +1,296 @@
+# =======================================================
+# Tayari Skill Boost - Complete Local Development Stack
+# Includes: Supabase (self-hosted) + Go Backend + AI + Frontend
+# =======================================================
+# Usage: docker-compose up -d
+# Credentials should be set in .env (see .env.example)
+# Studio: http://localhost:3001
+# Supabase: http://localhost:8000
+# Backend: http://localhost:8080
+# Frontend: http://localhost:4173
+# =======================================================
+
+name: tayari-complete
+
 services:
 
-  postgres:
-    image: postgres:16-alpine
-    container_name: tayari-db
-    restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      POSTGRES_DB: ${POSTGRES_DB:-tayari}
+  # ================================================
+  # SUPABASE SERVICES
+  # ================================================
+
+  db:
+    container_name: supabase-db
+    image: supabase/postgres:15.8.1.085
+    restart: unless-stopped
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "5432:5432"
-    networks:
-      - tayari-network
+      - ./supabase-local/volumes/db/realtime.sql:/docker-entrypoint-initdb.d/migrations/99-realtime.sql:Z
+      - ./supabase-local/volumes/db/webhooks.sql:/docker-entrypoint-initdb.d/init-scripts/98-webhooks.sql:Z
+      - ./supabase-local/volumes/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:Z
+      - ./supabase-local/volumes/db/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:Z
+      - ./supabase-local/volumes/db/data:/var/lib/postgresql/data:Z
+      - ./supabase-local/volumes/db/_supabase.sql:/docker-entrypoint-initdb.d/migrations/97-_supabase.sql:Z
+      - ./supabase-local/volumes/db/logs.sql:/docker-entrypoint-initdb.d/migrations/99-logs.sql:Z
+      - ./supabase-local/volumes/db/pooler.sql:/docker-entrypoint-initdb.d/migrations/99-pooler.sql:Z
+      # Custom init for Tayari - runs AFTER Supabase core is initialized
+      - ./supabase-local/volumes/db/init:/docker-entrypoint-initdb.d/init-scripts/tayari:Z
+      - db-config:/etc/postgresql-custom
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-tayari}"]
+      test: [ "CMD", "pg_isready", "-U", "postgres", "-h", "localhost" ]
       interval: 5s
       timeout: 5s
       retries: 10
+    ports:
+      - "54322:5432"
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: 5432
+      POSTGRES_PORT: 5432
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: postgres
+      POSTGRES_DB: postgres
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXP: 3600
+    command: [ "postgres", "-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "log_min_messages=fatal" ]
+
+  kong:
+    container_name: supabase-kong
+    image: kong:2.8.1
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+    volumes:
+      - ./supabase-local/volumes/api/kong.yml:/home/kong/temp.yml:ro,z
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth,request-termination,ip-restriction
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+      SUPABASE_ANON_KEY: ${ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q}
+      DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:-khars}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-TayariAdmin2026}
+    entrypoint: bash -c 'eval "echo \"$$(cat ~/temp.yml)\"" > ~/kong.yml && /docker-entrypoint.sh kong docker-start'
+
+  auth:
+    container_name: supabase-auth
+    image: supabase/gotrue:v2.185.0
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health" ]
+      timeout: 5s
+      interval: 5s
+      retries: 3
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://localhost:8000}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      GOTRUE_SITE_URL: ${SITE_URL:-http://localhost:5173}
+      GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS:-http://localhost:4173,http://localhost:3000}
+      GOTRUE_DISABLE_SIGNUP: false
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: true
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: false
+      GOTRUE_MAILER_AUTOCONFIRM: true
+      GOTRUE_SMTP_ADMIN_EMAIL: khars@tayari.local
+      GOTRUE_SMTP_HOST: supabase-mail
+      GOTRUE_SMTP_PORT: 2500
+      GOTRUE_SMTP_USER: fake_mail_user
+      GOTRUE_SMTP_PASS: fake_mail_password
+      GOTRUE_SMTP_SENDER_NAME: Tayari
+      GOTRUE_MAILER_URLPATHS_INVITE: "/auth/v1/verify"
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: "/auth/v1/verify"
+      GOTRUE_MAILER_URLPATHS_RECOVERY: "/auth/v1/verify"
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: "/auth/v1/verify"
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: "true"
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: http://localhost:8000/auth/v1/callback
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
+      GOTRUE_SMS_AUTOCONFIRM: false
+
+  rest:
+    container_name: supabase-rest
+    image: postgrest/postgrest:v14.3
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public,storage,graphql_public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET}
+      PGRST_APP_SETTINGS_JWT_EXP: 3600
+    command: [ "postgrest" ]
+
+  realtime:
+    container_name: supabase-realtime
+    image: supabase/realtime:v2.72.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sSfL --head -o /dev/null http://localhost:4000/api/health" ]
+      timeout: 5s
+      interval: 30s
+      retries: 3
+      start_period: 10s
+    environment:
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: supabase_admin
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: postgres
+      DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
+      DB_ENC_KEY: supabaserealtime
+      API_JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-6WHwvSUnMrq1yOjYHBEl1jAc4ElxIXtQNcKWhH2P9vOJiK1ja+jK503g7ezKwi56}
+      ERL_AFLAGS: -proto_dist inet_tcp
+      DNS_NODES: "''"
+      RLIMIT_NOFILE: "10000"
+      APP_NAME: realtime
+      SEED_SELF_HOST: "true"
+      RUN_JANITOR: "true"
+      DISABLE_HEALTHCHECK_LOGGING: "true"
+
+  storage:
+    container_name: supabase-storage
+    image: supabase/storage-api:v1.33.5
+    restart: unless-stopped
+    volumes:
+      - ./supabase-local/volumes/storage:/var/lib/storage:z
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://storage:5000/status" ]
+      timeout: 5s
+      interval: 5s
+      retries: 3
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
+    environment:
+      ANON_KEY: ${ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q}
+      POSTGREST_URL: http://rest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: stub
+      GLOBAL_S3_BUCKET: stub
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+
+  meta:
+    container_name: supabase-meta
+    image: supabase/postgres-meta:v0.95.2
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: supabase_admin
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      CRYPTO_KEY: ${PG_META_CRYPTO_KEY:-TayariMetaCrypto2026SecureKey32}
+
+  studio:
+    container_name: supabase-studio
+    image: supabase/studio:2026.01.27-sha-6aa59ff
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "node", "-e", "fetch('http://studio:3000/api/platform/profile').then((r) => {if (r.status !== 200) throw new Error(r.status)})" ]
+      timeout: 10s
+      interval: 5s
+      retries: 3
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    environment:
+      HOSTNAME: "::"
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PORT: 5432
+      POSTGRES_HOST: db
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PG_META_CRYPTO_KEY: ${PG_META_CRYPTO_KEY:-TayariMetaCrypto2026SecureKey32}
+      DEFAULT_ORGANIZATION_NAME: Tayari Skill Boost
+      DEFAULT_PROJECT_NAME: Tayari Local
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_PUBLIC_URL: http://localhost:8000
+      SUPABASE_ANON_KEY: ${ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q}
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+      NEXT_PUBLIC_ENABLE_LOGS: false
+
+  # ================================================
+  # TAYARI APPLICATION SERVICES
+  # ================================================
 
   backend-go:
-    image: golang:1.25-alpine
+    image: golang:alpine
     container_name: tayari-backend-go
     working_dir: /app
     volumes:
       - ./backend/go:/app
     environment:
-      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      # Connect to supabase db (same docker network)
+      - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET}
+      - SUPABASE_URL=http://kong:8000
+      - SUPABASE_ANON_KEY=${ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:4173}
       - PORT=8080
-      - USE_SUPABASE=false 
-    command: sh -c "go mod tidy && go run ./cmd/server/main.go" 
+      - USE_SUPABASE=true
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+      # Google OAuth
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-http://localhost:8080/api/auth/google/callback}
+      # GitHub OAuth
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+      - GITHUB_CALLBACK_URL=${GITHUB_CALLBACK_URL:-http://localhost:8080/api/auth/github/callback}
+      # LinkedIn OAuth
+      - LINKEDIN_CLIENT_ID=${LINKEDIN_CLIENT_ID:-}
+      - LINKEDIN_CLIENT_SECRET=${LINKEDIN_CLIENT_SECRET:-}
+      - LINKEDIN_CALLBACK_URL=${LINKEDIN_CALLBACK_URL:-http://localhost:8080/api/auth/linkedin/callback}
+    command: sh -c "go mod tidy && go run ./cmd/server/main.go"
     ports:
       - "8080:8080"
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
-    networks:
-      - tayari-network
+      auth:
+        condition: service_healthy
+    restart: unless-stopped
 
   backend-ai:
     image: python:3.11-slim
@@ -49,15 +299,20 @@ services:
     volumes:
       - ./backend/python:/app
     environment:
-      - PORT=8000
-    command: sh -c "pip install fastapi uvicorn && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+      - PORT=8001
+    command: sh -c "pip install fastapi uvicorn && uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload"
     ports:
-      - "8000:8000"
-    networks:
-      - tayari-network
+      - "8001:8001"
+    restart: unless-stopped
 
   frontend:
-    build: .
+    build:
+      context: .
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:8080/api}
+        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL:-http://localhost:8000}
+        - VITE_SUPABASE_PUBLISHABLE_KEY=${VITE_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE}
+        - VITE_USE_SELF_HOSTED=${VITE_USE_SELF_HOSTED:-true}
     container_name: tayari-frontend
     ports:
       - "4173:4173"
@@ -65,12 +320,7 @@ services:
       - VITE_API_URL=http://localhost:8080/api
     depends_on:
       - backend-go
-    networks:
-      - tayari-network
+    restart: unless-stopped
 
 volumes:
-  postgres_data:
-
-networks:
-  tayari-network:
-    driver: bridge
+  db-config:

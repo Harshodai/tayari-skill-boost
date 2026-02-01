@@ -206,6 +206,7 @@ services:
         paths:
           - /analytics/v1/
     plugins:
+      - name: cors
       - name: key-auth
         config:
           hide_credentials: false
