@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 import { getGenericAuthError } from "@/lib/auth-errors";
 import { checkRateLimit, recordFailedAttempt, resetRateLimit } from "@/lib/rate-limiter";
 
@@ -246,7 +247,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.location.href = `${API_URL}/auth/google`;
       return { error: null };
     }
-    return socialLogin('google');
+    // Lovable Cloud managed Google OAuth — works in both preview and production
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (result.error) {
+        const msg = result.error instanceof Error ? result.error.message : String(result.error);
+        return { error: getGenericAuthError(msg) };
+      }
+      return { error: null };
+    } catch (err: any) {
+      return { error: getGenericAuthError(err?.message || "Google sign-in failed") };
+    }
   };
 
   const socialLogin = async (provider: any): Promise<{ error: string | null }> => {
