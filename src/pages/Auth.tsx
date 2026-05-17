@@ -38,7 +38,7 @@ const Auth = () => {
   // Password breach checking state
   const [isCheckingBreach, setIsCheckingBreach] = useState(false);
   const [breachResult, setBreachResult] = useState<BreachResult | null>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Redirect if already authenticated
   useEffect(() => {
