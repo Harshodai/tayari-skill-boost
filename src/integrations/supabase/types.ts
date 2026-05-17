@@ -104,6 +104,39 @@ export type Database = {
         }
         Relationships: []
       }
+      interview_sessions: {
+        Row: {
+          created_at: string
+          difficulty: string
+          id: string
+          role: string
+          score: number | null
+          transcript: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          difficulty?: string
+          id?: string
+          role: string
+          score?: number | null
+          transcript?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          difficulty?: string
+          id?: string
+          role?: string
+          score?: number | null
+          transcript?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -169,6 +202,78 @@ export type Database = {
           parsed_resume?: Json | null
           resume_filename?: string
           resume_text?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      roadmap_progress: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          roadmap_slug: string
+          status: string
+          step_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          roadmap_slug: string
+          status?: string
+          step_key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          roadmap_slug?: string
+          status?: string
+          step_key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      saved_jobs: {
+        Row: {
+          company: string
+          created_at: string
+          id: string
+          location: string | null
+          notes: string | null
+          saved_at: string
+          title: string
+          updated_at: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          company: string
+          created_at?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          saved_at?: string
+          title: string
+          updated_at?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          saved_at?: string
+          title?: string
+          updated_at?: string
+          url?: string | null
           user_id?: string
         }
         Relationships: []
