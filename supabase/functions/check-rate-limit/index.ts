@@ -29,6 +29,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -41,8 +42,47 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Validate email format to prevent abuse (e.g. DoS-locking arbitrary inputs)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (typeof email !== 'string' || email.length > 254 || !emailRegex.test(email)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid email' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
     console.log(`Rate limit ${action} for email: ${normalizedEmail.substring(0, 3)}***`);
+
+    // The 'reset' action must only be callable by an authenticated user
+    // (it's invoked client-side after a successful login). This prevents
+    // unauthenticated attackers from clearing brute-force lockouts.
+    if (action === 'reset') {
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader?.startsWith('Bearer ')) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const authClient = createClient(supabaseUrl, supabaseAnonKey);
+      const { data: authData, error: authError } = await authClient.auth.getUser(
+        authHeader.replace('Bearer ', '')
+      );
+      if (authError || !authData?.user) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      // Only allow resetting the lockout for the caller's own email
+      if (authData.user.email?.toLowerCase() !== normalizedEmail) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     if (action === 'check') {
       // Check if user is rate limited
