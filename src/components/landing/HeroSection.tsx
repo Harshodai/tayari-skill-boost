@@ -1,22 +1,16 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
-import { AnimatedGradientText } from "@/components/ui/animated-gradient-text";
 import { CountUp } from "@/components/ui/count-up";
-import { GradientOrb } from "@/components/ui/gradient-orb";
 import { FadeIn, SlideUp, StaggerContainer } from "@/components/ui/motion";
 
 export function HeroSection() {
   return (
     <section className="relative py-20 lg:py-32 overflow-hidden bg-gradient-hero">
-      {/* Background decorations */}
+      {/* Subtle radial accent — replaces heavy floating orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <GradientOrb variant="primary" size="sm" delay="none" className="top-20 left-10 opacity-40" />
-        <GradientOrb variant="secondary" size="md" delay="short" className="bottom-20 right-10 opacity-40" />
-        <GradientOrb variant="accent" size="lg" delay="long" className="top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20" />
-
-        {/* Grid pattern overlay */}
-        <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-[0.03] pointer-events-none" />
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full opacity-[0.08] blur-[120px] bg-primary motion-reduce:hidden" />
+        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] rounded-full opacity-[0.06] blur-[120px] bg-secondary motion-reduce:hidden" />
       </div>
 
       <div className="container mx-auto px-4 relative z-10">
@@ -31,11 +25,9 @@ export function HeroSection() {
 
           {/* Headline */}
           <SlideUp>
-            <h1 className="text-4xl md:text-5xl lg:text-hero font-bold text-foreground mb-6">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6 tracking-tight">
               Land Your Dream
-              <span className="block mt-2">
-                <AnimatedGradientText>Software Engineering Job</AnimatedGradientText>
-              </span>
+              <span className="block mt-2 text-gradient">Software Engineering Job</span>
             </h1>
           </SlideUp>
 

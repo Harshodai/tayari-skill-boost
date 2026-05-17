@@ -20,7 +20,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [lastScrollY, setLastScrollY] = useState(0);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -30,19 +29,10 @@ export function Header() {
   const navLinks = getNavLinks();
 
   useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-
-      // Determine if scrolled (for background styling)
-      // Determine if scrolled (for background styling)
-      setIsScrolled(currentScrollY > 50);
-
-      setLastScrollY(currentScrollY);
-    };
-
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY, mobileMenuOpen]);
+  }, []);
 
   const handleSignOut = async () => {
     await signOut();
@@ -66,10 +56,10 @@ export function Header() {
   return (
     <header
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b",
+        "fixed top-0 left-0 right-0 z-50 transition-colors duration-300 py-3",
         isScrolled
-          ? "glass border-border/50 py-3 shadow-sm"
-          : "bg-transparent border-transparent py-3"
+          ? "bg-background/85 backdrop-blur-md border-b border-border/40"
+          : "bg-transparent"
       )}
     >
       <div className="container mx-auto px-4">
