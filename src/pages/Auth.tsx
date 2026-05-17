@@ -48,7 +48,7 @@ const Auth = () => {
     }
   }, [user, navigate, location]);
 
-  // Debounced breach check
+  // Debounced breach check (client hashes password; only SHA-1 prefix leaves the browser)
   const checkPasswordBreach = useCallback(async (password: string) => {
     if (password.length < 8) {
       setBreachResult(null);
@@ -57,17 +57,25 @@ const Auth = () => {
 
     setIsCheckingBreach(true);
     try {
+      // Hash password locally so plaintext never reaches the server (k-Anonymity)
+      const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(password));
+      const hash = Array.from(new Uint8Array(buf))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("")
+        .toUpperCase();
+      const hashPrefix = hash.substring(0, 5);
+      const hashSuffix = hash.substring(5);
+
       const response = await supabase.functions.invoke("check-breached-password", {
-        body: { password },
+        body: { hashPrefix, hashSuffix },
       });
 
-      if (response.data?.success) {
+      if (response.data && typeof response.data.breached === "boolean") {
         setBreachResult({
           breached: response.data.breached,
           count: response.data.count,
         });
       } else {
-        // Don't block on breach check failure - just warn
         console.warn("Breach check failed:", response.data?.error);
         setBreachResult(null);
       }
