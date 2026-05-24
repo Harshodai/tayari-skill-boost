@@ -364,20 +364,7 @@ const Dashboard = () => {
                 <CardDescription>All your past resume analyses</CardDescription>
               </CardHeader>
               <CardContent>
-                <AnalysisHistoryList
-                  analyses={analyses}
-                  onView={(a) =>
-                    navigate("/resume/results", {
-                      state: {
-                        analysisResults: a.analysis_data,
-                        parsedResume: a.parsed_resume,
-                        resumeFileName: a.resume_filename,
-                        resumeText: a.resume_text,
-                        jobDescription: a.job_description,
-                      },
-                    })
-                  }
-                />
+                <AnalysisHistoryList analyses={analyses} />
               </CardContent>
             </Card>
           </TabsContent>
