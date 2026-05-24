@@ -19,7 +19,7 @@ import {
   Sparkles,
   History,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,7 +30,7 @@ import { formatDistanceToNow } from "date-fns";
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  
   const userId = user?.id;
 
   const { data: analyses = [] } = useQuery({
