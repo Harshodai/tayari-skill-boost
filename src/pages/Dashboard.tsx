@@ -1,402 +1,385 @@
-import { useState } from "react";
 import { Layout } from "@/components/layout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  FileText, 
-  Upload, 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
-  TrendingUp,
+import { Progress } from "@/components/ui/progress";
+import {
+  FileText,
+  Upload,
   Briefcase,
   Calendar,
   ArrowRight,
-  MoreVertical,
-  Eye,
-  Download,
-  Trash2,
-  Star,
-  History
+  ExternalLink,
+  MapPin,
+  Map,
+  CheckCircle2,
+  Circle,
+  Mic,
+  Sparkles,
+  History,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalysisHistoryList } from "@/components/resume/AnalysisHistoryList";
+import { JobMatchScore } from "@/components/ui/job-match-score";
 import type { ResumeAnalysisRecord } from "@/types/resume";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
-// Mock data for saved resumes
-const savedResumes = [
-  {
-    id: "1",
-    name: "Software Engineer Resume",
-    lastModified: "2024-01-08",
-    score: 85,
-    status: "optimized",
-    version: 3,
-  },
-  {
-    id: "2",
-    name: "Full Stack Developer CV",
-    lastModified: "2024-01-05",
-    score: 72,
-    status: "needs-improvement",
-    version: 2,
-  },
-  {
-    id: "3",
-    name: "Frontend Developer Resume",
-    lastModified: "2024-01-02",
-    score: 91,
-    status: "optimized",
-    version: 1,
-  },
-];
-
-// Mock data for application history
-const applicationHistory = [
-  {
-    id: "1",
-    company: "TechCorp Inc.",
-    position: "Senior Software Engineer",
-    appliedDate: "2024-01-08",
-    status: "interview",
-    resumeUsed: "Software Engineer Resume",
-  },
-  {
-    id: "2",
-    company: "StartupXYZ",
-    position: "Full Stack Developer",
-    appliedDate: "2024-01-06",
-    status: "applied",
-    resumeUsed: "Full Stack Developer CV",
-  },
-  {
-    id: "3",
-    company: "Global Tech",
-    position: "Frontend Engineer",
-    appliedDate: "2024-01-03",
-    status: "rejected",
-    resumeUsed: "Frontend Developer Resume",
-  },
-  {
-    id: "4",
-    company: "Innovation Labs",
-    position: "React Developer",
-    appliedDate: "2024-01-01",
-    status: "offer",
-    resumeUsed: "Software Engineer Resume",
-  },
-];
-
-const getStatusBadge = (status: string) => {
-  switch (status) {
-    case "optimized":
-      return <Badge className="bg-success/20 text-success border-success/30">Optimized</Badge>;
-    case "needs-improvement":
-      return <Badge className="bg-warning/20 text-warning border-warning/30">Needs Work</Badge>;
-    default:
-      return <Badge variant="secondary">Draft</Badge>;
-  }
-};
-
-const getApplicationStatusBadge = (status: string) => {
-  switch (status) {
-    case "interview":
-      return <Badge className="bg-primary/20 text-primary border-primary/30">Interview</Badge>;
-    case "applied":
-      return <Badge className="bg-muted text-muted-foreground border-border">Applied</Badge>;
-    case "rejected":
-      return <Badge className="bg-destructive/20 text-destructive border-destructive/30">Rejected</Badge>;
-    case "offer":
-      return <Badge className="bg-success/20 text-success border-success/30">Offer!</Badge>;
-    default:
-      return <Badge variant="secondary">{status}</Badge>;
-  }
-};
-
-const getScoreColor = (score: number) => {
-  if (score >= 80) return "text-success";
-  if (score >= 50) return "text-warning";
-  return "text-destructive";
-};
+import { formatDistanceToNow } from "date-fns";
 
 const Dashboard = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("history");
+  const navigate = useNavigate();
+  const userId = user?.id;
 
-  // Fetch analysis history
-  const { data: analysisHistory = [], isLoading: isLoadingHistory } = useQuery({
-    queryKey: ["resume-analyses", user?.id],
+  const { data: analyses = [] } = useQuery({
+    queryKey: ["resume-analyses", userId],
+    enabled: !!userId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("resume_analyses")
         .select("*")
-        .order("created_at", { ascending: false })
-        .limit(20);
-      
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as ResumeAnalysisRecord[];
+      return (data ?? []) as unknown as ResumeAnalysisRecord[];
     },
-    enabled: !!user,
   });
 
-  const handleDeleteAnalysis = (id: string) => {
-    queryClient.setQueryData(
-      ["resume-analyses", user?.id],
-      (old: ResumeAnalysisRecord[] | undefined) => old?.filter(a => a.id !== id) || []
-    );
-  };
+  const { data: savedJobs = [] } = useQuery({
+    queryKey: ["saved-jobs", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("saved_jobs")
+        .select("*")
+        .order("saved_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
-  const avgScore = analysisHistory.length > 0 
-    ? Math.round(analysisHistory.reduce((acc, a) => acc + a.overall_score, 0) / analysisHistory.length)
-    : 0;
+  const { data: roadmap = [] } = useQuery({
+    queryKey: ["roadmap-progress", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("roadmap_progress")
+        .select("*")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
-  const stats = {
-    totalResumes: savedResumes.length,
-    analyses: analysisHistory.length,
-    applications: applicationHistory.length,
-    avgScore,
-  };
+  const { data: interviews = [] } = useQuery({
+    queryKey: ["interview-sessions", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("interview_sessions")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const latestScore = analyses[0]?.overall_score ?? null;
+  const completedRoadmap = roadmap.filter((r) => r.status === "completed").length;
+  const roadmapPct = roadmap.length ? Math.round((completedRoadmap / roadmap.length) * 100) : 0;
 
   return (
     <Layout>
       <div className="container mx-auto px-4 py-12">
-        {/* Welcome Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Welcome back, <span className="text-gradient">{user?.user_metadata?.name || user?.email?.split("@")[0] || "User"}</span>
-          </h1>
-          <p className="text-muted-foreground">
-            Here's an overview of your job search progress
-          </p>
+        {/* Hero */}
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-10">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-foreground">
+              Welcome back{user?.user_metadata?.full_name ? `, ${user.user_metadata.full_name.split(" ")[0]}` : ""}
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Your jobs, roadmap, and interviews all in one place.
+            </p>
+          </div>
+          <Button asChild size="lg" variant="glow">
+            <Link to="/resume">
+              <Sparkles className="w-4 h-4 mr-2" />
+              Analyze a new resume
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Link>
+          </Button>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {[
-            { label: "Saved Resumes", value: stats.totalResumes, icon: FileText, color: "text-primary" },
-            { label: "Analyses", value: stats.analyses, icon: History, color: "text-secondary" },
-            { label: "Applications", value: stats.applications, icon: Briefcase, color: "text-success" },
-            { label: "Avg. Score", value: `${stats.avgScore}%`, icon: TrendingUp, color: "text-warning" },
-          ].map((stat) => (
-            <Card key={stat.label} className="animate-fade-in-up">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg bg-card ${stat.color}`}>
-                    <stat.icon className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                    <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  </div>
+        {/* Top stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
+          <Card className="card-hover">
+            <CardContent className="pt-6 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{analyses.length}</p>
+                <p className="text-xs text-muted-foreground">Resume analyses</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="card-hover">
+            <CardContent className="pt-6 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center">
+                <Briefcase className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{savedJobs.length}</p>
+                <p className="text-xs text-muted-foreground">Saved jobs</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="card-hover">
+            <CardContent className="pt-6 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-accent/10 text-accent flex items-center justify-center">
+                <Map className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{roadmapPct}%</p>
+                <p className="text-xs text-muted-foreground">Roadmap progress</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="card-hover">
+            <CardContent className="pt-6 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-warning/10 text-warning flex items-center justify-center">
+                <Mic className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{interviews.length}</p>
+                <p className="text-xs text-muted-foreground">Interview sessions</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+          {/* Latest match score */}
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="text-base">Latest job match</CardTitle>
+              <CardDescription>From your most recent analysis</CardDescription>
+            </CardHeader>
+            <CardContent className="flex items-center justify-center pb-8">
+              {latestScore !== null ? (
+                <JobMatchScore
+                  score={latestScore}
+                  size="lg"
+                  label={analyses[0]?.job_title || "Latest role"}
+                />
+              ) : (
+                <div className="text-center py-6">
+                  <p className="text-muted-foreground text-sm mb-4">No analyses yet</p>
+                  <Button asChild size="sm">
+                    <Link to="/resume">
+                      <Upload className="w-4 h-4 mr-2" /> Upload resume
+                    </Link>
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Roadmap progress */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">Roadmap progress</CardTitle>
+                  <CardDescription>
+                    {completedRoadmap} of {roadmap.length || 0} steps completed
+                  </CardDescription>
+                </div>
+                <Button asChild size="sm" variant="outline">
+                  <Link to="/roadmap">
+                    Open roadmap <ArrowRight className="w-4 h-4 ml-2" />
+                  </Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Progress value={roadmapPct} className="h-2 mb-4" />
+              {roadmap.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  Start a roadmap to track your career progress here.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {roadmap.slice(0, 5).map((step) => (
+                    <li
+                      key={step.id}
+                      className="flex items-center justify-between p-3 rounded-md border border-border/60 bg-card/50"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {step.status === "completed" ? (
+                          <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                        ) : (
+                          <Circle className="w-4 h-4 text-muted-foreground shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{step.step_key}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {step.roadmap_slug}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant={step.status === "completed" ? "default" : "secondary"}>
+                        {step.status}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Quick Actions */}
-        <div className="flex flex-wrap gap-4 mb-8">
-          <Button variant="glow" onClick={() => navigate("/resume")}>
-            <Upload className="w-4 h-4 mr-2" />
-            Upload New Resume
-          </Button>
-          <Button variant="outline" onClick={() => navigate("/resume/templates")}>
-            <FileText className="w-4 h-4 mr-2" />
-            Browse Templates
-          </Button>
-        </div>
-
-        {/* Main Content Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-card border border-border">
-            <TabsTrigger value="history">Analysis History</TabsTrigger>
-            <TabsTrigger value="resumes">Saved Resumes</TabsTrigger>
-            <TabsTrigger value="applications">Applications</TabsTrigger>
+        <Tabs defaultValue="jobs" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="jobs">
+              <Briefcase className="w-4 h-4 mr-2" /> Saved jobs
+            </TabsTrigger>
+            <TabsTrigger value="interviews">
+              <Calendar className="w-4 h-4 mr-2" /> Interviews
+            </TabsTrigger>
+            <TabsTrigger value="history">
+              <History className="w-4 h-4 mr-2" /> Resume history
+            </TabsTrigger>
           </TabsList>
 
-          {/* Analysis History Tab */}
-          <TabsContent value="history" className="space-y-4">
-            <AnalysisHistoryList 
-              analyses={analysisHistory}
-              onDelete={handleDeleteAnalysis}
-              isLoading={isLoadingHistory}
-            />
+          <TabsContent value="jobs">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Saved jobs</CardTitle>
+                <CardDescription>Jobs you've bookmarked for later</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {savedJobs.length === 0 ? (
+                  <div className="text-center py-10">
+                    <Briefcase className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      You haven't saved any jobs yet.
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {savedJobs.map((job) => (
+                      <li
+                        key={job.id}
+                        className="p-4 rounded-lg border border-border bg-card/50 card-hover"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground truncate">{job.title}</p>
+                            <p className="text-sm text-muted-foreground truncate">{job.company}</p>
+                            {job.location && (
+                              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                <MapPin className="w-3 h-3" /> {job.location}
+                              </p>
+                            )}
+                          </div>
+                          {job.url && (
+                            <Button asChild size="icon" variant="ghost" className="shrink-0">
+                              <a href={job.url} target="_blank" rel="noreferrer noopener">
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+                        {job.notes && (
+                          <p className="text-xs text-muted-foreground mt-3 line-clamp-2">
+                            {job.notes}
+                          </p>
+                        )}
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-3">
+                          Saved {formatDistanceToNow(new Date(job.saved_at), { addSuffix: true })}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          {/* Saved Resumes Tab */}
-          <TabsContent value="resumes" className="space-y-4">
-            {savedResumes.length === 0 ? (
-              <Card className="py-12 text-center">
-                <CardContent>
-                  <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-foreground mb-2">No resumes yet</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Upload your first resume to get started
-                  </p>
-                  <Button onClick={() => navigate("/resume")}>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Resume
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4">
-                {savedResumes.map((resume, index) => (
-                  <Card 
-                    key={resume.id} 
-                    className="animate-fade-in-up card-hover"
-                    style={{ animationDelay: `${index * 0.1}s` }}
-                  >
-                    <CardContent className="py-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10">
-                            <FileText className="w-6 h-6 text-primary" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-foreground">{resume.name}</h3>
-                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {resume.lastModified}
-                              </span>
-                              <span>v{resume.version}</span>
-                            </div>
-                          </div>
+          <TabsContent value="interviews">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Interview sessions</CardTitle>
+                <CardDescription>Practice runs and upcoming sessions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {interviews.length === 0 ? (
+                  <div className="text-center py-10">
+                    <Mic className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      No interview sessions yet.
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="space-y-3">
+                    {interviews.map((s) => (
+                      <li
+                        key={s.id}
+                        className="p-4 rounded-lg border border-border bg-card/50 flex items-center justify-between gap-4"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{s.role}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(s.created_at), { addSuffix: true })} ·{" "}
+                            {s.difficulty}
+                          </p>
                         </div>
-                        
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className={`text-lg font-bold ${getScoreColor(resume.score)}`}>
-                              {resume.score}%
-                            </p>
-                            {getStatusBadge(resume.status)}
-                          </div>
-                          
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Eye className="w-4 h-4 mr-2" />
-                                View
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Download className="w-4 h-4 mr-2" />
-                                Download
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Star className="w-4 h-4 mr-2" />
-                                Set as Default
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                        <div className="flex items-center gap-3">
+                          {s.score !== null && s.score !== undefined && (
+                            <JobMatchScore
+                              score={s.score}
+                              size="sm"
+                              label=""
+                              sublabel=""
+                              showBar={false}
+                              animated={false}
+                            />
+                          )}
+                          <Badge variant="outline">{s.difficulty}</Badge>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          {/* Application History Tab */}
-          <TabsContent value="applications" className="space-y-4">
-            {applicationHistory.length === 0 ? (
-              <Card className="py-12 text-center">
-                <CardContent>
-                  <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-foreground mb-2">No applications yet</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Start tracking your job applications
-                  </p>
-                  <Button onClick={() => navigate("/jobs")}>
-                    <ArrowRight className="w-4 h-4 mr-2" />
-                    Find Jobs
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4">
-                {applicationHistory.map((application, index) => (
-                  <Card 
-                    key={application.id} 
-                    className="animate-fade-in-up card-hover"
-                    style={{ animationDelay: `${index * 0.1}s` }}
-                  >
-                    <CardContent className="py-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-secondary/10">
-                            <Briefcase className="w-6 h-6 text-secondary" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-foreground">{application.position}</h3>
-                            <p className="text-muted-foreground">{application.company}</p>
-                            <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                Applied {application.appliedDate}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <FileText className="w-3 h-3" />
-                                {application.resumeUsed}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-4">
-                          {getApplicationStatusBadge(application.status)}
-                          
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Eye className="w-4 h-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <CheckCircle className="w-4 h-4 mr-2" />
-                                Update Status
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Remove
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+          <TabsContent value="history">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Resume analysis history</CardTitle>
+                <CardDescription>All your past resume analyses</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AnalysisHistoryList
+                  analyses={analyses}
+                  onView={(a) =>
+                    navigate("/resume/results", {
+                      state: {
+                        analysisResults: a.analysis_data,
+                        parsedResume: a.parsed_resume,
+                        resumeFileName: a.resume_filename,
+                        resumeText: a.resume_text,
+                        jobDescription: a.job_description,
+                      },
+                    })
+                  }
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
