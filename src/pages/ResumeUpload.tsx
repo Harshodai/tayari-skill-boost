@@ -34,6 +34,7 @@ import { extractTextFromFile } from "@/lib/resume-parser";
 import { toast } from "sonner";
 import type { AnalyzeResumeResponse } from "@/types/resume";
 import { resumeUploadSchema } from "@/lib/schemas";
+import { ResumeFilePreview } from "@/components/resume/ResumeFilePreview";
 
 const ResumeUpload = () => {
   const navigate = useNavigate();
@@ -324,6 +325,7 @@ const ResumeUpload = () => {
                   <span>✓</span> Resume parsed successfully ({resumeText.length} characters)
                 </p>
               )}
+              <ResumeFilePreview file={resumeFile} extractedText={resumeText} />
             </CardContent>
           </Card>
 
