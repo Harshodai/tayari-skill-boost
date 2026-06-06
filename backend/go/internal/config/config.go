@@ -15,6 +15,7 @@ type Config struct {
 	SupabaseURL    string
 	SupabaseKey    string
 	FrontendURL    string
+	PythonAIURL    string
 
 	// Social Auth Configs
 	GoogleClientID     string
@@ -42,6 +43,7 @@ func LoadConfig() *Config {
 		SupabaseURL:    getEnv("SUPABASE_URL", ""),
 		SupabaseKey:    getEnv("SUPABASE_ANON_KEY", ""),
 		FrontendURL:    getEnv("FRONTEND_URL", "http://localhost:5173"),
+		PythonAIURL:    getEnv("PYTHON_AI_URL", "http://localhost:8000"),
 
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),

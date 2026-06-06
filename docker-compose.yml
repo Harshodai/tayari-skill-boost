@@ -40,7 +40,7 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "54322:5432"
+      - "54326:5432"
     environment:
       POSTGRES_HOST: /var/run/postgresql
       PGPORT: 5432
@@ -58,8 +58,8 @@ services:
     image: kong:2.8.1
     restart: unless-stopped
     ports:
-      - "8000:8000"
-      - "8443:8443"
+      - "8008:8000"
+      - "8444:8443"
     volumes:
       - ./supabase-local/volumes/api/kong.yml:/home/kong/temp.yml:ro,z
     depends_on:
@@ -120,7 +120,7 @@ services:
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: "true"
       GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_CLIENT_SECRET}
-      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: http://localhost:8000/auth/v1/callback
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${API_EXTERNAL_URL:-http://localhost:8008}/auth/v1/callback
       GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
       GOTRUE_SMS_AUTOCONFIRM: false
 
@@ -232,7 +232,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "3001:3000"
+      - "3005:3000"
     environment:
       HOSTNAME: "::"
       STUDIO_PG_META_URL: http://meta:8080
@@ -244,7 +244,7 @@ services:
       DEFAULT_ORGANIZATION_NAME: Tayari Skill Boost
       DEFAULT_PROJECT_NAME: Tayari Local
       SUPABASE_URL: http://kong:8000
-      SUPABASE_PUBLIC_URL: http://localhost:8000
+      SUPABASE_PUBLIC_URL: http://localhost:8008
       SUPABASE_ANON_KEY: ${ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE}
       SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q}
       AUTH_JWT_SECRET: ${JWT_SECRET}
@@ -270,6 +270,7 @@ services:
       - PORT=8080
       - USE_SUPABASE=true
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+      - PYTHON_AI_URL=http://backend-ai:8001
       # Google OAuth
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
@@ -284,7 +285,7 @@ services:
       - LINKEDIN_CALLBACK_URL=${LINKEDIN_CALLBACK_URL:-http://localhost:8080/api/auth/linkedin/callback}
     command: sh -c "go mod tidy && go run ./cmd/server/main.go"
     ports:
-      - "8080:8080"
+      - "8085:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -293,31 +294,40 @@ services:
     restart: unless-stopped
 
   backend-ai:
-    image: python:3.11-slim
     container_name: tayari-backend-ai
-    working_dir: /app
+    build:
+      context: ./backend/python
+      dockerfile: Dockerfile
     volumes:
       - ./backend/python:/app
     environment:
       - PORT=8001
-    command: sh -c "pip install fastapi uvicorn && uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload"
+      - PYTHON_AI_URL=http://backend-ai:8001
+      - LLM_API_URL=${LLM_API_URL:-}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
     ports:
-      - "8001:8001"
+      - "8002:8001"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
     build:
       context: .
       args:
-        - VITE_API_URL=${VITE_API_URL:-http://localhost:8080/api}
-        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL:-http://localhost:8000}
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:8085/api}
+        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL:-http://localhost:8008}
         - VITE_SUPABASE_PUBLISHABLE_KEY=${VITE_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE}
         - VITE_USE_SELF_HOSTED=${VITE_USE_SELF_HOSTED:-true}
     container_name: tayari-frontend
     ports:
-      - "4173:4173"
+      - "4175:4173"
     environment:
-      - VITE_API_URL=http://localhost:8080/api
+      - VITE_API_URL=http://localhost:8085/api
     depends_on:
       - backend-go
     restart: unless-stopped

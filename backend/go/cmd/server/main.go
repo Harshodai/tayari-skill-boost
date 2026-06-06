@@ -47,11 +47,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database after %d attempts: %v", maxDBRetries, err)
 	}
-	// db.Close() is handled in the graceful shutdown section
+	defer db.Close()
 
 	// Init Concurrency Worker Pool for Audits
 	auditWorker := concurrency.NewAuditWorker(db, 100)
 	auditWorker.Start(5) // Start 5 concurrent workers
+	defer auditWorker.Stop()
 
 	var authService auth.AuthService
 	if cfg.UseSupabase {
@@ -59,11 +60,10 @@ func main() {
 		authService = auth.NewSupabaseAuth(cfg, db)
 	} else {
 		log.Println("Using Local Postgres Authentication Strategy")
-
 		authService = auth.NewLocalAuth(db, cfg, auditWorker)
 	}
 
-	server := api.NewServer(authService, cfg)
+	server := api.NewServer(authService, cfg, db)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
@@ -84,20 +84,11 @@ func main() {
 
 	log.Println("Shutting down server...")
 
-	// Create a deadline to wait for.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("Server forced to shutdown: %v", err)
-	}
-
-	// Stop workers
-	auditWorker.Stop()
-
-	// Close database
-	if err := db.Close(); err != nil {
-		log.Printf("Error closing database: %v", err)
 	}
 
 	log.Println("Server stopped gracefully")
