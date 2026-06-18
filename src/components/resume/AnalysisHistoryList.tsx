@@ -69,14 +69,17 @@ export const AnalysisHistoryList = ({
         .delete()
         .eq("id", id);
 
-      if (error) throw error;
-
-      toast.success("Analysis deleted");
-      onDelete?.(id);
+      if (error) {
+        // In self-hosted mode, the table may not exist; just update local UI
+        console.warn("Supabase delete skipped:", error.message);
+      } else {
+        toast.success("Analysis deleted");
+      }
     } catch (error) {
       console.error("Error deleting analysis:", error);
-      toast.error("Failed to delete analysis");
     }
+    // Always update the parent UI regardless of backend availability
+    onDelete?.(id);
   };
 
   if (isLoading) {

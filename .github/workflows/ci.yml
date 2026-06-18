@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  go-build:
+    name: Go Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build
+        working-directory: backend/go
+        run: go build -o tayari-backend ./cmd/server/main.go
+
+      - name: Test
+        working-directory: backend/go
+        run: go test -race ./...
+
+  python-build:
+    name: Python AI Service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: backend/python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test
+        working-directory: backend/python
+        run: pytest
+
+  frontend-build:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: bun run build
+
+  docker-compose:
+    name: Docker Compose E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env
+        run: |
+          cat > .env << 'EOF'
+          POSTGRES_PASSWORD=tayari_test_2026
+          JWT_SECRET=test-jwt-secret-for-ci-only-change-me
+          ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICJyb2xlIjogImFub24iLAogICAiaXNzIjogInN1cGFiYXNlLWRlbW8iLAogICAiaWF0IjogMTY0MTc2OTIwMCwKICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE
+          SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICJyb2xlIjogInNlcnZpY2Vfcm9sZSIsCiAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICJpYXQiOiAxNjQxNzY5MjAwLAogICJleHAiOiAxNzk5NTM1NjAwCn0.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q
+          EOF
+
+      - name: Start full stack
+        run: docker compose up -d --wait
+        timeout-minutes: 10
+
+      - name: Health check – Go backend
+        run: |
+          curl -sSf --retry 10 --retry-delay 5 http://localhost:8085/api/health || exit 1
+
+      - name: Health check – Python AI
+        run: |
+          curl -sSf --retry 10 --retry-delay 5 http://localhost:8002/health || exit 1
+
+      - name: Health check – Supabase Kong
+        run: |
+          curl -sSf --retry 10 --retry-delay 5 http://localhost:8008/health || exit 1
+
+      - name: Health check – Supabase Studio
+        run: |
+          curl -sSf --retry 10 --retry-delay 5 http://localhost:3005 || exit 1
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail 200

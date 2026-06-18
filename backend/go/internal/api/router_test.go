@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"tayari-backend/internal/config"
+	"tayari-backend/internal/database"
 	"tayari-backend/internal/models"
 )
 
@@ -36,10 +37,15 @@ func (m *MockAuthService) SocialCallback(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+// MockDB provides a nil database for testing
+func mockDB() *database.DB {
+	return &database.DB{Conn: nil}
+}
+
 func TestSocialAuthRoutes_ProviderInjection(t *testing.T) {
 	// Setup
 	mockAuth := &MockAuthService{}
-	server := NewServer(mockAuth, &config.Config{})
+	server := NewServer(mockAuth, &config.Config{}, mockDB())
 
 	// Test Cases
 	tests := []struct {

@@ -93,7 +93,7 @@ class ResumeParser:
             full_text = "\n".join(paragraphs)
             return ResumeParser._extract_from_text(full_text)
         except Exception as exc:
-            raise RuntimeError(f"DOCX parsing failed: {exc}") from epochs exc
+            raise RuntimeError(f"DOCX parsing failed: {exc}") from exc
 
     @staticmethod
     def _parse_txt(file_bytes: bytes) -> ParsedResume:

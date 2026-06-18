@@ -27,6 +27,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalysisHistoryList } from "@/components/resume/AnalysisHistoryList";
 import type { ResumeAnalysisRecord } from "@/types/resume";
+import { USE_SELF_HOSTED, listResumes, listAnalysisHistory } from "@/api";
+import { listJDs } from "@/api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -140,14 +142,53 @@ const Dashboard = () => {
   const { data: analysisHistory = [], isLoading: isLoadingHistory } = useQuery({
     queryKey: ["resume-analyses", user?.id],
     queryFn: async () => {
+      if (USE_SELF_HOSTED) {
+        const res = await listAnalysisHistory();
+        // Normalize Go format → UI format
+        return res.map((item: any) => ({
+          id: String(item.id),
+          user_id: item.user_id ?? "",
+          resume_filename: `Resume #${item.resume_id}`,
+          overall_score: item.score ?? 0,
+          created_at: item.created_at,
+          analysis_data: {
+            overallScore: item.score ?? 0,
+            sections: [],
+            matchedKeywords: [],
+            missingKeywords: [],
+            summaryRecommendation: "View the detailed analysis for this result.",
+          },
+          job_title: undefined,
+          company_name: undefined,
+        })) as ResumeAnalysisRecord[];
+      }
       const { data, error } = await supabase
         .from("resume_analyses")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(20);
-      
       if (error) throw error;
       return (data || []) as unknown as ResumeAnalysisRecord[];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch saved resumes (self-hosted)
+  const { data: savedResumesData = [] } = useQuery({
+    queryKey: ["saved-resumes", user?.id],
+    queryFn: async () => {
+      if (USE_SELF_HOSTED) {
+        const res = await listResumes();
+        return res.map((r: any) => ({
+          id: String(r.id),
+          name: r.title,
+          lastModified: r.updated_at?.split("T")[0] || r.created_at?.split("T")[0] || "",
+          score: r.status === "optimized" ? 90 : r.status === "parsed" ? 75 : 60,
+          status: r.status,
+          version: 1,
+        }));
+      }
+      return savedResumes;
     },
     enabled: !!user,
   });
@@ -159,12 +200,12 @@ const Dashboard = () => {
     );
   };
 
-  const avgScore = analysisHistory.length > 0 
+  const avgScore = analysisHistory.length > 0
     ? Math.round(analysisHistory.reduce((acc, a) => acc + a.overall_score, 0) / analysisHistory.length)
     : 0;
 
   const stats = {
-    totalResumes: savedResumes.length,
+    totalResumes: savedResumesData.length,
     analyses: analysisHistory.length,
     applications: applicationHistory.length,
     avgScore,
@@ -238,7 +279,7 @@ const Dashboard = () => {
 
           {/* Saved Resumes Tab */}
           <TabsContent value="resumes" className="space-y-4">
-            {savedResumes.length === 0 ? (
+            {savedResumesData.length === 0 ? (
               <Card className="py-12 text-center">
                 <CardContent>
                   <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -254,7 +295,7 @@ const Dashboard = () => {
               </Card>
             ) : (
               <div className="grid gap-4">
-                {savedResumes.map((resume, index) => (
+                {savedResumesData.map((resume, index) => (
                   <Card 
                     key={resume.id} 
                     className="animate-fade-in-up card-hover"

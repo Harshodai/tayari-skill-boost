@@ -13,12 +13,12 @@ scikit-learn==1.6.1
 numpy==2.2.1
 nltk==3.9.1
 
-# NLP (lightweight entity extraction - optional)
-spacy==3.8.3
-
 # Async HTTP
 aiofiles==24.1.0
 
 # Export
 jinja2==3.1.5
 weasyprint==63.1
+
+# NLP (heavyweight - optional, not imported in code)
+# spacy==3.8.3

@@ -32,8 +32,69 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { extractTextFromFile } from "@/lib/resume-parser";
 import { toast } from "sonner";
-import type { AnalyzeResumeResponse } from "@/types/resume";
 import { resumeUploadSchema } from "@/lib/schemas";
+import { USE_SELF_HOSTED } from "@/api";
+import { createResume, createJD, analyzeResume } from "@/api";
+import type { ResumeAnalysisResult } from "@/types/resume";
+
+/**
+ * Normalize the Go backend analysis response into the UI's ResumeAnalysisResult shape.
+ */
+function normalizeGoAnalysis(raw: Record<string, any>): ResumeAnalysisResult {
+  const score = typeof raw.score === "number" ? raw.score : 0;
+  const breakdown = raw.breakdown || {};
+  const keywords = raw.keywords || {};
+  const recommendations: string[] = raw.recommendations || [];
+
+  const sections = [];
+  if (breakdown.keyword_match !== undefined) {
+    sections.push({
+      name: "Skills Match",
+      score: Math.round(breakdown.keyword_match),
+      suggestions: recommendations.filter((r: string) =>
+        r.toLowerCase().includes("keyword")
+      ),
+    });
+  }
+  if (breakdown.ngram_match !== undefined) {
+    sections.push({
+      name: "Experience Relevance",
+      score: Math.round(breakdown.ngram_match),
+      suggestions: recommendations.filter((r: string) =>
+        r.toLowerCase().includes("experience")
+      ),
+    });
+  }
+  if (breakdown.keyword_density !== undefined) {
+    sections.push({
+      name: "Education Fit",
+      score: Math.round(breakdown.keyword_density),
+      suggestions: recommendations.filter((r: string) =>
+        r.toLowerCase().includes("education")
+      ),
+    });
+  }
+  if (breakdown.section_completeness !== undefined) {
+    sections.push({
+      name: "Formatting",
+      score: Math.round(breakdown.section_completeness),
+      suggestions: recommendations.filter((r: string) =>
+        r.toLowerCase().includes("format")
+      ),
+    });
+  }
+
+  return {
+    overallScore: score,
+    sections,
+    matchedKeywords: keywords.found || [],
+    missingKeywords: keywords.missing || [],
+    summaryRecommendation:
+      recommendations.length > 0
+        ? recommendations.join(" ")
+        : "Analysis complete.",
+  };
+}
 
 const ResumeUpload = () => {
   const navigate = useNavigate();
@@ -97,77 +158,105 @@ const ResumeUpload = () => {
     setAnalysisStep(0);
 
     try {
-      // Step 1: Parsing resume content
-      setAnalysisStep(1);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (USE_SELF_HOSTED) {
+        // Phase 1: create resume record
+        setAnalysisStep(1);
+        const fileType = resumeFile?.name?.split(".").pop() || "txt";
+        const newResume = await createResume({
+          title: resumeFile?.name || "Untitled Resume",
+          original_text: resumeText,
+          file_type: fileType,
+        });
 
-      // Check if we have resume text
-      if (!resumeText && resumeFile) {
-        throw new Error("Could not extract text from your resume. Please try a different file.");
-      }
+        // Phase 2: create job description record
+        setAnalysisStep(2);
+        const newJD = await createJD({
+          title: jobDescription.slice(0, 60) || "Untitled JD",
+          company: "",
+          text: jobDescription,
+        });
 
-      // Step 2: Extracting job requirements
-      setAnalysisStep(2);
-      await new Promise(resolve => setTimeout(resolve, 500));
+        // Phase 3: call analysis endpoint
+        setAnalysisStep(3);
+        const result = await analyzeResume({
+          resume_id: newResume.id,
+          jd_id: newJD.id,
+        });
 
-      // Step 3: Calling AI for analysis
-      setAnalysisStep(3);
+        setAnalysisStep(4);
+        await new Promise((resolve) => setTimeout(resolve, 300));
 
-      const { data, error: invokeError } = await supabase.functions.invoke<AnalyzeResumeResponse>(
-        'analyze-resume',
-        {
-          body: {
+        // Normalize Go-backend response to UI shape
+        const normalized = normalizeGoAnalysis(result);
+
+        navigate("/resume/results", {
+          state: {
+            analysisResults: normalized,
+            parsedResume: newResume.parsed_json,
+            resumeFileName: resumeFile?.name || "Resume",
             resumeText,
             jobDescription,
-            customInstructions,
-            aiOptions,
           },
+        });
+      } else {
+        // Cloud mode: use Supabase edge function (existing logic)
+        setAnalysisStep(1);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (!resumeText && resumeFile) {
+          throw new Error("Could not extract text from your resume. Please try a different file.");
         }
-      );
+        setAnalysisStep(2);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setAnalysisStep(3);
 
-      if (invokeError) {
-        console.error("Edge function error:", invokeError);
-        throw new Error(invokeError.message || "Failed to analyze resume");
-      }
+        const { data, error: invokeError } = await supabase.functions.invoke<any>(
+          "analyze-resume",
+          {
+            body: {
+              resumeText,
+              jobDescription,
+              customInstructions,
+              aiOptions,
+            },
+          }
+        );
 
-      if (!data?.success) {
-        throw new Error(data?.error || "Analysis failed");
-      }
-
-      // Step 4: Complete
-      setAnalysisStep(4);
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Save to history if logged in
-      if (user && data.data) {
-        try {
-          await supabase.from("resume_analyses").insert({
-            user_id: user.id,
-            resume_filename: resumeFile?.name || "Resume",
-            overall_score: data.data.overallScore,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            analysis_data: data.data as any,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            parsed_resume: data.parsedResume as any,
-            resume_text: resumeText,
-            job_description: jobDescription,
-          });
-        } catch (saveError) {
-          console.error("Failed to save analysis history:", saveError);
+        if (invokeError) {
+          throw new Error(invokeError.message || "Failed to analyze resume");
         }
-      }
-
-      // Navigate to results with the analysis data
-      navigate("/resume/results", {
-        state: {
-          analysisResults: data.data,
-          parsedResume: data.parsedResume,
-          resumeFileName: resumeFile?.name || "Resume",
-          resumeText,
-          jobDescription,
+        if (!data?.success) {
+          throw new Error(data?.error || "Analysis failed");
         }
-      });
 
+        setAnalysisStep(4);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        if (user && data.data) {
+          try {
+            await supabase.from("resume_analyses").insert({
+              user_id: user.id,
+              resume_filename: resumeFile?.name || "Resume",
+              overall_score: data.data.overallScore,
+              analysis_data: data.data as any,
+              parsed_resume: data.parsedResume as any,
+              resume_text: resumeText,
+              job_description: jobDescription,
+            });
+          } catch (saveError) {
+            console.error("Failed to save analysis history:", saveError);
+          }
+        }
+
+        navigate("/resume/results", {
+          state: {
+            analysisResults: data.data,
+            parsedResume: data.parsedResume,
+            resumeFileName: resumeFile?.name || "Resume",
+            resumeText,
+            jobDescription,
+          },
+        });
+      }
     } catch (err) {
       console.error("Analysis error:", err);
       const message = err instanceof Error ? err.message : "Failed to analyze resume";
