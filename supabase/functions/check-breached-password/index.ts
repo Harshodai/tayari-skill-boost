@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// SHA-1 hash function using Web Crypto API
+// SHA-1 hash function using Web Crypto API (fallback when only password is provided)
 async function sha1(message: string): Promise<string> {
   const msgBuffer = new TextEncoder().encode(message);
   const hashBuffer = await crypto.subtle.digest("SHA-1", msgBuffer);
@@ -20,27 +20,36 @@ serve(async (req) => {
   }
 
   try {
-    const { password } = await req.json();
+    const body = await req.json();
+    let hashPrefix: string | undefined = body.hashPrefix;
+    let hashSuffix: string | undefined = body.hashSuffix;
 
-    if (!password || typeof password !== "string") {
+    // Preferred path: client sends only the SHA-1 prefix + suffix (k-Anonymity).
+    // The plaintext password never reaches the server.
+    if (typeof hashPrefix === "string" && typeof hashSuffix === "string") {
+      hashPrefix = hashPrefix.toUpperCase();
+      hashSuffix = hashSuffix.toUpperCase();
+      if (!/^[0-9A-F]{5}$/.test(hashPrefix) || !/^[0-9A-F]{35}$/.test(hashSuffix)) {
+        return new Response(
+          JSON.stringify({ error: "Invalid hash format" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else if (typeof body.password === "string" && body.password.length > 0) {
+      // Backwards-compatible fallback (deprecated). Hash server-side.
+      const hash = await sha1(body.password);
+      hashPrefix = hash.substring(0, 5).toUpperCase();
+      hashSuffix = hash.substring(5).toUpperCase();
+    } else {
       return new Response(
-        JSON.stringify({ error: "Password is required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
+        JSON.stringify({ error: "hashPrefix and hashSuffix are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    // Generate SHA-1 hash of the password
-    const hash = await sha1(password);
-    const hashPrefix = hash.substring(0, 5).toUpperCase();
-    const hashSuffix = hash.substring(5).toUpperCase();
 
     console.log(`Checking password breach status (prefix: ${hashPrefix}...)`);
 
     // Query Have I Been Pwned API using k-Anonymity
-    // Only the first 5 characters of the hash are sent
     const response = await fetch(
       `https://api.pwnedpasswords.com/range/${hashPrefix}`,
       {

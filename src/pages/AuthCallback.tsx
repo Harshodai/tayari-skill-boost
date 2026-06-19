@@ -11,7 +11,7 @@ const AuthCallback = () => {
     const navigate = useNavigate();
     const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
     const [message, setMessage] = useState("Processing authentication...");
-    const timerRefs = useRef<NodeJS.Timeout[]>([]);
+    const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
 
     useEffect(() => {
         // Cleanup function to clear all timers on unmount

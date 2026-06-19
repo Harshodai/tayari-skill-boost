@@ -1,6 +1,7 @@
 
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { Menu, X, LogOut, LayoutDashboard, Settings, ChevronDown } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -20,7 +21,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [lastScrollY, setLastScrollY] = useState(0);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -30,19 +30,10 @@ export function Header() {
   const navLinks = getNavLinks();
 
   useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-
-      // Determine if scrolled (for background styling)
-      // Determine if scrolled (for background styling)
-      setIsScrolled(currentScrollY > 50);
-
-      setLastScrollY(currentScrollY);
-    };
-
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY, mobileMenuOpen]);
+  }, []);
 
   const handleSignOut = async () => {
     await signOut();
@@ -66,10 +57,10 @@ export function Header() {
   return (
     <header
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b",
+        "fixed top-0 left-0 right-0 z-50 transition-colors duration-300 py-3",
         isScrolled
-          ? "glass border-border/50 py-3 shadow-sm"
-          : "bg-transparent border-transparent py-3"
+          ? "bg-background/85 backdrop-blur-md border-b border-border/40"
+          : "bg-transparent"
       )}
     >
       <div className="container mx-auto px-4">
@@ -96,6 +87,7 @@ export function Header() {
 
           {/* Auth Buttons / User Menu */}
           <div className="hidden lg:flex items-center gap-3">
+            <ThemeToggle />
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -151,14 +143,16 @@ export function Header() {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            className="lg:hidden p-2 text-foreground"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          <div className="lg:hidden flex items-center gap-1">
+            <ThemeToggle />
+            <button
+              className="p-2 text-foreground"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Menu */}

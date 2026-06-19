@@ -36,6 +36,7 @@ import { resumeUploadSchema } from "@/lib/schemas";
 import { USE_SELF_HOSTED } from "@/api";
 import { createResume, createJD, analyzeResume } from "@/api";
 import type { ResumeAnalysisResult } from "@/types/resume";
+import { ResumeFilePreview } from "@/components/resume/ResumeFilePreview";
 
 /**
  * Normalize the Go backend analysis response into the UI's ResumeAnalysisResult shape.
@@ -413,6 +414,7 @@ const ResumeUpload = () => {
                   <span>✓</span> Resume parsed successfully ({resumeText.length} characters)
                 </p>
               )}
+              <ResumeFilePreview file={resumeFile} extractedText={resumeText} />
             </CardContent>
           </Card>
 
