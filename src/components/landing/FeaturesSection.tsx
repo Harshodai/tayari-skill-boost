@@ -68,8 +68,8 @@ const features = [
     description: "Save jobs from LinkedIn, Indeed, and 15+ platforms with one click. Auto-detect and auto-fill.",
     href: "#",
     cta: "Coming Soon",
-    available: featureFlags.browserExtension,
-    visible: featureFlags.browserExtension,
+    available: (featureFlags as Record<string, boolean>).browserExtension ?? false,
+    visible: (featureFlags as Record<string, boolean>).browserExtension ?? false,
   },
 ];
 

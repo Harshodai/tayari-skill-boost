@@ -1,3 +1,6 @@
+declare const chrome: any;
+declare const process: { env: Record<string, string | undefined> };
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
