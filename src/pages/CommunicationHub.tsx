@@ -60,18 +60,6 @@ const CommunicationHub = () => {
 
   const [searchParams] = useSearchParams();
 
-  // Pre-fill application from URL query param (e.g., from InterviewBoard)
-  useEffect(() => {
-    const qAppId = searchParams.get("app");
-    if (qAppId && applications.length > 0) {
-      const app = applications.find((a: any) => (a.application_id || a.id) === qAppId);
-      if (app) {
-        setSelectedApp(app);
-        setActiveTab("generator");
-      }
-    }
-  }, [searchParams, applications]);
-
   const { data: suggestionsData, isLoading: suggestionsLoading } = useQuery({
     queryKey: ["communication-suggestions"],
     queryFn: () => fetchCommunicationSuggestions(),
@@ -87,6 +75,18 @@ const CommunicationHub = () => {
     queryFn: () => listSavedJobs(),
   });
 
+  // Pre-fill application from URL query param (e.g., from InterviewBoard)
+  useEffect(() => {
+    const qAppId = searchParams.get("app");
+    if (qAppId && applications.length > 0) {
+      const app = applications.find((a: any) => (a.application_id || a.id) === qAppId);
+      if (app) {
+        setSelectedApp(app);
+        setActiveTab("generator");
+      }
+    }
+  }, [searchParams, applications]);
+
   const generateMutation = useMutation({
     mutationFn: generateCommunication,
     onSuccess: (data) => {
@@ -101,7 +101,7 @@ const CommunicationHub = () => {
   const getAppDetails = (appId: string) => {
     const app = applications.find((a: any) => a.application_id === appId || a.id === appId);
     if (!app) return { title: "Unknown", company: "Unknown", status: app?.status || "saved" };
-    const job = savedJobs.find((j: any) => j.id === app.saved_job_id);
+    const job = savedJobs.find((j: any) => j.id === (app as any).saved_job_id);
     const jobData = job?.job || {};
     return {
       title: jobData.title || app.job?.title || "Unknown",

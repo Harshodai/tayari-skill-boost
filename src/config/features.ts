@@ -23,6 +23,7 @@ const CONFIG = {
     coverLetter: [true, true],
     communicationHub: [true, true],
     interviewAI: [true, true],
+    browserExtension: [false, false],
   },
 
   // Navigation Links

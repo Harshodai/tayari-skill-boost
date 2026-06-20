@@ -137,17 +137,41 @@
   }
 
   .text-gradient {
-    background: linear-gradient(90deg, hsl(239 84% 67%), hsl(187 92% 60%), hsl(158 64% 52%));
+    background: linear-gradient(110deg, hsl(239 84% 67%) 0%, hsl(280 80% 65%) 35%, hsl(187 92% 60%) 70%, hsl(158 64% 52%) 100%);
+    background-size: 200% 100%;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    animation: gradient-shift 8s ease infinite;
+  }
+
+  .bg-mesh {
+    background:
+      radial-gradient(at 20% 10%, hsl(239 84% 67% / 0.18) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, hsl(280 80% 65% / 0.14) 0px, transparent 50%),
+      radial-gradient(at 70% 80%, hsl(187 92% 60% / 0.12) 0px, transparent 50%),
+      radial-gradient(at 0% 90%, hsl(158 64% 52% / 0.10) 0px, transparent 50%),
+      hsl(var(--background));
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.4) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.4) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 80%);
   }
 
   .bg-gradient-hero {
     background:
-      radial-gradient(ellipse 80% 60% at 50% 0%, hsl(239 84% 67% / 0.08), transparent 60%),
+      radial-gradient(ellipse 80% 60% at 50% 0%, hsl(239 84% 67% / 0.10) 0%, transparent 60%),
       radial-gradient(ellipse 60% 50% at 20% 100%, hsl(175 70% 50% / 0.06), transparent 60%),
       hsl(var(--background));
+  }
+
+  .font-display {
+    font-family: 'Sora', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.03em;
   }
 
   .glass {
