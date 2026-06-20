@@ -20,6 +20,9 @@ const CONFIG = {
     pricing: [false, false],
     careers: [false, true],
     help: [false, true],
+    coverLetter: [true, true],
+    communicationHub: [true, true],
+    interviewAI: [true, true],
   },
 
   // Navigation Links
@@ -28,8 +31,12 @@ const CONFIG = {
     { label: "Home", href: "/", feature: null },
     { label: "Resume Optimizer", href: "/resume", feature: "resumeOptimizer" },
     { label: "Career Roadmap", href: "/roadmap", feature: "careerRoadmap" },
-    { label: "Interview Prep", href: "/interview", feature: "interviewPrep" },
+    { label: "Interview Board", href: "/interview", feature: "interviewPrep" },
+    { label: "Interview Prep", href: "/interview/prep", feature: "interviewAI" },
     { label: "Job Search", href: "/jobs", feature: "jobSearch" },
+    { label: "AutoPilot", href: "/jobs/autopilot", feature: "jobSearch" },
+    { label: "Cover Letter", href: "/cover-letter", feature: "coverLetter" },
+    { label: "Communication", href: "/communication", feature: "communicationHub" },
     { label: "Blog", href: "/blog", feature: "blog" },
     { label: "Pricing", href: "/pricing", feature: "pricing" },
     { label: "FAQ", href: "/faq", feature: null },

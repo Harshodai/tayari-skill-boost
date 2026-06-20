@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { Button } from "@/components/ui/button";
-import { FileText, MessageSquare, Briefcase, ArrowRight } from "lucide-react";
+import { FileText, MessageSquare, Briefcase, ArrowRight, Mail, Brain, Globe } from "lucide-react";
 import { settings, features as featureFlags } from "@/config/features";
 import {
   Carousel,
@@ -43,6 +43,33 @@ const features = [
     cta: "Find Jobs",
     available: featureFlags.jobSearch,
     visible: settings.showFullProductsSection, // Controlled by feature flags
+  },
+  {
+    icon: Mail,
+    title: "Cover Letter Generator",
+    description: "Generate tailored, resume-aware cover letters in seconds. Short, specific, and ATS-friendly.",
+    href: "/cover-letter",
+    cta: "Generate Cover Letter",
+    available: featureFlags.coverLetter,
+    visible: featureFlags.coverLetter,
+  },
+  {
+    icon: Brain,
+    title: "AI Interview Coach",
+    description: "Resume-aware behavioral questions with STAR coaching, technical Q&A, and company-specific prep.",
+    href: "/interview/prep",
+    cta: "Start Prep",
+    available: featureFlags.interviewAI,
+    visible: featureFlags.interviewAI,
+  },
+  {
+    icon: Globe,
+    title: "Browser Extension",
+    description: "Save jobs from LinkedIn, Indeed, and 15+ platforms with one click. Auto-detect and auto-fill.",
+    href: "#",
+    cta: "Coming Soon",
+    available: featureFlags.browserExtension,
+    visible: featureFlags.browserExtension,
   },
 ];
 

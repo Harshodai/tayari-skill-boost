@@ -22,3 +22,11 @@ weasyprint==63.1
 
 # NLP (heavyweight - optional, not imported in code)
 # spacy==3.8.3
+
+# Hermes automation layer (WS-C)
+celery==5.4.0
+redis==5.2.1
+flower==2.0.1
+asyncpg==0.30.0
+crawl4ai==0.4.0
+apify-client==1.8.0

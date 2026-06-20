@@ -1,0 +1,100 @@
+{
+  "manifest_version": 3,
+  "name": "Tayari Job Companion",
+  "version": "2.0.0",
+  "description": "Detect jobs, autofill applications, and track your job search journey with Tayari AI.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "tabs",
+    "clipboardWrite",
+    "notifications",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://*.indeed.com/*",
+    "https://*.glassdoor.com/*",
+    "https://*.greenhouse.io/*",
+    "https://*.workday.com/*",
+    "https://*.lever.co/*",
+    "https://*.ashbyhq.com/*",
+    "https://*.smartrecruiters.com/*",
+    "https://*.icims.com/*",
+    "https://*.taleo.net/*",
+    "https://*.jobs2web.com/*",
+    "https://*.bamboohr.com/*",
+    "https://*.applytojob.com/*",
+    "https://*.recruitee.com/*",
+    "https://*.teamtailor.com/*",
+    "https://*.recruiterbox.com/*",
+    "https://*.jobvite.com/*",
+    "https://*.bullhornstaffing.com/*",
+    "https://jobs.*/*",
+    "https://careers.*/*",
+    "https://*/*/jobs/*",
+    "https://*/*/careers/*",
+    "https://*/*apply*",
+    "https://*/*application*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.linkedin.com/jobs/view/*",
+        "https://www.linkedin.com/jobs/search/*",
+        "https://*.indeed.com/viewjob*",
+        "https://*.indeed.com/jobs/*",
+        "https://*.indeed.com/apply*",
+        "https://*.glassdoor.com/job-listing/*",
+        "https://*.greenhouse.io/*",
+        "https://*.workday.com/*",
+        "https://*.lever.co/*",
+        "https://*.ashbyhq.com/*",
+        "https://*.smartrecruiters.com/*",
+        "https://*.icims.com/*",
+        "https://*.taleo.net/*",
+        "https://*.jobs2web.com/*",
+        "https://*.bamboohr.com/*",
+        "https://*.applytojob.com/*",
+        "https://*.recruitee.com/*",
+        "https://*.teamtailor.com/*",
+        "https://*.recruiterbox.com/*",
+        "https://*.jobvite.com/*",
+        "https://*.bullhornstaffing.com/*",
+        "https://jobs.*/*",
+        "https://careers.*/*",
+        "https://*/*/jobs/*",
+        "https://*/*/careers/*",
+        "https://*/*apply*",
+        "https://*/*application*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*.png", "icons/*.svg", "injected.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

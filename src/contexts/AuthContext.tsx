@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
@@ -8,6 +8,7 @@ import { checkRateLimit, recordFailedAttempt, resetRateLimit } from "@/lib/rate-
 // Configuration for Auth Mode
 const USE_SELF_HOSTED = import.meta.env.VITE_USE_SELF_HOSTED === 'true';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const EXTENSION_ID = import.meta.env.VITE_EXTENSION_ID || "tayari-extension-id";
 
 interface AuthContextType {
   user: User | null;
@@ -47,6 +48,25 @@ function createMockUser(userData: any): User {
   } as User;
 }
 
+// Helper to sync auth token to browser extension
+function syncTokenToExtension(token: string | null) {
+  try {
+    if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) return;
+    chrome.runtime.sendMessage(
+      EXTENSION_ID,
+      { action: token ? "set_token" : "clear_token", token },
+      () => {
+        // Ignore errors - extension may not be installed
+        if (chrome.runtime.lastError) {
+          console.log("Extension not available:", chrome.runtime.lastError.message);
+        }
+      }
+    );
+  } catch (e) {
+    // Extension not available
+  }
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -60,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(mockUser);
     setSession(createMockSession(token, mockUser) as Session);
     localStorage.setItem('auth_token', token);
+    syncTokenToExtension(token);
   };
 
   useEffect(() => {
@@ -82,18 +103,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const mockUser = createMockUser(userData);
             setUser(mockUser);
             setSession(createMockSession(token, mockUser) as Session);
+            syncTokenToExtension(token);
           })
           .catch((err) => {
             if (err.name === 'AbortError') return;
             localStorage.removeItem('auth_token');
             setUser(null);
             setSession(null);
+            syncTokenToExtension(null);
           })
           .finally(() => {
             if (!controller.signal.aborted) setIsLoading(false);
           });
       } else {
         setIsLoading(false);
+        syncTokenToExtension(null);
       }
       return () => controller.abort();
     } else {
@@ -103,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(session);
           setUser(session?.user ?? null);
           setIsLoading(false);
+          syncTokenToExtension(session?.access_token ?? null);
         }
       );
 
@@ -110,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         setIsLoading(false);
+        syncTokenToExtension(session?.access_token ?? null);
       });
 
       return () => subscription.unsubscribe();
@@ -151,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         localStorage.setItem('auth_token', data.token);
+        syncTokenToExtension(data.token);
 
         // Fetch user data to set state properly
         try {
@@ -163,6 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.removeItem('auth_token');
             setUser(null);
             setSession(null);
+            syncTokenToExtension(null);
             return { error: 'Failed to retrieve user profile' };
           }
 
@@ -170,11 +198,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const mockUser = createMockUser(userData);
           setUser(mockUser);
           setSession(createMockSession(data.token, mockUser) as Session);
+          syncTokenToExtension(data.token);
           return { error: null };
         } catch (err) {
           localStorage.removeItem('auth_token');
           setUser(null);
           setSession(null);
+          syncTokenToExtension(null);
           return { error: 'Network error retrieving profile' };
         }
       }
@@ -280,8 +310,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('auth_token');
       setUser(null);
       setSession(null);
+      syncTokenToExtension(null);
     } else {
       await supabase.auth.signOut();
+      syncTokenToExtension(null);
     }
   };
 

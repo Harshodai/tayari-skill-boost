@@ -1,14 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, Navigate } from "react-router-dom";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Download, Check, Eye, Loader2, AlertTriangle, FileCode, CheckCircle2, CircleDot, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ResumePreviewModal } from "@/components/resume/ResumePreviewModal";
-import type { ResumeAnalysisResult, GenerateResumeResponse, ParsedResume } from "@/types/resume";
+import type { ResumeAnalysisResult, ParsedResume } from "@/types/resume";
 
 const templates = [
   {
@@ -106,96 +105,61 @@ const ResumeTemplates = () => {
     updateStepStatus('optimizing', 'active');
 
     try {
-      const response = await supabase.functions.invoke<GenerateResumeResponse>("generate-resume-pdf", {
-        body: {
-          resumeText,
-          analysisResults,
-          appliedSuggestions,
+      const token = localStorage.getItem("auth_token");
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
+
+      const response = await fetch(`${apiUrl}/v1/export/pdf`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          resume_text: resumeText,
           template: selectedTemplate,
-          jobDescription,
-        },
+          job_description: jobDescription,
+          applied_suggestions: appliedSuggestions,
+        }),
       });
 
-      if (response.error) {
-        throw new Error(response.error.message || "Failed to generate resume");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to generate PDF");
       }
 
-      const data = response.data;
-
-      if (!data?.success) {
-        throw new Error(data?.error || "Failed to generate resume");
-      }
-
-      // Update progress based on response
+      const blob = await response.blob();
       updateStepStatus('optimizing', 'complete');
       updateStepStatus('converting', 'complete');
+      updateStepStatus('compiling', 'complete');
+      updateStepStatus('downloading', 'active');
 
-      if (data.pdfGenerated && data.pdfBase64) {
-        updateStepStatus('compiling', 'complete');
-        updateStepStatus('downloading', 'active');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${resumeFileName?.replace(/\.[^/.]+$/, "") || "resume"}_optimized.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
-        // Download PDF
-        const binaryString = atob(data.pdfBase64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        const blob = new Blob([bytes], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${resumeFileName?.replace(/\.[^/.]+$/, "") || "resume"}_optimized.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        updateStepStatus('downloading', 'complete');
-        toast.success("Resume PDF downloaded successfully!", {
-          description: data.compiler ? `Compiled with ${data.compiler}` : undefined,
-        });
-      } else if (data.latexSource) {
-        // PDF compilation failed - offer LaTeX download
-        updateStepStatus('compiling', 'error');
-        
-        const blob = new Blob([data.latexSource], { type: "text/x-latex" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${resumeFileName?.replace(/\.[^/.]+$/, "") || "resume"}_optimized.tex`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        toast.info("PDF compilation failed. LaTeX source downloaded.", {
-          description: data.suggestion || "You can compile it using Overleaf or a local LaTeX installation.",
-          duration: 6000,
-        });
-      }
+      updateStepStatus('downloading', 'complete');
+      toast.success("Resume PDF downloaded successfully!", {
+        description: `Template: ${selectedTemplate}`,
+      });
     } catch (error) {
       console.error("Error generating resume:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to generate resume";
-      
-      // Mark current step as error
+
       const activeStep = compilationSteps.find(s => s.status === 'active');
       if (activeStep) {
         updateStepStatus(activeStep.id, 'error');
       }
-      
-      if (errorMessage.includes("Too many requests")) {
-        toast.error("Rate limit exceeded", {
-          description: "Please wait a moment and try again.",
-        });
-      } else if (errorMessage.includes("credits")) {
-        toast.error("AI credits depleted", {
-          description: "Please add more credits to continue.",
-        });
-      } else {
-        toast.error("Failed to generate resume", {
-          description: errorMessage,
-        });
-      }
+
+      toast.error("Failed to generate resume", {
+        description: errorMessage,
+      });
     } finally {
       setIsGenerating(false);
     }

@@ -26,21 +26,22 @@ export function HeroSection() {
           {/* Headline */}
           <SlideUp>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6 tracking-tight">
-              Land Your Dream
-              <span className="block mt-2 text-gradient">Software Engineering Job</span>
+              Your One-Shot Job Search
+              <span className="block mt-2 text-gradient">Companion</span>
             </h1>
           </SlideUp>
 
           {/* Subheadline */}
           <SlideUp delay={0.1}>
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-              Optimize your resume with AI, practice coding interviews, and discover personalized job matches. Everything you need to accelerate your tech career.
+              AI-powered resume optimization, smart job search with Hermes agent,
+              interview kanban tracking, and auto-pilot applications. Everything you need to land your dream job — in one place.
             </p>
           </SlideUp>
 
           {/* CTA Buttons */}
           <SlideUp delay={0.2}>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
               <Button size="xl" variant="glow" asChild>
                 <Link to="/auth?mode=signup">
                   Get Started Free
@@ -51,6 +52,23 @@ export function HeroSection() {
                 <Link to="/resume">
                   Try Resume Optimizer
                 </Link>
+              </Button>
+            </div>
+            <div className="flex flex-wrap justify-center gap-3 mt-4">
+              <Button size="sm" variant="ghost" asChild>
+                <Link to="/jobs">Smart Job Search</Link>
+              </Button>
+              <Button size="sm" variant="ghost" asChild>
+                <Link to="/interview">Interview Board</Link>
+              </Button>
+              <Button size="sm" variant="ghost" asChild>
+                <Link to="/cover-letter">Cover Letter</Link>
+              </Button>
+              <Button size="sm" variant="ghost" asChild>
+                <Link to="/communication">Communication Hub</Link>
+              </Button>
+              <Button size="sm" variant="ghost" asChild>
+                <Link to="/interview/prep">AI Interview Prep</Link>
               </Button>
             </div>
           </SlideUp>

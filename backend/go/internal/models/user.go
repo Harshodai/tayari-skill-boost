@@ -15,15 +15,3 @@ type User struct {
 	// Internal fields not exposed via JSON usually
 	PasswordHash string `json:"-"`
 }
-
-// Profile represents the user profile (public.profiles)
-type Profile struct {
-	ID        uuid.UUID  `json:"id"`
-	FullName  string     `json:"full_name"`
-	AvatarURL string     `json:"avatar_url"`
-	Email     string     `json:"email"`
-	Location  string     `json:"location,omitempty"`
-	Title     string     `json:"title,omitempty"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt *time.Time `json:"updated_at,omitempty"`
-}

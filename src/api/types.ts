@@ -61,3 +61,86 @@ export interface AnalyzeRequest {
 export interface APIError {
   error: string;
 }
+
+// --- MVP: Profile, Job Search, Saved Jobs, Autopilot, Applications ---
+
+export interface Profile {
+  id: string;
+  full_name: string;
+  avatar_url?: string;
+  email: string;
+  headline?: string;
+  summary?: string;
+  skills?: string[];
+  desired_roles?: string[];
+  locations?: string[];
+  experience_years?: number;
+  open_to_remote?: boolean;
+  links?: Record<string, any>;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface DashboardStats {
+  resumes_count: number;
+  saved_jobs_count: number;
+  applications_count: number;
+  interviews_count: number;
+  profile_completion_pct: number;
+}
+
+export interface SavedJob {
+  id: number;
+  user_id: string;
+  dedupe_key: string;
+  job: Record<string, any>;
+  status: string;
+  saved_at: string;
+  updated_at: string;
+}
+
+export interface AutopilotRun {
+  run_id: string;
+  config?: Record<string, any>;
+  status: string;
+  progress: number;
+  current_step?: string;
+  logs?: string[];
+  applications_created: number;
+  error?: string;
+  created_at: string;
+  updated_at: string;
+  applications?: Application[];
+}
+
+export interface Application {
+  id: number;
+  application_id: string;
+  user_id: string;
+  run_id?: string;
+  job?: Record<string, any>;
+  tailored_resume_text?: string;
+  cover_letter?: string;
+  changes?: Record<string, any>;
+  keywords_added?: string[];
+  ats_score_before: number;
+  ats_score_after: number;
+  is_dream_company: boolean;
+  status: string;
+  submission_mode?: string;
+  apply_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutopilotSchedule {
+  id: number;
+  schedule_id: string;
+  user_id: string;
+  frequency: string;
+  config?: Record<string, any>;
+  active: boolean;
+  next_run_at?: string;
+  last_run_at?: string;
+  created_at: string;
+}

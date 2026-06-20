@@ -18,6 +18,9 @@ import {
   Mic,
   Sparkles,
   History,
+  MessageSquare,
+  Mail,
+  Brain,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -363,6 +366,58 @@ const Dashboard = () => {
                   ))}
                 </ul>
               )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Quick Actions — New Features */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+          <Card className="card-hover">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Cover Letter Generator</p>
+                  <p className="text-xs text-muted-foreground">AI-tailored, resume-aware</p>
+                </div>
+              </div>
+              <Button asChild size="sm" variant="outline" className="w-full">
+                <Link to="/cover-letter">Generate Cover Letter</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="card-hover">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Communication Hub</p>
+                  <p className="text-xs text-muted-foreground">Follow-ups, thank-yous, negotiation</p>
+                </div>
+              </div>
+              <Button asChild size="sm" variant="outline" className="w-full">
+                <Link to="/communication">Open Communication Hub</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="card-hover">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center">
+                  <Brain className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Interview Prep</p>
+                  <p className="text-xs text-muted-foreground">STAR coaching + company-specific Qs</p>
+                </div>
+              </div>
+              <Button asChild size="sm" variant="outline" className="w-full">
+                <Link to="/interview/prep">Start Interview Prep</Link>
+              </Button>
             </CardContent>
           </Card>
         </div>

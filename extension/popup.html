@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tayari Job Companion</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">T</span>
+        <span class="logo-text">Tayari</span>
+      </div>
+      <div id="auth-status" class="status">Checking...</div>
+    </header>
+
+    <div id="not-authenticated" class="hidden">
+      <div class="section">
+        <div class="auth-icon">🔐</div>
+        <p class="text-muted">Please sign in to Tayari to use the extension.</p>
+        <button id="btn-open-tayari" class="btn btn-primary">Open Tayari</button>
+      </div>
+    </div>
+
+    <div id="authenticated" class="hidden">
+      <!-- Job Detected State -->
+      <div id="job-detected" class="hidden">
+        <div class="section">
+          <div class="job-card">
+            <div class="platform-badge" id="detected-platform">LinkedIn</div>
+            <div class="job-title" id="detected-title">Loading...</div>
+            <div class="job-company" id="detected-company">Unknown</div>
+            <div class="job-location" id="detected-location"></div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="btn-save" class="btn btn-primary">
+            <span class="icon">💾</span> Save to Tayari
+          </button>
+          <button id="btn-queue-review" class="btn btn-secondary">
+            <span class="icon">📋</span> Queue for Review
+          </button>
+          <button id="btn-optimize" class="btn btn-secondary">
+            <span class="icon">⚡</span> Optimize Resume
+          </button>
+          <button id="btn-cover-letter" class="btn btn-secondary">
+            <span class="icon">📝</span> Cover Letter
+          </button>
+        </div>
+
+        <div class="section stats">
+          <div class="stat-row">
+            <span class="stat-label">Saved Jobs</span>
+            <span class="stat-value" id="stat-saved">0</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Applications</span>
+            <span class="stat-value" id="stat-applied">0</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Interviews</span>
+            <span class="stat-value" id="stat-interviews">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Application Form Detected State -->
+      <div id="application-detected" class="hidden">
+        <div class="section">
+          <div class="application-banner">
+            <div class="banner-icon">📝</div>
+            <div class="banner-text">
+              <div class="banner-title">Application Form Detected</div>
+              <div class="banner-subtitle" id="app-form-job">Job Application</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="btn-autofill" class="btn btn-primary">
+            <span class="icon">📝</span> Autofill Form
+          </button>
+          <button id="btn-track-app" class="btn btn-secondary">
+            <span class="icon">📋</span> Track Application
+          </button>
+          <button id="btn-queue-review-app" class="btn btn-secondary">
+            <span class="icon">📋</span> Queue for Review
+          </button>
+        </div>
+
+        <div class="section">
+          <div class="autofill-status" id="autofill-status"></div>
+        </div>
+      </div>
+
+      <!-- No Job State -->
+      <div id="no-job" class="hidden">
+        <div class="section text-center">
+          <div class="icon-large">🔍</div>
+          <p class="text-muted">No job detected on this page.</p>
+          <p class="text-small">Navigate to a LinkedIn, Indeed, or other job listing page.</p>
+        </div>
+      </div>
+
+      <!-- Quick Stats (always visible when authenticated) -->
+      <div class="section quick-stats">
+        <div class="quick-stat">
+          <div class="quick-stat-value" id="quick-saved">0</div>
+          <div class="quick-stat-label">Saved</div>
+        </div>
+        <div class="quick-stat">
+          <div class="quick-stat-value" id="quick-applied">0</div>
+          <div class="quick-stat-label">Applied</div>
+        </div>
+        <div class="quick-stat">
+          <div class="quick-stat-value" id="quick-review">0</div>
+          <div class="quick-stat-label">Review</div>
+        </div>
+        <div class="quick-stat">
+          <div class="quick-stat-value" id="quick-interviews">0</div>
+          <div class="quick-stat-label">Interviews</div>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="section settings">
+        <details>
+          <summary>Settings</summary>
+          <div class="setting-row">
+            <label>API URL</label>
+            <input type="text" id="api-url" value="http://localhost:8080/api" />
+          </div>
+          <div class="setting-row">
+            <label class="checkbox-label">
+              <input type="checkbox" id="autofill-enabled" checked />
+              Enable Autofill on application forms
+            </label>
+          </div>
+          <div class="setting-row">
+            <button id="btn-refresh-profile" class="btn btn-small">Refresh Profile</button>
+          </div>
+          <div class="setting-row">
+            <button id="btn-save-settings" class="btn btn-small">Save</button>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div id="message" class="message hidden"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

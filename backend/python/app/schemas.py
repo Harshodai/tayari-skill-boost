@@ -136,3 +136,89 @@ class ExportResponse(BaseModel):
     download_url: Optional[str] = None
     deltas: List[str] = Field(default_factory=list)
     status: str = "pending"
+
+
+class CoverLetterRequest(BaseModel):
+    resume_text: str
+    job_title: str
+    company: str
+    job_description: str
+    tone: Optional[str] = "formal"
+
+
+class CoverLetterResponse(BaseModel):
+    cover_letter: str
+    word_count: int
+    bullet_references: List[str] = Field(default_factory=list)
+    tone: str = "formal"
+    job_title: str
+    company_name: str
+
+
+class CommunicationRequest(BaseModel):
+    comm_type: str  # follow-up, thank-you, negotiation, status-check
+    resume_text: str
+    job_title: str
+    company_name: str
+    recipient_name: Optional[str] = None
+    discussion_points: Optional[List[str]] = None
+    offer_details: Optional[Dict[str, Any]] = None
+    days_since: int = 3
+
+
+class CommunicationResponse(BaseModel):
+    subject: str
+    body: str
+    word_count: int
+    type: str
+    timing_note: str
+    talking_points: Optional[List[str]] = None
+
+
+class InterviewPrepRequest(BaseModel):
+    resume_text: str
+    job_title: str
+    company_name: Optional[str] = None
+    job_description: Optional[str] = None
+    interview_type: str = "behavioral"  # behavioral, technical, system-design
+
+
+class InterviewQuestion(BaseModel):
+    question: str
+    category: str
+    source_bullet: Optional[str] = None
+    skill: Optional[str] = None
+    star_suggested: Optional[Dict[str, str]] = None
+    suggested_answer: Optional[str] = None
+    suggested_approach: Optional[str] = None
+    requirements: Optional[str] = None
+
+
+class InterviewPrepResponse(BaseModel):
+    questions: List[InterviewQuestion] = Field(default_factory=list)
+    interview_type: str
+    company_specific: Optional[Dict[str, Any]] = None
+    skills_tested: Optional[List[str]] = None
+
+
+class KnowledgeGraphRequest(BaseModel):
+    resume_text: str
+
+
+class KnowledgeGraphResponse(BaseModel):
+    entities: Dict[str, Any] = Field(default_factory=dict)
+    achievements: List[Dict[str, Any]] = Field(default_factory=list)
+    timeline: List[Dict[str, Any]] = Field(default_factory=list)
+    llm_enhanced: bool = False
+
+
+class ProfileImportResponse(BaseModel):
+    headline: Optional[str] = None
+    summary: Optional[str] = None
+    skills: List[str] = Field(default_factory=list)
+    experience_years: Optional[int] = None
+    desired_roles: List[str] = Field(default_factory=list)
+    locations: List[str] = Field(default_factory=list)
+    companies: List[str] = Field(default_factory=list)
+    job_titles: List[str] = Field(default_factory=list)
+    certifications: List[str] = Field(default_factory=list)

@@ -1,0 +1,447 @@
+dataset:
+  name: tayari_resume_v1
+  version: "1.0.0"
+  description: 20 stratified test cases for resume optimization pipeline
+  schema:
+    - id: str
+    - category: str  # {fresh_grad, mid_career, senior_exec, career_change, gap_resume, non_standard}
+    - resume_text: str
+    - job_description: str
+    - expected_tags: list[str]  # e.g. [truthful, keyword_stuffing, pii_clean, length_ok]
+    - expected_min_ats_score: int
+    - expected_sections: list[str]  # [experience, education, skills, summary]
+  cases:
+    - id: rso-001
+      category: fresh_grad
+      resume_text: |
+        John Doe
+        john.doe@example.com
+        New York, NY
+        EDUCATION
+        Bachelor of Science in Computer Science, NYU, 2023
+        SKILLS
+        Python, JavaScript, SQL, Git
+        PROJECTS
+        Built a web app using React and Node.js for a class project.
+      job_description: |
+        Junior Software Engineer
+        We need a Junior Software Engineer with Python, JavaScript, and React experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 55
+      expected_sections: [education, skills]
+
+    - id: rso-002
+      category: fresh_grad
+      resume_text: |
+        Jane Smith
+        jane.smith@example.com
+        Boston, MA
+        EDUCATION
+        BS Data Science, Northeastern University, 2022
+        SKILLS
+        Python, R, Pandas, NumPy, scikit-learn
+        EXPERIENCE
+        Intern at DataCorp, 2021-2022. Cleaned datasets and built dashboards.
+      job_description: |
+        Data Analyst
+        Seeking Data Analyst with Python, SQL, and data visualization skills.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 60
+      expected_sections: [experience, education, skills]
+
+    - id: rso-003
+      category: mid_career
+      resume_text: |
+        Michael Chen
+        michael.chen@example.com
+        San Francisco, CA
+        PROFESSIONAL SUMMARY
+        Software engineer with 5 years of backend experience.
+        EXPERIENCE
+        Senior Backend Engineer at CloudScale, 2020-Present. Built microservices using Python and AWS.
+        Backend Engineer at StartupX, 2018-2020. Developed REST APIs and CI/CD pipelines.
+        EDUCATION
+        BS Computer Science, UC Berkeley, 2018
+        SKILLS
+        Python, AWS, Docker, Kubernetes, PostgreSQL, Redis
+      job_description: |
+        Senior Backend Engineer
+        We are hiring a Senior Backend Engineer with Python, AWS, Docker, Kubernetes, and microservices experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 75
+      expected_sections: [summary, experience, education, skills]
+
+    - id: rso-004
+      category: mid_career
+      resume_text: |
+        Sarah Johnson
+        sarah.johnson@example.com
+        Chicago, IL
+        PROFESSIONAL SUMMARY
+        Product manager with 6 years in SaaS and fintech.
+        EXPERIENCE
+        Product Manager at FinFlow, 2019-Present. Led roadmap for payment processing platform.
+        Associate PM at TechWave, 2017-2019. Managed mobile app launch.
+        EDUCATION
+        MBA, University of Chicago, 2019
+        BA Economics, Northwestern, 2015
+        SKILLS
+        Roadmapping, Jira, SQL, Agile, Stakeholder management
+      job_description: |
+        Senior Product Manager
+        Senior PM with SaaS, fintech, roadmapping, and stakeholder management experience needed.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 70
+      expected_sections: [summary, experience, education, skills]
+
+    - id: rso-005
+      category: senior_exec
+      resume_text: |
+        David Park
+        david.park@example.com
+        Seattle, WA
+        EXECUTIVE SUMMARY
+        VP of Engineering with 15 years leading high-performing teams.
+        EXPERIENCE
+        VP Engineering at BigTech, 2018-Present. Managed 200+ engineers across 3 continents.
+        Director of Engineering at ScaleUp, 2013-2018. Built platform from 10 to 500M users.
+        Senior Engineering Manager at GrowthCo, 2010-2013.
+        EDUCATION
+        MS Computer Science, Stanford University, 2010
+        BS Computer Engineering, MIT, 2008
+      job_description: |
+        VP of Engineering
+        VP of Engineering with team leadership, platform scaling, and cross-functional experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 65
+      expected_sections: [summary, experience, education]
+
+    - id: rso-006
+      category: senior_exec
+      resume_text: |
+        Emily Roberts
+        emily.roberts@example.com
+        Austin, TX
+        EXECUTIVE SUMMARY
+        CTO with deep expertise in cloud architecture and AI/ML platforms.
+        EXPERIENCE
+        CTO at AIStartup, 2020-Present. Architected LLM-based products.
+        Principal Architect at CloudGiant, 2015-2020. Led migration to AWS.
+        Director of Engineering at DataDriven, 2012-2015.
+        EDUCATION
+        PhD Machine Learning, Carnegie Mellon, 2012
+        MS Electrical Engineering, Georgia Tech, 2009
+      job_description: |
+        CTO
+        CTO with AI/ML, cloud architecture, and technical leadership experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 65
+      expected_sections: [summary, experience, education]
+
+    - id: rso-007
+      category: career_change
+      resume_text: |
+        Lisa Wong
+        lisa.wong@example.com
+        Denver, CO
+        PROFESSIONAL SUMMARY
+        Former teacher transitioning to instructional design.
+        EXPERIENCE
+        High School Math Teacher, Denver Public Schools, 2015-2023.
+        Curriculum Developer (volunteer), Khan Academy, 2022-2023.
+        EDUCATION
+        MA Education, University of Colorado, 2015
+        BA Mathematics, UCLA, 2013
+        SKILLS
+        Curriculum design, LMS, e-learning, Accessibility, Python (beginner)
+      job_description: |
+        Instructional Designer
+        Instructional designer with curriculum design, LMS, and e-learning experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 55
+      expected_sections: [summary, experience, education, skills]
+
+    - id: rso-008
+      category: career_change
+      resume_text: |
+        Robert Miller
+        robert.miller@example.com
+        Miami, FL
+        PROFESSIONAL SUMMARY
+        Military veteran transitioning to cybersecurity.
+        EXPERIENCE
+        Information Security Officer, US Army, 2016-2022. Managed network security for 5000+ users.
+        IT Support Specialist, US Army, 2012-2016.
+        EDUCATION
+        BS Cybersecurity, University of Maryland, 2022 (online)
+        Certifications: Security+, CISSP, CEH
+        SKILLS
+        Network security, SIEM, Risk assessment, Incident response, NIST
+      job_description: |
+        Cybersecurity Analyst
+        Cybersecurity analyst with network security, SIEM, risk assessment, and incident response experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 60
+      expected_sections: [summary, experience, education, skills]
+
+    - id: rso-009
+      category: gap_resume
+      resume_text: |
+        Karen Davis
+        karen.davis@example.com
+        Portland, OR
+        PROFESSIONAL SUMMARY
+        Marketing professional returning after a 3-year career break.
+        EXPERIENCE
+        Marketing Manager at BrandCo, 2017-2020. Led campaigns with $2M budget.
+        Marketing Associate at AdAgency, 2015-2017.
+        Freelance Marketing Consultant, 2023-Present.
+        EDUCATION
+        MBA Marketing, NYU Stern, 2015
+        BA Communications, USC, 2013
+      job_description: |
+        Marketing Manager
+        Marketing manager with campaign management, budget ownership, and team leadership experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 60
+      expected_sections: [summary, experience, education]
+
+    - id: rso-010
+      category: gap_resume
+      resume_text: |
+        Tom Wilson
+        tom.wilson@example.com
+        Phoenix, AZ
+        PROFESSIONAL SUMMARY
+        Software developer with a 2-year gap for family care.
+        EXPERIENCE
+        Software Developer at HealthTech, 2018-2021. Built patient portal in React and Node.js.
+        Web Developer at AgencyOne, 2016-2018.
+        Open Source Contributor, 2023-Present. Contributed to React and Node.js projects.
+        EDUCATION
+        BS Computer Science, ASU, 2016
+      job_description: |
+        Frontend Developer
+        Frontend developer with React, Node.js, and healthcare experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 60
+      expected_sections: [summary, experience, education]
+
+    - id: rso-011
+      category: non_standard
+      resume_text: |
+        Alex Rivera
+        alex.rivera@example.com
+        Remote
+        SUMMARY
+        Full-stack developer and open-source maintainer.
+        EXPERIENCE
+        Maintainer at OpenSourceProject, 2020-Present. 50k+ GitHub stars.
+        Contract Developer at Various, 2018-2020. Built 12 MVPs for startups.
+        EDUCATION
+        Self-taught, no formal degree. Extensive online coursework.
+        SKILLS
+        JavaScript, TypeScript, React, Node.js, PostgreSQL, GraphQL
+      job_description: |
+        Full-Stack Developer
+        Full-stack developer with React, Node.js, and GraphQL experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 55
+      expected_sections: [summary, experience, skills]
+
+    - id: rso-012
+      category: non_standard
+      resume_text: |
+        Jordan Lee
+        jordan.lee@example.com
+        Brooklyn, NY
+        SUMMARY
+        Freelance designer and developer with a portfolio-first approach.
+        EXPERIENCE
+        Freelance UX Designer, 2019-Present. 30+ clients including Fortune 500.
+        Junior Designer at StudioBlue, 2017-2019.
+        EDUCATION
+        BFA Design, RISD, 2017
+        SKILLS
+        Figma, Sketch, HTML/CSS, JavaScript, User research, Prototyping
+      job_description: |
+        UX Designer
+        UX designer with user research, prototyping, Figma, and design system experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 60
+      expected_sections: [summary, experience, education, skills]
+
+    - id: rso-013
+      category: fresh_grad
+      resume_text: |
+        Priya Patel
+        priya.patel@example.com
+        Houston, TX
+        EDUCATION
+        BS Computer Engineering, UT Austin, 2023
+        SKILLS
+        C++, Python, MATLAB, Verilog, FPGA
+        PROJECTS
+        Designed a RISC-V processor in Verilog. Built a self-driving car simulation in Python.
+      job_description: |
+        Embedded Software Engineer
+        Embedded software engineer with C++, Python, and hardware experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 55
+      expected_sections: [education, skills]
+
+    - id: rso-014
+      category: mid_career
+      resume_text: |
+        Chris Taylor
+        chris.taylor@example.com
+        Los Angeles, CA
+        PROFESSIONAL SUMMARY
+        DevOps engineer with 7 years of infrastructure and SRE experience.
+        EXPERIENCE
+        Senior DevOps Engineer at StreamCo, 2019-Present. Managed AWS infrastructure for 10M users.
+        DevOps Engineer at MediaTech, 2016-2019. Built CI/CD with Jenkins and Terraform.
+        Systems Administrator at WebHost, 2014-2016.
+        EDUCATION
+        BS Information Technology, Cal Poly, 2014
+        SKILLS
+        AWS, Terraform, Jenkins, Kubernetes, Docker, Python, Bash, Linux
+      job_description: |
+        Senior DevOps Engineer
+        Senior DevOps engineer with AWS, Terraform, Kubernetes, Docker, and CI/CD experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 75
+      expected_sections: [summary, experience, education, skills]
+
+    - id: rso-015
+      category: senior_exec
+      resume_text: |
+        Amanda Foster
+        amanda.foster@example.com
+        Washington, DC
+        EXECUTIVE SUMMARY
+        CMO with 12 years in B2B SaaS marketing and demand generation.
+        EXPERIENCE
+        CMO at SaaSGrowth, 2019-Present. 3x ARR growth to $50M.
+        VP Marketing at ScaleUp, 2014-2019. Built 50-person marketing team.
+        Director of Demand Gen at StartupFirst, 2011-2014.
+        EDUCATION
+        MBA Marketing, Harvard Business School, 2011
+        BA English, Yale, 2008
+      job_description: |
+        Chief Marketing Officer
+        CMO with B2B SaaS, demand generation, and team-building experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 65
+      expected_sections: [summary, experience, education]
+
+    - id: rso-016
+      category: career_change
+      resume_text: |
+        Daniel Kim
+        daniel.kim@example.com
+        Atlanta, GA
+        PROFESSIONAL SUMMARY
+        Financial analyst pivoting to data science.
+        EXPERIENCE
+        Financial Analyst at BankCorp, 2018-2023. Built financial models in Excel and Python.
+        Junior Analyst at InvestCo, 2016-2018.
+        EDUCATION
+        MS Data Science, Georgia Tech, 2023 (online)
+        BS Finance, Emory, 2016
+        SKILLS
+        Python, R, SQL, Excel, Financial modeling, Machine learning, Statistics
+      job_description: |
+        Data Scientist
+        Data scientist with Python, SQL, machine learning, and statistics experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 60
+      expected_sections: [summary, experience, education, skills]
+
+    - id: rso-017
+      category: gap_resume
+      resume_text: |
+        Melissa Brown
+        melissa.brown@example.com
+        Dallas, TX
+        PROFESSIONAL SUMMARY
+        HR professional returning after 4-year sabbatical for caregiving.
+        EXPERIENCE
+        HR Manager at CorpOne, 2015-2019. Managed 200-person office.
+        HR Generalist at SmallBiz, 2012-2015.
+        Volunteer HR Consultant at NonProfit, 2023-Present.
+        EDUCATION
+        SHRM-CP, 2018
+        BA Psychology, UT Dallas, 2012
+      job_description: |
+        HR Manager
+        HR manager with employee relations, compliance, and office management experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 55
+      expected_sections: [summary, experience, education]
+
+    - id: rso-018
+      category: non_standard
+      resume_text: |
+        Sam Nguyen
+        sam.nguyen@example.com
+        San Diego, CA
+        SUMMARY
+        Self-taught blockchain developer and community educator.
+        EXPERIENCE
+        Developer at DAO, 2021-Present. Built smart contracts in Solidity.
+        Community Manager at CryptoHub, 2019-2021. Grew community from 1k to 50k.
+        EDUCATION
+        No formal degree. Blockchain developer bootcamp, 2019.
+        SKILLS
+        Solidity, Ethereum, Web3.js, Rust, Smart contracts, DeFi
+      job_description: |
+        Blockchain Developer
+        Blockchain developer with Solidity, Ethereum, smart contracts, and DeFi experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 55
+      expected_sections: [summary, experience, skills]
+
+    - id: rso-019
+      category: fresh_grad
+      resume_text: |
+        Taylor Green
+        taylor.green@example.com
+        Minneapolis, MN
+        EDUCATION
+        BS Mechanical Engineering, University of Minnesota, 2023
+        SKILLS
+        CAD, SolidWorks, MATLAB, Python, FEA, Manufacturing
+        PROJECTS
+        Designed a solar-powered vehicle chassis. Led a team of 5 in senior design.
+      job_description: |
+        Mechanical Engineer
+        Mechanical engineer with CAD, SolidWorks, FEA, and manufacturing experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 55
+      expected_sections: [education, skills]
+
+    - id: rso-020
+      category: mid_career
+      resume_text: |
+        Ryan Garcia
+        ryan.garcia@example.com
+        Charlotte, NC
+        PROFESSIONAL SUMMARY
+        Cloud solutions architect with 8 years in enterprise AWS migrations.
+        EXPERIENCE
+        Solutions Architect at AWS Partner, 2018-Present. Led 20+ enterprise migrations.
+        Cloud Engineer at TechCorp, 2015-2018. Built landing zones and security frameworks.
+        Systems Engineer at ITServices, 2012-2015.
+        EDUCATION
+        MS Cloud Computing, UNC Charlotte, 2015
+        BS Computer Science, NC State, 2012
+        Certifications: AWS Solutions Architect Professional, Azure Solutions Architect
+        SKILLS
+        AWS, Azure, Terraform, CloudFormation, Security, Cost optimization, Python
+      job_description: |
+        Cloud Solutions Architect
+        Cloud solutions architect with AWS, Azure, Terraform, and enterprise migration experience.
+      expected_tags: [truthful, keyword_stuffing, pii_clean, length_ok]
+      expected_min_ats_score: 75
+      expected_sections: [summary, experience, education, skills]

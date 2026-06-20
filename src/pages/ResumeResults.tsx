@@ -5,25 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScoreDisplay } from "@/components/ui/score-display";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  ArrowLeft,
-  Download,
-  Edit,
-  RotateCcw,
-  ChevronDown,
-  ChevronUp,
-  Check,
-  Lightbulb,
-  Target,
-  Briefcase,
-  GraduationCap,
-  FileText,
-  AlertCircle,
-  CheckCircle2,
-  XCircle
+  ArrowLeft, Download, Edit, RotateCcw, ChevronDown, ChevronUp, Check,
+  Lightbulb, Target, Briefcase, GraduationCap, FileText, AlertCircle,
+  CheckCircle2, XCircle, Wand2, Sparkles, Loader2, RefreshCw,
+  MessageSquare, Mail
 } from "lucide-react";
 import type { ResumeAnalysisResult } from "@/types/resume";
-import { FadeIn, SlideUp, StaggerContainer } from "@/components/ui/motion";
+import { SlideUp } from "@/components/ui/motion";
+import { optimizeResume, deepATS, exportResume } from "@/api";
+import { toast } from "sonner";
 
 // Icon mapping for sections
 const sectionIcons: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -40,11 +32,20 @@ const ResumeResults = () => {
   const resumeFileName = location.state?.resumeFileName as string | undefined;
   const resumeText = location.state?.resumeText as string | undefined;
   const jobDescription = location.state?.jobDescription as string | undefined;
+  const resumeId = location.state?.resumeId as number | undefined;
 
   const [expandedSections, setExpandedSections] = useState<string[]>(
     analysisResults?.sections?.[0]?.name ? [analysisResults.sections[0].name] : []
   );
   const [appliedSuggestions, setAppliedSuggestions] = useState<string[]>([]);
+  const [optimizedText, setOptimizedText] = useState<string | null>(null);
+  const [deepScore, setDeepScore] = useState<any>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isDeepATS, setIsDeepATS] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [optimizeError, setOptimizeError] = useState<string | null>(null);
+  const [deepATSError, setDeepATSError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const handleChooseTemplate = () => {
     navigate("/resume/templates", {
@@ -56,6 +57,56 @@ const ResumeResults = () => {
         appliedSuggestions,
       },
     });
+  };
+
+  const handleOptimize = async () => {
+    if (!resumeId) { toast.error("Resume ID not available"); return; }
+    setIsOptimizing(true);
+    setOptimizeError(null);
+    try {
+      const res = await optimizeResume(resumeId, jobDescription);
+      setOptimizedText(res?.optimized_resume || res?.result || JSON.stringify(res, null, 2));
+      toast.success("Resume optimized!");
+    } catch (err: any) {
+      const msg = err.message || "Optimization failed";
+      setOptimizeError(msg);
+      toast.error(msg);
+    } finally { setIsOptimizing(false); }
+  };
+
+  const handleDeepATS = async () => {
+    if (!resumeId) { toast.error("Resume ID not available"); return; }
+    setIsDeepATS(true);
+    setDeepATSError(null);
+    try {
+      const res = await deepATS(resumeId, jobDescription);
+      setDeepScore(res);
+      toast.success("Deep ATS analysis complete!");
+    } catch (err: any) {
+      const msg = err.message || "Deep ATS failed";
+      setDeepATSError(msg);
+      toast.error(msg);
+    } finally { setIsDeepATS(false); }
+  };
+
+  const handleExport = async () => {
+    if (!resumeId) { toast.error("Resume ID not available"); return; }
+    setIsExporting(true);
+    setExportError(null);
+    try {
+      const blob = await exportResume(resumeId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `tayari-resume-${resumeId}.docx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success("Resume exported!");
+    } catch (err: any) {
+      const msg = err.message || "Export failed";
+      setExportError(msg);
+      toast.error(msg);
+    } finally { setIsExporting(false); }
   };
 
   // Redirect if no results
@@ -108,10 +159,34 @@ const ResumeResults = () => {
               </p>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button variant="outline" onClick={handleOptimize} disabled={isOptimizing || !resumeId}>
+              {isOptimizing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Wand2 className="w-4 h-4 mr-2" />}
+              Optimize
+            </Button>
+            <Button variant="outline" onClick={handleDeepATS} disabled={isDeepATS || !resumeId}>
+              {isDeepATS ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+              Deep ATS
+            </Button>
+            <Button variant="outline" onClick={handleExport} disabled={isExporting || !resumeId}>
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
+              Export DOCX
+            </Button>
             <Button variant="outline" onClick={handleChooseTemplate}>
               <Edit className="w-4 h-4 mr-2" />
               Choose Template
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/cover-letter">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Cover Letter
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/communication">
+                <Mail className="w-4 h-4 mr-2" />
+                Communication Hub
+              </Link>
             </Button>
             <Button variant="ghost" asChild>
               <Link to="/resume">
@@ -121,6 +196,164 @@ const ResumeResults = () => {
             </Button>
           </div>
         </div>
+
+        {/* AI Operation Error Cards */}
+        {(optimizeError || deepATSError || exportError) && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+            {optimizeError && (
+              <Card className="border-destructive/50 bg-destructive/5">
+                <CardContent className="py-4 flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-destructive">Optimization failed</p>
+                    <p className="text-xs text-muted-foreground">{optimizeError}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={handleOptimize}>
+                    <RefreshCw className="w-4 h-4 mr-1" /> Retry
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+            {deepATSError && (
+              <Card className="border-destructive/50 bg-destructive/5">
+                <CardContent className="py-4 flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-destructive">ATS Analysis failed</p>
+                    <p className="text-xs text-muted-foreground">{deepATSError}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={handleDeepATS}>
+                    <RefreshCw className="w-4 h-4 mr-1" /> Retry
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+            {exportError && (
+              <Card className="border-destructive/50 bg-destructive/5">
+                <CardContent className="py-4 flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-destructive">Export failed</p>
+                    <p className="text-xs text-muted-foreground">{exportError}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={handleExport}>
+                    <RefreshCw className="w-4 h-4 mr-1" /> Retry
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* Optimization Loading State */}
+        {(isOptimizing || isDeepATS || isExporting) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {isOptimizing && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    Optimizing Resume…
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="h-4 bg-muted rounded animate-pulse w-3/4" />
+                    <div className="h-4 bg-muted rounded animate-pulse w-1/2" />
+                    <div className="h-4 bg-muted rounded animate-pulse w-5/6" />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {isDeepATS && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    Running Deep ATS Analysis…
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="h-8 bg-muted rounded animate-pulse w-1/3" />
+                    <div className="h-4 bg-muted rounded animate-pulse w-full" />
+                    <div className="h-4 bg-muted rounded animate-pulse w-2/3" />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* Optimization Results */}
+        {(optimizedText || deepScore) && !isOptimizing && !isDeepATS && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {optimizedText && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Wand2 className="w-5 h-5 text-primary" />
+                    Optimized Resume
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    value={optimizedText}
+                    onChange={(e) => setOptimizedText(e.target.value)}
+                    className="min-h-[300px] font-mono text-sm"
+                  />
+                  <div className="flex gap-2 mt-4">
+                    <Button onClick={() => navigator.clipboard.writeText(optimizedText).then(() => toast.success("Copied!"))}>
+                      Copy
+                    </Button>
+                    <Button variant="outline" onClick={handleExport}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Export
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {deepScore && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                    Deep ATS Score
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-center">
+                    <div className="text-4xl font-bold">
+                      {deepScore.score ?? deepScore.ats_score ?? "N/A"}
+                    </div>
+                    <p className="text-muted-foreground text-sm">Overall Score</p>
+                  </div>
+                  {deepScore.checks && (
+                    <div className="space-y-2">
+                      {Object.entries(deepScore.checks).map(([key, val]: [string, any]) => (
+                        <div key={key} className="flex items-center justify-between text-sm">
+                          <span className="capitalize">{key.replace(/_/g, " ")}</span>
+                          <Badge variant={val?.passed ? "default" : "destructive"}>
+                            {val?.passed ? "Pass" : "Fail"}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {deepScore.recommendations && (
+                    <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
+                      <p className="font-medium">Recommendations:</p>
+                      {(deepScore.recommendations as string[]).map((r, i) => (
+                        <p key={i} className="text-muted-foreground">• {r}</p>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

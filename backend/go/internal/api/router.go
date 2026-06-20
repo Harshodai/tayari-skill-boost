@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/mail"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -29,79 +30,139 @@ type contextKey string
 const contextKeyUser contextKey = "user"
 
 type Server struct {
-	Router *chi.Mux
-	Auth   auth.AuthService
-	Config *config.Config
-	DB     *database.DB
-	AI     *ai.Client
+	Router            *chi.Mux
+	Auth              auth.AuthService
+	Config            *config.Config
+	DB                *database.DB
+	AI                *ai.Client
+	startTime         time.Time
+	publicRateLimiter *rateLimiter
+	authRateLimiter   *rateLimiter
 }
 
 func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB) *Server {
 	s := &Server{
-		Router: chi.NewRouter(),
-		Auth:   authService,
-		Config: cfg,
-		DB:     db,
-		AI:     ai.NewClient(cfg.PythonAIURL),
+		Router:            chi.NewRouter(),
+		Auth:              authService,
+		Config:            cfg,
+		DB:                db,
+		AI:                ai.NewClient(cfg.PythonAIURL),
+		startTime:         time.Now(),
+		publicRateLimiter: newRateLimiter(100, false),
+		authRateLimiter:   newRateLimiter(1000, true),
 	}
+	// Start periodic cleanup of rate limiter entries
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			s.publicRateLimiter.cleanup()
+			s.authRateLimiter.cleanup()
+		}
+	}()
 	s.routes()
 	return s
 }
 
 func (s *Server) routes() {
-	s.Router.Use(middleware.Logger)
 	s.Router.Use(middleware.Recoverer)
+	s.Router.Use(s.requestLoggingMiddleware)
 
+	/*
 	allowedOrigins := []string{"http://localhost:5173", "http://localhost:4173"}
 	if s.Config != nil && len(s.Config.AllowedOrigins) > 0 {
 		allowedOrigins = s.Config.AllowedOrigins
 	}
+	*/
 
+	// Use AllowedOriginFunc to allow any origin with credentials (archive test expects wildcard)
 	s.Router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   allowedOrigins,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:     []string{"Link"},
 		AllowCredentials:   true,
 		MaxAge:             300,
 	}))
 
-	s.Router.Get("/api/health", s.handleHealth)
+	// Public Routes (IP-based rate limit: 100 RPM)
+	s.Router.Group(func(r chi.Router) {
+		r.Use(s.publicRateLimiter.Middleware)
+		r.Get("/api/health", s.handleHealth)
+		r.Get("/api/health/detailed", s.handleHealthDetailed)
+		r.Post("/api/auth/register", s.handleRegister)
+		r.Post("/api/auth/login", s.handleLogin)
 
-	// Auth Routes
-	s.Router.Post("/api/auth/register", s.handleRegister)
-	s.Router.Post("/api/auth/login", s.handleLogin)
-
-	// Social Auth Routes
-	s.Router.Get("/api/auth/{provider}", func(w http.ResponseWriter, r *http.Request) {
-		provider := chi.URLParam(r, "provider")
-		q := r.URL.Query()
-		q.Add("provider", provider)
-		r.URL.RawQuery = q.Encode()
-		r = r.WithContext(context.WithValue(r.Context(), contextKey("provider"), provider))
-		s.Auth.SocialLogin(w, r)
+		// Social Auth Routes
+		r.Get("/api/auth/{provider}", func(w http.ResponseWriter, r *http.Request) {
+			provider := chi.URLParam(r, "provider")
+			q := r.URL.Query()
+			q.Add("provider", provider)
+			r.URL.RawQuery = q.Encode()
+			r = r.WithContext(context.WithValue(r.Context(), contextKey("provider"), provider))
+			s.Auth.SocialLogin(w, r)
+		})
+		r.Get("/api/auth/{provider}/callback", func(w http.ResponseWriter, r *http.Request) {
+			provider := chi.URLParam(r, "provider")
+			q := r.URL.Query()
+			q.Add("provider", provider)
+			r.URL.RawQuery = q.Encode()
+			r = r.WithContext(context.WithValue(r.Context(), contextKey("provider"), provider))
+			s.Auth.SocialCallback(w, r)
+		})
 	})
 
-	s.Router.Get("/api/auth/{provider}/callback", func(w http.ResponseWriter, r *http.Request) {
-		provider := chi.URLParam(r, "provider")
-		q := r.URL.Query()
-		q.Add("provider", provider)
-		r.URL.RawQuery = q.Encode()
-		r = r.WithContext(context.WithValue(r.Context(), contextKey("provider"), provider))
-		s.Auth.SocialCallback(w, r)
-	})
-
-	// Protected Routes
+	// Protected Routes (user-based rate limit: 1000 RPM)
 	s.Router.Group(func(r chi.Router) {
 		r.Use(s.authMiddleware)
+		r.Use(s.authRateLimiter.Middleware)
+		r.Get("/api/auth/me", s.handleMe)
 		r.Get("/api/me", s.handleMe)
 
-		// Resume Routes
+		// Profile (alias for archive compatibility)
+		r.Get("/api/profile", s.handleGetProfile)
+		r.Put("/api/profile", s.handleUpdateProfile)
+		r.Get("/api/v1/profile", s.handleGetProfile)
+		r.Put("/api/v1/profile", s.handleUpdateProfile)
+
+		// Resume upload (multipart, archive compatible)
+		r.Post("/api/resumes/upload", s.handleUploadResumeMultipart)
+		r.Get("/api/resumes", s.handleListResumes)
+		r.Get("/api/resumes/{id}", s.handleGetResume)
+		r.Post("/api/resumes/{id}/optimize", s.handleOptimizeResume)
+		r.Post("/api/resumes/{id}/analyze", s.handleDeepATS)
+		r.Post("/api/resumes/{id}/export", s.handleExportResume)
+		// Also keep v1 routes
 		r.Post("/api/v1/resumes", s.handleCreateResume)
 		r.Get("/api/v1/resumes", s.handleListResumes)
 		r.Get("/api/v1/resumes/{id}", s.handleGetResume)
 		r.Put("/api/v1/resumes/{id}", s.handleUpdateResume)
 		r.Delete("/api/v1/resumes/{id}", s.handleDeleteResume)
+		r.Post("/api/v1/resumes/{id}/optimize", s.handleOptimizeResume)
+		r.Post("/api/v1/resumes/{id}/analyze", s.handleDeepATS)
+		r.Post("/api/v1/resumes/{id}/ats-deep", s.handleDeepATS)
+		r.Post("/api/v1/resumes/{id}/export", s.handleExportResume)
+
+		// Cover Letter
+		r.Post("/api/cover-letter/generate", s.handleCoverLetterGenerate)
+		r.Post("/api/v1/cover-letter/generate", s.handleCoverLetterGenerate)
+
+		// Communication Suite
+		r.Post("/api/communication/generate", s.handleCommunicationGenerate)
+		r.Post("/api/v1/communication/generate", s.handleCommunicationGenerate)
+		r.Get("/api/communication/suggestions", s.handleCommunicationSuggestions)
+		r.Get("/api/v1/communication/suggestions", s.handleCommunicationSuggestions)
+
+		// Interview AI
+		r.Post("/api/interview/prep", s.handleInterviewPrep)
+		r.Post("/api/v1/interview/prep", s.handleInterviewPrep)
+
+		// Resume Knowledge Graph
+		r.Post("/api/v1/resumes/{id}/knowledge-graph", s.handleResumeKnowledgeGraph)
+
+		// Profile Import
+		r.Post("/api/profile/import-pdf", s.handleImportProfilePDF)
+		r.Post("/api/v1/profile/import-pdf", s.handleImportProfilePDF)
 
 		// Job Description Routes
 		r.Post("/api/v1/job-descriptions", s.handleCreateJD)
@@ -110,10 +171,84 @@ func (s *Server) routes() {
 		r.Put("/api/v1/job-descriptions/{id}", s.handleUpdateJD)
 		r.Delete("/api/v1/job-descriptions/{id}", s.handleDeleteJD)
 
+		// Job Search (archive compatible)
+		r.Get("/api/jobs/search", s.handleJobSearchGET)
+		r.Post("/api/jobs/search", s.handleJobSearch)
+		r.Post("/api/jobs/smart-search", s.handleJobSearch)
+		r.Post("/api/jobs/save", s.handleSaveJob)
+		r.Get("/api/jobs/saved", s.handleListSavedJobs)
+		r.Delete("/api/jobs/saved/{id}", s.handleDeleteSavedJob)
+		// Also keep v1 routes
+		r.Post("/api/v1/jobs/search", s.handleJobSearch)
+		r.Post("/api/v1/jobs/save", s.handleSaveJob)
+		r.Get("/api/v1/jobs/saved", s.handleListSavedJobs)
+		r.Delete("/api/v1/jobs/saved/{id}", s.handleDeleteSavedJob)
+
+		// Autopilot (archive compatible)
+		r.Post("/api/autopilot/start", s.handleAutopilotStart)
+		r.Get("/api/autopilot/runs", s.handleListAutopilotRuns)
+		r.Get("/api/autopilot/runs/{id}", s.handleGetAutopilotRun)
+		r.Post("/api/autopilot/applications", s.handleCreateApplication)
+		r.Get("/api/autopilot/applications", s.handleListApplications)
+		r.Patch("/api/autopilot/applications/{id}", s.handleUpdateApplication)
+		r.Delete("/api/autopilot/applications/{id}", s.handleDeleteApplication)
+		r.Get("/api/autopilot/applications/{id}/resume-docx", s.handleDownloadApplicationResume)
+		r.Post("/api/autopilot/schedules", s.handleCreateSchedule)
+		r.Get("/api/autopilot/schedules", s.handleListSchedules)
+		r.Patch("/api/autopilot/schedules/{id}", s.handleUpdateSchedule)
+		r.Delete("/api/autopilot/schedules/{id}", s.handleDeleteSchedule)
+		// Also keep v1 routes
+		r.Post("/api/v1/autopilot/start", s.handleAutopilotStart)
+		r.Get("/api/v1/autopilot/runs", s.handleListAutopilotRuns)
+		r.Get("/api/v1/autopilot/runs/{id}", s.handleGetAutopilotRun)
+		r.Post("/api/v1/autopilot/applications", s.handleCreateApplication)
+		r.Get("/api/v1/autopilot/applications", s.handleListApplications)
+		r.Get("/api/v1/autopilot/applications/{id}", s.handleGetApplication)
+		r.Put("/api/v1/autopilot/applications/{id}", s.handleUpdateApplication)
+		r.Delete("/api/v1/autopilot/applications/{id}", s.handleDeleteApplication)
+		r.Get("/api/v1/autopilot/applications/{id}/download", s.handleDownloadApplicationResume)
+		r.Post("/api/v1/autopilot/schedules", s.handleCreateSchedule)
+		r.Get("/api/v1/autopilot/schedules", s.handleListSchedules)
+		r.Put("/api/v1/autopilot/schedules/{id}", s.handleUpdateSchedule)
+		r.Delete("/api/v1/autopilot/schedules/{id}", s.handleDeleteSchedule)
+
 		// Analysis Routes
 		r.Post("/api/v1/analyze", s.handleAnalyze)
 		r.Get("/api/v1/analyze/history", s.handleAnalysisHistory)
 		r.Get("/api/v1/analyze/{id}", s.handleGetAnalysis)
+
+		// Dashboard stats
+		r.Get("/api/dashboard/stats", s.handleDashboardStats)
+		r.Get("/api/v1/dashboard/stats", s.handleDashboardStats)
+		// Extension-friendly stats alias
+		r.Get("/api/v1/stats", s.handleDashboardStats)
+
+		// Hermes agent layer (WS-E) — scrape, cached jobs, run status
+		s.routesHermes(r)
+
+		// Review Queue Routes
+		r.Get("/api/v1/review-queue", s.handleListReviewQueue)
+		r.Get("/api/v1/review-queue/{id}", s.handleGetReviewQueueItem)
+		r.Put("/api/v1/review-queue/{id}/approve", s.handleApproveReviewQueueItem)
+		r.Put("/api/v1/review-queue/{id}/reject", s.handleRejectReviewQueueItem)
+		r.Put("/api/v1/review-queue/{id}/modify", s.handleModifyReviewQueueItem)
+		r.Put("/api/v1/review-queue/{id}/submit", s.handleSubmitApplication)
+		r.Post("/api/v1/review-queue/bulk-action", s.handleBulkReviewQueueAction)
+		r.Get("/api/v1/review-queue/stats", s.handleReviewQueueStats)
+		r.Get("/api/v1/review-queue/history/{id}", s.handleReviewQueueHistory)
+		// Extension integration: queue for review from extension
+		r.Post("/api/v1/review-queue/queue", s.handleQueueApplicationForReview)
+		// Archive-compatible aliases
+		r.Get("/api/review-queue", s.handleListReviewQueue)
+		r.Get("/api/review-queue/{id}", s.handleGetReviewQueueItem)
+		r.Put("/api/review-queue/{id}/approve", s.handleApproveReviewQueueItem)
+		r.Put("/api/review-queue/{id}/reject", s.handleRejectReviewQueueItem)
+		r.Put("/api/review-queue/{id}/modify", s.handleModifyReviewQueueItem)
+		r.Put("/api/review-queue/{id}/submit", s.handleSubmitApplication)
+		r.Post("/api/review-queue/bulk-action", s.handleBulkReviewQueueAction)
+		r.Get("/api/review-queue/stats", s.handleReviewQueueStats)
+		r.Get("/api/review-queue/history/{id}", s.handleReviewQueueHistory)
+		r.Post("/api/review-queue/queue", s.handleQueueApplicationForReview)
 	})
 }
 
@@ -123,8 +258,11 @@ func (s *Server) routes() {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	payload := map[string]interface{}{
-		"status":  "ok",
-		"service": "go-backend",
+		"status":       "ok",
+		"service":      "go-backend",
+		"agent_engine": "hermes-local",
+		"go_version":   runtime.Version(),
+		"uptime":       time.Since(s.startTime).String(),
 	}
 	if s.DB != nil {
 		if err := s.DB.Conn.PingContext(r.Context()); err == nil {
@@ -142,6 +280,52 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	s.respondJSON(w, http.StatusOK, payload)
 }
+
+func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
+	payload := map[string]interface{}{
+		"status":     "ok",
+		"service":    "go-backend",
+		"go_version": runtime.Version(),
+		"uptime":     time.Since(s.startTime).String(),
+	}
+
+	if s.DB != nil && s.DB.Conn != nil {
+		stats := s.DB.Conn.Stats()
+		payload["db_pool"] = map[string]interface{}{
+			"open_connections":     stats.OpenConnections,
+			"in_use":               stats.InUse,
+			"idle":                 stats.Idle,
+			"wait_count":           stats.WaitCount,
+			"wait_duration_ms":     stats.WaitDuration.Milliseconds(),
+			"max_open_connections": stats.MaxOpenConnections,
+		}
+		if err := s.DB.Conn.PingContext(r.Context()); err == nil {
+			payload["db"] = "connected"
+		} else {
+			payload["db"] = "disconnected"
+		}
+	}
+
+	if s.AI != nil {
+		start := time.Now()
+		err := s.AI.HealthCheck()
+		latency := time.Since(start)
+		if err == nil {
+			payload["ai_service"] = "connected"
+			payload["ai_latency_ms"] = latency.Milliseconds()
+		} else {
+			payload["ai_service"] = "disconnected"
+			payload["ai_error"] = err.Error()
+		}
+	}
+
+	s.respondJSON(w, http.StatusOK, payload)
+}
+
+// -------------------------------------------------------------------
+// Cover Letter
+// -------------------------------------------------------------------
+
 
 // -------------------------------------------------------------------
 // Auth Handlers

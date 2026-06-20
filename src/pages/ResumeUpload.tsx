@@ -192,6 +192,7 @@ const ResumeUpload = () => {
 
         navigate("/resume/results", {
           state: {
+            resumeId: newResume.id,
             analysisResults: normalized,
             parsedResume: newResume.parsed_json,
             resumeFileName: resumeFile?.name || "Resume",

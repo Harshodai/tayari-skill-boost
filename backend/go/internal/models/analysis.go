@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -43,6 +44,31 @@ func (j *JSONMap) Scan(value interface{}) error {
 		return json.Unmarshal([]byte(v), j)
 	}
 	return nil
+}
+
+// LogEntrySlice is a flexible JSON array that can hold strings or objects (log entries with step/message/at).
+type LogEntrySlice []map[string]interface{}
+
+func (l LogEntrySlice) Value() (driver.Value, error) {
+	if l == nil {
+		return nil, nil
+	}
+	return json.Marshal(l)
+}
+
+func (l *LogEntrySlice) Scan(value interface{}) error {
+	if value == nil {
+		*l = nil
+		return nil
+	}
+	switch v := value.(type) {
+	case []byte:
+		return json.Unmarshal(v, l)
+	case string:
+		return json.Unmarshal([]byte(v), l)
+	default:
+		return fmt.Errorf("cannot scan type %T into LogEntrySlice", value)
+	}
 }
 
 // StringSlice wraps a slice of strings for DB storage.

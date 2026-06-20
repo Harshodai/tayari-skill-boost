@@ -1,7 +1,10 @@
 """
 Tayari AI Engine — FastAPI entry point.
 """
+import asyncio
+import logging
 import os
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
@@ -26,6 +29,48 @@ from app.ai_proofing.detector import AIProofingDetector
 from app.llm.strategic_analyzer import StrategicAnalyzer
 from app.export.pdf_exporter import PDFExporter
 from app.export.json_exporter import JSONExporter
+from app.services import ats_engine, optimizer, job_agent, docx_builder, automation_engine
+from app.services.circuit_breaker import circuit_breaker
+from app.guardrails import PipelineGate
+from app.telemetry import stage_complete, stage_fail
+from app.services.llm_service import active_engine, llm_complete
+from app.services.cover_letter import CoverLetterGenerator
+from app.services.communication import CommunicationGenerator
+from app.services.interview_ai import InterviewPrepGenerator
+from app.services.knowledge_graph import KnowledgeGraphExtractor
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Lifespan — start/stop the Auto-Pilot scheduler as a background task
+# ---------------------------------------------------------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start the recurring Auto-Pilot scheduler on startup, cancel on shutdown."""
+    from app.services.scheduler import (
+        scheduler_loop,
+        _load_profile_for_user,
+        _load_resume_for_user,
+    )
+    sched_task = asyncio.create_task(
+        scheduler_loop(
+            profile_provider=_load_profile_for_user,
+            resume_provider=_load_resume_for_user,
+        )
+    )
+    app.state.sched_task = sched_task
+    logger.info("Auto-Pilot scheduler started")
+    try:
+        yield
+    finally:
+        sched_task.cancel()
+        try:
+            await sched_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("scheduler stopped")
+
 
 # ---------------------------------------------------------------------------
 # App
@@ -34,6 +79,7 @@ app = FastAPI(
     title="Tayari AI Engine",
     version="1.0.0",
     description="Python AI Engine for the Tayari Resume Optimizer",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -70,7 +116,7 @@ def health_check():
         status="ok",
         service="python-ai-engine",
         version="1.0.0",
-        model_status="loaded" if strategic_analyzer.llm_url else "llm_not_configured",
+        model_status="loaded" if active_engine() != "mock-fallback" else "llm_not_configured",
     )
 
 
@@ -192,6 +238,250 @@ async def export_pdf(payload: ExportRequest):
         return {"size": len(pdf_bytes), "status": "generated"}
     except ImportError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# NEW: Optimizer, Deep ATS, Job Search, Auto-Pilot, DOCX Export
+# ---------------------------------------------------------------------------
+
+class OptimizerRequest(BaseModel):
+    resume_text: str
+    job_description: Optional[str] = None
+
+
+@app.post("/api/v1/optimizer/optimize")
+async def optimize_resume(payload: OptimizerRequest):
+    """AI-powered resume optimization with reflexion loop."""
+    try:
+        result = await optimizer.optimize_with_reflection(
+            payload.resume_text,
+            job_description=payload.job_description,
+        )
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Optimization failed: {exc}") from exc
+
+
+class DeepATSRequest(BaseModel):
+    resume_text: str
+    job_description: Optional[str] = None
+
+
+@app.post("/api/v1/ats/deep")
+async def ats_deep(payload: DeepATSRequest):
+    """Deep deterministic ATS analysis with heuristic checks."""
+    return ats_engine.heuristic_ats_score(payload.resume_text, payload.job_description)
+
+
+class JobSearchRequest(BaseModel):
+    query: Optional[str] = None
+    location: str = ""
+    profile: Optional[dict] = None
+    resume_text: Optional[str] = None
+    top_n: int = 12
+    scrape_enrich: bool = True
+    target_board: Optional[dict] = None
+
+
+@app.post("/api/v1/jobs/search")
+async def jobs_search(payload: JobSearchRequest):
+    """Smart job search with agentic pipeline (PLAN→GATHER→PRERANK→RANK→REPORT).
+
+    Optional ``scrape_enrich`` (default True) runs the Hermes tiered scraper
+    against ``target_board`` and merges the results with the free providers
+    before ranking. Both default safely so existing callers are unaffected.
+    """
+    try:
+        result = await job_agent.smart_search(
+            payload.query,
+            payload.location,
+            payload.profile,
+            payload.resume_text,
+            top_n=payload.top_n,
+            scrape_enrich=payload.scrape_enrich,
+            target_board=payload.target_board,
+        )
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Job search failed: {exc}") from exc
+
+
+class AutopilotRunRequest(BaseModel):
+    run_config: dict
+    profile: Optional[dict] = None
+    resume_text: str = ""
+    candidate_name: str = "Candidate"
+
+
+@app.post("/api/v1/autopilot/run")
+async def autopilot_run(payload: AutopilotRunRequest):
+    """Start an Auto-Pilot background run. Returns run_id immediately."""
+    import asyncio
+    run_id = str(__import__("uuid").uuid4())
+    asyncio.create_task(
+        automation_engine.run_autopilot(
+            run_id,
+            payload.run_config,
+            payload.profile,
+            payload.resume_text,
+            payload.candidate_name,
+        )
+    )
+    return {"run_id": run_id, "status": "queued"}
+
+
+@app.get("/api/v1/autopilot/status/{run_id}")
+async def autopilot_status(run_id: str):
+    """Poll Auto-Pilot run status."""
+    status = automation_engine.get_run_status(run_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return status
+
+
+@app.get("/api/v1/autopilot/applications/{run_id}")
+async def autopilot_applications(run_id: str):
+    """Get applications generated by an Auto-Pilot run."""
+    apps = automation_engine.get_applications(run_id)
+    return {"applications": apps}
+
+
+class DocxExportRequest(BaseModel):
+    text: str
+    title: Optional[str] = "Resume"
+
+
+@app.post("/api/v1/export/docx")
+async def export_docx(payload: DocxExportRequest):
+    """Export resume as ATS-safe DOCX."""
+    try:
+        buf = docx_builder.build_resume_docx(payload.text, payload.title)
+        import base64
+        return {"data": base64.b64encode(buf.getvalue()).decode("utf-8")}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"DOCX export failed: {exc}") from exc
+
+
+class CoverLetterRequest(BaseModel):
+    resume_text: str
+    job_title: str
+    company: str
+    job_description: str
+    tone: Optional[str] = "formal"
+
+
+@app.post("/api/v1/cover-letter/generate")
+async def cover_letter_generate(payload: CoverLetterRequest):
+    """Generate a structured, resume-aware, culture-matched cover letter."""
+    result = CoverLetterGenerator.generate(
+        payload.resume_text,
+        payload.job_description,
+        payload.company,
+        payload.job_title,
+        tone=payload.tone or "formal",
+    )
+    return result
+
+
+class CommunicationRequest(BaseModel):
+    comm_type: str
+    resume_text: str
+    job_title: str
+    company_name: str
+    recipient_name: Optional[str] = None
+    discussion_points: Optional[list[str]] = None
+    offer_details: Optional[dict] = None
+    days_since: int = 3
+
+
+@app.post("/api/v1/communication/generate")
+async def communication_generate(payload: CommunicationRequest):
+    """Generate AI communication (follow-up, thank-you, negotiation, status-check)."""
+    result = CommunicationGenerator.generate(
+        comm_type=payload.comm_type,
+        resume_text=payload.resume_text,
+        job_title=payload.job_title,
+        company_name=payload.company_name,
+        recipient_name=payload.recipient_name,
+        discussion_points=payload.discussion_points,
+        offer_details=payload.offer_details,
+        days_since=payload.days_since,
+    )
+    return result
+
+
+class InterviewPrepRequest(BaseModel):
+    resume_text: str
+    job_title: str
+    company_name: Optional[str] = None
+    job_description: Optional[str] = None
+    interview_type: str = "behavioral"
+
+
+@app.post("/api/v1/interview/prep")
+async def interview_prep(payload: InterviewPrepRequest):
+    """Generate resume-aware interview preparation materials."""
+    result = InterviewPrepGenerator.generate(
+        resume_text=payload.resume_text,
+        job_title=payload.job_title,
+        company_name=payload.company_name,
+        job_description=payload.job_description,
+        interview_type=payload.interview_type,
+    )
+    return result
+
+
+class KnowledgeGraphRequest(BaseModel):
+    resume_text: str
+
+
+@app.post("/api/v1/resume/knowledge-graph")
+async def resume_knowledge_graph(payload: KnowledgeGraphRequest):
+    """Extract structured knowledge graph from resume text."""
+    result = KnowledgeGraphExtractor.extract(payload.resume_text)
+    return result
+
+
+class ProfileImportRequest(BaseModel):
+    resume_text: str
+
+
+@app.post("/api/v1/profile/import-text")
+async def profile_import_text(payload: ProfileImportRequest):
+    """Import profile fields from resume text (parsed from PDF/DOCX)."""
+    kg = KnowledgeGraphExtractor.extract(payload.resume_text)
+    entities = kg.get("entities", {})
+    return {
+        "headline": entities.get("job_titles", [None])[0] if entities.get("job_titles") else None,
+        "summary": None,
+        "skills": entities.get("skills", []),
+        "experience_years": None,
+        "desired_roles": entities.get("job_titles", []),
+        "locations": [],
+        "companies": entities.get("companies", []),
+        "job_titles": entities.get("job_titles", []),
+        "certifications": entities.get("certifications", []),
+    }
+
+
+class GuardrailsCheckRequest(BaseModel):
+    resume_text: str
+
+
+@app.post("/api/v1/guardrails/check")
+async def guardrails_check(payload: GuardrailsCheckRequest):
+    """Run guardrails on provided resume text."""
+    gate = PipelineGate()
+    return gate.check(optimized_text=payload.resume_text)
+
+
+# ---------------------------------------------------------------------------
+# Hermes agent layer (WS-E) — scrape, cached jobs, run status
+# ---------------------------------------------------------------------------
+
+from app.api.hermes_routes import hermes_router  # noqa: E402
+
+app.include_router(hermes_router)
 
 
 # ---------------------------------------------------------------------------

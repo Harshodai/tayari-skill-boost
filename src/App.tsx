@@ -18,9 +18,10 @@ import Settings from "./pages/Settings";
 import ResumeUpload from "./pages/ResumeUpload";
 import ResumeResults from "./pages/ResumeResults";
 import ResumeTemplates from "./pages/ResumeTemplates";
-import InterviewComingSoon from "./pages/InterviewComingSoon";
+import InterviewBoard from "./pages/InterviewBoard";
+import JobSearch from "./pages/JobSearch";
+import AutoPilot from "./pages/AutoPilot";
 import CareerRoadmap from "./pages/CareerRoadmap";
-import JobsComingSoon from "./pages/JobsComingSoon";
 import FAQ from "./pages/FAQ";
 import Contact from "./pages/Contact";
 import Terms from "./pages/Terms";
@@ -34,6 +35,11 @@ import Help from "./pages/Help";
 import ForgotPassword from "./pages/ForgotPassword";
 import AuthCallback from "./pages/AuthCallback";
 import Profile from "./pages/Profile";
+import CoverLetter from "./pages/CoverLetter";
+import CommunicationHub from "./pages/CommunicationHub";
+import InterviewPrep from "./pages/InterviewPrep";
+import ExtensionOnboarding from "./pages/ExtensionOnboarding";
+import ReviewQueue from "./pages/ReviewQueue";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -61,13 +67,16 @@ const App = () => (
 
               {/* Conditionally Rendered Routes */}
               {features.interviewPrep && (
-                <Route path="/interview" element={<InterviewComingSoon />} />
+                <Route path="/interview" element={<InterviewBoard />} />
               )}
               {features.careerRoadmap && (
                 <Route path="/roadmap" element={<CareerRoadmap />} />
               )}
               {features.jobSearch && (
-                <Route path="/jobs" element={<JobsComingSoon />} />
+                <>
+                  <Route path="/jobs" element={<JobSearch />} />
+                  <Route path="/jobs/autopilot" element={<AutoPilot />} />
+                </>
               )}
               {features.pricing && (
                 <Route path="/pricing" element={<Pricing />} />
@@ -93,7 +102,10 @@ const App = () => (
                 <Route path="/roadmap" element={<Navigate to="/resume" replace />} />
               )}
               {!features.jobSearch && (
-                <Route path="/jobs" element={<Navigate to="/resume" replace />} />
+                <>
+                  <Route path="/jobs" element={<Navigate to="/resume" replace />} />
+                  <Route path="/jobs/*" element={<Navigate to="/resume" replace />} />
+                </>
               )}
 
               <Route path="/about" element={<About />} />
@@ -137,6 +149,39 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <ResumeTemplates />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/cover-letter"
+                element={
+                  <ProtectedRoute>
+                    <CoverLetter />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/communication"
+                element={
+                  <ProtectedRoute>
+                    <CommunicationHub />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/interview/prep"
+                element={
+                  <ProtectedRoute>
+                    <InterviewPrep />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/extension-onboarding" element={<ExtensionOnboarding />} />
+              <Route
+                path="/review-queue"
+                element={
+                  <ProtectedRoute>
+                    <ReviewQueue />
                   </ProtectedRoute>
                 }
               />

@@ -1,0 +1,29 @@
+FROM python:3.11-slim-bookworm
+
+WORKDIR /app
+
+# System deps: WeasyPrint libs (kept parity with the web image so export
+# tasks work) + curl for healthchecks. Playwright's Chromium deps are
+# installed by `playwright install --with-deps` below.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libcairo2 \
+    libffi-dev \
+    libgdk-pixbuf2.0-0 \
+    libxml2 \
+    libxslt1.1 \
+    shared-mime-info \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Crawl4AI depends on Playwright + a Chromium browser. Install the browser
+# and its OS deps in one layer so the cache holds across image rebuilds.
+RUN python -m playwright install --with-deps chromium
+
+COPY . .
+
+CMD ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=info", "--concurrency=4", "-Q", "tayari"]

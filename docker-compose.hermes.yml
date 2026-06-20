@@ -1,0 +1,31 @@
+# docker-compose override — Hermes LLM tier.
+#
+# Activate with:
+#   docker compose -f docker-compose.yml -f docker-compose.hermes.yml up -d
+#
+# This pulls the local Ollama `hermes3:8b` model once, then points the
+# `hermes` LLM tier (HERMES_AGENT_URL + HERMES_MODEL) at it so
+# llm_service.active_engine() reports `hermes-hermes3:8b` and
+# `llm_complete(..., tier="hermes")` routes to the OpenAI-compatible
+# Ollama endpoint.
+services:
+  # One-shot model pull. Runs after ollama is healthy, then exits.
+  ollama-init:
+    image: ollama/ollama:latest
+    entrypoint: ["sh", "-c", "ollama pull hermes3:8b"]
+    environment:
+      OLLAMA_HOST: ollama:11434
+    depends_on:
+      ollama:
+        condition: service_started
+    restart: "no"
+
+  python-ai:
+    environment:
+      - HERMES_AGENT_URL=http://ollama:11434/v1
+      - HERMES_MODEL=hermes3:8b
+
+  celery-worker:
+    environment:
+      - HERMES_AGENT_URL=http://ollama:11434/v1
+      - HERMES_MODEL=hermes3:8b

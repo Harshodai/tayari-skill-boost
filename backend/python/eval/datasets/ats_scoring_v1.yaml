@@ -1,0 +1,328 @@
+dataset:
+  name: ats_scoring_v1
+  version: "1.0.0"
+  description: 15 test cases for ATS scoring engine
+  schema:
+    - id: str
+    - resume_text: str
+    - job_description: str
+    - expected_min_score: int
+    - expected_max_score: int
+    - expected_checks: list[str]  # names of checks that should pass
+    - expected_failures: list[str]  # names of checks that should fail
+  cases:
+    - id: ats-001
+      resume_text: |
+        John Doe
+        john.doe@example.com
+        555-123-4567
+        Professional Summary
+        Software engineer with 5 years of experience.
+        Skills
+        Python, Java, SQL, AWS
+        Experience
+        Software Engineer at TechCorp, 2020-Present. Built REST APIs.
+        Education
+        BS Computer Science, University of Florida, 2019
+      job_description: |
+        Software Engineer
+        We need a software engineer with Python, AWS, and REST API experience.
+      expected_min_score: 70
+      expected_max_score: 100
+      expected_checks: ["Contact email", "Phone number", "Experience section", "Education section", "Skills section", "Summary / objective", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements", "Dates present", "Recent experience visible"]
+      expected_failures: []
+
+    - id: ats-002
+      resume_text: |
+        Jane Smith
+        jane.smith@example.com
+        No phone number provided.
+        Summary
+        Data analyst with SQL and Python skills.
+        Experience
+        Analyst at DataCo, 2021-2023.
+        Education
+        BS Statistics, UCLA, 2021
+      job_description: |
+        Data Analyst
+        Data analyst with SQL, Python, and statistics background.
+      expected_min_score: 50
+      expected_max_score: 85
+      expected_checks: ["Contact email", "Experience section", "Education section", "Summary / objective"]
+      expected_failures: ["Phone number"]
+
+    - id: ats-003
+      resume_text: |
+        Mike Johnson
+        mike.johnson@example.com
+        555-987-6543
+        No summary. No skills section.
+        Experience
+        Manager at BigCorp, 2018-Present.
+        Education
+        MBA, Harvard, 2018
+      job_description: |
+        Product Manager
+        Product manager with leadership and MBA.
+      expected_min_score: 45
+      expected_max_score: 80
+      expected_checks: ["Contact email", "Phone number", "Experience section", "Education section"]
+      expected_failures: ["Skills section", "Summary / objective"]
+
+    - id: ats-004
+      resume_text: |
+        Short resume.
+        Alice Brown
+        alice.brown@example.com
+        Experience
+        Intern at SmallCo, 2022.
+        Education
+        BA English, 2022.
+      job_description: |
+        Content Writer
+        Content writer with writing and editing experience.
+      expected_min_score: 30
+      expected_max_score: 65
+      expected_checks: ["Contact email"]
+      expected_failures: ["Phone number", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements"]
+
+    - id: ats-005
+      resume_text: |
+        Bob Williams
+        bob.williams@example.com
+        555-456-7890
+        Professional Summary
+        Full-stack developer with React, Node, and cloud experience.
+        Skills
+        React, Node.js, AWS, Docker, PostgreSQL
+        Experience
+        Full-Stack Developer at StartupX, 2021-Present. Built SaaS platform serving 10k users.
+        Junior Developer at WebAgency, 2019-2021. Developed 5 client websites.
+        Education
+        BS Computer Science, UT Austin, 2019
+      job_description: |
+        Full-Stack Developer
+        Full-stack developer with React, Node.js, AWS, and SaaS experience.
+      expected_min_score: 75
+      expected_max_score: 100
+      expected_checks: ["Contact email", "Phone number", "Experience section", "Education section", "Skills section", "Summary / objective", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements", "Dates present", "Recent experience visible"]
+      expected_failures: []
+
+    - id: ats-006
+      resume_text: |
+        Carol Martinez
+        carol.martinez@example.com
+        No phone.
+        Professional Summary
+        DevOps engineer with CI/CD and cloud experience.
+        Skills
+        Jenkins, Terraform, AWS, Kubernetes, Docker
+        Experience
+        DevOps Engineer at CloudCorp, 2020-Present. Managed CI/CD pipelines for 50 microservices.
+        Systems Engineer at OldTech, 2015-2020.
+        Education
+        BS Information Technology, 2015
+      job_description: |
+        DevOps Engineer
+        DevOps engineer with Jenkins, Terraform, AWS, Kubernetes, and CI/CD experience.
+      expected_min_score: 65
+      expected_max_score: 95
+      expected_checks: ["Contact email", "Experience section", "Education section", "Skills section", "Summary / objective", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements", "Dates present", "Recent experience visible"]
+      expected_failures: ["Phone number"]
+
+    - id: ats-007
+      resume_text: |
+        David Lee
+        david.lee@example.com
+        555-222-3333
+        Professional Summary
+        Data scientist with machine learning and Python experience.
+        Skills
+        Python, scikit-learn, TensorFlow, SQL, Pandas
+        Experience
+        Data Scientist at AI Corp, 2022-Present. Built recommendation engine with 20% lift.
+        Data Analyst at RetailCo, 2020-2022.
+        Education
+        MS Data Science, Stanford, 2020
+      job_description: |
+        Data Scientist
+        Data scientist with Python, machine learning, TensorFlow, and SQL experience.
+      expected_min_score: 75
+      expected_max_score: 100
+      expected_checks: ["Contact email", "Phone number", "Experience section", "Education section", "Skills section", "Summary / objective", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements", "Dates present", "Recent experience visible"]
+      expected_failures: []
+
+    - id: ats-008
+      resume_text: |
+        Emma Wilson
+        emma.wilson@example.com
+        555-444-5555
+        Professional Summary
+        UX designer with user research and prototyping experience.
+        Skills
+        Figma, Sketch, User research, Prototyping, HTML/CSS
+        Experience
+        UX Designer at DesignStudio, 2019-Present. Led redesign for e-commerce app with 30% conversion lift.
+        Junior Designer at AgencyX, 2017-2019.
+        Education
+        BFA Design, RISD, 2017
+      job_description: |
+        UX Designer
+        UX designer with Figma, user research, prototyping, and e-commerce experience.
+      expected_min_score: 70
+      expected_max_score: 100
+      expected_checks: ["Contact email", "Phone number", "Experience section", "Education section", "Skills section", "Summary / objective", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements", "Dates present", "Recent experience visible"]
+      expected_failures: []
+
+    - id: ats-009
+      resume_text: |
+        Frank Thomas
+        frank.thomas@example.com
+        No phone provided.
+        No summary section.
+        Skills
+        Java, Spring, Hibernate, SQL
+        Experience
+        Backend Developer at EnterpriseCo, 2018-Present. Built microservices handling 1M requests/day.
+        Junior Developer at TechStartup, 2015-2018.
+        Education
+        BS Computer Science, 2015
+      job_description: |
+        Backend Developer
+        Backend developer with Java, Spring, microservices, and SQL experience.
+      expected_min_score: 60
+      expected_max_score: 90
+      expected_checks: ["Contact email", "Experience section", "Education section", "Skills section", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements", "Dates present", "Recent experience visible"]
+      expected_failures: ["Phone number", "Summary / objective"]
+
+    - id: ats-010
+      resume_text: |
+        Grace Harris
+        grace.harris@example.com
+        555-777-8888
+        Professional Summary
+        Product owner with Agile and Scrum experience.
+        Skills
+        Jira, Confluence, Agile, Scrum, Roadmapping
+        Experience
+        Product Owner at SaaS Corp, 2020-Present. Owned roadmap for analytics platform.
+        Business Analyst at ConsultCo, 2017-2020.
+        Education
+        BS Business Administration, 2017
+      job_description: |
+        Product Owner
+        Product owner with Jira, Agile, Scrum, and roadmapping experience.
+      expected_min_score: 70
+      expected_max_score: 100
+      expected_checks: ["Contact email", "Phone number", "Experience section", "Education section", "Skills section", "Summary / objective", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements", "Dates present", "Recent experience visible"]
+      expected_failures: []
+
+    - id: ats-011
+      resume_text: |
+        Henry Clark
+        henry.clark@example.com
+        555-999-0000
+        Professional Summary
+        Security engineer with penetration testing and SOC experience.
+        Skills
+        Python, Kali Linux, Wireshark, Splunk, SIEM
+        Experience
+        Security Engineer at CyberCorp, 2021-Present. Monitored 10k endpoints with Splunk SIEM.
+        IT Security Analyst at BankCo, 2019-2021.
+        Education
+        BS Cybersecurity, 2019
+      job_description: |
+        Security Engineer
+        Security engineer with Python, Splunk, SIEM, and penetration testing experience.
+      expected_min_score: 70
+      expected_max_score: 100
+      expected_checks: ["Contact email", "Phone number", "Experience section", "Education section", "Skills section", "Summary / objective", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements", "Dates present", "Recent experience visible"]
+      expected_failures: []
+
+    - id: ats-012
+      resume_text: |
+        Ivy Adams
+        ivy.adams@example.com
+        No phone number.
+        Professional Summary
+        Mobile developer with iOS and Android experience.
+        Skills
+        Swift, Kotlin, Firebase, React Native, REST APIs
+        Experience
+        Mobile Developer at AppCo, 2020-Present. Launched 3 apps with 100k+ downloads.
+        Junior Developer at MobileFirst, 2018-2020.
+        Education
+        BS Computer Science, 2018
+      job_description: |
+        Mobile Developer
+        Mobile developer with Swift, Kotlin, React Native, and Firebase experience.
+      expected_min_score: 65
+      expected_max_score: 95
+      expected_checks: ["Contact email", "Experience section", "Education section", "Skills section", "Summary / objective", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements", "Dates present", "Recent experience visible"]
+      expected_failures: ["Phone number"]
+
+    - id: ats-013
+      resume_text: |
+        Jack Robinson
+        jack.robinson@example.com
+        555-111-2222
+        Professional Summary
+        Network engineer with Cisco and Juniper experience.
+        Skills
+        Cisco IOS, Juniper, BGP, OSPF, MPLS, Python
+        Experience
+        Network Engineer at Telco, 2019-Present. Managed 500+ router network.
+        NOC Technician at ISP, 2016-2019.
+        Education
+        BS Network Engineering, 2016
+      job_description: |
+        Network Engineer
+        Network engineer with Cisco, Juniper, BGP, OSPF, and MPLS experience.
+      expected_min_score: 70
+      expected_max_score: 100
+      expected_checks: ["Contact email", "Phone number", "Experience section", "Education section", "Skills section", "Summary / objective", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements", "Dates present", "Recent experience visible"]
+      expected_failures: []
+
+    - id: ats-014
+      resume_text: |
+        Kate Lewis
+        kate.lewis@example.com
+        555-333-4444
+        Professional Summary
+        QA engineer with automation and manual testing experience.
+        Skills
+        Selenium, Cypress, Jest, Python, JIRA, Postman
+        Experience
+        QA Engineer at SoftCorp, 2020-Present. Built automated test suite covering 90% of features.
+        Manual Tester at GameStudio, 2018-2020.
+        Education
+        BS Computer Science, 2018
+      job_description: |
+        QA Engineer
+        QA engineer with Selenium, Cypress, automation, and Python experience.
+      expected_min_score: 70
+      expected_max_score: 100
+      expected_checks: ["Contact email", "Phone number", "Experience section", "Education section", "Skills section", "Summary / objective", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements", "Dates present", "Recent experience visible"]
+      expected_failures: []
+
+    - id: ats-015
+      resume_text: |
+        Leo Walker
+        leo.walker@example.com
+        555-555-6666
+        Professional Summary
+        Database administrator with PostgreSQL and Oracle experience.
+        Skills
+        PostgreSQL, Oracle, MySQL, MongoDB, Redis, SQL, Python
+        Experience
+        DBA at DataCorp, 2018-Present. Managed 50TB data warehouse with 99.9% uptime.
+        Junior DBA at StartupDB, 2015-2018.
+        Education
+        BS Information Systems, 2015
+      job_description: |
+        Database Administrator
+        DBA with PostgreSQL, Oracle, MySQL, and database management experience.
+      expected_min_score: 70
+      expected_max_score: 100
+      expected_checks: ["Contact email", "Phone number", "Experience section", "Education section", "Skills section", "Summary / objective", "Optimal length", "Bullet points", "Action verbs", "Quantified achievements", "Dates present", "Recent experience visible"]
+      expected_failures: []

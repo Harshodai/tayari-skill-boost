@@ -1,0 +1,425 @@
+// Tayari Browser Extension — Background Service Worker (v2.0.0)
+// Agentic Browser Automation MVP: Profile caching, autofill support, application tracking
+
+const STORAGE_KEY = 'tayari_config';
+const PROFILE_CACHE_KEY = 'tayari_profile_cache';
+const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// ============================================================
+// CONFIGURATION
+// ============================================================
+
+async function getConfig() {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get([STORAGE_KEY], (result) => {
+      resolve(result[STORAGE_KEY] || { apiUrl: 'http://localhost:8080/api', token: null });
+    });
+  });
+}
+
+async function saveConfig(config) {
+  return new Promise((resolve) => {
+    chrome.storage.sync.set({ [STORAGE_KEY]: config }, resolve);
+  });
+}
+
+// ============================================================
+// PROFILE DATA CACHING (for autofill)
+// ============================================================
+
+async function getProfileData() {
+  // Check cache first
+  const cache = await chrome.storage.local.get([PROFILE_CACHE_KEY, `${PROFILE_CACHE_KEY}_timestamp`]);
+  const cachedData = cache[PROFILE_CACHE_KEY];
+  const cachedTimestamp = cache[`${PROFILE_CACHE_KEY}_timestamp`];
+  
+  if (cachedData && cachedTimestamp && (Date.now() - cachedTimestamp < PROFILE_CACHE_TTL)) {
+    return cachedData;
+  }
+  
+  // Fetch from API
+  const config = await getConfig();
+  if (!config.token) return null;
+  
+  try {
+    const res = await fetch(`${config.apiUrl}/v1/profile`, {
+      headers: { Authorization: `Bearer ${config.token}` }
+    });
+    if (!res.ok) return null;
+    
+    const profile = await res.json();
+    
+    // Transform to autofill format
+    const autofillData = transformProfileToAutofill(profile);
+    
+    // Cache it
+    await chrome.storage.local.set({
+      [PROFILE_CACHE_KEY]: autofillData,
+      [`${PROFILE_CACHE_KEY}_timestamp`]: Date.now()
+    });
+    
+    return autofillData;
+  } catch (e) {
+    console.error('Tayari: Failed to fetch profile', e);
+    return cachedData || null; // Return stale cache as fallback
+  }
+}
+
+function transformProfileToAutofill(profile) {
+  if (!profile) return null;
+  
+  const fullName = profile.full_name || '';
+  const nameParts = fullName.split(' ').filter(Boolean);
+  
+  return {
+    fullName: fullName,
+    firstName: nameParts[0] || '',
+    lastName: nameParts.slice(1).join(' ') || '',
+    email: profile.email || '',
+    phone: profile.phone || '',
+    linkedinUrl: profile.links?.linkedin || '',
+    website: profile.links?.portfolio || profile.links?.website || '',
+    location: profile.locations?.[0] || '',
+    skills: profile.skills || [],
+    headline: profile.headline || '',
+    summary: profile.summary || '',
+    experienceYears: profile.experience_years || 0,
+    desiredRoles: profile.desired_roles || []
+  };
+}
+
+async function invalidateProfileCache() {
+  await chrome.storage.local.remove([PROFILE_CACHE_KEY, `${PROFILE_CACHE_KEY}_timestamp`]);
+}
+
+// ============================================================
+// JOB OPERATIONS
+// ============================================================
+
+async function handleSaveJob(job) {
+  const config = await getConfig();
+  if (!config.token) {
+    return { success: false, error: 'Not authenticated' };
+  }
+  
+  try {
+    const res = await fetch(`${config.apiUrl}/v1/jobs/save`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.token}`
+      },
+      body: JSON.stringify({
+        dedupe_key: `${job.company}-${job.title}-${job.location || 'unknown'}-${job.platform || 'unknown'}`,
+        job: {
+          title: job.title,
+          company: job.company,
+          location: job.location || '',
+          description: job.description || '',
+          salary: job.salary || '',
+          url: job.url,
+          platform: job.platform || 'unknown',
+          detected_at: new Date().toISOString()
+        },
+        status: 'saved'
+      })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return { success: true };
+  } catch (err) {
+    console.error('Tayari: save job failed', err);
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================================
+// APPLICATION TRACKING
+// ============================================================
+
+async function handleTrackApplication(data) {
+  const config = await getConfig();
+  if (!config.token) {
+    return { success: false, error: 'Not authenticated' };
+  }
+  
+  try {
+    const res = await fetch(`${config.apiUrl}/v1/autopilot/applications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.token}`
+      },
+      body: JSON.stringify({
+        job: {
+          title: data.job.title,
+          company: data.job.company,
+          location: data.job.location || '',
+          description: data.job.description || '',
+          url: data.job.url,
+          platform: data.platform || data.job.platform || 'unknown'
+        },
+        status: 'applied',
+        submission_mode: 'manual_extension',
+        apply_url: data.job.url
+      })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const result = await res.json();
+    return { success: true, application_id: result.application_id };
+  } catch (err) {
+    console.error('Tayari: track application failed', err);
+    return { success: false, error: err.message };
+  }
+}
+
+async function handleQueueForReview(data) {
+  const config = await getConfig();
+  if (!config.token) {
+    return { success: false, error: 'Not authenticated' };
+  }
+  
+  try {
+    const res = await fetch(`${config.apiUrl}/v1/review-queue/queue`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.token}`
+      },
+      body: JSON.stringify({
+        job: {
+          title: data.job.title,
+          company: data.job.company,
+          location: data.job.location || '',
+          description: data.job.description || '',
+          url: data.job.url,
+          platform: data.platform || data.job.platform || 'unknown'
+        },
+        apply_url: data.job.url,
+        notes: data.notes || 'Queued from browser extension'
+      })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const result = await res.json();
+    return { success: true, application_id: result.application_id };
+  } catch (err) {
+    console.error('Tayari: queue for review failed', err);
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================================
+// MESSAGE HANDLING
+// ============================================================
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  (async () => {
+    switch (request.action) {
+      case 'save_job': {
+        const result = await handleSaveJob(request.job);
+        sendResponse(result);
+        break;
+      }
+      
+      case 'track_application': {
+        const result = await handleTrackApplication(request);
+        sendResponse(result);
+        break;
+      }
+      
+      case 'queue_for_review': {
+        const result = await handleQueueForReview(request);
+        sendResponse(result);
+        break;
+      }
+      
+      case 'get_profile_data': {
+        const profile = await getProfileData();
+        sendResponse({ profile });
+        break;
+      }
+      
+      case 'refresh_profile': {
+        await invalidateProfileCache();
+        const profile = await getProfileData();
+        sendResponse({ profile });
+        break;
+      }
+      
+      case 'open_tayari': {
+        const config = await getConfig();
+        const url = `http://localhost:5173${request.path || ''}`;
+        chrome.tabs.create({ url });
+        sendResponse({ success: true });
+        break;
+      }
+      
+      case 'get_config': {
+        const config = await getConfig();
+        sendResponse(config);
+        break;
+      }
+      
+      case 'save_config': {
+        await saveConfig(request.config);
+        sendResponse({ success: true });
+        break;
+      }
+      
+      case 'ping': {
+        sendResponse({ pong: true, version: '2.0.0' });
+        break;
+      }
+      
+      default: {
+        sendResponse({ error: 'Unknown action' });
+      }
+    }
+  })();
+  
+  return true; // async response
+});
+
+// ============================================================
+// EXTERNAL MESSAGE HANDLING (from Tayari web app)
+// ============================================================
+
+chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
+  (async () => {
+    if (request.action === 'set_token' && request.token) {
+      const config = await getConfig();
+      config.token = request.token;
+      await saveConfig(config);
+      await invalidateProfileCache(); // Refresh profile with new token
+      sendResponse({ success: true });
+      return;
+    }
+    
+    if (request.action === 'get_token') {
+      const config = await getConfig();
+      sendResponse({ token: config.token || null });
+      return;
+    }
+    
+    if (request.action === 'clear_token') {
+      const config = await getConfig();
+      config.token = null;
+      await saveConfig(config);
+      await invalidateProfileCache();
+      sendResponse({ success: true });
+      return;
+    }
+    
+    if (request.action === 'get_version') {
+      sendResponse({ version: '2.0.0', features: ['job_detection', 'autofill', 'application_tracking', 'resume_optimization', 'cover_letter'] });
+      return;
+    }
+    
+    sendResponse({ error: 'Unknown external action' });
+  })();
+  
+  return true;
+});
+
+// ============================================================
+// INSTALLATION & UPDATES
+// ============================================================
+
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install') {
+    console.log('Tayari Extension installed');
+    // Open onboarding page
+    chrome.tabs.create({ url: 'http://localhost:5173/extension-onboarding' });
+  } else if (details.reason === 'update') {
+    console.log('Tayari Extension updated from', details.previousVersion, 'to 2.0.0');
+    // Invalidate caches on update
+    invalidateProfileCache();
+  }
+});
+
+// ============================================================
+// TAB CHANGE LISTENER (for updating icon badge)
+// ============================================================
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url) {
+    const isJobPage = /linkedin.com\/jobs|indeed.com|glassdoor.com|greenhouse.io|lever.co|workday.com|ashbyhq.com|smartrecruiters.com|apply/i.test(tab.url);
+    if (isJobPage) {
+      chrome.action.setBadgeText({ text: '●', tabId });
+      chrome.action.setBadgeBackgroundColor({ color: '#3b82f6' });
+    } else {
+      chrome.action.setBadgeText({ text: '', tabId });
+    }
+  }
+});
+
+// ============================================================
+// CONTEXT MENU (right-click actions)
+// ============================================================
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: 'tayari-save-job',
+    title: 'Save Job to Tayari',
+    contexts: ['page', 'link'],
+    documentUrlPatterns: [
+      'https://www.linkedin.com/jobs/*',
+      'https://*.indeed.com/*',
+      'https://*.glassdoor.com/*',
+      'https://*.greenhouse.io/*',
+      'https://*.lever.co/*',
+      'https://*.workday.com/*',
+      'https://jobs.*/*',
+      'https://careers.*/*'
+    ]
+  });
+});
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'tayari-save-job') {
+    try {
+      const result = await chrome.tabs.sendMessage(tab.id, { action: 'detect_job' });
+      if (result && result.detected) {
+        const saveResult = await handleSaveJob(result);
+        if (saveResult.success) {
+          chrome.notifications.create({
+            type: 'basic',
+            iconUrl: 'icons/icon128.png',
+            title: 'Job Saved to Tayari',
+            message: `${result.title} at ${result.company}`
+          });
+        } else {
+          chrome.notifications.create({
+            type: 'basic',
+            iconUrl: 'icons/icon128.png',
+            title: 'Failed to Save Job',
+            message: saveResult.error || 'Please sign in to Tayari'
+          });
+        }
+      } else {
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icons/icon128.png',
+          title: 'No Job Detected',
+          message: 'Could not detect job details on this page.'
+        });
+      }
+    } catch (e) {
+      console.error('Context menu save failed', e);
+    }
+  }
+});
+
+// ============================================================
+// ALARMS (periodic tasks)
+// ============================================================
+
+chrome.alarms.create('refresh-profile-cache', { periodInMinutes: 5 });
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === 'refresh-profile-cache') {
+    const config = await getConfig();
+    if (config.token) {
+      await getProfileData(); // Refresh cache
+    }
+  }
+});
