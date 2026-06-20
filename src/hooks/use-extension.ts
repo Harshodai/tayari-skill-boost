@@ -1,3 +1,6 @@
+declare const chrome: any;
+declare const process: { env: Record<string, string | undefined> };
+
 import { useEffect, useCallback, useState } from "react";
 
 const EXTENSION_ID = process.env.VITE_EXTENSION_ID || "tayari-extension-id";
