@@ -84,7 +84,7 @@ const CoverLetter = () => {
   });
 
   const resumeText = resumes && resumes.length > 0
-    ? (resumes[0].optimized_text || resumes[0].original_text || "")
+    ? ((resumes[0] as any).optimized_text || resumes[0].original_text || "")
     : "";
 
   const selectedJob = savedJobs.find((j: any) => String(j.id) === selectedJobId);

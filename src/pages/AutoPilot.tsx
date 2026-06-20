@@ -61,8 +61,9 @@ const AutoPilot = () => {
     queryKey: ["autopilot-run", activeRunId],
     queryFn: () => getAutopilotRun(activeRunId!),
     enabled: !!activeRunId,
-    refetchInterval: (data) => {
-      if (data?.status === "completed" || data?.status === "failed") return false;
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === "completed" || status === "failed") return false;
       return 3000;
     },
   });

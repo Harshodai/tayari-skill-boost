@@ -85,7 +85,7 @@ const InterviewPrep = () => {
     (a: any) => (a.application_id || a.id) === selectedAppId
   );
   const selectedJob = selectedApp
-    ? savedJobs.find((j: any) => j.id === selectedApp.saved_job_id)
+    ? savedJobs.find((j: any) => j.id === (selectedApp as any).saved_job_id)
     : null;
 
   const handleGenerate = async () => {
