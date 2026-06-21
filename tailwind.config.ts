@@ -14,9 +14,26 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        display: ["Sora", "Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        sans: [
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"SF Pro Text"',
+          '"SF Pro Display"',
+          '"Helvetica Neue"',
+          "Inter",
+          "system-ui",
+          "sans-serif",
+        ],
+        display: [
+          '"SF Pro Display"',
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"Helvetica Neue"',
+          "Inter",
+          "system-ui",
+          "sans-serif",
+        ],
+        mono: ['"SF Mono"', "ui-monospace", "Menlo", "Monaco", '"JetBrains Mono"', "monospace"],
       },
       fontSize: {
         "hero": ["3.5rem", { lineHeight: "1.05", fontWeight: "700", letterSpacing: "-0.02em" }],
