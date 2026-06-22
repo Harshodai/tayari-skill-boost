@@ -50,10 +50,12 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
+      <AutomationProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
         <ScrollToTop />
+        <ActivityDrawer />
         <BrowserRouter>
           <ScrollToTopHandler />
           <PageTransition>
@@ -61,6 +63,7 @@ const App = () => (
               {/* Public Routes */}
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/terms" element={<Terms />} />
