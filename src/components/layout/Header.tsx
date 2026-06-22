@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ActivityButton } from "@/components/automation/ActivityButton";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
