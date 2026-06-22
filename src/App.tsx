@@ -10,8 +10,11 @@ import { PageTransition } from "@/components/layout/PageTransition";
 import { features } from "@/config/features";
 import { ScrollToTop } from "@/components/ui/ScrollToTop";
 import { ScrollToTopHandler } from "@/components/layout/ScrollToTopHandler";
+import { AutomationProvider } from "@/contexts/AutomationContext";
+import { ActivityDrawer } from "@/components/automation/ActivityDrawer";
 
 import Index from "./pages/Index";
+import Onboarding from "./pages/Onboarding";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
