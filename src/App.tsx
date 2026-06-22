@@ -10,8 +10,11 @@ import { PageTransition } from "@/components/layout/PageTransition";
 import { features } from "@/config/features";
 import { ScrollToTop } from "@/components/ui/ScrollToTop";
 import { ScrollToTopHandler } from "@/components/layout/ScrollToTopHandler";
+import { AutomationProvider } from "@/contexts/AutomationContext";
+import { ActivityDrawer } from "@/components/automation/ActivityDrawer";
 
 import Index from "./pages/Index";
+import Onboarding from "./pages/Onboarding";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
@@ -47,10 +50,12 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
+      <AutomationProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
         <ScrollToTop />
+        <ActivityDrawer />
         <BrowserRouter>
           <ScrollToTopHandler />
           <PageTransition>
@@ -58,6 +63,7 @@ const App = () => (
               {/* Public Routes */}
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/terms" element={<Terms />} />
@@ -192,6 +198,7 @@ const App = () => (
           </PageTransition>
         </BrowserRouter>
       </TooltipProvider>
+      </AutomationProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

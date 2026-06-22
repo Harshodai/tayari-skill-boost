@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ActivityButton } from "@/components/automation/ActivityButton";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -88,6 +89,7 @@ export function Header() {
           {/* Auth Buttons / User Menu */}
           <div className="hidden lg:flex items-center gap-3">
             <ThemeToggle />
+            {user && <ActivityButton />}
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

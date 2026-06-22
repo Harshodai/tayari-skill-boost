@@ -1,75 +1,143 @@
-## Goal
+# Tayari Rebuild Plan — Unified, Smart, Cross-Product
 
-Bring the **preview** UI back in line with the live **production** site at tayari-skill-boost.lovable.app (deep navy + indigo→teal→emerald accent), fix the broken/blank sections, tone down the recent heavy animations, harden auth with Google OAuth, and verify the Supabase data model — all while keeping the Preview = full app / Prod = Resume Optimizer-only feature flag split intact.
+## 0. First: get the preview loading again
 
-## 1. Restore the production look & feel (preview)
+Symptom: blank/not-loading in Lovable preview. Before any redesign:
 
-Update `src/index.css` design tokens to match prod exactly:
+1. Open the live preview in a headless browser, capture console errors, network 4xx/5xx, and the rendered DOM (Playwright via shell).
+2. Walk the recent edits — `src/vite-env.d.ts`, `src/globals.d.ts`, `src/index.css`, `tailwind.config.ts`, `src/contexts/ThemeContext.tsx`, `src/main.tsx` — these were touched across the last few turns and are the most likely culprits (ambient `chrome`/`process` typings, theme provider mount order, CSS token typos).
+3. Fix the first runtime error, re-capture, repeat until `/`, `/resume`, `/dashboard`, `/jobs`, `/auth` all render.
+4. Only then start the redesign work below.
 
-- `--background`: deep navy `222 47% 6%` (≈ #0a0f1f)
-- `--foreground`: near-white `210 40% 98%`
-- `--primary`: indigo `239 84% 67%` (button + links)
-- `--accent`: teal `175 70% 50%`
-- Gradient text: `linear-gradient(90deg, #818cf8, #22d3ee, #34d399)` (indigo → cyan → emerald)
-- Card / muted surfaces: navy tints (`222 40% 10%`, `222 30% 14%`)
-- Logo gradient: teal → indigo on a square rounded badge
+## 1. The product story (what we're actually selling)
 
-Update `tailwind.config.ts` only where new semantic tokens are needed; no raw hex in components.
+Today the app reads like 8 disconnected tools in one nav. We re-frame Tayari around **one promise**: *"Land the job. We handle the rest."* — a single AI career copilot with four connected workflows:
 
-## 2. Fix broken/blank sections & layout
+```
+                    ┌───────────────────────────┐
+                    │   Profile + Resume Core   │  ← single source of truth
+                    └─────────────┬─────────────┘
+                                  │ feeds
+        ┌────────────┬────────────┼────────────┬────────────┐
+        ▼            ▼            ▼            ▼            ▼
+   Smart Search   Optimizer   Interview     Outreach     Roadmap
+   + AutoPilot   (resume +   (board + AI    (cover +     (skills +
+                 cover)       prep)         comms hub)   growth)
+```
 
-- Audit `HeroSection`, `FeaturesSection`, `ProductsSection`, `SocialProofSection`, `CTASection` against the prod screenshot — restore spacing, container widths, and the divider + stat row layout (10K+ / 85% / 500+).
-- Repair the Header (logo + nav alignment, "Sign In" link, "Get Started" pill button matching prod).
-- Pages reported blank: walk the route list in `App.tsx`, run preview, capture console errors, and fix any runtime errors (likely from recent CountUp / spotlight / particles components missing context).
+Every feature reads from and writes to the Profile/Resume core, so work in one place flows into the others. That's the "combined offerings" the user is asking for.
 
-## 3. Tone down animations (keep tasteful)
+## 2. UI system — one brand, one feel
 
-Keep: animated gradient text on hero headline, CountUp stats on intersection, subtle card hover lift, page-transition fade.
-Remove or gate behind `prefers-reduced-motion`: `floating-particles`, mouse-position spotlight tracking, smart-hide header on scroll (replaced with simple solid header matching prod).
+- **Visual language**: dark-first (deep navy `#0a0f1f`), Apple-style SF stack already in place, indigo → teal → emerald gradient as the single brand accent. Light mode is the secondary theme, not the default.
+- **Components**: one shared shell — `AppShell` with a collapsible left sidebar (shadcn `Sidebar`) grouped by workflow (Core / Apply / Prepare / Grow), a slim top bar with global search + AI assistant + profile, and a right-side **Activity Drawer** for automation runs.
+- **Page archetypes**: every page conforms to one of four templates (Workspace, List+Detail, Wizard, Dashboard). Stops the "every page looks different" problem.
+- **Motion**: subtle. Page fade, card lift on hover, gradient text on hero only. Respect `prefers-reduced-motion`. Strip particles, mouse spotlight, smart-hide header.
+- **Empty / loading / error states**: define once, reuse. Today they're missing on most pages — that's part of why preview "looks broken."
 
-## 4. Google OAuth (stable in both preview & prod)
+## 3. Onboarding — simple, 3 steps, skippable
 
-- Call `configure_social_auth` with `providers: ["google"]` so the managed Lovable Cloud OAuth client is wired up for both the preview origin and the published origin.
-- Refactor `src/pages/Auth.tsx` Google button to use `lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin })` from `@/integrations/lovable` (managed flow) instead of any direct supabase call.
-- Keep email/password sign-in. Leave HIBP password check enabled.
+Replace anything multi-page or form-heavy. New flow on `/onboarding` after signup:
 
-## 5. Supabase audit, cleanup & data model
+```
+Step 1: Upload resume (or paste LinkedIn URL, or "skip — I'll add later")
+        → resume is parsed once, fills Profile + Skills + Experience automatically
+Step 2: Pick goal: [Find a new job] [Get promoted] [Switch careers] [Just exploring]
+        → goal drives which modules surface first in the sidebar
+Step 3: Pick 1–3 target roles via autocomplete (e.g. "Senior PM", "Data Eng")
+        → seeds Smart Search + Roadmap immediately
+```
 
-Existing tables: `profiles`, `resume_analyses`, `user_streaks`, `user_achievements`, `auth_attempts`, `blog_posts`. All have RLS.
+That's it. Everything else (location, salary, notice period, work auth) is captured **just-in-time** when a feature actually needs it, inline, never as a wall of fields.
 
-Migration will:
+## 4. Profile — single source of truth, not another form
 
-- Run linter and address any warnings.
-- **Seed** `blog_posts` with 4 sample published rows + 1 success story so `/blog` isn't empty in preview.
-- **Add new tables** for the broader product surface:
-  - `saved_jobs` (user_id, title, company, location, url, notes, saved_at) — RLS: owner-only CRUD
-  - `roadmap_progress` (user_id, roadmap_slug, step_key, status, completed_at) — RLS: owner-only CRUD
-  - `interview_sessions` (user_id, role, difficulty, transcript jsonb, score, created_at) — RLS: owner-only CRUD
-- No destructive drops — nothing is unused enough to warrant a drop yet; will note candidates instead of removing.
+`/profile` becomes a **living card**, not a settings page:
 
-## 6. Preserve Preview vs Prod split
+- Header: avatar, name, target role, headline, completeness ring (e.g. "Profile 72%").
+- Tabs: Resume (parsed sections, editable inline) · Preferences (location/comp/visa, asked lazily) · Skills (auto-extracted, user can pin top 8) · Activity (what AutoPilot did on my behalf).
+- One "Improve with AI" button per section — same pattern everywhere.
+- Profile data is the input to Optimizer, Smart Search, Cover Letter, Interview Prep — so updating it once propagates.
 
-- Do **not** touch `src/config/features.ts` flags. Production stays Resume-Optimizer-only via the `tayari-skill-boost.lovable.app` hostname check.
-- All visual fixes apply to both, but feature-gated sections (`ProductsSection`, extra nav links) remain hidden in prod.
+## 5. Smart Job Search — the centerpiece
 
-## 7. Verify before handing back
+Replace the current basic search page with a **three-pane workspace**:
 
-- Reload preview, visit `/`, `/resume`, `/blog`, `/auth`, `/faq` — confirm no blank sections, no console errors.
-- Confirm Google sign-in button renders and initiates OAuth.
-- Compare hero side-by-side with prod screenshot.
+```
+┌──────────────┬─────────────────────────┬──────────────────────┐
+│  Filters     │  Results (ranked)        │  Selected job        │
+│  + Saved     │  match %, salary, posted │  JD, match breakdown │
+│  searches    │  one-click Apply / Save  │  Apply with AutoPilot│
+└──────────────┴─────────────────────────┴──────────────────────┘
+```
 
-## Technical notes
+Smart bits:
 
-- Files touched: `src/index.css`, `tailwind.config.ts`, `src/components/landing/*`, `src/components/layout/Header.tsx`, `src/components/Logo.tsx`, `src/pages/Auth.tsx`, plus one new migration.
-- After the migration runs, `src/integrations/supabase/types.ts` auto-regenerates — don't edit it manually.
-- `configure_social_auth` regenerates `src/integrations/lovable/*` — don't edit it manually.
-- Will run `supabase--linter` after the migration and fix anything it flags.
+- **AI match score** per row (uses the JobMatchScore component already built) computed from Profile + JD.
+- **"Why this job"** explainer chip per result — 1 line, e.g. "Matches 6/8 of your skills, salary above target."
+- **Natural-language search bar**: "Remote senior PM jobs in fintech, $180k+, posted this week" — parsed server-side via the existing LLM service.
+- **Saved searches** become **alerts** with a toggle ("Notify me daily"). Backed by `saved_jobs` + a new `job_alerts` table.
+- **AutoPilot handoff**: every job row has a kebab → "Queue for AutoPilot" which drops it into the automation pipeline (next section). No context switch.
 
-also do the below and make sure only by doing this in this run, your task is done  
+## 6. Cross-product automation — the Activity Drawer
 
+The right-side drawer is **always one click away** from any page and shows the live automation pipeline:
 
-Re-run my test and typecheck suite to confirm there are no remaining bun:test or typing errors.
+```
+Activity ──────────────────────────────
+● Optimizing resume for "Senior PM @ Stripe"      ✓ done
+● Generating cover letter                          ⟳ running
+● Drafting recruiter outreach                      … queued
+● AutoPilot: applying to 4 saved jobs              ⟳ 2/4
+```
 
-Update my tsconfig to include the correct Node.js or Bun type definitions so NodeJS.Timeout is recognized.
+Each item is a chain. Selecting a job in Search and clicking "Apply" triggers a single workflow that runs Optimizer → Cover Letter → Application submission → Communication Hub follow-up draft, all stitched together. Built on the existing `agent_runs` table + Hermes orchestrator; UI just needs the streaming list, status pills, and a per-run detail modal.
 
-Verify that my TypeScript build passes without the NodeJS namespace errors.
+This is the "automations from one product to another" the user called out — it's surfaced visibly in the UI, not buried in a separate route.
+
+## 7. Dashboard — the daily landing
+
+`/dashboard` becomes the workflow hub, not a stats wall:
+
+- **Hero card**: "Today's focus" — 1 next action, AI-picked from your pipeline.
+- **Pipeline kanban**: Saved → Applied → Interviewing → Offer. Drag to move.
+- **Roadmap progress strip**: next 3 skill milestones.
+- **Upcoming interviews** with one-click "Practice with AI" → opens Interview Prep pre-loaded with the JD.
+- **Recent activity** (mirrors the Activity Drawer feed).
+
+## 8. Information architecture (new nav)
+
+Sidebar, grouped:
+
+- **Core**: Dashboard, Profile, Resume
+- **Apply**: Smart Search, AutoPilot, Saved Jobs, Cover Letters
+- **Prepare**: Interview Board, AI Interview Prep, Communication Hub
+- **Grow**: Career Roadmap, Blog
+- Footer of sidebar: Settings, Help, theme toggle, sign out
+
+Feature flags continue to gate prod-vs-preview as today — no change to `src/config/features.ts` logic.
+
+## 9. Scope for this iteration (so it's shippable)
+
+Order of operations:
+
+1. Fix preview load (Section 0).
+2. Ship the unified `AppShell` + new sidebar + Activity Drawer skeleton.
+3. Redesign Dashboard, Profile, Smart Search to the new templates.
+4. Wire the cross-product "Apply" workflow through the Activity Drawer using existing endpoints.
+5. Replace onboarding with the 3-step flow.
+6. Sweep remaining pages (Optimizer, Cover Letter, Interview, Roadmap) to the shared templates — visual only, no logic changes.
+
+Out of scope this round: backend schema changes beyond `job_alerts`, Hermes provider work, payments, mobile-native polish (we'll keep it responsive but desktop-first).
+
+## 10. Technical notes
+
+- All new tokens go to `src/index.css` + `tailwind.config.ts`; no raw hex in components.
+- `AppShell` lives at `src/components/layout/AppShell.tsx`; all protected routes wrap in it.
+- Activity Drawer is a context (`AutomationContext`) + Sheet UI, fed by polling `/api/v1/hermes/runs` (already exists).
+- Smart Search natural-language parsing reuses `llm_service` via a new `/api/v1/jobs/parse-query` endpoint (Python side, thin wrapper).
+- New table `job_alerts (user_id, query jsonb, cadence, last_run_at)` with RLS owner-only + GRANTs per house rules.
+- Onboarding state stored on `profiles` (`onboarding_step`, `goal`, `target_roles text[]`) — additive migration only.
+- Keep Preview-vs-Prod feature flags untouched.
+
+Ready to start with Section 0 (fix the load) and then Section 2–3 (shell + dashboard + search) on approval. Add backend docs as well if needed
