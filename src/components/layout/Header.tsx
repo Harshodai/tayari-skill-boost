@@ -89,6 +89,7 @@ export function Header() {
           {/* Auth Buttons / User Menu */}
           <div className="hidden lg:flex items-center gap-3">
             <ThemeToggle />
+            {user && <ActivityButton />}
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
