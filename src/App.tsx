@@ -198,6 +198,7 @@ const App = () => (
           </PageTransition>
         </BrowserRouter>
       </TooltipProvider>
+      </AutomationProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
