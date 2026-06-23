@@ -510,7 +510,6 @@ const Profile = () => {
             </Card>
           </div>
         </div>
-      </div>
     </AppShell>
   );
 };
