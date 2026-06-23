@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Layout } from "@/components/layout";
+import { AppShell } from "@/components/layout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -202,7 +202,7 @@ const Settings = () => {
   };
 
   return (
-    <Layout>
+    <AppShell>
       <div className="container mx-auto px-4 py-12 max-w-4xl">
         {/* Header */}
         <div className="mb-8">
@@ -593,7 +593,7 @@ const Settings = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </Layout>
+    </AppShell>
   );
 };
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, Navigate } from "react-router-dom";
-import { Layout } from "@/components/layout";
+import { AppShell } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Download, Check, Eye, Loader2, AlertTriangle, FileCode, CheckCircle2, CircleDot, Circle } from "lucide-react";
@@ -179,7 +179,7 @@ const ResumeTemplates = () => {
   };
 
   return (
-    <Layout>
+    <AppShell>
       <div className="container mx-auto px-4 py-12">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -391,7 +391,7 @@ const ResumeTemplates = () => {
           />
         )}
       </div>
-    </Layout>
+    </AppShell>
   );
 };
 

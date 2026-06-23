@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Layout } from "@/components/layout";
+import { AppShell } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { UploadZone } from "@/components/ui/upload-zone";
@@ -289,7 +289,7 @@ const ResumeUpload = () => {
   // Loading/Analyzing State
   if (isAnalyzing) {
     return (
-      <Layout>
+      <AppShell>
         <div className="container mx-auto px-4 py-24">
           <div className="max-w-lg mx-auto text-center">
             <div className="relative mb-8">
@@ -334,12 +334,12 @@ const ResumeUpload = () => {
             </div>
           </div>
         </div>
-      </Layout>
+      </AppShell>
     );
   }
 
   return (
-    <Layout>
+    <AppShell>
       <div className="container mx-auto px-4 py-12">
         {/* Sign-in prompt for guests */}
         {!user && (
@@ -613,7 +613,7 @@ Examples:
           ))}
         </div>
       </div>
-    </Layout>
+    </AppShell>
   );
 };
 

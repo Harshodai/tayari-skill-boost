@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Layout } from "@/components/layout";
+import { AppShell } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -155,7 +155,7 @@ const InterviewPrep = () => {
   const companySpecific = prepData?.company_specific;
 
   return (
-    <Layout>
+    <AppShell>
       <div className="container mx-auto px-4 py-12">
         <div className="flex items-center gap-2 mb-6">
           <Button variant="ghost" asChild>
@@ -379,7 +379,7 @@ const InterviewPrep = () => {
           )}
         </div>
       </div>
-    </Layout>
+    </AppShell>
   );
 };
 
