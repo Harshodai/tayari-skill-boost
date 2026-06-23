@@ -81,9 +81,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-border/60">
       <SidebarHeader className="border-b border-border/60 px-3 py-3">
-        <NavLink to="/dashboard" className="flex items-center gap-2">
-          <Logo />
-        </NavLink>
+        <Logo showText={!collapsed} />
       </SidebarHeader>
 
       <SidebarContent className="px-1 py-2">
