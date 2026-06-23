@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Layout } from "@/components/layout";
+import { AppShell } from "@/components/layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -128,7 +128,7 @@ const InterviewBoard = () => {
   const appsByColumn = (status: string) => applications.filter((a) => effectiveStatus(a) === status);
 
   return (
-    <Layout>
+    <AppShell>
       <div className="container mx-auto px-4 py-12">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
@@ -333,7 +333,7 @@ const InterviewBoard = () => {
           </div>
         )}
       </div>
-    </Layout>
+    </AppShell>
   );
 };
 

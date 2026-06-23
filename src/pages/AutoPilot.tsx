@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Layout } from "@/components/layout";
+import { AppShell } from "@/components/layout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,7 +100,7 @@ const AutoPilot = () => {
   const isRunning = runStatus?.status === "running" || runStatus?.status === "queued";
 
   return (
-    <Layout>
+    <AppShell>
       <div className="container mx-auto px-4 py-12">
         <div className="text-center max-w-2xl mx-auto mb-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-6">
@@ -400,7 +400,7 @@ const AutoPilot = () => {
           )}
         </div>
       </div>
-    </Layout>
+    </AppShell>
   );
 };
 

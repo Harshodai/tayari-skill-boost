@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Layout } from "@/components/layout";
+import { AppShell } from "@/components/layout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -141,7 +141,7 @@ const Profile = () => {
 
   if (isLoading) {
     return (
-      <Layout>
+      <AppShell>
         <div className="container mx-auto px-4 py-12">
           <div className="flex flex-col md:flex-row gap-6 items-start md:items-center mb-8">
             <Skeleton className="w-24 h-24 rounded-full" />
@@ -160,7 +160,7 @@ const Profile = () => {
             </div>
           </div>
         </div>
-      </Layout>
+      </AppShell>
     );
   }
 
@@ -178,7 +178,7 @@ const Profile = () => {
   const completionPct = Math.round((completionFields.filter(Boolean).length / completionFields.length) * 100);
 
   return (
-    <Layout>
+    <AppShell>
       <div className="container mx-auto px-4 py-12">
         <div className="mb-8">
           <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
@@ -480,7 +480,7 @@ const Profile = () => {
           </div>
         </div>
       </div>
-    </Layout>
+    </AppShell>
   );
 };
 

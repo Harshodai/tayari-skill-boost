@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, Navigate, useNavigate } from "react-router-dom";
-import { Layout } from "@/components/layout";
+import { AppShell } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -139,7 +139,7 @@ const ResumeResults = () => {
   const overallLabel = getScoreLabel(analysisResults.overallScore);
 
   return (
-    <Layout>
+    <AppShell>
       <div className="container mx-auto px-4 py-12">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -552,7 +552,7 @@ const ResumeResults = () => {
           </Button>
         </div>
       </div>
-    </Layout>
+    </AppShell>
   );
 };
 

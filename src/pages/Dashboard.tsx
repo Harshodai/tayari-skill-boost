@@ -1,4 +1,4 @@
-import { Layout } from "@/components/layout";
+import { AppShell } from "@/components/layout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -173,7 +173,7 @@ const Dashboard = () => {
   const FocusIcon = focus.icon;
 
   return (
-    <Layout>
+    <AppShell>
       <div className="container mx-auto px-4 py-10 max-w-7xl">
         {/* Header */}
         <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
@@ -403,7 +403,7 @@ const Dashboard = () => {
           ))}
         </div>
       </div>
-    </Layout>
+    </AppShell>
   );
 };
 
