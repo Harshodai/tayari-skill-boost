@@ -178,74 +178,105 @@ const Profile = () => {
   const completionPct = Math.round((completionFields.filter(Boolean).length / completionFields.length) * 100);
 
   return (
-    <AppShell>
-      <div className="container mx-auto px-4 py-12">
-        <div className="mb-8">
-          <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
-            <Avatar className="w-24 h-24 border-4 border-primary/20">
-              <AvatarImage src={avatar} />
-              <AvatarFallback className="text-2xl bg-primary/20 text-primary">
-                {name.substring(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-foreground mb-1">
-                <span className="text-gradient">{name}</span>
-              </h1>
-              <p className="text-muted-foreground">
-                {profile?.headline || (profile as any)?.title || "Full Stack Developer"}
-              </p>
-              <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-                <MapPin className="w-3 h-3" />
-                <span>{profile?.locations?.[0] || "Hyderabad, India"}</span>
-                {profile?.open_to_remote && (
-                  <Badge variant="outline" className="text-xs ml-2">Open to Remote</Badge>
+    <AppShell title="Profile" subtitle="Your single source of truth — feeds every workflow">
+      <div className="mb-6">
+        {/* Living profile card */}
+        <Card className="overflow-hidden">
+          <div
+            className="h-24 w-full"
+            style={{ background: "linear-gradient(120deg, hsl(239 84% 60% / 0.18), hsl(175 70% 50% / 0.15), hsl(158 64% 42% / 0.12))" }}
+          />
+          <div className="px-5 md:px-7 pb-5 -mt-12">
+            <div className="flex flex-col md:flex-row gap-5 md:items-end">
+              {/* Avatar + completeness ring */}
+              <div className="relative w-fit">
+                <svg className="absolute -inset-2 w-[110px] h-[110px] -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="46" stroke="hsl(var(--border))" strokeWidth="4" fill="none" />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="46"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth="4"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeDasharray={`${(completionPct / 100) * 289} 289`}
+                  />
+                </svg>
+                <Avatar className="w-24 h-24 border-4 border-background relative">
+                  <AvatarImage src={avatar} />
+                  <AvatarFallback className="text-2xl bg-primary/15 text-primary">
+                    {name.substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute -bottom-1 -right-1 bg-background border border-border rounded-full px-2 py-0.5 text-[10px] font-semibold text-primary tabular-nums">
+                  {completionPct}%
+                </div>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
+                  {name}
+                </h1>
+                <p className="text-sm md:text-base text-muted-foreground mt-0.5">
+                  {profile?.headline || (profile as any)?.title || "Add a headline that summarizes your career goal"}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    {profile?.locations?.[0] || "Set location"}
+                  </span>
+                  {profile?.open_to_remote && (
+                    <Badge variant="outline" className="text-[10px]">Open to remote</Badge>
+                  )}
+                  {(profile?.experience_years || 0) > 0 && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {profile?.experience_years}+ yrs exp
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                {isEditing ? (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => { setIsEditing(false); setValidationErrors([]); }}>
+                      <X className="w-4 h-4 mr-1" /> Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending}>
+                      {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+                      Save
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept=".pdf,.docx,.txt"
+                      onChange={handleImportFile}
+                    />
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isImporting}>
+                      {isImporting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
+                      Import resume
+                    </Button>
+                    <Button size="sm" onClick={() => setIsEditing(true)}>
+                      <Edit className="w-4 h-4 mr-1" /> Edit
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
-            <div className="flex gap-2">
-              {isEditing ? (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => { setIsEditing(false); setValidationErrors([]); }}>
-                    <X className="w-4 h-4 mr-1" /> Cancel
-                  </Button>
-                  <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending}>
-                    {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
-                    Save
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    className="hidden"
-                    accept=".pdf,.docx,.txt"
-                    onChange={handleImportFile}
-                  />
-                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isImporting}>
-                    {isImporting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
-                    Import from Resume
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                    <Edit className="w-4 h-4 mr-1" /> Edit Profile
-                  </Button>
-                </>
-              )}
-            </div>
           </div>
+        </Card>
 
-          {/* Profile Completion */}
-          <Card className="mt-6">
-            <CardContent className="py-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Profile Completion</span>
-                <span className="text-sm text-muted-foreground">{completionPct}%</span>
-              </div>
-              <Progress value={completionPct} className="h-2" />
-            </CardContent>
-          </Card>
-        </div>
+        {completionPct < 100 && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Complete your profile to unlock sharper AI matches across Search, Optimizer, and Interview Prep.
+          </p>
+        )}
+      </div>
 
         {/* Validation Errors */}
         {isEditing && validationErrors.length > 0 && (
