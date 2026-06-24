@@ -43,6 +43,7 @@ const RATE_LIMIT_CONFIG = {
 };
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
