@@ -1,19 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://tayari-skill-boost.lovable.app",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-// SHA-1 hash function using Web Crypto API (fallback when only password is provided)
-async function sha1(message: string): Promise<string> {
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest("SHA-1", msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+import { corsHeadersFor } from "../_shared/cors.ts";
 
 serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -24,25 +13,19 @@ serve(async (req) => {
     let hashPrefix: string | undefined = body.hashPrefix;
     let hashSuffix: string | undefined = body.hashSuffix;
 
-    // Preferred path: client sends only the SHA-1 prefix + suffix (k-Anonymity).
-    // The plaintext password never reaches the server.
-    if (typeof hashPrefix === "string" && typeof hashSuffix === "string") {
-      hashPrefix = hashPrefix.toUpperCase();
-      hashSuffix = hashSuffix.toUpperCase();
-      if (!/^[0-9A-F]{5}$/.test(hashPrefix) || !/^[0-9A-F]{35}$/.test(hashSuffix)) {
-        return new Response(
-          JSON.stringify({ error: "Invalid hash format" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-    } else if (typeof body.password === "string" && body.password.length > 0) {
-      // Backwards-compatible fallback (deprecated). Hash server-side.
-      const hash = await sha1(body.password);
-      hashPrefix = hash.substring(0, 5).toUpperCase();
-      hashSuffix = hash.substring(5).toUpperCase();
-    } else {
+    // Hash-only contract (k-Anonymity). Plaintext passwords are rejected to
+    // prevent credentials reaching server logs/monitoring.
+    if (typeof hashPrefix !== "string" || typeof hashSuffix !== "string") {
       return new Response(
         JSON.stringify({ error: "hashPrefix and hashSuffix are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    hashPrefix = hashPrefix.toUpperCase();
+    hashSuffix = hashSuffix.toUpperCase();
+    if (!/^[0-9A-F]{5}$/.test(hashPrefix) || !/^[0-9A-F]{35}$/.test(hashSuffix)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid hash format" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

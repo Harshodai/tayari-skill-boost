@@ -1,13 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://tayari-skill-boost.lovable.app", // Strictly restricted
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { corsHeadersFor } from "../_shared/cors.ts";
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+// Input size guards — bound AI credit consumption per request.
+const MAX_RESUME_CHARS = 50_000;
+const MAX_JD_CHARS = 20_000;
+const MAX_CUSTOM_CHARS = 2_000;
 
 interface AnalyzeResumeRequest {
   resumeText: string;
@@ -50,6 +50,7 @@ interface ParsedResume {
 }
 
 serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -94,6 +95,26 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ success: false, error: "Resume text and job description are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Bound input sizes to prevent runaway AI credit consumption / DoS.
+    if (resumeText.length > MAX_RESUME_CHARS) {
+      return new Response(
+        JSON.stringify({ success: false, error: `Resume exceeds ${MAX_RESUME_CHARS.toLocaleString()} character limit` }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (jobDescription.length > MAX_JD_CHARS) {
+      return new Response(
+        JSON.stringify({ success: false, error: `Job description exceeds ${MAX_JD_CHARS.toLocaleString()} character limit` }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (customInstructions && customInstructions.length > MAX_CUSTOM_CHARS) {
+      return new Response(
+        JSON.stringify({ success: false, error: `Custom instructions exceed ${MAX_CUSTOM_CHARS.toLocaleString()} character limit` }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
