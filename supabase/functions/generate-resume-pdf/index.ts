@@ -1,15 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://tayari-skill-boost.lovable.app",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { corsHeadersFor } from "../_shared/cors.ts";
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LATEX_ONLINE_URL = "https://latexonline.cc/compile";
 const LATEX_YTOTECH_URL = "https://latex.ytotech.com/builds/sync";
+
+// Input size guards.
+const MAX_RESUME_CHARS = 50_000;
+const MAX_JD_CHARS = 20_000;
+const MAX_SUGGESTIONS = 50;
 
 interface ResumeSection {
   name: string;
@@ -219,6 +219,7 @@ function categorizeLatexError(log: string): { type: string; message: string; sug
 }
 
 serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
