@@ -156,6 +156,15 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'record_failure') {
+      // Per-IP throttle: prevent unauthenticated attackers from spamming
+      // record_failure to lock out arbitrary accounts.
+      const ip = getClientIp(req);
+      if (ipRateLimitExceeded(ip)) {
+        return new Response(
+          JSON.stringify({ error: 'Too many requests' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '60' } }
+        );
+      }
       // Get existing attempts
       const { data: existing } = await supabase
         .from('auth_attempts')
