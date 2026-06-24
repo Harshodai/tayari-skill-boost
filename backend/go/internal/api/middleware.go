@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -139,3 +141,45 @@ func (rl *rateLimiter) getClientID(r *http.Request) string {
 	}
 	return ip
 }
+
+// tenantMiddleware resolves the active tenant from Host header or X-Tenant-Domain
+func (s *Server) tenantMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		domain := r.Header.Get("X-Tenant-Domain")
+		if domain == "" {
+			domain = r.URL.Query().Get("tenant_domain")
+		}
+		if domain == "" {
+			domain = r.Host
+			if h, _, err := net.SplitHostPort(domain); err == nil {
+				domain = h
+			}
+		}
+
+		domain = strings.ToLower(strings.TrimSpace(domain))
+
+		var tenant models.Tenant
+		query := `SELECT id, name, domain, logo_url, primary_color, secondary_color, created_at 
+		          FROM tenants 
+		          WHERE domain = $1 OR SUBSTRING(domain FROM '([^.]+)') = $2`
+
+		subdomain := domain
+		if idx := strings.Index(domain, "."); idx != -1 {
+			subdomain = domain[:idx]
+		}
+
+		err := s.DB.Conn.QueryRowContext(r.Context(), query, domain, subdomain).Scan(
+			&tenant.ID, &tenant.Name, &tenant.Domain, &tenant.LogoURL, &tenant.PrimaryColor, &tenant.SecondaryColor, &tenant.CreatedAt,
+		)
+
+		if err == nil {
+			ctx := context.WithValue(r.Context(), contextKeyTenant, &tenant)
+			r = r.WithContext(ctx)
+		} else {
+			log.Printf("[TENANT] Could not resolve tenant for domain '%s' (subdomain '%s'): %v", domain, subdomain, err)
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+

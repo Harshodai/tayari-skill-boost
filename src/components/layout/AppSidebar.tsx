@@ -14,6 +14,7 @@ import {
   Settings,
   HelpCircle,
   LogOut,
+  Users,
 } from "lucide-react";
 import {
   Sidebar,
@@ -66,6 +67,12 @@ const buildGroups = () => [
     items: [
       { title: "Career Roadmap", url: "/roadmap", icon: Map, enabled: features.careerRoadmap },
       { title: "Blog", url: "/blog", icon: BookOpen, enabled: features.blog },
+    ] as Item[],
+  },
+  {
+    label: "Enterprise",
+    items: [
+      { title: "Advisor Portal", url: "/advisor", icon: Users, enabled: true },
     ] as Item[],
   },
 ];

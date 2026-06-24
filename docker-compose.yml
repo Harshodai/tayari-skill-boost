@@ -26,6 +26,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - PORT=8000
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
       # Hermes + Celery/Redis layer (WS-C). Lets FastAPI enqueue Celery tasks
       # and read agent_runs/scraped_jobs from Postgres.
       - REDIS_URL=redis://redis:6379/0
@@ -57,7 +58,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     healthcheck:

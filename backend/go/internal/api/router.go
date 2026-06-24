@@ -27,7 +27,10 @@ import (
 // Context key type to avoid collisions
 type contextKey string
 
-const contextKeyUser contextKey = "user"
+const (
+	contextKeyUser   contextKey = "user"
+	contextKeyTenant contextKey = "tenant"
+)
 
 type Server struct {
 	Router            *chi.Mux
@@ -67,6 +70,7 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 func (s *Server) routes() {
 	s.Router.Use(middleware.Recoverer)
 	s.Router.Use(s.requestLoggingMiddleware)
+	s.Router.Use(s.tenantMiddleware)
 
 	/*
 	allowedOrigins := []string{"http://localhost:5173", "http://localhost:4173"}
@@ -225,6 +229,23 @@ func (s *Server) routes() {
 
 		// Hermes agent layer (WS-E) — scrape, cached jobs, run status
 		s.routesHermes(r)
+
+		// Career Intelligence Engine
+		s.routesCareerIntelligence(r)
+
+		// Voice AI Interview stream
+		s.routesVoice(r)
+
+		// Predictive Funnel Analytics
+		s.routesAnalytics(r)
+
+		// Multi-Tenant & Advisor Cohort dashboard
+		s.routesTenant(r)
+
+		// Web-Push Notifications
+		s.routesPush(r)
+
+
 
 		// Review Queue Routes
 		r.Get("/api/v1/review-queue", s.handleListReviewQueue)

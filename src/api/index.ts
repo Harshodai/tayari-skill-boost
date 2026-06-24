@@ -512,3 +512,117 @@ export async function importProfilePDF(file: File): Promise<{
   }
   return response.json();
 }
+
+// =============================================================================
+// Career Intelligence
+// =============================================================================
+
+export interface CareerIntelligenceRequest {
+  resume_id?: number;
+  job_description_id?: number;
+  job_description_text?: string;
+  target_role?: string;
+  location?: string;
+}
+
+export interface SkillsGapResponse {
+  match_score: number;
+  matched_skills: string[];
+  adjacent_skills: string[];
+  missing_skills: string[];
+  required_skills: string[];
+}
+
+export interface LearningRecommendation {
+  skill: string;
+  title: string;
+  url: string;
+  provider: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  cost_type: 'free' | 'paid';
+}
+
+export interface LearningPathResponse {
+  recommendations: LearningRecommendation[];
+}
+
+export interface SalaryBenchmarkResponse {
+  role: string;
+  location: string;
+  salary_min: number;
+  salary_median: number;
+  salary_max: number;
+  currency: string;
+  confidence: string;
+}
+
+export async function getSkillsGap(payload: CareerIntelligenceRequest): Promise<SkillsGapResponse> {
+  return apiFetch<SkillsGapResponse>("/v1/career-intelligence/skills-gap", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getLearningPath(payload: CareerIntelligenceRequest): Promise<LearningPathResponse> {
+  return apiFetch<LearningPathResponse>("/v1/career-intelligence/learning-path", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getSalaryBenchmark(payload: CareerIntelligenceRequest): Promise<SalaryBenchmarkResponse> {
+  return apiFetch<SalaryBenchmarkResponse>("/v1/career-intelligence/salary-benchmark", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// =============================================================================
+// Predictive Funnel Analytics
+// =============================================================================
+
+export interface ResumeVariant {
+  id: number;
+  resume_id: number;
+  name: string;
+  original_text: string;
+  scores: {
+    formatting_score: number;
+    metrics_score: number;
+    readability_score: number;
+    keyword_score: number;
+    overall_score: number;
+  };
+  pulls: number;
+  conversions: number;
+  created_at: string;
+}
+
+export interface BanditStat {
+  variant_id: number;
+  name: string;
+  resume_title: string;
+  pulls: number;
+  conversions: number;
+}
+
+export async function createResumeVariant(resumeId: number | string, payload: { name: string; original_text: string }): Promise<ResumeVariant> {
+  return apiFetch<ResumeVariant>(`/v1/resumes/${resumeId}/variants`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listResumeVariants(resumeId: number | string): Promise<ResumeVariant[]> {
+  return apiFetch<ResumeVariant[]>(`/v1/resumes/${resumeId}/variants`);
+}
+
+export async function getFunnelData(): Promise<Record<string, number>> {
+  return apiFetch<Record<string, number>>("/v1/analytics/funnel");
+}
+
+export async function getBanditStats(): Promise<BanditStat[]> {
+  return apiFetch<BanditStat[]>("/v1/analytics/bandit-stats");
+}
+
+

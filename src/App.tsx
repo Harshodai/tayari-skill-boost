@@ -43,6 +43,8 @@ import CommunicationHub from "./pages/CommunicationHub";
 import InterviewPrep from "./pages/InterviewPrep";
 import ExtensionOnboarding from "./pages/ExtensionOnboarding";
 import ReviewQueue from "./pages/ReviewQueue";
+import PredictiveAnalytics from "./pages/PredictiveAnalytics";
+import AdvisorDashboard from "./pages/AdvisorDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -126,6 +128,14 @@ const App = () => (
                 }
               />
               <Route
+                path="/analytics"
+                element={
+                  <ProtectedRoute>
+                    <PredictiveAnalytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/settings"
                 element={
                   <ProtectedRoute>
@@ -188,6 +198,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <ReviewQueue />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/advisor"
+                element={
+                  <ProtectedRoute>
+                    <AdvisorDashboard />
                   </ProtectedRoute>
                 }
               />

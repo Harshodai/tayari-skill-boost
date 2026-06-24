@@ -442,17 +442,18 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var req struct {
-		Job              map[string]interface{} `json:"job"`
-		TailoredResumeText string               `json:"tailored_resume_text,omitempty"`
-		CoverLetter      string                 `json:"cover_letter,omitempty"`
-		Changes          map[string]interface{} `json:"changes,omitempty"`
-		KeywordsAdded    []string               `json:"keywords_added,omitempty"`
-		ATSScoreBefore   int                    `json:"ats_score_before"`
-		ATSScoreAfter    int                    `json:"ats_score_after"`
-		IsDreamCompany   bool                   `json:"is_dream_company"`
-		Status           string                 `json:"status"`
-		SubmissionMode   string                 `json:"submission_mode,omitempty"`
-		ApplyURL         string                 `json:"apply_url,omitempty"`
+		Job                map[string]interface{} `json:"job"`
+		TailoredResumeText string                 `json:"tailored_resume_text,omitempty"`
+		CoverLetter        string                 `json:"cover_letter,omitempty"`
+		Changes            map[string]interface{} `json:"changes,omitempty"`
+		KeywordsAdded      []string               `json:"keywords_added,omitempty"`
+		ATSScoreBefore     int                    `json:"ats_score_before"`
+		ATSScoreAfter      int                    `json:"ats_score_after"`
+		IsDreamCompany     bool                   `json:"is_dream_company"`
+		Status             string                 `json:"status"`
+		SubmissionMode     string                 `json:"submission_mode,omitempty"`
+		ApplyURL           string                 `json:"apply_url,omitempty"`
+		ResumeVariantID    *int                   `json:"resume_variant_id,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
@@ -462,14 +463,20 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 		req.Status = "saved"
 	}
 	appID := uuid.New().String()
-	query := `INSERT INTO applications (application_id, user_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, submission_mode, apply_url, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW()) RETURNING id`
+	query := `INSERT INTO applications (application_id, user_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, submission_mode, apply_url, resume_variant_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW()) RETURNING id`
 	var id int
-	err := s.DB.Conn.QueryRowContext(r.Context(), query, appID, user.ID, models.JSONMap(req.Job), req.TailoredResumeText, req.CoverLetter, models.JSONMap(req.Changes), models.StringSlice(req.KeywordsAdded), req.ATSScoreBefore, req.ATSScoreAfter, req.IsDreamCompany, req.Status, req.SubmissionMode, req.ApplyURL).Scan(&id)
+	err := s.DB.Conn.QueryRowContext(r.Context(), query, appID, user.ID, models.JSONMap(req.Job), req.TailoredResumeText, req.CoverLetter, models.JSONMap(req.Changes), models.StringSlice(req.KeywordsAdded), req.ATSScoreBefore, req.ATSScoreAfter, req.IsDreamCompany, req.Status, req.SubmissionMode, req.ApplyURL, req.ResumeVariantID).Scan(&id)
 	if err != nil {
 		log.Printf("handleCreateApplication: insert failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to create application")
 		return
 	}
+
+	// Increment pulls if status is applied
+	if req.Status == "applied" && req.ResumeVariantID != nil {
+		s.incrementBanditPull(r.Context(), *req.ResumeVariantID)
+	}
+
 	s.respondJSON(w, http.StatusCreated, map[string]interface{}{"id": id, "application_id": appID, "status": req.Status})
 }
 
@@ -558,6 +565,18 @@ func (s *Server) handleUpdateApplication(w http.ResponseWriter, r *http.Request)
 		s.respondError(w, http.StatusBadRequest, "status is required")
 		return
 	}
+
+	// 1. Fetch current status and resume_variant_id
+	var currentStatus string
+	var variantID sql.NullInt64
+	checkQuery := `SELECT status, resume_variant_id FROM applications WHERE application_id = $1 AND user_id = $2`
+	err := s.DB.Conn.QueryRowContext(r.Context(), checkQuery, appIDStr, user.ID).Scan(&currentStatus, &variantID)
+	if err != nil {
+		s.respondError(w, http.StatusNotFound, "Application not found")
+		return
+	}
+
+	// 2. Perform the update
 	res, err := s.DB.Conn.ExecContext(r.Context(), "UPDATE applications SET status=$1, updated_at=NOW() WHERE application_id=$2 AND user_id=$3", req.Status, appIDStr, user.ID)
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, "Failed to update application")
@@ -567,6 +586,22 @@ func (s *Server) handleUpdateApplication(w http.ResponseWriter, r *http.Request)
 		s.respondError(w, http.StatusNotFound, "Application not found")
 		return
 	}
+
+	// 3. Increment pulls and conversions based on status transitions
+	if variantID.Valid && variantID.Int64 > 0 {
+		vID := int(variantID.Int64)
+		// If transitioning to applied, record a pull
+		if currentStatus != "applied" && req.Status == "applied" {
+			s.incrementBanditPull(r.Context(), vID)
+		}
+		// If transitioning to interview/offer for the first time, record a conversion
+		isOldConversion := currentStatus == "interview" || currentStatus == "offer"
+		isNewConversion := req.Status == "interview" || req.Status == "offer"
+		if !isOldConversion && isNewConversion {
+			s.incrementBanditConversion(r.Context(), vID)
+		}
+	}
+
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{"application_id": appIDStr, "status": req.Status})
 }
 
