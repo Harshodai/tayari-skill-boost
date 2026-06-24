@@ -1,13 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://tayari-skill-boost.lovable.app", // Strictly restricted
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { corsHeadersFor } from "../_shared/cors.ts";
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+// Input size guards — bound AI credit consumption per request.
+const MAX_RESUME_CHARS = 50_000;
+const MAX_JD_CHARS = 20_000;
+const MAX_CUSTOM_CHARS = 2_000;
 
 interface AnalyzeResumeRequest {
   resumeText: string;
