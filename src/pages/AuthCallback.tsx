@@ -64,12 +64,12 @@ const AuthCallback = () => {
     }, [navigate]);
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
-            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl text-center max-w-md w-full mx-4">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/30">
+            <div className="glass border border-border/50 rounded-2xl p-8 shadow-card text-center max-w-md w-full mx-4 animate-scale-in-center">
                 {status === "loading" && (
                     <>
-                        <Loader2 className="w-16 h-16 text-blue-400 mx-auto animate-spin mb-4" />
-                        <h2 className="text-xl font-semibold text-white mb-2">
+                        <Loader2 className="w-16 h-16 text-info mx-auto animate-spin mb-4" />
+                        <h2 className="text-xl font-semibold text-foreground mb-2">
                             Completing Sign In
                         </h2>
                     </>
@@ -77,8 +77,8 @@ const AuthCallback = () => {
 
                 {status === "success" && (
                     <>
-                        <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
-                        <h2 className="text-xl font-semibold text-white mb-2">
+                        <CheckCircle className="w-16 h-16 text-success mx-auto mb-4 animate-bounce-subtle" />
+                        <h2 className="text-xl font-semibold text-foreground mb-2">
                             Welcome Back!
                         </h2>
                     </>
@@ -86,14 +86,14 @@ const AuthCallback = () => {
 
                 {status === "error" && (
                     <>
-                        <XCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-                        <h2 className="text-xl font-semibold text-white mb-2">
+                        <XCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
+                        <h2 className="text-xl font-semibold text-foreground mb-2">
                             Authentication Failed
                         </h2>
                     </>
                 )}
 
-                <p className="text-slate-300">{message}</p>
+                <p className="text-muted-foreground text-sm">{message}</p>
             </div>
         </div>
     );

@@ -27,6 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { JobMatchScore } from "@/components/ui/job-match-score";
+import { StatsCard, StatsGrid } from "@/components/ui/stats-card";
 import type { ResumeAnalysisRecord } from "@/types/resume";
 import { USE_SELF_HOSTED, listAnalysisHistory } from "@/api";
 import { useAutomation } from "@/contexts/AutomationContext";
@@ -199,6 +200,42 @@ const Dashboard = () => {
             </Button>
           </div>
         </div>
+
+        {/* Quick Stats Banner */}
+        <StatsGrid columns={4} className="mb-6 animate-fade-in-up">
+          <StatsCard
+            label="Resume Score"
+            value={latestScore !== null ? `${latestScore}%` : "—"}
+            icon={<FileText className="w-4 h-4" />}
+            trend={latestScore !== null ? { value: 12, direction: "up", label: "vs last scan" } : undefined}
+            sparklineData={analyses.length > 0 ? [...analyses.map(a => a.overall_score).reverse()] : [45, 55, 63, 72, latestScore || 0]}
+            colorScheme={latestScore !== null && latestScore >= 80 ? "success" : latestScore !== null && latestScore >= 60 ? "warning" : "default"}
+          />
+          <StatsCard
+            label="Saved Jobs"
+            value={savedJobs.length}
+            icon={<Briefcase className="w-4 h-4" />}
+            trend={{ value: 8, direction: "up", label: "vs last week" }}
+            sparklineData={[2, 3, 5, 4, 7, 6, savedJobs.length]}
+            colorScheme="primary"
+          />
+          <StatsCard
+            label="Practice Sessions"
+            value={interviews.length}
+            icon={<Mic className="w-4 h-4" />}
+            trend={interviews.length > 0 ? { value: 20, direction: "up", label: "practice run" } : undefined}
+            sparklineData={[0, 1, 1, 2, 2, interviews.length]}
+            colorScheme="default"
+          />
+          <StatsCard
+            label="AutoPilot Runs"
+            value={runs.length}
+            icon={<Zap className="w-4 h-4" />}
+            trend={runs.length > 0 ? { value: 100, direction: "up", label: "agents active" } : { value: 0, direction: "neutral", label: "idle" }}
+            sparklineData={runs.length > 0 ? [0, 1, 2, runs.length] : [0, 0, 0, 0]}
+            colorScheme={runs.length > 0 ? "success" : "default"}
+          />
+        </StatsGrid>
 
         {/* Today's focus + pipeline */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">

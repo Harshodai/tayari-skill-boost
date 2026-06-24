@@ -197,11 +197,11 @@ export default function ReviewQueue() {
   const getSuggestionBadge = (suggestion: string) => {
     switch (suggestion?.toLowerCase()) {
       case "approve":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100"><CheckCircle className="w-3 h-3 mr-1" /> Approve</Badge>;
+        return <Badge variant="success"><CheckCircle className="w-3 h-3 mr-1" /> Approve</Badge>;
       case "reject":
-        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100"><XCircle className="w-3 h-3 mr-1" /> Reject</Badge>;
+        return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" /> Reject</Badge>;
       case "modify":
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100"><Sparkles className="w-3 h-3 mr-1" /> Modify</Badge>;
+        return <Badge variant="warning"><Sparkles className="w-3 h-3 mr-1" /> Modify</Badge>;
       default:
         return <Badge variant="secondary">Review</Badge>;
     }
@@ -244,7 +244,7 @@ export default function ReviewQueue() {
             <Card>
               <CardContent className="pt-6">
                 <div className="text-2xl font-bold flex items-center gap-1">
-                  <Star className="w-5 h-5 text-amber-500" />
+                  <Star className="w-5 h-5 text-warning" />
                   {stats.dream_companies}
                 </div>
                 <p className="text-sm text-muted-foreground">Dream Companies</p>
@@ -349,7 +349,7 @@ export default function ReviewQueue() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="font-semibold text-lg">{item.job?.title}</h3>
                             {item.is_dream_company && (
-                              <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                              <Badge variant="warning">
                                 <Star className="w-3 h-3 mr-1" /> Dream
                               </Badge>
                             )}

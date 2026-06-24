@@ -147,10 +147,10 @@
 
   .bg-mesh {
     background:
-      radial-gradient(at 20% 10%, hsl(239 84% 67% / 0.18) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, hsl(280 80% 65% / 0.14) 0px, transparent 50%),
-      radial-gradient(at 70% 80%, hsl(187 92% 60% / 0.12) 0px, transparent 50%),
-      radial-gradient(at 0% 90%, hsl(158 64% 52% / 0.10) 0px, transparent 50%),
+      radial-gradient(at 20% 10%, hsl(239 84% 88% / 0.7) 0px, transparent 55%),
+      radial-gradient(at 80% 0%, hsl(280 80% 90% / 0.6) 0px, transparent 55%),
+      radial-gradient(at 70% 80%, hsl(187 92% 88% / 0.45) 0px, transparent 55%),
+      radial-gradient(at 0% 90%, hsl(158 64% 88% / 0.35) 0px, transparent 55%),
       hsl(var(--background));
   }
 
@@ -164,14 +164,14 @@
 
   .bg-gradient-hero {
     background:
-      radial-gradient(ellipse 80% 60% at 50% 0%, hsl(239 84% 67% / 0.10) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 50% at 20% 100%, hsl(175 70% 50% / 0.06), transparent 60%),
+      radial-gradient(ellipse 80% 60% at 50% 0%, hsl(239 84% 88% / 0.45) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 20% 100%, hsl(175 70% 88% / 0.3), transparent 60%),
       hsl(var(--background));
   }
 
   .font-display {
-    font-family: 'Sora', 'Inter', system-ui, sans-serif;
-    letter-spacing: -0.03em;
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, "Segoe UI", 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.035em;
   }
 
   .glass {
@@ -323,7 +323,7 @@
     --secondary-foreground: 210 20% 98%;
 
     --muted: 222 30% 14%;
-    --muted-foreground: 215 20% 65%;
+    --muted-foreground: 215 20% 58%;
 
     --accent: 158 64% 52%;
     --accent-foreground: 222 47% 6%;
@@ -374,6 +374,22 @@
     --sidebar-border: 222 30% 16%;
     --sidebar-ring: 239 84% 67%;
   }
+
+  .dark .bg-mesh {
+    background:
+      radial-gradient(at 20% 10%, hsl(239 84% 67% / 0.15) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, hsl(280 80% 65% / 0.12) 0px, transparent 50%),
+      radial-gradient(at 70% 80%, hsl(187 92% 60% / 0.1) 0px, transparent 50%),
+      radial-gradient(at 0% 90%, hsl(158 64% 52% / 0.08) 0px, transparent 50%),
+      hsl(var(--background));
+  }
+
+  .dark .bg-gradient-hero {
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%, hsl(239 84% 67% / 0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 20% 100%, hsl(175 70% 50% / 0.04), transparent 60%),
+      hsl(var(--background));
+  }
 }
 
 @layer base {
@@ -395,7 +411,7 @@
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-display;
-    letter-spacing: -0.022em;
+    letter-spacing: -0.028em;
   }
 }
 

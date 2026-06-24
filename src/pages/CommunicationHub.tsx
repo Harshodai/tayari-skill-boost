@@ -143,12 +143,21 @@ const CommunicationHub = () => {
     "apply-reminder": "Apply Reminder",
   };
 
-  const typeColors: Record<string, string> = {
-    "follow-up": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-    "thank-you": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-    "negotiation": "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-    "status-check": "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-    "apply-reminder": "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
+  const getSuggestionVariant = (type: string): "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "info" | "subtle" => {
+    switch (type?.toLowerCase()) {
+      case "follow-up":
+        return "info";
+      case "thank-you":
+        return "success";
+      case "negotiation":
+        return "warning";
+      case "status-check":
+        return "default";
+      case "apply-reminder":
+        return "subtle";
+      default:
+        return "secondary";
+    }
   };
 
   return (
@@ -205,7 +214,7 @@ const CommunicationHub = () => {
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
-                              <Badge className={typeColors[s.suggestion_type] || ""}>
+                              <Badge variant={getSuggestionVariant(s.suggestion_type)}>
                                 {typeLabels[s.suggestion_type] || s.suggestion_type}
                               </Badge>
                               <span className="text-sm text-muted-foreground">

@@ -15,11 +15,10 @@ export default {
     extend: {
       fontFamily: {
         sans: [
+          '"SF Pro Text"',
           "-apple-system",
           "BlinkMacSystemFont",
-          '"SF Pro Text"',
-          '"SF Pro Display"',
-          '"Helvetica Neue"',
+          '"Segoe UI"',
           "Inter",
           "system-ui",
           "sans-serif",
@@ -28,7 +27,7 @@ export default {
           '"SF Pro Display"',
           "-apple-system",
           "BlinkMacSystemFont",
-          '"Helvetica Neue"',
+          '"Segoe UI"',
           "Inter",
           "system-ui",
           "sans-serif",
@@ -36,10 +35,10 @@ export default {
         mono: ['"SF Mono"', "ui-monospace", "Menlo", "Monaco", '"JetBrains Mono"', "monospace"],
       },
       fontSize: {
-        "hero": ["3.5rem", { lineHeight: "1.05", fontWeight: "700", letterSpacing: "-0.02em" }],
-        "display": ["4.5rem", { lineHeight: "1", fontWeight: "700", letterSpacing: "-0.025em" }],
-        "mega": ["6rem", { lineHeight: "1", fontWeight: "800", letterSpacing: "-0.03em" }],
-        "section": ["2.5rem", { lineHeight: "1.15", fontWeight: "600", letterSpacing: "-0.015em" }],
+        "hero": ["3.5rem", { lineHeight: "1.05", fontWeight: "700", letterSpacing: "-0.03em" }],
+        "display": ["4.5rem", { lineHeight: "1", fontWeight: "700", letterSpacing: "-0.035em" }],
+        "mega": ["6rem", { lineHeight: "1", fontWeight: "800", letterSpacing: "-0.04em" }],
+        "section": ["2.5rem", { lineHeight: "1.15", fontWeight: "600", letterSpacing: "-0.025em" }],
         "card-title": ["1.25rem", { lineHeight: "1.4", fontWeight: "600" }],
         "subheadline": ["1.375rem", { lineHeight: "1.5", fontWeight: "400" }],
       },

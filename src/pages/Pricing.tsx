@@ -2,6 +2,7 @@ import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Check, Zap, Crown, Building2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const Pricing = () => {
   const plans = [
@@ -134,7 +135,7 @@ const Pricing = () => {
                 <ul className="space-y-3 mb-8">
                   {plan.features.map((feature, i) => (
                     <li key={i} className="flex items-center gap-3">
-                      <Check className="w-5 h-5 text-secondary flex-shrink-0" />
+                      <Check className="w-5 h-5 text-success flex-shrink-0" />
                       <span className="text-foreground/90">{feature}</span>
                     </li>
                   ))}
@@ -161,14 +162,23 @@ const Pricing = () => {
             <h2 className="text-3xl font-bold text-center mb-10">
               Frequently Asked <span className="text-gradient">Questions</span>
             </h2>
-            <div className="space-y-4">
+            <Accordion type="single" collapsible className="space-y-4">
               {faqs.map((faq, index) => (
-                <div key={index} className="glass rounded-xl p-6 border border-border">
-                  <h3 className="font-semibold mb-2">{faq.question}</h3>
-                  <p className="text-muted-foreground">{faq.answer}</p>
-                </div>
+                <AccordionItem 
+                  key={index} 
+                  value={`item-${index}`}
+                  className="glass border border-border/50 rounded-xl px-6 animate-fade-in-up"
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                >
+                  <AccordionTrigger className="text-left text-foreground hover:text-primary hover:no-underline py-4">
+                    {faq.question}
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground pb-4">
+                    {faq.answer}
+                  </AccordionContent>
+                </AccordionItem>
               ))}
-            </div>
+            </Accordion>
           </div>
         </div>
       </div>

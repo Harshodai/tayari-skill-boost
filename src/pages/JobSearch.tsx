@@ -54,10 +54,10 @@ interface Job {
 }
 
 const scoreColor = (s: number) =>
-  s >= 80 ? "text-emerald-400" : s >= 60 ? "text-amber-400" : "text-rose-400";
+  s >= 80 ? "text-success" : s >= 60 ? "text-warning" : "text-destructive";
 
 const scoreRing = (s: number) =>
-  s >= 80 ? "ring-emerald-500/40" : s >= 60 ? "ring-amber-500/40" : "ring-rose-500/40";
+  s >= 80 ? "ring-success/40" : s >= 60 ? "ring-warning/40" : "ring-destructive/40";
 
 const JobSearch = () => {
   const navigate = useNavigate();
@@ -529,14 +529,14 @@ const JobSearch = () => {
                   {(selected.match_reasons?.length || selected.missing_skills?.length) ? (
                     <div className="grid md:grid-cols-2 gap-3">
                       {selected.match_reasons && selected.match_reasons.length > 0 && (
-                        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] p-3">
-                          <div className="text-xs font-semibold text-emerald-400 mb-2 uppercase tracking-wider">
+                        <div className="rounded-lg border border-success/20 bg-success/5 p-3">
+                          <div className="text-xs font-semibold text-success mb-2 uppercase tracking-wider">
                             Why this job
                           </div>
                           <ul className="space-y-1 text-sm">
                             {selected.match_reasons.slice(0, 4).map((r, i) => (
                               <li key={i} className="flex gap-2">
-                                <span className="text-emerald-400">✓</span>
+                                <span className="text-success">✓</span>
                                 <span className="text-foreground/85">{r}</span>
                               </li>
                             ))}
@@ -544,8 +544,8 @@ const JobSearch = () => {
                         </div>
                       )}
                       {selected.missing_skills && selected.missing_skills.length > 0 && (
-                        <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3">
-                          <div className="text-xs font-semibold text-amber-400 mb-2 uppercase tracking-wider">
+                        <div className="rounded-lg border border-warning/20 bg-warning/5 p-3">
+                          <div className="text-xs font-semibold text-warning mb-2 uppercase tracking-wider">
                             Gaps to close
                           </div>
                           <div className="flex flex-wrap gap-1.5">

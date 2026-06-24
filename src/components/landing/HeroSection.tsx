@@ -2,8 +2,51 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, FileText, CheckCircle2, TrendingUp } from "lucide-react";
 import { CountUp } from "@/components/ui/count-up";
+import { useState } from "react";
+
+const ROLES = [
+  {
+    company: "Stripe",
+    role: "Senior Frontend Engineer",
+    score: "94",
+    keywords: "47",
+    keywordsSuffix: "/50",
+    applied: "128",
+    hint: "3 missing — added inline",
+    keywordsHint: "Ready for submission",
+    appliedHint: "32 active conversations",
+    url: "stripe",
+  },
+  {
+    company: "Vercel",
+    role: "Staff Backend Engineer",
+    score: "87",
+    keywords: "41",
+    keywordsSuffix: "/50",
+    applied: "184",
+    hint: "9 missing — auto-adjusted",
+    keywordsHint: "Ready for submission",
+    appliedHint: "45 active conversations",
+    url: "vercel",
+  },
+  {
+    company: "Figma",
+    role: "Staff Product Designer",
+    score: "96",
+    keywords: "49",
+    keywordsSuffix: "/50",
+    applied: "96",
+    hint: "1 missing — perfect match",
+    keywordsHint: "Ready for submission",
+    appliedHint: "18 active conversations",
+    url: "figma",
+  },
+];
 
 export function HeroSection() {
+  const [selectedRoleIdx, setSelectedRoleIdx] = useState(0);
+  const currentRole = ROLES[selectedRoleIdx];
+
   return (
     <section className="relative pt-24 pb-20 lg:pt-32 lg:pb-28 overflow-hidden bg-mesh">
       {/* Decorative grid */}
@@ -35,7 +78,7 @@ export function HeroSection() {
           </p>
 
           {/* CTAs */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-16 animate-fade-in-up animation-delay-300">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-12 animate-fade-in-up animation-delay-300">
             <Button size="xl" variant="glow" asChild className="min-w-[200px] shadow-glow">
               <Link to="/auth?mode=signup">
                 Start free
@@ -49,6 +92,23 @@ export function HeroSection() {
             </Button>
           </div>
 
+          {/* Role selector tabs */}
+          <div className="flex justify-center gap-2.5 mb-6 animate-fade-in-up animation-delay-400">
+            {ROLES.map((role, idx) => (
+              <button
+                key={role.company}
+                onClick={() => setSelectedRoleIdx(idx)}
+                className={`px-4 py-2 rounded-full text-xs font-semibold border transition-all duration-300 ${
+                  selectedRoleIdx === idx
+                    ? "bg-primary text-primary-foreground border-primary shadow-glow scale-105"
+                    : "glass hover:bg-muted/80 text-muted-foreground border-border/60"
+                }`}
+              >
+                {role.company}
+              </button>
+            ))}
+          </div>
+
           {/* Product preview card — Stripe-style floating mock */}
           <div className="relative max-w-4xl mx-auto animate-fade-in-up animation-delay-500">
             <div className="absolute -inset-x-8 -inset-y-4 bg-gradient-to-r from-primary/20 via-accent/10 to-secondary/20 blur-3xl opacity-50 pointer-events-none" />
@@ -60,34 +120,34 @@ export function HeroSection() {
                   <span className="w-3 h-3 rounded-full bg-warning/60" />
                   <span className="w-3 h-3 rounded-full bg-success/60" />
                 </div>
-                <div className="flex-1 mx-4 px-3 py-1 rounded-md bg-background/60 border border-border/40 text-xs text-muted-foreground text-center font-mono">
-                  tayari.app / resume / analysis
+                <div className="flex-1 mx-4 px-3 py-1 rounded-md bg-background/60 border border-border/40 text-xs text-muted-foreground text-center font-mono truncate transition-all">
+                  tayari.app / resume / {currentRole.url}
                 </div>
               </div>
               {/* Mock content */}
-              <div className="grid md:grid-cols-3 gap-4 p-6 text-left">
+              <div key={selectedRoleIdx} className="grid md:grid-cols-3 gap-4 p-6 text-left animate-fade-in">
                 <MockTile
                   icon={<FileText className="w-4 h-4" />}
                   label="Match Score"
-                  value="92"
+                  value={currentRole.score}
                   suffix="%"
-                  hint="vs. Senior Engineer @ Stripe"
+                  hint={`vs. ${currentRole.role}`}
                   accent="text-success"
                 />
                 <MockTile
                   icon={<CheckCircle2 className="w-4 h-4" />}
                   label="ATS Keywords"
-                  value="47"
-                  suffix="/50"
-                  hint="3 missing — added inline"
+                  value={currentRole.keywords}
+                  suffix={currentRole.keywordsSuffix}
+                  hint={currentRole.hint}
                   accent="text-primary"
                 />
                 <MockTile
                   icon={<TrendingUp className="w-4 h-4" />}
                   label="Roles Applied"
-                  value="128"
+                  value={currentRole.applied}
                   suffix=""
-                  hint="32 active conversations"
+                  hint={currentRole.appliedHint}
                   accent="text-accent"
                 />
               </div>

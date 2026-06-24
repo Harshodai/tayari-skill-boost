@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { CardHeader, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { FileText, Mic, Code, Swords, Search, Target, Check, ArrowRight } from "lucide-react";
 
 const products = [
@@ -19,7 +20,6 @@ const products = [
     href: "/resume",
     cta: "Optimize Your Resume",
     available: true,
-    gradient: "from-primary to-primary-dark",
   },
   {
     icon: Mic,
@@ -36,7 +36,6 @@ const products = [
     href: "/interview",
     cta: "Start Mock Interview",
     available: false,
-    gradient: "from-secondary to-success",
   },
   {
     icon: Swords,
@@ -53,7 +52,6 @@ const products = [
     href: "/interview",
     cta: "Enter the Arena",
     available: false,
-    gradient: "from-warning to-destructive",
   },
   {
     icon: Code,
@@ -70,7 +68,6 @@ const products = [
     href: "/interview",
     cta: "Start Practicing",
     available: false,
-    gradient: "from-primary to-secondary",
   },
   {
     icon: Search,
@@ -87,7 +84,6 @@ const products = [
     href: "/jobs",
     cta: "Find Your Job",
     available: false,
-    gradient: "from-secondary to-primary",
   },
   {
     icon: Target,
@@ -104,13 +100,12 @@ const products = [
     href: "/roadmap",
     cta: "Plan Your Career",
     available: false,
-    gradient: "from-primary-dark to-primary",
   },
 ];
 
 export function ProductsSection() {
   return (
-    <section className="py-20 lg:py-28 bg-card/50">
+    <section className="py-20 lg:py-28 bg-card/25 border-y border-border/40">
       <div className="container mx-auto px-4">
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
@@ -125,22 +120,22 @@ export function ProductsSection() {
         {/* Product Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
           {products.map((product, index) => (
-            <Card
+            <SpotlightCard
               key={product.title}
-              className="flex flex-col h-full overflow-hidden animate-fade-in-up"
-              style={{ animationDelay: `${index * 0.1}s` }}
+              className="flex flex-col h-full bg-card/45 border-input animate-fade-in-up"
+              style={{ animationDelay: `${index * 0.05}s` }}
             >
-              {/* Card Header with Gradient */}
-              <div className={`bg-gradient-to-r ${product.gradient} p-6`}>
+              {/* Card Header with unified icon style */}
+              <div className="p-6 pb-0 flex flex-col gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-background/20 backdrop-blur-sm">
-                    <product.icon className="w-6 h-6 text-primary-foreground" />
+                  <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary shrink-0">
+                    <product.icon className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-primary-foreground flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                       {product.title}
                       {!product.available && (
-                        <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-background/20 text-primary-foreground/80">
+                        <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20">
                           Soon
                         </span>
                       )}
@@ -149,8 +144,8 @@ export function ProductsSection() {
                 </div>
               </div>
 
-              <CardHeader className="pb-0">
-                <CardDescription className="text-base">
+              <CardHeader className="pb-0 pt-4">
+                <CardDescription className="text-sm leading-relaxed">
                   {product.description}
                 </CardDescription>
               </CardHeader>
@@ -158,7 +153,7 @@ export function ProductsSection() {
               <CardContent className="flex-1 pt-4">
                 <ul className="space-y-2">
                   {product.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <li key={feature} className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Check className="w-4 h-4 text-success flex-shrink-0" />
                       {feature}
                     </li>
@@ -166,19 +161,24 @@ export function ProductsSection() {
                 </ul>
               </CardContent>
 
-              <CardFooter>
+              <CardFooter className="pt-4">
                 <Button
                   variant={product.available ? "default" : "outline"}
                   className="w-full group"
-                  asChild
+                  asChild={product.available}
+                  disabled={!product.available}
                 >
-                  <Link to={product.href}>
-                    {product.cta}
-                    <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
-                  </Link>
+                  {product.available ? (
+                    <Link to={product.href}>
+                      {product.cta}
+                      <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
+                    </Link>
+                  ) : (
+                    <span>Coming Soon</span>
+                  )}
                 </Button>
               </CardFooter>
-            </Card>
+            </SpotlightCard>
           ))}
         </div>
       </div>

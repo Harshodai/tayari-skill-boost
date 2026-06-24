@@ -58,22 +58,22 @@ export default function ExtensionOnboarding() {
 
   const features = [
     {
-      icon: <Zap className="w-5 h-5 text-amber-500" />,
+      icon: <Zap className="w-5 h-5 text-warning" />,
       title: "Autofill Applications",
       description: "Automatically fill job application forms with your profile data",
     },
     {
-      icon: <Puzzle className="w-5 h-5 text-blue-500" />,
+      icon: <Puzzle className="w-5 h-5 text-info" />,
       title: "Job Detection",
       description: "Detects jobs on LinkedIn, Indeed, Greenhouse, and 8+ platforms",
     },
     {
-      icon: <Shield className="w-5 h-5 text-green-500" />,
+      icon: <Shield className="w-5 h-5 text-success" />,
       title: "Application Tracking",
       description: "Track your applications with one click from any job page",
     },
     {
-      icon: <Globe className="w-5 h-5 text-purple-500" />,
+      icon: <Globe className="w-5 h-5 text-primary" />,
       title: "Save Any Job",
       description: "Save jobs from any website to your Tayari dashboard",
     },
@@ -115,11 +115,11 @@ export default function ExtensionOnboarding() {
           </CardHeader>
           <CardContent className="space-y-4">
             {isInstalled === true ? (
-              <div className="flex items-center gap-3 text-green-600 bg-green-50 p-4 rounded-lg">
-                <CheckCircle className="w-5 h-5" />
+              <div className="flex items-center gap-3 text-success border border-success/20 bg-success/5 p-4 rounded-lg">
+                <CheckCircle className="w-5 h-5 animate-pulse-slow" />
                 <div>
                   <p className="font-medium">Extension is installed!</p>
-                  <p className="text-sm text-green-700">You're ready to start tracking applications.</p>
+                  <p className="text-sm text-success/90">You're ready to start tracking applications.</p>
                 </div>
               </div>
             ) : isInstalled === false ? (

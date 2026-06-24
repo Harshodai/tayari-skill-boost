@@ -145,10 +145,17 @@ const InterviewPrep = () => {
     setSelfScores((prev) => ({ ...prev, [qIdx]: star }));
   };
 
-  const typeColors: Record<string, string> = {
-    behavioral: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-    technical: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-    "system-design": "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  const getCategoryVariant = (category: string): "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "info" | "subtle" => {
+    switch (category?.toLowerCase()) {
+      case "behavioral":
+        return "info";
+      case "technical":
+        return "default";
+      case "system-design":
+        return "warning";
+      default:
+        return "secondary";
+    }
   };
 
   const questions = prepData?.questions || [];
@@ -276,7 +283,7 @@ const InterviewPrep = () => {
                   <CardHeader className="p-4 pb-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Badge className={typeColors[q.category] || ""}>{q.category}</Badge>
+                        <Badge variant={getCategoryVariant(q.category)}>{q.category}</Badge>
                         <span className="text-xs text-muted-foreground">Q{idx + 1}</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -288,7 +295,7 @@ const InterviewPrep = () => {
                                 onClick={() => handleStarClick(idx, star)}
                                 className={`text-sm ${
                                   (selfScores[idx] || 0) >= star
-                                    ? "text-yellow-500"
+                                    ? "text-warning"
                                     : "text-muted-foreground"
                                 }`}
                               >

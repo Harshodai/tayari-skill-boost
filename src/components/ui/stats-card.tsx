@@ -44,6 +44,7 @@ export interface StatsCardProps {
   colorScheme?: ColorScheme;
   description?: string;
   className?: string;
+  sparklineData?: number[];
 }
 
 const colorConfig: Record<
@@ -104,6 +105,27 @@ const trendConfig: Record<TrendDirection, { cls: string; icon: React.ReactNode }
   },
 };
 
+const generateSparklinePath = (data: number[], width: number, height: number) => {
+  if (data.length <= 1) return "";
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min === 0 ? 1 : max - min;
+  
+  return data
+    .map((val, idx) => {
+      const x = (idx / (data.length - 1)) * width;
+      const y = height - ((val - min) / range) * (height - 6) - 3; // padding top/bottom
+      return `${idx === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+};
+
+const generateSparklineAreaPath = (data: number[], width: number, height: number) => {
+  const linePath = generateSparklinePath(data, width, height);
+  if (!linePath) return "";
+  return `${linePath} L ${width} ${height} L 0 ${height} Z`;
+};
+
 function StatsCard({
   label,
   value,
@@ -113,8 +135,10 @@ function StatsCard({
   colorScheme = "default",
   description,
   className,
+  sparklineData,
 }: StatsCardProps) {
   const colors = colorConfig[colorScheme];
+  const uniqueId = React.useId().replace(/:/g, "");
 
   if (isLoading) {
     return (
@@ -137,12 +161,14 @@ function StatsCard({
   }
 
   const trendDef = trend ? trendConfig[trend.direction] : null;
+  const strokeColorClass = trend?.direction === "up" ? "text-success" : trend?.direction === "down" ? "text-destructive" : "text-primary";
+  const gradientStartColor = trend?.direction === "up" ? "hsl(var(--success))" : trend?.direction === "down" ? "hsl(var(--destructive))" : "hsl(var(--primary))";
 
   return (
     <div
       className={cn(
         "group relative rounded-xl border border-border/50 bg-card p-5",
-        "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg",
+        "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg overflow-hidden",
         colors.glow,
         className
       )}
@@ -174,6 +200,32 @@ function StatsCard({
           {value}
         </p>
       </div>
+
+      {/* Sparkline chart */}
+      {sparklineData && sparklineData.length > 1 && (
+        <div className="my-3 h-10 w-full relative">
+          <svg className="h-full w-full overflow-visible" viewBox="0 0 120 40" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id={`grad-${uniqueId}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={gradientStartColor} stopOpacity="0.15" />
+                <stop offset="100%" stopColor={gradientStartColor} stopOpacity="0.0" />
+              </linearGradient>
+            </defs>
+            <path
+              d={generateSparklineAreaPath(sparklineData, 120, 40)}
+              fill={`url(#grad-${uniqueId})`}
+              className="transition-all duration-300"
+            />
+            <path
+              d={generateSparklinePath(sparklineData, 120, 40)}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              className={cn("transition-all duration-300", strokeColorClass)}
+            />
+          </svg>
+        </div>
+      )}
 
       {/* Trend + Description */}
       <div className="mt-2 flex flex-wrap items-center gap-2">
