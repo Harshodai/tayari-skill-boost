@@ -266,6 +266,26 @@ serve(async (req) => {
       );
     }
 
+    // Bound input sizes to prevent runaway AI credit consumption / DoS.
+    if (resumeText.length > MAX_RESUME_CHARS) {
+      return new Response(
+        JSON.stringify({ success: false, error: `Resume exceeds ${MAX_RESUME_CHARS.toLocaleString()} character limit` }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (jobDescription && jobDescription.length > MAX_JD_CHARS) {
+      return new Response(
+        JSON.stringify({ success: false, error: `Job description exceeds ${MAX_JD_CHARS.toLocaleString()} character limit` }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (Array.isArray(appliedSuggestions) && appliedSuggestions.length > MAX_SUGGESTIONS) {
+      return new Response(
+        JSON.stringify({ success: false, error: `Too many applied suggestions (max ${MAX_SUGGESTIONS})` }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     console.log(`Generating resume with template: ${template}`);
     console.log(`Applied suggestions: ${appliedSuggestions.length}`);
     console.log(`Overall score: ${analysisResults.overallScore}`);
