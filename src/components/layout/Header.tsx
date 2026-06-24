@@ -69,19 +69,22 @@ export function Header() {
           <Logo />
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-1">
+          <nav className="hidden lg:flex items-center gap-0.5">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 to={link.href}
                 className={cn(
-                  "px-4 py-2 rounded-md text-sm font-medium transition-colors",
+                  "relative px-3.5 py-2 rounded-md text-sm font-medium transition-colors",
                   location.pathname === link.href
-                    ? "text-primary bg-primary/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                    ? "text-primary bg-primary/8 font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                 )}
               >
                 {link.label}
+                {location.pathname === link.href && (
+                  <span className="absolute bottom-0.5 left-3 right-3 h-0.5 rounded-full bg-primary" aria-hidden="true" />
+                )}
               </Link>
             ))}
           </nav>
@@ -154,11 +157,15 @@ export function Header() {
           <div className="lg:hidden flex items-center gap-1">
             <ThemeToggle />
             <button
-              className="p-2 text-foreground"
+              className={cn(
+                "p-2 rounded-md text-foreground transition-colors",
+                "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              )}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle menu"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
