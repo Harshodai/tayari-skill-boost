@@ -1,9 +1,31 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeadersFor } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://tayari-skill-boost.lovable.app',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// In-memory IP throttle for `record_failure` to prevent account-lockout DoS
+// (an unauthenticated attacker repeatedly recording failures for a victim's
+// email). Per-instance; combined with the per-email lockout this bounds abuse.
+const IP_FAILURE_WINDOW_MS = 60_000;
+const IP_FAILURE_MAX = 5;
+const ipFailureLog = new Map<string, number[]>();
+
+function getClientIp(req: Request): string {
+  const fwd = req.headers.get('x-forwarded-for') ?? '';
+  return fwd.split(',')[0].trim() || req.headers.get('x-real-ip') || 'unknown';
+}
+
+function ipRateLimitExceeded(ip: string): boolean {
+  const now = Date.now();
+  const recent = (ipFailureLog.get(ip) ?? []).filter(
+    (t) => now - t < IP_FAILURE_WINDOW_MS
+  );
+  if (recent.length >= IP_FAILURE_MAX) {
+    ipFailureLog.set(ip, recent);
+    return true;
+  }
+  recent.push(now);
+  ipFailureLog.set(ip, recent);
+  return false;
+}
 
 interface RateLimitRequest {
   email: string;
