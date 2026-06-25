@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.services.agent_router import AgentRouter
 from app.services import agent_db
+
+
+class FakeContextManager:
+    def __init__(self, conn):
+        self.conn = conn
+    async def __aenter__(self):
+        return self.conn
+    async def __aexit__(self, *args):
+        pass
+
 
 
 # ---------------------------------------------------------------------------
@@ -168,9 +178,9 @@ async def test_agent_router_tool_approval_logging():
 @pytest.mark.asyncio
 async def test_agent_db_create_agent_task(monkeypatch):
     """create_agent_task inserts record and returns task_id."""
-    fake_pool = AsyncMock()
+    fake_pool = MagicMock()
     fake_conn = AsyncMock()
-    fake_pool.acquire.return_value.__aenter__.return_value = fake_conn
+    fake_pool.acquire.return_value = FakeContextManager(fake_conn)
     monkeypatch.setattr(agent_db, "get_pool", AsyncMock(return_value=fake_pool))
 
     fake_conn.fetchrow.return_value = {"task_id": "new-task-uuid"}
@@ -187,9 +197,9 @@ async def test_agent_db_create_agent_task(monkeypatch):
 @pytest.mark.asyncio
 async def test_agent_db_get_agent_task(monkeypatch):
     """get_agent_task fetches a single task by ID and parses JSONB strings."""
-    fake_pool = AsyncMock()
+    fake_pool = MagicMock()
     fake_conn = AsyncMock()
-    fake_pool.acquire.return_value.__aenter__.return_value = fake_conn
+    fake_pool.acquire.return_value = FakeContextManager(fake_conn)
     monkeypatch.setattr(agent_db, "get_pool", AsyncMock(return_value=fake_pool))
 
     fake_conn.fetchrow.return_value = {
@@ -214,9 +224,9 @@ async def test_agent_db_get_agent_task(monkeypatch):
 @pytest.mark.asyncio
 async def test_agent_db_list_agent_tasks(monkeypatch):
     """list_agent_tasks returns a list of tasks for the user."""
-    fake_pool = AsyncMock()
+    fake_pool = MagicMock()
     fake_conn = AsyncMock()
-    fake_pool.acquire.return_value.__aenter__.return_value = fake_conn
+    fake_pool.acquire.return_value = FakeContextManager(fake_conn)
     monkeypatch.setattr(agent_db, "get_pool", AsyncMock(return_value=fake_pool))
 
     fake_conn.fetch.return_value = [
@@ -242,9 +252,9 @@ async def test_agent_db_list_agent_tasks(monkeypatch):
 @pytest.mark.asyncio
 async def test_agent_db_update_agent_task_status(monkeypatch):
     """update_agent_task_status updates the status of the task."""
-    fake_pool = AsyncMock()
+    fake_pool = MagicMock()
     fake_conn = AsyncMock()
-    fake_pool.acquire.return_value.__aenter__.return_value = fake_conn
+    fake_pool.acquire.return_value = FakeContextManager(fake_conn)
     monkeypatch.setattr(agent_db, "get_pool", AsyncMock(return_value=fake_pool))
 
     success = await agent_db.update_agent_task_status(
@@ -261,9 +271,9 @@ async def test_agent_db_update_agent_task_status(monkeypatch):
 @pytest.mark.asyncio
 async def test_agent_db_task_attempts(monkeypatch):
     """create and update agent task attempt executes properly."""
-    fake_pool = AsyncMock()
+    fake_pool = MagicMock()
     fake_conn = AsyncMock()
-    fake_pool.acquire.return_value.__aenter__.return_value = fake_conn
+    fake_pool.acquire.return_value = FakeContextManager(fake_conn)
     monkeypatch.setattr(agent_db, "get_pool", AsyncMock(return_value=fake_pool))
 
     fake_conn.fetchrow.return_value = {"attempt_id": "attempt-uuid-1"}
@@ -287,9 +297,9 @@ async def test_agent_db_task_attempts(monkeypatch):
 @pytest.mark.asyncio
 async def test_agent_db_router_events(monkeypatch):
     """create and list agent router events executes properly."""
-    fake_pool = AsyncMock()
+    fake_pool = MagicMock()
     fake_conn = AsyncMock()
-    fake_pool.acquire.return_value.__aenter__.return_value = fake_conn
+    fake_pool.acquire.return_value = FakeContextManager(fake_conn)
     monkeypatch.setattr(agent_db, "get_pool", AsyncMock(return_value=fake_pool))
 
     success = await agent_db.create_agent_router_event(
@@ -316,4 +326,5 @@ async def test_agent_db_router_events(monkeypatch):
     assert len(events) == 1
     assert events[0]["event_id"] == "event-uuid-1"
     assert events[0]["payload_json"] == {"step": 1}
+
 
