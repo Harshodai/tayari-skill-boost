@@ -13,6 +13,21 @@ import type {
   DashboardStats,
 } from "./types";
 
+export type {
+  Resume,
+  JobDescription,
+  AnalysisResult,
+  CreateResumeRequest,
+  CreateJDRequest,
+  AnalyzeRequest,
+  Profile,
+  SavedJob,
+  AutopilotRun,
+  Application,
+  AutopilotSchedule,
+  DashboardStats,
+};
+
 const API_URL =
   import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 const USE_SELF_HOSTED = import.meta.env.VITE_USE_SELF_HOSTED === "true";

@@ -186,7 +186,7 @@ function ExtensionMockup() {
               <p className="text-[8px] text-muted-foreground truncate leading-none">Senior React Dev</p>
             </div>
           </div>
-          <Button size="xs" className="w-full text-[9px] py-1 h-6">Save to Tayari</Button>
+          <Button size="sm" className="w-full text-[9px] py-1 h-6">Save to Tayari</Button>
         </div>
       </div>
     </div>
