@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { searchJobs, saveJob, listSavedJobs, getProfile, listResumes } from "@/api";
+import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes } from "@/api";
 import { useAutomation } from "@/contexts/AutomationContext";
 import { cn } from "@/lib/utils";
 
@@ -71,6 +71,8 @@ const JobSearch = () => {
   const [results, setResults] = useState<Job[]>([]);
   const [selectedIdx, setSelectedIdx] = useState<number>(0);
   const [isSearching, setIsSearching] = useState(false);
+  const [isAgentSearching, setIsAgentSearching] = useState(false);
+  const [visibleAgentEvents, setVisibleAgentEvents] = useState<any[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [alertOn, setAlertOn] = useState(false);
 
@@ -105,6 +107,8 @@ const JobSearch = () => {
   const handleSearch = async () => {
     if (!query.trim()) return;
     setIsSearching(true);
+    setIsAgentSearching(false);
+    setVisibleAgentEvents([]);
     setSearchError(null);
     try {
       const profilePayload = profile
@@ -137,6 +141,60 @@ const JobSearch = () => {
       toast.error(msg);
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleAgentSearch = async () => {
+    if (!query.trim()) return;
+    setIsSearching(true);
+    setIsAgentSearching(true);
+    setSearchError(null);
+    setVisibleAgentEvents([]);
+    setResults([]);
+
+    try {
+      const profilePayload = profile
+        ? {
+            desired_roles: profile.desired_roles || [],
+            skills: profile.skills || [],
+            locations: profile.locations || [],
+            experience_years: profile.experience_years || 0,
+            open_to_remote: profile.open_to_remote || remoteOnly,
+          }
+        : { open_to_remote: remoteOnly };
+      const resumeText =
+        resumes && resumes.length > 0
+          ? ((resumes[0] as any).optimized_text || resumes[0].original_text || "")
+          : "";
+
+      const res = await agentSearch({
+        query,
+        location,
+        profile: profilePayload,
+        resume_text: resumeText,
+        top_n: 20,
+      });
+
+      const events = res?.events || [];
+      const finalJobs = res?.result?.report?.jobs || res?.result?.jobs || [];
+
+      // Stream events one by one for visual effect
+      for (let i = 0; i < events.length; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        setVisibleAgentEvents((prev) => [...prev, events[i]]);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      setResults(finalJobs);
+      setSelectedIdx(0);
+      if (finalJobs.length === 0) toast.info("No jobs matched. Try broader keywords.");
+    } catch (err: any) {
+      const msg = err.message || "Agent search failed";
+      setSearchError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSearching(false);
+      setIsAgentSearching(false);
     }
   };
 
@@ -206,12 +264,25 @@ const JobSearch = () => {
                 className="pl-10 h-11 bg-background/60 border-border/70 text-sm"
               />
             </div>
-            <Button onClick={handleSearch} disabled={isSearching} className="h-11 min-w-[120px]">
-              {isSearching ? (
+            <Button onClick={handleSearch} disabled={isSearching} variant="outline" className="h-11 min-w-[100px] border-border/60">
+              {isSearching && !isAgentSearching ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
                   <Search className="w-4 h-4 mr-2" /> Search
+                </>
+              )}
+            </Button>
+            <Button 
+              onClick={handleAgentSearch} 
+              disabled={isSearching} 
+              className="h-11 min-w-[140px] bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-sm"
+            >
+              {isSearching && isAgentSearching ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2 text-white animate-pulse" /> Agent Search
                 </>
               )}
             </Button>
@@ -224,6 +295,29 @@ const JobSearch = () => {
           </div>
         </div>
       </div>
+
+      {visibleAgentEvents.length > 0 && (
+        <Card className="mb-6 border-primary/20 bg-primary/5 backdrop-blur p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+            <h4 className="text-sm font-bold text-primary font-sans">Hermes Search Agent Execution Log</h4>
+          </div>
+          <div className="space-y-2 max-h-40 overflow-y-auto font-sans text-xs">
+            {visibleAgentEvents.map((evt, idx) => (
+              <div key={idx} className="flex items-center gap-2 text-foreground/90 animate-fade-in">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                <span>{evt.message}</span>
+              </div>
+            ))}
+            {isAgentSearching && (
+              <div className="flex items-center gap-2 text-muted-foreground italic animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                <span>Agent is thinking...</span>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       {searchError && (
         <Card className="mb-4 border-destructive/40 bg-destructive/5 p-3 flex items-center gap-3">

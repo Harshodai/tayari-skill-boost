@@ -130,22 +130,29 @@ func (s *Server) routes() {
 		r.Put("/api/v1/profile", s.handleUpdateProfile)
 
 		// Resume upload (multipart, archive compatible)
+		r.Post("/api/resumes", s.handleCreateResume)
 		r.Post("/api/resumes/upload", s.handleUploadResumeMultipart)
 		r.Get("/api/resumes", s.handleListResumes)
+		r.Post("/api/resumes/analyze-text", s.handleAnalyzeText)
 		r.Get("/api/resumes/{id}", s.handleGetResume)
 		r.Post("/api/resumes/{id}/optimize", s.handleOptimizeResume)
-		r.Post("/api/resumes/{id}/analyze", s.handleDeepATS)
+		r.Post("/api/resumes/{id}/analyze", s.handleAnalyzeResume)
 		r.Post("/api/resumes/{id}/export", s.handleExportResume)
+		r.Get("/api/resumes/{id}/docx", s.handleDownloadResumeDocx)
+		r.Get("/api/resume-versions/{id}/docx", s.handleDownloadVersionDocx)
 		// Also keep v1 routes
 		r.Post("/api/v1/resumes", s.handleCreateResume)
 		r.Get("/api/v1/resumes", s.handleListResumes)
+		r.Post("/api/v1/resumes/analyze-text", s.handleAnalyzeText)
 		r.Get("/api/v1/resumes/{id}", s.handleGetResume)
 		r.Put("/api/v1/resumes/{id}", s.handleUpdateResume)
 		r.Delete("/api/v1/resumes/{id}", s.handleDeleteResume)
 		r.Post("/api/v1/resumes/{id}/optimize", s.handleOptimizeResume)
-		r.Post("/api/v1/resumes/{id}/analyze", s.handleDeepATS)
+		r.Post("/api/v1/resumes/{id}/analyze", s.handleAnalyzeResume)
 		r.Post("/api/v1/resumes/{id}/ats-deep", s.handleDeepATS)
 		r.Post("/api/v1/resumes/{id}/export", s.handleExportResume)
+		r.Get("/api/v1/resumes/{id}/docx", s.handleDownloadResumeDocx)
+		r.Get("/api/v1/resume-versions/{id}/docx", s.handleDownloadVersionDocx)
 
 		// Cover Letter
 		r.Post("/api/cover-letter/generate", s.handleCoverLetterGenerate)
@@ -175,15 +182,16 @@ func (s *Server) routes() {
 		r.Put("/api/v1/job-descriptions/{id}", s.handleUpdateJD)
 		r.Delete("/api/v1/job-descriptions/{id}", s.handleDeleteJD)
 
-		// Job Search (archive compatible)
+		// Job Search
 		r.Get("/api/jobs/search", s.handleJobSearchGET)
 		r.Post("/api/jobs/search", s.handleJobSearch)
-		r.Post("/api/jobs/smart-search", s.handleJobSearch)
+		r.Post("/api/jobs/agent-search", s.handleAgentSearch)
 		r.Post("/api/jobs/save", s.handleSaveJob)
 		r.Get("/api/jobs/saved", s.handleListSavedJobs)
 		r.Delete("/api/jobs/saved/{id}", s.handleDeleteSavedJob)
 		// Also keep v1 routes
 		r.Post("/api/v1/jobs/search", s.handleJobSearch)
+		r.Post("/api/v1/jobs/agent-search", s.handleAgentSearch)
 		r.Post("/api/v1/jobs/save", s.handleSaveJob)
 		r.Get("/api/v1/jobs/saved", s.handleListSavedJobs)
 		r.Delete("/api/v1/jobs/saved/{id}", s.handleDeleteSavedJob)
@@ -244,6 +252,18 @@ func (s *Server) routes() {
 
 		// Web-Push Notifications
 		s.routesPush(r)
+
+		// Knowledge Hub (Omni-Save)
+		s.routesKnowledgeHub(r)
+
+		// Per-Application Extra features (notes, voice notes, interview questions, email parse)
+		s.routesApplicationsExtra(r)
+
+		// Gmail OAuth & sync integration
+		s.routesGmail(r)
+
+		// Chrome Extension endpoints
+		s.routesExtensionExtra(r)
 
 
 
@@ -461,6 +481,7 @@ func (s *Server) handleCreateResume(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Title        string `json:"title"`
 		OriginalText string `json:"original_text"`
+		SourceText   string `json:"source_text"` // Archive compatibility
 		FileType     string `json:"file_type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -472,19 +493,24 @@ func (s *Server) handleCreateResume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	text := req.OriginalText
+	if text == "" {
+		text = req.SourceText
+	}
+
 	user, _ := r.Context().Value(contextKeyUser).(*models.User)
 	userID := user.ID
 
 	query := `INSERT INTO resumes (user_id, title, original_text, file_type, status, created_at) VALUES ($1, $2, $3, $4, 'uploaded', NOW()) RETURNING id, created_at`
 	var id int
 	var createdAt time.Time
-	err := s.DB.Conn.QueryRowContext(r.Context(), query, userID, req.Title, req.OriginalText, req.FileType).Scan(&id, &createdAt)
+	err := s.DB.Conn.QueryRowContext(r.Context(), query, userID, req.Title, text, req.FileType).Scan(&id, &createdAt)
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, "Failed to create resume")
 		return
 	}
 
-	s.respondJSON(w, http.StatusCreated, map[string]interface{}{
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
 		"id":         id,
 		"user_id":    userID,
 		"title":      req.Title,

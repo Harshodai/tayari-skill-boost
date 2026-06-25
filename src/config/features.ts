@@ -24,6 +24,7 @@ const CONFIG = {
     communicationHub: [true, true],
     interviewAI: [true, true],
     browserExtension: [false, false],
+    knowledgeHub: [true, true],
   },
 
   // Navigation Links
@@ -32,6 +33,7 @@ const CONFIG = {
     { label: "Home", href: "/", feature: null },
     { label: "Resume Optimizer", href: "/resume", feature: "resumeOptimizer" },
     { label: "Career Roadmap", href: "/roadmap", feature: "careerRoadmap" },
+    { label: "Knowledge Hub", href: "/knowledge-hub", feature: "knowledgeHub" },
     { label: "Interview Board", href: "/interview", feature: "interviewPrep" },
     { label: "Interview Prep", href: "/interview/prep", feature: "interviewAI" },
     { label: "Job Search", href: "/jobs", feature: "jobSearch" },

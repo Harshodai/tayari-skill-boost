@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS resumes (
     user_id         TEXT NOT NULL,
     title           TEXT NOT NULL DEFAULT 'Untitled Resume',
     original_text   TEXT,
+    optimized_text  TEXT,
     parsed_json       TEXT,                    -- JSON-serialized structured resume
     file_url        TEXT,
     file_type       TEXT,

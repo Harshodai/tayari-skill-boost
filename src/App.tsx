@@ -41,6 +41,7 @@ import Profile from "./pages/Profile";
 import CoverLetter from "./pages/CoverLetter";
 import CommunicationHub from "./pages/CommunicationHub";
 import InterviewPrep from "./pages/InterviewPrep";
+import KnowledgeHub from "./pages/KnowledgeHub";
 import ExtensionOnboarding from "./pages/ExtensionOnboarding";
 import ReviewQueue from "./pages/ReviewQueue";
 import PredictiveAnalytics from "./pages/PredictiveAnalytics";
@@ -148,6 +149,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Profile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/knowledge-hub"
+                element={
+                  <ProtectedRoute>
+                    <KnowledgeHub />
                   </ProtectedRoute>
                 }
               />

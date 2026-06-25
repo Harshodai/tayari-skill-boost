@@ -187,6 +187,7 @@ function setupEventListeners() {
     try {
       const info = await chrome.tabs.sendMessage(currentTab.id, { action: 'detect_job' });
       if (info && info.detected) {
+        info.stage = $('stage-selector').value;
         const result = await sendMessage('save_job', info);
         if (result.success) {
           showMessage('Job saved to Tayari! 🎉', 'success');
@@ -197,6 +198,63 @@ function setupEventListeners() {
       }
     } catch (e) {
       showMessage('Error saving job', 'error');
+    }
+  });
+
+  $('btn-ats').addEventListener('click', async () => {
+    if (!currentTab) return;
+    
+    $('ats-results').classList.add('hidden');
+    showMessage('Analyzing against your latest resume...', 'info');
+    
+    try {
+      const info = await chrome.tabs.sendMessage(currentTab.id, { action: 'detect_job' });
+      const jd = (info && info.description) || "";
+      if (jd.length < 40) {
+        showMessage("Couldn't read job description from this page", 'error');
+        return;
+      }
+      
+      const res = await sendMessage('quick_ats', { job_description: jd });
+      if (res && res.success && res.result) {
+        $('ats-results').classList.remove('hidden');
+        const r = res.result;
+        $('ats-score-value').textContent = r.overall_score ?? '0';
+        $('ats-summary').textContent = r.summary || '';
+        
+        // matched
+        const matchedDiv = $('ats-matched');
+        matchedDiv.innerHTML = '';
+        if (r.matched_keywords && r.matched_keywords.length > 0) {
+          r.matched_keywords.slice(0, 8).forEach(k => {
+            const pill = document.createElement('span');
+            pill.className = 'pill ok';
+            pill.textContent = k;
+            matchedDiv.appendChild(pill);
+          });
+        } else {
+          matchedDiv.innerHTML = '<span class="text-muted">None matched</span>';
+        }
+        
+        // missing
+        const missingDiv = $('ats-missing');
+        missingDiv.innerHTML = '';
+        if (r.missing_keywords && r.missing_keywords.length > 0) {
+          r.missing_keywords.slice(0, 8).forEach(k => {
+            const pill = document.createElement('span');
+            pill.className = 'pill bad';
+            pill.textContent = k;
+            missingDiv.appendChild(pill);
+          });
+        } else {
+          missingDiv.innerHTML = '<span class="text-muted">None missing</span>';
+        }
+      } else {
+        showMessage(res?.error || 'ATS analysis failed', 'error');
+      }
+    } catch (e) {
+      console.error(e);
+      showMessage('Error running ATS analysis', 'error');
     }
   });
 

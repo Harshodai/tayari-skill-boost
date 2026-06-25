@@ -483,13 +483,126 @@ from app.api.hermes_routes import hermes_router  # noqa: E402
 from app.api.career_intelligence import router as career_intel_router  # noqa: E402
 from app.api.voice_stream import router as voice_stream_router  # noqa: E402
 from app.api.predictive import router as predictive_router  # noqa: E402
+from app.api.knowledge_hub import router as knowledge_hub_router  # noqa: E402
+from app.api.gmail_routes import router as gmail_ai_router  # noqa: E402
 
 app.include_router(hermes_router)
 app.include_router(career_intel_router)
 app.include_router(voice_stream_router)
 app.include_router(predictive_router)
+app.include_router(knowledge_hub_router)
+app.include_router(gmail_ai_router)
 
 
+
+
+# ---------------------------------------------------------------------------
+# Archive-ported endpoints (interview questions, voice transcription, email parse, agent-search)
+# ---------------------------------------------------------------------------
+
+import os  # noqa: E402  (already imported above, re-import safe)
+import uuid  # noqa: E402
+from fastapi import UploadFile, File as FastAPIFile  # noqa: E402
+
+from app.services.llm_service import interview_questions as _interview_questions_fn  # noqa: E402
+from app.services.transcribe import transcribe as _transcribe_fn  # noqa: E402
+from app.services.llm_service import analyze_resume as _analyze_resume_fn  # noqa: E402
+
+_VOICE_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "voice")
+os.makedirs(_VOICE_UPLOAD_DIR, exist_ok=True)
+
+
+class AnalyzeTextRequest(BaseModel):
+    resume_text: str
+    job_description: str
+    custom_instructions: Optional[str] = ""
+
+
+@app.post("/api/v1/resumes/analyze-text")
+@app.post("/api/resumes/analyze-text")
+async def analyze_text_endpoint(payload: AnalyzeTextRequest):
+    """Analyze arbitrary resume text (used to score an optimized rewrite for before/after stats)."""
+    try:
+        result = await _analyze_resume_fn(
+            payload.resume_text,
+            payload.job_description,
+            payload.custom_instructions or ""
+        )
+        return {"result": result}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"AI analysis failed: {exc}") from exc
+class InterviewQuestionsRequest(BaseModel):
+    profile_summary: Optional[str] = ""
+    application: dict = {}
+    jd: Optional[str] = ""
+
+
+@app.post("/api/v1/applications/interview-questions")
+@app.post("/api/applications/interview-questions")
+async def generate_interview_questions(payload: InterviewQuestionsRequest):
+    """Generate per-application interview intel (commonly asked questions, prep focus)."""
+    try:
+        result = await _interview_questions_fn(
+            payload.profile_summary or "",
+            payload.application,
+            payload.jd or "",
+        )
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Interview questions AI failed: {exc}") from exc
+
+
+@app.post("/api/v1/voice/transcribe")
+@app.post("/api/voice/transcribe")
+async def transcribe_audio(
+    audio: UploadFile = FastAPIFile(...),
+):
+    """Transcribe an uploaded audio file. Returns {transcript: str}."""
+    content_type = audio.content_type or "audio/webm"
+    fname = f"{uuid.uuid4().hex}.webm"
+    fpath = os.path.join(_VOICE_UPLOAD_DIR, fname)
+    data = await audio.read()
+    with open(fpath, "wb") as f:
+        f.write(data)
+    transcript = await _transcribe_fn(fpath, content_type)
+    return {"transcript": transcript, "file": fname}
+
+
+class AgentSearchRequest(BaseModel):
+    query: Optional[str] = None
+    location: str = ""
+    profile: Optional[dict] = None
+    resume_text: Optional[str] = None
+    top_n: int = 12
+
+
+@app.post("/api/v1/jobs/agent-search")
+@app.post("/api/jobs/agent-search")
+async def agent_search(payload: AgentSearchRequest):
+    """Agentic job search — wraps smart_search and emits an activity-log event list."""
+    import asyncio as _asyncio
+    from app.services import job_agent as _job_agent
+
+    events: list[dict] = []
+
+    def _emit(kind: str, msg: str, data: dict | None = None):
+        events.append({"type": kind, "message": msg, "data": data or {}})
+
+    _emit("start", "Agentic search initiated")
+    try:
+        result = await _job_agent.smart_search(
+            payload.query,
+            payload.location,
+            payload.profile,
+            payload.resume_text,
+            top_n=payload.top_n,
+            scrape_enrich=True,
+        )
+        _emit("complete", f"Found {len(result.get('jobs', []))} ranked matches")
+        return {"events": events, "result": result}
+    except Exception as exc:
+        _emit("error", str(exc))
+        raise HTTPException(status_code=502, detail=f"Agent search failed: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------

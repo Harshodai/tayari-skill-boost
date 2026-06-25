@@ -5,9 +5,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+
+	"tayari-backend/internal/models"
 )
 
 // -------------------------------------------------------------------
@@ -28,11 +33,22 @@ func (s *Server) routesHermes(r chi.Router) {
 	r.Get("/api/v1/hermes/jobs/{board}", s.handleHermesJobsBoard)
 	r.Get("/api/v1/hermes/runs", s.handleHermesRunsList)
 	r.Get("/api/v1/hermes/runs/{id}", s.handleHermesRunDetail)
+	r.Get("/api/v1/hermes/context", s.handleHermesContext)
+	r.Get("/api/v1/hermes/status", s.handleHermesStatus)
+	r.Post("/api/v1/hermes/sessions", s.handleHermesCreateSession)
+	r.Post("/api/v1/hermes/sessions/{id}/events", s.handleHermesAddEvent)
+	r.Get("/api/v1/hermes/sessions/{id}", s.handleHermesGetSession)
+	
 	// archive-compatible aliases (subset the frontend actually calls)
 	r.Post("/api/hermes/scrape", s.handleHermesScrape)
 	r.Get("/api/hermes/jobs/{board}", s.handleHermesJobsBoard)
 	r.Get("/api/hermes/runs", s.handleHermesRunsList)
 	r.Get("/api/hermes/runs/{id}", s.handleHermesRunDetail)
+	r.Get("/api/hermes/context", s.handleHermesContext)
+	r.Get("/api/hermes/status", s.handleHermesStatus)
+	r.Post("/api/hermes/sessions", s.handleHermesCreateSession)
+	r.Post("/api/hermes/sessions/{id}/events", s.handleHermesAddEvent)
+	r.Get("/api/hermes/sessions/{id}", s.handleHermesGetSession)
 }
 
 // handleHermesScrape forwards the scrape request body to Python.
@@ -139,4 +155,246 @@ func isPythonNotFound(err error) bool {
 	}
 	// ai.Client.GetJSON error: "AI service returned 404: <body>"
 	return strings.Contains(err.Error(), " 404:")
+}
+
+func (s *Server) handleHermesContext(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "User not found in context")
+		return
+	}
+
+	// 1. Fetch profile
+	var p models.Profile
+	var profileMap map[string]interface{}
+	queryProfile := `SELECT id, full_name, email, headline, summary, skills, desired_roles, locations, experience_years, open_to_remote, links FROM profiles WHERE id=$1`
+	err := s.DB.Conn.QueryRowContext(r.Context(), queryProfile, user.ID).Scan(
+		&p.ID, &p.FullName, &p.Email, &p.Headline, &p.Summary, &p.Skills, &p.DesiredRoles, &p.Locations, &p.ExperienceYears, &p.OpenToRemote, &p.Links,
+	)
+	if err == nil {
+		profileMap = map[string]interface{}{
+			"profile_id":       p.ID,
+			"full_name":        p.FullName,
+			"email":            p.Email,
+			"headline":         p.Headline,
+			"summary":          p.Summary,
+			"skills":           p.Skills,
+			"desired_roles":    p.DesiredRoles,
+			"locations":        p.Locations,
+			"experience_years": p.ExperienceYears,
+			"open_to_remote":   p.OpenToRemote,
+			"links":            p.Links,
+		}
+	} else {
+		// fallback empty profile
+		profileMap = map[string]interface{}{
+			"profile_id": user.ID,
+			"email":      user.Email,
+		}
+	}
+
+	// Build a profile summary text for the LLM
+	var summaryParts []string
+	if name, ok := profileMap["full_name"].(string); ok && name != "" {
+		summaryParts = append(summaryParts, "Name: "+name)
+	}
+	if headline, ok := profileMap["headline"].(string); ok && headline != "" {
+		summaryParts = append(summaryParts, "Headline: "+headline)
+	}
+	if summary, ok := profileMap["summary"].(string); ok && summary != "" {
+		summaryParts = append(summaryParts, "Summary: "+summary)
+	}
+	if skillsRaw, ok := profileMap["skills"]; ok && skillsRaw != nil {
+		var skills []string
+		if b, err := json.Marshal(skillsRaw); err == nil {
+			_ = json.Unmarshal(b, &skills)
+		}
+		if len(skills) > 0 {
+			summaryParts = append(summaryParts, "Skills: "+strings.Join(skills, ", "))
+		}
+	}
+	if rolesRaw, ok := profileMap["desired_roles"]; ok && rolesRaw != nil {
+		var roles []string
+		if b, err := json.Marshal(rolesRaw); err == nil {
+			_ = json.Unmarshal(b, &roles)
+		}
+		if len(roles) > 0 {
+			summaryParts = append(summaryParts, "Desired Roles: "+strings.Join(roles, ", "))
+		}
+	}
+	profileSummaryText := strings.Join(summaryParts, " | ")
+
+	// 2. Fetch latest resume
+	var resumeID interface{}
+	var resumeText string
+	queryResume := `SELECT id, COALESCE(optimized_text, original_text) FROM resumes WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1`
+	err = s.DB.Conn.QueryRowContext(r.Context(), queryResume, user.ID).Scan(&resumeID, &resumeText)
+	latestResume := map[string]interface{}{
+		"id":   nil,
+		"text": "",
+	}
+	if err == nil {
+		latestResume["id"] = resumeID
+		latestResume["text"] = resumeText
+	}
+
+	// 3. Return aggregated context
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"user": map[string]interface{}{
+			"id":    user.ID,
+			"email": user.Email,
+		},
+		"profile":         profileMap,
+		"profile_summary": profileSummaryText,
+		"latest_resume":   latestResume,
+		"instructions": "Use the Tayari Job Companion API (jobs/search, jobs/company-research, applications) on behalf of " +
+			"this user. Prefer profile desired_roles, skills, and locations. Operate in " +
+			"Review Mode: queue applications for human approval, never auto-submit without consent.",
+	})
+}
+
+func (s *Server) handleHermesStatus(w http.ResponseWriter, r *http.Request) {
+	configured := os.Getenv("HERMES_BASE_URL") != "" || os.Getenv("HERMES_AGENT_URL") != ""
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{"configured": configured})
+}
+
+func (s *Server) handleHermesCreateSession(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req struct {
+		Goal string `json:"goal"`
+		Kind string `json:"kind"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if req.Goal == "" {
+		s.respondError(w, http.StatusBadRequest, "goal is required")
+		return
+	}
+	if req.Kind == "" {
+		req.Kind = "job_search"
+	}
+
+	sessionID := uuid.New()
+	_, err := s.DB.Conn.ExecContext(r.Context(), `
+		INSERT INTO hermes_sessions (id, user_id, goal, kind, status, events, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, 'running', '[]'::jsonb, NOW(), NOW())`,
+		sessionID, user.ID, req.Goal, req.Kind)
+	if err != nil {
+		log.Printf("handleHermesCreateSession: insert failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to create session")
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"id":         sessionID.String(),
+		"user_id":    user.ID.String(),
+		"goal":       req.Goal,
+		"kind":       req.Kind,
+		"status":     "running",
+		"events":     []interface{}{},
+		"created_at": time.Now().UTC().Format(time.RFC3339),
+		"updated_at": time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (s *Server) handleHermesAddEvent(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	sessionID := chi.URLParam(r, "id")
+
+	var req struct {
+		Type    string `json:"type"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if req.Type == "" {
+		s.respondError(w, http.StatusBadRequest, "type is required")
+		return
+	}
+
+	event := map[string]interface{}{
+		"id":      uuid.New().String(),
+		"type":    req.Type,
+		"message": req.Message,
+		"at":      time.Now().UTC().Format(time.RFC3339),
+	}
+	eventJSON, _ := json.Marshal(event)
+
+	_, err := s.DB.Conn.ExecContext(r.Context(), `
+		UPDATE hermes_sessions
+		SET events = COALESCE(events, '[]'::jsonb) || $1::jsonb,
+		    updated_at = NOW()
+		WHERE id = $2::uuid AND user_id = $3`,
+		string(eventJSON), sessionID, user.ID)
+	if err != nil {
+		log.Printf("handleHermesAddEvent: update failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to add event")
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"ok":    true,
+		"event": event,
+	})
+}
+
+func (s *Server) handleHermesGetSession(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	sessionID := chi.URLParam(r, "id")
+
+	var (
+		id        uuid.UUID
+		goal      string
+		kind      string
+		status    string
+		eventsRaw []byte
+		createdAt time.Time
+		updatedAt time.Time
+	)
+
+	err := s.DB.Conn.QueryRowContext(r.Context(), `
+		SELECT id, goal, kind, status, events, created_at, updated_at
+		FROM hermes_sessions
+		WHERE id = $1::uuid AND user_id = $2`,
+		sessionID, user.ID).Scan(&id, &goal, &kind, &status, &eventsRaw, &createdAt, &updatedAt)
+	if err != nil {
+		s.respondError(w, http.StatusNotFound, "Session not found")
+		return
+	}
+
+	var events []interface{}
+	_ = json.Unmarshal(eventsRaw, &events)
+	if events == nil {
+		events = []interface{}{}
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"id":         id.String(),
+		"user_id":    user.ID.String(),
+		"goal":       goal,
+		"kind":       kind,
+		"status":     status,
+		"events":     events,
+		"created_at": createdAt.Format(time.RFC3339),
+		"updated_at": updatedAt.Format(time.RFC3339),
+	})
 }

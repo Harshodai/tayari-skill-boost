@@ -103,31 +103,51 @@ async function handleSaveJob(job) {
   }
   
   try {
-    const res = await fetch(`${config.apiUrl}/v1/jobs/save`, {
+    const res = await fetch(`${config.apiUrl}/v1/extension/capture`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.token}`
       },
       body: JSON.stringify({
-        dedupe_key: `${job.company}-${job.title}-${job.location || 'unknown'}-${job.platform || 'unknown'}`,
-        job: {
-          title: job.title,
-          company: job.company,
-          location: job.location || '',
-          description: job.description || '',
-          salary: job.salary || '',
-          url: job.url,
-          platform: job.platform || 'unknown',
-          detected_at: new Date().toISOString()
-        },
-        status: 'saved'
+        title: job.title,
+        company: job.company,
+        location: job.location || '',
+        url: job.url,
+        description: job.description || '',
+        stage: job.stage || 'saved'
       })
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return { success: true };
   } catch (err) {
     console.error('Tayari: save job failed', err);
+    return { success: false, error: err.message };
+  }
+}
+
+async function handleQuickATS(jd) {
+  const config = await getConfig();
+  if (!config.token) {
+    return { success: false, error: 'Not authenticated' };
+  }
+  
+  try {
+    const res = await fetch(`${config.apiUrl}/v1/extension/quick-ats`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.token}`
+      },
+      body: JSON.stringify({
+        job_description: jd
+      })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return { success: true, result: data };
+  } catch (err) {
+    console.error('Tayari: quick-ats failed', err);
     return { success: false, error: err.message };
   }
 }
@@ -216,6 +236,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     switch (request.action) {
       case 'save_job': {
         const result = await handleSaveJob(request.job);
+        sendResponse(result);
+        break;
+      }
+      
+      case 'quick_ats': {
+        const result = await handleQuickATS(request.job_description);
         sendResponse(result);
         break;
       }

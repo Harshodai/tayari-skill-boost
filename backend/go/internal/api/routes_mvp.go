@@ -151,6 +151,68 @@ func (s *Server) handleJobSearch(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, http.StatusOK, result)
 }
 
+func (s *Server) handleAgentSearch(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "User not found in context")
+		return
+	}
+
+	var req map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	result, err := s.AI.PostJSON("/api/v1/jobs/agent-search", req)
+	if err != nil {
+		log.Printf("handleAgentSearch: AI call failed: %v", err)
+		s.respondError(w, http.StatusBadGateway, "Agent search failed")
+		return
+	}
+
+	// Format result to match integration test schema: {session_id, events, count, jobs, top_research}
+	var pyResp struct {
+		Events []interface{} `json:"events"`
+		Result struct {
+			Query      string        `json:"query"`
+			TotalFound int           `json:"total_found"`
+			Results    []interface{} `json:"results"`
+		} `json:"result"`
+	}
+
+	// Re-marshal and unmarshal result to parse properly
+	resultBytes, _ := json.Marshal(result)
+	_ = json.Unmarshal(resultBytes, &pyResp)
+
+	sessionID := uuid.New()
+	eventsJSON, _ := json.Marshal(pyResp.Events)
+
+	queryStr := ""
+	if q, ok := req["query"].(string); ok {
+		queryStr = q
+	}
+
+	_, err = s.DB.Conn.ExecContext(r.Context(), `
+		INSERT INTO hermes_sessions (id, user_id, goal, kind, status, events, created_at, updated_at)
+		VALUES ($1, $2, $3, 'job_search', 'done', $4, NOW(), NOW())`,
+		sessionID, user.ID, queryStr, eventsJSON)
+	if err != nil {
+		log.Printf("handleAgentSearch: failed to insert hermes session: %v", err)
+		// non-fatal, continue returning response
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"session_id":   sessionID.String(),
+		"events":       pyResp.Events,
+		"count":        len(pyResp.Result.Results),
+		"jobs":         pyResp.Result.Results,
+		"top_research": nil,
+	})
+}
+
+
+
 func (s *Server) handleSaveJob(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(contextKeyUser).(*models.User)
 	if !ok || user == nil {
@@ -841,6 +903,30 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusBadGateway, "Optimization failed")
 		return
 	}
+
+	var optText string
+	if opt, ok := result["optimized_text"].(string); ok {
+		optText = opt
+	}
+	if optText != "" {
+		_, err = s.DB.Conn.ExecContext(r.Context(), "UPDATE resumes SET optimized_text=$1, status='optimized', updated_at=NOW() WHERE id=$2 AND user_id=$3", optText, id, user.ID)
+		if err != nil {
+			log.Printf("handleOptimizeResume: failed to update resume status/optimized_text: %v", err)
+		}
+	}
+
+	resultJSON, _ := json.Marshal(result)
+	var versionID int
+	err = s.DB.Conn.QueryRowContext(r.Context(), `
+		INSERT INTO resume_versions (resume_id, version_type, parsed_json, created_at)
+		VALUES ($1, 'optimized', $2, NOW()) RETURNING id`,
+		id, string(resultJSON)).Scan(&versionID)
+	if err != nil {
+		log.Printf("handleOptimizeResume: failed to insert resume_version: %v", err)
+		versionID = id
+	}
+
+	result["id"] = versionID
 	s.respondJSON(w, http.StatusOK, result)
 }
 
@@ -1410,5 +1496,96 @@ func (s *Server) handleImportProfilePDF(w http.ResponseWriter, r *http.Request) 
 	}
 	s.respondJSON(w, http.StatusOK, result)
 }
+
+func (s *Server) handleDownloadResumeDocx(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "User not found in context")
+		return
+	}
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid resume id")
+		return
+	}
+	var resumeText string
+	if err := s.DB.Conn.QueryRowContext(r.Context(), "SELECT COALESCE(original_text, '') FROM resumes WHERE id=$1 AND user_id=$2", id, user.ID).Scan(&resumeText); err != nil {
+		s.respondError(w, http.StatusNotFound, "Resume not found")
+		return
+	}
+
+	result, err := s.AI.PostJSON("/api/v1/export/docx", map[string]interface{}{"text": resumeText, "title": "Resume"})
+	if err != nil {
+		log.Printf("handleDownloadResumeDocx: export failed: %v", err)
+		s.respondError(w, http.StatusBadGateway, "Export failed")
+		return
+	}
+	data, _ := result["data"].(string)
+	if data == "" {
+		s.respondError(w, http.StatusInternalServerError, "Export returned empty data")
+		return
+	}
+	decoded, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Failed to decode export")
+		return
+	}
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"tayari-resume-%d.docx\"", id))
+	w.WriteHeader(http.StatusOK)
+	w.Write(decoded)
+}
+
+func (s *Server) handleDownloadVersionDocx(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "User not found in context")
+		return
+	}
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid version id")
+		return
+	}
+	var parsedJSON string
+	query := `SELECT rv.parsed_json FROM resume_versions rv 
+	          JOIN resumes r ON rv.resume_id = r.id 
+	          WHERE rv.id = $1 AND r.user_id = $2`
+	if err := s.DB.Conn.QueryRowContext(r.Context(), query, id, user.ID).Scan(&parsedJSON); err != nil {
+		s.respondError(w, http.StatusNotFound, "Version not found")
+		return
+	}
+
+	var parsedMap map[string]interface{}
+	_ = json.Unmarshal([]byte(parsedJSON), &parsedMap)
+	optText, _ := parsedMap["optimized_text"].(string)
+	if optText == "" {
+		optText = parsedJSON
+	}
+
+	result, err := s.AI.PostJSON("/api/v1/export/docx", map[string]interface{}{"text": optText, "title": "Optimized Resume"})
+	if err != nil {
+		log.Printf("handleDownloadVersionDocx: export failed: %v", err)
+		s.respondError(w, http.StatusBadGateway, "Export failed")
+		return
+	}
+	data, _ := result["data"].(string)
+	if data == "" {
+		s.respondError(w, http.StatusInternalServerError, "Export returned empty data")
+		return
+	}
+	decoded, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Failed to decode export")
+		return
+	}
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"tayari-resume-version-%d.docx\"", id))
+	w.WriteHeader(http.StatusOK)
+	w.Write(decoded)
+}
+
 
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppShell } from "@/components/layout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,10 @@ import {
   Eye,
   EyeOff,
   Loader2,
-  Info
+  Info,
+  Copy,
+  Check,
+  ExternalLink
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -36,11 +39,84 @@ import { profileSchema, changePasswordSchema } from "@/lib/schemas";
 import { z } from "zod";
 
 const Settings = () => {
-  const { user, signOut } = useAuth();
+  const { user, session, signOut } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("profile");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Integrations states
+  const [copiedToken, setCopiedToken] = useState(false);
+  const [revealToken, setRevealToken] = useState(false);
+  const [gmailConnected, setGmailConnected] = useState(false);
+
+  useEffect(() => {
+    const token = session?.access_token || localStorage.getItem('auth_token');
+    if (!token) return;
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+    fetch(`${API_URL}/gmail/status`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.connected) {
+          setGmailConnected(true);
+        }
+      })
+      .catch(err => console.error("Error fetching Gmail status:", err));
+  }, [session]);
+
+  const handleDownloadMcpConfig = () => {
+    const token = session?.access_token || localStorage.getItem('auth_token') || "";
+    const backendUrl = (import.meta.env.VITE_API_URL || "http://localhost:8080/api").replace(/\/api$/, "");
+    const config = {
+      mcpServers: {
+        jobtheory: {
+          command: "python",
+          args: ["/absolute/path/to/tayari-skill-boost/integrations/jobtheory_mcp/server.py"],
+          env: {
+            JOBTHEORY_URL: backendUrl,
+            JOBTHEORY_TOKEN: token
+          }
+        }
+      }
+    };
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "mcp.json";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast({
+      title: "Configuration Downloaded",
+      description: "mcp.json has been downloaded. Update the command arguments to point to your local path.",
+    });
+  };
+
+  const handleCopyToken = () => {
+    const token = session?.access_token || localStorage.getItem('auth_token') || "";
+    navigator.clipboard.writeText(token);
+    setCopiedToken(true);
+    setTimeout(() => setCopiedToken(false), 2000);
+    toast({
+      title: "Token Copied",
+      description: "Personal access token copied to clipboard.",
+    });
+  };
+
+  const handleOpenHermes = () => {
+    const token = session?.access_token || localStorage.getItem('auth_token') || "";
+    const backendUrl = (import.meta.env.VITE_API_URL || "http://localhost:8080/api").replace(/\/api$/, "");
+    const deepLink = `hermes://mcp/register?name=JobTheory&url=${encodeURIComponent(backendUrl)}&token=${encodeURIComponent(token)}`;
+    window.location.href = deepLink;
+    toast({
+      title: "Opening Hermes Desktop",
+      description: "Initiating native companion registration request...",
+    });
+  };
 
   // Form states
   const [profileData, setProfileData] = useState({
@@ -233,6 +309,10 @@ const Settings = () => {
             <TabsTrigger value="preferences" className="gap-2">
               <Palette className="w-4 h-4" />
               Preferences
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="gap-2">
+              <Globe className="w-4 h-4" />
+              Integrations
             </TabsTrigger>
           </TabsList>
 
@@ -587,6 +667,143 @@ const Settings = () => {
                     <Download className="w-4 h-4 mr-2" />
                     Export
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Integrations Tab */}
+          <TabsContent value="integrations" className="space-y-6">
+            <Card className="animate-fade-in-up">
+              <CardHeader>
+                <CardTitle>Gmail Integration</CardTitle>
+                <CardDescription>
+                  Automatically synchronize your applications from email conversations
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground">Gmail Inbox Sync</p>
+                    <p className="text-sm text-muted-foreground">
+                      {gmailConnected
+                        ? "Connected. Job Tayari is actively parsing relevant recruitment emails."
+                        : "Disconnected. Connect to authorize automatic parsing of interview requests."}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {gmailConnected ? (
+                      <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                        Active
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+                          const token = session?.access_token || localStorage.getItem('auth_token');
+                          window.location.href = `${API_URL}/gmail/login?token=${token}`;
+                        }}
+                      >
+                        <Mail className="w-4 h-4 mr-2" />
+                        Connect Gmail
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="animate-fade-in-up">
+              <CardHeader>
+                <CardTitle>Hermes Desktop Integration</CardTitle>
+                <CardDescription>
+                  Configure local autonomous agents (Hermes Desktop/Claude Desktop) to control your Job Tayari board
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-foreground mb-1">Your Personal Access Token</h4>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Use this token to authenticate your local Hermes Agent. Keep it private.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type={revealToken ? "text" : "password"}
+                          value={session?.access_token || localStorage.getItem('auth_token') || ""}
+                          readOnly
+                          className="font-mono text-sm opacity-80"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setRevealToken(!revealToken)}
+                        >
+                          {revealToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={handleCopyToken}
+                        >
+                          {copiedToken ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="p-4 rounded-lg border border-border space-y-3 flex flex-col justify-between">
+                      <div>
+                        <h4 className="font-medium text-foreground mb-1">Download mcp.json</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Download a pre-configured settings file ready to copy into your local Hermes Desktop directory.
+                        </p>
+                      </div>
+                      <Button onClick={handleDownloadMcpConfig} className="w-full">
+                        <Download className="w-4 h-4 mr-2" />
+                        Download Config
+                      </Button>
+                    </div>
+
+                    <div className="p-4 rounded-lg border border-border space-y-3 flex flex-col justify-between">
+                      <div>
+                        <h4 className="font-medium text-foreground mb-1">Deep Link Registration</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Directly initiate a registration request inside your locally running Hermes Desktop client.
+                        </p>
+                      </div>
+                      <Button onClick={handleOpenHermes} variant="outline" className="w-full">
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Open in Hermes Desktop
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-foreground">Manual Config Registration</h4>
+                  <p className="text-sm text-muted-foreground">
+                    To manually integrate Job Tayari with Claude Desktop or Cursor, append this block to your local `mcp.json` file:
+                  </p>
+                  <pre className="p-4 rounded-lg bg-zinc-950 text-zinc-200 font-mono text-xs overflow-x-auto border border-border">
+{`{
+  "mcpServers": {
+    "jobtheory": {
+      "command": "python",
+      "args": ["/absolute/path/to/tayari-skill-boost/integrations/jobtheory_mcp/server.py"],
+      "env": {
+        "JOBTHEORY_URL": "${(import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace(/\/api$/, '')}",
+        "JOBTHEORY_TOKEN": "${(session?.access_token || localStorage.getItem('auth_token') || '').substring(0, 15)}..."
+      }
+    }
+  }
+}`}
+                  </pre>
                 </div>
               </CardContent>
             </Card>

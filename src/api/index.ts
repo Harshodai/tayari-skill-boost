@@ -185,6 +185,13 @@ export async function searchJobs(payload: Record<string, any>): Promise<Record<s
   });
 }
 
+export async function agentSearch(payload: Record<string, any>): Promise<any> {
+  return apiFetch<any>("/api/jobs/agent-search", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function saveJob(payload: { dedupe_key: string; job: Record<string, any>; status?: string }): Promise<{ saved_id: number; status: string }> {
   return apiFetch<{ saved_id: number; status: string }>("/api/jobs/save", {
     method: "POST",
@@ -624,5 +631,130 @@ export async function getFunnelData(): Promise<Record<string, number>> {
 export async function getBanditStats(): Promise<BanditStat[]> {
   return apiFetch<BanditStat[]>("/v1/analytics/bandit-stats");
 }
+
+// =============================================================================
+// Knowledge Hub (Omni-Save)
+// =============================================================================
+
+export interface SavedPost {
+  id: string;
+  user_id: string;
+  url: string;
+  note: string;
+  source: string;
+  title: string;
+  summary: string;
+  tags: string[];
+  category: string;
+  is_interview_related: boolean;
+  created_at: string;
+}
+
+export async function listSaves(category?: string): Promise<SavedPost[]> {
+  const query = category ? `?category=${encodeURIComponent(category)}` : "";
+  return apiFetch<SavedPost[]>(`/saves${query}`);
+}
+
+export async function createSave(payload: { url: string; note?: string; source?: string }): Promise<SavedPost> {
+  return apiFetch<SavedPost>("/saves", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteSave(id: string): Promise<void> {
+  const response = await fetch(`${API_URL}/saves/${id}`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+  if (!response.ok && response.status !== 204) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+}
+
+// =============================================================================
+// Application Extra Features
+// =============================================================================
+
+export async function addApplicationNote(id: string, note: string): Promise<any> {
+  return apiFetch<any>(`/applications/${id}/notes`, {
+    method: "POST",
+    body: JSON.stringify({ note }),
+  });
+}
+
+export async function deleteApplicationNote(id: string, noteId: string): Promise<any> {
+  const response = await fetch(`${API_URL}/applications/${id}/notes/${noteId}`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+  if (!response.ok && response.status !== 204) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+  return response.json().catch(() => ({ success: true }));
+}
+
+export async function getApplicationInterviewQuestions(id: string): Promise<any> {
+  return apiFetch<any>(`/applications/${id}/interview-questions`, {
+    method: "POST",
+  });
+}
+
+export async function parseApplicationEmail(emailText: string): Promise<any> {
+  return apiFetch<any>("/applications/parse-email", {
+    method: "POST",
+    body: JSON.stringify({ email_text: emailText }),
+  });
+}
+
+export async function uploadApplicationVoice(id: string, audioBlob: Blob): Promise<any> {
+  const formData = new FormData();
+  formData.append("audio", audioBlob, "recording.webm");
+  const response = await fetch(`${API_URL}/applications/${id}/voice`, {
+    method: "POST",
+    headers: {
+      Authorization: getHeaders()["Authorization"] || "",
+    },
+    body: formData,
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+// =============================================================================
+// Gmail Integration
+// =============================================================================
+
+export interface GmailStatusResponse {
+  enabled: boolean;
+  connected: boolean;
+  message?: string;
+}
+
+export async function getGmailStatus(): Promise<GmailStatusResponse> {
+  return apiFetch<GmailStatusResponse>("/gmail/status");
+}
+
+export async function getGmailLogin(): Promise<{ auth_url: string }> {
+  return apiFetch<{ auth_url: string }>("/gmail/login");
+}
+
+export async function syncGmail(): Promise<any> {
+  return apiFetch<any>("/gmail/sync", {
+    method: "POST",
+  });
+}
+
+export async function disconnectGmail(): Promise<any> {
+  return apiFetch<any>("/gmail/disconnect", {
+    method: "POST",
+  });
+}
+
 
 

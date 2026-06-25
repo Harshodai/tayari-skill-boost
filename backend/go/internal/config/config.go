@@ -43,7 +43,7 @@ func LoadConfig() *Config {
 		SupabaseURL:    getEnv("SUPABASE_URL", ""),
 		SupabaseKey:    getEnv("SUPABASE_ANON_KEY", ""),
 		FrontendURL:    getEnv("FRONTEND_URL", "http://localhost:5173"),
-		PythonAIURL:    getEnv("PYTHON_AI_URL", "http://localhost:8000"),
+		PythonAIURL:    getEnv("PYTHON_AI_URL", getEnv("AI_SERVICE_URL", "http://localhost:8000")),
 
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),

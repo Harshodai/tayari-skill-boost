@@ -58,6 +58,7 @@ const buildGroups = () => [
     label: "Prepare",
     items: [
       { title: "Interview Board", url: "/interview", icon: Bookmark, enabled: features.interviewPrep },
+      { title: "Knowledge Hub", url: "/knowledge-hub", icon: BookOpen, enabled: features.knowledgeHub },
       { title: "AI Interview Prep", url: "/interview/prep", icon: Mic, enabled: features.interviewAI },
       { title: "Communication", url: "/communication", icon: MessageSquare, enabled: features.communicationHub },
     ] as Item[],
