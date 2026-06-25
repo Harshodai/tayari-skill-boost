@@ -20,7 +20,7 @@ import {
   Rocket,
   Mic,
   MessagesSquare,
-  Map,
+  Map as MapIcon,
   Sun,
   Moon,
   LogOut,
