@@ -114,11 +114,15 @@ export interface AutopilotRun {
 }
 
 export interface Application {
-  id: number;
+  id: number | string;
   application_id: string;
   user_id: string;
   run_id?: string;
   job?: Record<string, any>;
+  /** Convenience denormalised fields (mirror of job.title/company/location) */
+  title?: string;
+  company?: string;
+  location?: string;
   tailored_resume_text?: string;
   cover_letter?: string;
   changes?: Record<string, any>;
@@ -127,8 +131,15 @@ export interface Application {
   ats_score_after: number;
   is_dream_company: boolean;
   status: string;
+  /** Kanban stage alias (saved/applied/interview/offer/rejected) */
+  stage?: string;
+  url?: string;
+  notes?: string;
   submission_mode?: string;
   apply_url?: string;
+  notes_log?: Array<{ at: string; text: string }>;
+  voice_notes?: Array<{ at: string; url: string; transcript?: string }>;
+  interview_research?: Record<string, any>;
   created_at: string;
   updated_at: string;
 }

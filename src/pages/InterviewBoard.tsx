@@ -687,7 +687,7 @@ const InterviewBoard = () => {
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => deleteMutation.mutate(app.id)}
+                              onClick={() => deleteMutation.mutate(String(app.id))}
                               disabled={deleteMutation.isPending}
                             >
                               <Trash2 className="w-3 h-3" />

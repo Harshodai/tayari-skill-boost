@@ -13,6 +13,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Link, useNavigate } from "react-router-dom";
 import { LogOut, Settings as SettingsIcon, User as UserIcon } from "lucide-react";
+import { CommandPalette } from "@/components/command/CommandPalette";
+import { NotificationsBell } from "@/components/notifications/NotificationsBell";
+import { SkipToContent } from "@/components/a11y/SkipToContent";
+import { Button } from "@/components/ui/button";
+import { Search } from "lucide-react";
 
 interface AppShellProps {
   children: ReactNode;
@@ -29,6 +34,8 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
 
   return (
     <SidebarProvider>
+      <SkipToContent />
+      <CommandPalette />
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
 
@@ -45,8 +52,24 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
                 <p className="text-xs text-muted-foreground truncate hidden md:block">{subtitle}</p>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden md:inline-flex h-8 gap-2 text-xs text-muted-foreground"
+                onClick={() => {
+                  // Simulate ⌘K
+                  const ev = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true });
+                  window.dispatchEvent(ev);
+                }}
+                aria-label="Open command palette"
+              >
+                <Search className="h-3.5 w-3.5" />
+                <span>Search or jump…</span>
+                <kbd className="ml-2 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-mono">⌘K</kbd>
+              </Button>
               {actions}
+              <NotificationsBell />
               <ActivityButton />
               <DropdownMenu>
                 <DropdownMenuTrigger className="outline-none">
@@ -87,7 +110,7 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
             </div>
           </header>
 
-          <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
+          <main id="main-content" className="flex-1 p-4 md:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
             {children}
           </main>
         </div>
