@@ -75,7 +75,7 @@ export function CommandPalette() {
       { id: "go-interview", label: "Interview Board", hint: "g i", icon: Mic, group: "Navigate", perform: go("/interview-board") },
       { id: "go-prep", label: "AI Interview Prep", icon: Mic, group: "Navigate", perform: go("/interview-prep") },
       { id: "go-comms", label: "Communication Hub", icon: MessagesSquare, group: "Navigate", perform: go("/communication") },
-      { id: "go-roadmap", label: "Career Roadmap", icon: Map, group: "Navigate", perform: go("/roadmap") },
+      { id: "go-roadmap", label: "Career Roadmap", icon: MapIcon, group: "Navigate", perform: go("/roadmap") },
       { id: "go-profile", label: "Profile", hint: "g p", icon: UserIcon, group: "Navigate", perform: go("/profile") },
       { id: "go-settings", label: "Settings", hint: "g s", icon: Settings, group: "Navigate", perform: go("/settings") },
 
