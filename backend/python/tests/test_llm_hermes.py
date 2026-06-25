@@ -43,9 +43,10 @@ def _patch_client(monkeypatch: pytest.MonkeyPatch, handler: Any) -> None:
 @pytest.fixture
 def clean_llm_env(monkeypatch):
     """Strip the generic LLM endpoint so only the hermes tier is in play."""
-    monkeypatch.setattr(llm_service, "LLM_BASE_URL", "")
-    monkeypatch.setattr(llm_service, "LLM_API_KEY", "")
-    monkeypatch.setattr(llm_service, "LLM_MODEL", "default")
+    monkeypatch.setenv("LLM_PROVIDER", "")
+    monkeypatch.setenv("LLM_BASE_URL", "")
+    monkeypatch.setenv("LLM_API_KEY", "")
+    monkeypatch.setenv("LLM_MODEL", "default")
     monkeypatch.setattr(hermes_config, "HERMES_AGENT_URL", "")
     monkeypatch.setattr(hermes_config, "HERMES_API_KEY", "")
     monkeypatch.setattr(hermes_config, "HERMES_MODEL", "hermes3:8b")
@@ -70,8 +71,8 @@ def test_hermes_inactive_when_url_blank(clean_llm_env):
 def test_hermes_takes_precedence_over_generic_llm(clean_llm_env, monkeypatch):
     """When both HERMES_AGENT_URL and LLM_BASE_URL are set, active_engine() reports hermes."""
     monkeypatch.setattr(hermes_config, "HERMES_AGENT_URL", "http://ollama:11434/v1")
-    monkeypatch.setattr(llm_service, "LLM_BASE_URL", "http://groq.example/v1")
-    monkeypatch.setattr(llm_service, "LLM_MODEL", "groq-model")
+    monkeypatch.setenv("LLM_BASE_URL", "http://groq.example/v1")
+    monkeypatch.setenv("LLM_MODEL", "groq-model")
     assert llm_service.active_engine() == "hermes-hermes3:8b"
 
 

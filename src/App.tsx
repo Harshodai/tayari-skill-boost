@@ -46,6 +46,7 @@ import ExtensionOnboarding from "./pages/ExtensionOnboarding";
 import ReviewQueue from "./pages/ReviewQueue";
 import PredictiveAnalytics from "./pages/PredictiveAnalytics";
 import AdvisorDashboard from "./pages/AdvisorDashboard";
+import AgentPanel from "./pages/AgentPanel";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -207,6 +208,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <ReviewQueue />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/agents"
+                element={
+                  <ProtectedRoute>
+                    <AgentPanel />
                   </ProtectedRoute>
                 }
               />

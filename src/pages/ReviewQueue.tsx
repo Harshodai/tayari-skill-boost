@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -20,6 +20,11 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface ReviewQueueItem {
   id: number;
@@ -47,6 +52,20 @@ interface ReviewQueueItem {
   created_at: string;
 }
 
+interface RuntimeApproval {
+  approval_id: string;
+  user_id: string;
+  task_id: string | null;
+  agent_id: string;
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+  content_preview: string;
+  status: "pending" | "approved" | "rejected";
+  reviewer_comment?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+}
+
 interface ReviewQueueStats {
   pending_review: number;
   dream_companies: number;
@@ -67,16 +86,13 @@ export default function ReviewQueue() {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "dream" | "high-score">("all");
+  const [approvals, setApprovals] = useState<RuntimeApproval[]>([]);
+  const [activeQueueTab, setActiveQueueTab] = useState<"applications" | "approvals">("applications");
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
   const token = localStorage.getItem("auth_token");
 
-  useEffect(() => {
-    fetchQueue();
-    fetchStats();
-  }, []);
-
-  const fetchQueue = async () => {
+  const fetchQueue = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/v1/review-queue`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -90,9 +106,9 @@ export default function ReviewQueue() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_URL, token]);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/v1/review-queue/stats`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -102,6 +118,43 @@ export default function ReviewQueue() {
       setStats(data);
     } catch (e) {
       console.error("Error fetching stats:", e);
+    }
+  }, [API_URL, token]);
+
+  const fetchApprovals = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/v1/approvals`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to fetch approvals");
+      const data = await res.json();
+      setApprovals(data.approvals || []);
+    } catch (e) {
+      console.error("Error fetching approvals:", e);
+    }
+  }, [API_URL, token]);
+
+  useEffect(() => {
+    fetchQueue();
+    fetchStats();
+    fetchApprovals();
+  }, [fetchQueue, fetchStats, fetchApprovals]);
+
+  const handleActionApproval = async (id: string, status: "approved" | "rejected") => {
+    try {
+      const res = await fetch(`${API_URL}/v1/approvals/${id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status, reviewer_comment: "Actioned from dashboard" }),
+      });
+      if (!res.ok) throw new Error("Failed to action approval");
+      toast.success(`Approval request ${status}`);
+      fetchApprovals();
+    } catch (e) {
+      toast.error(`Failed to ${status} request`);
     }
   };
 
@@ -265,6 +318,26 @@ export default function ReviewQueue() {
           </div>
         )}
 
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-border/40 pb-4">
+          <Button
+            variant={activeQueueTab === "applications" ? "default" : "ghost"}
+            onClick={() => setActiveQueueTab("applications")}
+            className="px-4"
+          >
+            Applications Queue ({filteredItems.length})
+          </Button>
+          <Button
+            variant={activeQueueTab === "approvals" ? "default" : "ghost"}
+            onClick={() => setActiveQueueTab("approvals")}
+            className="px-4"
+          >
+            Tool Approvals ({approvals.filter((a: RuntimeApproval) => a.status === "pending").length})
+          </Button>
+        </div>
+
+        {activeQueueTab === "applications" && (
+          <>
         {/* Filters & Bulk Actions */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex gap-2">
@@ -494,6 +567,92 @@ export default function ReviewQueue() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        )}
+        </>
+        )}
+
+        {activeQueueTab === "approvals" && (
+          <div className="space-y-4">
+            {approvals.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <CheckCircle className="w-12 h-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold">No tool approval requests</h3>
+                  <p className="text-muted-foreground text-center max-w-md mt-2">
+                    Digital agents have not requested any runtime tool executions yet.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              approvals.map((approval) => (
+                <Card key={approval.approval_id} className={approval.status === "pending" ? "border-primary/40 bg-primary/5" : ""}>
+                  <CardContent className="p-4 space-y-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-lg flex items-center gap-2">
+                            <Brain className="w-4 h-4 text-primary" />
+                            {approval.agent_id}
+                          </h3>
+                          <Badge variant={approval.status === "pending" ? "outline" : approval.status === "approved" ? "success" : "destructive"}>
+                            {approval.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Requested Tool: <span className="font-semibold text-foreground font-mono text-xs">{approval.tool_name}</span>
+                        </p>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(approval.created_at).toLocaleString()}
+                      </div>
+                    </div>
+
+                    <div className="text-sm bg-background border p-3 rounded-md">
+                      <div className="font-medium text-xs text-muted-foreground mb-1">Execution Action / Preview</div>
+                      {approval.content_preview}
+                    </div>
+
+                    {approval.tool_input && Object.keys(approval.tool_input).length > 0 && (
+                      <Collapsible>
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 text-xs">
+                            <ChevronDown className="w-3.5 h-3.5 mr-1" />
+                            View Parameters JSON
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2">
+                          <pre className="text-[11px] font-mono bg-background border p-2 rounded-md max-h-32 overflow-y-auto">
+                            {JSON.stringify(approval.tool_input, null, 2)}
+                          </pre>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+
+                    {approval.status === "pending" && (
+                      <div className="flex gap-2 border-t pt-3">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => handleActionApproval(approval.approval_id, "approved")}
+                        >
+                          <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                          Approve Execution
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleActionApproval(approval.approval_id, "rejected")}
+                        >
+                          <XCircle className="w-3.5 h-3.5 mr-1.5" />
+                          Deny Execution
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         )}
       </div>

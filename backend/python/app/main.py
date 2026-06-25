@@ -485,6 +485,7 @@ from app.api.voice_stream import router as voice_stream_router  # noqa: E402
 from app.api.predictive import router as predictive_router  # noqa: E402
 from app.api.knowledge_hub import router as knowledge_hub_router  # noqa: E402
 from app.api.gmail_routes import router as gmail_ai_router  # noqa: E402
+from app.api.agents_routes import router as agents_router  # noqa: E402
 
 app.include_router(hermes_router)
 app.include_router(career_intel_router)
@@ -492,6 +493,7 @@ app.include_router(voice_stream_router)
 app.include_router(predictive_router)
 app.include_router(knowledge_hub_router)
 app.include_router(gmail_ai_router)
+app.include_router(agents_router)
 
 
 

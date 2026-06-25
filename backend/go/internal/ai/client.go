@@ -96,6 +96,10 @@ func (c *Client) AnalyzeResume(resumeText, jdText string) (map[string]interface{
 }
 
 func (c *Client) PostJSON(endpoint string, payload interface{}) (map[string]interface{}, error) {
+	return c.PostJSONWithHeaders(endpoint, payload, nil)
+}
+
+func (c *Client) PostJSONWithHeaders(endpoint string, payload interface{}, headers map[string]string) (map[string]interface{}, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
@@ -105,6 +109,9 @@ func (c *Client) PostJSON(endpoint string, payload interface{}) (map[string]inte
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -123,7 +130,18 @@ func (c *Client) PostJSON(endpoint string, payload interface{}) (map[string]inte
 }
 
 func (c *Client) GetJSON(endpoint string) (map[string]interface{}, error) {
-	resp, err := c.client.Get(c.BaseURL + endpoint)
+	return c.GetJSONWithHeaders(endpoint, nil)
+}
+
+func (c *Client) GetJSONWithHeaders(endpoint string, headers map[string]string) (map[string]interface{}, error) {
+	req, err := http.NewRequest(http.MethodGet, c.BaseURL+endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}

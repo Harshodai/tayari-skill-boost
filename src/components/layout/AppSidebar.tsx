@@ -51,6 +51,7 @@ const buildGroups = () => [
     items: [
       { title: "Smart Search", url: "/jobs", icon: Search, enabled: features.jobSearch },
       { title: "AutoPilot", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
+      { title: "Agent Panel", url: "/agents", icon: Users, enabled: true },
       { title: "Cover Letters", url: "/cover-letter", icon: Mail, enabled: features.coverLetter },
     ] as Item[],
   },

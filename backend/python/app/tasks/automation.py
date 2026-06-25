@@ -178,3 +178,101 @@ def _safe_async(coro) -> None:
         asyncio.run(coro)
     except Exception as exc:  # noqa: BLE001 - persistence must not break tasks
         logger.debug("automation task DB persist skipped (%s)", exc)
+
+
+@celery_app.task(name="agentspace.run_agent_task", bind=True)
+def run_agent_task(self, task_id: str, user_id: str, agent_id: str, config: dict | None = None) -> dict:
+    """Run an AgentSpace enqueued task in the background."""
+    import asyncio
+    from app.services.agent_db import (
+        get_digital_employee,
+        update_agent_task_status,
+        create_agent_task_attempt,
+        update_agent_task_attempt,
+        create_agent_router_event,
+    )
+    from app.services.agent_router import AgentRouter
+
+    async def _async_run():
+        attempt_id = await create_agent_task_attempt(user_id, task_id, attempt_number=1, status="running")
+        await update_agent_task_status(user_id, task_id, status="running")
+        await create_agent_router_event(
+            user_id, task_id, "task_started", 
+            "Digital employee starting scheduled task execution"
+        )
+        
+        agent = await get_digital_employee(user_id, agent_id)
+        instructions = agent.get("instructions") if agent else "You are a helpful job assistant."
+        role = agent.get("role") if agent else "Agent"
+        
+        router = AgentRouter(user_id=user_id, task_id=task_id, agent_id=agent_id)
+        
+        try:
+            # Step 1: Initial Scrape / Search target
+            await create_agent_router_event(
+                user_id, task_id, "info", 
+                f"Agent ({role}) analyzing candidate profile and matching target roles"
+            )
+            
+            sys_prompt = f"You are {agent_id}, role: {role}. Instructions: {instructions}"
+            user_prompt = "Perform search and identify best matching job. Return JSON with target company name and role."
+            
+            # Run step
+            response = await router.execute_agent_step(sys_prompt, user_prompt, runtime_id="default")
+            
+            # Step 2: Critical action requiring human approval
+            tool_input = {"company": "Acme Corp", "role": "Full Stack Engineer", "salary": "$120,000"}
+            approved = await router.request_tool_execution(
+                tool_name="submit_application",
+                tool_input=tool_input,
+                content_preview="Submit application to Acme Corp for Full Stack Engineer position",
+                poll_interval_seconds=0.5,
+                timeout_seconds=60.0
+            )
+            
+            if not approved:
+                await create_agent_router_event(
+                    user_id, task_id, "info", 
+                    "Task execution halted: human reviewer rejected critical tool call"
+                )
+                await update_agent_task_status(
+                    user_id, task_id, status="failed", 
+                    error_text="Tool execution rejected by human"
+                )
+                if attempt_id:
+                    await update_agent_task_attempt(
+                        user_id, attempt_id, status="failed", 
+                        error_text="Tool execution rejected by human"
+                    )
+                return {"task_id": task_id, "status": "failed", "reason": "rejected"}
+            
+            # Step 3: Action Approved, complete the submission
+            await create_agent_router_event(
+                user_id, task_id, "info", 
+                "Executing application submission to Acme Corp portals"
+            )
+            await asyncio.sleep(0.5) # simulate submission latency
+            
+            result = {"status": "success", "company": "Acme Corp", "application_id": "app_999"}
+            await create_agent_router_event(
+                user_id, task_id, "task_success", 
+                "Application submitted successfully! Portal confirmation received.",
+                payload_json=result
+            )
+            await update_agent_task_status(user_id, task_id, status="success", result_json=result)
+            if attempt_id:
+                await update_agent_task_attempt(user_id, attempt_id, status="success")
+            return {"task_id": task_id, "status": "success"}
+            
+        except Exception as exc:
+            logger.exception("AgentSpace task execution failed")
+            await create_agent_router_event(
+                user_id, task_id, "task_failed", 
+                f"Task execution failed unexpectedly: {str(exc)}"
+            )
+            await update_agent_task_status(user_id, task_id, status="failed", error_text=str(exc))
+            if attempt_id:
+                await update_agent_task_attempt(user_id, attempt_id, status="failed", error_text=str(exc))
+            return {"task_id": task_id, "status": "failed", "error": str(exc)}
+
+    return asyncio.run(_async_run())

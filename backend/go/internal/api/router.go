@@ -237,6 +237,7 @@ func (s *Server) routes() {
 
 		// Hermes agent layer (WS-E) — scrape, cached jobs, run status
 		s.routesHermes(r)
+		s.routesAgents(r)
 
 		// Career Intelligence Engine
 		s.routesCareerIntelligence(r)

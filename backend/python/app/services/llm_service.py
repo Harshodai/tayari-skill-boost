@@ -292,9 +292,14 @@ def build_provider(tier: str = "default") -> LLMProvider:
 # Public API
 # ---------------------------------------------------------------------------
 
+def _hermes_active() -> bool:
+    """Return True if HERMES_AGENT_URL is set and non-empty."""
+    return bool(hermes_config.HERMES_AGENT_URL)
+
+
 def active_engine() -> str:
     """Snapshot the active engine label (for /health)."""
-    if hermes_config.HERMES_AGENT_URL:
+    if _hermes_active():
         return f"hermes-{hermes_config.HERMES_MODEL}"
     return build_provider().active_engine_label()
 
