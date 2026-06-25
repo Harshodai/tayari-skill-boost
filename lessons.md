@@ -40,3 +40,17 @@ On the first-ever startup of a self-hosted Supabase DB instance, the database co
 ### The Remedy
 1. Allow more generous healthcheck grace periods or retries inside `docker-compose.yml`.
 2. Or, run `docker compose up -d` a second time. Since database tables are already initialized, subsequent container startups are immediate, passing the health checks instantly and spinning up all downstream dependencies seamlessly.
+
+---
+
+## 🛠 React ESLint, useCallback & TypeScript Refactoring
+
+When adding interactive pages like `AgentPanel` and expanding pages like `ReviewQueue`, TypeScript strict rules and react-hooks lint rules can cause compilation failures.
+
+### The Problem
+* Prototyping features using `any[]` or `any` triggers `no-explicit-any` ESLint errors.
+* Running asynchronous data-fetching hooks (e.g. `fetchQueue()`, `fetchTasks()`) inside `useEffect` without including them in dependencies throws `react-hooks/exhaustive-deps` warnings.
+
+### The Remedy
+1. **Define typed interfaces**: Always declare clear schemas (e.g., `AgentTask`, `AgentEvent`, `RuntimeApproval`) for API objects instead of relying on `any`.
+2. **Memoize fetching handlers**: Wrap any functions called inside `useEffect` with `useCallback` to avoid trigger-loops and keep dependency arrays stable.
