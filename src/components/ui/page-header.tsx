@@ -164,15 +164,16 @@ function PageHeader({
  *  <SectionHeader title="Recent Applications" action={<Button size="sm">View all</Button>} />
  */
 export interface SectionHeaderProps {
+  id?: string;
   title: string;
   description?: string;
   action?: React.ReactNode;
   className?: string;
 }
 
-function SectionHeader({ title, description, action, className }: SectionHeaderProps) {
+function SectionHeader({ id, title, description, action, className }: SectionHeaderProps) {
   return (
-    <div className={cn("flex items-end justify-between mb-4", className)}>
+    <div id={id} className={cn("flex items-end justify-between mb-4", className)}>
       <div>
         <h2 className="text-base font-semibold text-foreground">{title}</h2>
         {description && (

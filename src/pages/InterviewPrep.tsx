@@ -86,7 +86,7 @@ const InterviewPrep = () => {
   const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const audioTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Pre-fill application from URL query param (e.g., from InterviewBoard)
   useEffect(() => {
