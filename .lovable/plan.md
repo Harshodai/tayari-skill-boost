@@ -1,143 +1,110 @@
-# Tayari Rebuild Plan — Unified, Smart, Cross-Product
 
-## 0. First: get the preview loading again
+# Frontend Audit & Next-Wave UX Plan (Frontend Only)
 
-Symptom: blank/not-loading in Lovable preview. Before any redesign:
+## 1. Ruthless audit — what's actually wrong today
 
-1. Open the live preview in a headless browser, capture console errors, network 4xx/5xx, and the rendered DOM (Playwright via shell).
-2. Walk the recent edits — `src/vite-env.d.ts`, `src/globals.d.ts`, `src/index.css`, `tailwind.config.ts`, `src/contexts/ThemeContext.tsx`, `src/main.tsx` — these were touched across the last few turns and are the most likely culprits (ambient `chrome`/`process` typings, theme provider mount order, CSS token typos).
-3. Fix the first runtime error, re-capture, repeat until `/`, `/resume`, `/dashboard`, `/jobs`, `/auth` all render.
-4. Only then start the redesign work below.
+Walked the full `src/` tree (37 pages, ~13.5K LOC). The shell, sidebar, Activity Drawer, Smart Search 3-pane, and Profile living-card are already in. Real problems remaining:
 
-## 1. The product story (what we're actually selling)
+**A. Inconsistency**
+- 37 pages, but only ~13 wrap in `AppShell`. The rest (Blog, Pricing, About, Help, Careers, Pricing, KnowledgeHub, ReviewQueue, AdvisorDashboard, PredictiveAnalytics, ExtensionOnboarding, ComponentShowcase, InterviewBoard, InterviewPrep partly) still use old `Layout` or no layout → visual whiplash.
+- `index.css` still loads **Inter + JetBrains Mono via fontsource** even though the user asked for Apple SF stack. Inter imports should go.
+- Several pages bypass tokens (raw `text-white`, `bg-black`, hardcoded hex in InterviewBoard, CareerRoadmap, Dashboard hero).
+- Loading/empty/error states missing on Dashboard, JobSearch results, AutoPilot, ReviewQueue → blank screens on slow networks.
 
-Today the app reads like 8 disconnected tools in one nav. We re-frame Tayari around **one promise**: *"Land the job. We handle the rest."* — a single AI career copilot with four connected workflows:
+**B. Missing power-user surface**
+- No global Command Palette (⌘K) — every competitor (Teal, Huntr, Linear) ships one. It's the single biggest leverage point for a multi-product app.
+- No keyboard shortcuts (`g d` dashboard, `g j` jobs, `c` new application, `/` focus search).
+- No global notifications/inbox center — Activity Drawer covers automation only.
 
-```
-                    ┌───────────────────────────┐
-                    │   Profile + Resume Core   │  ← single source of truth
-                    └─────────────┬─────────────┘
-                                  │ feeds
-        ┌────────────┬────────────┼────────────┬────────────┐
-        ▼            ▼            ▼            ▼            ▼
-   Smart Search   Optimizer   Interview     Outreach     Roadmap
-   + AutoPilot   (resume +   (board + AI    (cover +     (skills +
-                 cover)       prep)         comms hub)   growth)
-```
+**C. Pipeline & tracking gaps (the Huntr/Teal table-stakes)**
+- No Kanban application pipeline (Saved → Applied → Interview → Offer → Rejected). Dashboard mentions it in plan but isn't built.
+- No "Today's focus" daily card on Dashboard.
+- No saved-search / alert UI even though plan mentions it.
+- No quick "log a contact" / networking CRM mini-view.
 
-Every feature reads from and writes to the Profile/Resume core, so work in one place flows into the others. That's the "combined offerings" the user is asking for.
+**D. Onboarding still heavy**
+- `Onboarding.tsx` is 298 lines; needs the 3-step skip-friendly flow promised.
 
-## 2. UI system — one brand, one feel
+**E. Mobile**
+- Sidebar collapses but Smart Search 3-pane and Profile tabs are unusable <768px (current viewport is 384px). Needs mobile bottom-tabs and stacked panes.
 
-- **Visual language**: dark-first (deep navy `#0a0f1f`), Apple-style SF stack already in place, indigo → teal → emerald gradient as the single brand accent. Light mode is the secondary theme, not the default.
-- **Components**: one shared shell — `AppShell` with a collapsible left sidebar (shadcn `Sidebar`) grouped by workflow (Core / Apply / Prepare / Grow), a slim top bar with global search + AI assistant + profile, and a right-side **Activity Drawer** for automation runs.
-- **Page archetypes**: every page conforms to one of four templates (Workspace, List+Detail, Wizard, Dashboard). Stops the "every page looks different" problem.
-- **Motion**: subtle. Page fade, card lift on hover, gradient text on hero only. Respect `prefers-reduced-motion`. Strip particles, mouse spotlight, smart-hide header.
-- **Empty / loading / error states**: define once, reuse. Today they're missing on most pages — that's part of why preview "looks broken."
+**F. A11y / polish**
+- Many interactive divs without role/tabindex.
+- Focus rings inconsistent (some pages strip outlines).
+- No skip-to-content link.
+- Color contrast on muted text in dark theme is borderline (AA fail in a few spots).
 
-## 3. Onboarding — simple, 3 steps, skippable
+**G. Discoverability of AI**
+- AI features hide behind text buttons. Competitors lead with a persistent "Ask AI" / sparkle button. We have an `ActivityButton` but no "ask" entry point.
 
-Replace anything multi-page or form-heavy. New flow on `/onboarding` after signup:
+## 2. Competitive read (web research)
 
-```
-Step 1: Upload resume (or paste LinkedIn URL, or "skip — I'll add later")
-        → resume is parsed once, fills Profile + Skills + Experience automatically
-Step 2: Pick goal: [Find a new job] [Get promoted] [Switch careers] [Just exploring]
-        → goal drives which modules surface first in the sidebar
-Step 3: Pick 1–3 target roles via autocomplete (e.g. "Senior PM", "Data Eng")
-        → seeds Smart Search + Roadmap immediately
-```
+| Tool | Why it wins | What we should steal |
+|---|---|---|
+| **Teal** | Resume tailoring + bookmark extension + tracker in one | Match-score visible in list, one-click "tailor resume to this JD" |
+| **Huntr** | Visual Kanban pipeline, contacts CRM | Drag-drop pipeline board, contacts tab inside each job |
+| **Simplify** | 1-click autofill, 200M+ apps facilitated | "Apply with autofill" CTA prominence; autopilot batch view |
+| **Linear/Notion** | ⌘K palette, keyboard-first | Global palette, jump-anywhere, AI actions inline |
 
-That's it. Everything else (location, salary, notice period, work auth) is captured **just-in-time** when a feature actually needs it, inline, never as a wall of fields.
+Our differentiator stays the **cross-product automation chain** (Optimizer → Cover → Apply → Follow-up) surfaced in the Activity Drawer — none of the competitors do this. The UI must lean into it.
 
-## 4. Profile — single source of truth, not another form
+## 3. Scope this iteration (frontend only, shippable)
 
-`/profile` becomes a **living card**, not a settings page:
+Ordered, each piece independently mergeable:
 
-- Header: avatar, name, target role, headline, completeness ring (e.g. "Profile 72%").
-- Tabs: Resume (parsed sections, editable inline) · Preferences (location/comp/visa, asked lazily) · Skills (auto-extracted, user can pin top 8) · Activity (what AutoPilot did on my behalf).
-- One "Improve with AI" button per section — same pattern everywhere.
-- Profile data is the input to Optimizer, Smart Search, Cover Letter, Interview Prep — so updating it once propagates.
+### P0 — Foundation cleanup (1 pass)
+1. Remove Inter/JetBrains-Mono fontsource imports; lock Apple SF stack (system fonts already configured).
+2. Sweep remaining raw color classes in InterviewBoard, CareerRoadmap, Dashboard, Pricing, About → semantic tokens.
+3. Migrate the 14 remaining pages onto `AppShell` (or keep public `Layout` for marketing pages, which is fine — list: Index, Pricing, About, Careers, Blog, BlogPost, FAQ, Contact, Terms, Privacy, Help, ExtensionOnboarding stay public; KnowledgeHub, ReviewQueue, AdvisorDashboard, PredictiveAnalytics move to `AppShell`).
+4. Add global `<SkipToContent />`, restore focus rings via Tailwind ring tokens, audit contrast.
 
-## 5. Smart Job Search — the centerpiece
+### P1 — Power surface
+5. **Command Palette (`⌘K` / `Ctrl+K`)** using existing shadcn `Command`. Routes, recent jobs, "Tailor resume…", "Generate cover letter…", "Toggle theme", "Sign out". Mounts in `AppShell`.
+6. **Keyboard shortcuts** layer (`useHotkeys` lightweight hook): `g d/j/p/r`, `/` focus search, `?` opens shortcut cheatsheet sheet.
+7. **Notifications dropdown** in `AppShell` header (bell icon) — unifies automation done events + new job alerts; reuses `AutomationContext` for now, stub for alerts.
 
-Replace the current basic search page with a **three-pane workspace**:
+### P2 — Pipeline & dashboard rebuild
+8. **Dashboard rebuild** to spec: Today's focus hero card, Pipeline Kanban (5 columns, drag with `@dnd-kit/core` — already common), upcoming interviews strip, roadmap progress, recent activity feed.
+9. **Kanban pipeline** as a reusable component (`<ApplicationPipeline />`) used on Dashboard and a dedicated `/pipeline` route.
+10. **Saved-search / alerts panel** in `JobSearch` left pane: name a search, toggle "Daily alert", list saved searches.
 
-```
-┌──────────────┬─────────────────────────┬──────────────────────┐
-│  Filters     │  Results (ranked)        │  Selected job        │
-│  + Saved     │  match %, salary, posted │  JD, match breakdown │
-│  searches    │  one-click Apply / Save  │  Apply with AutoPilot│
-└──────────────┴─────────────────────────┴──────────────────────┘
-```
+### P3 — Onboarding + mobile
+11. **3-step Onboarding** rewrite (`Onboarding.tsx`): Upload/LinkedIn/Skip → Goal chips → Target roles autocomplete. Persist locally first; backend wiring later.
+12. **Mobile**: bottom tab bar (Dashboard / Jobs / Apply / Profile) below `md`, stack Smart Search panes vertically, make Profile tabs swipeable.
 
-Smart bits:
+### P4 — AI surface
+13. **"Ask Tayari" floating button** (bottom-right, sparkle) opens a side sheet with quick AI actions scoped to current page (e.g. on a job → "Why is this a fit?", "Generate cover letter", "Practice interview"). Frontend stub now; wires into existing LLM endpoints when ready.
+14. **Inline "AI tailor" buttons** standardized into one `<AiActionButton />` so every section gets the same treatment.
 
-- **AI match score** per row (uses the JobMatchScore component already built) computed from Profile + JD.
-- **"Why this job"** explainer chip per result — 1 line, e.g. "Matches 6/8 of your skills, salary above target."
-- **Natural-language search bar**: "Remote senior PM jobs in fintech, $180k+, posted this week" — parsed server-side via the existing LLM service.
-- **Saved searches** become **alerts** with a toggle ("Notify me daily"). Backed by `saved_jobs` + a new `job_alerts` table.
-- **AutoPilot handoff**: every job row has a kebab → "Queue for AutoPilot" which drops it into the automation pipeline (next section). No context switch.
+### Out of scope (frontend-only constraint)
+- New tables, RLS, edge functions, Hermes provider work, payments, real alert delivery — all backend; deferred.
 
-## 6. Cross-product automation — the Activity Drawer
-
-The right-side drawer is **always one click away** from any page and shows the live automation pipeline:
+## 4. Component additions
 
 ```
-Activity ──────────────────────────────
-● Optimizing resume for "Senior PM @ Stripe"      ✓ done
-● Generating cover letter                          ⟳ running
-● Drafting recruiter outreach                      … queued
-● AutoPilot: applying to 4 saved jobs              ⟳ 2/4
+src/components/
+  command/CommandPalette.tsx          (P1)
+  command/useHotkeys.ts               (P1)
+  notifications/NotificationsBell.tsx (P1)
+  pipeline/ApplicationPipeline.tsx    (P2)
+  pipeline/PipelineCard.tsx           (P2)
+  jobs/SavedSearches.tsx              (P2)
+  ai/AskTayariButton.tsx              (P4)
+  ai/AiActionButton.tsx               (P4)
+  layout/MobileTabBar.tsx             (P3)
+  a11y/SkipToContent.tsx              (P0)
 ```
 
-Each item is a chain. Selecting a job in Search and clicking "Apply" triggers a single workflow that runs Optimizer → Cover Letter → Application submission → Communication Hub follow-up draft, all stitched together. Built on the existing `agent_runs` table + Hermes orchestrator; UI just needs the streaming list, status pills, and a per-run detail modal.
+## 5. Order of execution & checkpoints
 
-This is the "automations from one product to another" the user called out — it's surfaced visibly in the UI, not buried in a separate route.
+P0 → smoke test all routes render → P1 (palette + shortcuts visible win) → P2 (dashboard reveal) → P3 (mobile + onboarding) → P4 (AI surface). Stop after each P# for review.
 
-## 7. Dashboard — the daily landing
+## 6. Risk / trade-offs
 
-`/dashboard` becomes the workflow hub, not a stats wall:
+- ⌘K + hotkeys: minor risk of intercepting browser shortcuts; we'll scope to non-conflicting keys.
+- Kanban DnD library adds ~25KB gzipped; acceptable.
+- Mobile bottom-tab adds duplicated nav surface; we hide sidebar trigger below `md` to avoid two navs.
 
-- **Hero card**: "Today's focus" — 1 next action, AI-picked from your pipeline.
-- **Pipeline kanban**: Saved → Applied → Interviewing → Offer. Drag to move.
-- **Roadmap progress strip**: next 3 skill milestones.
-- **Upcoming interviews** with one-click "Practice with AI" → opens Interview Prep pre-loaded with the JD.
-- **Recent activity** (mirrors the Activity Drawer feed).
+---
 
-## 8. Information architecture (new nav)
-
-Sidebar, grouped:
-
-- **Core**: Dashboard, Profile, Resume
-- **Apply**: Smart Search, AutoPilot, Saved Jobs, Cover Letters
-- **Prepare**: Interview Board, AI Interview Prep, Communication Hub
-- **Grow**: Career Roadmap, Blog
-- Footer of sidebar: Settings, Help, theme toggle, sign out
-
-Feature flags continue to gate prod-vs-preview as today — no change to `src/config/features.ts` logic.
-
-## 9. Scope for this iteration (so it's shippable)
-
-Order of operations:
-
-1. Fix preview load (Section 0).
-2. Ship the unified `AppShell` + new sidebar + Activity Drawer skeleton.
-3. Redesign Dashboard, Profile, Smart Search to the new templates.
-4. Wire the cross-product "Apply" workflow through the Activity Drawer using existing endpoints.
-5. Replace onboarding with the 3-step flow.
-6. Sweep remaining pages (Optimizer, Cover Letter, Interview, Roadmap) to the shared templates — visual only, no logic changes.
-
-Out of scope this round: backend schema changes beyond `job_alerts`, Hermes provider work, payments, mobile-native polish (we'll keep it responsive but desktop-first).
-
-## 10. Technical notes
-
-- All new tokens go to `src/index.css` + `tailwind.config.ts`; no raw hex in components.
-- `AppShell` lives at `src/components/layout/AppShell.tsx`; all protected routes wrap in it.
-- Activity Drawer is a context (`AutomationContext`) + Sheet UI, fed by polling `/api/v1/hermes/runs` (already exists).
-- Smart Search natural-language parsing reuses `llm_service` via a new `/api/v1/jobs/parse-query` endpoint (Python side, thin wrapper).
-- New table `job_alerts (user_id, query jsonb, cadence, last_run_at)` with RLS owner-only + GRANTs per house rules.
-- Onboarding state stored on `profiles` (`onboarding_step`, `goal`, `target_roles text[]`) — additive migration only.
-- Keep Preview-vs-Prod feature flags untouched.
-
-Ready to start with Section 0 (fix the load) and then Section 2–3 (shell + dashboard + search) on approval. Add backend docs as well if needed
+**Approve and I start at P0. Or tell me to reshuffle priorities / drop a phase / add something.**
