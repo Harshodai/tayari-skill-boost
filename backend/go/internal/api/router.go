@@ -82,6 +82,9 @@ func (s *Server) routes() {
 	// Use AllowedOriginFunc to allow any origin with credentials (archive test expects wildcard)
 	s.Router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
+		AllowOriginFunc: func(r *http.Request, origin string) bool {
+			return true
+		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:     []string{"Link"},
@@ -238,6 +241,7 @@ func (s *Server) routes() {
 		// Hermes agent layer (WS-E) — scrape, cached jobs, run status
 		s.routesHermes(r)
 		s.routesAgents(r)
+		s.routesCareerOps(r)
 
 		// Career Intelligence Engine
 		s.routesCareerIntelligence(r)

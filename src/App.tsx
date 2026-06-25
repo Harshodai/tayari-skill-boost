@@ -47,6 +47,7 @@ import ReviewQueue from "./pages/ReviewQueue";
 import PredictiveAnalytics from "./pages/PredictiveAnalytics";
 import AdvisorDashboard from "./pages/AdvisorDashboard";
 import AgentPanel from "./pages/AgentPanel";
+import CareerOpsDashboard from "./pages/CareerOpsDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -224,6 +225,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <AdvisorDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/career-ops"
+                element={
+                  <ProtectedRoute>
+                    <CareerOpsDashboard />
                   </ProtectedRoute>
                 }
               />

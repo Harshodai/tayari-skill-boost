@@ -397,7 +397,7 @@ class CommunicationRequest(BaseModel):
 @app.post("/api/v1/communication/generate")
 async def communication_generate(payload: CommunicationRequest):
     """Generate AI communication (follow-up, thank-you, negotiation, status-check)."""
-    result = CommunicationGenerator.generate(
+    result = await CommunicationGenerator.generate(
         comm_type=payload.comm_type,
         resume_text=payload.resume_text,
         job_title=payload.job_title,
@@ -486,6 +486,7 @@ from app.api.predictive import router as predictive_router  # noqa: E402
 from app.api.knowledge_hub import router as knowledge_hub_router  # noqa: E402
 from app.api.gmail_routes import router as gmail_ai_router  # noqa: E402
 from app.api.agents_routes import router as agents_router  # noqa: E402
+from app.api.career_ops_routes import router as career_ops_router  # noqa: E402
 
 app.include_router(hermes_router)
 app.include_router(career_intel_router)
@@ -494,6 +495,7 @@ app.include_router(predictive_router)
 app.include_router(knowledge_hub_router)
 app.include_router(gmail_ai_router)
 app.include_router(agents_router)
+app.include_router(career_ops_router)
 
 
 

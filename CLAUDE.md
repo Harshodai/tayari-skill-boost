@@ -11,7 +11,7 @@ Tayari Skill Boost is an AI-powered job-prep platform: resume optimization again
 Four services coordinated via `docker-compose.yml`:
 
 ```
-Frontend (React/Vite, :8083 host)  ──HTTP/JWT──►  Go backend (:8082 host → 8080)
+Frontend (React/Vite, :8083 host)  ──HTTP/JWT──►  Go backend (:8085 host → 8080)
                                                        │  proxies AI calls + owns auth/DB
                                                        ▼
                                        Python AI engine (:8002 host → 8000)
@@ -101,8 +101,8 @@ python -m pytest eval/runner.py -v -k "ats_"
 ```bash
 cp .env.example .env   # fill keys
 docker compose up -d --build
-# Host ports: frontend 8083, go-backend 8082, python-ai 8002, postgres 5433, ollama 11434
-curl http://localhost:8082/api/health
+# Host ports: frontend 8083, go-backend 8085, python-ai 8002, postgres 5433, ollama 11434
+curl http://localhost:8085/api/health
 curl http://localhost:8002/health
 ```
 Container-internal ports differ from host ports (frontend 80, go 8080, python 8000, postgres 5432). The Go service reaches Python at `http://python-ai:8000` (`AI_SERVICE_URL`/`PYTHON_AI_URL`) and Postgres at `postgres:5432`.

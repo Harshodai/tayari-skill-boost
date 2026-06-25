@@ -25,6 +25,7 @@ const CONFIG = {
     interviewAI: [true, true],
     browserExtension: [false, false],
     knowledgeHub: [true, true],
+    careerOps: [true, true],
   },
 
   // Navigation Links
@@ -40,6 +41,7 @@ const CONFIG = {
     { label: "AutoPilot", href: "/jobs/autopilot", feature: "jobSearch" },
     { label: "Cover Letter", href: "/cover-letter", feature: "coverLetter" },
     { label: "Communication", href: "/communication", feature: "communicationHub" },
+    { label: "Career-Ops", href: "/career-ops", feature: "careerOps" },
     { label: "Blog", href: "/blog", feature: "blog" },
     { label: "Pricing", href: "/pricing", feature: "pricing" },
     { label: "FAQ", href: "/faq", feature: null },

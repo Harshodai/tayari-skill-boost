@@ -10,7 +10,7 @@ import io
 
 # Base URL from config
 import os
-BASE_URL = os.environ.get("BASE_URL", "http://localhost:8082/api")
+BASE_URL = os.environ.get("BASE_URL", "http://localhost:8085/api")
 
 # Test user credentials
 TEST_EMAIL = f"testuser_{int(time.time())}@example.com"

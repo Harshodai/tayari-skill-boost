@@ -157,6 +157,30 @@ func (c *Client) GetJSONWithHeaders(endpoint string, headers map[string]string) 
 	return result, nil
 }
 
+func (c *Client) DeleteJSONWithHeaders(endpoint string, headers map[string]string) (map[string]interface{}, error) {
+	req, err := http.NewRequest(http.MethodDelete, c.BaseURL+endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (c *Client) HealthCheck() error {
 	resp, err := c.client.Get(c.BaseURL + "/health")
 	if err != nil {

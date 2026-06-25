@@ -15,6 +15,7 @@ import {
   HelpCircle,
   LogOut,
   Users,
+  Terminal,
 } from "lucide-react";
 import {
   Sidebar,
@@ -52,6 +53,7 @@ const buildGroups = () => [
       { title: "Smart Search", url: "/jobs", icon: Search, enabled: features.jobSearch },
       { title: "AutoPilot", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
       { title: "Agent Panel", url: "/agents", icon: Users, enabled: true },
+      { title: "Career-Ops", url: "/career-ops", icon: Terminal, enabled: features.careerOps },
       { title: "Cover Letters", url: "/cover-letter", icon: Mail, enabled: features.coverLetter },
     ] as Item[],
   },
