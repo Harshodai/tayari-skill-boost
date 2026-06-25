@@ -131,6 +131,10 @@ export interface Application {
   ats_score_after: number;
   is_dream_company: boolean;
   status: string;
+  /** Kanban stage alias (saved/applied/interview/offer/rejected) */
+  stage?: string;
+  url?: string;
+  notes?: string;
   submission_mode?: string;
   apply_url?: string;
   notes_log?: Array<{ at: string; text: string }>;
