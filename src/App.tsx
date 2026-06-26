@@ -48,7 +48,9 @@ import ReviewQueue from "./pages/ReviewQueue";
 import PredictiveAnalytics from "./pages/PredictiveAnalytics";
 import AdvisorDashboard from "./pages/AdvisorDashboard";
 import AgentPanel from "./pages/AgentPanel";
+import APIKeys from "./pages/APIKeys";
 import CareerOpsDashboard from "./pages/CareerOpsDashboard";
+import LinkedInImport from "./pages/LinkedInImport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -146,6 +148,22 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Settings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/api-keys"
+                element={
+                  <ProtectedRoute>
+                    <APIKeys />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/linkedin-import"
+                element={
+                  <ProtectedRoute>
+                    <LinkedInImport />
                   </ProtectedRoute>
                 }
               />

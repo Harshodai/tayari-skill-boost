@@ -884,5 +884,25 @@ export async function disconnectGmail(): Promise<any> {
   });
 }
 
+export async function listAPIKeys(): Promise<any> {
+  return apiFetch<any>("/api-keys");
+}
+
+export async function createAPIKey(name: string, rateLimit?: number): Promise<any> {
+  return apiFetch<any>("/api-keys", {
+    method: "POST",
+    body: JSON.stringify({ name, rate_limit: rateLimit }),
+  });
+}
+
+export async function revokeAPIKey(id: number): Promise<any> {
+  return apiFetch<any>(`/api-keys/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getAPIKeyUsage(id: number): Promise<any> {
+  return apiFetch<any>(`/api-keys/usage/${id}`);
+}
 
 

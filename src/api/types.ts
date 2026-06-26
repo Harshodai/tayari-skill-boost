@@ -144,6 +144,40 @@ export interface Application {
   updated_at: string;
 }
 
+// --- Guardrails ---
+
+export interface GuardrailResult {
+  all_passed: boolean;
+  results: {
+    truthfulness: {
+      passed: boolean;
+      violations: string[];
+    };
+    keyword_stuffing: {
+      passed: boolean;
+      density_score: number;
+      flagged_keywords: string[];
+    };
+    pii: {
+      passed: boolean;
+      pii_found: Array<{
+        type: string;
+        match: string;
+        position: number;
+      }>;
+    };
+  };
+}
+
+export interface OptimizeResponse {
+  optimized_resume?: string;
+  result?: string;
+  changes?: Record<string, any>;
+  keywords_added?: string[];
+  estimated_score?: number;
+  guardrails?: GuardrailResult;
+}
+
 export interface AutopilotSchedule {
   id: number;
   schedule_id: string;

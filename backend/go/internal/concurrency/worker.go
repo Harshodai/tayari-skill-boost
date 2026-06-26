@@ -74,19 +74,19 @@ func (w *AuditWorker) workerLoop(id int) {
 				emailHashStr := hex.EncodeToString(emailHash[:])
 
 				if !job.Success {
-					// Upsert on email_hash conflict - increment attempt count
+					// Upsert on email conflict - increment attempt count
 					_, err = w.DB.Conn.ExecContext(ctx,
-						`INSERT INTO public.auth_attempts (email_hash, attempt_count, last_attempt_at, ip_hash) 
+						`INSERT INTO public.auth_attempts (email, attempt_count, last_attempt_at, ip_hash) 
                      VALUES ($1, 1, $2, $3) 
-                     ON CONFLICT (email_hash) DO UPDATE SET 
+                     ON CONFLICT (email) DO UPDATE SET 
                         attempt_count = auth_attempts.attempt_count + 1, 
                         last_attempt_at = EXCLUDED.last_attempt_at,
                         ip_hash = EXCLUDED.ip_hash`,
 						emailHashStr, job.Timestamp, job.IPHash,
 					)
 				} else {
-					// On success, clear attempts for this email hash
-					_, err = w.DB.Conn.ExecContext(ctx, "DELETE FROM public.auth_attempts WHERE email_hash = $1", emailHashStr)
+					// On success, clear attempts for this email
+					_, err = w.DB.Conn.ExecContext(ctx, "DELETE FROM public.auth_attempts WHERE email = $1", emailHashStr)
 				}
 			}
 

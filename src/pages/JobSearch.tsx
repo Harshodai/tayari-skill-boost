@@ -35,6 +35,23 @@ import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResume
 import { useAutomation } from "@/contexts/AutomationContext";
 import { cn } from "@/lib/utils";
 
+const ATS_LOGOS: Record<string, string> = {
+  greenhouse: "🌱", lever: "⚙️", ashby: "📋", workday: "📅",
+  bamboohr: "🎋", taleo: "🔮", icims: "🔗", smartrecruiters: "🎯",
+  successfactors: "📊", oracle: "🟢", brassring: "⭕", jobvite: "📨",
+  kenexa: "🔷", ukg: "🟣", paylocity: "💳", ceipal: "👥", fountain: "⛲",
+};
+
+const ATS_NAMES: Record<string, string> = {
+  greenhouse: "Greenhouse", lever: "Lever", ashby: "Ashby",
+  workday: "Workday", bamboohr: "BambooHR", taleo: "Taleo",
+  icims: "iCIMS", smartrecruiters: "SmartRecruiters",
+  successfactors: "SuccessFactors", oracle: "Oracle Cloud",
+  brassring: "BrassRing", jobvite: "Jobvite", kenexa: "Kenexa",
+  ukg: "UKG", paylocity: "Paylocity", ceipal: "CEIPAL",
+  fountain: "Fountain",
+};
+
 interface Job {
   title: string;
   company: string;
@@ -51,6 +68,7 @@ interface Job {
   match_reasons?: string[];
   missing_skills?: string[];
   dedupe_key?: string;
+  ats_provider?: string;
 }
 
 const scoreColor = (s: number) =>
@@ -486,6 +504,12 @@ const JobSearch = () => {
                                   {job.source}
                                 </Badge>
                               )}
+                              {job.ats_provider && (
+                                <Badge variant="secondary" className="text-[10px] py-0 border-primary/20 gap-1">
+                                  <span>{ATS_LOGOS[job.ats_provider] || "🖥️"}</span>
+                                  {ATS_NAMES[job.ats_provider] || job.ats_provider}
+                                </Badge>
+                              )}
                               {isSaved && (
                                 <Badge variant="outline" className="text-[10px] py-0 text-primary border-primary/40">
                                   Saved
@@ -545,6 +569,12 @@ const JobSearch = () => {
                         {selected.source && (
                           <Badge variant="outline" className="text-[10px]">
                             via {selected.source}
+                          </Badge>
+                        )}
+                        {selected.ats_provider && (
+                          <Badge variant="secondary" className="text-[10px] gap-1 border-primary/20">
+                            <span>{ATS_LOGOS[selected.ats_provider] || "🖥️"}</span>
+                            {ATS_NAMES[selected.ats_provider] || selected.ats_provider}
                           </Badge>
                         )}
                       </div>

@@ -50,6 +50,7 @@ from app.services.cover_letter import CoverLetterGenerator
 from app.services.communication import CommunicationGenerator
 from app.services.interview_ai import InterviewPrepGenerator
 from app.services.knowledge_graph import KnowledgeGraphExtractor
+from app.services.linkedin_analyzer import score_linkedin_profile
 
 logger = logging.getLogger(__name__)
 
@@ -419,6 +420,20 @@ async def cover_letter_generate(payload: CoverLetterRequest):
     except Exception as exc:
         logger.error("cover-letter/generate failed: %s", exc)
         raise HTTPException(status_code=502, detail=f"Cover letter generation failed: {exc}") from exc
+
+
+class LinkedInAnalyzeRequest(BaseModel):
+    profile_text: str
+
+
+@app.post("/api/v1/linkedin/analyze")
+async def linkedin_analyze(payload: LinkedInAnalyzeRequest):
+    try:
+        result = score_linkedin_profile(payload.profile_text)
+        return result
+    except Exception as exc:
+        logger.error("linkedin/analyze failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"LinkedIn analysis failed: {exc}") from exc
 
 
 class CommunicationRequest(BaseModel):

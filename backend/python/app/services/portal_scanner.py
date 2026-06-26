@@ -61,11 +61,112 @@ def auto_detect_provider(careers_url: str) -> str | None:
         return 'lever'
     if 'ashbyhq.com' in url_lower:
         return 'ashby'
-    if 'myworkdayjobs.com' in url_lower:
+    if 'myworkdayjobs.com' in url_lower or 'wd5.myworkdayjobs' in url_lower:
         return 'workday'
-    if 'bamboohr.com' in url_lower:
+    if 'bamboohr.com' in url_lower or 'bamboohr' in url_lower:
         return 'bamboohr'
+    if 'taleo.net' in url_lower or 'oracle.com/taleo' in url_lower:
+        return 'taleo'
+    if 'icims.com' in url_lower:
+        return 'icims'
+    if 'smartrecruiters.com' in url_lower:
+        return 'smartrecruiters'
+    if 'successfactors.com' in url_lower or 'sap.com/careers' in url_lower:
+        return 'successfactors'
+    if 'oracle.com/careers' in url_lower or 'oraclecloud.com' in url_lower:
+        return 'oracle'
+    if 'brassring.com' in url_lower:
+        return 'brassring'
+    if 'jobvite.com' in url_lower:
+        return 'jobvite'
+    if 'kenexa.com' in url_lower or 'ibm.com/employment' in url_lower:
+        return 'kenexa'
+    if 'ultipro.com' in url_lower or 'ukg.com' in url_lower:
+        return 'ukg'
+    if 'paylocity.com' in url_lower:
+        return 'paylocity'
+    if 'ceipal.com' in url_lower:
+        return 'ceipal'
+    if 'fountain.com' in url_lower:
+        return 'fountain'
     return None
+
+
+def detect_ats_from_job_url(job_url: str) -> str | None:
+    if not job_url:
+        return None
+    return auto_detect_provider(job_url)
+
+
+def detect_ats_from_company_domain(domain: str) -> str | None:
+    if not domain:
+        return None
+    return auto_detect_provider(f"https://{domain}")
+
+
+# Known company → ATS provider mapping. Useful when only the company name
+# is available (e.g. from free job boards) without a career page URL.
+# Sources: career page redirects, public ATS detection databases.
+KNOWN_COMPANY_ATS: dict[str, str] = {
+    # Greenhouse
+    "airbnb": "greenhouse", "coinbase": "greenhouse", "stripe": "greenhouse",
+    "datadog": "greenhouse", "instacart": "greenhouse", "pinterest": "greenhouse",
+    "spotify": "greenhouse", "lyft": "greenhouse", "brex": "greenhouse",
+    "reddit": "greenhouse", "doordash": "greenhouse", "figma": "greenhouse",
+    "notion": "greenhouse", "vercel": "greenhouse", "monzo": "greenhouse",
+    "revolut": "greenhouse", "intercom": "greenhouse", "twilio": "greenhouse",
+    "godaddy": "greenhouse",
+    # Lever
+    "netflix": "lever", "buffer": "lever", "linear": "lever",
+    "hashicorp": "lever", "confluent": "lever", "amplitude": "lever",
+    "deel": "lever", "fastly": "lever", "webflow": "lever",
+    # Workday
+    "target": "workday", "walmart": "workday", "jpmorgan": "workday",
+    "jpmorgan chase": "workday", "goldman sachs": "workday", "morgan stanley": "workday",
+    "citi": "workday", "wells fargo": "workday", "bank of america": "workday",
+    "amazon": "workday", "microsoft": "workday",
+    # Taleo / Oracle
+    "oracle": "taleo", "hp": "taleo", "hewlett packard": "taleo",
+    "ford": "taleo", "fedex": "taleo", "boeing": "taleo",
+    # iCIMS
+    "united airlines": "icims", "delta": "icims", "marriott": "icims",
+    "hilton": "icims", "cvs": "icims", "cvs health": "icims",
+    # SuccessFactors
+    "sap": "successfactors", "siemens": "successfactors", "bmw": "successfactors",
+    "audi": "successfactors", "mercedes": "successfactors", "daimler": "successfactors",
+    "adidas": "successfactors", "cisco": "successfactors",
+    # Brassring / Kenexa (IBM)
+    "ibm": "kenexa", "northrop grumman": "brassring",
+    # UKG / Kronos / Ultipro
+    "home depot": "ukg", "lowes": "ukg",
+    # BambooHR
+    "mailchimp": "bamboohr", "zendesk": "bamboohr",
+}
+
+
+def detect_ats_from_company_name(company: str) -> str | None:
+    if not company:
+        return None
+    key = company.strip().lower()
+    if key in KNOWN_COMPANY_ATS:
+        return KNOWN_COMPANY_ATS[key]
+    for name, ats in KNOWN_COMPANY_ATS.items():
+        if name in key:
+            return ats
+    return None
+
+
+async def annotate_jobs_with_ats(jobs: list[dict]) -> list[dict]:
+    for job in jobs:
+        ats = None
+        if job.get("url"):
+            ats = detect_ats_from_job_url(job["url"])
+        if not ats and job.get("company"):
+            ats = detect_ats_from_company_name(job["company"])
+        if ats:
+            job["ats_provider"] = ats
+    return jobs
+
 
 async def list_user_portals(user_id: str) -> list[dict]:
     pool = await get_pool()

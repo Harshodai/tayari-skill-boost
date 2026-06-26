@@ -293,24 +293,37 @@ async def run_autopilot(run_id: str, config: dict, profile: dict | None, resume_
 
         # ---- 4-7. TAILOR / SCORE / LETTER / APPLY per job -----------------
         applications = []
+        tailor_enabled = config.get("tailor_per_job", True)
         base_score = heuristic_ats_score(resume_text)["score"]
         for idx, job in enumerate(selected):
             frac = 40 + round(55 * idx / len(selected))
-            _update_run(run_id, progress=frac, current_step="TAILOR")
-            _log(run_id, "TAILOR",
-                       f"Tailoring resume for {job['title']} @ {job['company']}")
+            if tailor_enabled:
+                _update_run(run_id, progress=frac, current_step="TAILOR")
+                _log(run_id, "TAILOR",
+                           f"Tailoring resume for {job['title']} @ {job['company']}")
+            else:
+                _update_run(run_id, progress=frac, current_step="APPLY")
             try:
-                # Reflexion-loop tailoring (generate -> score -> critique -> refine)
-                result = await optimize_with_reflection(
-                    resume_text,
-                    job_description=job.get("description"),
-                    job_label=f"{job['title']} at {job['company']}")
-                tailored_text = result["optimized_text"]
-                ats_after = max(result["new_heuristic_score"],
-                                result.get("estimated_score") or 0)
-                _log(run_id, "SCORE",
-                           f"ATS score for {job['company']}: {base_score} -> {ats_after}"
-                           + (" (refined in 2 passes)" if result["refinement_passes"] > 1 else ""))
+                if tailor_enabled:
+                    result = await optimize_with_reflection(
+                        resume_text,
+                        job_description=job.get("description"),
+                        job_label=f"{job['title']} at {job['company']}")
+                    tailored_text = result["optimized_text"]
+                    ats_after = max(result["new_heuristic_score"],
+                                    result.get("estimated_score") or 0)
+                    _log(run_id, "SCORE",
+                               f"ATS score for {job['company']}: {base_score} -> {ats_after}"
+                               + (" (refined)" if result.get("refinement_passes", 0) > 1 else ""))
+                    changes = result.get("changes", [])
+                    keywords_added = result.get("keywords_added", [])
+                else:
+                    tailored_text = resume_text
+                    ats_after = base_score
+                    changes = []
+                    keywords_added = []
+                    _log(run_id, "APPLY",
+                               f"Sending base resume to {job['title']} @ {job['company']} (tailoring off)")
 
                 _update_run(run_id, current_step="LETTER")
                 cover = await _cover_letter(tailored_text, job, candidate_name)
@@ -321,11 +334,12 @@ async def run_autopilot(run_id: str, config: dict, profile: dict | None, resume_
                     "job": {k: v for k, v in job.items() if not k.startswith("_")},
                     "tailored_resume_text": tailored_text,
                     "cover_letter": cover,
-                    "changes": result.get("changes", []),
-                    "keywords_added": result.get("keywords_added", []),
+                    "changes": changes,
+                    "keywords_added": keywords_added,
                     "ats_score_before": base_score,
                     "ats_score_after": ats_after,
                     "is_dream_company": job.get("is_dream_company", False),
+                    "tailored": tailor_enabled,
                     "status": "auto_applied" if config.get("auto_apply", True) else "ready_to_submit",
                     "submission_mode": "assisted",
                     "apply_url": job.get("url", ""),

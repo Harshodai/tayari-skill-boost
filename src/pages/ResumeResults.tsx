@@ -13,6 +13,7 @@ import {
   MessageSquare, Mail
 } from "lucide-react";
 import type { ResumeAnalysisResult } from "@/types/resume";
+import type { GuardrailResult } from "@/api/types";
 import { SlideUp } from "@/components/ui/motion";
 import { optimizeResume, deepATS, exportResume } from "@/api";
 import { toast } from "sonner";
@@ -39,6 +40,7 @@ const ResumeResults = () => {
   );
   const [appliedSuggestions, setAppliedSuggestions] = useState<string[]>([]);
   const [optimizedText, setOptimizedText] = useState<string | null>(null);
+  const [guardrails, setGuardrails] = useState<GuardrailResult | null>(null);
   const [deepScore, setDeepScore] = useState<any>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isDeepATS, setIsDeepATS] = useState(false);
@@ -66,6 +68,7 @@ const ResumeResults = () => {
     try {
       const res = await optimizeResume(resumeId, jobDescription);
       setOptimizedText(res?.optimized_resume || res?.result || JSON.stringify(res, null, 2));
+      if (res?.guardrails) setGuardrails(res.guardrails as GuardrailResult);
       toast.success("Resume optimized!");
     } catch (err: any) {
       const msg = err.message || "Optimization failed";
@@ -197,7 +200,96 @@ const ResumeResults = () => {
           </div>
         </div>
 
-        {/* AI Operation Error Cards */}
+            {/* Guardrail Results Card */}
+            {guardrails && (
+              <SlideUp delay={0.25}>
+                <Card className={guardrails.all_passed ? "border-success/40" : "border-warning/40"}>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      {guardrails.all_passed ? (
+                        <CheckCircle2 className="w-5 h-5 text-success" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-warning" />
+                      )}
+                      Quality Check
+                      <Badge variant={guardrails.all_passed ? "default" : "secondary"} className="ml-auto">
+                        {guardrails.all_passed ? "Passed" : "Needs Review"}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Truthfulness */}
+                    <div className="flex items-start gap-3">
+                      {guardrails.results.truthfulness.passed
+                        ? <CheckCircle2 className="w-4 h-4 text-success mt-0.5" />
+                        : <XCircle className="w-4 h-4 text-destructive mt-0.5" />}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Factual Accuracy</p>
+                        {!guardrails.results.truthfulness.passed && (
+                          <ul className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                            {guardrails.results.truthfulness.violations.map((v, i) => (
+                              <li key={i}>• {v}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Keyword Stuffing */}
+                    <div className="flex items-start gap-3">
+                      {guardrails.results.keyword_stuffing.passed
+                        ? <CheckCircle2 className="w-4 h-4 text-success mt-0.5" />
+                        : <XCircle className="w-4 h-4 text-destructive mt-0.5" />}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Keyword Density</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                guardrails.results.keyword_stuffing.density_score > 0.5
+                                  ? "bg-destructive" : "bg-success"
+                              }`}
+                              style={{ width: `${Math.min(guardrails.results.keyword_stuffing.density_score * 100, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {Math.round(guardrails.results.keyword_stuffing.density_score * 100)}%
+                          </span>
+                        </div>
+                        {guardrails.results.keyword_stuffing.flagged_keywords.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {guardrails.results.keyword_stuffing.flagged_keywords.map((kw) => (
+                              <Badge key={kw} variant="secondary" className="text-[10px] bg-destructive/10 text-destructive border-destructive/20">
+                                {kw}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* PII */}
+                    <div className="flex items-start gap-3">
+                      {guardrails.results.pii.passed
+                        ? <CheckCircle2 className="w-4 h-4 text-success mt-0.5" />
+                        : <XCircle className="w-4 h-4 text-destructive mt-0.5" />}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Personal Data</p>
+                        {!guardrails.results.pii.passed && (
+                          <ul className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                            {guardrails.results.pii.pii_found.map((p, i) => (
+                              <li key={i}>• {p.type}: <code className="bg-muted px-1 rounded">{p.match}</code></li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </SlideUp>
+            )}
+
+            {/* AI Operation Error Cards */}
         {(optimizeError || deepATSError || exportError) && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
             {optimizeError && (

@@ -18,37 +18,6 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *Server) routesMVP(r chi.Router) {
-	// Profile
-	r.Get("/api/v1/profile", s.handleGetProfile)
-	r.Put("/api/v1/profile", s.handleUpdateProfile)
-
-	// Job Search
-	r.Post("/api/v1/jobs/search", s.handleJobSearch)
-	r.Post("/api/v1/jobs/save", s.handleSaveJob)
-	r.Get("/api/v1/jobs/saved", s.handleListSavedJobs)
-	r.Delete("/api/v1/jobs/saved/{id}", s.handleDeleteSavedJob)
-
-	// Autopilot
-	r.Post("/api/v1/autopilot/start", s.handleAutopilotStart)
-	r.Get("/api/v1/autopilot/runs", s.handleListAutopilotRuns)
-	r.Get("/api/v1/autopilot/runs/{id}", s.handleGetAutopilotRun)
-	r.Post("/api/v1/autopilot/applications", s.handleCreateApplication)
-	r.Get("/api/v1/autopilot/applications", s.handleListApplications)
-	r.Get("/api/v1/autopilot/applications/{id}", s.handleGetApplication)
-	r.Put("/api/v1/autopilot/applications/{id}", s.handleUpdateApplication)
-	r.Delete("/api/v1/autopilot/applications/{id}", s.handleDeleteApplication)
-	r.Get("/api/v1/autopilot/applications/{id}/download", s.handleDownloadApplicationResume)
-	r.Post("/api/v1/autopilot/schedules", s.handleCreateSchedule)
-	r.Get("/api/v1/autopilot/schedules", s.handleListSchedules)
-	r.Put("/api/v1/autopilot/schedules/{id}", s.handleUpdateSchedule)
-	r.Delete("/api/v1/autopilot/schedules/{id}", s.handleDeleteSchedule)
-
-	// Resume AI enhancements
-	r.Post("/api/v1/resumes/{id}/optimize", s.handleOptimizeResume)
-	r.Post("/api/v1/resumes/{id}/ats-deep", s.handleDeepATS)
-	r.Post("/api/v1/resumes/{id}/export", s.handleExportResume)
-}
 
 // -------------------------------------------------------------------
 // Profile
@@ -1592,5 +1561,35 @@ func (s *Server) handleDownloadVersionDocx(w http.ResponseWriter, r *http.Reques
 	w.Write(decoded)
 }
 
+func (s *Server) handleLinkedInAnalyze(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "User not found in context")
+		return
+	}
+
+	var req struct {
+		ProfileText string `json:"profile_text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.ProfileText == "" {
+		s.respondError(w, http.StatusBadRequest, "profile_text is required")
+		return
+	}
+
+	result, err := s.AI.PostJSON("/api/v1/linkedin/analyze", map[string]interface{}{
+		"profile_text": req.ProfileText,
+	})
+	if err != nil {
+		log.Printf("handleLinkedInAnalyze: AI call failed: %v", err)
+		s.respondError(w, http.StatusBadGateway, "LinkedIn analysis failed")
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, result)
+}
 
 

@@ -149,6 +149,9 @@ func (s *Server) routes() {
 			r = r.WithContext(context.WithValue(r.Context(), contextKey("provider"), provider))
 			s.Auth.SocialCallback(w, r)
 		})
+
+		// Public API endpoints (API key auth)
+		s.routesPublic(r)
 	})
 
 	// Protected Routes (user-based rate limit: 1000 RPM)
@@ -306,6 +309,12 @@ func (s *Server) routes() {
 		// Chrome Extension endpoints
 		s.routesExtensionExtra(r)
 
+		// API Key management
+		s.routesAPIKeys(r)
+
+		// LinkedIn Profile analysis
+		r.Post("/api/v1/linkedin/analyze", s.handleLinkedInAnalyze)
+		r.Post("/api/linkedin/analyze", s.handleLinkedInAnalyze)
 
 
 		// Review Queue Routes

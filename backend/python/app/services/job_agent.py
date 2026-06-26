@@ -16,6 +16,7 @@ from app.services.job_providers import search_jobs
 from app.services.llm_service import llm_complete, extract_json, active_engine
 from app.services.skill_taxonomy import taxonomy_overlap
 from app.services.embedding_service import embed_texts, cosine_similarity
+from app.services.portal_scanner import annotate_jobs_with_ats
 
 logger = logging.getLogger(__name__)
 
@@ -317,13 +318,15 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
     ranked = await rank_jobs(candidate, jobs, top_n=top_n)
     scored = [j for j in ranked if j.get("match_score") is not None]
     log_step("RANK", f"AI scored {len(scored)} jobs against your profile")
-    log_step("REPORT", f"Returning top {len(ranked)} matches sorted by fit")
+
+    annotated = await annotate_jobs_with_ats(ranked)
+    log_step("REPORT", f"Returning top {len(annotated)} matches sorted by fit")
 
     return {
         "query": effective_query,
         "location": location,
         "total_found": len(jobs),
         "engine": active_engine(),
-        "results": ranked,
+        "results": annotated,
         "agent_trace": trace,
     }

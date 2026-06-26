@@ -13,6 +13,8 @@ import {
   BookOpen,
   Settings,
   HelpCircle,
+  Key,
+  Linkedin,
   LogOut,
   Users,
   Terminal,
@@ -129,6 +131,22 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-border/60 p-2 space-y-1">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="LinkedIn Import">
+              <NavLink to="/linkedin-import" className="flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted/60">
+                <Linkedin className="h-4 w-4" />
+                {!collapsed && <span>LinkedIn</span>}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="API Keys">
+              <NavLink to="/api-keys" className="flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted/60">
+                <Key className="h-4 w-4" />
+                {!collapsed && <span>API Keys</span>}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Settings">
               <NavLink to="/settings" className="flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted/60">

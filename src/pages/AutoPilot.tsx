@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Play,
   Loader2,
@@ -21,6 +23,7 @@ import {
   Trash2,
   RotateCcw,
   AlertTriangle,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -31,6 +34,8 @@ import {
   listApplications,
   downloadApplicationResume,
   deleteApplication,
+  listResumes,
+  getResume,
 } from "@/api";
 import {
   Collapsible,
@@ -42,9 +47,22 @@ const AutoPilot = () => {
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [maxJobs, setMaxJobs] = useState(5);
+  const [tailorPerJob, setTailorPerJob] = useState(true);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  const { data: resumes = [] } = useQuery({
+    queryKey: ["resumes"],
+    queryFn: () => listResumes(),
+  });
+
+  const { data: firstResume } = useQuery({
+    queryKey: ["resume", resumes[0]?.id],
+    queryFn: () => getResume(resumes[0].id),
+    enabled: resumes.length > 0,
+  });
+  const resumeText = firstResume?.original_text || "";
 
   const { data: runs = [], isLoading: runsLoading, error: runsError } = useQuery({
     queryKey: ["autopilot-runs"],
@@ -76,23 +94,28 @@ const AutoPilot = () => {
       setActiveRunId(data.run_id);
       queryClient.invalidateQueries({ queryKey: ["autopilot-runs"] });
     },
-    onError: (err: any) => {
-      const msg = err.message || "Failed to start";
-      setRunError(msg);
-      toast.error(msg);
+    onError: (err: Error) => {
+      setRunError(err.message);
+      toast.error(err.message);
     },
   });
 
   const handleStart = () => {
     setRunError(null);
+    if (!resumeText) {
+      setRunError("Upload a resume first — we need your base resume to tailor from.");
+      toast.error("No resume found. Upload one from the Resume page first.");
+      return;
+    }
     startMutation.mutate({
       run_config: {
         query: query || undefined,
         location: location || undefined,
         max_jobs: maxJobs,
         auto_apply: false,
+        tailor_per_job: tailorPerJob,
       },
-      resume_text: "",
+      resume_text: resumeText,
       candidate_name: "Candidate",
     });
   };
@@ -157,6 +180,32 @@ const AutoPilot = () => {
                   className="w-full"
                 />
               </div>
+              <div className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-3">
+                  <FileText className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <Label htmlFor="tailor-toggle" className="text-sm font-medium">
+                      Tailor resume per job
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {tailorPerJob
+                        ? "LLM-refines each resume against the job description (slower, higher quality)"
+                        : "Sends the same base resume to all jobs (faster, lower response rates)"}
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="tailor-toggle"
+                  checked={tailorPerJob}
+                  onCheckedChange={setTailorPerJob}
+                />
+              </div>
+              {!resumeText && (
+                <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>Upload a resume to enable autopilot</span>
+                </div>
+              )}
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button
                   onClick={handleStart}
@@ -297,12 +346,36 @@ const AutoPilot = () => {
                           {app.job?.company || "Unknown Company"}
                         </p>
                         <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
-                          <span>ATS Before: {app.ats_score_before}</span>
+                          <span>ATS: {app.ats_score_before}</span>
                           <span>→</span>
                           <span className={app.ats_score_after >= 80 ? "text-success" : "text-warning"}>
-                            After: {app.ats_score_after}
+                            {app.ats_score_after}
                           </span>
                         </div>
+                        {app.tailored && app.changes && app.changes.length > 0 && (
+                          <Collapsible className="mt-2">
+                            <CollapsibleTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-7 text-xs">
+                                <ChevronDown className="w-3 h-3 mr-1" />
+                                {app.changes.length} changes, {app.keywords_added?.length || 0} keywords
+                              </Button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="bg-muted rounded-lg p-3 mt-1 text-xs space-y-1">
+                                {app.changes.map((c: string, i: number) => (
+                                  <div key={i} className="text-muted-foreground">• {c}</div>
+                                ))}
+                                {app.keywords_added && app.keywords_added.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border">
+                                    {app.keywords_added.map((kw: string, i: number) => (
+                                      <Badge key={i} variant="outline" className="text-[10px]">{kw}</Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Button

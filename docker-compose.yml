@@ -193,14 +193,14 @@ services:
   caddy:
     image: caddy:2-alpine
     ports:
-      - "${CADDY_HTTP_PORT:-8080}:80"
+      - "${CADDY_HTTP_PORT:-8090}:80"
       - "${CADDY_HTTPS_PORT:-8443}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     environment:
-      - CADDY_DOMAIN=${CADDY_DOMAIN:-}
+      - CADDY_DOMAIN
       - CADDY_EMAIL=${CADDY_EMAIL:-admin@tayari.app}
     depends_on:
       - frontend
