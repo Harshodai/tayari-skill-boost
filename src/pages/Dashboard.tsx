@@ -33,13 +33,7 @@ import { USE_SELF_HOSTED, listAnalysisHistory } from "@/api";
 import { useAutomation } from "@/contexts/AutomationContext";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
-
-const PIPELINE_STAGES = [
-  { key: "saved", label: "Saved", color: "text-muted-foreground" },
-  { key: "applied", label: "Applied", color: "text-primary" },
-  { key: "interview", label: "Interviewing", color: "text-accent" },
-  { key: "offer", label: "Offer", color: "text-success" },
-] as const;
+import { ApplicationPipeline } from "@/components/pipeline/ApplicationPipeline";
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -307,32 +301,24 @@ const Dashboard = () => {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {PIPELINE_STAGES.map((stage) => (
-                <div
-                  key={stage.key}
-                  className="rounded-lg border border-border/60 bg-muted/20 p-4 min-h-[140px]"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className={cn("text-xs font-semibold uppercase tracking-wider", stage.color)}>
-                      {stage.label}
-                    </span>
-                    <Badge variant="secondary" className="text-xs">
-                      {pipelineCounts[stage.key] ?? 0}
-                    </Badge>
-                  </div>
-                  {stage.key === "saved" && savedJobs.slice(0, 2).map((j) => (
-                    <div key={j.id} className="text-xs bg-card border border-border/60 rounded p-2 mb-2 truncate">
-                      <p className="font-medium truncate">{j.title}</p>
-                      <p className="text-muted-foreground truncate">{j.company}</p>
-                    </div>
-                  ))}
-                  {pipelineCounts[stage.key] === 0 && (
-                    <p className="text-xs text-muted-foreground italic">Empty</p>
-                  )}
-                </div>
-              ))}
-            </div>
+            {savedJobs.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">
+                Save jobs from Smart Search to populate your pipeline.
+              </p>
+            ) : (
+              <ApplicationPipeline
+                variant="compact"
+                jobs={(savedJobs as any[]).map((j) => ({
+                  id: String(j.id),
+                  title: j.title,
+                  company: j.company,
+                  location: j.location ?? null,
+                  url: j.url ?? null,
+                  stage: "saved" as const,
+                  savedAt: j.saved_at,
+                }))}
+              />
+            )}
           </CardContent>
         </Card>
 

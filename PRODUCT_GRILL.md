@@ -1075,3 +1075,96 @@ Job search tools have a unique churn dynamic: **success causes churn**. When a u
 ---
 
 *Analysis based on publicly available data as of June 2026. Competitor pricing and features verified via official websites, Trustpilot, G2, Capterra, Chrome Web Store, SaaSworthy, Crunchbase, LinkedIn, and third-party review sites. Some competitors (AceApp, Revorian, Resume Optimizer Pro, BulkApply, AutoApply.Jobs) have limited public data; their pricing and features should be verified independently.*
+
+---
+
+## 12. Phase 3 Grill — Ruthless 2026 Reality Check (added 2026-06-26)
+
+Web-sourced this round; citations inline. Goal: stop confusing "features shipped" with "outcomes seekers will pay for."
+
+### 12.1 Auto-Apply Is A Trust Liability, Not A Moat
+
+The auto-apply category we lean on for "Autopilot" is **actively losing trust** in 2026:
+
+- **LazyApply: 2.4★ Trustpilot, 56% one-star reviews, ~2.9★ Chrome Store, documented LinkedIn account-ban risk** (PitchHired, Resumly, Jun 2026). Refunds reportedly go unanswered. Sonara already shut down Feb 2024 for this reason.
+- **Jobscan's own 2026 verdict on the category**: "Auto-apply tools tank quality; recruiters can tell." Coming from the incumbent, this primes the market against us if we lead with Autopilot.
+- **NextHire 2026 guide** segments the space into three models — bulk-blast bots (high ban risk), AI-tailored auto-apply (quality varies wildly), and human-in-loop (Scale.jobs $199/250 apps). Tayari currently markets like model 2 but technically delivers closer to model 1 (no per-application QA loop visible in the UI).
+
+**Grill verdict:** "Autopilot" as a top-nav item is a recruitment liability with mid-tier buyers. **Action:** rename to "Apply Assist," gate auto-submit behind an explicit per-job confirm, and surface a per-application quality score (already have it — just expose it) so we're visibly in the "AI-tailored" tier, not the "blast bot" tier. Add a public refund policy on the pricing page; refund disputes are the #1 complaint across LazyApply/Jobright reviews.
+
+### 12.2 Positioning vs The Four Real Winners
+
+Based on TrackJobs, RemoteHunt, and bestjobsearchapps 2026 comparisons:
+
+| Player | Won the perception of… | Tayari's honest position today |
+|---|---|---|
+| **Teal** | "Resume is your bottleneck" — best tailoring CRM | We match feature-for-feature but have **0 brand share** of this phrase |
+| **Huntr** | "Best visual Kanban + mobile app" | We just shipped Kanban (this PR). **No mobile app.** |
+| **Jobright** | "AI matches you to jobs you didn't know existed" — but Trustpilot billing complaints | Our matching is unproven; we have the same billing-trust gap to avoid |
+| **Simplify** | "Best free autofill" — 100M+ applications submitted | We have no autofill extension shipped to users |
+
+**Grill verdict:** We're a "good at everything, famous for nothing" product. Pick **one** position and own it in 90 days. Recommend **"the only platform where Resume → Cover → Apply → Interview is one chain you can watch run"** — i.e. lean fully into the Activity Drawer / Hermes pipeline that nobody else has.
+
+### 12.3 ATS Scoring — Our Score Is Almost Certainly Lying
+
+- **Resumly (138,848-resume study, Jun 2026)**: ATS rejection is dominated by **filler verbs + zero numbers**, not formatting. Most "ATS scores" weight formatting heavily — wrong axis.
+- **Ajusta study (2026)**: Their own engine showed scores **plateau after keyword pass**; skills barely move; "every resume hits the same ceiling." If we don't expose this ceiling, users blame us when scores stop climbing at ~85%.
+- **ATSVerification 2026 testing**: of Jobscan/Teal/Rezi/Kickresume/Resume.io/Enhancv, **all six produced different scores for the same resume against the same JD**. Score is a marketing artifact, not a benchmark.
+- **TalentTuner whitepaper** (32 academic sources): real ATS engines (Workday/Greenhouse/iCIMS/Taleo) parse very differently; a single "ATS score" is fiction.
+
+**Grill verdict:** Our overall % score is the most clickable and the **most legally + reputationally exposed** number we display. Action items:
+1. Show **per-ATS estimates** ("Workday: high · Greenhouse: medium · iCIMS: low") instead of one number.
+2. Display a **confidence band** (`72 ± 8`), not a point estimate.
+3. Replace "Score plateau at 85" with a hard explanation: "Above 80 the bottleneck shifts from keywords to interview signal — practice interviews now."
+4. Publish our methodology page (cite Resumly/Ajusta/TalentTuner); turns liability into trust.
+
+### 12.4 Pricing — Our Implicit Price Is Wrong For Every Segment
+
+Pulling fresh 2026 numbers:
+
+- Teal **$29/mo**, Huntr **$40/mo**, Jobright **$39.99/mo**, Enhancv **$24.99/mo**, JobCopilot **$0.93/day** (~$28/mo), Rezi **$149 lifetime**.
+- Bulk auto-appliers (LazyApply $99–999/yr) anchor "AI job search = ~$10–40/mo."
+- **Scale.jobs $199 one-time for 250 human-reviewed apps** is the price-anchor for the *quality* tier we should occupy.
+
+We have no public pricing page in the production build, and our feature list looks like the **union** of all of the above. Two pricing risks:
+1. If we price at $29–40/mo we're a commodity in a category losing trust (see 12.1).
+2. If we price higher we need a visible differentiator beyond "more features."
+
+**Grill verdict:** Ship a 3-tier page **this sprint**: Free (resume scan + 5 tailored apps/mo) · **Pro $19/mo** (undercut Teal by a third) · **Career-Ops $79/mo** (Autopilot + Hermes pipeline + interview AI). Add an **annual** plan only (no weekly — weekly pricing is a churn-and-refund-complaint factory across competitors).
+
+### 12.5 Things Our UI Still Hides That We Already Built
+
+Walked the codebase against competitors' marketing pages:
+
+| We have | But UI surface is | Competitor surfaces it as |
+|---|---|---|
+| `automation_engine` + Activity Drawer (unique!) | Side sheet, opt-in | Should be a permanent **"Active runs: 3"** chip in header — the headline feature |
+| `knowledge_graph` (skills/companies) | Backend only | Teal/Phenom turn this into a "Skills you're missing for this role" widget — biggest single conversion lever in their funnel |
+| `interview_ai` with STAR coaching | Buried under `/interview/prep` | Final Round AI and Interviewsby make this the **landing page hero** |
+| Hermes scrape + multi-board cache | Returns to JSON | Should power a public **"Jobs by company you can't see on LinkedIn"** marketing surface |
+| Per-ATS analysis in `ats_engine` | Collapsed to one number (see 12.3) | Jobscan's whole brand is per-ATS detection |
+
+**Grill verdict:** Half our differentiation is **shipped but invisible.** Two-week front-end push to surface these beats any new feature build.
+
+### 12.6 Hard Truths
+
+1. **We have no measurable outcome story.** Teal cites "X interviews per Y applications." Jobright cites response rates. We cite zero outcome numbers anywhere in the app. *Action:* instrument & display interview-rate, response-rate, time-to-first-interview the moment we have 50 users.
+2. **No mobile app.** Huntr's mobile app is the #1 reason it wins the "organized seeker" segment per RemoteHunt 2026. We won't ship native this quarter — but a PWA install prompt + mobile bottom-tab (already planned in P3) is table stakes.
+3. **No browser extension shipped to public.** `extension/` exists in repo but is not in Chrome Web Store. Simplify, Teal, Huntr all gain ~30–50% of signups via the store. Publishing the extension is the single highest-ROI growth move in this audit.
+4. **"All-in-one" is no longer a positive.** JobCopilot is failing at it (4.2★ but complaints about shallow features); Jobright is being criticized for the same. We should describe ourselves as **"the chain"**, not **"the suite"**.
+5. **Trust copy is missing.** No "your data is never used to train models," no SOC-2-in-progress badge, no public security page. Every competitor with >$10M funding has these; absence is interpreted as risk.
+
+### 12.7 Suggested Re-Prioritization (Front-End, Next 2 Sprints)
+
+| # | Item | Why | Effort |
+|---|---|---|---|
+| 1 | "Active runs: N" header chip + permanent activity bar | Surfaces unique Hermes/Automation moat (12.5) | S |
+| 2 | Per-ATS score breakdown + confidence band on Resume Results | Defuses 12.3 risk; turns weakness into differentiator | M |
+| 3 | Public Pricing page (3 tiers, annual only) | Closes 12.4 gap before paid traffic | S |
+| 4 | "Apply Assist" rename + per-job confirm gate + quality score | Defuses 12.1 trust liability | S |
+| 5 | "Skills missing for this role" widget on Job detail pane (from knowledge_graph) | Highest conversion lever per Teal funnel data | M |
+| 6 | Outcome instrumentation (response rate, interviews) on Dashboard | Closes 12.6 (1) | M |
+| 7 | Extension submission to Chrome Web Store | 12.6 (3) — biggest growth lever in this audit | M |
+| 8 | Trust page (privacy, training-data policy, security) | 12.6 (5) | S |
+
+> **Sources:** PitchHired "Is LazyApply Safe in 2026?", Jobscan "Auto-apply 2026" blog, NextHire "AI Auto Apply 2026 guide," Resumly "138,848-resume study (Jun 2026)," Ajusta "Anatomy of ATS optimization (2026)," TalentTuner "ATS Research Whitepaper (Nov 2025)," ATSVerification "AI Resume Builders Tested 2026," TrackJobs "Huntr vs Jobright / Teal vs Jobright 2026," RemoteHunt "Best AI Job Search Tools 2026," bestjobsearchapps "Teal vs Huntr vs Simplify."
