@@ -17,6 +17,7 @@ import Index from "./pages/Index";
 import Onboarding from "./pages/Onboarding";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Pipeline from "./pages/Pipeline";
 import Settings from "./pages/Settings";
 import ResumeUpload from "./pages/ResumeUpload";
 import ResumeResults from "./pages/ResumeResults";
@@ -132,6 +133,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/pipeline"
+                element={
+                  <ProtectedRoute>
+                    <Pipeline />
                   </ProtectedRoute>
                 }
               />
