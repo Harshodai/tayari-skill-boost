@@ -120,7 +120,7 @@ export const CareerOpsDashboard: React.FC = () => {
   const fetchStats = async () => {
     try {
       const data = await getCareerOpsStats();
-      setStats(data);
+      setStats(data as Stats);
     } catch {
       // noop
     }
@@ -332,7 +332,7 @@ export const CareerOpsDashboard: React.FC = () => {
               </button>
             </div>
             <div className="p-4">
-              <EvaluationReportPanel applicationId={evaluateAppId} />
+              <EvaluationReportPanel report={null as any} onClose={() => setEvaluateAppId(null)} />
             </div>
           </div>
         </div>

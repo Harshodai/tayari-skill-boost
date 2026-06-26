@@ -352,7 +352,7 @@ const AutoPilot = () => {
                             {app.ats_score_after}
                           </span>
                         </div>
-                        {app.tailored && app.changes && app.changes.length > 0 && (
+                        {app.changes && app.changes.length > 0 && (
                           <Collapsible className="mt-2">
                             <CollapsibleTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-7 text-xs">

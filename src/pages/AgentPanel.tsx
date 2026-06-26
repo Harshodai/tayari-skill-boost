@@ -576,7 +576,7 @@ export default function AgentPanel() {
                             </td>
                             <td className="py-3 px-3 text-right">
                               <Button
-                                size="xs"
+                                size="sm"
                                 variant="outline"
                                 className="h-7 text-xs flex items-center gap-1.5"
                                 onClick={() => {
@@ -784,10 +784,10 @@ export default function AgentPanel() {
                       <div>
                         <h4 className="font-semibold text-sm text-foreground">Critical Tool Approval Required</h4>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Agent requires your explicit permission to execute the following tool: <span className="font-mono text-amber-600 font-bold bg-amber-500/10 px-1 rounded">{latestWait.payload_json.tool_name}</span>.
+                          Agent requires your explicit permission to execute the following tool: <span className="font-mono text-amber-600 font-bold bg-amber-500/10 px-1 rounded">{String(latestWait.payload_json.tool_name ?? "")}</span>.
                         </p>
                         <div className="mt-2 text-xs font-mono bg-zinc-950 text-zinc-300 p-2.5 rounded border border-zinc-800">
-                          {latestWait.payload_json.content_preview}
+                          {String(latestWait.payload_json.content_preview ?? "")}
                         </div>
                       </div>
                     </div>
@@ -805,7 +805,7 @@ export default function AgentPanel() {
                           variant="outline"
                           size="sm"
                           disabled={submittingApproval}
-                          onClick={() => handleActionApprovalInTerminal(approvalId, "rejected")}
+                          onClick={() => handleActionApprovalInTerminal(String(approvalId), "rejected")}
                           className="bg-background border-rose-500/20 hover:bg-rose-500/10 hover:text-rose-600 text-rose-500 h-8"
                         >
                           Reject Call
@@ -813,7 +813,7 @@ export default function AgentPanel() {
                         <Button
                           size="sm"
                           disabled={submittingApproval}
-                          onClick={() => handleActionApprovalInTerminal(approvalId, "approved")}
+                          onClick={() => handleActionApprovalInTerminal(String(approvalId), "approved")}
                           className="bg-emerald-600 hover:bg-emerald-500 text-white h-8"
                         >
                           Approve & Execute
