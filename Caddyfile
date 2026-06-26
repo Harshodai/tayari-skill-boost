@@ -1,0 +1,13 @@
+{
+  email {$CADDY_EMAIL:admin@tayari.app}
+}
+
+{$CADDY_DOMAIN:http://localhost:8080} {
+  reverse_proxy /api/* go-backend:8080
+  reverse_proxy /flower/* celery-flower:5555
+  reverse_proxy frontend:80
+
+  log {
+    output file /data/logs/access.log
+  }
+}

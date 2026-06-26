@@ -36,6 +36,7 @@ import Blog from "./pages/Blog";
 import BlogPost from "./pages/BlogPost";
 import Help from "./pages/Help";
 import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import AuthCallback from "./pages/AuthCallback";
 import Profile from "./pages/Profile";
 import CoverLetter from "./pages/CoverLetter";
@@ -74,6 +75,7 @@ const App = () => (
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
 
               {/* Conditionally Rendered Routes */}
@@ -86,6 +88,7 @@ const App = () => (
               {features.jobSearch && (
                 <>
                   <Route path="/jobs" element={<JobSearch />} />
+                  <Route path="/job-search" element={<JobSearch />} />
                   <Route path="/jobs/autopilot" element={<AutoPilot />} />
                 </>
               )}

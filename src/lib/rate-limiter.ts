@@ -7,21 +7,27 @@ export interface RateLimitResult {
   message: string | null;
 }
 
+// In self-hosted mode, Supabase Edge Functions are not available.
+// Skip all rate limit calls silently to avoid ERR_CONNECTION_REFUSED noise.
+const USE_SELF_HOSTED = import.meta.env.VITE_USE_SELF_HOSTED === "true";
+
+const RATE_LIMIT_OPEN: RateLimitResult = {
+  allowed: true,
+  remainingAttempts: 5,
+  blockedUntil: null,
+  message: null,
+};
+
 export async function checkRateLimit(email: string): Promise<RateLimitResult> {
+  if (USE_SELF_HOSTED) return RATE_LIMIT_OPEN;
   try {
     const { data, error } = await supabase.functions.invoke('check-rate-limit', {
       body: { email, action: 'check' },
     });
 
     if (error) {
-      console.error('Rate limit check error:', error);
       // Fail open to avoid blocking legitimate users on system error
-      return {
-        allowed: true,
-        remainingAttempts: 5,
-        blockedUntil: null,
-        message: null
-      };
+      return RATE_LIMIT_OPEN;
     }
 
     return {
@@ -30,25 +36,19 @@ export async function checkRateLimit(email: string): Promise<RateLimitResult> {
       blockedUntil: data.blockedUntil ? new Date(data.blockedUntil) : null,
       message: data.allowed ? null : `Too many login attempts. Please try again later.`
     };
-  } catch (err) {
-    console.error('Rate limit check exception:', err);
-    return {
-      allowed: true,
-      remainingAttempts: 5,
-      blockedUntil: null,
-      message: null
-    };
+  } catch {
+    return RATE_LIMIT_OPEN;
   }
 }
 
 export async function recordFailedAttempt(email: string): Promise<RateLimitResult> {
+  if (USE_SELF_HOSTED) return { allowed: true, remainingAttempts: 0, blockedUntil: null, message: 'Invalid credentials.' };
   try {
     const { data, error } = await supabase.functions.invoke('check-rate-limit', {
       body: { email, action: 'record_failure' },
     });
 
     if (error) {
-      console.error('Rate limit record error:', error);
       return {
         allowed: true,
         remainingAttempts: 0,
@@ -72,7 +72,7 @@ export async function recordFailedAttempt(email: string): Promise<RateLimitResul
       blockedUntil: null,
       message: `Invalid credentials. ${data.remainingAttempts} attempts remaining.`
     };
-  } catch (err) {
+  } catch {
     return {
       allowed: true,
       remainingAttempts: 0,
@@ -83,11 +83,13 @@ export async function recordFailedAttempt(email: string): Promise<RateLimitResul
 }
 
 export async function resetRateLimit(email: string): Promise<void> {
+  if (USE_SELF_HOSTED) return;
   try {
     await supabase.functions.invoke('check-rate-limit', {
       body: { email, action: 'reset' },
     });
-  } catch (err) {
-    console.error('Rate limit reset error:', err);
+  } catch {
+    // Silently ignore in self-hosted mode or if Supabase is unavailable
   }
 }
+

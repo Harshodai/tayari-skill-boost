@@ -127,7 +127,8 @@ class OpenRouterProvider(LLMProvider):
     """OpenRouter (https://openrouter.ai) — OpenAI-compatible with extra headers."""
 
     BASE = "https://openrouter.ai/api/v1"
-    DEFAULT_MODEL = "openai/gpt-4o-mini"
+    DEFAULT_MODEL = "openrouter/free"
+    MAX_RETRIES = 3
 
     def __init__(self, api_key: str, model: str) -> None:
         self._key = api_key
@@ -150,11 +151,32 @@ class OpenRouterProvider(LLMProvider):
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        async with httpx.AsyncClient(timeout=180) as client:
-            resp = await client.post(f"{self.BASE}/chat/completions",
-                                     json=payload, headers=headers)
-            resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                async with httpx.AsyncClient(timeout=180) as client:
+                    resp = await client.post(f"{self.BASE}/chat/completions",
+                                             json=payload, headers=headers)
+                    if resp.status_code == 429:
+                        remaining = resp.headers.get("X-RateLimit-Remaining", "0")
+                        reset = resp.headers.get("X-RateLimit-Reset", "5")
+                        wait = (2 ** attempt) + (int(reset) if reset.isdigit() else 5)
+                        logger.warning("OpenRouter 429 (attempt %d/%d, remaining=%s); retrying in %ds",
+                                       attempt + 1, self.MAX_RETRIES, remaining, wait)
+                        import asyncio
+                        await asyncio.sleep(wait)
+                        continue
+                    resp.raise_for_status()
+                return resp.json()["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt < self.MAX_RETRIES - 1:
+                    continue
+                logger.error("OpenRouter HTTP error after %d retries: %s", attempt + 1, e)
+                raise
+            except Exception as e:
+                logger.error("OpenRouter request error (attempt %d/%d): %s", attempt + 1, self.MAX_RETRIES, e)
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+        raise RuntimeError("OpenRouter exhausted retries")
 
     def active_engine_label(self) -> str:
         return f"openrouter/{self._model}"
@@ -315,9 +337,10 @@ async def llm_complete(
     """Single-shot completion. tier: 'fast'/'smart' (same provider), 'hermes'."""
     provider = build_provider(tier if tier == "hermes" else "default")
     try:
-        return await provider.complete(system_message, user_message,
-                                       max_tokens=max_tokens, temperature=temperature)
-    except Exception as exc:  # noqa: BLE001
+        result = await provider.complete(system_message, user_message,
+                                         max_tokens=max_tokens, temperature=temperature)
+        return result if result else _mock_text(system_message, user_message)
+    except Exception as exc:
         logger.error("LLM completion error: %s", exc)
         return _mock_text(system_message, user_message)
 

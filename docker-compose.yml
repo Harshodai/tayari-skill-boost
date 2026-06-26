@@ -27,6 +27,8 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - PORT=8000
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
       # Hermes + Celery/Redis layer (WS-C). Lets FastAPI enqueue Celery tasks
       # and read agent_runs/scraped_jobs from Postgres.
       - REDIS_URL=redis://redis:6379/0
@@ -41,6 +43,9 @@ services:
       - LLM_BASE_URL=${LLM_BASE_URL:-}
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
     ports:
       - "8002:8000"
     depends_on:
@@ -84,6 +89,9 @@ services:
       - LLM_BASE_URL=${LLM_BASE_URL:-}
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     depends_on:
@@ -101,6 +109,7 @@ services:
       dockerfile: Dockerfile.worker
     command: ["celery", "-A", "app.celery_app:celery_app", "flower", "--port=5555", "--url-prefix=flower"]
     environment:
+      - FLOWER_UNAUTHENTICATED_API=true
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgres://tayari:tayari_dev@postgres:5432/tayari?sslmode=disable
       - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
@@ -113,6 +122,9 @@ services:
       - LLM_BASE_URL=${LLM_BASE_URL:-}
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
     ports:
       - "5555:5555"
     depends_on:
@@ -131,6 +143,12 @@ services:
       - AI_SERVICE_URL=http://python-ai:8000
       - JWT_SECRET=${JWT_SECRET:-tayari-dev-secret-change-me}
       - PORT=8080
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8080,http://localhost:8083}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8083}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
+      - APP_VERSION=${APP_VERSION:-0.1.0}
     ports:
       - "8085:8080"
     depends_on:
@@ -165,13 +183,35 @@ services:
         - VITE_SUPABASE_PUBLISHABLE_KEY=${VITE_SUPABASE_PUBLISHABLE_KEY}
         - VITE_USE_SELF_HOSTED=${VITE_USE_SELF_HOSTED}
         - VITE_SUPABASE_PROJECT_ID=${VITE_SUPABASE_PROJECT_ID}
+        - VITE_SENTRY_DSN=${SENTRY_DSN:-}
+        - VITE_SENTRY_ENVIRONMENT=${VITE_SENTRY_ENVIRONMENT:-development}
     ports:
       - "8083:80"
     depends_on:
       - go-backend
 
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "${CADDY_HTTP_PORT:-8080}:80"
+      - "${CADDY_HTTPS_PORT:-8443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - CADDY_DOMAIN=${CADDY_DOMAIN:-}
+      - CADDY_EMAIL=${CADDY_EMAIL:-admin@tayari.app}
+    depends_on:
+      - frontend
+      - go-backend
+      - celery-flower
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   ollama_data:
   redis_data:
+  caddy_data:
+  caddy_config:
 

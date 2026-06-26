@@ -40,8 +40,12 @@ self.addEventListener('fetch', (event) => {
   // Only cache GET requests
   if (event.request.method !== 'GET') return;
 
-  // Ignore API requests or sockjs/ws events
+  // Skip non-http(s) schemes (e.g. chrome-extension://) — attempting to cache
+  // these causes "Request scheme 'chrome-extension' is unsupported" errors.
   const url = new URL(event.request.url);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
+  // Ignore API requests or sockjs/ws events
   if (url.pathname.startsWith('/api') || url.pathname.includes('hot-update') || url.pathname.startsWith('/ws')) {
     return;
   }

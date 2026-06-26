@@ -79,14 +79,19 @@ func (s *Server) routes() {
 	}
 	*/
 
-	// Use AllowedOriginFunc to allow any origin with credentials (archive test expects wildcard)
 	s.Router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   []string{"http://localhost:8080", "http://localhost:8083", "http://localhost:5173", "http://localhost:4173"},
 		AllowOriginFunc: func(r *http.Request, origin string) bool {
-			return true
+			allowed := []string{"http://localhost:8080", "http://localhost:8083", "http://localhost:5173", "http://localhost:4173"}
+			for _, o := range allowed {
+				if origin == o {
+					return true
+				}
+			}
+			return false
 		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Tenant-Domain", "X-User-ID", "X-User-Email"},
 		ExposedHeaders:     []string{"Link"},
 		AllowCredentials:   true,
 		MaxAge:             300,
@@ -96,12 +101,31 @@ func (s *Server) routes() {
 	s.Router.Group(func(r chi.Router) {
 		r.Use(s.publicRateLimiter.Middleware)
 		r.Get("/api/health", s.handleHealth)
+		r.Get("/api/v1/health", s.handleHealth)
 		r.Get("/api/health/detailed", s.handleHealthDetailed)
+		r.Get("/api/v1/health/detailed", s.handleHealthDetailed)
 		r.Post("/api/auth/register", s.handleRegister)
+		r.Post("/api/v1/auth/register", s.handleRegister)
 		r.Post("/api/auth/login", s.handleLogin)
+		r.Post("/api/v1/auth/login", s.handleLogin)
+
+		// Public tenant branding (must be outside auth group so OPTIONS preflight passes)
+		r.Get("/api/v1/tenants/branding", s.handleGetTenantBranding)
+		r.Get("/api/tenants/branding", s.handleGetTenantBranding)
+
+		// Password Reset (public)
+		s.routesPasswordReset(r)
 
 		// Social Auth Routes
 		r.Get("/api/auth/{provider}", func(w http.ResponseWriter, r *http.Request) {
+			provider := chi.URLParam(r, "provider")
+			q := r.URL.Query()
+			q.Add("provider", provider)
+			r.URL.RawQuery = q.Encode()
+			r = r.WithContext(context.WithValue(r.Context(), contextKey("provider"), provider))
+			s.Auth.SocialLogin(w, r)
+		})
+		r.Get("/api/v1/auth/{provider}", func(w http.ResponseWriter, r *http.Request) {
 			provider := chi.URLParam(r, "provider")
 			q := r.URL.Query()
 			q.Add("provider", provider)
@@ -117,6 +141,14 @@ func (s *Server) routes() {
 			r = r.WithContext(context.WithValue(r.Context(), contextKey("provider"), provider))
 			s.Auth.SocialCallback(w, r)
 		})
+		r.Get("/api/v1/auth/{provider}/callback", func(w http.ResponseWriter, r *http.Request) {
+			provider := chi.URLParam(r, "provider")
+			q := r.URL.Query()
+			q.Add("provider", provider)
+			r.URL.RawQuery = q.Encode()
+			r = r.WithContext(context.WithValue(r.Context(), contextKey("provider"), provider))
+			s.Auth.SocialCallback(w, r)
+		})
 	})
 
 	// Protected Routes (user-based rate limit: 1000 RPM)
@@ -124,7 +156,9 @@ func (s *Server) routes() {
 		r.Use(s.authMiddleware)
 		r.Use(s.authRateLimiter.Middleware)
 		r.Get("/api/auth/me", s.handleMe)
+		r.Get("/api/v1/auth/me", s.handleMe)
 		r.Get("/api/me", s.handleMe)
+		r.Get("/api/v1/me", s.handleMe)
 
 		// Profile (alias for archive compatibility)
 		r.Get("/api/profile", s.handleGetProfile)
@@ -135,6 +169,7 @@ func (s *Server) routes() {
 		// Resume upload (multipart, archive compatible)
 		r.Post("/api/resumes", s.handleCreateResume)
 		r.Post("/api/resumes/upload", s.handleUploadResumeMultipart)
+		r.Post("/api/v1/resumes/upload", s.handleUploadResumeMultipart)
 		r.Get("/api/resumes", s.handleListResumes)
 		r.Post("/api/resumes/analyze-text", s.handleAnalyzeText)
 		r.Get("/api/resumes/{id}", s.handleGetResume)
@@ -187,6 +222,7 @@ func (s *Server) routes() {
 
 		// Job Search
 		r.Get("/api/jobs/search", s.handleJobSearchGET)
+		r.Get("/api/v1/jobs/search", s.handleJobSearchGET)
 		r.Post("/api/jobs/search", s.handleJobSearch)
 		r.Post("/api/jobs/agent-search", s.handleAgentSearch)
 		r.Post("/api/jobs/save", s.handleSaveJob)
@@ -562,11 +598,15 @@ func (s *Server) handleListResumes(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetResume(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "User not found in context")
+		return
+	}
 	userID := user.ID
 
 	var resume models.Resume
-	query := `SELECT id, user_id, title, original_text, parsed_json, file_url, file_type, status, created_at, updated_at FROM resumes WHERE id=$1 AND user_id=$2`
+	query := `SELECT id, user_id, title, COALESCE(original_text, ''), COALESCE(parsed_json::text, ''), COALESCE(file_url, ''), file_type, status, created_at, updated_at FROM resumes WHERE id=$1 AND user_id=$2`
 	err := s.DB.Conn.QueryRowContext(r.Context(), query, idStr, userID).Scan(&resume.ID, &resume.UserID, &resume.Title, &resume.OriginalText, &resume.ParsedJSON, &resume.FileURL, &resume.FileType, &resume.Status, &resume.CreatedAt, &resume.UpdatedAt)
 	if err != nil {
 		s.respondError(w, http.StatusNotFound, "Resume not found")

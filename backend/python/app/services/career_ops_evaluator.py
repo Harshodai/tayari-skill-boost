@@ -129,7 +129,7 @@ async def evaluate_job_candidate(
         
         Job: {title} at {company}
         """
-        cover_letter = await llm_complete(cover_prompt, max_tokens=600, temperature=0.6, tier="fast")
+        cover_letter = await llm_complete("", cover_prompt, max_tokens=600, temperature=0.6, tier="fast")
         eval_data["cover_letter_draft"] = cover_letter.strip()
     except Exception as exc:
         logger.error("Failed to generate cover letter draft: %s", exc)

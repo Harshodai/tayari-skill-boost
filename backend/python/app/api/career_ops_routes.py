@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 import json
+from datetime import datetime, timedelta
 from typing import Any, Optional, List
-from fastapi import APIRouter, HTTPException, Header
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException, Header, Body
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.services import portal_scanner, career_ops_evaluator, pattern_analyzer, followup_tracker
 from app.services.db import get_pool
@@ -25,12 +26,25 @@ def get_required_user_id(x_user_id: Optional[str]) -> str:
 # Models
 # ---------------------------------------------------------------------------
 class EvaluateRequest(BaseModel):
-    resume_text: str
-    title: str
-    company: str
-    location: str
-    description: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    resume_text: str = ""
+    title: str = ""
+    company: str = ""
+    location: str = ""
+    description: str = ""
     application_id: Optional[str] = None
+
+    @classmethod
+    def from_mapped(cls, data: dict) -> "EvaluateRequest":
+        mapped = {}
+        mapped["resume_text"] = data.get("resume_text", "")
+        mapped["title"] = data.get("title") or data.get("job_title", "")
+        mapped["company"] = data.get("company", "")
+        mapped["location"] = data.get("location", "")
+        mapped["description"] = data.get("description") or data.get("job_description", "")
+        mapped["application_id"] = data.get("application_id")
+        return cls.model_construct(**mapped)
 
 class ScanRequest(BaseModel):
     positive_keywords: List[str] = Field(default_factory=list)
@@ -45,6 +59,12 @@ class PortalCreateRequest(BaseModel):
     enabled: bool = True
     keywords_override: List[str] = Field(default_factory=list)
 
+class PortalUpdateRequest(BaseModel):
+    enabled: Optional[bool] = None
+    name: Optional[str] = None
+    careers_url: Optional[str] = None
+    keywords_override: Optional[List[str]] = None
+
 class FollowupActionRequest(BaseModel):
     application_id: str
     contact: str
@@ -58,19 +78,20 @@ class StoryBankUpdateRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/evaluate")
-async def evaluate_job(payload: EvaluateRequest, x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def evaluate_job(payload: dict = Body(...), x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+    parsed = EvaluateRequest.from_mapped(payload)
     user_id = get_required_user_id(x_user_id)
     report = await career_ops_evaluator.evaluate_job_candidate(
         user_id=user_id,
-        resume_text=payload.resume_text,
-        title=payload.title,
-        company=payload.company,
-        location=payload.location,
-        description=payload.description
+        resume_text=parsed.resume_text,
+        title=parsed.title,
+        company=parsed.company,
+        location=parsed.location,
+        description=parsed.description
     )
     
     # Save the report if application_id is provided
-    if payload.application_id:
+    if parsed.application_id:
         pool = await get_pool()
         if pool:
             try:
@@ -87,7 +108,7 @@ async def evaluate_job(payload: EvaluateRequest, x_user_id: Optional[str] = Head
                             updated_at = now()
                         WHERE user_id = $1 AND application_id = $2
                         """,
-                        user_id, payload.application_id, report_json, json.dumps(report.get("block_g", {}))
+                        user_id, parsed.application_id, report_json, json.dumps(report.get("block_g", {}))
                     )
             except Exception as exc:
                 logger.error("Failed to save evaluation report to DB: %s", exc)
@@ -195,7 +216,7 @@ async def get_story_bank(x_user_id: Optional[str] = Header(None, alias="X-User-I
         raise HTTPException(status_code=500, detail="Database unavailable")
         
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT story_bank FROM public.profiles WHERE user_id = $1", user_id)
+        row = await conn.fetchrow("SELECT story_bank FROM public.profiles WHERE id = $1::uuid", user_id)
         if not row or not row["story_bank"]:
             return {"stories": []}
         stories = json.loads(row["story_bank"]) if isinstance(row["story_bank"], str) else row["story_bank"]
@@ -210,7 +231,42 @@ async def save_story_bank(payload: StoryBankUpdateRequest, x_user_id: Optional[s
         
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE public.profiles SET story_bank = $2::jsonb WHERE user_id = $1",
+            "UPDATE public.profiles SET story_bank = $2::jsonb WHERE id = $1::uuid",
             user_id, json.dumps(payload.stories)
         )
     return {"status": "ok"}
+
+@router.patch("/portals/{portal_id}")
+async def update_portal(portal_id: int, payload: PortalUpdateRequest, x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+    user_id = get_required_user_id(x_user_id)
+    success = await portal_scanner.update_portal_enabled(user_id, portal_id, payload.enabled)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update portal")
+    return {"status": "ok"}
+
+@router.delete("/story-bank/{index}")
+async def delete_story(index: int, x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+    user_id = get_required_user_id(x_user_id)
+    pool = await get_pool()
+    if not pool:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+        
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT story_bank FROM public.profiles WHERE id = $1::uuid", user_id)
+        if not row or not row["story_bank"]:
+            raise HTTPException(status_code=404, detail="Story bank empty")
+        stories = json.loads(row["story_bank"]) if isinstance(row["story_bank"], str) else row["story_bank"]
+        if index < 0 or index >= len(stories):
+            raise HTTPException(status_code=404, detail="Story index out of range")
+        stories.pop(index)
+        await conn.execute(
+            "UPDATE public.profiles SET story_bank = $2::jsonb WHERE id = $1::uuid",
+            user_id, json.dumps(stories)
+        )
+    return {"status": "ok"}
+
+@router.get("/stats")
+async def get_stats(x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+    user_id = get_required_user_id(x_user_id)
+    stats = await portal_scanner.get_stats(user_id)
+    return stats

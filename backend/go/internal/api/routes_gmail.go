@@ -22,10 +22,15 @@ import (
 // All routes degrade gracefully when GOOGLE_CLIENT_ID/SECRET are not set.
 func (s *Server) routesGmail(r chi.Router) {
 	r.Get("/api/gmail/status", s.handleGmailStatus)
+	r.Get("/api/v1/gmail/status", s.handleGmailStatus)
 	r.Get("/api/gmail/login", s.handleGmailLogin)
+	r.Get("/api/v1/gmail/login", s.handleGmailLogin)
 	r.Get("/api/oauth/gmail/callback", s.handleGmailCallback)
+	r.Get("/api/v1/oauth/gmail/callback", s.handleGmailCallback)
 	r.Post("/api/gmail/sync", s.handleGmailSync)
+	r.Post("/api/v1/gmail/sync", s.handleGmailSync)
 	r.Post("/api/gmail/disconnect", s.handleGmailDisconnect)
+	r.Post("/api/v1/gmail/disconnect", s.handleGmailDisconnect)
 }
 
 // -------------------------------------------------------------------

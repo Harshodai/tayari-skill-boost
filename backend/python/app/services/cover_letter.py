@@ -10,7 +10,7 @@ class CoverLetterGenerator:
     TONES = {"formal": "formal and professional", "conversational": "conversational and approachable", "confident": "confident and assertive"}
 
     @staticmethod
-    def generate(resume_text: str, job_description: str, company_name: str, job_title: str, tone: str = "formal") -> Dict[str, Any]:
+    async def generate(resume_text: str, job_description: str, company_name: str, job_title: str, tone: str = "formal") -> Dict[str, Any]:
         tone_desc = CoverLetterGenerator.TONES.get(tone, CoverLetterGenerator.TONES["formal"])
 
         prompt = f"""You are an expert career coach writing a cover letter.
@@ -36,7 +36,7 @@ Instructions:
 
 Return ONLY the cover letter text."""
 
-        cover_letter = llm_complete(prompt, max_tokens=800, temperature=0.7)
+        cover_letter = await llm_complete("", prompt, max_tokens=800, temperature=0.7)
 
         # Extract bullet references (sentences with metrics)
         bullet_refs = []

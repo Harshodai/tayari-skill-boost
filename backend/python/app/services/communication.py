@@ -48,7 +48,7 @@ class CommunicationGenerator:
         - Lead with a soft ask / availability ("Would any time this week work for a brief call?").
         
         Return ONLY the email body (no subject line)."""
-        body = await llm_complete(prompt, max_tokens=300, temperature=0.6)
+        body = await llm_complete("", prompt, max_tokens=300, temperature=0.6)
         return {
             "subject": f"Re: {job_title} application — {company_name}",
             "body": body.strip(),
@@ -76,7 +76,7 @@ class CommunicationGenerator:
         - NEVER use generic templates or clichés.
         
         Return ONLY the email body (no subject line)."""
-        body = await llm_complete(prompt, max_tokens=400, temperature=0.7)
+        body = await llm_complete("", prompt, max_tokens=400, temperature=0.7)
         return {
             "subject": f"Thank you — {job_title} interview",
             "body": body.strip(),
@@ -124,7 +124,7 @@ class CommunicationGenerator:
         - Natural, conversational but professional tone (no desperate clichés).
         
         Return ONLY the email body (no subject line)."""
-        body = await llm_complete(prompt, max_tokens=600, temperature=0.7)
+        body = await llm_complete("", prompt, max_tokens=600, temperature=0.7)
         return {
             "subject": f"Regarding {job_title} offer — compensation discussion",
             "body": body.strip(),
@@ -145,7 +145,7 @@ class CommunicationGenerator:
         - Natural, conversational tone (no clichés like "touching base", "circling back").
         
         Return ONLY the email body (no subject line)."""
-        body = await llm_complete(prompt, max_tokens=250, temperature=0.6)
+        body = await llm_complete("", prompt, max_tokens=250, temperature=0.6)
         return {
             "subject": f"Checking in — {job_title} application",
             "body": body.strip(),

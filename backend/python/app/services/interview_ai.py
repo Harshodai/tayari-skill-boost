@@ -28,7 +28,7 @@ class InterviewPrepGenerator:
     }
 
     @staticmethod
-    def generate(
+    async def generate(
         resume_text: str,
         job_title: str,
         company_name: Optional[str] = None,
@@ -36,13 +36,13 @@ class InterviewPrepGenerator:
         interview_type: str = "behavioral",
     ) -> Dict[str, Any]:
         if interview_type == "behavioral":
-            return InterviewPrepGenerator._behavioral(resume_text, job_title, company_name)
+            return await InterviewPrepGenerator._behavioral(resume_text, job_title, company_name)
         elif interview_type == "technical":
-            return InterviewPrepGenerator._technical(resume_text, job_title, job_description)
+            return await InterviewPrepGenerator._technical(resume_text, job_title, job_description)
         elif interview_type == "system-design":
-            return InterviewPrepGenerator._system_design(job_title, job_description)
+            return await InterviewPrepGenerator._system_design(job_title, job_description)
         else:
-            return InterviewPrepGenerator._behavioral(resume_text, job_title, company_name)
+            return await InterviewPrepGenerator._behavioral(resume_text, job_title, company_name)
 
     @staticmethod
     def _extract_bullets(resume_text: str) -> List[str]:
@@ -70,7 +70,7 @@ class InterviewPrepGenerator:
         return found[:8]
 
     @staticmethod
-    def _behavioral(resume_text: str, job_title: str, company_name: Optional[str] = None) -> Dict[str, Any]:
+    async def _behavioral(resume_text: str, job_title: str, company_name: Optional[str] = None) -> Dict[str, Any]:
         bullets = InterviewPrepGenerator._extract_bullets(resume_text)
         if not bullets:
             bullets = ["Led cross-functional team to deliver product feature", "Improved system performance through optimization"]
@@ -93,7 +93,7 @@ SITUATION: [situation]
 TASK: [task]
 ACTION: [action]
 RESULT: [result]"""
-            raw = llm_complete(prompt, max_tokens=400, temperature=0.7)
+            raw = await llm_complete("", prompt, max_tokens=400, temperature=0.7)
 
             q_match = re.search(r'QUESTION:\s*(.+?)(?=\nSITUATION:|$)', raw, re.DOTALL)
             s_match = re.search(r'SITUATION:\s*(.+?)(?=\nTASK:|$)', raw, re.DOTALL)
@@ -131,7 +131,7 @@ RESULT: [result]"""
         }
 
     @staticmethod
-    def _technical(resume_text: str, job_title: str, job_description: Optional[str] = None) -> Dict[str, Any]:
+    async def _technical(resume_text: str, job_title: str, job_description: Optional[str] = None) -> Dict[str, Any]:
         skills = InterviewPrepGenerator._extract_skills(resume_text)
         if not skills:
             skills = ["general programming"]
@@ -151,7 +151,7 @@ Return in this format:
 Q1: [question]
 A1: [suggested answer/key points]
 Q2: ..."""
-        raw = llm_complete(prompt, max_tokens=800, temperature=0.7)
+        raw = await llm_complete("", prompt, max_tokens=800, temperature=0.7)
 
         questions = []
         q_matches = re.findall(r'Q\d+:\s*(.+?)(?=\nA\d+:|$)', raw, re.DOTALL)
@@ -172,7 +172,7 @@ Q2: ..."""
         }
 
     @staticmethod
-    def _system_design(job_title: str, job_description: Optional[str] = None) -> Dict[str, Any]:
+    async def _system_design(job_title: str, job_description: Optional[str] = None) -> Dict[str, Any]:
         jd_context = f"\nJob Description:\n{job_description[:1000]}" if job_description else ""
 
         prompt = f"""Job Title: {job_title}
@@ -188,7 +188,7 @@ Q1: [question]
 REQ1: [requirements]
 APPROACH1: [approach]
 Q2: ..."""
-        raw = llm_complete(prompt, max_tokens=700, temperature=0.7)
+        raw = await llm_complete("", prompt, max_tokens=700, temperature=0.7)
 
         questions = []
         q_matches = re.findall(r'Q\d+:\s*(.+?)(?=\nREQ\d+:|$)', raw, re.DOTALL)

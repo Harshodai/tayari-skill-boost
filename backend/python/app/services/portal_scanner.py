@@ -128,6 +128,92 @@ async def delete_user_portal(user_id: str, portal_id: int) -> bool:
         logger.error("Failed to delete user portal: %s", exc)
         return False
 
+async def update_portal_enabled(user_id: str, portal_id: int, enabled: Optional[bool]) -> bool:
+    if enabled is None:
+        return True  # No change needed
+    pool = await get_pool()
+    if not pool:
+        return False
+    try:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE user_portals SET enabled = $3, updated_at = now() WHERE user_id = $1 AND id = $2",
+                user_id, portal_id, enabled
+            )
+        return True
+    except Exception as exc:
+        logger.error("Failed to update portal enabled status: %s", exc)
+        return False
+
+async def get_stats(user_id: str) -> dict:
+    """Get summary stats for the Career-Ops dashboard."""
+    pool = await get_pool()
+    if not pool:
+        return {
+            "portals_active": 0,
+            "jobs_discovered_today": 0,
+            "followups_pending": 0,
+            "funnel_conversion": 0.0
+        }
+    
+    try:
+        async with pool.acquire() as conn:
+            # Active portals count
+            portals_row = await conn.fetchrow(
+                "SELECT COUNT(*) as count FROM user_portals WHERE user_id = $1 AND enabled = true",
+                user_id
+            )
+            portals_active = portals_row["count"] if portals_row else 0
+            
+            # Jobs discovered today (from saved_jobs)
+            jobs_row = await conn.fetchrow(
+                "SELECT COUNT(*) as count FROM saved_jobs WHERE user_id = $1 AND saved_at >= now() - interval '24 hours'",
+                user_id
+            )
+            jobs_discovered_today = jobs_row["count"] if jobs_row else 0
+            
+            # Follow-ups pending (applications needing follow-up)
+            followups_row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) as count FROM applications 
+                WHERE user_id = $1 
+                AND status IN ('applied', 'interviewing', 'phone_screen', 'technical_interview')
+                AND (followup_due_at IS NULL OR followup_due_at <= now())
+                """,
+                user_id
+            )
+            followups_pending = followups_row["count"] if followups_row else 0
+            
+            # Funnel conversion: Applied -> Offer
+            funnel_row = await conn.fetchrow(
+                """
+                SELECT 
+                    COUNT(*) FILTER (WHERE status = 'applied') as applied,
+                    COUNT(*) FILTER (WHERE status = 'offer') as offers
+                FROM applications 
+                WHERE user_id = $1
+                """,
+                user_id
+            )
+            applied = funnel_row["applied"] if funnel_row else 0
+            offers = funnel_row["offers"] if funnel_row else 0
+            funnel_conversion = round((offers / applied * 100) if applied > 0 else 0.0, 1)
+            
+            return {
+                "portals_active": portals_active,
+                "jobs_discovered_today": jobs_discovered_today,
+                "followups_pending": followups_pending,
+                "funnel_conversion": funnel_conversion
+            }
+    except Exception as exc:
+        logger.error("Failed to get stats: %s", exc)
+        return {
+            "portals_active": 0,
+            "jobs_discovered_today": 0,
+            "followups_pending": 0,
+            "funnel_conversion": 0.0
+        }
+
 async def scan_portals(user_id: str, positive_keywords: List[str] = None, negative_keywords: List[str] = None, allow_locations: List[str] = None, block_locations: List[str] = None) -> list[dict]:
     """Scan all active portals for a user, filtering and deduping discovered jobs."""
     portals = await list_user_portals(user_id)

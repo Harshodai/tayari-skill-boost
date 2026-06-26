@@ -6,7 +6,8 @@ import { ArrowLeft, Mail, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -15,7 +16,7 @@ const ForgotPassword = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email) {
       toast.error("Please enter your email address");
       return;
@@ -23,18 +24,22 @@ const ForgotPassword = () => {
 
     setIsSubmitting(true);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth`,
-    });
+    try {
+      const res = await fetch(`${API_URL}/v1/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
-    setIsSubmitting(false);
-    
-    // Always show success to prevent email enumeration
-    // Log error internally but don't reveal it to users
-    if (error) {
-      console.warn('Password reset request failed (internal):', error.message);
+      const data = await res.json();
+      if (!res.ok) {
+        console.warn("Password reset request failed (internal):", data.error);
+      }
+    } catch (err) {
+      console.warn("Password reset request failed (network):", err);
     }
 
+    setIsSubmitting(false);
     setIsSubmitted(true);
     toast.success("Password reset email sent!");
   };
@@ -83,7 +88,6 @@ const ForgotPassword = () => {
         <div className="container mx-auto px-4">
           <div className="max-w-md mx-auto">
             <div className="glass rounded-2xl p-8 border border-border">
-              {/* Header */}
               <div className="text-center mb-8">
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
                   <Mail className="w-8 h-8 text-primary" />
@@ -94,7 +98,6 @@ const ForgotPassword = () => {
                 </p>
               </div>
 
-              {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
@@ -108,9 +111,9 @@ const ForgotPassword = () => {
                   />
                 </div>
 
-                <Button 
-                  type="submit" 
-                  className="w-full" 
+                <Button
+                  type="submit"
+                  className="w-full"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
@@ -124,7 +127,6 @@ const ForgotPassword = () => {
                 </Button>
               </form>
 
-              {/* Back to login */}
               <div className="mt-6 text-center">
                 <Link
                   to="/auth"

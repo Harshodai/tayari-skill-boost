@@ -35,7 +35,7 @@ class KnowledgeGraphExtractor:
     }
 
     @staticmethod
-    def extract(resume_text: str) -> Dict[str, Any]:
+    async def extract(resume_text: str) -> Dict[str, Any]:
         text_lower = resume_text.lower()
 
         # Skills extraction
@@ -112,7 +112,7 @@ class KnowledgeGraphExtractor:
 
 Resume:
 {resume_text[:2500]}"""
-        llm_result = llm_complete(prompt, max_tokens=600, temperature=0.3)
+        llm_result = await llm_complete("", prompt, max_tokens=600, temperature=0.3)
 
         # Try to parse LLM JSON
         llm_data = {}

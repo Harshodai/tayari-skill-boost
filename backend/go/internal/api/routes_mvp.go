@@ -66,6 +66,7 @@ func (s *Server) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 		&p.ID, &p.FullName, &p.AvatarURL, &p.Email, &p.Headline, &p.Summary, &p.Skills, &p.DesiredRoles, &p.Locations, &p.ExperienceYears, &p.OpenToRemote, &p.Links, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
+		log.Printf("handleGetProfile: scan error for user %s: %v", user.ID, err)
 		// If no profile row, return a default empty profile with profile_id
 		p.ID = user.ID
 		p.Email = user.Email
@@ -140,6 +141,13 @@ func (s *Server) handleJobSearch(w http.ResponseWriter, r *http.Request) {
 	var req map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	// Validate: require at least a query or location
+	query, _ := req["query"].(string)
+	location, _ := req["location"].(string)
+	if query == "" && location == "" {
+		s.respondError(w, http.StatusBadRequest, "query or location is required")
 		return
 	}
 	result, err := s.AI.PostJSON("/api/v1/jobs/search", req)
@@ -1248,9 +1256,8 @@ func (s *Server) handleCommunicationGenerate(w http.ResponseWriter, r *http.Requ
 			ResumeText  string
 		}
 		if err := s.DB.Conn.QueryRowContext(r.Context(), `
-			SELECT COALESCE(j.job->>'title', ''), COALESCE(j.job->>'company', ''), COALESCE(j.job->>'description', ''), COALESCE(r.original_text, '')
+			SELECT COALESCE(a.job->>'title', ''), COALESCE(a.job->>'company', ''), COALESCE(a.job->>'description', ''), COALESCE(r.original_text, '')
 			FROM applications a
-			LEFT JOIN saved_jobs j ON a.saved_job_id = j.id
 			LEFT JOIN resumes r ON r.user_id = $1
 			WHERE a.application_id = $2 AND a.user_id = $1
 			ORDER BY r.created_at DESC LIMIT 1
@@ -1287,16 +1294,15 @@ func (s *Server) handleCommunicationSuggestions(w http.ResponseWriter, r *http.R
 	}
 	rows, err := s.DB.Conn.QueryContext(r.Context(), `
 		SELECT a.application_id, a.status, a.created_at, a.updated_at,
-			COALESCE(j.job->>'title', 'Unknown') as job_title,
-			COALESCE(j.job->>'company', 'Unknown') as company_name
+			COALESCE(a.job->>'title', 'Unknown') as job_title,
+			COALESCE(a.job->>'company', 'Unknown') as company_name
 		FROM applications a
-		LEFT JOIN saved_jobs j ON a.saved_job_id = j.id
 		WHERE a.user_id = $1 AND a.status NOT IN ('rejected', 'offer')
 		ORDER BY a.updated_at DESC
 	`, user.ID)
 	if err != nil {
 		log.Printf("handleCommunicationSuggestions: query failed: %v", err)
-		s.respondError(w, http.StatusInternalServerError, "Database error")
+		s.respondJSON(w, http.StatusOK, map[string]interface{}{"suggestions": []interface{}{}})
 		return
 	}
 	defer rows.Close()
@@ -1386,9 +1392,8 @@ func (s *Server) handleInterviewPrep(w http.ResponseWriter, r *http.Request) {
 			ResumeText     string
 		}
 		if err := s.DB.Conn.QueryRowContext(r.Context(), `
-			SELECT COALESCE(j.job->>'title', ''), COALESCE(j.job->>'company', ''), COALESCE(j.job->>'description', ''), COALESCE(r.original_text, '')
+			SELECT COALESCE(a.job->>'title', ''), COALESCE(a.job->>'company', ''), COALESCE(a.job->>'description', ''), COALESCE(r.original_text, '')
 			FROM applications a
-			LEFT JOIN saved_jobs j ON a.saved_job_id = j.id
 			LEFT JOIN resumes r ON r.user_id = $1
 			WHERE a.application_id = $2 AND a.user_id = $1
 			ORDER BY r.created_at DESC LIMIT 1

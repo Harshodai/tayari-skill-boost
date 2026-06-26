@@ -96,7 +96,7 @@ async def track_followup_cadence(user_id: str) -> list[dict]:
                 match_summary=str(match_summary)
             )
             try:
-                draft_body = await llm_complete(prompt, max_tokens=250, temperature=0.6, tier="fast")
+                draft_body = await llm_complete("", prompt, max_tokens=250, temperature=0.6, tier="fast")
                 draft_body = draft_body.strip()
                 draft_subject = f"Re: {r['title']} application — {r['company']}"
             except Exception as exc:

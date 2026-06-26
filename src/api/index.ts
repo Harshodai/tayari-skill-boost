@@ -60,6 +60,11 @@ async function apiFetch<T>(
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem("auth_token");
+      window.location.href = "/auth?expired=true";
+      throw new Error("Session expired");
+    }
     const error = await response.json().catch(() => ({}));
     throw new Error(error.error || `HTTP ${response.status}`);
   }
@@ -194,21 +199,21 @@ export async function updateProfile(payload: Partial<Profile>): Promise<{ update
 // =============================================================================
 
 export async function searchJobs(payload: Record<string, any>): Promise<Record<string, any>> {
-  return apiFetch<Record<string, any>>("/api/jobs/search", {
+  return apiFetch<Record<string, any>>("/jobs/search", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function agentSearch(payload: Record<string, any>): Promise<any> {
-  return apiFetch<any>("/api/jobs/agent-search", {
+  return apiFetch<any>("/jobs/agent-search", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function saveJob(payload: { dedupe_key: string; job: Record<string, any>; status?: string }): Promise<{ saved_id: number; status: string }> {
-  return apiFetch<{ saved_id: number; status: string }>("/api/jobs/save", {
+  return apiFetch<{ saved_id: number; status: string }>("/jobs/save", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -216,11 +221,11 @@ export async function saveJob(payload: { dedupe_key: string; job: Record<string,
 
 export async function listSavedJobs(status?: string): Promise<SavedJob[]> {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";
-  return apiFetch<SavedJob[]>(`/api/jobs/saved${query}`);
+  return apiFetch<SavedJob[]>(`/jobs/saved${query}`);
 }
 
 export async function deleteSavedJob(id: number): Promise<{ success: boolean }> {
-  return apiFetch<{ success: boolean }>(`/api/jobs/saved/${id}`, {
+  return apiFetch<{ success: boolean }>(`/jobs/saved/${id}`, {
     method: "DELETE",
   });
 }
@@ -230,18 +235,18 @@ export async function deleteSavedJob(id: number): Promise<{ success: boolean }> 
 // =============================================================================
 
 export async function startAutopilot(payload: Record<string, any>): Promise<{ run_id: string; db_id: number; status: string }> {
-  return apiFetch<{ run_id: string; db_id: number; status: string }>("/api/autopilot/start", {
+  return apiFetch<{ run_id: string; db_id: number; status: string }>("/autopilot/start", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function listAutopilotRuns(): Promise<AutopilotRun[]> {
-  return apiFetch<AutopilotRun[]>("/api/autopilot/runs");
+  return apiFetch<AutopilotRun[]>("/autopilot/runs");
 }
 
 export async function getAutopilotRun(id: string): Promise<AutopilotRun> {
-  return apiFetch<AutopilotRun>(`/api/autopilot/runs/${id}`);
+  return apiFetch<AutopilotRun>(`/autopilot/runs/${id}`);
 }
 
 // =============================================================================
@@ -249,7 +254,7 @@ export async function getAutopilotRun(id: string): Promise<AutopilotRun> {
 // =============================================================================
 
 export async function createApplication(payload: Partial<Application>): Promise<{ id: number; application_id: string; status: string }> {
-  return apiFetch<{ id: number; application_id: string; status: string }>("/api/autopilot/applications", {
+  return apiFetch<{ id: number; application_id: string; status: string }>("/autopilot/applications", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -257,22 +262,22 @@ export async function createApplication(payload: Partial<Application>): Promise<
 
 export async function listApplications(status?: string): Promise<Application[]> {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";
-  return apiFetch<Application[]>(`/api/autopilot/applications${query}`);
+  return apiFetch<Application[]>(`/autopilot/applications${query}`);
 }
 
 export async function getApplication(id: string): Promise<Application> {
-  return apiFetch<Application>(`/api/autopilot/applications/${id}`);
+  return apiFetch<Application>(`/autopilot/applications/${id}`);
 }
 
 export async function updateApplication(id: string, payload: { status: string }): Promise<{ application_id: string; status: string }> {
-  return apiFetch<{ application_id: string; status: string }>(`/api/autopilot/applications/${id}`, {
+  return apiFetch<{ application_id: string; status: string }>(`/autopilot/applications/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
 
 export async function deleteApplication(id: string): Promise<void> {
-  const response = await fetch(`${API_URL}/api/autopilot/applications/${id}`, {
+  const response = await fetch(`${API_URL}/autopilot/applications/${id}`, {
     method: "DELETE",
     headers: getHeaders(),
   });
@@ -283,7 +288,7 @@ export async function deleteApplication(id: string): Promise<void> {
 }
 
 export async function downloadApplicationResume(id: string): Promise<Blob> {
-  const response = await fetch(`${API_URL}/api/autopilot/applications/${id}/resume-docx`, {
+  const response = await fetch(`${API_URL}/autopilot/applications/${id}/resume-docx`, {
     headers: getHeaders(),
   });
   if (!response.ok) {
@@ -298,25 +303,25 @@ export async function downloadApplicationResume(id: string): Promise<Blob> {
 // =============================================================================
 
 export async function createSchedule(payload: Partial<AutopilotSchedule>): Promise<{ id: number; schedule_id: string }> {
-  return apiFetch<{ id: number; schedule_id: string }>("/api/autopilot/schedules", {
+  return apiFetch<{ id: number; schedule_id: string }>("/autopilot/schedules", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function listSchedules(): Promise<AutopilotSchedule[]> {
-  return apiFetch<AutopilotSchedule[]>("/api/autopilot/schedules");
+  return apiFetch<AutopilotSchedule[]>("/autopilot/schedules");
 }
 
 export async function updateSchedule(id: string, payload: Partial<AutopilotSchedule>): Promise<{ schedule_id: string; status: string }> {
-  return apiFetch<{ schedule_id: string; status: string }>(`/api/autopilot/schedules/${id}`, {
+  return apiFetch<{ schedule_id: string; status: string }>(`/autopilot/schedules/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
 
 export async function deleteSchedule(id: string): Promise<void> {
-  const response = await fetch(`${API_URL}/api/autopilot/schedules/${id}`, {
+  const response = await fetch(`${API_URL}/autopilot/schedules/${id}`, {
     method: "DELETE",
     headers: getHeaders(),
   });
@@ -361,7 +366,7 @@ export async function exportResume(id: number | string): Promise<Blob> {
 // =============================================================================
 
 export async function dashboardStats(): Promise<DashboardStats> {
-  return apiFetch<DashboardStats>("/api/dashboard/stats");
+  return apiFetch<DashboardStats>("/dashboard/stats");
 }
 
 // =============================================================================
@@ -371,7 +376,7 @@ export async function dashboardStats(): Promise<DashboardStats> {
 export async function uploadResumeMultipart(file: File): Promise<Resume> {
   const formData = new FormData();
   formData.append("file", file);
-  const response = await fetch(`${API_URL}/api/resumes/upload`, {
+  const response = await fetch(`${API_URL}/resumes/upload`, {
     method: "POST",
     headers: {
       Authorization: getHeaders()["Authorization"] || "",
@@ -389,7 +394,7 @@ export async function uploadResumeMultipart(file: File): Promise<Resume> {
 // Re-export mode flag for consumers
 // =============================================================================
 
-export { USE_SELF_HOSTED };
+export { API_URL, USE_SELF_HOSTED };
 
 // =============================================================================
 // Cover Letter
@@ -455,6 +460,114 @@ export async function generateCommunication(payload: {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+// =============================================================================
+// Career Ops
+// =============================================================================
+
+export interface CareerOpsPortal {
+  id?: number;
+  name: string;
+  careers_url: string;
+  provider: string;
+  enabled: boolean;
+  keywords_override?: string[];
+}
+
+export interface CareerOpsFollowup {
+  id: number;
+  application_id: string;
+  company: string;
+  role: string;
+  stage: string;
+  age_days: number;
+  followups_sent: number;
+  urgency: string;
+  reason: string;
+  draft_subject: string;
+  draft_body: string;
+}
+
+export interface CareerOpsStory {
+  requirement: string;
+  situation: string;
+  task: string;
+  action: string;
+  result: string;
+  reflection: string;
+}
+
+export async function listCareerOpsPortals(): Promise<{ portals: CareerOpsPortal[] }> {
+  return apiFetch("/v1/career-ops/portals");
+}
+
+export async function createCareerOpsPortal(payload: { name: string; careers_url: string }): Promise<CareerOpsPortal> {
+  return apiFetch<CareerOpsPortal>("/v1/career-ops/portals", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateCareerOpsPortal(portalId: number, payload: Partial<CareerOpsPortal>): Promise<CareerOpsPortal> {
+  return apiFetch<CareerOpsPortal>(`/v1/career-ops/portals/${portalId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCareerOpsPortal(portalId: number): Promise<void> {
+  const response = await fetch(`${API_URL}/v1/career-ops/portals/${portalId}`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+  if (!response.ok && response.status !== 204) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+}
+
+export async function scanCareerOpsPortals(): Promise<{ jobs: any[] }> {
+  return apiFetch("/v1/career-ops/scan", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function getCareerOpsPatterns(): Promise<any> {
+  return apiFetch("/v1/career-ops/patterns");
+}
+
+export async function listCareerOpsFollowups(): Promise<{ followups: CareerOpsFollowup[] }> {
+  return apiFetch("/v1/career-ops/followups");
+}
+
+export async function actionCareerOpsFollowup(applicationId: string, payload: { contact?: string; notes?: string }): Promise<any> {
+  return apiFetch("/v1/career-ops/followups/action", {
+    method: "POST",
+    body: JSON.stringify({ application_id: applicationId, ...payload }),
+  });
+}
+
+export async function getCareerOpsStoryBank(): Promise<{ stories: CareerOpsStory[] }> {
+  return apiFetch("/v1/career-ops/story-bank");
+}
+
+export async function saveCareerOpsStoryBank(stories: CareerOpsStory[]): Promise<any> {
+  return apiFetch("/v1/career-ops/story-bank", {
+    method: "POST",
+    body: JSON.stringify({ stories }),
+  });
+}
+
+export async function deleteCareerOpsStoryBank(index: number): Promise<any> {
+  return apiFetch(`/v1/career-ops/story-bank/${index}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getCareerOpsStats(): Promise<Record<string, any>> {
+  return apiFetch("/v1/career-ops/stats");
 }
 
 // =============================================================================

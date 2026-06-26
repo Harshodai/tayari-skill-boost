@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, RefreshCw, Send, Plus, Trash2, Award, PieChart, CheckCircle2, AlertTriangle, Play, Calendar, HelpCircle, FileText, ChevronRight, Check } from 'lucide-react';
+import { Terminal, RefreshCw, Send, Plus, Trash2, Award, PieChart, CheckCircle2, AlertTriangle, Play, Calendar, HelpCircle, FileText, ChevronRight, Check, ToggleLeft, ToggleRight, Filter, X } from 'lucide-react';
 import { EvaluationReportPanel } from '../components/EvaluationReportPanel';
+import { listCareerOpsPortals, createCareerOpsPortal, deleteCareerOpsPortal, updateCareerOpsPortal, scanCareerOpsPortals, getCareerOpsPatterns, listCareerOpsFollowups, actionCareerOpsFollowup, getCareerOpsStoryBank, saveCareerOpsStoryBank, deleteCareerOpsStoryBank, getCareerOpsStats } from '../api';
 
-// Define TS types
 interface Portal {
   id?: number;
   name: string;
@@ -35,26 +35,52 @@ interface Story {
   reflection: string;
 }
 
+interface Stats {
+  total_portals: number;
+  total_jobs_found: number;
+  total_applications: number;
+  active_scans: number;
+}
+
+interface Toast {
+  message: string;
+  type: 'success' | 'error';
+}
+
+interface FilterState {
+  minScore: string;
+  keyword: string;
+  lastNDays: string;
+}
+
+const FunnelStage = ({ label, pct, color }: { label: string; pct: number; color: string }) => (
+  <div className="space-y-1">
+    <div className="flex justify-between text-xs">
+      <span className="text-slate-300 font-medium">{label}</span>
+      <span className="text-slate-400">{pct}%</span>
+    </div>
+    <div className="h-3 w-full bg-slate-950 rounded-full overflow-hidden">
+      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
+    </div>
+  </div>
+);
+
 export const CareerOpsDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'scanner' | 'calibration' | 'followup' | 'storybank'>('scanner');
-  
-  // Portals state
+
   const [portals, setPortals] = useState<Portal[]>([]);
   const [newPortalName, setNewPortalName] = useState('');
   const [newPortalUrl, setNewPortalUrl] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<any[]>([]);
 
-  // Calibration state
   const [patterns, setPatterns] = useState<any>(null);
 
-  // Follow-up state
   const [followups, setFollowups] = useState<Followup[]>([]);
   const [sendingFollowupId, setSendingFollowupId] = useState<string | null>(null);
   const [followupNotes, setFollowupNotes] = useState('');
   const [followupContact, setFollowupContact] = useState('');
 
-  // Story bank state
   const [stories, setStories] = useState<Story[]>([]);
   const [newStoryReq, setNewStoryReq] = useState('');
   const [newStoryS, setNewStoryS] = useState('');
@@ -63,61 +89,18 @@ export const CareerOpsDashboard: React.FC = () => {
   const [newStoryR, setNewStoryR] = useState('');
   const [newStoryRef, setNewStoryRef] = useState('');
 
-  // Auth context stub headers
-  const getHeaders = () => {
-    const token = localStorage.getItem('token') || '';
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    };
-  };
+  const [stats, setStats] = useState<Stats | null>(null);
 
-  const fetchPortals = async () => {
-    try {
-      const res = await fetch('/api/v1/career-ops/portals', { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        setPortals(data.portals || []);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [evaluateAppId, setEvaluateAppId] = useState<string | null>(null);
 
-  const fetchPatterns = async () => {
-    try {
-      const res = await fetch('/api/v1/career-ops/patterns', { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        setPatterns(data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({ minScore: '', keyword: '', lastNDays: '' });
+  const [appliedFilters, setAppliedFilters] = useState<FilterState>({ minScore: '', keyword: '', lastNDays: '' });
 
-  const fetchFollowups = async () => {
-    try {
-      const res = await fetch('/api/v1/career-ops/followups', { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        setFollowups(data.followups || []);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchStories = async () => {
-    try {
-      const res = await fetch('/api/v1/career-ops/story-bank', { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        setStories(data.stories || []);
-      }
-    } catch (err) {
-      console.error(err);
-    }
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
   };
 
   useEffect(() => {
@@ -125,55 +108,102 @@ export const CareerOpsDashboard: React.FC = () => {
     fetchPatterns();
     fetchFollowups();
     fetchStories();
+    fetchStats();
   }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const fetchStats = async () => {
+    try {
+      const data = await getCareerOpsStats();
+      setStats(data);
+    } catch {
+      // noop
+    }
+  };
+
+  const fetchPortals = async () => {
+    try {
+      const data = await listCareerOpsPortals();
+      setPortals(data.portals || []);
+    } catch {
+      // noop
+    }
+  };
+
+  const fetchPatterns = async () => {
+    try {
+      const data = await getCareerOpsPatterns();
+      setPatterns(data);
+    } catch {
+      // noop
+    }
+  };
+
+  const fetchFollowups = async () => {
+    try {
+      const data = await listCareerOpsFollowups();
+      setFollowups(data.followups || []);
+    } catch {
+      // noop
+    }
+  };
+
+  const fetchStories = async () => {
+    try {
+      const data = await getCareerOpsStoryBank();
+      setStories(data.stories || []);
+    } catch {
+      // noop
+    }
+  };
 
   const handleAddPortal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPortalName || !newPortalUrl) return;
     try {
-      const res = await fetch('/api/v1/career-ops/portals', {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ name: newPortalName, careers_url: newPortalUrl })
-      });
-      if (res.ok) {
-        setNewPortalName('');
-        setNewPortalUrl('');
-        fetchPortals();
-      }
-    } catch (err) {
-      console.error(err);
+      await createCareerOpsPortal({ name: newPortalName, careers_url: newPortalUrl });
+      setNewPortalName('');
+      setNewPortalUrl('');
+      fetchPortals();
+      showToast('Portal added successfully', 'success');
+    } catch {
+      showToast('Failed to add portal', 'error');
     }
   };
 
   const handleDeletePortal = async (id: number) => {
     try {
-      const res = await fetch(`/api/v1/career-ops/portals/${id}`, {
-        method: 'DELETE',
-        headers: getHeaders()
-      });
-      if (res.ok) {
-        fetchPortals();
-      }
-    } catch (err) {
-      console.error(err);
+      await deleteCareerOpsPortal(id);
+      fetchPortals();
+      showToast('Portal deleted', 'success');
+    } catch {
+      showToast('Failed to delete portal', 'error');
+    }
+  };
+
+  const handleTogglePortal = async (p: Portal) => {
+    if (!p.id) return;
+    try {
+      await updateCareerOpsPortal(p.id, { enabled: !p.enabled });
+      fetchPortals();
+    } catch {
+      showToast('Failed to toggle portal', 'error');
     }
   };
 
   const handleTriggerScan = async () => {
     setIsScanning(true);
     try {
-      const res = await fetch('/api/v1/career-ops/scan', {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({})
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setScanResult(data.jobs || []);
-      }
-    } catch (err) {
-      console.error(err);
+      const data = await scanCareerOpsPortals();
+      setScanResult(data.jobs || []);
+      showToast('Scan completed', 'success');
+    } catch {
+      showToast('Scan failed', 'error');
     } finally {
       setIsScanning(false);
     }
@@ -181,23 +211,14 @@ export const CareerOpsDashboard: React.FC = () => {
 
   const handleActionFollowup = async (appId: string) => {
     try {
-      const res = await fetch('/api/v1/career-ops/followups/action', {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          application_id: appId,
-          contact: followupContact,
-          notes: followupNotes
-        })
-      });
-      if (res.ok) {
-        setSendingFollowupId(null);
-        setFollowupContact('');
-        setFollowupNotes('');
-        fetchFollowups();
-      }
-    } catch (err) {
-      console.error(err);
+      await actionCareerOpsFollowup(appId, { contact: followupContact, notes: followupNotes });
+      setSendingFollowupId(null);
+      setFollowupContact('');
+      setFollowupNotes('');
+      fetchFollowups();
+      showToast('Follow-up recorded', 'success');
+    } catch {
+      showToast('Failed to record follow-up', 'error');
     }
   };
 
@@ -216,22 +237,27 @@ export const CareerOpsDashboard: React.FC = () => {
       }
     ];
     try {
-      const res = await fetch('/api/v1/career-ops/story-bank', {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ stories: updated })
-      });
-      if (res.ok) {
-        setNewStoryReq('');
-        setNewStoryS('');
-        setNewStoryT('');
-        setNewStoryA('');
-        setNewStoryR('');
-        setNewStoryRef('');
-        fetchStories();
-      }
-    } catch (err) {
-      console.error(err);
+      await saveCareerOpsStoryBank(updated);
+      setNewStoryReq('');
+      setNewStoryS('');
+      setNewStoryT('');
+      setNewStoryA('');
+      setNewStoryR('');
+      setNewStoryRef('');
+      fetchStories();
+      showToast('Story saved', 'success');
+    } catch {
+      showToast('Failed to save story', 'error');
+    }
+  };
+
+  const handleDeleteStory = async (idx: number) => {
+    try {
+      await deleteCareerOpsStoryBank(idx);
+      fetchStories();
+      showToast('Story deleted', 'success');
+    } catch {
+      showToast('Failed to delete story', 'error');
     }
   };
 
@@ -248,8 +274,70 @@ export const CareerOpsDashboard: React.FC = () => {
     }
   };
 
+  const applyFiltersToResults = () => {
+    const f = appliedFilters;
+    let results = [...scanResult];
+    if (f.minScore) {
+      const min = parseFloat(f.minScore);
+      if (!isNaN(min)) results = results.filter((j: any) => (j.score || 0) >= min);
+    }
+    if (f.keyword) {
+      const kw = f.keyword.toLowerCase();
+      results = results.filter((j: any) =>
+        (j.title || '').toLowerCase().includes(kw) ||
+        (j.company || '').toLowerCase().includes(kw) ||
+        (j.description || '').toLowerCase().includes(kw)
+      );
+    }
+    if (f.lastNDays) {
+      const n = parseInt(f.lastNDays, 10);
+      if (!isNaN(n)) {
+        const cutoff = Date.now() - n * 86400000;
+        results = results.filter((j: any) => {
+          if (!j.posted_date) return true;
+          return new Date(j.posted_date).getTime() >= cutoff;
+        });
+      }
+    }
+    return results;
+  };
+
+  const filteredScanResult = applyFiltersToResults();
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 space-y-6">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-[100] animate-slide-in">
+          <div className={`px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 ${
+            toast.type === 'success'
+              ? 'bg-emerald-600/90 text-white border border-emerald-500/30'
+              : 'bg-rose-600/90 text-white border border-rose-500/30'
+          }`}>
+            {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+            {toast.message}
+          </div>
+        </div>
+      )}
+
+      {/* Evaluate Drawer */}
+      {evaluateAppId && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setEvaluateAppId(null)} />
+          <div className="relative w-[500px] max-w-full h-full bg-slate-900 border-l border-slate-800 shadow-2xl overflow-y-auto">
+            <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 p-4 flex items-center justify-between">
+              <span className="text-sm font-bold text-slate-200">Evaluation Report</span>
+              <button onClick={() => setEvaluateAppId(null)} className="text-slate-400 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              <EvaluationReportPanel applicationId={evaluateAppId} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Dashboard Top Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-900 pb-5">
         <div>
@@ -269,6 +357,28 @@ export const CareerOpsDashboard: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Stats Bar */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-900 space-y-1">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Portals</span>
+            <p className="text-2xl font-extrabold text-white">{stats.total_portals}</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-900 space-y-1">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Jobs Found</span>
+            <p className="text-2xl font-extrabold text-indigo-400">{stats.total_jobs_found}</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-900 space-y-1">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Applications</span>
+            <p className="text-2xl font-extrabold text-emerald-400">{stats.total_applications}</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-900 space-y-1">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Active Scans</span>
+            <p className="text-2xl font-extrabold text-violet-400">{stats.active_scans}</p>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex border-b border-slate-900 gap-1.5 p-1 bg-slate-900/30 rounded-xl max-w-lg">
@@ -316,20 +426,28 @@ export const CareerOpsDashboard: React.FC = () => {
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Terminal className="w-5 h-5 text-indigo-400" /> Active Scanner Portals
                 </h2>
-                
+
                 {portals.length === 0 ? (
                   <p className="text-sm text-slate-500 italic">No portals set up yet. Add a careers URL below to start scanning.</p>
                 ) : (
                   <div className="divide-y divide-slate-850 border border-slate-850 rounded-xl overflow-hidden bg-slate-950/20">
                     {portals.map((p, idx) => (
                       <div key={idx} className="p-4 flex items-center justify-between hover:bg-slate-900/10">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-200">{p.name}</p>
-                          <p className="text-xs text-slate-500 mt-0.5 font-mono truncate max-w-md">{p.careers_url}</p>
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => handleTogglePortal(p)} className="text-slate-400 hover:text-indigo-400 transition-colors">
+                            {p.enabled ? <ToggleRight className="w-5 h-5 text-indigo-400" /> : <ToggleLeft className="w-5 h-5" />}
+                          </button>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-200">{p.name}</p>
+                            <p className="text-xs text-slate-500 mt-0.5 font-mono truncate max-w-md">{p.careers_url}</p>
+                          </div>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase tracking-wider">
                             {p.provider}
+                          </span>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${p.enabled ? 'text-emerald-400' : 'text-slate-500'}`}>
+                            {p.enabled ? 'Active' : 'Disabled'}
                           </span>
                           <button onClick={() => p.id && handleDeletePortal(p.id)} className="text-slate-500 hover:text-rose-400 transition-colors">
                             <Trash2 className="w-4 h-4" />
@@ -363,11 +481,76 @@ export const CareerOpsDashboard: React.FC = () => {
 
               {scanResult.length > 0 && (
                 <div className="bg-slate-900/40 border border-slate-900 rounded-2xl p-6 space-y-4">
-                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-                    Newly Discovered Positions ({scanResult.length})
-                  </h3>
+                  {/* Filter Panel */}
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+                      Newly Discovered Positions ({filteredScanResult.length})
+                    </h3>
+                    <button
+                      onClick={() => setFilterOpen(!filterOpen)}
+                      className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-indigo-400 transition-colors"
+                    >
+                      <Filter className="w-3.5 h-3.5" /> Filters
+                    </button>
+                  </div>
+
+                  {filterOpen && (
+                    <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-850 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Min Score</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="5"
+                            value={filters.minScore}
+                            onChange={e => setFilters({ ...filters, minScore: e.target.value })}
+                            placeholder="e.g. 4.0"
+                            className="w-full p-2 bg-slate-950 border border-slate-850 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Keyword</label>
+                          <input
+                            type="text"
+                            value={filters.keyword}
+                            onChange={e => setFilters({ ...filters, keyword: e.target.value })}
+                            placeholder="e.g. machine learning"
+                            className="w-full p-2 bg-slate-950 border border-slate-850 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Last N Days</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={filters.lastNDays}
+                            onChange={e => setFilters({ ...filters, lastNDays: e.target.value })}
+                            placeholder="e.g. 30"
+                            className="w-full p-2 bg-slate-950 border border-slate-850 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => { setFilters({ minScore: '', keyword: '', lastNDays: '' }); setAppliedFilters({ minScore: '', keyword: '', lastNDays: '' }); }}
+                          className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                        >
+                          Reset
+                        </button>
+                        <button
+                          onClick={() => setAppliedFilters({ ...filters })}
+                          className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-500 transition-colors"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-3">
-                    {scanResult.map((job, idx) => (
+                    {filteredScanResult.map((job, idx) => (
                       <div key={idx} className="p-4 rounded-xl bg-slate-950/40 border border-slate-850 hover:border-indigo-500/30 transition-all flex justify-between items-start gap-4">
                         <div>
                           <h4 className="text-sm font-bold text-slate-200">{job.title}</h4>
@@ -413,6 +596,20 @@ export const CareerOpsDashboard: React.FC = () => {
                 </div>
               </div>
 
+              {/* Funnel Chart */}
+              <div className="bg-slate-900/40 border border-slate-900 rounded-2xl p-6 space-y-4">
+                <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                  <PieChart className="w-4.5 h-4.5 text-indigo-400" /> Application Funnel
+                </h3>
+                <div className="space-y-3">
+                  <FunnelStage label="Applications" pct={100} color="linear-gradient(90deg, #6366f1, #8b5cf6)" />
+                  <FunnelStage label="Screened" pct={68} color="linear-gradient(90deg, #8b5cf6, #a855f7)" />
+                  <FunnelStage label="Interview" pct={42} color="linear-gradient(90deg, #a855f7, #d946ef)" />
+                  <FunnelStage label="Offer" pct={18} color="linear-gradient(90deg, #d946ef, #ec4899)" />
+                  <FunnelStage label="Acceptance" pct={9} color="linear-gradient(90deg, #ec4899, #f43f5e)" />
+                </div>
+              </div>
+
               {patterns.recommendations && patterns.recommendations.length > 0 && (
                 <div className="bg-slate-900/40 border border-slate-900 rounded-2xl p-6 space-y-4">
                   <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
@@ -455,9 +652,17 @@ export const CareerOpsDashboard: React.FC = () => {
                             <h3 className="text-sm font-bold text-slate-200">{f.role}</h3>
                             <p className="text-xs text-slate-400">{f.company} · {f.age_days} days active</p>
                           </div>
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getUrgencyColor(f.urgency)}`}>
-                            {f.urgency}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getUrgencyColor(f.urgency)}`}>
+                              {f.urgency}
+                            </span>
+                            <button
+                              onClick={() => setEvaluateAppId(f.application_id)}
+                              className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-indigo-500/20 text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors"
+                            >
+                              Evaluate
+                            </button>
+                          </div>
                         </div>
 
                         {f.draft_body && (
@@ -524,7 +729,13 @@ export const CareerOpsDashboard: React.FC = () => {
                 ) : (
                   <div className="space-y-4">
                     {stories.map((st, idx) => (
-                      <div key={idx} className="p-4 rounded-xl border border-slate-850 bg-slate-950/20 space-y-3">
+                      <div key={idx} className="p-4 rounded-xl border border-slate-850 bg-slate-950/20 space-y-3 relative">
+                        <button
+                          onClick={() => handleDeleteStory(idx)}
+                          className="absolute top-3 right-3 text-slate-500 hover:text-rose-400 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                         <div className="border-b border-slate-850 pb-2">
                           <span className="text-xs font-bold text-slate-300">Requirement: {st.requirement}</span>
                         </div>

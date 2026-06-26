@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/getsentry/sentry-go"
+
 	"tayari-backend/internal/api"
 	"tayari-backend/internal/auth"
 	"tayari-backend/internal/concurrency"
@@ -23,6 +25,22 @@ const (
 
 func main() {
 	cfg := config.LoadConfig()
+
+	if dsn := os.Getenv("SENTRY_DSN"); dsn != "" {
+		err := sentry.Init(sentry.ClientOptions{
+			Dsn:              dsn,
+			Environment:      os.Getenv("SENTRY_ENVIRONMENT"),
+			Release:          "tayari-backend@" + os.Getenv("APP_VERSION"),
+			EnableTracing:    true,
+			TracesSampleRate: 0.2,
+		})
+		if err != nil {
+			log.Printf("Sentry init failed: %v", err)
+		} else {
+			log.Println("Sentry initialized")
+			defer sentry.Flush(2 * time.Second)
+		}
+	}
 
 	// Init Social Auth Providers
 	auth.SetupSocialAuth(cfg)

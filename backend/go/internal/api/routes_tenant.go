@@ -14,9 +14,8 @@ import (
 )
 
 func (s *Server) routesTenant(r chi.Router) {
-	// Public branding endpoint
-	r.Get("/api/v1/tenants/branding", s.handleGetTenantBranding)
-	r.Get("/api/tenants/branding", s.handleGetTenantBranding)
+	// Note: public branding routes (/api/v1/tenants/branding) are registered in the
+	// public route group in routes() to avoid CORS preflight auth failures.
 
 	// Advisor routes (require auth and advisor/admin role)
 	r.Group(func(sub chi.Router) {

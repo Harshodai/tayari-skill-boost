@@ -30,6 +30,18 @@ from app.llm.strategic_analyzer import StrategicAnalyzer
 from app.export.pdf_exporter import PDFExporter
 from app.export.json_exporter import JSONExporter
 from app.services import ats_engine, optimizer, job_agent, docx_builder, automation_engine
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+sentry_dsn = os.getenv("SENTRY_DSN", "")
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        environment=os.getenv("SENTRY_ENVIRONMENT", "development"),
+        integrations=[FastApiIntegration()],
+        traces_sample_rate=0.2,
+    )
+
 from app.services.circuit_breaker import circuit_breaker
 from app.guardrails import PipelineGate
 from app.telemetry import stage_complete, stage_fail
@@ -191,32 +203,50 @@ async def ats_keywords(payload: AnalyzeRequest):
 @app.post("/api/v1/strategic/analyze", response_model=StrategicAnalysisResponse)
 async def strategic_analyze(payload: AnalyzeRequest):
     """Strategic LLM analysis (hidden skills, templates, recommendations)."""
-    return await strategic_analyzer.analyze(
-        payload.resume_text or "", payload.job_description or ""
-    )
+    try:
+        return await strategic_analyzer.analyze(
+            payload.resume_text or "", payload.job_description or ""
+        )
+    except Exception as exc:
+        logger.error("strategic/analyze failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Strategic analysis failed: {exc}") from exc
 
 
 @app.post("/api/v1/strategic/entities", response_model=EntitiesResponse)
 async def strategic_entities(payload: AnalyzeRequest):
     """Extract entities from resume or JD."""
-    text = payload.resume_text or payload.job_description or ""
-    return entity_extractor.extract(text)
+    try:
+        text = payload.resume_text or payload.job_description or ""
+        return entity_extractor.extract(text)
+    except Exception as exc:
+        logger.error("strategic/entities failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Entity extraction failed: {exc}") from exc
+
+
+class StrategicInjectRequest(BaseModel):
+    experience_bullets: list[str]
+    missing_keywords: list[str]
 
 
 @app.post("/api/v1/strategic/inject")
-async def strategic_inject(
-    experience_bullets: list[str],
-    missing_keywords: list[str],
-):
+async def strategic_inject(payload: StrategicInjectRequest):
     """Suggest keyword injection points."""
-    injector = KeywordInjector()
-    return injector.suggest_injections(experience_bullets, missing_keywords)
+    try:
+        injector = KeywordInjector()
+        return injector.suggest_injections(payload.experience_bullets, payload.missing_keywords)
+    except Exception as exc:
+        logger.error("strategic/inject failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Keyword injection failed: {exc}") from exc
 
 
 @app.post("/api/v1/strategic/ai-proof", response_model=AIProofingAnalysis)
 async def ai_proof(payload: AnalyzeRequest):
     """Analyze resume for AI-detection risks."""
-    return ai_proofing.analyze(payload.resume_text or "")
+    try:
+        return ai_proofing.analyze(payload.resume_text or "")
+    except Exception as exc:
+        logger.error("strategic/ai-proof failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"AI proofing failed: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -226,8 +256,12 @@ async def ai_proof(payload: AnalyzeRequest):
 @app.post("/api/v1/export/json")
 async def export_json(payload: ExportRequest):
     """Export resume as JSON."""
-    data = JSONExporter.export(payload.resume_json)
-    return {"data": data.decode("utf-8")}
+    try:
+        data = JSONExporter.export(payload.resume_json)
+        return {"data": data.decode("utf-8")}
+    except Exception as exc:
+        logger.error("export/json failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"JSON export failed: {exc}") from exc
 
 
 @app.post("/api/v1/export/pdf")
@@ -373,14 +407,18 @@ class CoverLetterRequest(BaseModel):
 @app.post("/api/v1/cover-letter/generate")
 async def cover_letter_generate(payload: CoverLetterRequest):
     """Generate a structured, resume-aware, culture-matched cover letter."""
-    result = CoverLetterGenerator.generate(
-        payload.resume_text,
-        payload.job_description,
-        payload.company,
-        payload.job_title,
-        tone=payload.tone or "formal",
-    )
-    return result
+    try:
+        result = await CoverLetterGenerator.generate(
+            payload.resume_text,
+            payload.job_description,
+            payload.company,
+            payload.job_title,
+            tone=payload.tone or "formal",
+        )
+        return result
+    except Exception as exc:
+        logger.error("cover-letter/generate failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Cover letter generation failed: {exc}") from exc
 
 
 class CommunicationRequest(BaseModel):
@@ -397,17 +435,21 @@ class CommunicationRequest(BaseModel):
 @app.post("/api/v1/communication/generate")
 async def communication_generate(payload: CommunicationRequest):
     """Generate AI communication (follow-up, thank-you, negotiation, status-check)."""
-    result = await CommunicationGenerator.generate(
-        comm_type=payload.comm_type,
-        resume_text=payload.resume_text,
-        job_title=payload.job_title,
-        company_name=payload.company_name,
-        recipient_name=payload.recipient_name,
-        discussion_points=payload.discussion_points,
-        offer_details=payload.offer_details,
-        days_since=payload.days_since,
-    )
-    return result
+    try:
+        result = await CommunicationGenerator.generate(
+            comm_type=payload.comm_type,
+            resume_text=payload.resume_text,
+            job_title=payload.job_title,
+            company_name=payload.company_name,
+            recipient_name=payload.recipient_name,
+            discussion_points=payload.discussion_points,
+            offer_details=payload.offer_details,
+            days_since=payload.days_since,
+        )
+        return result
+    except Exception as exc:
+        logger.error("communication/generate failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Communication generation failed: {exc}") from exc
 
 
 class InterviewPrepRequest(BaseModel):
@@ -421,14 +463,18 @@ class InterviewPrepRequest(BaseModel):
 @app.post("/api/v1/interview/prep")
 async def interview_prep(payload: InterviewPrepRequest):
     """Generate resume-aware interview preparation materials."""
-    result = InterviewPrepGenerator.generate(
-        resume_text=payload.resume_text,
-        job_title=payload.job_title,
-        company_name=payload.company_name,
-        job_description=payload.job_description,
-        interview_type=payload.interview_type,
-    )
-    return result
+    try:
+        result = await InterviewPrepGenerator.generate(
+            resume_text=payload.resume_text,
+            job_title=payload.job_title,
+            company_name=payload.company_name,
+            job_description=payload.job_description,
+            interview_type=payload.interview_type,
+        )
+        return result
+    except Exception as exc:
+        logger.error("interview/prep failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Interview prep failed: {exc}") from exc
 
 
 class KnowledgeGraphRequest(BaseModel):
@@ -438,8 +484,12 @@ class KnowledgeGraphRequest(BaseModel):
 @app.post("/api/v1/resume/knowledge-graph")
 async def resume_knowledge_graph(payload: KnowledgeGraphRequest):
     """Extract structured knowledge graph from resume text."""
-    result = KnowledgeGraphExtractor.extract(payload.resume_text)
-    return result
+    try:
+        result = await KnowledgeGraphExtractor.extract(payload.resume_text)
+        return result
+    except Exception as exc:
+        logger.error("resume/knowledge-graph failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Knowledge graph extraction failed: {exc}") from exc
 
 
 class ProfileImportRequest(BaseModel):
@@ -449,19 +499,23 @@ class ProfileImportRequest(BaseModel):
 @app.post("/api/v1/profile/import-text")
 async def profile_import_text(payload: ProfileImportRequest):
     """Import profile fields from resume text (parsed from PDF/DOCX)."""
-    kg = KnowledgeGraphExtractor.extract(payload.resume_text)
-    entities = kg.get("entities", {})
-    return {
-        "headline": entities.get("job_titles", [None])[0] if entities.get("job_titles") else None,
-        "summary": None,
-        "skills": entities.get("skills", []),
-        "experience_years": None,
-        "desired_roles": entities.get("job_titles", []),
-        "locations": [],
-        "companies": entities.get("companies", []),
-        "job_titles": entities.get("job_titles", []),
-        "certifications": entities.get("certifications", []),
-    }
+    try:
+        kg = await KnowledgeGraphExtractor.extract(payload.resume_text)
+        entities = kg.get("entities", {})
+        return {
+            "headline": entities.get("job_titles", [None])[0] if entities.get("job_titles") else None,
+            "summary": None,
+            "skills": entities.get("skills", []),
+            "experience_years": None,
+            "desired_roles": entities.get("job_titles", []),
+            "locations": [],
+            "companies": entities.get("companies", []),
+            "job_titles": entities.get("job_titles", []),
+            "certifications": entities.get("certifications", []),
+        }
+    except Exception as exc:
+        logger.error("profile/import-text failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Profile import failed: {exc}") from exc
 
 
 class GuardrailsCheckRequest(BaseModel):

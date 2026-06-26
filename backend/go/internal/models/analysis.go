@@ -4,7 +4,9 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
+	"unicode"
 )
 
 // AnalysisResult stores the output of a resume vs JD analysis.
@@ -78,7 +80,34 @@ func (s StringSlice) Value() (driver.Value, error) {
 	if s == nil {
 		return nil, nil
 	}
-	return json.Marshal(s)
+	var b strings.Builder
+	b.WriteByte('{')
+	for i, v := range s {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		if needsQuoting(v) {
+			b.WriteByte('"')
+			b.WriteString(strings.ReplaceAll(strings.ReplaceAll(v, "\\", "\\\\"), "\"", "\\\""))
+			b.WriteByte('"')
+		} else {
+			b.WriteString(v)
+		}
+	}
+	b.WriteByte('}')
+	return b.String(), nil
+}
+
+func needsQuoting(s string) bool {
+	if s == "" {
+		return true
+	}
+	for _, r := range s {
+		if r == ' ' || r == ',' || r == '{' || r == '}' || r == '"' || r == '\\' {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *StringSlice) Scan(value interface{}) error {
@@ -88,9 +117,65 @@ func (s *StringSlice) Scan(value interface{}) error {
 	}
 	switch v := value.(type) {
 	case []byte:
-		return json.Unmarshal(v, s)
+		if len(v) == 0 {
+			*s = nil
+			return nil
+		}
+		if v[0] == '[' {
+			return json.Unmarshal(v, s)
+		}
+		*s = parsePostgresArray(string(v))
+		return nil
 	case string:
-		return json.Unmarshal([]byte(v), s)
+		if v == "" {
+			*s = nil
+			return nil
+		}
+		if v[0] == '[' {
+			return json.Unmarshal([]byte(v), s)
+		}
+		*s = parsePostgresArray(v)
+		return nil
 	}
-	return nil
+	return fmt.Errorf("cannot scan type %T into StringSlice", value)
+}
+
+// parsePostgresArray converts a PostgreSQL array literal like {a,"b c",d} to []string.
+func parsePostgresArray(input string) []string {
+	input = strings.TrimSpace(input)
+	if len(input) < 2 || input[0] != '{' || input[len(input)-1] != '}' {
+		return nil
+	}
+	inner := input[1 : len(input)-1]
+	if inner == "" {
+		return nil
+	}
+	var result []string
+	var current strings.Builder
+	inQuotes := false
+	escaped := false
+	for _, r := range inner {
+		switch {
+		case escaped:
+			current.WriteRune(r)
+			escaped = false
+		case r == '\\':
+			escaped = true
+		case r == '"':
+			inQuotes = !inQuotes
+		case r == ',' && !inQuotes:
+			result = append(result, strings.TrimSpace(current.String()))
+			current.Reset()
+		default:
+			current.WriteRune(r)
+		}
+	}
+	if current.Len() > 0 || len(result) > 0 {
+		result = append(result, strings.TrimSpace(current.String()))
+	}
+	// Trim quotes from each element
+	for i, s := range result {
+		result[i] = strings.TrimFunc(s, func(r rune) bool { return r == '"' || unicode.IsSpace(r) })
+	}
+	return result
 }

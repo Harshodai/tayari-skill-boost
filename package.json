@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "bun test --dom --preload ./src/test/setup.ts"
+    "test": "bun test --dom --preload ./src/test/setup.ts src/",
+    "test:e2e": "playwright test --reporter=list"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
@@ -71,11 +72,13 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
+    "@sentry/react": "^9.0.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@happy-dom/global-registrator": "^14.0.0",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^14.2.1",

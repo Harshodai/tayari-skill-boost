@@ -9,6 +9,8 @@ and updates only ``next_run_at``/``last_run_at`` after enqueueing.
 
 In-memory schedule helpers (``create_schedule``/``list_schedules``/...) remain
 for backward compatibility and tests without a DB.
+
+Extended with Career-Ops auto-scan every 6 hours for all users with active portals.
 """
 import asyncio
 import logging
@@ -16,6 +18,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from app.services.automation_engine import run_autopilot
+from app.services import portal_scanner
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,9 @@ FREQUENCY_DELTAS = {
     "weekly": timedelta(weeks=1),
     "biweekly": timedelta(weeks=2),
 }
+
+# Auto-scan runs every 6 hours (21600 seconds)
+AUTO_SCAN_INTERVAL_SECONDS = 21600
 
 # In-memory schedules store (Go backend persists actual schedules in Postgres).
 _schedules: list = []
@@ -234,6 +240,63 @@ async def _tick(profile_provider=None, resume_provider=None) -> None:
     for schedule in due:
         user_id = schedule["user_id"]
         profile = await _maybe_await(profile_provider, user_id) if profile_provider else None
-        resume_text = await _maybe_await(resume_provider, user_id) if resume_provider else ""
+        resume_text = await _maybe_await(resume_provider, user_id, user_id) if resume_provider else ""
         await _trigger_scheduled_run(schedule, profile, resume_text)
         await _mark_schedule_run(schedule["schedule_id"], next_run_time(schedule["frequency"]))
+
+
+# ---------------------------------------------------------------------------
+# Career-Ops Auto-Scan (runs every 6 hours)
+# ---------------------------------------------------------------------------
+
+async def auto_scan_all_users() -> None:
+    """Scan all users with active portals for new jobs.
+    
+    This runs periodically (every 6 hours) to keep the job database fresh.
+    """
+    from app.services.db import get_pool
+    pool = await get_pool()
+    if not pool:
+        logger.warning("auto_scan: no DB pool available")
+        return
+    
+    try:
+        async with pool.acquire() as conn:
+            # Find all users who have at least one enabled portal
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT user_id FROM user_portals 
+                WHERE enabled = true
+                """
+            )
+            user_ids = [str(r["user_id"]) for r in rows]
+    except Exception as exc:
+        logger.error("auto_scan: failed to get user IDs: %s", exc)
+        return
+    
+    if not user_ids:
+        logger.debug("auto_scan: no users with active portals")
+        return
+    
+    logger.info("auto_scan: starting scan for %d users", len(user_ids))
+    
+    for user_id in user_ids:
+        try:
+            jobs = await portal_scanner.scan_portals(user_id=user_id)
+            logger.info("auto_scan: user %s - discovered %d jobs", user_id, len(jobs))
+        except Exception as exc:
+            logger.error("auto_scan: failed for user %s: %s", user_id, exc)
+
+
+async def career_ops_scheduler_loop() -> None:
+    """Background loop for Career-Ops auto-scan — started once on app startup.
+    
+    Runs every 6 hours to scan all portals for all users with active portals.
+    """
+    logger.info("Career-Ops auto-scan scheduler started (interval: %ss)", AUTO_SCAN_INTERVAL_SECONDS)
+    while True:
+        try:
+            await auto_scan_all_users()
+        except Exception as exc:  # noqa: BLE001 - never let one tick kill the loop
+            logger.error("Career-Ops auto-scan tick failed: %s", exc)
+        await asyncio.sleep(AUTO_SCAN_INTERVAL_SECONDS)
