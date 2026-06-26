@@ -4,46 +4,34 @@ import { Shield, Lock, Eye, Database, UserCheck, Bell } from "lucide-react";
 const Privacy = () => {
   const sections = [
     {
+      icon: Lock,
+      title: "100% Local Self-Hosting Support",
+      content: `Tayari supports local, on-premise execution (via Docker & Ollama). If you self-host Tayari on your own hardware, your resume files, API keys, and job details never leave your local machine. No external services are called, ensuring complete data residency and sovereignty.`
+    },
+    {
+      icon: Shield,
+      title: "No Public Model Training Guarantee",
+      content: `We guarantee that your resume content, cover letters, and profile data are never sold, shared, or used to train public language models (such as OpenAI, Anthropic, or Google Gemini). Your data is processed strictly in-memory or securely stored in your isolated database instance.`
+    },
+    {
       icon: Database,
       title: "Information We Collect",
-      content: `We collect information you provide directly, including your name, email address, and resume content. 
-        We also automatically collect usage data such as browser type, device information, and interaction patterns 
-        to improve our services. We use cookies and similar technologies to enhance your experience.`
+      content: `We collect information you provide directly, including your name, email address, and resume content. We also collect basic usage data such as browser type, device information, and interaction patterns to improve our services.`
     },
     {
       icon: Eye,
       title: "How We Use Your Information",
-      content: `Your information is used to provide and improve our AI-powered career services, personalize your 
-        experience, communicate updates, and analyze usage patterns. We process your resume data solely to 
-        generate optimization suggestions and ATS scores. We never sell your personal information.`
+      content: `Your information is used to provide and improve our AI-powered career services, personalize your experience, and generate optimization suggestions and ATS scores. We process your resume data solely for optimization purposes.`
     },
     {
       icon: Lock,
       title: "Data Security",
-      content: `We implement industry-standard security measures including encryption in transit and at rest, 
-        secure access controls, and regular security audits. Your resume data is stored in encrypted form 
-        and access is strictly limited to authorized personnel and automated systems.`
+      content: `We implement industry-standard security measures including encryption in transit and at rest, secure access controls, and regular security audits. Your resume data is stored in encrypted form and access is strictly limited.`
     },
     {
       icon: UserCheck,
       title: "Your Rights",
-      content: `You have the right to access, correct, or delete your personal data at any time. You can export 
-        your data, withdraw consent for data processing, and request information about how your data is used. 
-        Contact us to exercise any of these rights.`
-    },
-    {
-      icon: Shield,
-      title: "Third-Party Services",
-      content: `We may use third-party services for analytics, payment processing, and infrastructure. These 
-        partners are bound by strict data protection agreements. We do not share your resume content with 
-        employers or recruiters without your explicit consent.`
-    },
-    {
-      icon: Bell,
-      title: "Updates to This Policy",
-      content: `We may update this Privacy Policy periodically. We will notify you of significant changes via 
-        email or through our platform. Your continued use of Job Tayari after changes indicates acceptance 
-        of the updated policy.`
+      content: `You have the right to access, correct, or delete your personal data at any time. You can export your data, withdraw consent for data processing, and request information about how your data is used.`
     }
   ];
 

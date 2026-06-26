@@ -13,11 +13,12 @@ const Pricing = () => {
       description: "Perfect for getting started with your job search",
       icon: Zap,
       features: [
-        "3 resume scans per month",
+        "1 resume profile",
+        "3 scans per month",
+        "5 tailored applications/mo",
         "Basic ATS score analysis",
-        "Standard resume templates",
-        "Email support",
-        "Job search tips"
+        "Standard templates",
+        "Community support"
       ],
       cta: "Get Started",
       highlighted: false
@@ -25,39 +26,37 @@ const Pricing = () => {
     {
       name: "Pro",
       price: "19",
-      period: "per month",
+      period: "mo (billed annually)",
       description: "Best for active job seekers who want an edge",
       icon: Crown,
       features: [
         "Unlimited resume scans",
-        "Advanced ATS optimization",
-        "AI-powered suggestions",
-        "Premium templates",
-        "Interview preparation",
-        "Priority support",
-        "Job matching alerts",
-        "Resume version history"
+        "Advanced ATS scoring breakdown",
+        "AI cover letter writer",
+        "STAR mock interview prep",
+        "50 tailored applications/mo",
+        "Email support",
+        "Priority queue processing"
       ],
       cta: "Start Free Trial",
       highlighted: true
     },
     {
-      name: "Enterprise",
-      price: "Custom",
-      period: "contact us",
-      description: "For teams and organizations",
+      name: "Career-Ops",
+      price: "79",
+      period: "mo (billed annually)",
+      description: "Complete pipeline automation for top candidates",
       icon: Building2,
       features: [
         "Everything in Pro",
-        "Team management",
-        "Bulk resume processing",
-        "Custom integrations",
-        "Dedicated account manager",
-        "SLA guarantees",
-        "Analytics dashboard",
-        "White-label options"
+        "Apply Assist automation queue",
+        "Hermes multi-board scraping",
+        "Real-time pipeline monitoring",
+        "Voice/video mock interview AI",
+        "Direct recruiter outreach tools",
+        "Dedicated VIP support"
       ],
-      cta: "Contact Sales",
+      cta: "Get Started Now",
       highlighted: false
     }
   ];
@@ -149,12 +148,32 @@ const Pricing = () => {
                   }`}
                   asChild
                 >
-                  <Link to={plan.name === "Enterprise" ? "/contact" : "/auth"}>
+                  <Link to="/auth">
                     {plan.cta}
                   </Link>
                 </Button>
               </div>
             ))}
+          </div>
+
+          {/* Trust Banner (Refund & Cancellation) */}
+          <div className="max-w-4xl mx-auto mb-16 p-6 rounded-2xl border border-border bg-gradient-to-r from-card via-card to-primary/5 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="space-y-1">
+              <h3 className="font-bold text-base flex items-center gap-2">
+                🛡️ 7-Day Money-Back Guarantee
+              </h3>
+              <p className="text-xs text-muted-foreground max-w-xl">
+                Not satisfied with your callback rates? Email us within 7 days of purchase for a 100% refund, no questions asked.
+              </p>
+            </div>
+            <div className="space-y-1 md:text-right">
+              <h3 className="font-bold text-base flex items-center gap-2 md:justify-end">
+                ⚡ Cancel with One Click
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Easy cancellation directly from your profile settings. No retention loops, no emails.
+              </p>
+            </div>
           </div>
 
           {/* FAQ Section */}

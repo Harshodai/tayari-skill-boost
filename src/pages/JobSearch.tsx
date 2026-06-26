@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/layout";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -668,15 +668,73 @@ const JobSearch = () => {
                         </div>
                       )}
                       {selected.missing_skills && selected.missing_skills.length > 0 && (
-                        <div className="rounded-lg border border-warning/20 bg-warning/5 p-3">
-                          <div className="text-xs font-semibold text-warning mb-2 uppercase tracking-wider">
-                            Gaps to close
+                        <div className="rounded-lg border border-border bg-card p-4 col-span-2">
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4 pb-4 border-b border-border/50">
+                            <div className="flex items-center gap-3">
+                              {/* Radial progress ring */}
+                              <div className="relative w-12 h-12 shrink-0 flex items-center justify-center">
+                                <svg className="w-full h-full transform -rotate-90">
+                                  <circle
+                                    cx="24"
+                                    cy="24"
+                                    r="20"
+                                    className="stroke-muted"
+                                    strokeWidth="3.5"
+                                    fill="transparent"
+                                  />
+                                  <circle
+                                    cx="24"
+                                    cy="24"
+                                    r="20"
+                                    className={cn(
+                                      "stroke-primary transition-all duration-500",
+                                      (selected.fit_score ?? selected.score ?? 70) >= 80 ? "stroke-success" : 
+                                      (selected.fit_score ?? selected.score ?? 70) >= 60 ? "stroke-warning" : 
+                                      "stroke-destructive"
+                                    )}
+                                    strokeWidth="3.5"
+                                    fill="transparent"
+                                    strokeDasharray={2 * Math.PI * 20}
+                                    strokeDashoffset={2 * Math.PI * 20 * (1 - (selected.fit_score ?? selected.score ?? 70) / 100)}
+                                    strokeLinecap="round"
+                                  />
+                                </svg>
+                                <span className="absolute text-[10px] font-bold font-mono text-foreground">
+                                  {selected.fit_score ?? selected.score ?? 70}%
+                                </span>
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-xs text-foreground uppercase tracking-wider">Skills Match Rate</h4>
+                                <p className="text-[10px] text-muted-foreground leading-normal">
+                                  Based on your resume skills vs job requirements
+                                </p>
+                              </div>
+                            </div>
+                            <Button size="sm" variant="outline" className="h-7 text-xs px-2.5" asChild>
+                              <Link to="/roadmap">
+                                View Roadmap
+                              </Link>
+                            </Button>
+                          </div>
+                          
+                          <div className="text-[10px] font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
+                            Gaps to Close ({selected.missing_skills.length})
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             {selected.missing_skills.slice(0, 8).map((s, i) => (
-                              <Badge key={i} variant="outline" className="text-xs">
-                                {s}
-                              </Badge>
+                              <div key={i} className="flex items-center gap-1.5 bg-warning/5 text-warning border border-warning/20 px-2.5 py-0.5 rounded-full text-xs font-medium hover:bg-warning/10 transition-colors">
+                                <span>{s}</span>
+                                <button
+                                  onClick={() => {
+                                    toast.info(`Pre-filling learning roadmap details for "${s}"...`);
+                                    navigate("/roadmap", { state: { targetSkill: s } });
+                                  }}
+                                  className="hover:bg-warning/20 rounded px-1.5 py-0.5 ml-1 transition-colors text-[9px] font-bold uppercase tracking-wider border border-warning/25 bg-warning/10"
+                                  title={`Boost ${s}`}
+                                >
+                                  Boost
+                                </button>
+                              </div>
                             ))}
                           </div>
                         </div>

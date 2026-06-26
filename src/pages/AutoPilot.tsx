@@ -36,6 +36,7 @@ import {
   deleteApplication,
   listResumes,
   getResume,
+  apiFetch,
 } from "@/api";
 import {
   Collapsible,
@@ -120,6 +121,34 @@ const AutoPilot = () => {
     });
   };
 
+  const handleApproveApp = async (appId: string) => {
+    try {
+      await apiFetch(`/v1/review-queue/${appId}/approve`, {
+        method: "PUT",
+        body: JSON.stringify({ notes: "Approved from Apply Assist" }),
+      });
+      toast.success("Application approved and moved to saved jobs!");
+      queryClient.invalidateQueries({ queryKey: ["applications", activeRunId] });
+      queryClient.invalidateQueries({ queryKey: ["autopilot-runs"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to approve application");
+    }
+  };
+
+  const handleRejectApp = async (appId: string) => {
+    try {
+      await apiFetch(`/v1/review-queue/${appId}/reject`, {
+        method: "PUT",
+        body: JSON.stringify({ reason: "Rejected from Apply Assist" }),
+      });
+      toast.success("Application rejected");
+      queryClient.invalidateQueries({ queryKey: ["applications", activeRunId] });
+      queryClient.invalidateQueries({ queryKey: ["autopilot-runs"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reject application");
+    }
+  };
+
   const isRunning = runStatus?.status === "running" || runStatus?.status === "queued";
 
   return (
@@ -128,13 +157,13 @@ const AutoPilot = () => {
         <div className="text-center max-w-2xl mx-auto mb-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-6">
             <Zap className="w-4 h-4" />
-            Auto-Pilot Mode
+            Apply Assist Mode
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            Let AI Apply for You
+            Apply Assist Agent
           </h1>
           <p className="text-muted-foreground text-lg">
-            Configure your preferences and let the agent search, tailor, and apply to jobs automatically.
+            Configure search criteria to let AI scan roles, optimize your resume, and draft tailored cover letters. **Submissions are gated inside the Review Queue for your safety.**
           </p>
         </div>
 
@@ -203,7 +232,7 @@ const AutoPilot = () => {
               {!resumeText && (
                 <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>Upload a resume to enable autopilot</span>
+                  <span>Upload a resume to enable Apply Assist</span>
                 </div>
               )}
               <div className="flex flex-col sm:flex-row gap-3">
@@ -339,9 +368,19 @@ const AutoPilot = () => {
                   <CardContent className="py-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
-                        <h3 className="font-semibold text-foreground">
-                          {app.job?.title || "Untitled Job"}
-                        </h3>
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h3 className="font-semibold text-foreground">
+                            {app.job?.title || "Untitled Job"}
+                          </h3>
+                          <Badge variant={
+                            app.status === "review" ? "warning" :
+                            app.status === "saved" ? "success" :
+                            app.status === "rejected" ? "destructive" :
+                            "secondary"
+                          }>
+                            {app.status === "review" ? "Pending Review" : app.status}
+                          </Badge>
+                        </div>
                         <p className="text-muted-foreground text-sm">
                           {app.job?.company || "Unknown Company"}
                         </p>
@@ -378,6 +417,25 @@ const AutoPilot = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        {app.status === "review" && (
+                          <>
+                            <Button
+                              size="sm"
+                              className="bg-success text-success-foreground hover:bg-success/90"
+                              onClick={() => handleApproveApp(app.application_id)}
+                            >
+                              Approve & Submit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive hover:bg-destructive/10 border-destructive/20"
+                              onClick={() => handleRejectApp(app.application_id)}
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -438,7 +496,7 @@ const AutoPilot = () => {
             <Card className="py-12 text-center">
               <CardContent>
                 <RotateCcw className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No runs yet. Start your first Auto-Pilot above.</p>
+                <p className="text-muted-foreground">No runs yet. Start your first Apply Assist run above.</p>
               </CardContent>
             </Card>
           ) : (

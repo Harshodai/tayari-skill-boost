@@ -24,10 +24,10 @@ const aspirationalCards = [
     href: "/interview/prep",
   },
   {
-    title: "Apply on autopilot",
-    description: "Hermes finds, scores, and queues roles that actually match your trajectory — overnight.",
+    title: "Apply with assistance",
+    description: "Hermes finds, scores, and queues roles that actually match your trajectory — with your final approval.",
     icon: Sparkles,
-    cta: "Activate AutoPilot",
+    cta: "Launch Apply Assist",
     href: "/jobs/autopilot",
   },
 ];

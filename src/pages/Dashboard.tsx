@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AppShell } from "@/components/layout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { JobMatchScore } from "@/components/ui/job-match-score";
 import { StatsCard, StatsGrid } from "@/components/ui/stats-card";
 import type { ResumeAnalysisRecord } from "@/types/resume";
-import { USE_SELF_HOSTED, listAnalysisHistory } from "@/api";
+import { USE_SELF_HOSTED, listAnalysisHistory, getFunnelData } from "@/api";
 import { useAutomation } from "@/contexts/AutomationContext";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ const Dashboard = () => {
   const { user } = useAuth();
   const { startRun, open: openActivity, runs } = useAutomation();
   const userId = user?.id;
+  const [activeTab, setActiveTab] = useState<"match" | "outcomes">("match");
 
   const firstName = user?.user_metadata?.full_name?.split(" ")[0] ?? user?.email?.split("@")[0] ?? "";
 
@@ -110,16 +112,34 @@ const Dashboard = () => {
     },
   });
 
+  const { data: funnel = { saved: 0, applied: 0, interview: 0, offer: 0 } } = useQuery({
+    queryKey: ["funnel-data", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      try {
+        const data = await getFunnelData();
+        return data ?? { saved: 0, applied: 0, interview: 0, offer: 0 };
+      } catch (err) {
+        console.error("Failed to load funnel:", err);
+        return { saved: 0, applied: 0, interview: 0, offer: 0 };
+      }
+    },
+  });
+
+  const totalApps = (funnel.applied ?? 0) + (funnel.interview ?? 0) + (funnel.offer ?? 0);
+  const responseRate = totalApps > 0 ? Math.round(((funnel.interview + funnel.offer) / totalApps) * 100) : 0;
+  const callbackRate = totalApps > 0 ? Math.round((funnel.interview / totalApps) * 100) : 0;
+
   const latestScore = analyses[0]?.overall_score ?? null;
   const completedRoadmap = roadmap.filter((r) => r.status === "completed").length;
   const roadmapPct = roadmap.length ? Math.round((completedRoadmap / roadmap.length) * 100) : 0;
 
-  // Pipeline counts (saved_jobs has no status today — bucket everything under "saved" for now)
+  // Pipeline counts (use funnel data for status)
   const pipelineCounts: Record<string, number> = {
-    saved: savedJobs.length,
-    applied: 0,
-    interview: interviews.length,
-    offer: 0,
+    saved: funnel.saved || savedJobs.length,
+    applied: funnel.applied || 0,
+    interview: funnel.interview || interviews.length,
+    offer: funnel.offer || 0,
   };
 
   // Today's focus — pick the highest-leverage next action
@@ -222,7 +242,7 @@ const Dashboard = () => {
             colorScheme="default"
           />
           <StatsCard
-            label="AutoPilot Runs"
+            label="Apply Assist Runs"
             value={runs.length}
             icon={<Zap className="w-4 h-4" />}
             trend={runs.length > 0 ? { value: 100, direction: "up", label: "agents active" } : { value: 0, direction: "neutral", label: "idle" }}
@@ -264,25 +284,120 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="flex flex-col">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Latest match</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                  Job Intel
+                </CardTitle>
+                <div className="flex bg-muted p-0.5 rounded-lg border border-border/50">
+                  <button
+                    onClick={() => setActiveTab("match")}
+                    className={cn(
+                      "px-2.5 py-1 text-xs rounded-md transition-all font-medium",
+                      activeTab === "match" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Match Score
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("outcomes")}
+                    className={cn(
+                      "px-2.5 py-1 text-xs rounded-md transition-all font-medium",
+                      activeTab === "outcomes" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Funnel
+                  </button>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="flex items-center justify-center pb-6">
-              {latestScore !== null ? (
-                <JobMatchScore
-                  score={latestScore}
-                  size="md"
-                  label={analyses[0]?.job_title || "Latest role"}
-                />
+            <CardContent className="flex-1 flex flex-col justify-center pb-6 min-h-[220px]">
+              {activeTab === "match" ? (
+                latestScore !== null ? (
+                  <div className="flex justify-center w-full">
+                    <JobMatchScore
+                      score={latestScore}
+                      size="md"
+                      label={analyses[0]?.job_title || "Latest role"}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center py-2 w-full">
+                    <p className="text-sm text-muted-foreground mb-3">No analyses yet</p>
+                    <Button asChild size="sm" variant="outline">
+                      <Link to="/resume">
+                        <Upload className="w-4 h-4 mr-2" /> Analyze resume
+                      </Link>
+                    </Button>
+                  </div>
+                )
               ) : (
-                <div className="text-center py-2">
-                  <p className="text-sm text-muted-foreground mb-3">No analyses yet</p>
-                  <Button asChild size="sm" variant="outline">
-                    <Link to="/resume">
-                      <Upload className="w-4 h-4 mr-2" /> Analyze resume
-                    </Link>
-                  </Button>
+                <div className="space-y-4 w-full">
+                  <div className="grid grid-cols-2 gap-3 text-center">
+                    <div className="bg-muted/40 p-2.5 rounded-lg border border-border/50">
+                      <div className="text-xs text-muted-foreground font-medium mb-0.5">Response Rate</div>
+                      <div className="text-xl font-bold font-mono text-primary">
+                        {totalApps > 0 ? `${responseRate}%` : "—"}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {totalApps > 0 ? `${funnel.interview + funnel.offer} of ${totalApps} roles` : "No applications"}
+                      </div>
+                    </div>
+                    <div className="bg-muted/40 p-2.5 rounded-lg border border-border/50">
+                      <div className="text-xs text-muted-foreground font-medium mb-0.5">Callback Rate</div>
+                      <div className="text-xl font-bold font-mono text-success">
+                        {totalApps > 0 ? `${callbackRate}%` : "—"}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {totalApps > 0 ? `${funnel.interview} interviews` : "Practice mock first"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Visual Funnel Bar */}
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex justify-between text-[11px] text-muted-foreground font-medium">
+                      <span>Funnel Stages</span>
+                      <span>{totalApps} Total Applications</span>
+                    </div>
+                    <div className="flex h-3.5 w-full rounded-full overflow-hidden bg-muted/65 border border-border/50">
+                      <div
+                        className="bg-primary/85 transition-all"
+                        style={{ width: `${totalApps > 0 ? Math.max(12, (funnel.applied / totalApps) * 100) : 25}%` }}
+                        title={`Applied: ${funnel.applied}`}
+                      />
+                      <div
+                        className="bg-warning/85 transition-all border-l border-background"
+                        style={{ width: `${totalApps > 0 ? Math.max(12, (funnel.interview / totalApps) * 100) : 25}%` }}
+                        title={`Interviews: ${funnel.interview}`}
+                      />
+                      <div
+                        className="bg-success/85 transition-all border-l border-background"
+                        style={{ width: `${totalApps > 0 ? Math.max(12, (funnel.offer / totalApps) * 100) : 25}%` }}
+                        title={`Offers: ${funnel.offer}`}
+                      />
+                      <div
+                        className="bg-muted-foreground/30 transition-all border-l border-background"
+                        style={{ width: `${totalApps > 0 ? Math.max(0, (funnel.saved / totalApps) * 100) : 25}%` }}
+                        title={`Saved: ${funnel.saved}`}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[9px] text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        <span>Applied ({funnel.applied})</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-warning" />
+                        <span>Interview ({funnel.interview})</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                        <span>Offers ({funnel.offer})</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>

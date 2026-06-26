@@ -4,6 +4,8 @@ import { AppSidebar } from "./AppSidebar";
 import { ActivityButton } from "@/components/automation/ActivityButton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAutomation } from "@/contexts/AutomationContext";
+import { Progress } from "@/components/ui/progress";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,9 +30,22 @@ interface AppShellProps {
 
 export function AppShell({ children, title, subtitle, actions }: AppShellProps) {
   const { user, signOut } = useAuth();
+  const { runs, open } = useAutomation();
   const navigate = useNavigate();
   const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
   const initials = displayName.slice(0, 2).toUpperCase();
+
+  const activeRuns = runs.filter((r) => r.steps.some((s) => s.status === "running" || s.status === "queued"));
+  const hasActive = activeRuns.length > 0;
+  const currentRun = activeRuns[0];
+  let currentStep = null;
+  let progressPct = 0;
+  if (currentRun) {
+    const totalSteps = currentRun.steps.length;
+    const completedSteps = currentRun.steps.filter((s) => s.status === "done" || s.status === "failed").length;
+    currentStep = currentRun.steps.find((s) => s.status === "running" || s.status === "queued");
+    progressPct = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+  }
 
   return (
     <SidebarProvider>
@@ -109,6 +124,39 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
               </DropdownMenu>
             </div>
           </header>
+
+          {hasActive && currentRun && (
+            <div className="bg-primary/5 border-b border-border/60 py-1.5 px-3 md:px-5 flex items-center justify-between text-xs font-medium animate-fade-in flex-shrink-0">
+              <div className="flex items-center gap-2 truncate">
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                </span>
+                <span className="text-muted-foreground font-semibold">Apply Assist:</span>
+                <span className="truncate max-w-[200px] md:max-w-xs">{currentRun.title}</span>
+                {currentStep && (
+                  <>
+                    <span className="text-muted-foreground/60">•</span>
+                    <span className="text-muted-foreground truncate">{currentStep.label}</span>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="w-20 md:w-32">
+                  <Progress value={progressPct} size="xs" colorScheme="primary" />
+                </div>
+                <span className="text-muted-foreground">{progressPct}%</span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={open} 
+                  className="h-6 text-[10px] text-primary hover:text-primary hover:bg-primary/10 px-2"
+                >
+                  View Details
+                </Button>
+              </div>
+            </div>
+          )}
 
           <main id="main-content" className="flex-1 p-4 md:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
             {children}

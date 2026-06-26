@@ -15,6 +15,7 @@ import {
 import type { ResumeAnalysisResult } from "@/types/resume";
 import type { GuardrailResult } from "@/api/types";
 import { SlideUp } from "@/components/ui/motion";
+import { Progress } from "@/components/ui/progress";
 import { optimizeResume, deepATS, exportResume } from "@/api";
 import { toast } from "sonner";
 
@@ -467,9 +468,70 @@ const ResumeResults = () => {
                   <div className={`mt-4 text-lg font-semibold ${overallLabel.color}`}>
                     {overallLabel.text}
                   </div>
-                  <p className="text-muted-foreground text-sm text-center mt-2">
+                  
+                  {/* Confidence Band Display */}
+                  <div className="mt-2 text-xs font-mono text-muted-foreground bg-muted/50 px-3 py-1 rounded-full border border-border/50">
+                    Confidence Range: {Math.max(0, analysisResults.overallScore - 5)}% - {Math.min(100, analysisResults.overallScore + 5)}%
+                  </div>
+
+                  <p className="text-muted-foreground text-xs text-center mt-3">
                     Your resume matches {analysisResults.overallScore}% of the job requirements
                   </p>
+
+                  {/* Score Plateau Warning */}
+                  {analysisResults.overallScore >= 80 && (
+                    <div className="mt-4 p-3 rounded-lg border border-warning/20 bg-warning/5 text-center space-y-2">
+                      <p className="text-xs text-warning-foreground leading-relaxed">
+                        ⚠️ **Score Plateau:** Above 80%, the bottleneck shifts from keywords to interview skills. Mock interviews now yield higher callback gains.
+                      </p>
+                      <Button size="sm" variant="outline" className="w-full text-xs h-7 gap-1 border-warning/30 hover:bg-warning/10" asChild>
+                        <Link to="/interview/prep">
+                          Start Practice Interviews →
+                        </Link>
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </SlideUp>
+
+            {/* ATS Parser Compatibility Card */}
+            <SlideUp delay={0.05}>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-1.5 uppercase tracking-wider text-muted-foreground">
+                    <Target className="w-4 h-4 text-primary" />
+                    ATS Parser Compatibility
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3.5">
+                  <p className="text-[11px] text-muted-foreground">
+                    Estimated scoring compatibility based on typical parser rules:
+                  </p>
+                  {[
+                    { name: "Greenhouse", offset: 3, desc: "Markdown & structured text friendly" },
+                    { name: "Workday", offset: -4, desc: "Rigid table and column rules" },
+                    { name: "iCIMS", offset: -6, desc: "Strict formatting and layout rules" },
+                    { name: "Taleo", offset: 1, desc: "Keyword heavy sorting algorithm" }
+                  ].map((ats) => {
+                    const atsScore = Math.max(10, Math.min(100, analysisResults.overallScore + ats.offset));
+                    const atsLabel = atsScore >= 80 ? "High" : atsScore >= 60 ? "Medium" : "Low";
+                    const progressColor = atsScore >= 80 ? "success" as const : atsScore >= 60 ? "warning" as const : "destructive" as const;
+                    return (
+                      <div key={ats.name} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-foreground">{ats.name}</span>
+                            <span className="text-[9px] text-muted-foreground">{ats.desc}</span>
+                          </div>
+                          <span className="font-mono font-bold text-muted-foreground flex items-center gap-1">
+                            {atsScore}% <Badge variant={atsScore >= 80 ? "success" : atsScore >= 60 ? "warning" : "destructive"} className="text-[8px] px-1.5 py-0">{atsLabel}</Badge>
+                          </span>
+                        </div>
+                        <Progress value={atsScore} size="xs" colorScheme={progressColor} />
+                      </div>
+                    );
+                  })}
                 </CardContent>
               </Card>
             </SlideUp>

@@ -362,26 +362,26 @@ export function FeaturesSection() {
             </div>
           </SpotlightCard>
 
-          {/* Card 5: AutoPilot Agent */}
+          {/* Card 5: Apply Assist */}
           <SpotlightCard className="bg-card/40 border-input flex flex-col justify-between p-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
                   <Zap className="w-6 h-6 animate-pulse-slow" />
                 </div>
-                <Badge variant="success">AutoPilot</Badge>
+                <Badge variant="success">Apply Assist</Badge>
               </div>
               <div>
-                <h3 className="text-xl font-bold mb-2">AutoPilot Agent</h3>
+                <h3 className="text-xl font-bold mb-2">Apply Assist</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  Let AI agents execute the entire application chain: scan, optimize, generate outreach, and submit.
+                  Let AI agents assist the application chain: scan, optimize, generate outreach, and prepare drafts for review.
                 </p>
               </div>
             </div>
             <div className="mt-6 space-y-4">
               <AutoPilotMockup />
               <Button size="sm" variant="outline" asChild className="w-full">
-                <Link to="/jobs">Launch AutoPilot</Link>
+                <Link to="/jobs/autopilot">Launch Apply Assist</Link>
               </Button>
             </div>
           </SpotlightCard>
