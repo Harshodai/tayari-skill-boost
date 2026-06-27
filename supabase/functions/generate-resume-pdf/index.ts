@@ -31,6 +31,11 @@ interface GenerateResumeRequest {
   appliedSuggestions: string[];
   template: string;
   jobDescription?: string;
+  // PRIVACY: client must explicitly acknowledge that resume LaTeX
+  // (which embeds PII: name/email/phone/work history) is sent to
+  // third-party LaTeX compilers (latexonline.cc / latex.ytotech.com).
+  // The UI surfaces a disclosure + checkbox before setting this to true.
+  acceptThirdPartyCompilation?: boolean;
 }
 
 interface ProgressUpdate {
