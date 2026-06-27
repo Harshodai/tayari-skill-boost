@@ -79,23 +79,46 @@ func (s *Server) routes() {
 	}
 	*/
 
-	s.Router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:8080", "http://localhost:8083", "http://localhost:5173", "http://localhost:4173"},
-		AllowOriginFunc: func(r *http.Request, origin string) bool {
-			allowed := []string{"http://localhost:8080", "http://localhost:8083", "http://localhost:5173", "http://localhost:4173"}
-			for _, o := range allowed {
-				if origin == o {
-					return true
-				}
+	// CORS — explicit allowlist. Never use "*" with AllowCredentials=true:
+	// go-chi/cors echoes the request Origin in that case, which effectively
+	// lets any site make credentialed cross-origin requests.
+	defaultOrigins := []string{
+		"http://localhost:8080",
+		"http://localhost:8083",
+		"http://localhost:5173",
+		"http://localhost:4173",
+		"https://tayari-skill-boost.lovable.app",
+	}
+	if s.Config != nil {
+		for _, o := range s.Config.AllowedOrigins {
+			o = strings.TrimSpace(o)
+			if o != "" && o != "*" {
+				defaultOrigins = append(defaultOrigins, o)
 			}
-			return false
+		}
+	}
+	allowedOriginSet := make(map[string]struct{}, len(defaultOrigins))
+	for _, o := range defaultOrigins {
+		allowedOriginSet[o] = struct{}{}
+	}
+	// Allow Lovable preview/sandbox subdomains via regex match.
+	lovablePreviewRx := regexp.MustCompile(`^https://[a-z0-9-]+\.(lovable\.app|lovableproject\.com|sandbox\.lovable\.dev)$`)
+
+	s.Router.Use(cors.Handler(cors.Options{
+		AllowedOrigins: defaultOrigins,
+		AllowOriginFunc: func(r *http.Request, origin string) bool {
+			if _, ok := allowedOriginSet[origin]; ok {
+				return true
+			}
+			return lovablePreviewRx.MatchString(origin)
 		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Tenant-Domain", "X-User-ID", "X-User-Email"},
-		ExposedHeaders:     []string{"Link"},
-		AllowCredentials:   true,
-		MaxAge:             300,
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
 	}))
+
 
 	// Public Routes (IP-based rate limit: 100 RPM)
 	s.Router.Group(func(r chi.Router) {
