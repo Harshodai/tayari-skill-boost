@@ -369,6 +369,11 @@ export async function dashboardStats(): Promise<DashboardStats> {
   return apiFetch<DashboardStats>("/dashboard/stats");
 }
 
+// Trending skills endpoint
+export async function trendingSkills(): Promise<Array<{skill: string; popularity: number}>> {
+  return apiFetch<Array<{skill: string; popularity: number}>>("/v1/career-intelligence/trending-skills");
+}
+
 // =============================================================================
 // Multipart Resume Upload (archive compatible)
 // =============================================================================

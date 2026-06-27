@@ -20,13 +20,15 @@ interface BreachResult {
 }
 
 const Auth = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, signInWithGithub, signInWithLinkedin } = useAuth();
 
   const [isLogin, setIsLogin] = useState(searchParams.get("mode") !== "signup");
+
+
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -331,7 +333,7 @@ const Auth = () => {
                       value={formData.password}
                       onChange={handleChange}
                       required
-                      minLength={isLogin ? 8 : 12}
+                      minLength={8}
                     />
                     <button
                       type="button"
@@ -484,7 +486,7 @@ const Auth = () => {
                 {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
                 <button
                   type="button"
-                  onClick={() => setIsLogin(!isLogin)}
+                  onClick={() => { const next = !isLogin; if (next) { setSearchParams({}); navigate('/auth', { replace: true }); } else { navigate('/auth?mode=signup', { replace: true }); } setIsLogin(next); }}
                   className="text-primary hover:underline font-medium"
                 >
                   {isLogin ? "Sign up" : "Sign in"}

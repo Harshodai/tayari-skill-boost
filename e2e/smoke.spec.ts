@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-const FRONTEND_URL = 'http://localhost:8083';
-const API_URL = 'http://localhost:8085/api';
+const FRONTEND_URL = 'http://127.0.0.1:8083';
+const API_URL = 'http://127.0.0.1:8085/api';
 
 const TEST_EMAIL = 'e2e-test@example.com';
 const TEST_PASS = 'test1234';
@@ -18,7 +18,7 @@ test.describe('Tayari Skill Boost — End to End Smoke', () => {
     const go = await request.get(`${API_URL}/health`);
     expect(go.status()).toBe(200);
 
-    const py = await request.get('http://localhost:8002/health');
+    const py = await request.get('http://127.0.0.1:8002/health');
     expect(py.status()).toBe(200);
   });
 

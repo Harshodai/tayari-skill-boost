@@ -4,6 +4,10 @@ import { Sparkles, Rocket, Star, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { CountUp } from "@/components/ui/count-up";
 
+import { useEffect, useState } from 'react';
+import { dashboardStats } from '@/api';
+import type { DashboardStats } from '@/api/types';
+
 const trustLogos = [
   "Google", "Stripe", "Airbnb", "Notion", "Linear", "Vercel", "Shopify", "Atlassian",
 ];
@@ -33,6 +37,13 @@ const aspirationalCards = [
 ];
 
 export function SocialProofSection() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  useEffect(() => {
+    dashboardStats()
+      .then(setStats)
+      .catch((e) => console.error('Failed to load dashboard stats', e));
+  }, []);
+
   return (
     <section className="py-20 lg:py-28 border-t border-border/40">
       <div className="container mx-auto px-4">
@@ -56,10 +67,10 @@ export function SocialProofSection() {
         {/* Stat band */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border/40 rounded-2xl overflow-hidden border border-border/40 mb-20">
           {[
-            { value: 10000, suffix: "+", label: "Resumes optimized" },
-            { value: 85, suffix: "%", label: "Interview success" },
-            { value: 500, suffix: "+", label: "Offers landed" },
-            { value: 4.9, suffix: "/5", label: "User rating", decimals: 1 },
+            { value: stats?.resumes_count ?? 0, suffix: "+", label: "Resumes optimized" },
+            { value: stats?.profile_completion_pct ?? 0, suffix: "%", label: "Interview success" },
+            { value: stats?.applications_count ?? 0, suffix: "+", label: "Offers landed" },
+            { value: stats?.interviews_count ?? 0, suffix: "", label: "Interviews", decimals: 0 },
           ].map((s) => (
             <div key={s.label} className="bg-card/60 backdrop-blur-sm p-8 text-center">
               <div className="font-display text-4xl font-bold text-gradient mb-2 flex justify-center items-baseline">

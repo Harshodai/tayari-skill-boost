@@ -13,46 +13,49 @@ import { ScrollToTopHandler } from "@/components/layout/ScrollToTopHandler";
 import { AutomationProvider } from "@/contexts/AutomationContext";
 import { ActivityDrawer } from "@/components/automation/ActivityDrawer";
 
-import Index from "./pages/Index";
-import Onboarding from "./pages/Onboarding";
-import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import Pipeline from "./pages/Pipeline";
-import Settings from "./pages/Settings";
-import ResumeUpload from "./pages/ResumeUpload";
-import ResumeResults from "./pages/ResumeResults";
-import ResumeTemplates from "./pages/ResumeTemplates";
-import InterviewBoard from "./pages/InterviewBoard";
-import JobSearch from "./pages/JobSearch";
-import AutoPilot from "./pages/AutoPilot";
-import CareerRoadmap from "./pages/CareerRoadmap";
-import FAQ from "./pages/FAQ";
-import Contact from "./pages/Contact";
-import Terms from "./pages/Terms";
-import Privacy from "./pages/Privacy";
-import Pricing from "./pages/Pricing";
-import About from "./pages/About";
-import Careers from "./pages/Careers";
-import Blog from "./pages/Blog";
-import BlogPost from "./pages/BlogPost";
-import Help from "./pages/Help";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import AuthCallback from "./pages/AuthCallback";
-import Profile from "./pages/Profile";
-import CoverLetter from "./pages/CoverLetter";
-import CommunicationHub from "./pages/CommunicationHub";
-import InterviewPrep from "./pages/InterviewPrep";
-import KnowledgeHub from "./pages/KnowledgeHub";
-import ExtensionOnboarding from "./pages/ExtensionOnboarding";
-import ReviewQueue from "./pages/ReviewQueue";
-import PredictiveAnalytics from "./pages/PredictiveAnalytics";
-import AdvisorDashboard from "./pages/AdvisorDashboard";
-import AgentPanel from "./pages/AgentPanel";
-import APIKeys from "./pages/APIKeys";
-import CareerOpsDashboard from "./pages/CareerOpsDashboard";
-import LinkedInImport from "./pages/LinkedInImport";
-import NotFound from "./pages/NotFound";
+import { lazy, Suspense } from 'react';
+const Index = lazy(() => import('./pages/Index'));
+
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const Auth = lazy(() => import('./pages/Auth'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Pipeline = lazy(() => import('./pages/Pipeline'));
+const Settings = lazy(() => import('./pages/Settings'));
+const ResumeUpload = lazy(() => import('./pages/ResumeUpload'));
+const ResumeResults = lazy(() => import('./pages/ResumeResults'));
+const ResumeTemplates = lazy(() => import('./pages/ResumeTemplates'));
+const InterviewBoard = lazy(() => import('./pages/InterviewBoard'));
+const JobSearch = lazy(() => import('./pages/JobSearch'));
+const AutoPilot = lazy(() => import('./pages/AutoPilot'));
+const CareerRoadmap = lazy(() => import('./pages/CareerRoadmap'));
+const CareerIntelligence = lazy(() => import('./pages/CareerIntelligence'));
+const FAQ = lazy(() => import('./pages/FAQ'));
+const Contact = lazy(() => import('./pages/Contact'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Pricing = lazy(() => import('./pages/Pricing'));
+const About = lazy(() => import('./pages/About'));
+const Careers = lazy(() => import('./pages/Careers'));
+const Blog = lazy(() => import('./pages/Blog'));
+const BlogPost = lazy(() => import('./pages/BlogPost'));
+const Help = lazy(() => import('./pages/Help'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const AuthCallback = lazy(() => import('./pages/AuthCallback'));
+const Profile = lazy(() => import('./pages/Profile'));
+const CoverLetter = lazy(() => import('./pages/CoverLetter'));
+const CommunicationHub = lazy(() => import('./pages/CommunicationHub'));
+const InterviewPrep = lazy(() => import('./pages/InterviewPrep'));
+const KnowledgeHub = lazy(() => import('./pages/KnowledgeHub'));
+const ExtensionOnboarding = lazy(() => import('./pages/ExtensionOnboarding'));
+const ReviewQueue = lazy(() => import('./pages/ReviewQueue'));
+const PredictiveAnalytics = lazy(() => import('./pages/PredictiveAnalytics'));
+const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'));
+const AgentPanel = lazy(() => import('./pages/AgentPanel'));
+const APIKeys = lazy(() => import('./pages/APIKeys'));
+const CareerOpsDashboard = lazy(() => import('./pages/CareerOpsDashboard'));
+const LinkedInImport = lazy(() => import('./pages/LinkedInImport'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 const queryClient = new QueryClient();
 
@@ -68,6 +71,7 @@ const App = () => (
         <BrowserRouter>
           <ScrollToTopHandler />
           <PageTransition>
+          <Suspense fallback={<div>Loading...</div>}>
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Index />} />
@@ -100,6 +104,9 @@ const App = () => (
               )}
               {features.careers && (
                 <Route path="/careers" element={<Careers />} />
+              )}
+              {features.careerOps && (
+                <Route path="/career-intelligence" element={<CareerIntelligence />} />
               )}
               {features.blog && (
                 <>
@@ -270,6 +277,7 @@ const App = () => (
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+          </Suspense>
           </PageTransition>
         </BrowserRouter>
       </TooltipProvider>

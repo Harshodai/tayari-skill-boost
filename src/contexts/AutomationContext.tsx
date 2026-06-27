@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, ReactNode, useEffect } from "react";
 
 export type AutomationStatus = "queued" | "running" | "done" | "failed";
 
@@ -34,9 +34,21 @@ const nextId = (prefix: string) => `${prefix}_${Date.now()}_${++runCounter}`;
 
 export function AutomationProvider({ children }: { children: ReactNode }) {
   const [runs, setRuns] = useState<AutomationRun[]>([]);
+useEffect(() => {
+  const saved = localStorage.getItem('automation_runs');
+  if (saved) {
+    try {
+      setRuns(JSON.parse(saved));
+    } catch {}
+  }
+}, []);
+useEffect(() => {
+  localStorage.setItem('automation_runs', JSON.stringify(runs));
+}, [runs]);
   const [isOpen, setIsOpen] = useState(false);
 
   const startRun: AutomationContextValue["startRun"] = useCallback(({ title, context, steps }) => {
+  try {
     const runId = nextId("run");
     const stepObjs: AutomationStep[] = steps.map((label, i) => ({
       id: `${runId}_s${i}`,
@@ -75,13 +87,20 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
       );
     }, stepObjs.length * 1400 + 600);
     return runId;
+    } catch (e) {
+      console.error("Failed to start automation run:", e);
+      return "";
+    }
   }, []);
 
   const advanceRun: AutomationContextValue["advanceRun"] = useCallback((runId, stepId, status) => {
-    setRuns((prev) =>
-      prev.map((r) =>
-        r.id !== runId ? r : { ...r, steps: r.steps.map((s) => (s.id === stepId ? { ...s, status } : s)) }
-      )
+    setRuns(prev =>
+      prev.map(r => {
+        if (r.id !== runId) return r;
+        const stepExists = r.steps.some(s => s.id === stepId);
+        if (!stepExists) return r;
+        return { ...r, steps: r.steps.map(s => (s.id === stepId ? { ...s, status } : s)) };
+      })
     );
   }, []);
 

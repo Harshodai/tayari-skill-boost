@@ -173,9 +173,7 @@ export function ProductsSection() {
                       {product.cta}
                       <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
                     </Link>
-                  ) : (
-                    <span>Coming Soon</span>
-                  )}
+                  ) : (null)}
                 </Button>
               </CardFooter>
             </SpotlightCard>

@@ -4,7 +4,7 @@ import json
 import re
 import logging
 
-from app.services.llm_service import llm_complete_sync, extract_json
+from app.services.llm_service import llm_complete, extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ def parse_sections(text: str) -> dict[str, str]:
     return sections
 
 
-def score_linkedin_profile(profile_text: str) -> dict:
+async def score_linkedin_profile(profile_text: str) -> dict:
     sections = parse_sections(profile_text)
 
     prompt = f"""You are a LinkedIn profile optimization expert. Analyze this LinkedIn profile and return a JSON object with exactly these fields:
@@ -93,7 +93,7 @@ Profile text (each section parsed):
 Return ONLY the JSON object, no markdown."""
 
     try:
-        raw = llm_complete_sync(prompt, max_tokens=2000)
+        raw = await llm_complete("You are a LinkedIn profile optimization expert.", prompt, max_tokens=2000)
         result = extract_json(raw)
         if result and isinstance(result, dict):
             return result

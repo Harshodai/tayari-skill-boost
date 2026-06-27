@@ -99,6 +99,14 @@ async def get_learning_path(payload: CareerIntelligenceRequest):
         logger.error(f"Error generating learning path: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate learning path: {str(e)}")
 
+@router.get("/trending-skills")
+async def get_trending_skills(limit: int = 10):
+    """
+    Return a list of currently trending skills.
+    """
+    from app.services.career_intelligence import trending_skills
+    return trending_skills(limit)
+
 @router.post("/salary-benchmark", response_model=SalaryBenchmarkResponse)
 async def get_salary_benchmark(payload: CareerIntelligenceRequest):
     """

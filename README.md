@@ -5,12 +5,25 @@ Tayari Skill Boost is an AI-powered job preparation platform designed to help jo
 ## 🚀 Key Features
 
 - **Resume Optimizer**: AI-driven analysis of resumes against job descriptions to maximize match scores.
-- **Interview Prep**: Mock interviews with AI agents (Coming Soon).
-- **Job Matcher**: Personalized job recommendations (Coming Soon).
+- **Interview Prep**: Mock interviews with AI agents .
+- **Job Matcher**: Personalized job recommendations .
 - **Career Roadmap**: Tailored career path planning and skill gap analysis (Newly Added).
 - **Blog & Resources**: Career advice and industry insights.
 
 ## 🛠 Tech Stack
+
+- **Frontend**: React, TypeScript, Vite
+- **Styling**: Tailwind CSS, shadcn/ui
+- **Runtime**: [Bun](https://bun.sh/)
+- **Infrastructure**: Docker, Docker Compose
+- **Backend Services**:
+  - **Go API Gateway** (`backend/go`): Handles authentication, routing, and proxies AI requests.
+  - **Python AI Engine** (`backend/python`): FastAPI service providing ATS scoring, resume tailoring, cover‑letter generation, and the Hermes job‑scraping pipeline.
+  - **PostgreSQL**: Persistent data store for users, jobs, and automation runs.
+  - **Redis & Celery**: Task queue for background jobs such as autopilot runs and Hermes scraping.
+- **Integration**: Services communicate over HTTP. Frontend calls Go API (`/api/v1/...`), which forwards AI‑intensive requests to the Python service.
+- **Optional**: **Ollama** for local LLM inference when `LLM_BASE_URL` points to a local endpoint.
+
 
 - **Frontend**: React, TypeScript, Vite
 - **Styling**: Tailwind CSS, shadcn/ui
@@ -72,6 +85,23 @@ Tests are automatically run during the Docker build process.
 
 ## 🧩 Recent Implementations
 
-- **Career Roadmap Page**: A new "Coming Soon" style page for career planning.
+- **Navigation Scroll Fix**: Implemented `ScrollToTopHandler` to ensure pages start at the top on navigation.
+- **Production Visibility**: Offering cards (Resume, Interview, Job Search) now visible in production based on feature flags.
+- **Data Persistence**: AutomationContext now persists runs via `localStorage`; added tests.
+- **Dynamic Landing Stats**: SocialProofSection fetches real analytics from backend.
+- **Documentation**: Added detailed feature flag comments and expanded architecture section.
+
+## ⏭️ Next Steps (Audit Recommendations)
+
+- **Robust Backend Persistence**: Migrate `_autopilot_store` to full DB persistence beyond in‑memory cache.
+- **Agentic Automation**: Integrate `browser-use` library for true job‑application automation.
+- **Resume Knowledge Graph**: Hook `open-resume` parser to build structured resume graph.
+- **Career Intelligence Engine**: Implement skill‑gap analysis, salary benchmarking, trending‑skills radar.
+- **Gamification & Habit Loops**: Use `useGamification` hook to track daily streaks, add XP system.
+- **Browser Extension**: Complete functional extension for in‑page job saving and AI actions.
+- **Managed Cloud Tier**: Provide SaaS deployment option.
+- **Comprehensive Test Coverage**: Expand tests for UI components, automation engine, and new features to maintain 80%+ coverage.
+
+
 - **Navigation Scroll Fix**: Implemented `ScrollToTopHandler` to ensure pages start at the top on navigation.
 - **Production Visibility**: Offering cards (Resume, Interview, Job Search) are now visible in production based on feature flags.

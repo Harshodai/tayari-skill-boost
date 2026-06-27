@@ -2,13 +2,10 @@ package api
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"log"
 	"net/http"
 	"regexp"
-	"net/mail"
 	"runtime"
 	"strconv"
 	"strings"
@@ -79,7 +76,8 @@ func (s *Server) routes() {
 	s.Router.Use(s.tenantMiddleware)
 
 	/*
-	allowedOrigins := []string{"http://localhost:5173", "http://localhost:4173"}
+	allowedOrigins := []string{"http://localhost:5173",
+	"http://127.0.0.1:5173", "http://localhost:4173"}
 	if s.Config != nil && len(s.Config.AllowedOrigins) > 0 {
 		allowedOrigins = s.Config.AllowedOrigins
 	}
@@ -90,9 +88,15 @@ func (s *Server) routes() {
 	// lets any site make credentialed cross-origin requests.
 	defaultOrigins := []string{
 		"http://localhost:8080",
+	"http://127.0.0.1:8080",
 		"http://localhost:8083",
+	"http://127.0.0.1:8083",
+		"http://localhost:8085",
+	"http://127.0.0.1:8085",
 		"http://localhost:5173",
+	"http://127.0.0.1:5173",
 		"http://localhost:4173",
+	"http://127.0.0.1:4173",
 		"https://tayari-skill-boost.lovable.app",
 	}
 	if s.Config != nil {
@@ -438,264 +442,11 @@ func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
 // -------------------------------------------------------------------
 
 
-// -------------------------------------------------------------------
-// Auth Handlers
-// -------------------------------------------------------------------
 
-func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("handleRegister: failed to decode request body: %v", err)
-		s.respondError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
 
-	req.Email = strings.TrimSpace(req.Email)
 
-	if req.Email == "" {
-		s.respondError(w, http.StatusBadRequest, "Email is required")
-		return
-	}
-	if _, err := mail.ParseAddress(req.Email); err != nil {
-		s.respondError(w, http.StatusBadRequest, "Invalid email format")
-		return
-	}
 
-	if req.Password == "" {
-		s.respondError(w, http.StatusBadRequest, "Password is required")
-		return
-	}
-	if len(req.Password) < 8 {
-		s.respondError(w, http.StatusBadRequest, "Password must be at least 8 characters")
-		return
-	}
 
-	user, err := s.Auth.Register(r.Context(), req.Email, req.Password)
-	if err != nil {
-		hash := sha256.Sum256([]byte(req.Email))
-		emailHash := hex.EncodeToString(hash[:16])
-		log.Printf("handleRegister: registration failed for hash:%s: %v", emailHash, err)
-		s.respondError(w, http.StatusInternalServerError, "Registration failed")
-		return
-	}
-
-	s.respondJSON(w, http.StatusOK, user)
-}
-
-func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.respondError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	token, err := s.Auth.Login(r.Context(), req.Email, req.Password)
-	if err != nil {
-		s.respondError(w, http.StatusUnauthorized, "Invalid credentials")
-		return
-	}
-
-	s.respondJSON(w, http.StatusOK, map[string]string{"token": token})
-}
-
-func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
-	user, ok := r.Context().Value(contextKeyUser).(*models.User)
-	if !ok || user == nil {
-		s.respondError(w, http.StatusUnauthorized, "User not found in context")
-		return
-	}
-	s.respondJSON(w, http.StatusOK, user)
-}
-
-func (s *Server) authMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			s.respondError(w, http.StatusUnauthorized, "Authorization header required")
-			return
-		}
-
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			s.respondError(w, http.StatusUnauthorized, "Invalid authorization header format")
-			return
-		}
-		tokenStr := parts[1]
-		if tokenStr == "" {
-			s.respondError(w, http.StatusUnauthorized, "Token is required")
-			return
-		}
-
-		user, err := s.Auth.VerifyToken(tokenStr)
-		if err != nil {
-			s.respondError(w, http.StatusUnauthorized, "Invalid token")
-			return
-		}
-
-		ctx := context.WithValue(r.Context(), contextKeyUser, user)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-// -------------------------------------------------------------------
-// Resume Handlers
-// -------------------------------------------------------------------
-
-func (s *Server) handleCreateResume(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Title        string `json:"title"`
-		OriginalText string `json:"original_text"`
-		SourceText   string `json:"source_text"` // Archive compatibility
-		FileType     string `json:"file_type"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.respondError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-	if req.Title == "" {
-		s.respondError(w, http.StatusBadRequest, "Title is required")
-		return
-	}
-
-	text := req.OriginalText
-	if text == "" {
-		text = req.SourceText
-	}
-
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	userID := user.ID
-
-	query := `INSERT INTO resumes (user_id, title, original_text, file_type, status, created_at) VALUES ($1, $2, $3, $4, 'uploaded', NOW()) RETURNING id, created_at`
-	var id int
-	var createdAt time.Time
-	err := s.DB.Conn.QueryRowContext(r.Context(), query, userID, req.Title, text, req.FileType).Scan(&id, &createdAt)
-	if err != nil {
-		s.respondError(w, http.StatusInternalServerError, "Failed to create resume")
-		return
-	}
-
-	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"id":         id,
-		"user_id":    userID,
-		"title":      req.Title,
-		"file_type":  req.FileType,
-		"status":     "uploaded",
-		"created_at": createdAt,
-	})
-}
-
-func (s *Server) handleListResumes(w http.ResponseWriter, r *http.Request) {
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	userID := user.ID
-
-	rows, err := s.DB.Conn.QueryContext(r.Context(), "SELECT id, title, file_type, status, created_at, updated_at FROM resumes WHERE user_id=$1 ORDER BY created_at DESC", userID)
-	if err != nil {
-		s.respondError(w, http.StatusInternalServerError, "Failed to fetch resumes")
-		return
-	}
-	defer rows.Close()
-
-	resumes := []map[string]interface{}{}
-	for rows.Next() {
-		var id int
-		var title, fileType, status string
-		var createdAt, updatedAt time.Time
-		if err := rows.Scan(&id, &title, &fileType, &status, &createdAt, &updatedAt); err != nil {
-			log.Printf("handleListResumes: scan error: %v", err)
-			continue
-		}
-		resumes = append(resumes, map[string]interface{}{
-			"id":         id,
-			"title":      title,
-			"file_type":  fileType,
-			"status":     status,
-			"created_at": createdAt,
-			"updated_at": updatedAt,
-		})
-	}
-	if err := rows.Err(); err != nil {
-		log.Printf("handleListResumes: rows iteration error: %v", err)
-	}
-	s.respondJSON(w, http.StatusOK, resumes)
-}
-
-func (s *Server) handleGetResume(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	user, ok := r.Context().Value(contextKeyUser).(*models.User)
-	if !ok || user == nil {
-		s.respondError(w, http.StatusUnauthorized, "User not found in context")
-		return
-	}
-	userID := user.ID
-
-	var resume models.Resume
-	query := `SELECT id, user_id, title, COALESCE(original_text, ''), COALESCE(parsed_json::text, ''), COALESCE(file_url, ''), file_type, status, created_at, updated_at FROM resumes WHERE id=$1 AND user_id=$2`
-	err := s.DB.Conn.QueryRowContext(r.Context(), query, idStr, userID).Scan(&resume.ID, &resume.UserID, &resume.Title, &resume.OriginalText, &resume.ParsedJSON, &resume.FileURL, &resume.FileType, &resume.Status, &resume.CreatedAt, &resume.UpdatedAt)
-	if err != nil {
-		s.respondError(w, http.StatusNotFound, "Resume not found")
-		return
-	}
-	s.respondJSON(w, http.StatusOK, resume)
-}
-
-func (s *Server) handleUpdateResume(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	userID := user.ID
-
-	var req struct {
-		Title        string `json:"title"`
-		OriginalText string `json:"original_text"`
-		FileType     string `json:"file_type"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.respondError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-	if req.Title == "" {
-		s.respondError(w, http.StatusBadRequest, "Title is required")
-		return
-	}
-
-	query := `UPDATE resumes SET title=$1, original_text=$2, file_type=$3, updated_at=NOW() WHERE id=$4 AND user_id=$5`
-	res, err := s.DB.Conn.ExecContext(r.Context(), query, req.Title, req.OriginalText, req.FileType, idStr, userID)
-	if err != nil {
-		s.respondError(w, http.StatusInternalServerError, "Failed to update resume")
-		return
-	}
-	if rows, _ := res.RowsAffected(); rows == 0 {
-		s.respondError(w, http.StatusNotFound, "Resume not found")
-		return
-	}
-
-	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"id":      idStr,
-		"message": "Resume updated successfully",
-	})
-}
-
-func (s *Server) handleDeleteResume(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	userID := user.ID
-
-	res, err := s.DB.Conn.ExecContext(r.Context(), "DELETE FROM resumes WHERE id=$1 AND user_id=$2", idStr, userID)
-	if err != nil {
-		s.respondError(w, http.StatusInternalServerError, "Failed to delete resume")
-		return
-	}
-	if rows, _ := res.RowsAffected(); rows == 0 {
-		s.respondError(w, http.StatusNotFound, "Resume not found")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
 
 // -------------------------------------------------------------------
 // Job Description Handlers

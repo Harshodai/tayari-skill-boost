@@ -1,0 +1,96 @@
+import { test, expect } from '@playwright/test';
+import * as path from 'path';
+
+const FRONTEND_URL = 'http://127.0.0.1:8083';
+const TEST_EMAIL = `test-${Date.now()}@example.com`;
+const TEST_PASS = 'Password123!';
+const SAMPLE_RESUME_PATH = '/Users/harshodaikolluru/.gemini/antigravity-ide/brain/685dbbc3-4fe9-4b47-9956-0e84a9985755/scratch/sample_resume.txt';
+
+test.describe('Tayari Front-End Competitive Enhancements & Verification', () => {
+
+  test('1. Verify Pricing Page', async ({ page }) => {
+    await page.goto(`${FRONTEND_URL}/pricing`);
+    
+    // Check plans pricing and billing periods
+    await expect(page.locator('body')).toContainText('Free');
+    await expect(page.locator('body')).toContainText('$0');
+    await expect(page.locator('body')).toContainText('forever');
+    
+    await expect(page.locator('body')).toContainText('Pro');
+    await expect(page.locator('body')).toContainText('$19');
+    await expect(page.locator('body')).toContainText('mo (billed annually)');
+    
+    await expect(page.locator('body')).toContainText('Career-Ops');
+    await expect(page.locator('body')).toContainText('$79');
+    
+    // Check 7-Day Refund Guarantee & One-click cancel
+    await expect(page.locator('body')).toContainText('7-Day Money-Back Guarantee');
+    await expect(page.locator('body')).toContainText('Cancel with One Click');
+  });
+
+  test('2. Verify Privacy Page', async ({ page }) => {
+    await page.goto(`${FRONTEND_URL}/privacy`);
+    
+    // Check data residency guarantees and local Ollama references
+    await expect(page.locator('body')).toContainText('100% Local Self-Hosting Support');
+    await expect(page.locator('body')).toContainText('No Public Model Training Guarantee');
+    await expect(page.locator('body')).toContainText('Ollama');
+  });
+
+  test('3. Register User and Complete Flow', async ({ page }) => {
+    // 3a. Navigate to Auth Page in signup mode
+    await page.goto(`${FRONTEND_URL}/auth?mode=signup`);
+    
+    // Fill signup details
+    await page.fill('input[name="name"]', 'Test Verification User');
+    await page.fill('input[type="email"]', TEST_EMAIL);
+    await page.fill('input[type="password"]', 'Password12345!');
+    
+    // Click submit to register
+    await page.click('button[type="submit"]');
+    
+    // Switch to Sign In mode
+    await page.click('button:has-text("Sign in")');
+    
+    // Fill login details
+    await page.fill('input[type="email"]', TEST_EMAIL);
+    await page.fill('input[type="password"]', 'Password12345!');
+    
+    // Click submit to log in
+    await page.click('button[type="submit"]');
+    
+    // Wait for redirection to dashboard (URL contains dashboard or not auth)
+    await page.waitForURL((url) => !url.href.includes('/auth'), { timeout: 15000 });
+    await expect(page).not.toHaveURL(/.*\/auth/);
+    
+    // 3b. Verify Dashboard outcomes funnel loads
+    await page.goto(`${FRONTEND_URL}/dashboard`);
+    await page.click('button:has-text("Job Intel")');
+    await expect(page.locator('body')).toContainText('Funnel');
+    await expect(page.locator('body')).toContainText('Response Rate');
+    await expect(page.locator('body')).toContainText('Callback Rate');
+    
+    // 3c. Upload Resume & Verify ATS Scoring
+    await page.goto(`${FRONTEND_URL}/resume`);
+    
+    // Handle the file input upload
+    const fileChooserPromise = page.waitForEvent('filechooser');
+    await page.click('div[role="presentation"]', { force: true });
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles(SAMPLE_RESUME_PATH);
+    
+    // Click Analyze button
+    await page.click('button:has-text("Analyze Resume")');
+    
+    // Wait for analysis to complete and redirect to results
+    await page.waitForURL(/\/resume\/results/, { timeout: 30000 });
+    
+    // Verify ATS breakdown, score plateaus and overall confidence band
+    await expect(page.locator('body')).toContainText('±');
+    await expect(page.locator('body')).toContainText('Greenhouse');
+    await expect(page.locator('body')).toContainText('Workday');
+    await expect(page.locator('body')).toContainText('iCIMS');
+    await expect(page.locator('body')).toContainText('Taleo');
+    await expect(page.locator('body')).toContainText('bottleneck');
+  });
+});

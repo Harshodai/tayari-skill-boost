@@ -97,7 +97,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://127.0.0.1:8083"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -112,89 +113,14 @@ strategic_analyzer = StrategicAnalyzer()
 
 
 # ---------------------------------------------------------------------------
-# Health
+# Route modules registration
 # ---------------------------------------------------------------------------
 
-class HealthResponse(BaseModel):
-    status: str
-    service: str
-    version: str
-    model_status: str
+from app.routes import health, ats
+app.include_router(health.router)
+app.include_router(ats.router)
 
 
-@app.get("/health", response_model=HealthResponse)
-@app.get("/api/health", response_model=HealthResponse)
-def health_check():
-    return HealthResponse(
-        status="ok",
-        service="python-ai-engine",
-        version="1.0.0",
-        model_status="loaded" if active_engine() != "mock-fallback" else "llm_not_configured",
-    )
-
-
-# ---------------------------------------------------------------------------
-# ATS Core Routes
-# ---------------------------------------------------------------------------
-
-class AnalyzeRequest(BaseModel):
-    resume_text: Optional[str] = None
-    job_description: Optional[str] = None
-
-
-@app.post("/api/v1/ats/analyze", response_model=ATSAnalysisResponse)
-async def ats_analyze(
-    resume_text: Optional[str] = Form(None),
-    job_description: Optional[str] = Form(None),
-    resume_file: Optional[UploadFile] = File(None),
-    jd_file: Optional[UploadFile] = File(None),
-):
-    """Full ATS analysis: parse (if files), score, and recommend."""
-    # --- ingest resume ---
-    resume_parsed: Optional[ParsedResume] = None
-    if resume_file:
-        data = await resume_file.read()
-        resume_parsed = ResumeParser.parse_file(data, resume_file.content_type or "pdf")
-        resume_text = resume_parsed.raw_text or ""
-    elif not resume_text:
-        raise HTTPException(status_code=400, detail="Provide resume_text or resume_file")
-
-    # --- ingest JD ---
-    if jd_file:
-        data = await jd_file.read()
-        jd_text = data.decode("utf-8", errors="ignore")
-    elif not job_description:
-        raise HTTPException(status_code=400, detail="Provide job_description or jd_file")
-    else:
-        jd_text = job_description
-
-    # --- run pipeline ---
-    keywords = keyword_analyzer.analyze(resume_text, jd_text)
-    ngrams = ngram_analyzer.analyze(resume_text, jd_text)
-    result = ats_scorer.score(keywords, ngrams, resume_parsed, resume_text)
-    return result
-
-
-@app.post("/api/v1/ats/score", response_model=QuickScoreResponse)
-async def ats_score(payload: AnalyzeRequest):
-    """Quick score with minimal metadata."""
-    keywords = keyword_analyzer.analyze(payload.resume_text or "", payload.job_description or "")
-    total = keywords.total_jd_keywords or 1
-    return QuickScoreResponse(
-        score=round((keywords.matched_count / total) * 100),
-        matched_keywords=keywords.matched_count,
-        missing_keywords=len(keywords.missing),
-        summary=f"Matched {keywords.matched_count}/{total} keywords",
-    )
-
-
-@app.post("/api/v1/ats/keywords")
-async def ats_keywords(payload: AnalyzeRequest):
-    """Extract and compare keywords."""
-    keywords = keyword_analyzer.analyze(
-        payload.resume_text or "", payload.job_description or ""
-    )
-    return keywords
 
 
 # ---------------------------------------------------------------------------
@@ -429,7 +355,7 @@ class LinkedInAnalyzeRequest(BaseModel):
 @app.post("/api/v1/linkedin/analyze")
 async def linkedin_analyze(payload: LinkedInAnalyzeRequest):
     try:
-        result = score_linkedin_profile(payload.profile_text)
+        result = await score_linkedin_profile(payload.profile_text)
         return result
     except Exception as exc:
         logger.error("linkedin/analyze failed: %s", exc)
@@ -550,6 +476,7 @@ async def guardrails_check(payload: GuardrailsCheckRequest):
 
 from app.api.hermes_routes import hermes_router  # noqa: E402
 from app.api.career_intelligence import router as career_intel_router  # noqa: E402
+from app.api.resume_graph import router as resume_graph_router  # noqa: E402
 from app.api.voice_stream import router as voice_stream_router  # noqa: E402
 from app.api.predictive import router as predictive_router  # noqa: E402
 from app.api.knowledge_hub import router as knowledge_hub_router  # noqa: E402
@@ -559,6 +486,7 @@ from app.api.career_ops_routes import router as career_ops_router  # noqa: E402
 
 app.include_router(hermes_router)
 app.include_router(career_intel_router)
+app.include_router(resume_graph_router)
 app.include_router(voice_stream_router)
 app.include_router(predictive_router)
 app.include_router(knowledge_hub_router)

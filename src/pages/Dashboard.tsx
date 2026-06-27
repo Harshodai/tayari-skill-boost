@@ -35,6 +35,7 @@ import { useAutomation } from "@/contexts/AutomationContext";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ApplicationPipeline } from "@/components/pipeline/ApplicationPipeline";
+import { GamificationBadge } from "@/components/GamificationBadge";
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -215,6 +216,7 @@ const Dashboard = () => {
           </div>
         </div>
 
+          <GamificationBadge />
         {/* Quick Stats Banner */}
         <StatsGrid columns={4} className="mb-6 animate-fade-in-up">
           <StatsCard

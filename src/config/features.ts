@@ -12,24 +12,43 @@ const CONFIG = {
   // Key: Feature Name
   // Value: [ ProductionEnabled, PreviewEnabled ]
   features: {
+    // Feature flags control visibility and behavior of major app sections.
+    // Each entry: [ ProductionEnabled, PreviewEnabled ]
+    // Set true to enable, false to disable for the given environment.
+
+    // Resume optimizer UI, accessible in both prod and preview
     resumeOptimizer: [true, true],
+    // Career roadmap visual planning tool
     careerRoadmap: [true, true],
+    // Interactive interview preparation module
     interviewPrep: [true, true],
+    // Job search interface and autopilot integration
     jobSearch: [true, true],
+    // Blog content section
     blog: [true, true],
-    pricing: [false, false],
+    // Pricing page and subscription info
+    pricing: [true, true],
+    // Careers page (currently preview only)
     careers: [false, true],
+    // Help/FAQ section (preview only)
     help: [false, true],
+    // Cover letter generator
     coverLetter: [true, true],
+    // Communication hub for messaging templates
     communicationHub: [true, true],
+    // AI-powered interview coaching
     interviewAI: [true, true],
+    // Browser extension availability (disabled by default)
     browserExtension: [false, false],
+    // Knowledge hub for resume knowledge graph
     knowledgeHub: [true, true],
+    // Career operations dashboard
     careerOps: [true, true],
   },
 
   // Navigation Links
   // { label, href, feature (matches key above or null) }
+  // Navigation links are filtered based on feature flags above.
   links: [
     { label: "Home", href: "/", feature: null },
     { label: "Resume Optimizer", href: "/resume", feature: "resumeOptimizer" },
@@ -42,6 +61,7 @@ const CONFIG = {
     { label: "Cover Letter", href: "/cover-letter", feature: "coverLetter" },
     { label: "Communication", href: "/communication", feature: "communicationHub" },
     { label: "Career-Ops", href: "/career-ops", feature: "careerOps" },
+    { label: "Career Intelligence", href: "/career-intelligence", feature: "careerOps" },
     { label: "Blog", href: "/blog", feature: "blog" },
     { label: "Pricing", href: "/pricing", feature: "pricing" },
     { label: "FAQ", href: "/faq", feature: null },

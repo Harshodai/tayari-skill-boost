@@ -188,15 +188,17 @@ func (a *LocalAuth) VerifyToken(tokenString string) (*models.User, error) {
 		role = "user"
 	}
 
-	return &models.User{ID: userID, Role: role}, nil
+		email, _ := claims["email"].(string)
+	return &models.User{ID: userID, Email: email, Role: role}, nil
 }
 
 func (a *LocalAuth) generateToken(user *models.User) (string, error) {
 	claims := jwt.MapClaims{
-		"sub":  user.ID.String(),
-		"role": user.Role,
-		"exp":  time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
-		"iss":  "tayari-backend",
+		"sub":   user.ID.String(),
+		"email": user.Email,
+		"role":  user.Role,
+		"exp":   time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
+		"iss":   "tayari-backend",
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(a.Config.JWTSecret))
