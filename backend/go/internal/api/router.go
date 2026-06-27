@@ -42,6 +42,7 @@ type Server struct {
 	startTime         time.Time
 	publicRateLimiter *rateLimiter
 	authRateLimiter   *rateLimiter
+	loginRateLimiter  *rateLimiter
 }
 
 func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB) *Server {
@@ -54,6 +55,9 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		startTime:         time.Now(),
 		publicRateLimiter: newRateLimiter(100, false),
 		authRateLimiter:   newRateLimiter(1000, true),
+		// Brute-force protection on /auth/login + /auth/register:
+		// 10 attempts / minute per IP.
+		loginRateLimiter: newRateLimiter(10, false),
 	}
 	// Start periodic cleanup of rate limiter entries
 	go func() {
@@ -62,6 +66,7 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		for range ticker.C {
 			s.publicRateLimiter.cleanup()
 			s.authRateLimiter.cleanup()
+			s.loginRateLimiter.cleanup()
 		}
 	}()
 	s.routes()
