@@ -373,23 +373,15 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
+	// Public endpoint — keep response minimal. Never expose Go version,
+	// DB pool internals, AI service error strings, or server uptime, since
+	// they help attackers fingerprint the deployment and target CVEs.
 	payload := map[string]interface{}{
-		"status":     "ok",
-		"service":    "go-backend",
-		"go_version": runtime.Version(),
-		"uptime":     time.Since(s.startTime).String(),
+		"status":  "ok",
+		"service": "go-backend",
 	}
 
 	if s.DB != nil && s.DB.Conn != nil {
-		stats := s.DB.Conn.Stats()
-		payload["db_pool"] = map[string]interface{}{
-			"open_connections":     stats.OpenConnections,
-			"in_use":               stats.InUse,
-			"idle":                 stats.Idle,
-			"wait_count":           stats.WaitCount,
-			"wait_duration_ms":     stats.WaitDuration.Milliseconds(),
-			"max_open_connections": stats.MaxOpenConnections,
-		}
 		if err := s.DB.Conn.PingContext(r.Context()); err == nil {
 			payload["db"] = "connected"
 		} else {
@@ -398,20 +390,16 @@ func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.AI != nil {
-		start := time.Now()
-		err := s.AI.HealthCheck()
-		latency := time.Since(start)
-		if err == nil {
+		if err := s.AI.HealthCheck(); err == nil {
 			payload["ai_service"] = "connected"
-			payload["ai_latency_ms"] = latency.Milliseconds()
 		} else {
 			payload["ai_service"] = "disconnected"
-			payload["ai_error"] = err.Error()
 		}
 	}
 
 	s.respondJSON(w, http.StatusOK, payload)
 }
+
 
 // -------------------------------------------------------------------
 // Cover Letter
