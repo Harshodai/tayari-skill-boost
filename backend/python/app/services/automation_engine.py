@@ -9,4 +9,5 @@ import json
 import os
 from agents.backend.python.app.db import _db_create_agent_run, _db_update_agent_run, _db_delete_run, AgentRun, Application
 from agents.backend.python.app.utils import Writable
+from .browser_library import Browser
 # ... rest of your code ...

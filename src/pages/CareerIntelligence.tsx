@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { trendingSkills } from '@/api'; // Assume an API wrapper exists
+import { trendingSkills } from '@/api';
+import { Chart } from '@/components/charts/Chart';
 import { Card, CardContent } from '@/components/ui/card';
 
 export interface TrendingSkill {
@@ -34,6 +35,9 @@ export function CareerIntelligence() {
           </Card>
         ))}
       </div>
+    </div>
+    <div className="mt-8">
+      <Chart data={trending.map(s => ({ name: s.skill, value: s.popularity }))} title="Trending Skills" />
     </div>
   );
 }

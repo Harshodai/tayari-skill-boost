@@ -1,107 +1,80 @@
-# Tayari Skill Boost
+# 🚀 Tayari Skill Boost
 
-Tayari Skill Boost is an AI-powered job preparation platform designed to help job seekers optimize their resumes, prepare for interviews, and plan their career roadmaps.
+Tayari Skill Boost is a highly scalable, event-driven career operations platform designed to orchestrate AI-based workflows. It leverages a microservices architecture to process unstructured resume data, execute asynchronous job-scraping pipelines, and simulate Applicant Tracking System (ATS) parsing.
 
-## 🚀 Key Features
+## 🏗 System Architecture
 
-- **Resume Optimizer**: AI-driven analysis of resumes against job descriptions to maximize match scores.
-- **Interview Prep**: Mock interviews with AI agents .
-- **Job Matcher**: Personalized job recommendations .
-- **Career Roadmap**: Tailored career path planning and skill gap analysis (Newly Added).
-- **Blog & Resources**: Career advice and industry insights.
+The stack is composed of specialized microservices communicating over HTTP and via message brokers.
 
-## 🛠 Tech Stack
+### 1. API Gateway (Go)
+*   **Directory**: `backend/go/`
+*   **Role**: Primary entry point for client requests.
+*   **Features**: 
+    *   JWT validation and Supabase auth verification.
+    *   Reverse proxies compute-heavy AI tasks (`/api/v1/ai/...`) to the Python Engine.
+    *   Handles lightweight CRUD operations and funnel analytics.
 
-- **Frontend**: React, TypeScript, Vite
-- **Styling**: Tailwind CSS, shadcn/ui
-- **Runtime**: [Bun](https://bun.sh/)
-- **Infrastructure**: Docker, Docker Compose
-- **Backend Services**:
-  - **Go API Gateway** (`backend/go`): Handles authentication, routing, and proxies AI requests.
-  - **Python AI Engine** (`backend/python`): FastAPI service providing ATS scoring, resume tailoring, cover‑letter generation, and the Hermes job‑scraping pipeline.
-  - **PostgreSQL**: Persistent data store for users, jobs, and automation runs.
-  - **Redis & Celery**: Task queue for background jobs such as autopilot runs and Hermes scraping.
-- **Integration**: Services communicate over HTTP. Frontend calls Go API (`/api/v1/...`), which forwards AI‑intensive requests to the Python service.
-- **Optional**: **Ollama** for local LLM inference when `LLM_BASE_URL` points to a local endpoint.
+### 2. AI Compute Engine (Python/FastAPI)
+*   **Directory**: `backend/python/`
+*   **Role**: The brain of the platform.
+*   **Features**:
+    *   **Resume Optimizer**: Ingests PDFs, extracts text via OCR/PyPDF, and runs semantic similarity matching against target Job Descriptions using LLMs (OpenRouter/Ollama).
+    *   **Hermes Pipeline**: Agentic job scraper that pulls web data, structures it, and maps it against user skill vectors.
+    *   **AutoPilot**: Orchestrates cover letter generation and automated email drafting.
 
+### 3. Asynchronous Task Queue
+*   **Broker**: Redis
+*   **Worker**: Celery (Python)
+*   **Monitor**: Celery Flower
+*   **Workflow**: Long-running LLM inferences and batch scraping tasks are pushed to Redis by FastAPI, picked up by Celery workers, and executed asynchronously. Results are flushed to PostgreSQL.
 
-- **Frontend**: React, TypeScript, Vite
-- **Styling**: Tailwind CSS, shadcn/ui
-- **Runtime**: [Bun](https://bun.sh/)
-- **Infrastructure**: Docker, Docker Compose
-- **Backend/Service**: Supabase (Integration)
+### 4. Client Application (Frontend)
+*   **Framework**: React, TypeScript, Vite.
+*   **Styling & UI**: Tailwind CSS, shadcn/ui.
+*   **State & Auth**: Supabase Auth context (supports both cloud and self-hosted instances).
+*   **Routing**: React Router with protected route wrappers.
 
-## ⚙️ Configuration & Feature Flags
+---
 
-The application uses a centralized configuration system for feature management.
+## ⚙️ Core Technical Flows
 
-- **Config File**: [`src/config/features.ts`](src/config/features.ts)
-- **Feature Flags**: Control the visibility and availability of features (e.g., `resumeOptimizer`, `careerRoadmap`).
-- **Control**: You can enable/disable features or mark them as "Coming Soon" directly in this file.
+### Authentication & Self-Hosted Fallback
+The frontend handles auth via `VITE_SUPABASE_URL`. When `VITE_USE_SELF_HOSTED=true`, requests are routed through a local Kong proxy (bundled in Docker) which mimics the Supabase GoTrue API. This allows 100% local development without a cloud dependency.
 
-## 🐳 Docker Deployment
+### The AutoPilot Run Context
+The frontend `AutomationContext.tsx` holds a finite state machine mapping the user's progress through the ATS funnel (Resume -> Tailoring -> Review). State is persisted locally to `localStorage` to survive page reloads and avoid redundant LLM calls.
 
-The application is fully containerized using Docker.
+---
 
-### Prerequisites
-- Docker & Docker Compose
+## 🐳 Docker Orchestration
 
-### Running with Docker
-To build and start the application:
-
-```bash
-docker-compose up --build -d
-```
-
-The application will be available at **http://localhost:4173**.
-
-**Note on Environment Variables**:
-The `.env` file is included in the Docker build context to ensure variables (like Supabase keys) are baked into the static build. This prevents runtime crashes on the client side.
-
-## 💻 Local Development
-
-If you prefer running locally without Docker:
+The platform utilizes a unified `docker-compose.yml` to spin up 6 interdependent services.
 
 ```bash
-# Install dependencies
-bun install
-
-# Run development server
-bun run dev
+docker compose up --build -d
 ```
 
-## 🧪 Testing
+### Network Topology (Internal DNS)
+*   `frontend:4173` -> Exposed to host at `:8083` (or `:8090` via Caddy proxy)
+*   `go-backend:8080` -> Exposed to host at `:8085`
+*   `python-ai:8000` -> Exposed to host at `:8002`
+*   `redis:6379` -> Internal only
+*   `postgres:5432` -> Internal only
+*   `celery-worker` -> Internal only
+*   `celery-flower:5555` -> Exposed to host at `:5555`
 
-The project includes unit and integration tests.
+## 🧪 Testing Protocol
 
-### Running Tests Locally
-```bash
-bun run test
+*   **E2E (Playwright)**: Located in `e2e/`. Tests are configured to run headlessly against the Vite dev server. The suite validates complex multi-step forms like the registration flow, enforcing strict password validation (12+ characters, mixed case, symbols) natively.
+*   **Execution**: `npx playwright test e2e/features.spec.ts`
+
+## 🔒 Feature Flagging
+
+Features are strictly typed and managed in `src/config/features.ts`.
+```typescript
+export const features = {
+  resumeOptimizer: [true, true], // [Development, Production]
+  pricing: [true, true],
+  careerOps: [true, false] // Coming soon to prod
+}
 ```
-
-### Tests in Docker
-Tests are automatically run during the Docker build process.
-- **Mocking**: We use `src/test/setup.ts` to mock environment variables (like `VITE_SUPABASE_URL`) during the build to ensure tests pass even without a `.env` file in the CI/CD pipeline (though for local Docker builds, we now include the .env).
-
-## 🧩 Recent Implementations
-
-- **Navigation Scroll Fix**: Implemented `ScrollToTopHandler` to ensure pages start at the top on navigation.
-- **Production Visibility**: Offering cards (Resume, Interview, Job Search) now visible in production based on feature flags.
-- **Data Persistence**: AutomationContext now persists runs via `localStorage`; added tests.
-- **Dynamic Landing Stats**: SocialProofSection fetches real analytics from backend.
-- **Documentation**: Added detailed feature flag comments and expanded architecture section.
-
-## ⏭️ Next Steps (Audit Recommendations)
-
-- **Robust Backend Persistence**: Migrate `_autopilot_store` to full DB persistence beyond in‑memory cache.
-- **Agentic Automation**: Integrate `browser-use` library for true job‑application automation.
-- **Resume Knowledge Graph**: Hook `open-resume` parser to build structured resume graph.
-- **Career Intelligence Engine**: Implement skill‑gap analysis, salary benchmarking, trending‑skills radar.
-- **Gamification & Habit Loops**: Use `useGamification` hook to track daily streaks, add XP system.
-- **Browser Extension**: Complete functional extension for in‑page job saving and AI actions.
-- **Managed Cloud Tier**: Provide SaaS deployment option.
-- **Comprehensive Test Coverage**: Expand tests for UI components, automation engine, and new features to maintain 80%+ coverage.
-
-
-- **Navigation Scroll Fix**: Implemented `ScrollToTopHandler` to ensure pages start at the top on navigation.
-- **Production Visibility**: Offering cards (Resume, Interview, Job Search) are now visible in production based on feature flags.

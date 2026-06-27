@@ -1,0 +1,58 @@
+name: CI/CD Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        run: |
+          cd backend/python
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run backend tests
+        run: |
+          cd backend/python
+          pytest
+
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install frontend dependencies
+        run: |
+          yarn install --frozen-lockfile
+
+      - name: Lint and type check
+        run: |
+          yarn lint
+          yarn tsc --noEmit
+
+      - name: Build frontend
+        run: |
+          yarn build
+
+      - name: Build Docker images
+        run: |
+          docker compose -f docker-compose.yml build
+
+      - name: Deploy to Kubernetes (placeholder)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "Deploy step would run helm upgrade here"
