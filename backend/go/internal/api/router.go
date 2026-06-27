@@ -128,10 +128,13 @@ func (s *Server) routes() {
 		r.Get("/api/v1/health", s.handleHealth)
 		r.Get("/api/health/detailed", s.handleHealthDetailed)
 		r.Get("/api/v1/health/detailed", s.handleHealthDetailed)
-		r.Post("/api/auth/register", s.handleRegister)
-		r.Post("/api/v1/auth/register", s.handleRegister)
-		r.Post("/api/auth/login", s.handleLogin)
-		r.Post("/api/v1/auth/login", s.handleLogin)
+		// Auth endpoints get an extra strict per-IP brute-force limiter
+		// (10 requests / minute) layered on top of the public limiter.
+		// Returns HTTP 429 with Retry-After when exceeded.
+		r.With(s.loginRateLimiter.Middleware).Post("/api/auth/register", s.handleRegister)
+		r.With(s.loginRateLimiter.Middleware).Post("/api/v1/auth/register", s.handleRegister)
+		r.With(s.loginRateLimiter.Middleware).Post("/api/auth/login", s.handleLogin)
+		r.With(s.loginRateLimiter.Middleware).Post("/api/v1/auth/login", s.handleLogin)
 
 		// Public tenant branding (must be outside auth group so OPTIONS preflight passes)
 		r.Get("/api/v1/tenants/branding", s.handleGetTenantBranding)
