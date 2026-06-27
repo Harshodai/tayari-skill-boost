@@ -20,6 +20,8 @@ import { NotificationsBell } from "@/components/notifications/NotificationsBell"
 import { SkipToContent } from "@/components/a11y/SkipToContent";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
+import { MobileTabBar } from "./MobileTabBar";
+import { AskTayariButton } from "@/components/ai/AskTayariButton";
 
 interface AppShellProps {
   children: ReactNode;
@@ -158,10 +160,12 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
             </div>
           )}
 
-          <main id="main-content" className="flex-1 p-4 md:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
+          <main id="main-content" className="flex-1 p-4 md:p-6 lg:p-8 pb-24 md:pb-8 max-w-[1600px] w-full mx-auto">
             {children}
           </main>
         </div>
+        <MobileTabBar />
+        <AskTayariButton />
       </div>
     </SidebarProvider>
   );
