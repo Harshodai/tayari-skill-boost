@@ -22,12 +22,12 @@ jobs:
         run: |
           cd backend/python
           pip install -r requirements.txt
-          pip install pytest
+          pip install pytest pytest-cov
 
-      - name: Run backend tests
+      - name: Run backend tests with coverage
         run: |
           cd backend/python
-          pytest
+          pytest --cov=backend/python/app --cov-fail-under=80
 
       - name: Set up Node
         uses: actions/setup-node@v3
@@ -43,6 +43,11 @@ jobs:
         run: |
           yarn lint
           yarn tsc --noEmit
+
+      - name: Run frontend tests with coverage
+        run: |
+          # Using Bun to execute tests with coverage collection
+          bun test --coverage
 
       - name: Build frontend
         run: |

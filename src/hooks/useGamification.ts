@@ -8,6 +8,21 @@ import { useEffect, useState } from 'react';
 export function useGamification() {
   const [streak, setStreak] = useState<number>(0);
   const [xp, setXp] = useState<number>(0);
+  const [level, setLevel] = useState<number>(1);
+  const [achievements, setAchievements] = useState<string[]>([]);
+
+  // Load achievements from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('achievements');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) setAchievements(parsed);
+      } catch {
+        // ignore malformed data
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const today = new Date().toDateString();
@@ -30,9 +45,12 @@ export function useGamification() {
       localStorage.setItem('gamification_streak', '1');
     }
     localStorage.setItem('gamification_lastVisit', today);
-    // Simple XP calculation based on streak
+    // XP calculation based on streak
     setXp(streak * 100);
+    // Level calculation
+    const computedLevel = Math.floor(streak / 5) + 1;
+    setLevel(computedLevel);
   }, [streak]);
 
-  return { streak, xp };
+  return { streak, xp, level, achievements };
 }

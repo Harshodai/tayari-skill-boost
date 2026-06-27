@@ -1,22 +1,37 @@
 import React from 'react';
-import { Bar } from 'recharts'; // placeholder, assumes recharts is installed
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+} from 'recharts';
 
-interface DataPoint {
+export interface DataPoint {
   name: string;
   value: number;
 }
 
-interface ChartProps {
+export interface ChartProps {
   data: DataPoint[];
   title?: string;
 }
 
 export const Chart: React.FC<ChartProps> = ({ data, title }) => {
   return (
-    <div className="p-4 bg-white rounded shadow">
-      {title && <h3 className="text-lg font-semibold mb-2">{title}</h3>}
-      {/* Simple bar chart – replace with actual chart library as needed */}
-      <Bar dataKey="value" data={data as any} />
-    </div>
+    <section className="p-4 bg-white rounded shadow">
+      {title && <h3 className="text-lg font-semibold mb-2" data-testid="chart-title">{title}</h3>}
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" />
+          <YAxis />
+          <Tooltip />
+          <Bar dataKey="value" fill="#3b82f6" />
+        </BarChart>
+      </ResponsiveContainer>
+    </section>
   );
 };

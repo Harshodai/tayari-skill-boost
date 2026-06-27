@@ -36,6 +36,7 @@ import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ApplicationPipeline } from "@/components/pipeline/ApplicationPipeline";
 import { GamificationBadge } from "@/components/GamificationBadge";
+import { AchievementsBadge } from "@/components/AchievementsBadge";
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -216,7 +217,10 @@ const Dashboard = () => {
           </div>
         </div>
 
-          <GamificationBadge />
+          <div className="flex space-x-4 mb-4">
+            <GamificationBadge />
+            <AchievementsBadge />
+          </div>
         {/* Quick Stats Banner */}
         <StatsGrid columns={4} className="mb-6 animate-fade-in-up">
           <StatsCard
