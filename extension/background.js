@@ -320,11 +320,12 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
       return;
     }
     
-    if (request.action === 'get_token') {
-      const config = await getConfig();
-      sendResponse({ token: config.token || null });
-      return;
-    }
+    // SECURITY: get_token removed. The web app pushes tokens to the
+    // extension via set_token/clear_token but must not be allowed to
+    // pull them back — that would let any whitelisted origin (and any
+    // page, if externally_connectable were misconfigured) exfiltrate
+    // the user's Bearer token.
+    
     
     if (request.action === 'clear_token') {
       const config = await getConfig();

@@ -5,7 +5,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -85,18 +88,29 @@ func (s *Server) handleHermesScrape(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, http.StatusOK, result)
 }
 
+// safeSlugPattern allows alphanumeric, hyphen, underscore. Used to validate
+// path-parameter values before they are concatenated into internal URLs.
+var safeSlugPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+var safeUUIDOrSlug = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+
 // handleHermesJobsBoard proxies GET /api/v1/hermes/jobs/{board}?limit=N.
 func (s *Server) handleHermesJobsBoard(w http.ResponseWriter, r *http.Request) {
 	board := chi.URLParam(r, "board")
-	if board == "" {
-		s.respondError(w, http.StatusBadRequest, "board is required")
+	if !safeSlugPattern.MatchString(board) {
+		s.respondError(w, http.StatusBadRequest, "Invalid board identifier")
 		return
 	}
-	limit := r.URL.Query().Get("limit")
-	if limit == "" {
-		limit = "40"
+	limit := 40
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 200 {
+			s.respondError(w, http.StatusBadRequest, "Invalid limit (1-200)")
+			return
+		}
+		limit = n
 	}
-	result, err := s.AI.GetJSON("/api/v1/hermes/jobs/" + board + "?limit=" + limit)
+	target := "/api/v1/hermes/jobs/" + url.PathEscape(board) + "?limit=" + strconv.Itoa(limit)
+	result, err := s.AI.GetJSON(target)
 	if err != nil {
 		log.Printf("handleHermesJobsBoard: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to fetch cached jobs")
@@ -105,13 +119,41 @@ func (s *Server) handleHermesJobsBoard(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, http.StatusOK, result)
 }
 
+// allowedRunsListParams is the explicit allowlist of query keys the caller
+// may forward to the internal Python /hermes/runs endpoint.
+var allowedRunsListParams = map[string]bool{
+	"run_type": true,
+	"status":   true,
+	"limit":    true,
+}
+
 // handleHermesRunsList proxies GET /api/v1/hermes/runs?run_type=...&status=...&limit=...
-// forwarding every query parameter the caller sent.
+// Only allowlisted query keys are forwarded; values are length-bounded.
 func (s *Server) handleHermesRunsList(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.RawQuery
+	out := url.Values{}
+	for key, vals := range r.URL.Query() {
+		if !allowedRunsListParams[key] {
+			continue
+		}
+		for _, v := range vals {
+			if len(v) > 64 {
+				s.respondError(w, http.StatusBadRequest, "Query parameter too long")
+				return
+			}
+			out.Add(key, v)
+		}
+	}
+	if raw := out.Get("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 200 {
+			s.respondError(w, http.StatusBadRequest, "Invalid limit (1-200)")
+			return
+		}
+		out.Set("limit", strconv.Itoa(n))
+	}
 	target := "/api/v1/hermes/runs"
-	if q != "" {
-		target += "?" + q
+	if enc := out.Encode(); enc != "" {
+		target += "?" + enc
 	}
 	result, err := s.AI.GetJSON(target)
 	if err != nil {
@@ -122,16 +164,15 @@ func (s *Server) handleHermesRunsList(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, http.StatusOK, result)
 }
 
-// handleHermesRunDetail proxies GET /api/v1/hermes/runs/{id}. Python returns
-// 404 for unknown runs; GetJSON surfaces that as an error which we translate
-// back into a 404 for the Go caller. Any other non-2xx becomes a 502.
+// handleHermesRunDetail proxies GET /api/v1/hermes/runs/{id}. The id is
+// validated against an allowlist pattern before being concatenated.
 func (s *Server) handleHermesRunDetail(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	if id == "" {
-		s.respondError(w, http.StatusBadRequest, "run id is required")
+	if !safeUUIDOrSlug.MatchString(id) {
+		s.respondError(w, http.StatusBadRequest, "Invalid run id")
 		return
 	}
-	result, err := s.AI.GetJSON("/api/v1/hermes/runs/" + id)
+	result, err := s.AI.GetJSON("/api/v1/hermes/runs/" + url.PathEscape(id))
 	if err != nil {
 		if isPythonNotFound(err) {
 			s.respondError(w, http.StatusNotFound, "Hermes run not found")
@@ -143,6 +184,7 @@ func (s *Server) handleHermesRunDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	s.respondJSON(w, http.StatusOK, result)
 }
+
 
 // isPythonNotFound returns true when the error from ai.Client.GetJSON indicates
 // the Python service returned 404. The client formats non-2xx as

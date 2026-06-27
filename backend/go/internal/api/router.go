@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"regexp"
 	"net/mail"
 	"runtime"
 	"strconv"
@@ -41,6 +42,7 @@ type Server struct {
 	startTime         time.Time
 	publicRateLimiter *rateLimiter
 	authRateLimiter   *rateLimiter
+	loginRateLimiter  *rateLimiter
 }
 
 func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB) *Server {
@@ -53,6 +55,9 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		startTime:         time.Now(),
 		publicRateLimiter: newRateLimiter(100, false),
 		authRateLimiter:   newRateLimiter(1000, true),
+		// Brute-force protection on /auth/login + /auth/register:
+		// 10 attempts / minute per IP.
+		loginRateLimiter: newRateLimiter(10, false),
 	}
 	// Start periodic cleanup of rate limiter entries
 	go func() {
@@ -61,6 +66,7 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		for range ticker.C {
 			s.publicRateLimiter.cleanup()
 			s.authRateLimiter.cleanup()
+			s.loginRateLimiter.cleanup()
 		}
 	}()
 	s.routes()
@@ -79,23 +85,46 @@ func (s *Server) routes() {
 	}
 	*/
 
-	s.Router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:8080", "http://localhost:8083", "http://localhost:5173", "http://localhost:4173"},
-		AllowOriginFunc: func(r *http.Request, origin string) bool {
-			allowed := []string{"http://localhost:8080", "http://localhost:8083", "http://localhost:5173", "http://localhost:4173"}
-			for _, o := range allowed {
-				if origin == o {
-					return true
-				}
+	// CORS — explicit allowlist. Never use "*" with AllowCredentials=true:
+	// go-chi/cors echoes the request Origin in that case, which effectively
+	// lets any site make credentialed cross-origin requests.
+	defaultOrigins := []string{
+		"http://localhost:8080",
+		"http://localhost:8083",
+		"http://localhost:5173",
+		"http://localhost:4173",
+		"https://tayari-skill-boost.lovable.app",
+	}
+	if s.Config != nil {
+		for _, o := range s.Config.AllowedOrigins {
+			o = strings.TrimSpace(o)
+			if o != "" && o != "*" {
+				defaultOrigins = append(defaultOrigins, o)
 			}
-			return false
+		}
+	}
+	allowedOriginSet := make(map[string]struct{}, len(defaultOrigins))
+	for _, o := range defaultOrigins {
+		allowedOriginSet[o] = struct{}{}
+	}
+	// Allow Lovable preview/sandbox subdomains via regex match.
+	lovablePreviewRx := regexp.MustCompile(`^https://[a-z0-9-]+\.(lovable\.app|lovableproject\.com|sandbox\.lovable\.dev)$`)
+
+	s.Router.Use(cors.Handler(cors.Options{
+		AllowedOrigins: defaultOrigins,
+		AllowOriginFunc: func(r *http.Request, origin string) bool {
+			if _, ok := allowedOriginSet[origin]; ok {
+				return true
+			}
+			return lovablePreviewRx.MatchString(origin)
 		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Tenant-Domain", "X-User-ID", "X-User-Email"},
-		ExposedHeaders:     []string{"Link"},
-		AllowCredentials:   true,
-		MaxAge:             300,
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
 	}))
+
 
 	// Public Routes (IP-based rate limit: 100 RPM)
 	s.Router.Group(func(r chi.Router) {
@@ -104,10 +133,13 @@ func (s *Server) routes() {
 		r.Get("/api/v1/health", s.handleHealth)
 		r.Get("/api/health/detailed", s.handleHealthDetailed)
 		r.Get("/api/v1/health/detailed", s.handleHealthDetailed)
-		r.Post("/api/auth/register", s.handleRegister)
-		r.Post("/api/v1/auth/register", s.handleRegister)
-		r.Post("/api/auth/login", s.handleLogin)
-		r.Post("/api/v1/auth/login", s.handleLogin)
+		// Auth endpoints get an extra strict per-IP brute-force limiter
+		// (10 requests / minute) layered on top of the public limiter.
+		// Returns HTTP 429 with Retry-After when exceeded.
+		r.With(s.loginRateLimiter.Middleware).Post("/api/auth/register", s.handleRegister)
+		r.With(s.loginRateLimiter.Middleware).Post("/api/v1/auth/register", s.handleRegister)
+		r.With(s.loginRateLimiter.Middleware).Post("/api/auth/login", s.handleLogin)
+		r.With(s.loginRateLimiter.Middleware).Post("/api/v1/auth/login", s.handleLogin)
 
 		// Public tenant branding (must be outside auth group so OPTIONS preflight passes)
 		r.Get("/api/v1/tenants/branding", s.handleGetTenantBranding)
@@ -373,23 +405,15 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
+	// Public endpoint — keep response minimal. Never expose Go version,
+	// DB pool internals, AI service error strings, or server uptime, since
+	// they help attackers fingerprint the deployment and target CVEs.
 	payload := map[string]interface{}{
-		"status":     "ok",
-		"service":    "go-backend",
-		"go_version": runtime.Version(),
-		"uptime":     time.Since(s.startTime).String(),
+		"status":  "ok",
+		"service": "go-backend",
 	}
 
 	if s.DB != nil && s.DB.Conn != nil {
-		stats := s.DB.Conn.Stats()
-		payload["db_pool"] = map[string]interface{}{
-			"open_connections":     stats.OpenConnections,
-			"in_use":               stats.InUse,
-			"idle":                 stats.Idle,
-			"wait_count":           stats.WaitCount,
-			"wait_duration_ms":     stats.WaitDuration.Milliseconds(),
-			"max_open_connections": stats.MaxOpenConnections,
-		}
 		if err := s.DB.Conn.PingContext(r.Context()); err == nil {
 			payload["db"] = "connected"
 		} else {
@@ -398,20 +422,16 @@ func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.AI != nil {
-		start := time.Now()
-		err := s.AI.HealthCheck()
-		latency := time.Since(start)
-		if err == nil {
+		if err := s.AI.HealthCheck(); err == nil {
 			payload["ai_service"] = "connected"
-			payload["ai_latency_ms"] = latency.Milliseconds()
 		} else {
 			payload["ai_service"] = "disconnected"
-			payload["ai_error"] = err.Error()
 		}
 	}
 
 	s.respondJSON(w, http.StatusOK, payload)
 }
+
 
 // -------------------------------------------------------------------
 // Cover Letter

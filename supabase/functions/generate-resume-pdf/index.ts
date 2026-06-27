@@ -31,6 +31,11 @@ interface GenerateResumeRequest {
   appliedSuggestions: string[];
   template: string;
   jobDescription?: string;
+  // PRIVACY: client must explicitly acknowledge that resume LaTeX
+  // (which embeds PII: name/email/phone/work history) is sent to
+  // third-party LaTeX compilers (latexonline.cc / latex.ytotech.com).
+  // The UI surfaces a disclosure + checkbox before setting this to true.
+  acceptThirdPartyCompilation?: boolean;
 }
 
 interface ProgressUpdate {
@@ -257,7 +262,7 @@ serve(async (req) => {
     }
 
     const body: GenerateResumeRequest = await req.json();
-    const { resumeText, analysisResults, appliedSuggestions, template, jobDescription } = body;
+    const { resumeText, analysisResults, appliedSuggestions, template, jobDescription, acceptThirdPartyCompilation } = body;
 
     if (!resumeText || !analysisResults || !template) {
       return new Response(
@@ -265,6 +270,24 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // PRIVACY GATE: LaTeX → PDF compilation currently relies on third-party
+    // hosted compilers (latexonline.cc, latex.ytotech.com). The compiled
+    // source contains user PII. Require explicit, per-request user consent
+    // surfaced via the UI; refuse otherwise so PII cannot be silently leaked.
+    if (acceptThirdPartyCompilation !== true) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "third_party_consent_required",
+          message:
+            "PDF generation forwards your resume (including contact details and work history) to a third-party LaTeX compiler. Please acknowledge this in the UI and retry.",
+          third_party_services: [LATEX_ONLINE_URL, LATEX_YTOTECH_URL],
+        }),
+        { status: 451, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
 
     // Bound input sizes to prevent runaway AI credit consumption / DoS.
     if (resumeText.length > MAX_RESUME_CHARS) {

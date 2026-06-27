@@ -699,10 +699,25 @@ const Settings = () => {
                     ) : (
                       <Button
                         variant="outline"
-                        onClick={() => {
+                        onClick={async () => {
                           const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
                           const token = session?.access_token || localStorage.getItem('auth_token');
-                          window.location.href = `${API_URL}/gmail/login?token=${token}`;
+                          try {
+                            const res = await fetch(`${API_URL}/gmail/login`, {
+                              method: 'GET',
+                              headers: {
+                                Authorization: `Bearer ${token}`,
+                                Accept: 'application/json',
+                              },
+                            });
+                            if (!res.ok) throw new Error(`Failed to start Gmail OAuth (HTTP ${res.status})`);
+                            const data = await res.json();
+                            if (!data?.auth_url) throw new Error('Missing auth_url in response');
+                            window.location.href = data.auth_url;
+                          } catch (err: any) {
+                            console.error('Gmail login failed', err);
+                            alert(err?.message || 'Failed to start Gmail OAuth');
+                          }
                         }}
                       >
                         <Mail className="w-4 h-4 mr-2" />

@@ -3,6 +3,16 @@
   "name": "Tayari Job Companion",
   "version": "2.0.0",
   "description": "Detect jobs, autofill applications, and track your job search journey with Tayari AI.",
+  "externally_connectable": {
+    "matches": [
+      "https://tayari-skill-boost.lovable.app/*",
+      "https://*.lovable.app/*",
+      "https://*.lovableproject.com/*",
+      "http://localhost:5173/*",
+      "http://localhost:8080/*",
+      "http://localhost:8083/*"
+    ]
+  },
   "permissions": [
     "activeTab",
     "storage",
