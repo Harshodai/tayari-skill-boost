@@ -25,8 +25,6 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { JobMatchScore } from "@/components/ui/job-match-score";
 import { StatsCard, StatsGrid } from "@/components/ui/stats-card";
 import type { ResumeAnalysisRecord } from "@/types/resume";
@@ -37,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { ApplicationPipeline } from "@/components/pipeline/ApplicationPipeline";
 import { GamificationBadge } from "@/components/GamificationBadge";
 import { AchievementsBadge } from "@/components/AchievementsBadge";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -46,87 +45,7 @@ const Dashboard = () => {
 
   const firstName = user?.user_metadata?.full_name?.split(" ")[0] ?? user?.email?.split("@")[0] ?? "";
 
-  const { data: analyses = [] } = useQuery({
-    queryKey: ["resume-analyses", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      if (USE_SELF_HOSTED) {
-        const res = await listAnalysisHistory();
-        return res.map((item: any) => ({
-          id: String(item.id),
-          user_id: item.user_id ?? "",
-          resume_filename: `Resume #${item.resume_id}`,
-          overall_score: item.score ?? 0,
-          created_at: item.created_at,
-          analysis_data: { overallScore: item.score ?? 0, sections: [], matchedKeywords: [], missingKeywords: [], summaryRecommendation: "" },
-          job_title: undefined,
-          company_name: undefined,
-        })) as ResumeAnalysisRecord[];
-      }
-      const { data, error } = await supabase
-        .from("resume_analyses")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as ResumeAnalysisRecord[];
-    },
-  });
-
-  const { data: savedJobs = [] } = useQuery({
-    queryKey: ["saved-jobs", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      if (USE_SELF_HOSTED) return [];
-      const { data, error } = await supabase
-        .from("saved_jobs")
-        .select("*")
-        .order("saved_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const { data: roadmap = [] } = useQuery({
-    queryKey: ["roadmap-progress", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      if (USE_SELF_HOSTED) return [];
-      const { data, error } = await supabase
-        .from("roadmap_progress")
-        .select("*")
-        .order("updated_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const { data: interviews = [] } = useQuery({
-    queryKey: ["interview-sessions", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      if (USE_SELF_HOSTED) return [];
-      const { data, error } = await supabase
-        .from("interview_sessions")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const { data: funnel = { saved: 0, applied: 0, interview: 0, offer: 0 } } = useQuery({
-    queryKey: ["funnel-data", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      try {
-        const data = await getFunnelData();
-        return data ?? { saved: 0, applied: 0, interview: 0, offer: 0 };
-      } catch (err) {
-        console.error("Failed to load funnel:", err);
-        return { saved: 0, applied: 0, interview: 0, offer: 0 };
-      }
-    },
-  });
+  const { analyses = [], savedJobs = [], roadmap = [], interviews = [], funnel = { saved: 0, applied: 0, interview: 0, offer: 0 } } = useDashboardData(userId);
 
   const totalApps = (funnel.applied ?? 0) + (funnel.interview ?? 0) + (funnel.offer ?? 0);
   const responseRate = totalApps > 0 ? Math.round(((funnel.interview + funnel.offer) / totalApps) * 100) : 0;
@@ -429,7 +348,7 @@ const Dashboard = () => {
             ) : (
               <ApplicationPipeline
                 variant="compact"
-                jobs={(savedJobs as any[]).map((j) => ({
+                jobs={savedJobs.map((j) => ({
                   id: String(j.id),
                   title: j.title,
                   company: j.company,

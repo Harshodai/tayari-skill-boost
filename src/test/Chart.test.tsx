@@ -8,8 +8,10 @@ const sampleData: DataPoint[] = [
 
 test('renders chart with title and SVG element', () => {
   render(<Chart data={sampleData} title="Sample Chart" />);
-  expect(screen.getByText(/Sample Chart/i)).toBeInTheDocument();
-  // Recharts renders an SVG element for the chart
-  const svg = document.querySelector('svg');
+  // Verify the chart container role="img" with accessible name
+  const chartImg = screen.getByRole('img', { name: /sample chart/i });
+  expect(chartImg).toBeInTheDocument();
+  // Recharts renders an SVG element for the chart content
+  const svg = chartImg.querySelector('svg');
   expect(svg).toBeInTheDocument();
 });

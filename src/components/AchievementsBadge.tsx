@@ -9,12 +9,12 @@ export const AchievementsBadge: React.FC = () => {
   const progress = Math.min(100, (xp % xpForNextLevel) / xpForNextLevel * 100);
 
   return (
-    <section className="flex flex-col items-start space-y-2 p-4 bg-indigo-50 rounded-lg">
+    <section role="region" aria-label="Achievements progress" className="flex flex-col items-start space-y-2 p-4" style={{ backgroundColor: 'var(--secondary)' }}>
       <div className="text-sm font-medium text-indigo-800">Level {level}</div>
       <div className="w-full bg-indigo-200 rounded h-2 overflow-hidden">
         <div
           data-testid="xp-bar"
-          className="bg-indigo-600 h-2"
+          className="h-2" style={{ backgroundColor: 'var(--accent)' }}
           style={{ width: `${progress}%` }}
         />
       </div>

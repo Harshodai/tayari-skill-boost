@@ -30,6 +30,7 @@ import uuid
 from datetime import datetime, timezone
 
 from app.services.ats_engine import heuristic_ats_score
+from app.services.resume_parser import parse_resume
 from app.services.db import (
     append_log as _db_append_log,
     create_agent_run as _db_create_agent_run,
@@ -202,7 +203,7 @@ async def run_autopilot(
     profile: dict | None,
     resume_text: str,
     candidate_name: str = "Candidate",
-):
+) -> None:
     """Main background pipeline. State mirrored to in‑memory cache + agent_runs."""
     config = config or {}
     _autopilot_store[run_id] = {
@@ -221,6 +222,10 @@ async def run_autopilot(
         # ---- 1. LOAD ----------------------------------------------------
         _update_run(run_id, status="running", progress=5, current_step="LOAD")
         _log(run_id, "LOAD", "Loading your profile and resume")
+        # Parse resume text into a knowledge graph for later use
+        graph = parse_resume(resume_text)
+        if graph is not None:
+            _autopilot_store[run_id]["graph"] = graph
 
         # ---- 2. SEARCH ---------------------------------------------------
         job_titles = [t for t in config.get("job_titles", []) if t.strip()][:3]

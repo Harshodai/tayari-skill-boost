@@ -11,26 +11,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v4.7.0
         with:
           python-version: '3.11'
 
       - name: Install backend dependencies
         run: |
+          set -e
           cd backend/python
           pip install -r requirements.txt
           pip install pytest pytest-cov
 
       - name: Run backend tests with coverage
         run: |
+          set -e
           cd backend/python
-          pytest --cov=backend/python/app --cov-fail-under=80
+          pytest app/tests --cov=app --cov-fail-under=80
 
       - name: Set up Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v3.8.0
         with:
           node-version: '20'
           cache: 'yarn'
@@ -41,11 +43,13 @@ jobs:
 
       - name: Lint and type check
         run: |
+          set -e
           yarn lint
           yarn tsc --noEmit
 
       - name: Run frontend tests with coverage
         run: |
+          set -e
           # Using Bun to execute tests with coverage collection
           bun test --coverage
 

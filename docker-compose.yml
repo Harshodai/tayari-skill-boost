@@ -5,15 +5,16 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: tayari
-      POSTGRES_PASSWORD: tayi​ri_dev
+      POSTGRES_PASSWORD: tayari_dev
       POSTGRES_DB: tayari
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/db:/docker-entrypoint-initdb.d:ro
     ports:
       - "5433:5432"
+      restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tariki"]
+      test: ["CMD-SHELL", "pg_isready -U tayari"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -49,6 +50,7 @@ services:
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
     ports:
       - "8002:8000"
+      restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,6 +68,7 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6380:6379"
+      restart: unless-stopped
     volumes:
       - redis_data:/data
     healthcheck:
@@ -156,6 +159,7 @@ services:
       - APP_VERSION=${APP_VERSION:-0.1.0}
     ports:
       - "8085:8080"
+      restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -169,7 +173,7 @@ services:
     profiles: ["dev", "prod"]
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.1.39
     container_name: tayari-ollama
     ports:
       - "11435:11434"
@@ -194,12 +198,13 @@ services:
         - VITE_SENTRY_ENVIRONMENT=${VITE_SENTRY_ENVIRONMENT:-development}
     ports:
       - "8083:80"
+      restart: unless-stopped
     depends_on:
       - go-backend
     profiles: ["dev", "prod"]
 
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2.7.6-alpine
     ports:
       - "${CADDY_HTTP_PORT:-8090}:80"
       - "${CADDY_HTTPS_PORT:-8443}:443"

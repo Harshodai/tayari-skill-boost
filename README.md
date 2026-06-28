@@ -50,9 +50,25 @@ The frontend `AutomationContext.tsx` holds a finite state machine mapping the us
 
 The platform utilizes a unified `docker-compose.yml` to spin up 6 interdependent services.
 
+```
+
+**Kubernetes secret**: Before installing, create a secret containing the JWT secret:
 ```bash
+kubectl create secret generic tayari-jwt --from-literal=jwtSecret=${JWT_SECRET}
+```
+The Helm chart will reference this secret via `jwtSecret` value.
+
+**New features**: The deployment now includes the gamification achievements UI (accessible at `/achievements`) and the resume‑graph API (`/api/v1/resume/graph`). Ensure your front‑end routes and API clients are updated accordingly.bash
 docker compose up --build -d
 ```
+
+**Kubernetes secret**: Before installing, create a secret containing the JWT secret:
+```bash
+kubectl create secret generic tayari-jwt --from-literal=jwtSecret=${JWT_SECRET}
+```
+The Helm chart will reference this secret via `jwtSecret` value.
+
+**New features**: The deployment now includes the gamification achievements UI (accessible at `/achievements`) and the resume‑graph API (`/api/v1/resume/graph`). Ensure your front‑end routes and API clients are updated accordingly.
 
 ### Network Topology (Internal DNS)
 *   `frontend:4173` -> Exposed to host at `:8083` (or `:8090` via Caddy proxy)
@@ -63,18 +79,120 @@ docker compose up --build -d
 *   `celery-worker` -> Internal only
 *   `celery-flower:5555` -> Exposed to host at `:5555`
 
+## 📦 Deployment
+
+### Development profile
+Run the stack with hot‑reloading ports and dev‑only configuration:
+
+```
+
+**Kubernetes secret**: Before installing, create a secret containing the JWT secret:
+```bash
+kubectl create secret generic tayari-jwt --from-literal=jwtSecret=${JWT_SECRET}
+```
+The Helm chart will reference this secret via `jwtSecret` value.
+
+**New features**: The deployment now includes the gamification achievements UI (accessible at `/achievements`) and the resume‑graph API (`/api/v1/resume/graph`). Ensure your front‑end routes and API clients are updated accordingly.bash
+docker compose --profile dev up -d
+```
+
+**Kubernetes secret**: Before installing, create a secret containing the JWT secret:
+```bash
+kubectl create secret generic tayari-jwt --from-literal=jwtSecret=${JWT_SECRET}
+```
+The Helm chart will reference this secret via `jwtSecret` value.
+
+**New features**: The deployment now includes the gamification achievements UI (accessible at `/achievements`) and the resume‑graph API (`/api/v1/resume/graph`). Ensure your front‑end routes and API clients are updated accordingly.
+
+### Production profile
+Run the stack using the production ports (standard HTTP ports) and any production‑grade settings:
+
+```
+
+**Kubernetes secret**: Before installing, create a secret containing the JWT secret:
+```bash
+kubectl create secret generic tayari-jwt --from-literal=jwtSecret=${JWT_SECRET}
+```
+The Helm chart will reference this secret via `jwtSecret` value.
+
+**New features**: The deployment now includes the gamification achievements UI (accessible at `/achievements`) and the resume‑graph API (`/api/v1/resume/graph`). Ensure your front‑end routes and API clients are updated accordingly.bash
+docker compose --profile prod up -d
+```
+
+**Kubernetes secret**: Before installing, create a secret containing the JWT secret:
+```bash
+kubectl create secret generic tayari-jwt --from-literal=jwtSecret=${JWT_SECRET}
+```
+The Helm chart will reference this secret via `jwtSecret` value.
+
+**New features**: The deployment now includes the gamification achievements UI (accessible at `/achievements`) and the resume‑graph API (`/api/v1/resume/graph`). Ensure your front‑end routes and API clients are updated accordingly.
+
+Both profiles respect the corresponding `.env.dev` and `.env.prod` files for environment variables (e.g., `JWT_SECRET`, `LLM_BASE_URL`).
+
+### Helm deployment
+A Helm chart is provided for Kubernetes deployments. To install or upgrade:
+
+```
+
+**Kubernetes secret**: Before installing, create a secret containing the JWT secret:
+```bash
+kubectl create secret generic tayari-jwt --from-literal=jwtSecret=${JWT_SECRET}
+```
+The Helm chart will reference this secret via `jwtSecret` value.
+
+**New features**: The deployment now includes the gamification achievements UI (accessible at `/achievements`) and the resume‑graph API (`/api/v1/resume/graph`). Ensure your front‑end routes and API clients are updated accordingly.bash
+helm upgrade --install tariki ./helm/tayari \
+  --set jwtSecret=${JWT_SECRET} \
+  --set llmBaseUrl=${LLM_BASE_URL} \
+  --set env=production
+```
+
+**Kubernetes secret**: Before installing, create a secret containing the JWT secret:
+```bash
+kubectl create secret generic tayari-jwt --from-literal=jwtSecret=${JWT_SECRET}
+```
+The Helm chart will reference this secret via `jwtSecret` value.
+
+**New features**: The deployment now includes the gamification achievements UI (accessible at `/achievements`) and the resume‑graph API (`/api/v1/resume/graph`). Ensure your front‑end routes and API clients are updated accordingly.
+
+**Kubernetes secret**: Before installing, create a secret containing the JWT secret:
+```bash
+kubectl create secret generic tayari-jwt --from-literal=jwtSecret=${JWT_SECRET}
+```
+The Helm chart will reference this secret via `jwtSecret` value.
+
+**New features**: The deployment now includes the gamification achievements UI (accessible at `/achievements`) and the resume‑graph API (`/api/v1/resume/graph`). Ensure your front‑end routes and API clients are updated accordingly.
+
+The chart includes a TLS secret reference (`tlsSecret: "tayari-tls"`) and an optional `jobApplicationAutomation` service block if this component is split into its own container.
+
 ## 🧪 Testing Protocol
 
-*   **E2E (Playwright)**: Located in `e2e/`. Tests are configured to run headlessly against the Vite dev server. The suite validates complex multi-step forms like the registration flow, enforcing strict password validation (12+ characters, mixed case, symbols) natively.
+*   **E2E (Playwright)**: Located in `e2e/`. Tests are configured to run headlessly against the Vite dev server. The suite validates complex multi‑step forms like the registration flow, enforcing strict password validation (12+ characters, mixed case, symbols) natively.
 *   **Execution**: `npx playwright test e2e/features.spec.ts`
 
 ## 🔒 Feature Flagging
 
 Features are strictly typed and managed in `src/config/features.ts`.
-```typescript
+```
+
+**Kubernetes secret**: Before installing, create a secret containing the JWT secret:
+```bash
+kubectl create secret generic tayari-jwt --from-literal=jwtSecret=${JWT_SECRET}
+```
+The Helm chart will reference this secret via `jwtSecret` value.
+
+**New features**: The deployment now includes the gamification achievements UI (accessible at `/achievements`) and the resume‑graph API (`/api/v1/resume/graph`). Ensure your front‑end routes and API clients are updated accordingly.typescript
 export const features = {
   resumeOptimizer: [true, true], // [Development, Production]
   pricing: [true, true],
   careerOps: [true, false] // Coming soon to prod
 }
 ```
+
+**Kubernetes secret**: Before installing, create a secret containing the JWT secret:
+```bash
+kubectl create secret generic tayari-jwt --from-literal=jwtSecret=${JWT_SECRET}
+```
+The Helm chart will reference this secret via `jwtSecret` value.
+
+**New features**: The deployment now includes the gamification achievements UI (accessible at `/achievements`) and the resume‑graph API (`/api/v1/resume/graph`). Ensure your front‑end routes and API clients are updated accordingly.

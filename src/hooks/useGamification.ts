@@ -1,56 +1,57 @@
-import { useEffect, useState } from 'react';
+/**
+ * Types for gamification statistics.
+ */
+export interface GamificationStats {
+  /** Number of consecutive days the app has been visited. */
+  streak: number;
+  /** Experience points earned based on streak. */
+  xp: number;
+  /** Current level derived from streak. */
+  level: number;
+  /** List of achievement identifiers. */
+  achievements: string[];
+}
 
 /**
- * Simple gamification hook – tracks daily streak of app usage.
- * Stores lastVisit date and current streak in localStorage.
- * Future: integrate with backend for persistent user stats.
+ * Simple gamification hook – tracks daily streak of app usage using localStorage.
+ *
+ * Returns an immutable {@link GamificationStats} object on each render.
+ * No React state is used; values are computed synchronously.
  */
-export function useGamification() {
-  const [streak, setStreak] = useState<number>(0);
-  const [xp, setXp] = useState<number>(0);
-  const [level, setLevel] = useState<number>(1);
-  const [achievements, setAchievements] = useState<string[]>([]);
-
-  // Load achievements from localStorage on mount
-  useEffect(() => {
+export function useGamification(): GamificationStats {
+  // Load achievements safely
+  const achievements: string[] = (() => {
     const stored = localStorage.getItem('achievements');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) setAchievements(parsed);
-      } catch {
-        // ignore malformed data
-      }
+    if (!stored) return [];
+    try {
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
     }
-  }, []);
+  })();
 
-  useEffect(() => {
-    const today = new Date().toDateString();
-    const last = localStorage.getItem('gamification_lastVisit');
-    const prevStreak = parseInt(localStorage.getItem('gamification_streak') || '0', 10);
-    if (last === today) {
-      setStreak(prevStreak);
-    } else if (last) {
-      const yesterday = new Date(Date.now() - 86400000).toDateString();
-      if (last === yesterday) {
-        const newStreak = prevStreak + 1;
-        setStreak(newStreak);
-        localStorage.setItem('gamification_streak', String(newStreak));
-      } else {
-        setStreak(1);
-        localStorage.setItem('gamification_streak', '1');
-      }
-    } else {
-      setStreak(1);
-      localStorage.setItem('gamification_streak', '1');
+  const today = new Date().toDateString();
+  const lastVisit = localStorage.getItem('gamification_lastVisit');
+  const prevStreak = parseInt(localStorage.getItem('gamification_streak') ?? '0', 10);
+
+  let streak = 1;
+  if (lastVisit === today) {
+    streak = prevStreak;
+  } else if (lastVisit) {
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+    if (lastVisit === yesterday) {
+      streak = prevStreak + 1;
     }
-    localStorage.setItem('gamification_lastVisit', today);
-    // XP calculation based on streak
-    setXp(streak * 100);
-    // Level calculation
-    const computedLevel = Math.floor(streak / 5) + 1;
-    setLevel(computedLevel);
-  }, [streak]);
+  }
 
+  // Persist updated values
+  localStorage.setItem('gamification_lastVisit', today);
+  localStorage.setItem('gamification_streak', String(streak));
+
+  const xp = streak * 100;
+  const level = Math.floor(streak / 5) + 1;
+
+  // Return a new immutable object each call
   return { streak, xp, level, achievements };
 }

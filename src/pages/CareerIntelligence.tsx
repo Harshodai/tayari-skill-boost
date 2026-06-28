@@ -8,6 +8,27 @@ export interface TrendingSkill {
   popularity: number;
 }
 
+function SkillCards({ trending, error }: { trending: TrendingSkill[]; error: string | null }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {trending.map((s) => (
+        <Card key={s.skill}>
+          <CardContent className="p-4">
+            <h2 className="text-xl font-semibold">{s.skill}</h2>
+            <p>Popularity: {s.popularity}</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function TrendChart({ trending }: { trending: TrendingSkill[] }) {
+  return (
+    <Chart data={trending.map(s => ({ name: s.skill, value: s.popularity }))} title="Trending Skills" />
+  );
+}
+
 export function CareerIntelligence() {
   const [trending, setTrending] = useState<TrendingSkill[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -26,19 +47,10 @@ export function CareerIntelligence() {
       <div className="container mx-auto py-8">
         <h1 className="text-3xl font-bold mb-6">Trending Skills</h1>
         {error && <p className="text-red-500">{error}</p>}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {trending.map((s) => (
-            <Card key={s.skill}>
-              <CardContent className="p-4">
-                <h2 className="text-xl font-semibold">{s.skill}</h2>
-                <p>Popularity: {s.popularity}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <SkillCards trending={trending} error={error} />
       </div>
       <div className="mt-8">
-        <Chart data={trending.map(s => ({ name: s.skill, value: s.popularity }))} title="Trending Skills" />
+        <TrendChart trending={trending} />
       </div>
     </>
   );

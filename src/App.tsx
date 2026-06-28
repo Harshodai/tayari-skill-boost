@@ -53,6 +53,8 @@ const PredictiveAnalytics = lazy(() => import('./pages/PredictiveAnalytics'));
 const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'));
 const AgentPanel = lazy(() => import('./pages/AgentPanel'));
 const APIKeys = lazy(() => import('./pages/APIKeys'));
+const ResumeGraph = lazy(() => import('./pages/ResumeGraph'));
+
 const CareerOpsDashboard = lazy(() => import('./pages/CareerOpsDashboard'));
 const LinkedInImport = lazy(() => import('./pages/LinkedInImport'));
 const NotFound = lazy(() => import('./pages/NotFound'));
@@ -84,6 +86,7 @@ const App = () => (
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
+                  <Route path="/resume-graph" element={<ResumeGraph />} />
 
               {/* Conditionally Rendered Routes */}
               {features.interviewPrep && (

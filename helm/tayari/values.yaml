@@ -1,0 +1,60 @@
+# Default values for Tayari deployment.
+# This file is used by Helm to render the templates.
+
+# Service configuration
+service:
+  name: tariki
+  type: ClusterIP
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: "tayari.example.com"
+      paths:
+        - path: "/"
+          pathType: ImplementationSpecific
+  tls:
+    - secretName: "tayari-tls"
+      hosts:
+        - "tayari.example.com"
+
+# TLS secret reference (used by ingress)
+tlsSecret: "tayari-tls"
+
+# New job-application-automation service (if split)
+jobApplicationAutomation:
+  enabled: false
+  image: "myrepo/job-application-automation:latest"
+  port: 8080
+
+# Existing services images (overridable)
+frontend:
+  image: "myrepo/frontend:latest"
+  port: 80
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+goBackend:
+  image: "myrepo/go-backend:latest"
+  port: 8080
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+pythonAi:
+  image: "myrepo/python-ai:latest"
+  port: 8000
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+# JWT secret reference (override via --set jwtSecret=...)
+jwtSecret: "{{ .Values.jwtSecret }}"
