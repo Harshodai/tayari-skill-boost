@@ -113,4 +113,4 @@ export const ResumeGraphViz = forwardRef<{ exportAsPNG: () => Promise<Blob> }, {
       </svg>
     </div>
   );
-};
+});
