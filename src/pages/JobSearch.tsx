@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes } from "@/api";
 import { useAutomation } from "@/contexts/AutomationContext";
+import { SavedSearches } from "@/components/jobs/SavedSearches";
 import { cn } from "@/lib/utils";
 
 const ATS_LOGOS: Record<string, string> = {
