@@ -28,7 +28,7 @@ const InterviewBoard = lazy(() => import('./pages/InterviewBoard'));
 const JobSearch = lazy(() => import('./pages/JobSearch'));
 const AutoPilot = lazy(() => import('./pages/AutoPilot'));
 const CareerRoadmap = lazy(() => import('./pages/CareerRoadmap'));
-const CareerIntelligence = lazy(() => import('./pages/CareerIntelligence'));
+const CareerIntelligence = lazy(() => import('./pages/CareerIntelligence').then(m => ({ default: m.CareerIntelligence })));
 const FAQ = lazy(() => import('./pages/FAQ'));
 const Contact = lazy(() => import('./pages/Contact'));
 const Terms = lazy(() => import('./pages/Terms'));
