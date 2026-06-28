@@ -32,7 +32,7 @@ const ResumeGraph = () => {
       const response = await fetch(`/v1/resume-graph/${runId}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Delete failed');
       setData(null);
-      toast({ title: 'Graph deleted', description: 'Resume graph has been removed.', variant: 'success' });
+      toast({ title: 'Graph deleted', description: 'Resume graph has been removed.' });
     } catch (err) {
       toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
     }
