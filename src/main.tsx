@@ -11,11 +11,8 @@ Sentry.init({
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { TenantProvider } from "./contexts/TenantContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import "@fontsource/sora/400.css";
-import "@fontsource/sora/500.css";
-import "@fontsource/sora/600.css";
-import "@fontsource/sora/700.css";
-import "@fontsource/sora/800.css";
+// Note: removed @fontsource/sora — we now rely on the system SF/Inter stack
+// configured in tailwind.config.ts + index.css for an Apple-native look.
 import "./index.css";
 
 // Build-time guard: fail fast with an actionable message if the Supabase

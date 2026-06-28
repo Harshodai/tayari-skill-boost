@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes } from "@/api";
 import { useAutomation } from "@/contexts/AutomationContext";
+import { SavedSearches } from "@/components/jobs/SavedSearches";
 import { cn } from "@/lib/utils";
 
 const ATS_LOGOS: Record<string, string> = {
@@ -392,6 +393,20 @@ const JobSearch = () => {
           </Card>
 
           <Card className="p-4">
+            <SavedSearches
+              current={{ query, location, remoteOnly, minScore }}
+              onApply={(s) => {
+                setQuery(s.query);
+                setLocation(s.location || "");
+                setRemoteOnly(s.remote_only);
+                setMinScore(s.min_score);
+                setAlertOn(s.alert_enabled);
+                toast.info(`Loaded "${s.name}"`);
+              }}
+            />
+          </Card>
+
+          <Card className="p-4">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
               Saved jobs
             </h3>
@@ -411,6 +426,7 @@ const JobSearch = () => {
             )}
           </Card>
         </aside>
+
 
         {/* Results list */}
         <section>

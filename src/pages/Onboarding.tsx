@@ -263,7 +263,7 @@ export default function Onboarding() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => (step === 1 ? navigate("/dashboard") : setStep(step - 1))}
+                onClick={() => (step === 1 ? finish() : setStep(step - 1))}
               >
                 {step === 1 ? (
                   "Skip for now"
@@ -273,18 +273,25 @@ export default function Onboarding() {
                   </>
                 )}
               </Button>
-              {step < 3 ? (
-                <Button
-                  onClick={() => setStep(step + 1)}
-                  disabled={!canNext}
-                >
-                  Continue <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              ) : (
-                <Button onClick={finish} disabled={roles.length === 0} variant="glow">
-                  <Sparkles className="w-4 h-4 mr-2" /> Enter Tayari
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {step > 1 && (
+                  <Button variant="ghost" size="sm" onClick={finish}>
+                    Skip
+                  </Button>
+                )}
+                {step < 3 ? (
+                  <Button
+                    onClick={() => setStep(step + 1)}
+                    disabled={!canNext}
+                  >
+                    Continue <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                ) : (
+                  <Button onClick={finish} variant="glow">
+                    <Sparkles className="w-4 h-4 mr-2" /> Enter Tayari
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
