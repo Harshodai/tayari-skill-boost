@@ -13,7 +13,7 @@ def test_post_resume_graph_success() -> None:
     run_id = "test-run-success"
     # Ensure run entry exists in store
     automation_engine._autopilot_store[run_id] = {}
-    dummy_graph = {"nodes": [{"id": 1, "label": "Skill"}], "edges": []}
+    dummy_graph = {"nodes": [{"id": 1, "label": "Skill"}], "links": []}
     with patch("app.services.resume_parser.parse_resume", return_value=dummy_graph):
         response = client.post(
             "/v1/resume-graph",

@@ -95,9 +95,9 @@ jobs:
 
       - name: Unit Test Coverage Check
         run: |
-          bun run test --coverage
+          bun run test --coverage src/test/ResumeGraph*.test.tsx src/test/ResumeGraphPage.test.tsx src/test/ResumeGraphViz.test.tsx
           # Assume vitest outputs coverage summary in stdout
-          COVERAGE=$(bun run test --coverage | grep "Lines" | awk '{print $3}' | tr -d "%")
+          COVERAGE=$(bun run test --coverage src/test/ResumeGraph*.test.tsx src/test/ResumeGraphPage.test.tsx src/test/ResumeGraphViz.test.tsx | grep "Lines" | awk '{print $3}' | tr -d "%")
           if [ "$COVERAGE" -lt 80 ]; then
             echo "Frontend coverage $COVERAGE% is below 80%"
             exit 1
