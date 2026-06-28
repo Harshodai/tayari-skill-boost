@@ -247,6 +247,7 @@ export type Database = {
           location: string | null
           notes: string | null
           saved_at: string
+          stage: Database["public"]["Enums"]["pipeline_stage"]
           title: string
           updated_at: string
           url: string | null
@@ -259,6 +260,7 @@ export type Database = {
           location?: string | null
           notes?: string | null
           saved_at?: string
+          stage?: Database["public"]["Enums"]["pipeline_stage"]
           title: string
           updated_at?: string
           url?: string | null
@@ -271,9 +273,49 @@ export type Database = {
           location?: string | null
           notes?: string | null
           saved_at?: string
+          stage?: Database["public"]["Enums"]["pipeline_stage"]
           title?: string
           updated_at?: string
           url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      saved_searches: {
+        Row: {
+          alert_enabled: boolean
+          created_at: string
+          id: string
+          location: string | null
+          min_score: number
+          name: string
+          query: string
+          remote_only: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          alert_enabled?: boolean
+          created_at?: string
+          id?: string
+          location?: string | null
+          min_score?: number
+          name: string
+          query?: string
+          remote_only?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          alert_enabled?: boolean
+          created_at?: string
+          id?: string
+          location?: string | null
+          min_score?: number
+          name?: string
+          query?: string
+          remote_only?: boolean
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -334,7 +376,7 @@ export type Database = {
       cleanup_old_auth_attempts: { Args: never; Returns: undefined }
     }
     Enums: {
-      [_ in never]: never
+      pipeline_stage: "saved" | "applied" | "interview" | "offer" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -461,6 +503,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      pipeline_stage: ["saved", "applied", "interview", "offer", "rejected"],
+    },
   },
 } as const
