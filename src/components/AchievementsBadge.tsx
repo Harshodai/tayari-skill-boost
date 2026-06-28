@@ -14,8 +14,8 @@ export const AchievementsBadge: React.FC = () => {
       <div className="w-full bg-indigo-200 rounded h-2 overflow-hidden">
         <div
           data-testid="xp-bar"
-          className="h-2" style={{ backgroundColor: 'var(--accent)' }}
-          style={{ width: `${progress}%` }}
+          className="h-2"
+          style={{ backgroundColor: 'var(--accent)', width: `${progress}%` }}
         />
       </div>
       {achievements.length > 0 && (
