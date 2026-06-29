@@ -11,6 +11,11 @@ Sentry.init({
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { TenantProvider } from "./contexts/TenantContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { initPerformanceMonitoring } from "./lib/performance";
+
+if (import.meta.env.PROD) {
+  initPerformanceMonitoring();
+}
 // Note: removed @fontsource/sora — we now rely on the system SF/Inter stack
 // configured in tailwind.config.ts + index.css for an Apple-native look.
 import "./index.css";

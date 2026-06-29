@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
 
 from app.services.hermes.config import DATABASE_URL, SCRAPE_CACHE_TTL_SECONDS
+
+HERMES_CACHE_TTL = int(os.getenv("HERMES_CACHE_TTL", str(SCRAPE_CACHE_TTL_SECONDS)))
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +51,7 @@ async def get_cached(
     board_class: str | None,
     query: str,
     location: str,
-    ttl_seconds: int = SCRAPE_CACHE_TTL_SECONDS,
+    ttl_seconds: int = HERMES_CACHE_TTL,
 ) -> list[dict] | None:
     """Return cached jobs younger than ``ttl_seconds``, or ``None``."""
     pool = await _get_pool()
@@ -100,7 +103,7 @@ async def write_cached(
                 """,
                 _dedupe_key(board_class, query, location),
                 source, board_class, board_token, query or "", location or "",
-                json.dumps(jobs), SCRAPE_CACHE_TTL_SECONDS,
+                json.dumps(jobs), HERMES_CACHE_TTL,
             )
     except Exception as exc:  # noqa: BLE001 - write failure must not break scrape
         logger.warning("hermes.cache: write_cached failed (%s)", exc)

@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -95,12 +96,36 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Read CORS origins from environment variable (comma-separated)
+# Default includes common development origins only
+_default_origins = [
+    "http://localhost:8083",
+    "http://127.0.0.1:8083",
+    "http://localhost:8080",
+    "http://localhost:5173",
+    "http://localhost:4173",
+]
+
+_cors_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
+if _cors_env:
+    allowed_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    allowed_origins = _default_origins
+
+# Production safety: validate no wildcard in production
+_env = os.getenv("ENV", "development").lower()
+if _env == "production":
+    allowed_origins = [o for o in allowed_origins if o != "*"]
+    if not allowed_origins:
+        raise RuntimeError("CORS_ALLOWED_ORIGINS must be set in production")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:8083"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+    max_age=600,
 )
 
 # Services (singletons)
@@ -223,6 +248,74 @@ async def optimize_resume(payload: OptimizerRequest):
         raise HTTPException(status_code=502, detail=f"Optimization failed: {exc}") from exc
 
 
+@app.post("/api/v1/optimize/stream")
+async def optimize_resume_stream(
+    resume_file: Optional[UploadFile] = File(None),
+    resume_text: Optional[str] = Form(None),
+    job_description: Optional[str] = Form(None),
+    target_role: Optional[str] = Form(None),
+):
+    """Stream resume optimization results as Server-Sent Events."""
+    import json as _json
+
+    # Parse resume
+    if resume_file:
+        data = await resume_file.read()
+        parsed = ResumeParser.parse_file(data, resume_file.filename or "resume.pdf")
+        resume_text = parsed.raw_text or ""
+    elif not resume_text:
+        raise HTTPException(400, "Provide resume_text or resume_file")
+    
+    async def event_generator():
+        try:
+            # Yield start event
+            yield f"data: {_json.dumps({'type': 'status', 'message': 'Analyzing resume...'})}\n\n"
+            
+            # Phase 1: Parse and extract
+            yield f"data: {_json.dumps({'type': 'status', 'message': 'Extracting key information...'})}\n\n"
+            
+            # Phase 2: First pass optimization
+            yield f"data: {_json.dumps({'type': 'status', 'message': 'Generating optimized version...'})}\n\n"
+            
+            result = await optimizer.optimize_with_reflection(
+                resume_text=resume_text,
+                job_description=job_description,
+                target_role=target_role,
+            )
+            
+            # Stream the optimized text in chunks
+            text = result["optimized_text"]
+            chunk_size = 100
+            for i in range(0, len(text), chunk_size):
+                chunk = text[i:i + chunk_size]
+                yield f"data: {_json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                await asyncio.sleep(0.01)
+            
+            # Yield metadata
+            yield f"data: {_json.dumps({'type': 'meta', 'payload': {
+                'changes': result.get('changes', []),
+                'keywords_added': result.get('keywords_added', []),
+                'estimated_score': result.get('estimated_score'),
+                'refinement_passes': result.get('refinement_passes', 1),
+            }})}\n\n"
+            
+            yield "data: [DONE]\n\n"
+            
+        except Exception as e:
+            logger.error("Streaming optimization failed: %s", e)
+            yield f"data: {_json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        }
+    )
+
+
 class DeepATSRequest(BaseModel):
     resume_text: str
     job_description: Optional[str] = None
@@ -242,6 +335,8 @@ class JobSearchRequest(BaseModel):
     top_n: int = 12
     scrape_enrich: bool = True
     target_board: Optional[dict] = None
+    user_id: Optional[str] = None
+    conversation_id: Optional[str] = None
 
 
 @app.post("/api/v1/jobs/search")
@@ -261,6 +356,8 @@ async def jobs_search(payload: JobSearchRequest):
             top_n=payload.top_n,
             scrape_enrich=payload.scrape_enrich,
             target_board=payload.target_board,
+            user_id=payload.user_id,
+            conversation_id=payload.conversation_id,
         )
         return result
     except Exception as exc:
@@ -575,6 +672,8 @@ class AgentSearchRequest(BaseModel):
     profile: Optional[dict] = None
     resume_text: Optional[str] = None
     top_n: int = 12
+    user_id: Optional[str] = None
+    conversation_id: Optional[str] = None
 
 
 @app.post("/api/v1/jobs/agent-search")
@@ -598,6 +697,8 @@ async def agent_search(payload: AgentSearchRequest):
             payload.resume_text,
             top_n=payload.top_n,
             scrape_enrich=True,
+            user_id=payload.user_id,
+            conversation_id=payload.conversation_id,
         )
         _emit("complete", f"Found {len(result.get('jobs', []))} ranked matches")
         return {"events": events, "result": result}

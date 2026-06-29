@@ -117,6 +117,34 @@ async def get_salary_benchmark(payload: CareerIntelligenceRequest):
     location_lower = location.lower()
     role_lower = role.lower()
 
+    import httpx
+    import os
+
+    # Use a real compensation API or scraped data
+    LEVELS_FYI_API = os.getenv("LEVELS_FYI_API_URL", "")
+
+    if LEVELS_FYI_API:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    f"{LEVELS_FYI_API}/salaries",
+                    params={"role": role, "location": location}
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, dict) and "salary_min" in data:
+                        return SalaryBenchmarkResponse(
+                            role=role,
+                            location=location,
+                            salary_min=data.get("salary_min", 0.0),
+                            salary_median=data.get("salary_median", 0.0),
+                            salary_max=data.get("salary_max", 0.0),
+                            currency=data.get("currency", "USD"),
+                            confidence=data.get("confidence", "high (external API)")
+                        )
+        except Exception as exc:
+            logger.warning("External salary API failed: %s", exc)
+
     # Find closest role key
     matched_role = "backend" # Default fallback
     for key in MOCK_SALARIES.keys():

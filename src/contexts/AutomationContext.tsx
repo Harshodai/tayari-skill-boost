@@ -42,9 +42,22 @@ useEffect(() => {
     } catch {}
   }
 }, []);
-useEffect(() => {
-  localStorage.setItem('automation_runs', JSON.stringify(runs));
-}, [runs]);
+  const MAX_RUNS = 50;
+
+  useEffect(() => {
+    try {
+      const toSave = runs.length > MAX_RUNS 
+        ? runs.slice(0, MAX_RUNS) 
+        : runs;
+      localStorage.setItem('automation_runs', JSON.stringify(toSave));
+    } catch (e) {
+      // If quota exceeded, clear old runs and try again
+      if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+        const reduced = runs.slice(0, 20);
+        localStorage.setItem('automation_runs', JSON.stringify(reduced));
+      }
+    }
+  }, [runs]);
   const [isOpen, setIsOpen] = useState(false);
 
   const startRun: AutomationContextValue["startRun"] = useCallback(({ title, context, steps }) => {

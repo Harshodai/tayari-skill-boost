@@ -12,6 +12,8 @@ import { ScrollToTop } from "@/components/ui/ScrollToTop";
 import { ScrollToTopHandler } from "@/components/layout/ScrollToTopHandler";
 import { AutomationProvider } from "@/contexts/AutomationContext";
 import { ActivityDrawer } from "@/components/automation/ActivityDrawer";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { LoadingFallback } from "@/components/LoadingFallback";
 
 import { lazy, Suspense } from 'react';
 const Index = lazy(() => import('./pages/Index'));
@@ -73,8 +75,9 @@ const App = () => (
         <BrowserRouter>
           <ScrollToTopHandler />
           <PageTransition>
-          <Suspense fallback={<div>Loading...</div>}>
-            <Routes>
+          <Suspense fallback={<LoadingFallback />}>
+            <RouteErrorBoundary>
+              <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
@@ -280,6 +283,7 @@ const App = () => (
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </RouteErrorBoundary>
           </Suspense>
           </PageTransition>
         </BrowserRouter>

@@ -86,19 +86,14 @@ func (s *Server) routes() {
 	// CORS — explicit allowlist. Never use "*" with AllowCredentials=true:
 	// go-chi/cors echoes the request Origin in that case, which effectively
 	// lets any site make credentialed cross-origin requests.
+	// Use config-driven origins with sensible defaults
 	defaultOrigins := []string{
 		"http://localhost:8080",
-	"http://127.0.0.1:8080",
 		"http://localhost:8083",
-	"http://127.0.0.1:8083",
 		"http://localhost:8085",
-	"http://127.0.0.1:8085",
 		"http://localhost:5173",
-	"http://127.0.0.1:5173",
-		"http://localhost:4173",
-	"http://127.0.0.1:4173",
-		"https://tayari-skill-boost.lovable.app",
 	}
+
 	if s.Config != nil {
 		for _, o := range s.Config.AllowedOrigins {
 			o = strings.TrimSpace(o)
@@ -106,21 +101,24 @@ func (s *Server) routes() {
 				defaultOrigins = append(defaultOrigins, o)
 			}
 		}
+		for _, o := range s.Config.CORSAllowedOrigins {
+			o = strings.TrimSpace(o)
+			if o != "" && o != "*" {
+				defaultOrigins = append(defaultOrigins, o)
+			}
+		}
 	}
+
 	allowedOriginSet := make(map[string]struct{}, len(defaultOrigins))
 	for _, o := range defaultOrigins {
 		allowedOriginSet[o] = struct{}{}
 	}
-	// Allow Lovable preview/sandbox subdomains via regex match.
-	lovablePreviewRx := regexp.MustCompile(`^https://[a-z0-9-]+\.(lovable\.app|lovableproject\.com|sandbox\.lovable\.dev)$`)
 
 	s.Router.Use(cors.Handler(cors.Options{
 		AllowedOrigins: defaultOrigins,
 		AllowOriginFunc: func(r *http.Request, origin string) bool {
-			if _, ok := allowedOriginSet[origin]; ok {
-				return true
-			}
-			return lovablePreviewRx.MatchString(origin)
+			_, ok := allowedOriginSet[origin]
+			return ok
 		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Tenant-Domain", "X-User-ID", "X-User-Email"},
@@ -230,6 +228,9 @@ func (s *Server) routes() {
 		r.Post("/api/v1/resumes/{id}/export", s.handleExportResume)
 		r.Get("/api/v1/resumes/{id}/docx", s.handleDownloadResumeDocx)
 		r.Get("/api/v1/resume-versions/{id}/docx", s.handleDownloadVersionDocx)
+
+		r.Post("/api/optimize/stream", s.handleOptimizeResumeStream)
+		r.Post("/api/v1/optimize/stream", s.handleOptimizeResumeStream)
 
 		// Cover Letter
 		r.Post("/api/cover-letter/generate", s.handleCoverLetterGenerate)

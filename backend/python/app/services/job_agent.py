@@ -253,7 +253,9 @@ async def rank_jobs(candidate: str, jobs: list, top_n: int = 12) -> list:
 async def smart_search(query: str | None, location: str, profile: dict | None,
                        resume_text: str | None, top_n: int = 12,
                        scrape_enrich: bool = True,
-                       target_board: dict | None = None) -> dict:
+                       target_board: dict | None = None,
+                       user_id: str | None = None,
+                       conversation_id: str | None = None) -> dict:
     trace = []
 
     def log_step(step, detail):
@@ -263,6 +265,31 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
             "at": datetime.now(timezone.utc).isoformat(),
         })
 
+    # 1. RETRIEVE MEMORY (if user_id provided)
+    memory_context = ""
+    preferences = None
+    if user_id:
+        preferences = await _load_user_preferences(user_id)
+        if preferences:
+            pref_titles = preferences.get('preferred_titles') or []
+            pref_companies = preferences.get('preferred_companies') or []
+            if isinstance(pref_titles, str):
+                pref_titles = [pref_titles]
+            if isinstance(pref_companies, str):
+                pref_companies = [pref_companies]
+            
+            memory_context = f"User preferences from past interactions:\n"
+            if pref_titles:
+                memory_context += f"- Preferred roles: {', '.join(pref_titles)}\n"
+            if pref_companies:
+                memory_context += f"- Preferred companies: {', '.join(pref_companies)}\n"
+            memory_context += f"- Past applications: {preferences.get('applied_count', 0)}\n"
+        
+        if conversation_id:
+            recent_context = await _load_conversation_context(conversation_id)
+            if recent_context:
+                memory_context += f"\nRecent context: {recent_context[:500]}"
+
     effective_query = (query or "").strip()
     if not effective_query:
         effective_query = await derive_query(profile, resume_text)
@@ -270,6 +297,13 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
                          f"(agent engine: {active_engine()})")
     else:
         log_step("PLAN", f"Using your query: '{effective_query}' (agent engine: {active_engine()})")
+
+    # 2. REFINE QUERY (with memory augmentation)
+    if memory_context:
+        refined = await _refine_query_with_memory(effective_query, memory_context)
+        if refined and refined.lower() != effective_query.lower():
+            log_step("PLAN", f"Refined search query based on preferences: '{refined}'")
+            effective_query = refined
 
     # Multi-query expansion: search related role formulations in parallel-ish
     queries = expand_queries(effective_query, profile)
@@ -316,6 +350,29 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
 
     candidate = _candidate_summary(profile, resume_text)
     ranked = await rank_jobs(candidate, jobs, top_n=top_n)
+    
+    # 4. RANK (with personal preference boost)
+    if preferences:
+        pref_titles = [t.lower() for t in (preferences.get("preferred_titles") or []) if t]
+        pref_companies = [c.lower() for c in (preferences.get("preferred_companies") or []) if c]
+        for j in ranked:
+            boost = 0.0
+            title = j.get("title", "").lower()
+            company = j.get("company", "").lower()
+            
+            for pt in pref_titles:
+                if pt in title:
+                    boost += 10.0
+                    break
+            for pc in pref_companies:
+                if pc in company:
+                    boost += 15.0
+                    break
+            
+            if boost > 0 and j.get("match_score") is not None:
+                j["match_score"] = min(j["match_score"] + int(boost), 100)
+                j["match_reason"] = (j.get("match_reason") or "") + f" (Boosted by {int(boost)}% based on your feedback)"
+
     scored = [j for j in ranked if j.get("match_score") is not None]
     log_step("RANK", f"AI scored {len(scored)} jobs against your profile")
 
@@ -329,4 +386,66 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
         "engine": active_engine(),
         "results": annotated,
         "agent_trace": trace,
+        "memory_used": bool(memory_context),
     }
+
+
+async def _load_user_preferences(user_id: str) -> dict | None:
+    """Load user preference summary from materialized view."""
+    from app.services.db import get_pool
+    pool = await get_pool()
+    if not pool:
+        return None
+    try:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM user_preference_summary WHERE user_id = $1",
+                user_id
+            )
+            return dict(row) if row else None
+    except Exception:
+        return None
+
+
+async def _load_conversation_context(conversation_id: str) -> str:
+    """Load recent conversation messages for context."""
+    from app.services.db import get_pool
+    pool = await get_pool()
+    if not pool:
+        return ""
+    try:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT summary, messages FROM conversations WHERE id = $1",
+                conversation_id
+            )
+            if not row:
+                return ""
+            if row['summary'] and row['summary'] != '[PENDING_SUMMARIZATION]':
+                return row['summary']
+            # Return last 6 messages
+            messages = row['messages'][-6:] if len(row['messages']) > 6 else row['messages']
+            return " | ".join(m.get('content', '')[:100] for m in messages)
+    except Exception:
+        return ""
+
+
+async def _refine_query_with_memory(query: str, memory_context: str) -> str:
+    """Refine target job search query with user history context."""
+    try:
+        prompt = (
+            f"You are a job search assistant. Refine the search query based on the user's past preferences/history.\n"
+            f"Original query: {query}\n"
+            f"User History:\n{memory_context}\n"
+            f"Provide a single refined search query (2-4 words) that incorporates their preferences. "
+            f"Respond with ONLY the refined query text."
+        )
+        refined = await llm_complete(
+            "You refine job search queries. Respond with ONLY the query text.",
+            prompt,
+            tier="fast"
+        )
+        return refined.strip().strip('"')[:60]
+    except Exception as exc:
+        logger.warning("Query refinement with memory failed: %s", exc)
+        return query

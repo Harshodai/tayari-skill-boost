@@ -12,7 +12,7 @@ services:
       - ./backend/db:/docker-entrypoint-initdb.d:ro
     ports:
       - "5433:5432"
-      restart: unless-stopped
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U tayari"]
       interval: 5s
@@ -50,7 +50,7 @@ services:
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
     ports:
       - "8002:8000"
-      restart: unless-stopped
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,7 +68,7 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6380:6379"
-      restart: unless-stopped
+    restart: unless-stopped
     volumes:
       - redis_data:/data
     healthcheck:
@@ -159,7 +159,7 @@ services:
       - APP_VERSION=${APP_VERSION:-0.1.0}
     ports:
       - "8085:8080"
-      restart: unless-stopped
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -198,7 +198,7 @@ services:
         - VITE_SENTRY_ENVIRONMENT=${VITE_SENTRY_ENVIRONMENT:-development}
     ports:
       - "8083:80"
-      restart: unless-stopped
+    restart: unless-stopped
     depends_on:
       - go-backend
     profiles: ["dev", "prod"]

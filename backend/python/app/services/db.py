@@ -19,31 +19,56 @@ _pool: Any = None
 _pool_checked: bool = False
 
 
-async def get_pool() -> Any:
-    """Return a cached asyncpg pool, or ``None`` when unavailable.
+import asyncio
 
-    The pool is created on first call and reused thereafter. Failures
-    (missing asyncpg, bad DSN, unreachable DB) log a warning and return
-    ``None`` so callers can fall back to in-memory behavior.
+async def get_pool() -> Any:
+    """Return a cached asyncpg pool, or None when unavailable.
+    
+    Implements exponential backoff retry (5 attempts) to handle
+    transient network issues during startup.
     """
     global _pool, _pool_checked
     if _pool_checked:
         return _pool
-    _pool_checked = True
+    
     if not DATABASE_URL:
-        logger.debug("app.services.db: DATABASE_URL unset, DB persistence disabled")
+        logger.info("DATABASE_URL not set — DB persistence disabled")
+        _pool_checked = True
         return None
+    
     try:
-        import asyncpg  # lazy: not a hard dependency
+        import asyncpg
     except ImportError:
-        logger.warning("app.services.db: asyncpg not installed, DB disabled")
+        logger.warning("asyncpg not installed — DB disabled")
+        _pool_checked = True
         return None
-    try:
-        _pool = await asyncpg.create_pool(dsn=DATABASE_URL, min_size=1, max_size=4)
-    except Exception as exc:  # noqa: BLE001 - DB optional, never fatal
-        logger.warning("app.services.db: pool init failed (%s), DB disabled", exc)
-        _pool = None
-    return _pool
+    
+    for attempt in range(1, 6):  # 5 attempts
+        try:
+            _pool = await asyncpg.create_pool(
+                dsn=DATABASE_URL, 
+                min_size=1, 
+                max_size=4,
+                command_timeout=30,
+                server_settings={
+                    'jit': 'off',
+                    'application_name': 'tayari_ai_engine'
+                }
+            )
+            _pool_checked = True
+            logger.info("DB pool connected (attempt %d/5)", attempt)
+            return _pool
+        except Exception as exc:
+            wait = min(2 ** attempt, 30)  # Cap at 30 seconds
+            logger.warning(
+                "DB pool attempt %d/5 failed: %s. Retrying in %ds...",
+                attempt, exc, wait
+            )
+            await asyncio.sleep(wait)
+    
+    logger.error("DB pool failed after 5 attempts — running without persistence")
+    _pool_checked = True
+    return None
 
 
 def is_db_enabled() -> bool:

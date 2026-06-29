@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 	"database/sql"
+	"bytes"
+	"mime/multipart"
 
 	"tayari-backend/internal/models"
 
@@ -119,6 +121,12 @@ func (s *Server) handleJobSearch(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusBadRequest, "query or location is required")
 		return
 	}
+
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if ok && user != nil {
+		req["user_id"] = user.ID.String()
+	}
+
 	result, err := s.AI.PostJSON("/api/v1/jobs/search", req)
 	if err != nil {
 		log.Printf("handleJobSearch: AI call failed: %v", err)
@@ -140,6 +148,7 @@ func (s *Server) handleAgentSearch(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
+	req["user_id"] = user.ID.String()
 
 	result, err := s.AI.PostJSON("/api/v1/jobs/agent-search", req)
 	if err != nil {
@@ -1590,6 +1599,67 @@ func (s *Server) handleLinkedInAnalyze(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleOptimizeResumeStream(w http.ResponseWriter, r *http.Request) {
+	// Parse multipart/form-data or standard form values
+	if err := r.ParseMultipartForm(10 * 1024 * 1024); err != nil {
+		_ = r.ParseForm()
+	}
+
+	resumeText := r.FormValue("resume_text")
+	jobDescription := r.FormValue("job_description")
+	targetRole := r.FormValue("target_role")
+
+	if resumeText == "" {
+		s.respondError(w, http.StatusBadRequest, "resume_text is required")
+		return
+	}
+
+	bodyBuf := &bytes.Buffer{}
+	bodyWriter := multipart.NewWriter(bodyBuf)
+	_ = bodyWriter.WriteField("resume_text", resumeText)
+	if jobDescription != "" {
+		_ = bodyWriter.WriteField("job_description", jobDescription)
+	}
+	if targetRole != "" {
+		_ = bodyWriter.WriteField("target_role", targetRole)
+	}
+	bodyWriter.Close()
+
+	pythonURL := s.Config.PythonAIURL + "/api/v1/optimize/stream"
+	httpReq, err := http.NewRequest(http.MethodPost, pythonURL, bodyBuf)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Failed to create request")
+		return
+	}
+	httpReq.Header.Set("Content-Type", bodyWriter.FormDataContentType())
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		s.respondError(w, http.StatusBadGateway, "Python AI service unreachable")
+		return
+	}
+	defer resp.Body.Close()
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	buf := make([]byte, 1024)
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			_, _ = w.Write(buf[:n])
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
 }
 
 

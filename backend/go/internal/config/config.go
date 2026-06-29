@@ -7,15 +7,16 @@ import (
 )
 
 type Config struct {
-	Port           string
-	AllowedOrigins []string
-	DatabaseURL    string
-	UseSupabase    bool
-	JWTSecret      string
-	SupabaseURL    string
-	SupabaseKey    string
-	FrontendURL    string
-	PythonAIURL    string
+	Port               string
+	AllowedOrigins     []string
+	CORSAllowedOrigins []string
+	DatabaseURL        string
+	UseSupabase        bool
+	JWTSecret          string
+	SupabaseURL        string
+	SupabaseKey        string
+	FrontendURL        string
+	PythonAIURL        string
 
 	// Social Auth Configs
 	GoogleClientID     string
@@ -35,8 +36,9 @@ func LoadConfig() *Config {
 	jwtSecret := getEnvRequired("JWT_SECRET")
 
 	return &Config{
-		Port:           getEnv("PORT", "8080"),
-		AllowedOrigins: parseAllowedOrigins(getEnv("ALLOWED_ORIGINS", "http://localhost:5173")),
+		Port:               getEnv("PORT", "8080"),
+		AllowedOrigins:     parseAllowedOrigins(getEnv("ALLOWED_ORIGINS", "http://localhost:5173")),
+		CORSAllowedOrigins: parseAllowedOrigins(getEnv("CORS_ALLOWED_ORIGINS", "")),
 		DatabaseURL:    getEnv("DATABASE_URL", ""),
 		UseSupabase:    getEnv("USE_SUPABASE", "false") == "true",
 		JWTSecret:      jwtSecret,

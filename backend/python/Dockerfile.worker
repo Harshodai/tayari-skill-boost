@@ -26,4 +26,8 @@ RUN python -m playwright install --with-deps chromium
 
 COPY . .
 
+# Healthcheck — verify Celery worker is processing
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD celery -A app.celery_app inspect ping --destination celery@$HOSTNAME || exit 1
+
 CMD ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=info", "--concurrency=4", "-Q", "tayari"]
