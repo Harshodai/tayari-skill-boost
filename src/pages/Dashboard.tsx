@@ -22,6 +22,8 @@ import {
   Zap,
   Activity,
   Target,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,7 +47,7 @@ const Dashboard = () => {
 
   const firstName = user?.user_metadata?.full_name?.split(" ")[0] ?? user?.email?.split("@")[0] ?? "";
 
-  const { analyses = [], savedJobs = [], roadmap = [], interviews = [], funnel = { saved: 0, applied: 0, interview: 0, offer: 0 } } = useDashboardData(userId);
+  const { analyses = [], savedJobs = [], roadmap = [], interviews = [], funnel = { saved: 0, applied: 0, interview: 0, offer: 0 }, isLoading, isError, refetch } = useDashboardData(userId);
 
   const totalApps = (funnel.applied ?? 0) + (funnel.interview ?? 0) + (funnel.offer ?? 0);
   const responseRate = totalApps > 0 ? Math.round(((funnel.interview + funnel.offer) / totalApps) * 100) : 0;
@@ -111,6 +113,31 @@ const Dashboard = () => {
   return (
     <AppShell>
       <div className="container mx-auto px-4 py-10 max-w-7xl">
+        {/* ponytail: minimal loading skeleton + error retry — single guard for all dashboard queries */}
+        {isLoading && (
+          <div className="space-y-4 mb-8" aria-busy="true" aria-live="polite">
+            <div className="h-24 bg-muted rounded-lg animate-pulse" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-28 bg-muted rounded-lg animate-pulse" />
+              ))}
+            </div>
+            <div className="h-48 bg-muted rounded-lg animate-pulse" />
+          </div>
+        )}
+        {isError && !isLoading && (
+          <Card className="mb-8 border-destructive/50 bg-destructive/5">
+            <CardContent className="py-6 flex flex-col items-center text-center gap-3">
+              <AlertCircle className="w-8 h-8 text-destructive" />
+              <p className="text-sm font-medium text-destructive">Couldn't load your dashboard data.</p>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                <RefreshCw className="w-4 h-4 mr-2" /> Retry
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        {!isLoading && !isError && (
+        <>
         {/* Header */}
         <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
           <div>
@@ -465,6 +492,8 @@ const Dashboard = () => {
             </Link>
           ))}
         </div>
+        </>
+        )}
       </div>
     </AppShell>
   );

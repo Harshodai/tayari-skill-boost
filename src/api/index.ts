@@ -47,6 +47,35 @@ function getHeaders(): Record<string, string> {
   return headers;
 }
 
+// ponytail: structured error so callers can branch on status; 401 always clears token + redirects.
+export class ApiError extends Error {
+  status: number;
+  body: Record<string, unknown> | undefined;
+  constructor(message: string, status: number, body?: Record<string, unknown>) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+function handleUnauthorized(): never {
+  localStorage.removeItem("auth_token");
+  window.location.href = "/auth?expired=true";
+  throw new ApiError("Session expired", 401);
+}
+
+async function checkResponse(response: Response): Promise<void> {
+  if (response.ok) return;
+  if (response.status === 401) handleUnauthorized();
+  const error = await response.json().catch(() => ({} as Record<string, unknown>));
+  throw new ApiError(
+    (error && (error.error as string)) || `HTTP ${response.status}`,
+    response.status,
+    error
+  );
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
@@ -59,16 +88,7 @@ export async function apiFetch<T>(
     },
   });
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      localStorage.removeItem("auth_token");
-      window.location.href = "/auth?expired=true";
-      throw new Error("Session expired");
-    }
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
-
+  await checkResponse(response);
   return response.json() as Promise<T>;
 }
 
@@ -110,10 +130,7 @@ export async function deleteResume(
     method: "DELETE",
     headers: getHeaders(),
   });
-  if (!response.ok && response.status !== 204) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
+  await checkResponse(response);
 }
 
 // =============================================================================
@@ -150,10 +167,7 @@ export async function deleteJD(id: number | string): Promise<void> {
     method: "DELETE",
     headers: getHeaders(),
   });
-  if (!response.ok && response.status !== 204) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
+  await checkResponse(response);
 }
 
 // =============================================================================
@@ -281,20 +295,14 @@ export async function deleteApplication(id: string): Promise<void> {
     method: "DELETE",
     headers: getHeaders(),
   });
-  if (!response.ok && response.status !== 204) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
+  await checkResponse(response);
 }
 
 export async function downloadApplicationResume(id: string): Promise<Blob> {
   const response = await fetch(`${API_URL}/autopilot/applications/${id}/resume-docx`, {
     headers: getHeaders(),
   });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
+  await checkResponse(response);
   return response.blob();
 }
 
@@ -325,10 +333,7 @@ export async function deleteSchedule(id: string): Promise<void> {
     method: "DELETE",
     headers: getHeaders(),
   });
-  if (!response.ok && response.status !== 204) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
+  await checkResponse(response);
 }
 
 // =============================================================================
@@ -354,10 +359,7 @@ export async function exportResume(id: number | string): Promise<Blob> {
     method: "POST",
     headers: getHeaders(),
   });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
+  await checkResponse(response);
   return response.blob();
 }
 
@@ -388,10 +390,7 @@ export async function uploadResumeMultipart(file: File): Promise<Resume> {
     },
     body: formData,
   });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
+  await checkResponse(response);
   return response.json() as Promise<Resume>;
 }
 
@@ -526,10 +525,7 @@ export async function deleteCareerOpsPortal(portalId: number): Promise<void> {
     method: "DELETE",
     headers: getHeaders(),
   });
-  if (!response.ok && response.status !== 204) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
+  await checkResponse(response);
 }
 
 export async function scanCareerOpsPortals(): Promise<{ jobs: any[] }> {
@@ -646,10 +642,7 @@ export async function importProfilePDF(file: File): Promise<{
     },
     body: formData,
   });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
+  await checkResponse(response);
   return response.json();
 }
 
@@ -800,10 +793,7 @@ export async function deleteSave(id: string): Promise<void> {
     method: "DELETE",
     headers: getHeaders(),
   });
-  if (!response.ok && response.status !== 204) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
+  await checkResponse(response);
 }
 
 // =============================================================================
@@ -822,10 +812,7 @@ export async function deleteApplicationNote(id: string, noteId: string): Promise
     method: "DELETE",
     headers: getHeaders(),
   });
-  if (!response.ok && response.status !== 204) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
+  await checkResponse(response);
   return response.json().catch(() => ({ success: true }));
 }
 
@@ -852,10 +839,7 @@ export async function uploadApplicationVoice(id: string, audioBlob: Blob): Promi
     },
     body: formData,
   });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
+  await checkResponse(response);
   return response.json();
 }
 

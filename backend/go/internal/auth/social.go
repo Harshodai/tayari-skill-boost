@@ -57,6 +57,7 @@ func isSecureEnv() bool {
 
 // SocialLogin handles the redirect to the provider with CSRF protection
 func (a *LocalAuth) SocialLogin(w http.ResponseWriter, r *http.Request) {
+	// ponytail: state cookie is the CSRF guard. Goth does not expose PKCE; upgrade to a PKCE-capable OAuth lib if a provider requires it.
 	// Generate and store state token for CSRF protection
 	state, err := generateState()
 	if err != nil {
@@ -162,6 +163,7 @@ func (a *LocalAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request,
 
 	// SECURITY: Use URL fragment (#) instead of query string (?)
 	// Fragments are NOT sent to the server, preventing token leakage in logs
+	// ponytail: redirect target is config-bound (FrontendURL, no user input in URL) → no open redirect.
 	frontendURL := a.Config.FrontendURL + "/auth/callback#token=" + token
 	http.Redirect(w, r, frontendURL, http.StatusFound)
 }

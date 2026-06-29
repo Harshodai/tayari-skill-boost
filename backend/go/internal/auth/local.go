@@ -32,6 +32,13 @@ func NewLocalAuth(db *database.DB, cfg *config.Config, worker *concurrency.Audit
 }
 
 func (a *LocalAuth) Register(ctx context.Context, email, password string) (*models.User, error) {
+	if !validateEmail(email) {
+		return nil, fmt.Errorf("invalid email")
+	}
+	// ponytail: bcrypt errors on >72 bytes; 8 is the min. No upper-complexity rules — add when policy demands.
+	if len(password) < 8 || len(password) > 72 {
+		return nil, fmt.Errorf("password must be 8-72 characters")
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
@@ -105,6 +112,9 @@ func (a *LocalAuth) Login(ctx context.Context, email, password string) (string, 
 }
 
 func (a *LocalAuth) LoginWithRequest(ctx context.Context, email, password string, r *http.Request) (string, error) {
+	if !validateEmail(email) {
+		return "", ErrUnauthorized
+	}
 	// Determine IP hash
 	ipHash := "unknown"
 	if r != nil {
@@ -149,12 +159,13 @@ func (a *LocalAuth) LoginWithRequest(ctx context.Context, email, password string
 }
 
 func (a *LocalAuth) VerifyToken(tokenString string) (*models.User, error) {
+	// ponytail: HMAC method check denies 'none' alg; WithExpirationRequired + WithIssuer enforce claims in the parser (root-cause single guard for all callers).
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(a.Config.JWTSecret), nil
-	})
+	}, jwt.WithExpirationRequired(), jwt.WithIssuer("tayari-backend"))
 
 	if err != nil || !token.Valid {
 		return nil, ErrInvalidToken
@@ -175,20 +186,14 @@ func (a *LocalAuth) VerifyToken(tokenString string) (*models.User, error) {
 		return nil, ErrInvalidToken
 	}
 
-	// Validate issuer before any fallback logic
-	iss, issOk := claims["iss"].(string)
-	if !issOk || iss != "tayari-backend" {
-		return nil, ErrInvalidToken
-	}
-
 	role, ok := claims["role"].(string)
 	if !ok {
-		// Fallback for older tokens or missing role (only trusted since issuer is validated)
+		// Fallback for older tokens or missing role (issuer already validated by parser)
 		log.Println("Token missing role claim, defaulting to 'user'")
 		role = "user"
 	}
 
-		email, _ := claims["email"].(string)
+	email, _ := claims["email"].(string)
 	return &models.User{ID: userID, Email: email, Role: role}, nil
 }
 

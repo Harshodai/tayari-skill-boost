@@ -41,7 +41,7 @@ export interface FunnelData {
  * Returns the raw query results (or empty arrays on self‑hosted mode) and the userId.
  */
 export function useDashboardData(userId?: string) {
-  const { data: analyses = [] } = useQuery({
+  const analysesQuery = useQuery({
     queryKey: ["resume-analyses", userId],
     enabled: !!userId,
     queryFn: async () => {
@@ -64,7 +64,7 @@ export function useDashboardData(userId?: string) {
     },
   });
 
-  const { data: savedJobs = [] } = useQuery({
+  const savedJobsQuery = useQuery({
     queryKey: ["saved-jobs", userId],
     enabled: !!userId,
     queryFn: async () => {
@@ -75,7 +75,7 @@ export function useDashboardData(userId?: string) {
     },
   });
 
-  const { data: roadmap = [] } = useQuery({
+  const roadmapQuery = useQuery({
     queryKey: ["roadmap-progress", userId],
     enabled: !!userId,
     queryFn: async () => {
@@ -86,7 +86,7 @@ export function useDashboardData(userId?: string) {
     },
   });
 
-  const { data: interviews = [] } = useQuery({
+  const interviewsQuery = useQuery({
     queryKey: ["interview-sessions", userId],
     enabled: !!userId,
     queryFn: async () => {
@@ -97,7 +97,7 @@ export function useDashboardData(userId?: string) {
     },
   });
 
-  const { data: funnel = { saved: 0, applied: 0, interview: 0, offer: 0 } } = useQuery({
+  const funnelQuery = useQuery({
     queryKey: ["funnel-data", userId],
     enabled: !!userId,
     queryFn: async () => {
@@ -110,5 +110,35 @@ export function useDashboardData(userId?: string) {
     },
   });
 
-  return { analyses, savedJobs, roadmap, interviews, funnel };
+  // ponytail: aggregate load/error across all queries — single loading flag for the page.
+  const isLoading =
+    analysesQuery.isLoading ||
+    savedJobsQuery.isLoading ||
+    roadmapQuery.isLoading ||
+    interviewsQuery.isLoading ||
+    funnelQuery.isLoading;
+  const isError =
+    analysesQuery.isError ||
+    savedJobsQuery.isError ||
+    roadmapQuery.isError ||
+    interviewsQuery.isError;
+  const refetch = () =>
+    Promise.all([
+      analysesQuery.refetch(),
+      savedJobsQuery.refetch(),
+      roadmapQuery.refetch(),
+      interviewsQuery.refetch(),
+      funnelQuery.refetch(),
+    ]);
+
+  return {
+    analyses: analysesQuery.data ?? [],
+    savedJobs: savedJobsQuery.data ?? [],
+    roadmap: roadmapQuery.data ?? [],
+    interviews: interviewsQuery.data ?? [],
+    funnel: funnelQuery.data ?? { saved: 0, applied: 0, interview: 0, offer: 0 },
+    isLoading,
+    isError,
+    refetch,
+  };
 }

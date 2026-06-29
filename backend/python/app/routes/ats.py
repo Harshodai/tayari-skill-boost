@@ -1,4 +1,6 @@
 
+import os
+
 from fastapi import APIRouter, Form, File, UploadFile, HTTPException
 from typing import Optional
 from pydantic import BaseModel
@@ -14,6 +16,29 @@ router = APIRouter()
 keyword_analyzer = KeywordAnalyzer()
 ngram_analyzer = NGramAnalyzer()
 ats_scorer = ATSScorer()
+
+# ponytail: env-tunable upload cap; magic bytes cover the two accepted formats.
+# Upgrade path: add mime whitelist + per-extension size knobs if new formats arrive.
+_MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
+_ALLOWED_EXT = ("pdf", "docx")
+_MAGIC = {
+    "pdf": (b"%PDF",),
+    "docx": (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"),  # zip container signatures
+}
+
+
+def _validate_upload(upload: UploadFile, data: bytes) -> str:
+    """Enforce size + extension whitelist + magic-byte check. Returns normalized extension."""
+    if len(data) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="Uploaded file exceeds size limit")
+    name = (upload.filename or "").lower()
+    ext = name.rsplit(".", 1)[-1] if "." in name else ""
+    if ext not in _ALLOWED_EXT:
+        raise HTTPException(status_code=400, detail="Only .pdf and .docx files are accepted")
+    if not data.startswith(_MAGIC[ext]):
+        raise HTTPException(status_code=400, detail="File content does not match its extension")
+    return ext
+
 
 class AnalyzeRequest(BaseModel):
     resume_text: Optional[str] = None
@@ -31,7 +56,8 @@ async def ats_analyze(
     resume_parsed: Optional[ParsedResume] = None
     if resume_file:
         data = await resume_file.read()
-        resume_parsed = ResumeParser.parse_file(data, resume_file.content_type or "pdf")
+        ext = _validate_upload(resume_file, data)
+        resume_parsed = ResumeParser.parse_file(data, ext)
         resume_text = resume_parsed.raw_text or ""
     elif not resume_text:
         raise HTTPException(status_code=400, detail="Provide resume_text or resume_file")
@@ -39,7 +65,9 @@ async def ats_analyze(
     # ingest JD
     if jd_file:
         data = await jd_file.read()
-        jd_text = data.decode("utf-8", errors="ignore")
+        ext = _validate_upload(jd_file, data)
+        jd_parsed = ResumeParser.parse_file(data, ext)
+        jd_text = jd_parsed.raw_text or ""
     elif not job_description:
         raise HTTPException(status_code=400, detail="Provide job_description or jd_file")
     else:

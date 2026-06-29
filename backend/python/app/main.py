@@ -161,7 +161,7 @@ async def strategic_analyze(payload: AnalyzeRequest):
         )
     except Exception as exc:
         logger.error("strategic/analyze failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Strategic analysis failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Strategic analysis failed") from exc
 
 
 @app.post("/api/v1/strategic/entities", response_model=EntitiesResponse)
@@ -172,7 +172,7 @@ async def strategic_entities(payload: AnalyzeRequest):
         return entity_extractor.extract(text)
     except Exception as exc:
         logger.error("strategic/entities failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Entity extraction failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Entity extraction failed") from exc
 
 
 class StrategicInjectRequest(BaseModel):
@@ -188,7 +188,7 @@ async def strategic_inject(payload: StrategicInjectRequest):
         return injector.suggest_injections(payload.experience_bullets, payload.missing_keywords)
     except Exception as exc:
         logger.error("strategic/inject failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Keyword injection failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Keyword injection failed") from exc
 
 
 @app.post("/api/v1/strategic/ai-proof", response_model=AIProofingAnalysis)
@@ -198,7 +198,7 @@ async def ai_proof(payload: AnalyzeRequest):
         return ai_proofing.analyze(payload.resume_text or "")
     except Exception as exc:
         logger.error("strategic/ai-proof failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"AI proofing failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="AI proofing failed") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +213,7 @@ async def export_json(payload: ExportRequest):
         return {"data": data.decode("utf-8")}
     except Exception as exc:
         logger.error("export/json failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"JSON export failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail="JSON export failed") from exc
 
 
 @app.post("/api/v1/export/pdf")
@@ -223,7 +223,8 @@ async def export_pdf(payload: ExportRequest):
         pdf_bytes = PDFExporter.export(payload.resume_json)
         return {"size": len(pdf_bytes), "status": "generated"}
     except ImportError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.error("export/pdf failed: %s", exc)
+        raise HTTPException(status_code=500, detail="PDF export failed") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +246,8 @@ async def optimize_resume(payload: OptimizerRequest):
         )
         return result
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Optimization failed: {exc}") from exc
+        logger.error("optimizer/optimize failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Optimization failed") from exc
 
 
 @app.post("/api/v1/optimize/stream")
@@ -292,18 +294,23 @@ async def optimize_resume_stream(
                 await asyncio.sleep(0.01)
             
             # Yield metadata
-            yield f"data: {_json.dumps({'type': 'meta', 'payload': {
-                'changes': result.get('changes', []),
-                'keywords_added': result.get('keywords_added', []),
-                'estimated_score': result.get('estimated_score'),
-                'refinement_passes': result.get('refinement_passes', 1),
-            }})}\n\n"
+            meta_payload = {
+                'type': 'meta',
+                'payload': {
+                    'changes': result.get('changes', []),
+                    'keywords_added': result.get('keywords_added', []),
+                    'estimated_score': result.get('estimated_score'),
+                    'refinement_passes': result.get('refinement_passes', 1),
+                },
+            }
+            yield f"data: {_json.dumps(meta_payload)}\n\n"
             
             yield "data: [DONE]\n\n"
             
         except Exception as e:
             logger.error("Streaming optimization failed: %s", e)
-            yield f"data: {_json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            # ponytail: generic message to client; full detail stays server-side via logger.error above
+            yield f"data: {_json.dumps({'type': 'error', 'message': 'Optimization failed'})}\n\n"
     
     return StreamingResponse(
         event_generator(),
@@ -361,7 +368,8 @@ async def jobs_search(payload: JobSearchRequest):
         )
         return result
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Job search failed: {exc}") from exc
+        logger.error("jobs/search failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Job search failed") from exc
 
 
 class AutopilotRunRequest(BaseModel):
@@ -417,7 +425,8 @@ async def export_docx(payload: DocxExportRequest):
         import base64
         return {"data": base64.b64encode(buf.getvalue()).decode("utf-8")}
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"DOCX export failed: {exc}") from exc
+        logger.error("export/docx failed: %s", exc)
+        raise HTTPException(status_code=500, detail="DOCX export failed") from exc
 
 
 class CoverLetterRequest(BaseModel):
@@ -442,7 +451,7 @@ async def cover_letter_generate(payload: CoverLetterRequest):
         return result
     except Exception as exc:
         logger.error("cover-letter/generate failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Cover letter generation failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Cover letter generation failed") from exc
 
 
 class LinkedInAnalyzeRequest(BaseModel):
@@ -456,7 +465,7 @@ async def linkedin_analyze(payload: LinkedInAnalyzeRequest):
         return result
     except Exception as exc:
         logger.error("linkedin/analyze failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"LinkedIn analysis failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="LinkedIn analysis failed") from exc
 
 
 class CommunicationRequest(BaseModel):
@@ -487,7 +496,7 @@ async def communication_generate(payload: CommunicationRequest):
         return result
     except Exception as exc:
         logger.error("communication/generate failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Communication generation failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Communication generation failed") from exc
 
 
 class InterviewPrepRequest(BaseModel):
@@ -512,7 +521,7 @@ async def interview_prep(payload: InterviewPrepRequest):
         return result
     except Exception as exc:
         logger.error("interview/prep failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Interview prep failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Interview prep failed") from exc
 
 
 class KnowledgeGraphRequest(BaseModel):
@@ -527,7 +536,7 @@ async def resume_knowledge_graph(payload: KnowledgeGraphRequest):
         return result
     except Exception as exc:
         logger.error("resume/knowledge-graph failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Knowledge graph extraction failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Knowledge graph extraction failed") from exc
 
 
 class ProfileImportRequest(BaseModel):
@@ -553,7 +562,7 @@ async def profile_import_text(payload: ProfileImportRequest):
         }
     except Exception as exc:
         logger.error("profile/import-text failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Profile import failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Profile import failed") from exc
 
 
 class GuardrailsCheckRequest(BaseModel):
@@ -628,7 +637,8 @@ async def analyze_text_endpoint(payload: AnalyzeTextRequest):
         )
         return {"result": result}
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"AI analysis failed: {exc}") from exc
+        logger.error("resumes/analyze-text failed: %s", exc)
+        raise HTTPException(status_code=502, detail="AI analysis failed") from exc
 class InterviewQuestionsRequest(BaseModel):
     profile_summary: Optional[str] = ""
     application: dict = {}
@@ -647,7 +657,8 @@ async def generate_interview_questions(payload: InterviewQuestionsRequest):
         )
         return result
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Interview questions AI failed: {exc}") from exc
+        logger.error("applications/interview-questions failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Interview questions generation failed") from exc
 
 
 @app.post("/api/v1/voice/transcribe")
@@ -703,8 +714,9 @@ async def agent_search(payload: AgentSearchRequest):
         _emit("complete", f"Found {len(result.get('jobs', []))} ranked matches")
         return {"events": events, "result": result}
     except Exception as exc:
-        _emit("error", str(exc))
-        raise HTTPException(status_code=502, detail=f"Agent search failed: {exc}") from exc
+        logger.error("jobs/agent-search failed: %s", exc)
+        _emit("error", "Agent search failed")
+        raise HTTPException(status_code=502, detail="Agent search failed") from exc
 
 
 # ---------------------------------------------------------------------------
