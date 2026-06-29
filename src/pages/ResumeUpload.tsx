@@ -94,6 +94,9 @@ function normalizeGoAnalysis(raw: Record<string, any>): ResumeAnalysisResult {
       recommendations.length > 0
         ? recommendations.join(" ")
         : "Analysis complete.",
+    // ponytail: pass-through when the upstream response carries per-ATS
+    // estimates (Python ats_engine path); undefined otherwise → UI falls back.
+    per_ats: raw.per_ats,
   };
 }
 

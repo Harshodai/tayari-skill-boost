@@ -37,6 +37,7 @@ const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Pricing = lazy(() => import('./pages/Pricing'));
 const About = lazy(() => import('./pages/About'));
+const Methodology = lazy(() => import('./pages/Methodology'));
 const Careers = lazy(() => import('./pages/Careers'));
 const Blog = lazy(() => import('./pages/Blog'));
 const BlogPost = lazy(() => import('./pages/BlogPost'));
@@ -108,6 +109,8 @@ const App = () => (
               {features.pricing && (
                 <Route path="/pricing" element={<Pricing />} />
               )}
+              {/* ponytail: methodology is a trust page — always available, no flag */}
+              <Route path="/methodology" element={<Methodology />} />
               {features.careers && (
                 <Route path="/careers" element={<Careers />} />
               )}

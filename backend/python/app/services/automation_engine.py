@@ -42,8 +42,32 @@ from app.services.job_providers import search_jobs
 from app.services.llm_service import llm_complete
 from app.services.optimizer import optimize_with_reflection
 from app.services.job_application_automation import apply_job
+from app.guardrails.gate import PipelineGate
 
 logger = logging.getLogger(__name__)
+
+# K4 — single quality-gate instance (DIP: one configured PipelineGate for the
+# pipeline; swap impl by changing this line). Runs truthfulness + keyword
+# stuffing + PII on every tailored resume before APPLY.
+_QUALITY_GATE = PipelineGate()
+
+# Gate result keys that count as a hard block for auto-apply (Review Mode:
+# never auto-submit a resume that fails a guardrail — queue for human approval).
+_GATE_BLOCK_KEYS = ("truthfulness", "keyword_stuffing", "pii")
+
+
+def _summarize_gate(gate_result: dict) -> str:
+    """SRP: turn a PipelineGate.check result into a compact log string."""
+    failed = [
+        k for k in _GATE_BLOCK_KEYS
+        if not gate_result.get("results", {}).get(k, {}).get("passed", False)
+    ]
+    return ", ".join(failed) if failed else "unknown"
+
+
+def _gate_passed(gate_result: dict) -> bool:
+    """SRP: True only when every hard-block guardrail passed."""
+    return bool(gate_result.get("all_passed", False))
 
 LETTER_SYSTEM = (
     "You are Tayari's cover letter writer. You write concise, specific, "
@@ -343,8 +367,26 @@ async def run_autopilot(
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
 
+                # ---- QUALITY GATE (K4, Review Mode) -------------------------
+                # Run guardrails on the tailored resume before any submit. A
+                # failed gate blocks auto-apply — the package is queued for
+                # human approval instead (never auto-submit without consent).
+                gate_result = _QUALITY_GATE.check(
+                    tailored_text, resume_text, job.get("description")
+                )
+                application["quality_gate_result"] = gate_result
+                gate_ok = _gate_passed(gate_result)
+                _log(
+                    run_id,
+                    "QUALITY_GATE",
+                    f"Guardrails {'passed' if gate_ok else 'blocked'} for {job['company']}"
+                    + ("" if gate_ok else f" — failed: {_summarize_gate(gate_result)}"),
+                )
+                if not gate_ok:
+                    application["status"] = "gate_blocked"
+
                 # ---- APPLY ---------------------------------------------------
-                if config.get("auto_apply", True):
+                if config.get("auto_apply", True) and gate_ok:
                     try:
                         apply_job(job, tailored_text, cover)
                         application["status"] = "auto_applied"

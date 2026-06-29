@@ -4,12 +4,23 @@ export interface ResumeSection {
   suggestions: string[];
 }
 
+export interface PerAtsEstimate {
+  estimates: Record<string, number>; // { workday, greenhouse, icims }
+  band: number; // ± confidence band
+  confidence: string; // "±8"
+  plateau_note: string | null;
+}
+
 export interface ResumeAnalysisResult {
   overallScore: number;
   sections: ResumeSection[];
   matchedKeywords: string[];
   missingKeywords: string[];
   summaryRecommendation: string;
+  // ponytail: optional — present when the analysis path runs Python ats_engine
+  // (heuristic_ats_score). Absent on pure-Go analyzer paths; UI falls back to
+  // the per-ATS offset heuristic.
+  per_ats?: PerAtsEstimate;
 }
 
 export interface AnalyzeResumeRequest {

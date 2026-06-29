@@ -35,23 +35,80 @@ func (s *Server) routesHermes(r chi.Router) {
 	r.Post("/api/v1/hermes/scrape", s.handleHermesScrape)
 	r.Get("/api/v1/hermes/jobs/{board}", s.handleHermesJobsBoard)
 	r.Get("/api/v1/hermes/runs", s.handleHermesRunsList)
+	r.Get("/api/v1/hermes/runs/active", s.handleHermesRunsActive)
 	r.Get("/api/v1/hermes/runs/{id}", s.handleHermesRunDetail)
 	r.Get("/api/v1/hermes/context", s.handleHermesContext)
 	r.Get("/api/v1/hermes/status", s.handleHermesStatus)
 	r.Post("/api/v1/hermes/sessions", s.handleHermesCreateSession)
 	r.Post("/api/v1/hermes/sessions/{id}/events", s.handleHermesAddEvent)
 	r.Get("/api/v1/hermes/sessions/{id}", s.handleHermesGetSession)
-	
+
 	// archive-compatible aliases (subset the frontend actually calls)
 	r.Post("/api/hermes/scrape", s.handleHermesScrape)
 	r.Get("/api/hermes/jobs/{board}", s.handleHermesJobsBoard)
 	r.Get("/api/hermes/runs", s.handleHermesRunsList)
+	r.Get("/api/hermes/runs/active", s.handleHermesRunsActive)
 	r.Get("/api/hermes/runs/{id}", s.handleHermesRunDetail)
 	r.Get("/api/hermes/context", s.handleHermesContext)
 	r.Get("/api/hermes/status", s.handleHermesStatus)
 	r.Post("/api/hermes/sessions", s.handleHermesCreateSession)
 	r.Post("/api/hermes/sessions/{id}/events", s.handleHermesAddEvent)
 	r.Get("/api/hermes/sessions/{id}", s.handleHermesGetSession)
+}
+
+// handleHermesRunsActive proxies GET /api/v1/hermes/runs/active — the K1
+// observable-chain header chip. Forwards status=running&status=queued to the
+// Python /hermes/runs list (which owns agent_runs + user scoping) and returns
+// the merged list + a count envelope the chip can render in one poll.
+// ponytail: assumes Python /hermes/runs accepts repeated status values
+// (FastAPI List[str] Query). If it honors only the last, queued silently
+// drops — upgrade to a direct agent_runs query if the chip undercounts.
+func (s *Server) handleHermesRunsActive(w http.ResponseWriter, r *http.Request) {
+	target := "/api/v1/hermes/runs?status=" + activeRunsStatusFilter + "&limit=" + strconv.Itoa(activeRunsLimit)
+	result, err := s.AI.GetJSON(target)
+	if err != nil {
+		log.Printf("handleHermesRunsActive: AI call failed: %v", err)
+		s.respondError(w, http.StatusBadGateway, "Failed to fetch active runs")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"count": countListItems(result),
+		"runs":  result,
+	})
+}
+
+// K1 / runs-active constants — single source of truth for the active-runs chip.
+const (
+	activeRunsLimit        = 50
+	activeRunsStatusFilter = "running&status=queued" // repeated status values for FastAPI List[str]
+)
+
+// activeRunsListFields are the JSON keys a Python /hermes/runs response may
+// use to wrap its run list. Tried in order by countListItems.
+var activeRunsListFields = []string{"runs", "data", "items", "results"}
+
+// countListItems best-effort counts the runs in a GetJSON response, which may
+// be either a bare JSON array or an object wrapping the list under one of
+// activeRunsListFields. SRP: isolates shape-tolerance from the handler.
+func countListItems(result map[string]interface{}) int {
+	b, err := json.Marshal(result)
+	if err != nil {
+		return 0
+	}
+	var arr []interface{}
+	if json.Unmarshal(b, &arr) == nil {
+		return len(arr)
+	}
+	var obj map[string]interface{}
+	if json.Unmarshal(b, &obj) != nil {
+		return 0
+	}
+	for _, k := range activeRunsListFields {
+		if v, ok := obj[k].([]interface{}); ok {
+			return len(v)
+		}
+	}
+	return 0
 }
 
 // handleHermesScrape forwards the scrape request body to Python.

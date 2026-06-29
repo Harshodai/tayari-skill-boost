@@ -54,9 +54,40 @@ const About = () => {
               About <span className="text-gradient">Job Tayari</span>
             </h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
-              We're on a mission to democratize career success by giving every job seeker access to 
+              We're on a mission to democratize career success by giving every job seeker access to
               the same AI-powered tools that top candidates use.
             </p>
+          </div>
+        </section>
+
+        {/* Positioning Section — the chain, not the suite */}
+        <section className="py-16">
+          <div className="container mx-auto px-4">
+            <div className="max-w-4xl mx-auto glass rounded-2xl p-8 md:p-12 border border-border">
+              <h2 className="text-3xl font-bold mb-6 text-center">We're the chain, not the suite</h2>
+              <div className="space-y-4 text-muted-foreground leading-relaxed">
+                <p>
+                  Most career tools are point solutions — a resume scanner, a tracker, an interview
+                  mock, an auto-apply bot. You stitch them together, and they don't talk to each
+                  other. Job Tayari is the only platform that runs the <strong>whole chain — resume
+                  to interview — as one observable pipeline you can watch execute</strong>.
+                </p>
+                <p>
+                  Upload your resume, see an honest per-ATS score with a confidence band, let the
+                  reflective optimizer iterate against its own quality gate, match against live
+                  multi-board job scraping, generate a tailored cover letter, gate every application
+                  behind a visible authenticity check, then carry the tailored resume + job description
+                  straight into structured interview prep and follow-up communication. One process
+                  graph. Every stage's output is the next stage's input.
+                </p>
+                <p>
+                  Guardrails keep every application on the authentic side of the AI-vs-recruiter arms
+                  race — keyword-stuffing detection, PII redaction, and truthfulness checks run
+                  <em> before</em> you submit, not after. And the whole platform is self-hostable with
+                  a local LLM, so your data never has to leave your machine.
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 

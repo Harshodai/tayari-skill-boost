@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes } from "@/api";
 import { useAutomation } from "@/contexts/AutomationContext";
+import { SkillGapWidget } from "@/components/jobs/SkillGapWidget";
 import { SavedSearches } from "@/components/jobs/SavedSearches";
 import { cn } from "@/lib/utils";
 
@@ -664,6 +665,14 @@ const JobSearch = () => {
                       </Button>
                     )}
                   </div>
+
+                  {/* K3 — skills you're missing (taxonomy gaps → roadmap) */}
+                  {(selected.description || selected.snippet) && (
+                    <SkillGapWidget
+                      key={selected.dedupe_key || selected.title}
+                      jobDescription={selected.description || selected.snippet || ""}
+                    />
+                  )}
 
                   {/* Why this job */}
                   {(selected.match_reasons?.length || selected.missing_skills?.length) ? (

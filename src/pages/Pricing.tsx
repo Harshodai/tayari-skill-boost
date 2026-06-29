@@ -42,21 +42,21 @@ const Pricing = () => {
       highlighted: true
     },
     {
-      name: "Career-Ops",
-      price: "79",
-      period: "mo (billed annually)",
-      description: "Complete pipeline automation for top candidates",
+      name: "Team",
+      price: "49",
+      period: "user/mo (billed annually)",
+      description: "Collaboration + shared pipelines for career teams & bootcamps",
       icon: Building2,
       features: [
         "Everything in Pro",
-        "Apply Assist automation queue",
+        "Shared candidate pipelines",
+        "Team review queue + collaboration",
+        "Admin dashboard & analytics",
+        "Bulk resume optimization",
         "Hermes multi-board scraping",
-        "Real-time pipeline monitoring",
-        "Voice/video mock interview AI",
-        "Direct recruiter outreach tools",
-        "Dedicated VIP support"
+        "Dedicated account manager"
       ],
-      cta: "Get Started Now",
+      cta: "Contact Sales",
       highlighted: false
     }
   ];

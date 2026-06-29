@@ -25,6 +25,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { SkillGapWidget } from "@/components/jobs/SkillGapWidget";
 
 interface ReviewQueueItem {
   id: number;
@@ -507,6 +508,12 @@ export default function ReviewQueue() {
                             >
                               Open Application Page →
                             </Button>
+                          )}
+                          {item.job.description && (
+                            <SkillGapWidget
+                              jobDescription={item.job.description}
+                              resumeText={item.tailored_resume_text || ""}
+                            />
                           )}
                         </div>
                       )}

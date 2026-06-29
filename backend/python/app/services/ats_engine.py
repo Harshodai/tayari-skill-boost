@@ -26,6 +26,21 @@ STOPWORDS = set(
     "will with you your we our they this their i".split()
 )
 
+# --- Scoring constants (single source of truth for thresholds/bands) -------
+# ponytail: named instead of magic numbers so the score/band logic and the UI
+# thresholds stay traceable. UI mirrors ATS_SCORE_HIGH/MED in ResumeResults.
+ATS_SCORE_HIGH = 80      # "High"/"Excellent" threshold; also the plateau cutoff
+ATS_SCORE_MEDIUM = 60    # "Medium"/"Good" threshold
+ATS_PLATEAU_THRESHOLD = ATS_SCORE_HIGH  # above this → bottleneck = interview signal
+_CURRENT_YEAR = 2026     # ponytail: pinned; swap for date-based if multi-year runs matter
+
+# Per-ATS confidence band widths (±). Wider when signals disagree (no JD) or
+# the score sits near the 50/50 uncertainty line.
+_ATS_BAND_WIDE = 10      # no keyword signal available
+_ATS_BAND_MEDIUM = 8     # score within ±15 of 50 (uncertain)
+_ATS_BAND_NARROW = 6     # score far from 50 (signals converge)
+_ATS_BAND_WIDEN_NEAR = 15  # distance from 50 that triggers the medium band
+
 
 def _tokenize(text: str) -> set:
     return {t for t in re.findall(r"[a-zA-Z][a-zA-Z+#.\-]{1,}", text.lower())
@@ -103,8 +118,7 @@ def heuristic_ats_score(resume_text: str, job_description: str | None = None) ->
 
     # Recency: parsers and ranking models weight recent experience heavily
     years = [int(y) for y in re.findall(r"\b(19\d{2}|20\d{2})\b", text)]
-    current_year = 2026
-    is_recent = bool(years) and max(years) >= current_year - 1
+    is_recent = bool(years) and max(years) >= _CURRENT_YEAR - 1
     add_check("Recent experience visible", is_recent, 5,
               "Most recent role should show a current/last-year date (or 'Present')"
               if not ("present" in lower or "current" in lower) else
@@ -158,4 +172,64 @@ def heuristic_ats_score(resume_text: str, job_description: str | None = None) ->
         "matched_keywords": matched_keywords,
         "missing_keywords": missing_keywords,
         "pii_check": pii_result,
+        "per_ats": per_ats_estimate(checks, keyword_score_pct),
+    }
+
+
+# ponytail: per-ATS estimate is a heuristic REWEIGHTING of the same checks the
+# single score uses — no new model. Different ATS parsers emphasize different
+# dimensions (Workday weights format, Greenhouse weights keyword relevance,
+# iCIMS weights contact + achievements). Confidence band widens when signals
+# disagree (no JD → keyword checks absent → wider band). Ceiling: a real
+# per-ATS parser would differ; this is an honest estimate, not a benchmark.
+_ATS_WEIGHT_PROFILES = {
+    "workday": {
+        "Experience section": 1.4, "Education section": 1.3, "Skills section": 1.4,
+        "Optimal length": 1.3, "Bullet points": 1.3, "Dates present": 1.3,
+        "Job keyword match": 0.8, "Job title alignment": 0.9,
+    },
+    "greenhouse": {
+        "Job keyword match": 1.6, "Job title alignment": 1.5,
+        "Skills section": 1.2, "Action verbs": 1.1, "Quantified achievements": 1.1,
+    },
+    "icims": {
+        "Contact email": 1.4, "Phone number": 1.3, "Quantified achievements": 1.4,
+        "Action verbs": 1.3, "Recent experience visible": 1.2,
+    },
+}
+
+
+def per_ats_estimate(checks: list, keyword_match_pct: int | None) -> dict:
+    """Per-ATS score estimates + confidence band from existing check dimensions.
+
+    Returns {estimates: {workday, greenhouse, icims}, band, confidence, plateau_note}.
+    """
+    estimates: dict[str, int] = {}
+    for ats, profile in _ATS_WEIGHT_PROFILES.items():
+        total = 0.0
+        earned = 0.0
+        for c in checks:
+            w = c["weight"] * profile.get(c["name"], 1.0)
+            total += w
+            if c["passed"]:
+                earned += w
+        estimates[ats] = round(100 * earned / max(total, 1))
+    base = max(estimates.values()) if estimates else 0
+    # band widens when the keyword signal is absent (no JD) and when the score
+    # sits near 50 — both mean the underlying signals are weak/disagreeing.
+    if keyword_match_pct is None:
+        band = _ATS_BAND_WIDE
+    elif abs(base - 50) < _ATS_BAND_WIDEN_NEAR:
+        band = _ATS_BAND_MEDIUM
+    else:
+        band = _ATS_BAND_NARROW
+    plateau = (
+        "Above 80 the bottleneck shifts from keywords to interview signal — start interview prep."
+        if base >= ATS_PLATEAU_THRESHOLD else None
+    )
+    return {
+        "estimates": estimates,
+        "band": band,
+        "confidence": f"±{band}",
+        "plateau_note": plateau,
     }

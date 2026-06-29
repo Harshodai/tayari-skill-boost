@@ -27,6 +27,28 @@ const sectionIcons: Record<string, React.ComponentType<{ className?: string }>> 
   "Formatting": FileText,
 };
 
+// --- ATS scoring constants (mirror ats_engine.py; single source of truth in UI) ---
+// ponytail: named constants so thresholds aren't magic numbers scattered in JSX.
+const ATS_SCORE_HIGH = 80;
+const ATS_SCORE_MEDIUM = 60;
+const ATS_DEFAULT_BAND = 5;
+
+// SRP: per-ATS parser profile is config data, separate from render logic.
+// `key` maps to ats_engine per_ats.estimates keys; `offset` is the fallback
+// heuristic when the Python per_ats estimate isn't present.
+interface AtsParserProfile {
+  name: string;
+  key: string;
+  offset: number;
+  desc: string;
+}
+const ATS_PARSER_PROFILES: AtsParserProfile[] = [
+  { name: "Greenhouse", key: "greenhouse", offset: 3, desc: "Markdown & structured text friendly" },
+  { name: "Workday", key: "workday", offset: -4, desc: "Rigid table and column rules" },
+  { name: "iCIMS", key: "icims", offset: -6, desc: "Strict formatting and layout rules" },
+  { name: "Taleo", key: "taleo", offset: 1, desc: "Keyword heavy sorting algorithm" },
+];
+
 const ResumeResults = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -135,8 +157,8 @@ const ResumeResults = () => {
   };
 
   const getScoreLabel = (score: number) => {
-    if (score >= 80) return { text: "Excellent", color: "text-success" };
-    if (score >= 60) return { text: "Good", color: "text-warning" };
+    if (score >= ATS_SCORE_HIGH) return { text: "Excellent", color: "text-success" };
+    if (score >= ATS_SCORE_MEDIUM) return { text: "Good", color: "text-warning" };
     return { text: "Needs Work", color: "text-destructive" };
   };
 
@@ -505,18 +527,25 @@ const ResumeResults = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3.5">
-                  <p className="text-[11px] text-muted-foreground">
-                    Estimated scoring compatibility based on typical parser rules:
-                  </p>
-                  {[
-                    { name: "Greenhouse", offset: 3, desc: "Markdown & structured text friendly" },
-                    { name: "Workday", offset: -4, desc: "Rigid table and column rules" },
-                    { name: "iCIMS", offset: -6, desc: "Strict formatting and layout rules" },
-                    { name: "Taleo", offset: 1, desc: "Keyword heavy sorting algorithm" }
-                  ].map((ats) => {
-                    const atsScore = Math.max(10, Math.min(100, analysisResults.overallScore + ats.offset));
-                    const atsLabel = atsScore >= 80 ? "High" : atsScore >= 60 ? "Medium" : "Low";
-                    const progressColor = atsScore >= 80 ? "success" as const : atsScore >= 60 ? "warning" as const : "destructive" as const;
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-muted-foreground">
+                      Estimated scoring compatibility based on typical parser rules:
+                    </p>
+                    <Link to="/methodology" className="text-[10px] text-primary hover:underline shrink-0">
+                      How we score →
+                    </Link>
+                  </div>
+                  {/* ponytail: prefer real per_ats estimates (Python ats_engine) when present;
+                      fall back to the offset heuristic on pure-Go analyzer paths. Band from
+                      per_ats.band when available, else ±5. */}
+                  {ATS_PARSER_PROFILES.map((ats) => {
+                    const realEstimate = analysisResults.per_ats?.estimates?.[ats.key];
+                    const atsScore = realEstimate != null
+                      ? realEstimate
+                      : Math.max(10, Math.min(100, analysisResults.overallScore + ats.offset));
+                    const band = analysisResults.per_ats?.band ?? ATS_DEFAULT_BAND;
+                    const atsLabel = atsScore >= ATS_SCORE_HIGH ? "High" : atsScore >= ATS_SCORE_MEDIUM ? "Medium" : "Low";
+                    const progressColor = atsScore >= ATS_SCORE_HIGH ? "success" as const : atsScore >= ATS_SCORE_MEDIUM ? "warning" as const : "destructive" as const;
                     return (
                       <div key={ats.name} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
@@ -525,7 +554,7 @@ const ResumeResults = () => {
                             <span className="text-[9px] text-muted-foreground">{ats.desc}</span>
                           </div>
                           <span className="font-mono font-bold text-muted-foreground flex items-center gap-1">
-                            {atsScore}% <Badge variant={atsScore >= 80 ? "success" : atsScore >= 60 ? "warning" : "destructive"} className="text-[8px] px-1.5 py-0">{atsLabel}</Badge>
+                            {atsScore}% <span className="text-[8px] text-muted-foreground/70 font-normal">±{band}</span> <Badge variant={atsScore >= 80 ? "success" : atsScore >= 60 ? "warning" : "destructive"} className="text-[8px] px-1.5 py-0">{atsLabel}</Badge>
                           </span>
                         </div>
                         <Progress value={atsScore} size="xs" colorScheme={progressColor} />

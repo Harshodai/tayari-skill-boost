@@ -90,7 +90,7 @@ const AutoPilot = () => {
   const startMutation = useMutation({
     mutationFn: startAutopilot,
     onSuccess: (data) => {
-      toast.success("Auto-Pilot started");
+      toast.success("Apply Assist started");
       setRunError(null);
       setActiveRunId(data.run_id);
       queryClient.invalidateQueries({ queryKey: ["autopilot-runs"] });
@@ -374,11 +374,14 @@ const AutoPilot = () => {
                           </h3>
                           <Badge variant={
                             app.status === "review" ? "warning" :
+                            app.status === "gate_blocked" ? "destructive" :
                             app.status === "saved" ? "success" :
                             app.status === "rejected" ? "destructive" :
                             "secondary"
                           }>
-                            {app.status === "review" ? "Pending Review" : app.status}
+                            {app.status === "review" ? "Pending Review" :
+                             app.status === "gate_blocked" ? "Guardrails Blocked" :
+                             app.status}
                           </Badge>
                         </div>
                         <p className="text-muted-foreground text-sm">
@@ -391,6 +394,37 @@ const AutoPilot = () => {
                             {app.ats_score_after}
                           </span>
                         </div>
+                        {(() => {
+                          // K4 — render the per-job guardrail gate result so the
+                          // user reviews why a package was blocked before approving.
+                          const g = (app as any).quality_gate_result as
+                            | {
+                                all_passed: boolean;
+                                results: Record<string, { passed: boolean; violations?: string[]; pii_found?: string[] }>;
+                              }
+                            | undefined;
+                          if (!g) return null;
+                          const failed = Object.entries(g.results || {}).filter(([, r]) => !r.passed);
+                          return (
+                            <div className={`mt-2 rounded-lg p-2 text-xs border ${g.all_passed ? "border-success/20 bg-success/5 text-success" : "border-destructive/20 bg-destructive/5 text-destructive"}`}>
+                              <div className="flex items-center gap-1 font-medium">
+                                <AlertTriangle className="w-3 h-3" />
+                                {g.all_passed
+                                  ? "Guardrails passed"
+                                  : `Guardrails blocked: ${failed.map(([k]) => k).join(", ")}`}
+                              </div>
+                              {!g.all_passed && (
+                                <ul className="mt-1 space-y-0.5 opacity-90">
+                                  {failed.map(([k, r]) => (
+                                    <li key={k}>
+                                      • {k}: {(r.violations || r.pii_found || []).slice(0, 2).join("; ") || "failed"}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {app.changes && app.changes.length > 0 && (
                           <Collapsible className="mt-2">
                             <CollapsibleTrigger asChild>
@@ -417,7 +451,7 @@ const AutoPilot = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        {app.status === "review" && (
+                        {(app.status === "review" || app.status === "gate_blocked") && (
                           <>
                             <Button
                               size="sm"
