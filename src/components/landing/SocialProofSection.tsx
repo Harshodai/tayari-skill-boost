@@ -39,9 +39,12 @@ const aspirationalCards = [
 export function SocialProofSection() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   useEffect(() => {
+    if (!import.meta.env.VITE_API_URL) return;
     dashboardStats()
       .then(setStats)
-      .catch((e) => console.error('Failed to load dashboard stats', e));
+      .catch(() => {
+        // Backend unavailable on Lovable preview — fall back to static copy.
+      });
   }, []);
 
   return (
