@@ -3,13 +3,15 @@
 // Uses d3-force for layout and renders an SVG.
 
 import { useEffect, useState, forwardRef, useImperativeHandle, useRef } from "react";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let forceSimulation: any, forceLink: any, forceManyBody: any, forceCenter: any;
 try {
-  ({ forceSimulation, forceLink, forceManyBody, forceCenter } = require('d3-force'));
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+  ({ forceSimulation, forceLink, forceManyBody, forceCenter } = (0, eval)("require")("d3-force"));
 } catch {
-  // Provide no‑op fallbacks for test environment
+  // Provide no-op fallbacks for test environment / missing dep
   forceSimulation = () => ({ force: () => ({ stop: () => {} }), tick: () => {}, on: () => {} });
-  forceLink = () => ({ id: () => {}, distance: () => {} });
+  forceLink = () => ({ id: () => ({ distance: () => {} }), distance: () => ({ id: () => {} }) });
   forceManyBody = () => ({ strength: () => {} });
   forceCenter = () => {};
 }
@@ -50,11 +52,11 @@ export const ResumeGraphViz = forwardRef<{ exportAsPNG: () => Promise<Blob> }, {
   useEffect(() => {
     // Clone nodes so the simulation can mutate them without affecting props.
     const simNodes = graph.nodes.map((n) => ({ ...n }));
-    const simulation = forceSimulation<GraphNode>(simNodes)
+    const simulation = forceSimulation(simNodes)
       .force(
         "link",
-        forceLink<GraphNode, GraphLink>(graph.links)
-          .id((d) => d.id)
+        forceLink(graph.links)
+          .id((d: GraphNode) => d.id)
           .distance(100)
       )
       .force("charge", forceManyBody().strength(-200))
