@@ -57,7 +57,6 @@ export const ResumeGraphViz = forwardRef<{ exportAsPNG: () => Promise<Blob> }, {
         "link",
         forceLink(graph.links)
           .id((d: GraphNode) => d.id)
-          .id((d) => d.id)
           .distance(100)
       )
       .force("charge", forceManyBody().strength(-200))
