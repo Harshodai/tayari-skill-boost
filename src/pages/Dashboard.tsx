@@ -36,6 +36,7 @@ import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ApplicationPipeline } from "@/components/pipeline/ApplicationPipeline";
 import { ChainStrip } from "@/components/pipeline/ChainStrip";
+import { MemoryBadge } from "@/components/pipeline/MemoryBadge";
 import { GamificationBadge } from "@/components/GamificationBadge";
 import { AchievementsBadge } from "@/components/AchievementsBadge";
 import { useDashboardData } from "@/hooks/useDashboardData";
@@ -170,6 +171,7 @@ const Dashboard = () => {
           </div>
         {/* K5 — observable 7-stage chain strip (server-aggregated, polls every 30s) */}
         <ChainStrip />
+        <MemoryBadge />
         {/* Quick Stats Banner */}
         <StatsGrid columns={4} className="mb-6 animate-fade-in-up">
           <StatsCard

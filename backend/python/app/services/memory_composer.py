@@ -187,6 +187,25 @@ async def compose_context(
         return ""
 
     composed = "\n".join(tiers)
-    if len(composed) > char_budget:
-        composed = composed[:char_budget].rsplit(" ", 1)[0] + "…"
-    return composed
+    return _truncate_to_budget(composed, char_budget)
+
+
+def _truncate_to_budget(text: str, budget: int) -> str:
+    """Truncate to ``budget`` chars on a word boundary, appending an ellipsis.
+
+    ponytail: pure helper so the budget logic has a runnable self-check —
+    compose_context itself is async+DB-bound and can't be exercised headless.
+    """
+    if len(text) <= budget:
+        return text
+    return text[:budget].rsplit(" ", 1)[0] + "…"
+
+
+if __name__ == "__main__":  # ponytail: self-check, no DB needed
+    import asyncio
+
+    assert _truncate_to_budget("short", 100) == "short"
+    assert _truncate_to_budget("a b c d e", 5).endswith("…")
+    assert _truncate_to_budget("a b c d e", 5).count(" ") <= 1  # word-boundary cut
+    assert asyncio.run(compose_context(None)) == ""  # no user_id → empty, no DB
+    print("memory_composer self-check OK")
