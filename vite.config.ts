@@ -36,16 +36,13 @@ export default defineConfig(({ mode }) => {
       __SUPABASE_FINGERPRINT__: JSON.stringify(supabaseFingerprint),
     },
     build: {
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes('node_modules')) {
-              return id.toString().split('node_modules/')[1].split('/')[0];
-            }
-          },
-        },
-      },
-      chunkSizeWarningLimit: 600,
+      // Note: do NOT use a naive per-package manualChunks splitter here.
+      // Splitting every node_modules folder into its own chunk breaks scoped
+      // packages whose subpackages share module-level state (e.g. @sentry/*,
+      // @sentry-internal/*, @radix-ui/*) and produces TDZ errors like
+      // "Cannot access 'Gt' before initialization" at runtime. Let Rollup
+      // handle chunking automatically.
+      chunkSizeWarningLimit: 1200,
       cssCodeSplit: true,
     },
   };
