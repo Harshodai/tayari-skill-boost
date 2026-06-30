@@ -599,11 +599,36 @@ export async function generateCommunication(payload: {
   type: string;
   timing_note: string;
   talking_points?: string[];
+  comm_id?: number;
 }> {
   return apiFetch("/v1/communication/generate", {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+// Audit #6 — response-rate tracking. Mark a persisted comm as responded /
+// no_response, and fetch per-type aggregates for the response-rate card.
+export async function updateCommunicationResponse(
+  commId: number,
+  responseStatus: "responded" | "no_response" | "sent",
+): Promise<{ ok: boolean; response_status: string }> {
+  return apiFetch(`/v1/communications/${commId}/response`, {
+    method: "PATCH",
+    body: JSON.stringify({ response_status: responseStatus }),
+  });
+}
+
+export interface CommTypeStat {
+  comm_type: string;
+  total: number;
+  responded: number;
+  no_response: number;
+  response_rate: number;
+}
+
+export async function getCommunicationStats(): Promise<{ stats: CommTypeStat[] }> {
+  return apiFetch("/v1/communication/stats");
 }
 
 // =============================================================================

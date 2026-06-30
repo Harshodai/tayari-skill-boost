@@ -1263,7 +1263,116 @@ func (s *Server) handleCommunicationGenerate(w http.ResponseWriter, r *http.Requ
 		s.respondError(w, http.StatusBadGateway, "Communication generation failed")
 		return
 	}
+
+	// Audit #6: persist the generated message so we can track per-touchpoint
+	// response rate. Best-effort — a DB miss doesn't break generation.
+	body, _ := result["body"].(string)
+	subject, _ := result["subject"].(string)
+	var commID int64
+	if body != "" && s.DB != nil && s.DB.Conn != nil {
+		if err := s.DB.Conn.QueryRowContext(r.Context(), `
+			INSERT INTO communications (user_id, application_id, comm_type, job_title, company_name, subject, body)
+			VALUES ($1, NULLIF($2, ''), $3, $4, $5, $6, $7)
+			RETURNING id
+		`, user.ID, applicationID, commType, jobTitle, companyName, subject, body).Scan(&commID); err != nil {
+			log.Printf("handleCommunicationGenerate: persist comm failed: %v", err)
+		} else {
+			result["comm_id"] = commID
+		}
+	}
+
 	s.respondJSON(w, http.StatusOK, result)
+}
+
+// handleCommunicationResponse marks a persisted communication as responded
+// (or no_response). Audit #6 — the response-rate denominator's numerator.
+func (s *Server) handleCommunicationResponse(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "User not found in context")
+		return
+	}
+	commID := chi.URLParam(r, "commId")
+	if commID == "" {
+		s.respondError(w, http.StatusBadRequest, "commId is required")
+		return
+	}
+	var req struct {
+		ResponseStatus string `json:"response_status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid JSON body")
+		return
+	}
+	// ponytail: whitelist status — never trust arbitrary client strings into a
+	// status column. no_response clears responded_at; responded stamps it.
+	switch req.ResponseStatus {
+	case "responded", "no_response", "sent":
+	default:
+		s.respondError(w, http.StatusBadRequest, "invalid response_status")
+		return
+	}
+	var respondedAt interface{}
+	if req.ResponseStatus == "responded" {
+		respondedAt = time.Now()
+	}
+	_, err := s.DB.Conn.ExecContext(r.Context(), `
+		UPDATE communications SET response_status = $1, responded_at = $2
+		WHERE id = $3 AND user_id = $4
+	`, req.ResponseStatus, respondedAt, commID, user.ID)
+	if err != nil {
+		log.Printf("handleCommunicationResponse: update failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to update communication")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "response_status": req.ResponseStatus})
+}
+
+// handleCommunicationStats returns per-type response-rate aggregates for the
+// signed-in user. Drives the CommunicationHub response-rate card (audit #6).
+func (s *Server) handleCommunicationStats(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "User not found in context")
+		return
+	}
+	rows, err := s.DB.Conn.QueryContext(r.Context(), `
+		SELECT comm_type,
+		       COUNT(*) AS total,
+		       COUNT(*) FILTER (WHERE response_status = 'responded') AS responded,
+		       COUNT(*) FILTER (WHERE response_status = 'no_response') AS no_response
+		FROM communications
+		WHERE user_id = $1
+		GROUP BY comm_type
+	`, user.ID)
+	if err != nil {
+		log.Printf("handleCommunicationStats: query failed: %v", err)
+		s.respondJSON(w, http.StatusOK, map[string]interface{}{"stats": []interface{}{}})
+		return
+	}
+	defer rows.Close()
+	type typeStat struct {
+		CommType    string `json:"comm_type"`
+		Total       int    `json:"total"`
+		Responded   int    `json:"responded"`
+		NoResponse  int    `json:"no_response"`
+		ResponseRate int   `json:"response_rate"`
+	}
+	var stats []typeStat
+	for rows.Next() {
+		var ts typeStat
+		if err := rows.Scan(&ts.CommType, &ts.Total, &ts.Responded, &ts.NoResponse); err != nil {
+			continue
+		}
+		if ts.Total > 0 {
+			ts.ResponseRate = int(float64(ts.Responded) / float64(ts.Total) * 100)
+		}
+		stats = append(stats, ts)
+	}
+	if stats == nil {
+		stats = []typeStat{}
+	}
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{"stats": stats})
 }
 
 func (s *Server) handleCommunicationSuggestions(w http.ResponseWriter, r *http.Request) {

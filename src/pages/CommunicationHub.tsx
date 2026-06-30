@@ -5,8 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { listApplications, listSavedJobs } from "@/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  listApplications,
+  listSavedJobs,
+  updateCommunicationResponse,
+  getCommunicationStats,
+  type CommTypeStat,
+} from "@/api";
 import {
   Mail,
   Copy,
@@ -20,6 +26,7 @@ import {
   Briefcase,
   Building2,
   AlertCircle,
+  TrendingUp,
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -104,6 +111,23 @@ const CommunicationHub = () => {
       toast.success("Communication generated!");
     },
     onError: (err: any) => toast.error(err.message || "Generation failed"),
+  });
+
+  // Audit #6 — per-touchpoint response rate. Stats power the Response Rate
+  // tab; the mark mutation flips a comm's status and refreshes the aggregate.
+  const qc = useQueryClient();
+  const { data: statsData } = useQuery({
+    queryKey: ["communication-stats"],
+    queryFn: () => getCommunicationStats(),
+  });
+  const responseMutation = useMutation({
+    mutationFn: ({ commId, status }: { commId: number; status: "responded" | "no_response" }) =>
+      updateCommunicationResponse(commId, status),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["communication-stats"] });
+      toast.success(vars.status === "responded" ? "Marked as responded" : "Marked no response");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to update"),
   });
 
   const suggestions = suggestionsData?.suggestions || [];
@@ -198,6 +222,7 @@ const CommunicationHub = () => {
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="suggestions">Smart Suggestions</TabsTrigger>
             <TabsTrigger value="generator">Communication Generator</TabsTrigger>
+            <TabsTrigger value="rates">Response Rate</TabsTrigger>
           </TabsList>
 
           <TabsContent value="suggestions" className="mt-6">
@@ -361,6 +386,33 @@ const CommunicationHub = () => {
                           <span>•</span>
                           <span>{generated.timing_note}</span>
                         </div>
+                        {generated.comm_id && (
+                          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
+                            <span className="text-xs text-muted-foreground mr-1">Got a reply?</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs gap-1 text-success border-success/30"
+                              disabled={responseMutation.isPending}
+                              onClick={() =>
+                                responseMutation.mutate({ commId: generated.comm_id, status: "responded" })
+                              }
+                            >
+                              <Check className="w-3.5 h-3.5" /> Responded
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs gap-1 text-muted-foreground"
+                              disabled={responseMutation.isPending}
+                              onClick={() =>
+                                responseMutation.mutate({ commId: generated.comm_id, status: "no_response" })
+                              }
+                            >
+                              No response
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="text-center text-muted-foreground py-12">
@@ -371,6 +423,54 @@ const CommunicationHub = () => {
                   </CardContent>
                 </Card>
               </div>
+            </div>
+          </TabsContent>
+
+          {/* Audit #6 — per-touchpoint response-rate dashboard */}
+          <TabsContent value="rates">
+            <div className="max-w-3xl mx-auto space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold text-foreground">Response rate by touchpoint</h3>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                Mark generated messages as responded once you hear back. The rates reveal which touchpoints actually convert — the data nobody else tracks.
+              </p>
+              {(!statsData?.stats || statsData.stats.length === 0) ? (
+                <Card className="border-dashed">
+                  <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                    <Mail className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    No tracked messages yet. Generate a message and mark it when you get a reply.
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {statsData.stats.map((s: CommTypeStat) => (
+                    <Card key={s.comm_type} className="border-border/40">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold">{typeLabels[s.comm_type] || s.comm_type}</span>
+                          <Badge variant="secondary">{s.total} sent</Badge>
+                        </div>
+                        <div className="flex items-end gap-2">
+                          <span className="text-2xl font-bold text-primary">{s.response_rate}%</span>
+                          <span className="text-xs text-muted-foreground mb-1">responded</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-primary to-accent"
+                            style={{ width: `${s.response_rate}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span className="text-success">{s.responded} responded</span>
+                          <span>{s.no_response} no response</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>

@@ -240,6 +240,12 @@ func (s *Server) routes() {
 		r.Post("/api/v1/communication/generate", s.handleCommunicationGenerate)
 		r.Get("/api/communication/suggestions", s.handleCommunicationSuggestions)
 		r.Get("/api/v1/communication/suggestions", s.handleCommunicationSuggestions)
+		// Audit #6 — response-rate tracking (persist on generate above; mark +
+		// aggregate here). Parity: both /api and /api/v1 aliases.
+		r.Patch("/api/communications/{commId}/response", s.handleCommunicationResponse)
+		r.Patch("/api/v1/communications/{commId}/response", s.handleCommunicationResponse)
+		r.Get("/api/communication/stats", s.handleCommunicationStats)
+		r.Get("/api/v1/communication/stats", s.handleCommunicationStats)
 
 		// Interview AI
 		r.Post("/api/interview/prep", s.handleInterviewPrep)
