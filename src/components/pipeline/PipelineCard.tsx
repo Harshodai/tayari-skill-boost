@@ -1,13 +1,25 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ExternalLink, GripVertical, MapPin } from "lucide-react";
+import { ExternalLink, GripVertical, MapPin, MessageSquare } from "lucide-react";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import type { PipelineJob } from "./types";
+import type { PipelineJob, PipelineStage } from "./types";
 
 interface Props {
   job: PipelineJob;
   isOverlay?: boolean;
 }
+
+// ponytail: stage → suggested comms template. Dragging a card to a stage is
+// the trigger (audit action #6); the deep-link pre-selects the matching
+// template in CommunicationHub. saved = nothing to message yet → null.
+const STAGE_COMM_TYPE: Record<PipelineStage, string | null> = {
+  saved: null,
+  applied: "follow-up",
+  interview: "thank-you",
+  offer: "negotiation",
+  rejected: "status-check",
+};
 
 export function PipelineCard({ job, isOverlay }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -19,6 +31,8 @@ export function PipelineCard({ job, isOverlay }: Props) {
     transform: CSS.Translate.toString(transform),
     transition,
   };
+
+  const commType = STAGE_COMM_TYPE[job.stage];
 
   return (
     <div
@@ -44,19 +58,33 @@ export function PipelineCard({ job, isOverlay }: Props) {
             </p>
           )}
         </div>
-        {job.url && (
-          <a
-            href={job.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-            aria-label="Open job posting"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {commType && (
+            <Link
+              to={`/communication?type=${commType}`}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+              aria-label={`Draft ${commType.replace("-", " ")} message`}
+              title={`Draft ${commType.replace("-", " ")} message`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+            </Link>
+          )}
+          {job.url && (
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+              aria-label="Open job posting"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );

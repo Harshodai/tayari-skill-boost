@@ -50,6 +50,10 @@ async function generateCommunication(payload: any) {
   return res.json();
 }
 
+// ponytail: shared constant — the four post-apply message templates. Used by
+// the ?type= query-param validation and the template button row (DRY).
+const COMM_TYPES = ["follow-up", "thank-you", "negotiation", "status-check"] as const;
+
 const CommunicationHub = () => {
   const [activeTab, setActiveTab] = useState("suggestions");
   const [selectedApp, setSelectedApp] = useState<any>(null);
@@ -75,7 +79,8 @@ const CommunicationHub = () => {
     queryFn: () => listSavedJobs(),
   });
 
-  // Pre-fill application from URL query param (e.g., from InterviewBoard)
+  // Pre-fill application + message type from URL query params (e.g., from
+  // the Pipeline Kanban — dragging to a stage deep-links with ?type=<mapped>).
   useEffect(() => {
     const qAppId = searchParams.get("app");
     if (qAppId && applications.length > 0) {
@@ -84,6 +89,11 @@ const CommunicationHub = () => {
         setSelectedApp(app);
         setActiveTab("generator");
       }
+    }
+    const qType = searchParams.get("type");
+    if (qType && (COMM_TYPES as readonly string[]).includes(qType)) {
+      setCommType(qType);
+      setActiveTab("generator");
     }
   }, [searchParams, applications]);
 
@@ -298,7 +308,7 @@ const CommunicationHub = () => {
                       <CardTitle>Communication Type</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      {["follow-up", "thank-you", "negotiation", "status-check"].map((type) => (
+                      {COMM_TYPES.map((type) => (
                         <Button
                           key={type}
                           variant={commType === type ? "default" : "outline"}
