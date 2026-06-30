@@ -64,31 +64,35 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchBranding = async () => {
+    // Only attempt branding fetch when the self-hosted Go backend is wired up.
+    // On Lovable preview/prod we don't ship a tenant API, so skip silently
+    // instead of polluting the console with HTML-parse errors.
+    if (!import.meta.env.VITE_API_URL) {
+      setIsLoading(false);
+      return;
+    }
     try {
-      // In self-hosted mode, we fetch from the Go backend.
-      // We pass the current Host as the tenant domain.
       const res = await fetch(`${API_URL}/v1/tenants/branding`, {
-        headers: {
-          "X-Tenant-Domain": window.location.host,
-        },
+        headers: { "X-Tenant-Domain": window.location.host },
       });
-      if (res.ok) {
-        const data = await res.json();
-        setTenant(data);
-
-        // Dynamically update CSS variables on document root
-        const root = document.documentElement;
-        if (data.primary_color) {
-          const hslPrimary = hexToHsl(data.primary_color);
-          root.style.setProperty("--primary", hslPrimary);
-          root.style.setProperty("--ring", hslPrimary);
-        }
-        if (data.secondary_color) {
-          root.style.setProperty("--secondary", hexToHsl(data.secondary_color));
-        }
+      const ct = res.headers.get("content-type") || "";
+      if (!res.ok || !ct.includes("application/json")) {
+        setIsLoading(false);
+        return;
       }
-    } catch (err) {
-      console.error("Failed to load tenant branding:", err);
+      const data = await res.json();
+      setTenant(data);
+      const root = document.documentElement;
+      if (data.primary_color) {
+        const hslPrimary = hexToHsl(data.primary_color);
+        root.style.setProperty("--primary", hslPrimary);
+        root.style.setProperty("--ring", hslPrimary);
+      }
+      if (data.secondary_color) {
+        root.style.setProperty("--secondary", hexToHsl(data.secondary_color));
+      }
+    } catch {
+      // Network/backend not available — leave defaults in place.
     } finally {
       setIsLoading(false);
     }
