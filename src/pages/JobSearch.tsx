@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout";
 import { Link, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
@@ -28,6 +28,8 @@ import {
   Bell,
   Star,
   Globe,
+  Target,
+  ArrowUpRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -91,6 +93,9 @@ const JobSearch = () => {
   const [minScore, setMinScore] = useState(0);
   const [results, setResults] = useState<Job[]>([]);
   const [selectedIdx, setSelectedIdx] = useState<number>(0);
+  // K3 hero callout: top missing skills for the selected job, surfaced above
+  // the 3-pane grid so users see the conversion lever without opening detail.
+  const [heroGap, setHeroGap] = useState<{ gaps: { skill: string }[]; overlap_score: number } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isAgentSearching, setIsAgentSearching] = useState(false);
   const [visibleAgentEvents, setVisibleAgentEvents] = useState<any[]>([]);
@@ -232,6 +237,12 @@ const JobSearch = () => {
 
   const selected = filtered[selectedIdx] || filtered[0];
 
+  // Clear the hero callout when the selected job changes — the SkillGapWidget
+  // remounts (key=dedupe_key) and re-emits via onResult once its fetch lands.
+  useEffect(() => {
+    setHeroGap(null);
+  }, [selected?.dedupe_key, selected?.title]);
+
   const handleSave = (job: Job) => {
     const dedupeKey = job.dedupe_key || `${job.company}-${job.title}-${job.location}`;
     saveMutation.mutate({ dedupe_key: dedupeKey, job, status: "saved" } as any);
@@ -347,6 +358,35 @@ const JobSearch = () => {
           <Button size="sm" variant="outline" onClick={handleSearch}>
             <RotateCcw className="w-3 h-3 mr-1" /> Retry
           </Button>
+        </Card>
+      )}
+
+      {/* K3 hero callout — top missing skills for the selected job, surfaced
+          above the 3-pane grid so the conversion lever is visible without
+          opening the detail pane (audit action #7). */}
+      {selected && heroGap && heroGap.gaps.length > 0 && (
+        <Card className="mb-4 border-primary/30 bg-primary/5 p-3 md:p-4 animate-fade-in-up">
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <div className="flex items-center gap-2 shrink-0">
+              <Target className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">
+                Skills you're missing for {selected.title}
+              </span>
+            </div>
+            <div className="flex flex-1 flex-wrap gap-1.5">
+              {heroGap.gaps.slice(0, 3).map((g) => (
+                <Badge key={g.skill} variant="secondary" className="bg-background/70 text-foreground border-border/60 font-mono text-xs">
+                  {g.skill}
+                </Badge>
+              ))}
+            </div>
+            <Button asChild size="sm" variant="outline" className="shrink-0 text-xs gap-1">
+              <Link to="/roadmap">
+                Close these gaps
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
+            </Button>
+          </div>
         </Card>
       )}
 
@@ -672,6 +712,7 @@ const JobSearch = () => {
                     <SkillGapWidget
                       key={selected.dedupe_key || selected.title}
                       jobDescription={selected.description || selected.snippet || ""}
+                      onResult={(r) => setHeroGap({ gaps: r.gaps, overlap_score: r.overlap_score })}
                     />
                   )}
 

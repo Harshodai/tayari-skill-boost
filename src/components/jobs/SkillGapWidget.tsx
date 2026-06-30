@@ -32,9 +32,12 @@ interface SkillGapWidgetProps {
   jobDescription: string;
   /** Optional preloaded resume text; if absent the widget fetches the latest. */
   resumeText?: string;
+  /** Emits the fetched result so a parent can surface a compact headline
+   * callout (e.g. on the JobSearch hero) without a second fetch. */
+  onResult?: (r: SkillGapResult) => void;
 }
 
-export function SkillGapWidget({ jobDescription, resumeText }: SkillGapWidgetProps) {
+export function SkillGapWidget({ jobDescription, resumeText, onResult }: SkillGapWidgetProps) {
   const [result, setResult] = useState<SkillGapResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +53,10 @@ export function SkillGapWidget({ jobDescription, resumeText }: SkillGapWidgetPro
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ job_description: jobDescription, resume_text: resume }),
         });
-        if (!cancelled) setResult(data);
+        if (!cancelled) {
+          setResult(data);
+          onResult?.(data);
+        }
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : "Skill-gap analysis failed";
