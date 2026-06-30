@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -227,11 +227,13 @@ async def hermes_jobs_board(board: str, limit: int = Query(40, ge=1, le=500)):
 @hermes_router.get("/runs", response_model=None)
 async def hermes_runs_list(
     run_type: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
+    status: Optional[List[str]] = Query(None),
     limit: int = Query(50, ge=1, le=500),
 ):
     """List ``agent_runs`` rows, optionally filtered by run_type/status.
 
+    ``status`` accepts repeated values (``?status=running&status=queued``) so
+    the Go ``/runs/active`` proxy can fetch both live states in one call.
     Returns ``{"runs": []}`` when the DB is unavailable.
     """
     runs = await _list_agent_runs(run_type, status, limit)
@@ -241,7 +243,7 @@ async def hermes_runs_list(
 
 
 async def _list_agent_runs(
-    run_type: Optional[str], status: Optional[str], limit: int
+    run_type: Optional[str], status: Optional[List[str]], limit: int
 ) -> list[dict[str, Any]] | None:
     """Load agent_runs rows with optional filters. None when DB is off."""
     pool = await db_service.get_pool()
@@ -255,8 +257,10 @@ async def _list_agent_runs(
         args.append(run_type)
         idx += 1
     if status:
-        clauses.append(f"status = ${idx}")
-        args.append(status)
+        # ponytail: ANY($n) covers both single and repeated status values in
+        # one query — root fix so /runs/active gets running AND queued runs.
+        clauses.append(f"status = ANY(${idx})")
+        args.append(list(status))
         idx += 1
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     query = (
