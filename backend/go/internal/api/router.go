@@ -317,6 +317,10 @@ func (s *Server) routes() {
 		s.routesHermes(r)
 		s.routesAgents(r)
 		s.routesCareerOps(r)
+		// K3/K5 + memory layer (skill-gaps, chain strip, conversations, preferences)
+		s.RegisterSkillGapRoutes(r)
+		s.RegisterChainRoutes(r)
+		s.RegisterMemoryRoutes(r)
 
 		// Career Intelligence Engine
 		s.routesCareerIntelligence(r)

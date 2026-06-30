@@ -37,6 +37,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { profileSchema, changePasswordSchema } from "@/lib/schemas";
 import { z } from "zod";
+import { PreferenceProfileCard } from "@/components/PreferenceProfileCard";
 
 const Settings = () => {
   const { user, session, signOut } = useAuth();
@@ -670,6 +671,9 @@ const Settings = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* M4 — learned career preference profile */}
+            <PreferenceProfileCard />
           </TabsContent>
 
           {/* Integrations Tab */}

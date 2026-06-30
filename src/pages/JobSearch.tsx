@@ -34,6 +34,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes } from "@/api";
 import { useAutomation } from "@/contexts/AutomationContext";
 import { SkillGapWidget } from "@/components/jobs/SkillGapWidget";
+import { JobFeedbackButtons } from "@/components/jobs/JobFeedbackButtons";
 import { SavedSearches } from "@/components/jobs/SavedSearches";
 import { cn } from "@/lib/utils";
 
@@ -671,6 +672,16 @@ const JobSearch = () => {
                     <SkillGapWidget
                       key={selected.dedupe_key || selected.title}
                       jobDescription={selected.description || selected.snippet || ""}
+                    />
+                  )}
+
+                  {/* M4 — preference feedback signals (like / applied / skip) */}
+                  {selected.dedupe_key && (
+                    <JobFeedbackButtons
+                      jobId={selected.dedupe_key}
+                      jobTitle={selected.title}
+                      companyName={selected.company}
+                      metadata={{ location: selected.location, source: selected.source }}
                     />
                   )}
 

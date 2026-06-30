@@ -377,6 +377,145 @@ export async function trendingSkills(): Promise<Array<{skill: string; popularity
 }
 
 // =============================================================================
+// Memory layer — conversations, preferences, feedback signals
+// =============================================================================
+
+export interface ConversationMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+  timestamp?: string;
+}
+
+export interface Conversation {
+  id: string;
+  user_id: string;
+  title?: string;
+  messages: ConversationMessage[];
+  summary?: string;
+  context_type: string;
+  related_job_id?: string;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type FeedbackType = "liked" | "disliked" | "applied" | "skipped" | "saved";
+
+export interface FeedbackEvent {
+  job_id: string;
+  job_title?: string;
+  company_name?: string;
+  feedback_type: FeedbackType;
+  feedback_source?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PreferenceProfile {
+  user_id: string;
+  preferred_titles: string[];
+  preferred_companies: string[];
+  counts: { liked: number; applied: number; skipped: number };
+  skill_weights: Record<string, number>;
+}
+
+export async function listConversations(): Promise<Conversation[]> {
+  return apiFetch<Conversation[]>("/v1/conversations");
+}
+
+export async function createConversation(payload: {
+  title?: string;
+  context_type?: string;
+  related_job_id?: string;
+  messages?: ConversationMessage[];
+}): Promise<Conversation> {
+  return apiFetch<Conversation>("/v1/conversations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getConversation(id: string): Promise<Conversation> {
+  return apiFetch<Conversation>(`/v1/conversations/${id}`);
+}
+
+export async function appendConversationMessage(
+  id: string,
+  message: ConversationMessage
+): Promise<Conversation> {
+  return apiFetch<Conversation>(`/v1/conversations/${id}/messages`, {
+    method: "POST",
+    body: JSON.stringify(message),
+  });
+}
+
+export async function updateConversation(
+  id: string,
+  payload: { title?: string; context_type?: string; is_archived?: boolean }
+): Promise<Conversation> {
+  return apiFetch<Conversation>(`/v1/conversations/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteConversation(id: string): Promise<{ success: boolean }> {
+  return apiFetch<{ success: boolean }>(`/v1/conversations/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getPreferences(): Promise<PreferenceProfile> {
+  return apiFetch<PreferenceProfile>("/v1/preferences");
+}
+
+export async function refreshPreferences(): Promise<PreferenceProfile> {
+  return apiFetch<PreferenceProfile>("/v1/preferences/refresh", { method: "POST" });
+}
+
+export async function postJobFeedback(payload: {
+  job_id: string;
+  feedback_type: FeedbackType;
+  job_title?: string;
+  company_name?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<{ success: boolean }> {
+  return apiFetch<{ success: boolean }>("/v1/preferences/feedback", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listJobFeedback(feedback_type?: FeedbackType): Promise<{ events: FeedbackEvent[] }> {
+  const query = feedback_type ? `?feedback_type=${encodeURIComponent(feedback_type)}` : "";
+  return apiFetch<{ events: FeedbackEvent[] }>(`/v1/preferences/feedback${query}`);
+}
+
+// =============================================================================
+// K5 — Observable Chain (7-stage pipeline strip)
+// =============================================================================
+
+export interface ChainStage {
+  key: string;
+  label: string;
+  href: string;
+  count: number;
+}
+
+export interface ChainResponse {
+  stages: ChainStage[];
+  current_stage: string;
+  next_action: string;
+  stage_count: number;
+}
+
+// ponytail: {userId} path param is shape-only server-side (auth context is source of truth, prevents IDOR),
+// but we still send it so the route matches. Fault-tolerant: a missing stage degrades to count 0, never 5xx.
+export async function getChain(userId: string): Promise<ChainResponse> {
+  return apiFetch<ChainResponse>(`/v1/chain/${encodeURIComponent(userId)}`);
+}
+
+// =============================================================================
 // Multipart Resume Upload (archive compatible)
 // =============================================================================
 

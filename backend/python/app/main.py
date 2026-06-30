@@ -589,6 +589,9 @@ from app.api.knowledge_hub import router as knowledge_hub_router  # noqa: E402
 from app.api.gmail_routes import router as gmail_ai_router  # noqa: E402
 from app.api.agents_routes import router as agents_router  # noqa: E402
 from app.api.career_ops_routes import router as career_ops_router  # noqa: E402
+from app.api.skill_routes import skill_router  # noqa: E402
+from app.api.conversation_routes import conversation_router  # noqa: E402
+from app.api.preference_routes import preference_router  # noqa: E402
 
 app.include_router(hermes_router)
 app.include_router(career_intel_router)
@@ -598,6 +601,9 @@ app.include_router(predictive_router)
 app.include_router(knowledge_hub_router)
 app.include_router(gmail_ai_router)
 app.include_router(agents_router)
+app.include_router(skill_router)
+app.include_router(conversation_router)
+app.include_router(preference_router)
 app.include_router(career_ops_router)
 
 

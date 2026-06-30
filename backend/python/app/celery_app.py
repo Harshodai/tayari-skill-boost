@@ -24,7 +24,7 @@ celery_app = Celery(
     "tayari",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["app.tasks.scraping", "app.tasks.automation"],
+    include=["app.tasks.scraping", "app.tasks.automation", "app.tasks.learning"],
 )
 
 celery_app.conf.update(
@@ -47,6 +47,15 @@ celery_app.conf.update(
     task_soft_time_limit=720,
     # Results
     result_expires=86400,
+    # ponytail: daily preference-learning fan-out at 03:30 UTC (off-peak).
+    # beat_schedule is inert without `celery -A app.celery_app beat` running,
+    # which the worker stack doesn't start by default — explicit opt-in.
+    beat_schedule={
+        "preference-learning-daily": {
+            "task": "learning.run_preference_learning_all",
+            "schedule": 60 * 60 * 24,  # 24h
+        },
+    },
 )
 
 __all__ = ["celery_app", "REDIS_URL"]

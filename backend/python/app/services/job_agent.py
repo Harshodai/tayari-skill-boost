@@ -266,29 +266,15 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
         })
 
     # 1. RETRIEVE MEMORY (if user_id provided)
+    # ponytail: composed via memory_composer.compose_context — single prioritized,
+    # token-budgeted string across working/procedural/episodic/semantic tiers,
+    # replacing the two scattered helpers. Degrades to "" when DB/user absent.
     memory_context = ""
     preferences = None
     if user_id:
-        preferences = await _load_user_preferences(user_id)
-        if preferences:
-            pref_titles = preferences.get('preferred_titles') or []
-            pref_companies = preferences.get('preferred_companies') or []
-            if isinstance(pref_titles, str):
-                pref_titles = [pref_titles]
-            if isinstance(pref_companies, str):
-                pref_companies = [pref_companies]
-            
-            memory_context = f"User preferences from past interactions:\n"
-            if pref_titles:
-                memory_context += f"- Preferred roles: {', '.join(pref_titles)}\n"
-            if pref_companies:
-                memory_context += f"- Preferred companies: {', '.join(pref_companies)}\n"
-            memory_context += f"- Past applications: {preferences.get('applied_count', 0)}\n"
-        
-        if conversation_id:
-            recent_context = await _load_conversation_context(conversation_id)
-            if recent_context:
-                memory_context += f"\nRecent context: {recent_context[:500]}"
+        from app.services.memory_composer import compose_context
+        memory_context = await compose_context(user_id, query=(query or ""), conversation_id=conversation_id)
+        preferences = await _load_user_preferences(user_id)  # kept for ranking-side use
 
     effective_query = (query or "").strip()
     if not effective_query:

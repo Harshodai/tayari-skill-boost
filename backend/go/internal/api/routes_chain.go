@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+
+	"tayari-backend/internal/models"
 )
 
 // -------------------------------------------------------------------

@@ -12,6 +12,7 @@ import { ScrollToTop } from "@/components/ui/ScrollToTop";
 import { ScrollToTopHandler } from "@/components/layout/ScrollToTopHandler";
 import { AutomationProvider } from "@/contexts/AutomationContext";
 import { ActivityDrawer } from "@/components/automation/ActivityDrawer";
+import { useMigrateAutomationRuns } from "@/hooks/useMigrateAutomationRuns";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { LoadingFallback } from "@/components/LoadingFallback";
 
@@ -64,10 +65,18 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 
 const queryClient = new QueryClient();
 
+// ponytail: one-time localStorage→server migration flag guard (M4 §6).
+// Null-rendering component so the hook runs inside the provider tree.
+const MigrationRunner = () => {
+  useMigrateAutomationRuns();
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <AutomationProvider>
+      <MigrationRunner />
       <TooltipProvider>
         <Toaster />
         <Sonner />
