@@ -1152,6 +1152,7 @@ func (s *Server) handleCoverLetterGenerate(w http.ResponseWriter, r *http.Reques
 	jobTitle, _ := req["job_title"].(string)
 	jobDescription, _ := req["job_description"].(string)
 	resumeText, _ := req["resume_text"].(string)
+	personalNotes, _ := req["personal_notes"].(string)
 
 	if resumeText == "" && resumeID > 0 {
 		var rt string
@@ -1179,6 +1180,7 @@ func (s *Server) handleCoverLetterGenerate(w http.ResponseWriter, r *http.Reques
 		"company":        companyName,
 		"job_description": jobDescription,
 		"tone":           tone,
+		"personal_notes": personalNotes,
 	})
 	if err != nil {
 		log.Printf("handleCoverLetterGenerate: AI call failed: %v", err)

@@ -435,6 +435,7 @@ class CoverLetterRequest(BaseModel):
     company: str
     job_description: str
     tone: Optional[str] = "formal"
+    personal_notes: Optional[str] = ""
 
 
 @app.post("/api/v1/cover-letter/generate")
@@ -447,6 +448,7 @@ async def cover_letter_generate(payload: CoverLetterRequest):
             payload.company,
             payload.job_title,
             tone=payload.tone or "formal",
+            personal_notes=payload.personal_notes or "",
         )
         return result
     except Exception as exc:

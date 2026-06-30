@@ -10,8 +10,14 @@ class CoverLetterGenerator:
     TONES = {"formal": "formal and professional", "conversational": "conversational and approachable", "confident": "confident and assertive"}
 
     @staticmethod
-    async def generate(resume_text: str, job_description: str, company_name: str, job_title: str, tone: str = "formal") -> Dict[str, Any]:
+    async def generate(resume_text: str, job_description: str, company_name: str, job_title: str, tone: str = "formal", personal_notes: str = "") -> Dict[str, Any]:
         tone_desc = CoverLetterGenerator.TONES.get(tone, CoverLetterGenerator.TONES["formal"])
+
+        # ponytail: personal_notes = what the user knows about the company/role
+        # that the AI can't infer (a referral, a recent product launch, a shared
+        # value, a conversation at a meetup). Injecting it is the difference
+        # between a generic AI letter and one a hiring manager can't detect.
+        notes_block = f"\nCandidate's personal notes (use 1-2 of these, in the user's voice — do NOT invent beyond them):\n{personal_notes[:500]}\n" if personal_notes.strip() else ""
 
         prompt = f"""You are an expert career coach writing a cover letter.
 
@@ -23,7 +29,7 @@ Job Description:
 {job_description[:2000]}
 
 Candidate Resume:
-{resume_text[:3000]}
+{resume_text[:3000]}{notes_block}
 
 Instructions:
 - Write a 3-paragraph cover letter under 300 words.

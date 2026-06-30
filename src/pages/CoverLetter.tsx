@@ -53,6 +53,7 @@ const CoverLetter = () => {
   const [jobTitle, setJobTitle] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [generated, setGenerated] = useState("");
+  const [personalNotes, setPersonalNotes] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -117,6 +118,7 @@ const CoverLetter = () => {
         company: companyName,
         job_description: jobDescription,
         tone,
+        personal_notes: personalNotes,
       });
       setGenerated(result.cover_letter || "");
       toast.success("Cover letter generated!");
@@ -229,6 +231,21 @@ const CoverLetter = () => {
                     placeholder="Paste the job description here..."
                     rows={6}
                   />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Personal notes <span className="text-muted-foreground font-normal">(optional — the AI can't know these)</span>
+                  </label>
+                  <Textarea
+                    value={personalNotes}
+                    onChange={(e) => setPersonalNotes(e.target.value)}
+                    placeholder="What do you know about this company or role that the AI can't infer? e.g. 'Met the hiring manager Sarah at ReactConf', 'They just launched their EU expansion', 'I was referred by Jane Doe', 'Their engineering blog values ownership over process'..."
+                    rows={4}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    One or two of these in your own voice make the letter read human, not AI-generated.
+                  </p>
                 </div>
 
                 <div>

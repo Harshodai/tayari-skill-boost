@@ -549,6 +549,7 @@ export async function generateCoverLetter(payload: {
   company: string;
   job_description: string;
   tone?: string;
+  personal_notes?: string;
 }): Promise<{
   cover_letter: string;
   word_count: number;
