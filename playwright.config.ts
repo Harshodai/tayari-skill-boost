@@ -8,7 +8,6 @@ export default defineConfig({
   retries: 0,
   use: {
     baseURL: 'http://localhost:8083',
-    extraHTTPHeaders: { 'Content-Type': 'application/json' },
   },
   webServer: false,
 });

@@ -57,6 +57,12 @@ const Auth = () => {
       return;
     }
 
+    const USE_SELF_HOSTED = import.meta.env.VITE_USE_SELF_HOSTED === 'true';
+    if (USE_SELF_HOSTED) {
+      setBreachResult({ breached: false });
+      return;
+    }
+
     setIsCheckingBreach(true);
     try {
       // Hash password locally so plaintext never reaches the server (k-Anonymity)
@@ -182,7 +188,18 @@ const Auth = () => {
           ? "You've successfully signed in."
           : "Welcome to Job Tayari. Let's get started!",
       });
-      // Navigation happens via useEffect when user state changes
+      if (!isLogin) {
+        // Auto-login after successful registration
+        const loginResult = await signIn(email, password);
+        if (loginResult.error) {
+          toast({
+            title: "Sign In Required",
+            description: "Please sign in with your new account.",
+          });
+          setIsLogin(true);
+          setIsLoading(false);
+        }
+      }
     }
   };
 

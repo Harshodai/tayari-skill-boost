@@ -605,8 +605,8 @@ func (s *Server) handleDeleteJD(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ResumeID string `json:"resume_id"`
-		JDID     string `json:"jd_id"`
+		ResumeID interface{} `json:"resume_id"`
+		JDID     interface{} `json:"jd_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
@@ -616,14 +616,34 @@ func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 	user, _ := r.Context().Value(contextKeyUser).(*models.User)
 	userID := user.ID.String()
 
-	// Parse IDs (DB uses INTEGER, request sends strings)
-	resumeID, err := strconv.Atoi(req.ResumeID)
-	if err != nil {
+	var resumeID int
+	switch v := req.ResumeID.(type) {
+	case float64:
+		resumeID = int(v)
+	case string:
+		var err error
+		resumeID, err = strconv.Atoi(v)
+		if err != nil {
+			s.respondError(w, http.StatusBadRequest, "Invalid resume_id")
+			return
+		}
+	default:
 		s.respondError(w, http.StatusBadRequest, "Invalid resume_id")
 		return
 	}
-	jdIDInt, err := strconv.Atoi(req.JDID)
-	if err != nil {
+
+	var jdIDInt int
+	switch v := req.JDID.(type) {
+	case float64:
+		jdIDInt = int(v)
+	case string:
+		var err error
+		jdIDInt, err = strconv.Atoi(v)
+		if err != nil {
+			s.respondError(w, http.StatusBadRequest, "Invalid jd_id")
+			return
+		}
+	default:
 		s.respondError(w, http.StatusBadRequest, "Invalid jd_id")
 		return
 	}

@@ -1007,17 +1007,24 @@ func (s *Server) handleExportResume(w http.ResponseWriter, r *http.Request) {
 // -------------------------------------------------------------------
 
 func (s *Server) handleUploadResumeMultipart(w http.ResponseWriter, r *http.Request) {
+	for name, values := range r.Header {
+		for _, value := range values {
+			log.Printf("Header: %s = %s", name, value)
+		}
+	}
 	user, ok := r.Context().Value(contextKeyUser).(*models.User)
 	if !ok || user == nil {
 		s.respondError(w, http.StatusUnauthorized, "User not found in context")
 		return
 	}
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
+		log.Printf("handleUploadResumeMultipart: ParseMultipartForm failed: %v", err)
 		s.respondError(w, http.StatusBadRequest, "Failed to parse multipart form")
 		return
 	}
 	file, header, err := r.FormFile("file")
 	if err != nil {
+		log.Printf("handleUploadResumeMultipart: FormFile failed: %v", err)
 		s.respondError(w, http.StatusBadRequest, "Missing file field")
 		return
 	}
@@ -1052,6 +1059,7 @@ func (s *Server) handleUploadResumeMultipart(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"id":         id,
 		"resume_id":  id,
 		"title":      header.Filename,
 		"status":     "uploaded",

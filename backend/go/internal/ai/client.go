@@ -7,6 +7,8 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -64,20 +66,15 @@ func (c *Client) ParseDocument(fileData []byte, fileType string) (map[string]int
 
 // AnalyzeResume sends resume + JD text for full analysis.
 func (c *Client) AnalyzeResume(resumeText, jdText string) (map[string]interface{}, error) {
-	payload := map[string]string{
-		"resume_text":     resumeText,
-		"job_description": jdText,
-	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
+	data := url.Values{}
+	data.Set("resume_text", resumeText)
+	data.Set("job_description", jdText)
 
-	req, err := http.NewRequest(http.MethodPost, c.BaseURL+"/api/v1/ats/analyze", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, c.BaseURL+"/api/v1/ats/analyze", strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err

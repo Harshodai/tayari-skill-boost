@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Request, Response, Query, JSONResponse
+from fastapi import APIRouter, HTTPException, Request, Response, Query
+from fastapi.responses import JSONResponse
 import logging
 import time
 from typing import Any, Dict, List

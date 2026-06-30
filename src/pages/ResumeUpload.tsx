@@ -33,8 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { extractTextFromFile } from "@/lib/resume-parser";
 import { toast } from "sonner";
 import { resumeUploadSchema } from "@/lib/schemas";
-import { USE_SELF_HOSTED } from "@/api";
-import { createResume, createJD, analyzeResume } from "@/api";
+import { USE_SELF_HOSTED, createResume, createJD, analyzeResume, uploadResumeMultipart } from "@/api";
 import type { ResumeAnalysisResult } from "@/types/resume";
 import { ResumeFilePreview } from "@/components/resume/ResumeFilePreview";
 
@@ -163,14 +162,20 @@ const ResumeUpload = () => {
 
     try {
       if (USE_SELF_HOSTED) {
-        // Phase 1: create resume record
+        // Phase 1: create/upload resume record
         setAnalysisStep(1);
-        const fileType = resumeFile?.name?.split(".").pop() || "txt";
-        const newResume = await createResume({
-          title: resumeFile?.name || "Untitled Resume",
-          original_text: resumeText,
-          file_type: fileType,
-        });
+        let newResume: any;
+        if (resumeFile) {
+          newResume = await uploadResumeMultipart(resumeFile);
+        } else {
+          const fileType = "txt";
+          newResume = await createResume({
+            title: "Pasted Resume",
+            original_text: resumeText,
+            file_type: fileType,
+          });
+        }
+        const resumeId = newResume.id || newResume.resume_id;
 
         // Phase 2: create job description record
         setAnalysisStep(2);
@@ -183,7 +188,7 @@ const ResumeUpload = () => {
         // Phase 3: call analysis endpoint
         setAnalysisStep(3);
         const result = await analyzeResume({
-          resume_id: newResume.id,
+          resume_id: resumeId,
           jd_id: newJD.id,
         });
 
@@ -195,11 +200,11 @@ const ResumeUpload = () => {
 
         navigate("/resume/results", {
           state: {
-            resumeId: newResume.id,
+            resumeId: resumeId,
             analysisResults: normalized,
             parsedResume: newResume.parsed_json,
             resumeFileName: resumeFile?.name || "Resume",
-            resumeText,
+            resumeText: newResume.original_text || resumeText,
             jobDescription,
           },
         });
