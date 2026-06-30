@@ -52,10 +52,11 @@ export const ResumeGraphViz = forwardRef<{ exportAsPNG: () => Promise<Blob> }, {
   useEffect(() => {
     // Clone nodes so the simulation can mutate them without affecting props.
     const simNodes = graph.nodes.map((n) => ({ ...n }));
-    const simulation = forceSimulation<GraphNode>(simNodes)
+    const simulation = forceSimulation(simNodes)
       .force(
         "link",
-        forceLink<GraphNode, GraphLink>(graph.links)
+        forceLink(graph.links)
+          .id((d: GraphNode) => d.id)
           .id((d) => d.id)
           .distance(100)
       )
