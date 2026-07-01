@@ -1,21 +1,28 @@
 from __future__ import annotations
-"""Resume tailoring/optimization with a reflexion loop (advanced agent pattern).
+"""Resume tailoring/optimization pipeline — cv-tailor 5-phase pattern + reflexion loop.
 
-Pattern: GENERATE -> SCORE (deterministic ATS engine) -> CRITIQUE with concrete,
-measurable gaps -> REFINE (one pass). The deterministic scorer acts as the judge,
-so the loop converges on real ATS improvements instead of LLM self-praise.
-Shared by the Resume Optimizer endpoints and the Auto-Pilot automation engine.
+Phase 1: Baseline parse (sections, length, format)
+Phase 2: JD keyword matrix (hard skills / soft skills / domain — categorized, no stopwords)
+Phase 3: STAR method bullet rewriting + quantification via LLM
+Phase 4: ATS compatibility + humanization pass
+Phase 5: Final consolidated output with before/after summary
+
+Also includes: semantic TF-IDF similarity scoring, AI buzzword cleanup,
+fabrication guardrails, metric quantification suggestions.
 """
 import logging
 import re
 import uuid
-import json
 
 from app.services.ats_engine import (
     heuristic_ats_score,
+    semantic_similarity_score,
+    categorize_jd_keywords,
     AI_PHRASE_BLACKLIST,
     AI_PHRASE_REPLACEMENTS,
     keyword_in_text,
+    TECH_SKILL_WHITELIST,
+    STOPWORDS,
 )
 from app.services.llm_service import llm_complete, extract_json
 from app.guardrails import PipelineGate
@@ -24,14 +31,39 @@ from app.parsers.document_parser import ResumeParser
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# System prompts
+# ---------------------------------------------------------------------------
+
 OPTIMIZE_SYSTEM = (
-    "You are Tayari's resume optimization engine - a world-class resume writer "
+    "You are Tayari's resume optimization engine — a world-class resume writer "
     "who rewrites resumes to maximize ATS scores and recruiter response rates while "
     "staying 100% truthful to the candidate's real experience. Never invent "
     "employers, titles, dates or credentials. You naturally weave in the target "
     "job's keywords where genuinely applicable. Use clean ATS-safe structure: "
     "NAME line first, then ALL-CAPS section headings (PROFESSIONAL SUMMARY, SKILLS, "
     "EXPERIENCE, EDUCATION...), '- ' bullets with action verbs and quantified impact."
+)
+
+HUMANIZE_SYSTEM = (
+    "You are a professional resume editor specializing in authentic, human-sounding prose. "
+    "Your job is to review an AI-optimized resume and remove any patterns that sound "
+    "machine-generated or awkward. Rules:\n"
+    "- Keep ALL facts, metrics, employer names, dates, and job titles exactly as-is\n"
+    "- Fix robotic phrasing: overly formal words, repetitive sentence structures\n"
+    "- Fix awkward keyword insertions that break natural sentence flow\n"
+    "- Ensure bullets begin with strong, varied action verbs\n"
+    "- Make each bullet sound like a real human wrote it\n"
+    "Output only the improved resume text, no explanation."
+)
+
+STAR_SYSTEM = (
+    "You are a career coach specializing in the STAR method (Situation, Task, Action, Result). "
+    "Analyze each experience bullet and score its STAR completeness 0-4. "
+    "Then rewrite weak bullets to improve STAR coverage using real data the user provided. "
+    "NEVER fabricate numbers or experiences. If no metric is available, "
+    "suggest a reasonable range like '~20-30%' and mark it with [ESTIMATE]. "
+    "Output JSON only — no prose."
 )
 
 OUTPUT_FORMAT = (
@@ -46,6 +78,162 @@ OUTPUT_FORMAT = (
 
 SCORE_TARGET = 85
 
+
+# ---------------------------------------------------------------------------
+# Phase 1: Baseline parsing
+# ---------------------------------------------------------------------------
+
+def _baseline_parse(resume_text: str) -> dict:
+    """Phase 1: Parse resume sections, count entries, detect format type."""
+    lower = resume_text.lower()
+    sections_found = []
+    for section in ["experience", "education", "skills", "summary", "projects", "certifications"]:
+        if section in lower:
+            sections_found.append(section)
+
+    word_count = len(resume_text.split())
+    bullet_count = len(re.findall(r"(?m)^\s*[•\-\*]", resume_text))
+    entries = len(re.findall(
+        r"(?m)^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{4})", lower
+    ))
+
+    if "objective" in lower:
+        fmt = "functional"
+    elif entries > 2 and "experience" in lower:
+        fmt = "reverse-chronological"
+    else:
+        fmt = "hybrid"
+
+    return {
+        "sections": sections_found,
+        "word_count": word_count,
+        "bullet_count": bullet_count,
+        "experience_entries": entries,
+        "format_type": fmt,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Keyword matrix (categorized — no stopwords)
+# ---------------------------------------------------------------------------
+
+def _phase2_keyword_matrix(resume_text: str, job_description: str) -> dict:
+    """Phase 2: Build categorized keyword match matrix per cv-tailor spec."""
+    jd_cats = categorize_jd_keywords(job_description)
+
+    def check_coverage(kw_list: list[str], text: str) -> list[dict]:
+        results = []
+        for kw in kw_list:
+            present = keyword_in_text(kw, text) or kw.lower() in text.lower()
+            results.append({"keyword": kw, "in_resume": present})
+        return results
+
+    hard_matrix = check_coverage(jd_cats["hard_skills"], resume_text)
+    soft_matrix = check_coverage(jd_cats["soft_skills"], resume_text)
+    domain_matrix = check_coverage(jd_cats["domain_keywords"], resume_text)
+
+    def coverage_pct(matrix: list[dict]) -> int:
+        if not matrix:
+            return 100
+        matched = sum(1 for m in matrix if m["in_resume"])
+        return round(100 * matched / len(matrix))
+
+    hard_gap = [m["keyword"] for m in hard_matrix if not m["in_resume"]]
+    soft_gap = [m["keyword"] for m in soft_matrix if not m["in_resume"]]
+    domain_gap = [m["keyword"] for m in domain_matrix if not m["in_resume"]]
+
+    return {
+        "hard_skills_matrix": hard_matrix,
+        "soft_skills_matrix": soft_matrix,
+        "domain_matrix": domain_matrix,
+        "hard_skill_coverage": coverage_pct(hard_matrix),
+        "soft_skill_coverage": coverage_pct(soft_matrix),
+        "domain_coverage": coverage_pct(domain_matrix),
+        "hard_skill_gaps": hard_gap,
+        "soft_skill_gaps": soft_gap,
+        "domain_gaps": domain_gap,
+        "all_gaps": hard_gap + soft_gap + domain_gap,
+        "jd_categories": jd_cats,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: STAR scoring
+# ---------------------------------------------------------------------------
+
+STAR_ELEMENTS = ["situation", "task", "action", "result"]
+
+def _score_bullet_star(bullet: str) -> int:
+    """Heuristic STAR score 0-4 for a single bullet point."""
+    lower = bullet.lower()
+    score = 0
+    # Action: starts with action verb
+    action_verbs = ["led", "built", "created", "developed", "designed", "implemented",
+                    "improved", "reduced", "increased", "launched", "managed", "drove",
+                    "delivered", "optimized", "engineered", "deployed", "migrated"]
+    if any(lower.strip().lstrip("- •").startswith(v) for v in action_verbs):
+        score += 1  # Action present
+    # Result: has numbers/metrics
+    if re.search(r"\d+\s*%|\$\s*\d|\d+[kKmMx]|\b\d{2,}\b", bullet):
+        score += 1  # Result quantified
+    # Task context: mentions a system, product, or team
+    if re.search(r"\b(team|system|platform|service|product|pipeline|api|model|process)\b", lower):
+        score += 1  # Task/Situation hinted
+    # Situation: mentions context/scale
+    if re.search(r"\b(across|within|for|during|supporting|serving|handling)\b", lower):
+        score += 1  # Situation implied
+    return min(score, 4)
+
+
+def _analyze_star_scores(resume_text: str) -> list[dict]:
+    """Phase 3: Score all experience bullets for STAR completeness."""
+    bullets = []
+    for line in resume_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("-", "•", "*", "▪")) and len(stripped) > 15:
+            clean = stripped.lstrip("-•*▪ ").strip()
+            star_score = _score_bullet_star(clean)
+            needs_improvement = star_score < 3
+            suggestion = None
+            if needs_improvement:
+                if not re.search(r"\d", clean):
+                    suggestion = "Add a quantified result (e.g. '~20-30% improvement [ESTIMATE]' or actual metric)"
+                elif star_score < 2:
+                    suggestion = "Add context: what system/team/scale was involved?"
+            bullets.append({
+                "bullet": clean[:80] + ("..." if len(clean) > 80 else ""),
+                "star_score": star_score,
+                "star_grade": f"{star_score}/4",
+                "needs_improvement": needs_improvement,
+                "suggestion": suggestion,
+            })
+    return bullets
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: ATS format check + humanization
+# ---------------------------------------------------------------------------
+
+async def _humanize_pass(optimized_text: str) -> str:
+    """Phase 4: Run a humanization pass to remove AI-sounding prose."""
+    try:
+        result = await llm_complete(
+            HUMANIZE_SYSTEM,
+            f"Please humanize this resume:\n\n{optimized_text[:8000]}",
+            tier="smart",
+            max_tokens=3000,
+            temperature=0.4,
+        )
+        if result and len(result) > 200:
+            return result.strip()
+    except Exception as exc:
+        logger.warning("Humanization pass failed: %s", exc)
+    return optimized_text  # Fall back to pre-humanization text
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
 
 def _parse_marked_output(raw: str):
     meta_part = raw.split("<<<META>>>")[-1].split("<<<RESUME>>>")[0]
@@ -78,12 +266,12 @@ def remove_ai_buzzwords(text: str, job_description: str = "") -> tuple[str, list
     jd_lower = job_description.lower()
     removed = []
     cleaned = text
-    
+
     # Check phrases sorted by length descending so multi-word patterns match first
     for phrase in sorted(AI_PHRASE_BLACKLIST, key=len, reverse=True):
         if phrase.lower() in jd_lower:
             continue
-            
+
         pattern = re.compile(rf"(?i)\b{re.escape(phrase)}\b")
         if pattern.search(cleaned):
             replacement = AI_PHRASE_REPLACEMENTS.get(phrase.lower(), "")
@@ -92,7 +280,7 @@ def remove_ai_buzzwords(text: str, job_description: str = "") -> tuple[str, list
                 "replacement": replacement if replacement else "removed"
             })
             cleaned = pattern.sub(replacement, cleaned)
-            
+
     # Cleanup formatting issues arising from removals
     cleaned = re.sub(r',\s*,', ',', cleaned)
     cleaned = re.sub(r'\s{2,}', ' ', cleaned)
@@ -106,14 +294,10 @@ def validate_master_alignment(tailored_text: str, master_text: str) -> dict:
         master_parsed = ResumeParser.parse_text(master_text)
     except Exception as e:
         logger.warning("Parser failed in master alignment validation: %s", e)
-        return {
-            "is_aligned": True,
-            "violations": [],
-            "confidence_score": 1.0
-        }
-        
+        return {"is_aligned": True, "violations": [], "confidence_score": 1.0}
+
     violations = []
-    
+
     # 1. Technical Skills Check
     master_skills = {s.lower().strip() for s in master_parsed.skills if s}
     tailored_skills = {s.lower().strip() for s in tailored_parsed.skills if s}
@@ -125,7 +309,7 @@ def validate_master_alignment(tailored_text: str, master_text: str) -> dict:
                 "value": skill,
                 "severity": "critical"
             })
-            
+
     # 2. Certifications Check
     master_certs = {c.lower().strip() for c in master_parsed.certifications if c}
     tailored_certs = {c.lower().strip() for c in tailored_parsed.certifications if c}
@@ -137,10 +321,10 @@ def validate_master_alignment(tailored_text: str, master_text: str) -> dict:
                 "value": cert,
                 "severity": "critical"
             })
-            
+
     is_aligned = len([v for v in violations if v["severity"] == "critical"]) == 0
     confidence = max(0.0, 1.0 - (len(violations) * 0.1))
-    
+
     return {
         "is_aligned": is_aligned,
         "violations": violations,
@@ -149,52 +333,86 @@ def validate_master_alignment(tailored_text: str, master_text: str) -> dict:
 
 
 def generate_metric_suggestions(text: str) -> list[str]:
-    """Scan resume experience bullet points and recommend metrics/numbers for weak lines."""
+    """Scan resume experience bullet points and recommend metrics for weak lines."""
     suggestions = []
     lines = text.splitlines()
     for line in lines:
         line_strip = line.strip()
-        if line_strip.startswith(("-", "*", "•", "▪")) or (len(line_strip) > 10 and line_strip[0].isupper() and any(verb in line_strip.lower() for verb in ["led", "built", "managed", "created"])):
-            # Check if bullet point is missing numerical quantification
+        if line_strip.startswith(("-", "*", "•", "▪")) or (
+            len(line_strip) > 10 and line_strip[0].isupper()
+            and any(verb in line_strip.lower() for verb in ["led", "built", "managed", "created"])
+        ):
             if not re.search(r'\d+', line_strip):
                 lower = line_strip.lower()
                 clean_bullet = line_strip.lstrip("-*•▪ ").strip()
                 if "latency" in lower or "speed" in lower or "performance" in lower:
-                    suggestions.append(f"Bullet '{clean_bullet[:40]}...': Consider adding quantified performance/latency percentage improvement.")
+                    suggestions.append(f"Bullet '{clean_bullet[:40]}...': Consider adding quantified performance/latency improvement (e.g. 'reduced latency by ~30% [ESTIMATE]').")
                 elif "cost" in lower or "budget" in lower or "save" in lower:
-                    suggestions.append(f"Bullet '{clean_bullet[:40]}...': Add numerical details of cost savings or budget managed.")
+                    suggestions.append(f"Bullet '{clean_bullet[:40]}...': Add numerical cost savings or budget managed (e.g. '$Xk savings').")
                 elif "user" in lower or "customer" in lower or "client" in lower:
-                    suggestions.append(f"Bullet '{clean_bullet[:40]}...': Mention number of active users or clients impacted.")
+                    suggestions.append(f"Bullet '{clean_bullet[:40]}...': Mention number of active users or clients impacted (e.g. '10k+ users').")
                 elif "scale" in lower or "pipeline" in lower or "data" in lower:
-                    suggestions.append(f"Bullet '{clean_bullet[:40]}...': Specify metrics regarding data scale or volume processed.")
+                    suggestions.append(f"Bullet '{clean_bullet[:40]}...': Specify data scale processed (e.g. '1B+ events/day, ~X TB').")
                 else:
-                    suggestions.append(f"Bullet '{clean_bullet[:40]}...': Consider adding a metric or quantified result to show the impact.")
-    return suggestions[:4]
+                    suggestions.append(f"Bullet '{clean_bullet[:40]}...': Add a quantified result (e.g. 'improved by ~X% [ESTIMATE]').")
+    return suggestions[:5]
 
 
 def analyze_keyword_gaps(tailored_text: str, master_text: str, jd_text: str) -> tuple[list[str], list[str]]:
-    """Differentiate between injectable missing keywords and non-injectable ones."""
-    from app.analysis.similarity import KeywordAnalyzer
-    analyzer = KeywordAnalyzer()
-    analysis = analyzer.analyze(tailored_text, jd_text)
-    
-    missing_jd = analysis.missing or []
+    """Classify missing JD keywords into injectable (in master) vs non-injectable (skill gaps)."""
+    from app.services.ats_engine import _tokenize, _bigrams
+    jd_tokens = _tokenize(jd_text) | _bigrams(jd_text)
+    tailored_tokens = _tokenize(tailored_text) | _bigrams(tailored_text)
+    master_tokens = _tokenize(master_text) | _bigrams(master_text)
+
+    missing_jd = jd_tokens - tailored_tokens
     injectable = []
     non_injectable = []
-    
+
+    # Only report meaningful terms (filter noise)
     for kw in missing_jd:
-        if keyword_in_text(kw, master_text):
+        if len(kw) < 4 and kw not in TECH_SKILL_WHITELIST:
+            continue
+        if keyword_in_text(kw, master_text) or kw in master_tokens:
             injectable.append(kw)
         else:
             non_injectable.append(kw)
-            
-    return injectable, non_injectable
+
+    # Prioritize tech skills in reporting
+    injectable_skills = sorted(kw for kw in injectable if kw in TECH_SKILL_WHITELIST)
+    injectable_other = sorted(kw for kw in injectable if kw not in TECH_SKILL_WHITELIST)
+    non_injectable_skills = sorted(kw for kw in non_injectable if kw in TECH_SKILL_WHITELIST)
+    non_injectable_other = sorted(kw for kw in non_injectable if kw not in TECH_SKILL_WHITELIST)
+
+    return (
+        (injectable_skills + injectable_other)[:20],
+        (non_injectable_skills + non_injectable_other)[:20],
+    )
 
 
-async def optimize_with_reflection(resume_text: str, job_description: str | None = None,
-                                   target_role: str | None = None,
-                                   job_label: str | None = None) -> dict:
-    """Returns optimized tailoring results including keyword gaps, clichés, and alignment reports."""
+# ---------------------------------------------------------------------------
+# Phase 5: Main pipeline (optimize_with_reflection)
+# ---------------------------------------------------------------------------
+
+async def optimize_with_reflection(
+    resume_text: str,
+    job_description: str | None = None,
+    target_role: str | None = None,
+    job_label: str | None = None,
+) -> dict:
+    """
+    Full cv-tailor 5-phase optimization pipeline with reflexion loop.
+
+    Returns a rich result dict containing:
+    - optimized_text, changes, keywords_added, estimated_score
+    - new_heuristic_score, semantic_similarity (TF-IDF cosine)
+    - keyword_matrix (categorized: hard / soft / domain)
+    - star_analysis (per-bullet STAR scores)
+    - injectable_keywords, non_injectable_keywords
+    - removed_ai_phrases, metric_suggestions
+    - alignment_report, guardrails
+    - baseline (Phase 1 parse)
+    """
     jd = (job_description or "").strip() or None
     context = ""
     if jd:
@@ -204,42 +422,66 @@ async def optimize_with_reflection(resume_text: str, job_description: str | None
     if job_label:
         context += f"\n\nTARGET JOB: {job_label[:160]}"
 
-    # ---- pass 1: GENERATE -------------------------------------------------
+    # --- Phase 1: Baseline -----------------------------------------------
+    baseline = _baseline_parse(resume_text)
+    logger.info("Phase 1 complete: %s sections, %s words, %s format",
+                len(baseline["sections"]), baseline["word_count"], baseline["format_type"])
+
+    # --- Phase 2: Keyword matrix -----------------------------------------
+    keyword_matrix = _phase2_keyword_matrix(resume_text, jd or "") if jd else {}
+    logger.info("Phase 2 complete: hard=%s%%, soft=%s%%, domain=%s%%",
+                keyword_matrix.get("hard_skill_coverage", "N/A"),
+                keyword_matrix.get("soft_skill_coverage", "N/A"),
+                keyword_matrix.get("domain_coverage", "N/A"))
+
+    # Semantic similarity (before optimization)
+    semantic_before = semantic_similarity_score(resume_text, jd) if jd else None
+
+    # ---- Phase 3/LLM: GENERATE + STAR rewrite ---------------------------
     user_msg = (
         f"RESUME:\n{resume_text[:9000]}{context}\n\n"
         "Rewrite this resume to maximize its ATS score and recruiter appeal"
         + (" for the target job" if (jd or target_role or job_label) else "") + ". Rules:\n"
         "- Keep ALL facts truthful (same employers, titles, dates)\n"
         "- Strengthen bullets with action verbs and quantified impact\n"
-        "- Integrate relevant keywords naturally\n\n" + OUTPUT_FORMAT)
-    raw = await llm_complete(OPTIMIZE_SYSTEM, user_msg, tier="smart")
+        "- For bullets missing metrics, add realistic ranges like '~20-30% [ESTIMATE]'\n"
+        "- Integrate relevant keywords naturally — no keyword stuffing\n"
+        "- Vary action verbs across bullets\n\n" + OUTPUT_FORMAT
+    )
+    raw = await llm_complete(OPTIMIZE_SYSTEM, user_msg, tier="smart", max_tokens=4000)
     optimized, meta = _parse_marked_output(raw)
     heuristic = heuristic_ats_score(optimized, jd)
     alignment_report = validate_master_alignment(optimized, resume_text)
     passes = 1
 
-    # ---- pass 2 (conditional): CRITIQUE -> REFINE --------------------------
+    # ---- Reflexion pass: CRITIQUE → REFINE ------------------------------
     if heuristic["score"] < SCORE_TARGET or not alignment_report["is_aligned"]:
         feedback = _gap_feedback(heuristic)
         if not alignment_report["is_aligned"]:
-            fabricated_items = [v["value"] for v in alignment_report["violations"] if v["severity"] == "critical"]
-            feedback += f"\n- CRITICAL ALIGNMENT VIOLATION: You fabricated skills/certifications not found in the original resume. Remove them: {', '.join(fabricated_items)}"
+            fabricated_items = [v["value"] for v in alignment_report["violations"]
+                                if v["severity"] == "critical"]
+            feedback += (
+                f"\n- CRITICAL ALIGNMENT VIOLATION: You fabricated skills/certifications "
+                f"not found in the original resume. Remove them: {', '.join(fabricated_items)}"
+            )
 
-        logger.info("Reflexion pass triggered (score %s < %s, aligned: %s)", heuristic["score"], SCORE_TARGET, alignment_report["is_aligned"])
+        logger.info("Reflexion pass triggered (score %s < %s, aligned: %s)",
+                    heuristic["score"], SCORE_TARGET, alignment_report["is_aligned"])
         refine_msg = (
             f"You previously optimized this resume:\n{optimized[:9000]}{context}\n\n"
             f"An ATS scan of YOUR version found these concrete gaps:\n{feedback}\n\n"
             "Produce an improved version that fixes every gap above while staying "
-            "100% truthful. Keep everything that already works.\n\n" + OUTPUT_FORMAT)
+            "100% truthful. Keep everything that already works.\n\n" + OUTPUT_FORMAT
+        )
         try:
-            raw2 = await llm_complete(OPTIMIZE_SYSTEM, refine_msg, tier="smart")
+            raw2 = await llm_complete(OPTIMIZE_SYSTEM, refine_msg, tier="smart", max_tokens=4000)
             optimized2, meta2 = _parse_marked_output(raw2)
             heuristic2 = heuristic_ats_score(optimized2, jd)
             alignment_report2 = validate_master_alignment(optimized2, resume_text)
             passes = 2
-            
-            # Keep pass-2 if it either improves the score or fixes fabrication
-            if heuristic2["score"] >= heuristic["score"] or (alignment_report2["is_aligned"] and not alignment_report["is_aligned"]):
+
+            if (heuristic2["score"] >= heuristic["score"]
+                    or (alignment_report2["is_aligned"] and not alignment_report["is_aligned"])):
                 optimized, heuristic, alignment_report = optimized2, heuristic2, alignment_report2
                 meta["changes"] = (meta.get("changes", []) + meta2.get("changes", []))[:8]
                 meta["keywords_added"] = list(dict.fromkeys(
@@ -248,31 +490,69 @@ async def optimize_with_reflection(resume_text: str, job_description: str | None
         except Exception as exc:
             logger.warning("Reflexion refine pass failed, keeping pass-1 output: %s", exc)
 
-    # Local post-processing: Clean up AI buzzwords from final text
+    # ---- Phase 4a: AI buzzword cleanup ----------------------------------
     cleaned_optimized, removed_ai_phrases = remove_ai_buzzwords(optimized, jd or "")
     optimized = cleaned_optimized
-    
-    # Recalculate metrics on the final cleaned text
+
+    # ---- Phase 4b: Humanization pass ------------------------------------
+    optimized = await _humanize_pass(optimized)
+
+    # ---- Recalculate on final cleaned text ------------------------------
     heuristic = heuristic_ats_score(optimized, jd)
     alignment_report = validate_master_alignment(optimized, resume_text)
     metric_suggestions = generate_metric_suggestions(optimized)
     injectable, non_injectable = analyze_keyword_gaps(optimized, resume_text, jd or "")
 
+    # ---- Phase 3 post: STAR bullet scoring --------------------------------
+    star_analysis = _analyze_star_scores(optimized)
+    avg_star = (sum(b["star_score"] for b in star_analysis) / max(len(star_analysis), 1))
+    star_summary = {
+        "bullets_scored": len(star_analysis),
+        "average_star_score": round(avg_star, 1),
+        "bullets_needing_improvement": [b for b in star_analysis if b["needs_improvement"]],
+        "all_bullets": star_analysis,
+    }
+
+    # ---- Semantic similarity (after optimization) ------------------------
+    semantic_after = semantic_similarity_score(optimized, jd) if jd else None
+
+    # ---- Phase 5: Consolidate final output ------------------------------
     result = {
+        # Core output
         "optimized_text": optimized,
         "changes": meta.get("changes", []),
         "keywords_added": meta.get("keywords_added", []),
         "estimated_score": meta.get("estimated_score"),
+        # Scores
         "new_heuristic_score": heuristic["score"],
+        "semantic_similarity_before": semantic_before,
+        "semantic_similarity_after": semantic_after,
         "refinement_passes": passes,
+        # Phase 1
+        "baseline": baseline,
+        # Phase 2
+        "keyword_matrix": keyword_matrix,
         "injectable_keywords": injectable,
         "non_injectable_keywords": non_injectable,
+        # Phase 3
+        "star_analysis": star_summary,
+        # Phase 4
         "removed_ai_phrases": removed_ai_phrases,
         "metric_suggestions": metric_suggestions,
+        # Phase 5
         "alignment_report": alignment_report,
+        "optimization_summary": {
+            "jd_keyword_coverage_before": keyword_matrix.get("hard_skill_coverage"),
+            "semantic_score_before": semantic_before["score"] if semantic_before else None,
+            "semantic_score_after": semantic_after["score"] if semantic_after else None,
+            "heuristic_score_after": heuristic["score"],
+            "avg_star_score": round(avg_star, 1),
+            "buzzwords_cleaned": len(removed_ai_phrases),
+            "refinement_passes": passes,
+        },
     }
 
-    # Guardrails gate check
+    # ---- Guardrails gate ------------------------------------------------
     trace_id = str(uuid.uuid4())
     gate = PipelineGate()
     g_result = gate.check(optimized_text=optimized, original_text=resume_text)

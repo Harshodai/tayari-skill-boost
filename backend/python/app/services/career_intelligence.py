@@ -65,6 +65,6 @@ def trending_skills(limit: int = 10) -> List[Dict[str, Any]]:
     """
     # Simulated trending list – real impl would analyse recent job postings.
     sample = ["AI", "Kubernetes", "Terraform", "Rust", "GraphQL", "TypeScript", "Go", "React"]
-    trending = [{"skill": s, "popularity": 100 - i * 5} for i, s in enumerate(sample[:limit])]
+    trending = [{"name": s, "popularity": 100 - i * 5} for i, s in enumerate(sample[:limit])]
     logger.info("Trending skills: %s", trending)
     return trending

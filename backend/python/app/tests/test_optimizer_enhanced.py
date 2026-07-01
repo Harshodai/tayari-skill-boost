@@ -58,9 +58,16 @@ def test_validate_master_alignment():
 def test_generate_metric_suggestions():
     text = "- Led a team to build the backend service.\n- Decreased latency for the API endpoints."
     suggestions = generate_metric_suggestions(text)
-    
+
     assert len(suggestions) > 0
-    # The first bullet is generic
-    assert "Consider adding a metric" in suggestions[0] or "active users" in suggestions[0]
-    # The second bullet mentions latency
-    assert "latency" in suggestions[1].lower()
+    # The first bullet should have a quantification suggestion (generic or specific)
+    first = suggestions[0].lower()
+    assert any(kw in first for kw in [
+        "quantif", "metric", "result", "estimate", "improve", "impact", "scale"
+    ]), f"Expected a quantification suggestion, got: {suggestions[0]}"
+    # The second bullet mentions latency — should get a performance-specific suggestion
+    assert len(suggestions) > 1
+    second = suggestions[1].lower()
+    assert any(kw in second for kw in [
+        "latency", "performance", "speed", "estimate"
+    ]), f"Expected a latency suggestion, got: {suggestions[1]}"

@@ -3,10 +3,14 @@ from __future__ import annotations
 Runs instantly without an LLM and gives a reproducible baseline score 0-100.
 The LLM analysis layered on top refines this with semantic understanding.
 """
+import math
 import re
+import logging
+from collections import Counter
 
 from app.guardrails.pii_detector import check_pii
 
+logger = logging.getLogger(__name__)
 
 SECTION_PATTERNS = {
     "experience": r"(work\s+experience|professional\s+experience|employment|experience)",
@@ -21,10 +25,64 @@ ACTION_VERBS = [
     "led", "managed", "optimized", "reduced", "spearheaded", "streamlined", "transformed",
 ]
 
-STOPWORDS = set(
-    "a an and are as at be by for from has have in is it of on or that the to was were "
-    "will with you your we our they this their i".split()
+# Base stopwords — will be expanded with NLTK if available
+_BASE_STOPWORDS = set(
+    "a about above after again against all also am an and any are aren't as at be because "
+    "been before being below between both but by can can't cannot could couldn't did didn't "
+    "do does doesn't doing don't down during each few for from further get got had hadn't "
+    "has hasn't have haven't having he he'd he'll he's her here here's hers herself him "
+    "himself his how how's i i'd i'll i'm i've if in into is isn't it it's its itself "
+    "let's ll me more most mustn't my myself no nor not of off on once only or other ought "
+    "our ours ourselves out over own re s same shan't she she'd she'll she's should "
+    "shouldn't so some such t than that that's the their theirs them themselves then "
+    "there there's these they they'd they'll they're they've this those through to too "
+    "under until up ve very was wasn't we we'd we'll we're we've were weren't what "
+    "what's when when's where where's which while who who's whom why why's will with "
+    "won't would wouldn't you you'd you'll you're you've your yours yourself yourselves".split()
 )
+
+def _build_stopwords() -> set:
+    """Build a comprehensive stopword set, augmenting with NLTK if available."""
+    sw = set(_BASE_STOPWORDS)
+    try:
+        import nltk
+        try:
+            from nltk.corpus import stopwords as nltk_sw
+            sw |= set(nltk_sw.words('english'))
+        except LookupError:
+            nltk.download('stopwords', quiet=True)
+            from nltk.corpus import stopwords as nltk_sw
+            sw |= set(nltk_sw.words('english'))
+    except Exception:
+        pass  # NLTK unavailable — base stopwords are still comprehensive
+    return sw
+
+STOPWORDS = _build_stopwords()
+
+# Curated technical skill terms — these are ALWAYS kept even if short
+TECH_SKILL_WHITELIST: set[str] = {
+    # Languages
+    "python", "sql", "java", "scala", "go", "rust", "c++", "c#", "r",
+    "typescript", "javascript", "bash", "ruby", "kotlin", "swift",
+    # Data & ML
+    "spark", "kafka", "airflow", "dbt", "pandas", "numpy", "sklearn",
+    "tensorflow", "pytorch", "mlflow", "ray", "dask", "flink",
+    "machine learning", "deep learning", "nlp", "llm", "rag", "embeddings",
+    "feature engineering", "model training", "model serving", "data pipeline",
+    "etl", "elt", "data warehousing", "data lake", "data lakehouse",
+    "apache iceberg", "apache spark", "apache kafka", "apache flink",
+    # Cloud & Infra
+    "aws", "gcp", "azure", "kubernetes", "docker", "terraform", "ci/cd",
+    "s3", "ec2", "lambda", "bigquery", "redshift", "snowflake", "databricks",
+    "prometheus", "grafana", "datadog", "opentelemetry",
+    # Distributed systems
+    "distributed systems", "microservices", "event-driven", "stream processing",
+    "batch processing", "high availability", "fault tolerance", "load balancing",
+    "api design", "rest", "grpc", "graphql",
+    # Stripe/Fintech relevant
+    "payments", "billing", "revenue", "financial infrastructure", "data engineering",
+    "data platform", "data ops", "incident management", "oncall",
+}
 
 # --- Scoring constants (single source of truth for thresholds/bands) -------
 # ponytail: named instead of magic numbers so the score/band logic and the UI
@@ -43,16 +101,133 @@ _ATS_BAND_WIDEN_NEAR = 15  # distance from 50 that triggers the medium band
 
 
 def _tokenize(text: str) -> set:
-    return {t for t in re.findall(r"[a-zA-Z][a-zA-Z+#.\-]{1,}", text.lower())
-            if t not in STOPWORDS and len(t) > 2}
+    """Tokenize text, filtering stopwords but always keeping tech skill whitelist terms."""
+    tokens = set()
+    for t in re.findall(r"[a-zA-Z][a-zA-Z+#./\-]{1,}", text.lower()):
+        if t in TECH_SKILL_WHITELIST:
+            tokens.add(t)
+        elif t not in STOPWORDS and len(t) > 2:
+            tokens.add(t)
+    return tokens
 
 
 def _bigrams(text: str) -> set:
-    """Exact 2-word phrases - ATS keyword matching favors exact phrases over
+    """Exact 2-word phrases — ATS keyword matching favors exact phrases over
     single tokens (e.g. 'machine learning', 'project management')."""
     words = [w for w in re.findall(r"[a-zA-Z][a-zA-Z+#.\-]*", text.lower())
              if w not in STOPWORDS and len(w) > 2]
-    return {f"{a} {b}" for a, b in zip(words, words[1:])}
+    bigram_set = {f"{a} {b}" for a, b in zip(words, words[1:])}
+    # Also check tech skill whitelist bigrams
+    for skill in TECH_SKILL_WHITELIST:
+        if ' ' in skill and skill in text.lower():
+            bigram_set.add(skill)
+    return bigram_set
+
+
+def _tfidf_cosine_similarity(text_a: str, text_b: str) -> float:
+    """Compute TF-IDF cosine similarity between two documents using pure Python/math.
+    Returns a float 0.0–1.0. No external ML packages required.
+    """
+    def tokenize_for_tfidf(text: str) -> list[str]:
+        tokens = re.findall(r"[a-zA-Z][a-zA-Z+#.\-]{1,}", text.lower())
+        return [t for t in tokens if t not in STOPWORDS and len(t) > 1]
+
+    tokens_a = tokenize_for_tfidf(text_a)
+    tokens_b = tokenize_for_tfidf(text_b)
+    if not tokens_a or not tokens_b:
+        return 0.0
+
+    vocab = set(tokens_a) | set(tokens_b)
+    freq_a = Counter(tokens_a)
+    freq_b = Counter(tokens_b)
+
+    # TF = term_count / total_terms
+    def tf(freq: Counter, total: int) -> dict:
+        return {t: freq[t] / total for t in freq}
+
+    tf_a = tf(freq_a, len(tokens_a))
+    tf_b = tf(freq_b, len(tokens_b))
+
+    # IDF = log(2 / (1 + docs_containing_term)) — 2 docs total
+    idf = {}
+    for term in vocab:
+        in_a = 1 if term in freq_a else 0
+        in_b = 1 if term in freq_b else 0
+        idf[term] = math.log(2 / (1 + in_a + in_b) + 1)  # smoothed
+
+    # TF-IDF vectors
+    vec_a = {t: tf_a.get(t, 0) * idf[t] for t in vocab}
+    vec_b = {t: tf_b.get(t, 0) * idf[t] for t in vocab}
+
+    # Cosine similarity
+    dot = sum(vec_a[t] * vec_b[t] for t in vocab)
+    mag_a = math.sqrt(sum(v ** 2 for v in vec_a.values()))
+    mag_b = math.sqrt(sum(v ** 2 for v in vec_b.values()))
+    if mag_a == 0 or mag_b == 0:
+        return 0.0
+    return round(dot / (mag_a * mag_b), 4)
+
+
+def semantic_similarity_score(resume_text: str, job_description: str) -> dict:
+    """Compute semantic similarity between resume and JD using TF-IDF cosine similarity.
+    Returns a dict with score (0-100 int), raw_similarity (0.0-1.0), and interpretation.
+    """
+    raw = _tfidf_cosine_similarity(resume_text, job_description)
+    score = round(raw * 100)
+    if score >= 75:
+        interp = "Strong semantic match — resume language closely mirrors the JD"
+    elif score >= 50:
+        interp = "Moderate semantic match — some alignment but gaps in terminology"
+    elif score >= 30:
+        interp = "Weak semantic match — resume language diverges from JD significantly"
+    else:
+        interp = "Very low semantic match — major terminology mismatch with target role"
+    return {"score": score, "raw_similarity": raw, "interpretation": interp}
+
+
+def categorize_jd_keywords(job_description: str) -> dict:
+    """Categorize JD keywords into hard skills, soft skills, and domain terms.
+    Returns dict with keys: hard_skills, soft_skills, domain_keywords.
+    """
+    SOFT_SKILL_PATTERNS = [
+        "collaboration", "communication", "leadership", "cross-functional", "mentoring",
+        "problem-solving", "analytical", "stakeholder", "initiative", "strategic",
+        "ownership", "ambiguity", "fast-paced", "data-driven", "decision-making",
+        "teamwork", "adaptable", "detail-oriented", "self-motivated", "curious",
+    ]
+    DOMAIN_PATTERNS = [
+        "payments", "fintech", "saas", "enterprise", "startup", "e-commerce",
+        "healthcare", "infrastructure", "platform", "marketplace", "revenue",
+        "compliance", "regulatory", "financial", "banking", "insurance",
+        "data engineering", "data platform", "ml platform", "ai platform",
+    ]
+    jd_lower = job_description.lower()
+    all_tokens = _tokenize(job_description)
+    all_bigrams_set = _bigrams(job_description)
+    all_terms = all_tokens | all_bigrams_set
+
+    hard_skills = set()
+    soft_skills = set()
+    domain_keywords = set()
+
+    for term in all_terms:
+        if term in TECH_SKILL_WHITELIST:
+            hard_skills.add(term)
+        elif any(soft in term for soft in SOFT_SKILL_PATTERNS):
+            soft_skills.add(term)
+        elif any(dom in term for dom in DOMAIN_PATTERNS):
+            domain_keywords.add(term)
+
+    # Also catch multi-word whitelist skills in bigrams
+    for skill in TECH_SKILL_WHITELIST:
+        if ' ' in skill and skill in jd_lower:
+            hard_skills.add(skill)
+
+    return {
+        "hard_skills": sorted(hard_skills),
+        "soft_skills": sorted(soft_skills),
+        "domain_keywords": sorted(domain_keywords),
+    }
 
 
 def _extract_jd_title(job_description: str) -> str:
@@ -142,8 +317,25 @@ def heuristic_ats_score(resume_text: str, job_description: str | None = None) ->
 
         token_pct = round(100 * len(overlap) / max(len(jd_tokens), 1))
         keyword_score_pct = round(0.7 * token_pct + 0.3 * phrase_pct)
-        matched_keywords = sorted(overlap)[:30]
-        missing_keywords = sorted(jd_tokens - resume_tokens)[:30]
+
+        # Filter matched/missing to only surface meaningful skills & nouns (no stopwords)
+        # Prioritize tech skill whitelist terms in reporting
+        def _is_meaningful(kw: str) -> bool:
+            """Only surface terms that carry real signal — skills, nouns, multi-word phrases."""
+            if kw in TECH_SKILL_WHITELIST:
+                return True
+            if ' ' in kw:  # bigrams are always meaningful
+                return True
+            if len(kw) < 4:  # skip very short tokens like 'll', 're', etc.
+                return False
+            # Skip words that are clearly not skills/nouns (common adjectives, prepositions)
+            NON_SKILL_SUFFIXES = ('ing', 'tion', 'ment', 'ness', 'ful', 'less', 'ive', 'ous')
+            if kw.endswith(NON_SKILL_SUFFIXES) and len(kw) < 7:
+                return False
+            return True
+
+        matched_keywords = sorted(kw for kw in overlap if _is_meaningful(kw))[:30]
+        missing_keywords = sorted(kw for kw in (jd_tokens - resume_tokens) if _is_meaningful(kw))[:30]
         add_check("Job keyword match", keyword_score_pct >= 45, 10,
                   f"{keyword_score_pct}% weighted keyword/phrase coverage of the job description")
 

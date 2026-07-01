@@ -517,8 +517,187 @@ const ResumeResults = () => {
                     </div>
                   </div>
 
-                  {/* Keyword analysis tabs/sections */}
-                  <div className="space-y-3">
+                  {/* ── Optimization Summary ──────────────────────────── */}
+                  {optimizationResult.optimization_summary && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Semantic similarity */}
+                      {optimizationResult.optimization_summary.semantic_score_before != null && (
+                        <div className="bg-muted/40 rounded-lg p-2.5 border border-border/30 space-y-1">
+                          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider block">Semantic Match</span>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-sm font-semibold text-muted-foreground">
+                              {optimizationResult.optimization_summary.semantic_score_before}%
+                            </span>
+                            <span className="text-primary font-bold text-xs">→</span>
+                            <span className="text-lg font-bold text-primary">
+                              {optimizationResult.optimization_summary.semantic_score_after ?? optimizationResult.optimization_summary.semantic_score_before}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-1">
+                            <div
+                              className="bg-primary h-1 rounded-full transition-all duration-700"
+                              style={{ width: `${optimizationResult.optimization_summary.semantic_score_after ?? 0}%` }}
+                            />
+                          </div>
+                          {optimizationResult.semantic_similarity_after?.interpretation && (
+                            <span className="text-xs text-muted-foreground leading-tight block">
+                              {optimizationResult.semantic_similarity_after.interpretation}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* STAR score */}
+                      {optimizationResult.optimization_summary.avg_star_score != null && (
+                        <div className="bg-muted/40 rounded-lg p-2.5 border border-border/30 space-y-1">
+                          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider block">STAR Score</span>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-2xl font-bold text-primary">
+                              {optimizationResult.optimization_summary.avg_star_score}
+                            </span>
+                            <span className="text-xs text-muted-foreground">/4 avg</span>
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-1">
+                            <div
+                              className="bg-amber-500 h-1 rounded-full transition-all duration-700"
+                              style={{ width: `${(optimizationResult.optimization_summary.avg_star_score / 4) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground block">
+                            {optimizationResult.star_analysis?.bullets_scored ?? 0} bullets scored
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Buzzwords cleaned */}
+                      {optimizationResult.optimization_summary.buzzwords_cleaned != null && (
+                        <div className="bg-muted/40 rounded-lg p-2.5 border border-border/30">
+                          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider block">Buzzwords Cleaned</span>
+                          <span className="text-2xl font-bold text-green-500">{optimizationResult.optimization_summary.buzzwords_cleaned}</span>
+                        </div>
+                      )}
+
+                      {/* JD keyword coverage */}
+                      {optimizationResult.keyword_matrix?.hard_skill_coverage != null && (
+                        <div className="bg-muted/40 rounded-lg p-2.5 border border-border/30">
+                          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider block">Hard Skill Coverage</span>
+                          <span className={`text-2xl font-bold ${
+                            optimizationResult.keyword_matrix.hard_skill_coverage >= 80 ? 'text-green-500' :
+                            optimizationResult.keyword_matrix.hard_skill_coverage >= 50 ? 'text-amber-500' : 'text-destructive'
+                          }`}>{optimizationResult.keyword_matrix.hard_skill_coverage}%</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── STAR Bullet Analysis ───────────────────────────── */}
+                  {optimizationResult.star_analysis?.bullets_needing_improvement?.length > 0 && (
+                    <div className="space-y-3 pt-1 border-t border-border/40">
+                      <h4 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
+                        <Target className="w-4 h-4 text-amber-500" />
+                        STAR Bullet Analysis
+                      </h4>
+                      <div className="space-y-2">
+                        {optimizationResult.star_analysis.bullets_needing_improvement.slice(0, 4).map((b: any, idx: number) => (
+                          <div key={idx} className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-2.5 text-xs space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground font-mono truncate max-w-[220px]">{b.bullet}</span>
+                              <Badge variant="outline" className={`ml-1 shrink-0 ${
+                                b.star_score >= 3 ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                                b.star_score >= 2 ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                                'bg-destructive/10 text-destructive border-destructive/20'
+                              }`}>
+                                STAR {b.star_grade}
+                              </Badge>
+                            </div>
+                            {b.suggestion && (
+                              <p className="text-amber-600 dark:text-amber-400 leading-relaxed">
+                                💡 {b.suggestion}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── JD Keyword Matrix ─────────────────────────────── */}
+                  {optimizationResult.keyword_matrix?.hard_skills_matrix?.length > 0 && (
+                    <div className="space-y-3 pt-1 border-t border-border/40">
+                      <h4 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        JD Keyword Matrix
+                      </h4>
+                      <div className="grid grid-cols-1 gap-3">
+                        {/* Hard Skills */}
+                        {optimizationResult.keyword_matrix.hard_skills_matrix?.length > 0 && (
+                          <div>
+                            <span className="text-xs font-semibold text-blue-500 uppercase tracking-wider block mb-1.5">Hard Skills</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {optimizationResult.keyword_matrix.hard_skills_matrix.slice(0, 12).map((item: any) => (
+                                <Badge
+                                  key={item.keyword}
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    item.in_resume
+                                      ? 'bg-green-500/10 text-green-600 border-green-500/30'
+                                      : 'bg-destructive/10 text-destructive border-destructive/20'
+                                  }`}
+                                >
+                                  {item.in_resume ? '✓' : '✗'} {item.keyword}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {/* Soft Skills */}
+                        {optimizationResult.keyword_matrix.soft_skills_matrix?.length > 0 && (
+                          <div>
+                            <span className="text-xs font-semibold text-purple-500 uppercase tracking-wider block mb-1.5">Soft Skills</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {optimizationResult.keyword_matrix.soft_skills_matrix.slice(0, 8).map((item: any) => (
+                                <Badge
+                                  key={item.keyword}
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    item.in_resume
+                                      ? 'bg-green-500/10 text-green-600 border-green-500/30'
+                                      : 'bg-orange-500/10 text-orange-500 border-orange-500/20'
+                                  }`}
+                                >
+                                  {item.in_resume ? '✓' : '~'} {item.keyword}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {/* Domain */}
+                        {optimizationResult.keyword_matrix.domain_matrix?.length > 0 && (
+                          <div>
+                            <span className="text-xs font-semibold text-cyan-500 uppercase tracking-wider block mb-1.5">Domain Terms</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {optimizationResult.keyword_matrix.domain_matrix.slice(0, 8).map((item: any) => (
+                                <Badge
+                                  key={item.keyword}
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    item.in_resume
+                                      ? 'bg-cyan-500/10 text-cyan-600 border-cyan-500/30'
+                                      : 'bg-muted text-muted-foreground border-border/40'
+                                  }`}
+                                >
+                                  {item.in_resume ? '✓' : '○'} {item.keyword}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Keyword Gap Analysis (meaningful terms only) ──── */}
+                  <div className="space-y-3 pt-1 border-t border-border/40">
                     <h4 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
                       <Target className="w-4 h-4 text-primary" />
                       Keyword Gap Analysis

@@ -183,10 +183,13 @@ class OpenRouterProvider(LLMProvider):
 
 
 class NVIDIANIMProvider(LLMProvider):
-    """NVIDIA NIM inference API — OpenAI-compatible with NVIDIA endpoint."""
+    """NVIDIA NIM inference API — OpenAI-compatible with exponential backoff retry.
+    Mirrors the askmukthiguru NimService retry pattern for production reliability.
+    """
 
     DEFAULT_BASE = "https://integrate.api.nvidia.com/v1"
     DEFAULT_MODEL = "meta/llama-3.1-70b-instruct"
+    MAX_RETRIES = 3
 
     def __init__(self, api_key: str, model: str, base_url: str) -> None:
         self._key = api_key
@@ -195,6 +198,7 @@ class NVIDIANIMProvider(LLMProvider):
 
     async def complete(self, system_message: str, user_message: str,
                        max_tokens: int = 800, temperature: float = 0.3) -> str:
+        import asyncio
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self._key}",
@@ -209,11 +213,41 @@ class NVIDIANIMProvider(LLMProvider):
             "max_tokens": max_tokens,
             "stream": False,
         }
-        async with httpx.AsyncClient(timeout=180) as client:
-            resp = await client.post(f"{self._base}/chat/completions",
-                                     json=payload, headers=headers)
-            resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+        last_exc: Exception | None = None
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                async with httpx.AsyncClient(timeout=180) as client:
+                    resp = await client.post(
+                        f"{self._base}/chat/completions",
+                        json=payload,
+                        headers=headers,
+                    )
+                    if resp.status_code == 429:
+                        wait = 2 ** attempt  # 1s, 2s, 4s
+                        logger.warning(
+                            "NVIDIA NIM 429 rate-limit (attempt %d/%d); retrying in %ds",
+                            attempt + 1, self.MAX_RETRIES, wait,
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+                    resp.raise_for_status()
+                content = resp.json()["choices"][0]["message"]["content"]
+                if attempt > 0:
+                    logger.info("NVIDIA NIM succeeded on attempt %d", attempt + 1)
+                return content
+            except httpx.HTTPStatusError as exc:
+                logger.warning("NVIDIA NIM HTTP error attempt %d: %s", attempt + 1, exc)
+                last_exc = exc
+                if exc.response.status_code not in (429, 500, 502, 503) or attempt == self.MAX_RETRIES - 1:
+                    raise
+                await asyncio.sleep(2 ** attempt)
+            except Exception as exc:
+                logger.warning("NVIDIA NIM error attempt %d: %s", attempt + 1, exc)
+                last_exc = exc
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                await asyncio.sleep(2 ** attempt)
+        raise RuntimeError(f"NVIDIA NIM exhausted {self.MAX_RETRIES} retries") from last_exc
 
     def active_engine_label(self) -> str:
         return f"nvidia-nim/{self._model}"
@@ -293,6 +327,15 @@ def build_provider(tier: str = "default") -> LLMProvider:
         if key:
             return NVIDIANIMProvider(key, model, base)
         logger.warning("LLM_PROVIDER=nvidia_nim but NVIDIA_NIM_API_KEY not set; falling back")
+
+    # Auto-detect NVIDIA NIM: if key is present and no explicit provider chosen, prefer NIM
+    if provider_name in ("", "auto"):
+        nim_key = _env("NVIDIA_NIM_API_KEY")
+        if nim_key:
+            nim_model = _env("NVIDIA_NIM_MODEL", "meta/llama-3.1-70b-instruct")
+            nim_base = _env("NVIDIA_NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+            logger.info("Auto-detected NVIDIA NIM (NVIDIA_NIM_API_KEY set) → using NVIDIANIMProvider")
+            return NVIDIANIMProvider(nim_key, nim_model, nim_base)
 
     if provider_name in ("ollama", "") and _env("LLM_BASE_URL"):
         base = _env("LLM_BASE_URL")
