@@ -63,6 +63,7 @@ const ResumeResults = () => {
   );
   const [appliedSuggestions, setAppliedSuggestions] = useState<string[]>([]);
   const [optimizedText, setOptimizedText] = useState<string | null>(null);
+  const [optimizationResult, setOptimizationResult] = useState<any>(null);
   const [guardrails, setGuardrails] = useState<GuardrailResult | null>(null);
   const [deepScore, setDeepScore] = useState<any>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -88,9 +89,16 @@ const ResumeResults = () => {
     if (!resumeId) { toast.error("Resume ID not available"); return; }
     setIsOptimizing(true);
     setOptimizeError(null);
+    setOptimizationResult(null);
     try {
       const res = await optimizeResume(resumeId, jobDescription);
-      setOptimizedText(res?.optimized_resume || res?.result || JSON.stringify(res, null, 2));
+      const text = res?.optimized_text || res?.optimized_resume || res?.result;
+      if (text) {
+        setOptimizedText(text);
+      } else {
+        setOptimizedText(JSON.stringify(res, null, 2));
+      }
+      setOptimizationResult(res);
       if (res?.guardrails) setGuardrails(res.guardrails as GuardrailResult);
       toast.success("Resume optimized!");
     } catch (err: any) {
@@ -415,7 +423,7 @@ const ResumeResults = () => {
                   <Textarea
                     value={optimizedText}
                     onChange={(e) => setOptimizedText(e.target.value)}
-                    className="min-h-[300px] font-mono text-sm"
+                    className="min-h-[420px] font-mono text-sm leading-relaxed"
                   />
                   <div className="flex gap-2 mt-4">
                     <Button onClick={() => navigator.clipboard.writeText(optimizedText).then(() => toast.success("Copied!"))}>
@@ -429,6 +437,7 @@ const ResumeResults = () => {
                 </CardContent>
               </Card>
             )}
+            
             {deepScore && (
               <Card>
                 <CardHeader>
@@ -467,6 +476,137 @@ const ResumeResults = () => {
                 </CardContent>
               </Card>
             )}
+
+            {optimizationResult && !deepScore && (
+              <Card className="flex flex-col h-full border border-border/60 shadow-lg">
+                <CardHeader className="pb-3 border-b border-border/40 bg-muted/20">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                      <Sparkles className="w-5 h-5 text-primary animate-pulse" />
+                      AI Tailoring Feedback & Critique
+                    </CardTitle>
+                    {optimizationResult.alignment_report?.is_aligned ? (
+                      <Badge variant="outline" className="bg-success/10 border-success/30 text-success flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                        Verified Truthful
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-warning/10 border-warning/30 text-warning flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 text-warning" />
+                        Fabrication Alerts
+                      </Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                
+                <CardContent className="space-y-5 pt-4 overflow-y-auto max-h-[500px]">
+                  {/* Score & Passes comparison */}
+                  <div className="flex items-center justify-between bg-muted/40 rounded-lg p-3 border border-border/30">
+                    <div>
+                      <span className="text-xs text-muted-foreground block font-medium uppercase tracking-wider">Before Score</span>
+                      <span className="text-2xl font-bold text-muted-foreground">{analysisResults?.overallScore}%</span>
+                    </div>
+                    <div className="text-primary font-bold text-lg">→</div>
+                    <div>
+                      <span className="text-xs text-primary block font-medium uppercase tracking-wider">Tailored Score</span>
+                      <span className="text-2xl font-bold text-primary">{optimizationResult.new_heuristic_score}%</span>
+                    </div>
+                    <div className="border-l border-border/60 pl-3">
+                      <span className="text-xs text-muted-foreground block">Refinement</span>
+                      <span className="font-semibold text-sm">{optimizationResult.refinement_passes} pass(es)</span>
+                    </div>
+                  </div>
+
+                  {/* Keyword analysis tabs/sections */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
+                      <Target className="w-4 h-4 text-primary" />
+                      Keyword Gap Analysis
+                    </h4>
+                    
+                    {/* Injectable/Added Keywords */}
+                    <div className="space-y-1.5">
+                      <span className="text-xs text-muted-foreground font-medium block">
+                        Keywords Woven In (From Master Resume):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {optimizationResult.injectable_keywords?.length > 0 ? (
+                          optimizationResult.injectable_keywords.map((kw: string) => (
+                            <Badge key={kw} variant="secondary" className="bg-success/10 text-success border-success/20 text-xs">
+                              +{kw}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">No extra injectable keywords found.</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Skill Gaps */}
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-xs text-muted-foreground font-medium block">
+                        Remaining Skill Gaps (Not in master resume):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {optimizationResult.non_injectable_keywords?.length > 0 ? (
+                          optimizationResult.non_injectable_keywords.map((kw: string) => (
+                            <Badge key={kw} variant="outline" className="bg-destructive/5 text-destructive border-destructive/20 text-xs">
+                              {kw}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic text-success">All job keywords matched!</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AI Buzzwords */}
+                  <div className="space-y-3 pt-1 border-t border-border/40">
+                    <h4 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
+                      <Wand2 className="w-4 h-4 text-primary" />
+                      AI Buzzword Cleanup
+                    </h4>
+                    {optimizationResult.removed_ai_phrases?.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {optimizationResult.removed_ai_phrases.map((item: any, idx: number) => (
+                          <div key={idx} className="bg-muted/50 rounded p-2 border border-border/30 flex items-center justify-between">
+                            <span className="line-through text-muted-foreground font-mono">{item.buzzword}</span>
+                            <span className="text-primary font-bold">→</span>
+                            <span className="font-semibold text-foreground">{item.replacement || "removed"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">No generic AI buzzwords or clichés detected.</span>
+                    )}
+                  </div>
+
+                  {/* Metric quantification suggestions */}
+                  <div className="space-y-3 pt-1 border-t border-border/40">
+                    <h4 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
+                      <Lightbulb className="w-4 h-4 text-primary" />
+                      Experience Bullet Recommendations
+                    </h4>
+                    {optimizationResult.metric_suggestions?.length > 0 ? (
+                      <ul className="space-y-2">
+                        {optimizationResult.metric_suggestions.map((sug: string, idx: number) => (
+                          <li key={idx} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                            <span className="text-primary font-bold mt-0.5">•</span>
+                            <span>{sug}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <span className="text-xs text-success italic flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5" />
+                        Excellent! All experience bullets are well-quantified with metrics.
+                      </span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
@@ -485,7 +625,7 @@ const ResumeResults = () => {
                     score={analysisResults.overallScore}
                     size="lg"
                     showBar
-                    animated
+                    animated={false}
                   />
                   <div className={`mt-4 text-lg font-semibold ${overallLabel.color}`}>
                     {overallLabel.text}

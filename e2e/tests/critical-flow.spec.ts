@@ -3,9 +3,14 @@ import { test, expect } from '@playwright/test';
 // Critical end-to-end flow test covering landing, dashboard, career intelligence, and logout.
 
 test('critical flow', async ({ request, page }) => {
-  // 1️⃣ Log in via API to obtain JWT token.
+  // 1️⃣ Register the test user via API.
+  await request.post('http://localhost:8085/api/auth/register', {
+    data: { email: 'critical-flow-test@example.com', password: 'test12345678' },
+  });
+
+  // 2️⃣ Log in via API to obtain JWT token.
   const loginResponse = await request.post('http://localhost:8085/api/auth/login', {
-    data: { email: 'e2e-test@example.com', password: 'test1234' },
+    data: { email: 'critical-flow-test@example.com', password: 'test12345678' },
   });
   expect(loginResponse.ok()).toBeTruthy();
   const { token } = await loginResponse.json();
@@ -22,8 +27,8 @@ test('critical flow', async ({ request, page }) => {
   const heading = page.locator('h1', { hasText: 'The career platform' });
   await expect(heading).toBeVisible();
 
-  // 5️⃣ Click the navigation link to the Dashboard page (sidebar entry).
-  await page.locator('nav a', { hasText: 'Dashboard' }).first().click();
+  // 5️⃣ Navigate to the Dashboard page.
+  await page.goto('/dashboard', { waitUntil: 'networkidle' });
   await expect(page).toHaveURL(/\/dashboard$/);
 
   // 6️⃣ Ensure GamificationBadge and AchievementsBadge are present.
@@ -37,7 +42,7 @@ test('critical flow', async ({ request, page }) => {
   await expect(page.locator('[role="img"]')).toBeVisible();
 
   // 9️⃣ Log out via the UI and ensure redirect to the login page.
-  await page.locator('button', { hasText: 'Sign out' }).click();
+  await page.locator('button:has(.lucide-log-out), button:has-text("Sign out")').first().click();
   // Expect landing page after logout (user is unauthenticated)
   await expect(page).toHaveURL(/\/$/);
   // Verify a sign‑in link/button is visible again

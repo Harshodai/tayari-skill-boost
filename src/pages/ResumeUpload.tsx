@@ -74,10 +74,10 @@ function normalizeGoAnalysis(raw: Record<string, any>): ResumeAnalysisResult {
       ),
     });
   }
-  if (breakdown.section_completeness !== undefined) {
+  if (breakdown.formatting_compliance !== undefined) {
     sections.push({
       name: "Formatting",
-      score: Math.round(breakdown.section_completeness),
+      score: Math.round(breakdown.formatting_compliance),
       suggestions: recommendations.filter((r: string) =>
         r.toLowerCase().includes("format")
       ),

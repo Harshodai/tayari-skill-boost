@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   User,
@@ -88,6 +88,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { signOut } = useAuth();
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + "/");
   const groups = buildGroups();
@@ -167,7 +168,7 @@ export function AppSidebar() {
             </SidebarMenuItem>
           )}
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => signOut()} tooltip="Sign out">
+            <SidebarMenuButton onClick={async () => { await signOut(); navigate("/"); }} tooltip="Sign out">
               <LogOut className="h-4 w-4" />
               {!collapsed && <span>Sign out</span>}
             </SidebarMenuButton>

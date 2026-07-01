@@ -4,7 +4,7 @@ const FRONTEND_URL = 'http://127.0.0.1:8083';
 const API_URL = 'http://127.0.0.1:8085/api';
 
 const TEST_EMAIL = 'e2e-test@example.com';
-const TEST_PASS = 'test1234';
+const TEST_PASS = 'test12345678';
 
 test.describe('Tayari Skill Boost — End to End Smoke', () => {
 

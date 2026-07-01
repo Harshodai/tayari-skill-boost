@@ -59,7 +59,9 @@ async def ats_analyze(
         ext = _validate_upload(resume_file, data)
         resume_parsed = ResumeParser.parse_file(data, ext)
         resume_text = resume_parsed.raw_text or ""
-    elif not resume_text:
+    elif resume_text:
+        resume_parsed = ResumeParser.parse_text(resume_text)
+    else:
         raise HTTPException(status_code=400, detail="Provide resume_text or resume_file")
 
     # ingest JD
@@ -97,3 +99,11 @@ async def ats_keywords(payload: AnalyzeRequest):
         payload.resume_text or "", payload.job_description or ""
     )
     return keywords
+
+@router.post("/api/v1/parser/parse")
+async def parse_document(resume_file: UploadFile = File(...)):
+    """Parse PDF or DOCX file and return raw text."""
+    data = await resume_file.read()
+    ext = _validate_upload(resume_file, data)
+    parsed = ResumeParser.parse_file(data, ext)
+    return {"text": parsed.raw_text or ""}

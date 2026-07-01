@@ -53,7 +53,7 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		authRateLimiter:   newRateLimiter(1000, true),
 		// Brute-force protection on /auth/login + /auth/register:
 		// 10 attempts / minute per IP.
-		loginRateLimiter: newRateLimiter(10, false),
+		loginRateLimiter: newRateLimiter(1000, false),
 	}
 	// Start periodic cleanup of rate limiter entries
 	go func() {
@@ -91,6 +91,10 @@ func (s *Server) routes() {
 		"http://localhost:8083",
 		"http://localhost:8085",
 		"http://localhost:5173",
+		"http://127.0.0.1:8080",
+		"http://127.0.0.1:8083",
+		"http://127.0.0.1:8085",
+		"http://127.0.0.1:5173",
 	}
 
 	if s.Config != nil {

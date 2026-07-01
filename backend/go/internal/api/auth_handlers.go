@@ -52,7 +52,11 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		hash := sha256.Sum256([]byte(req.Email))
 		emailHash := hex.EncodeToString(hash[:16])
 		log.Printf("handleRegister: registration failed for hash:%s: %v", emailHash, err)
-		s.respondError(w, http.StatusInternalServerError, "Registration failed")
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			s.respondError(w, http.StatusConflict, "User already exists")
+		} else {
+			s.respondError(w, http.StatusInternalServerError, "Registration failed")
+		}
 		return
 	}
 

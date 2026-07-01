@@ -42,7 +42,7 @@ func (c *Client) ParseDocument(fileData []byte, fileType string) (map[string]int
 	part.Write(fileData)
 	w.Close()
 
-	req, err := http.NewRequest(http.MethodPost, c.BaseURL+"/api/v1/ats/analyze", &buf)
+	req, err := http.NewRequest(http.MethodPost, c.BaseURL+"/api/v1/parser/parse", &buf)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { trendingSkills } from '@/api';
 import { Chart } from '@/components/charts/Chart';
 import { Card, CardContent } from '@/components/ui/card';
+import { AppShell } from "@/components/layout";
 
 export interface TrendingSkill {
   skill: string;
@@ -43,15 +44,21 @@ export function CareerIntelligence() {
   }, []);
 
   return (
-    <>
-      <div className="container mx-auto py-8">
-        <h1 className="text-3xl font-bold mb-6">Trending Skills</h1>
+    <AppShell>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Trending Skills</h1>
+          <p className="text-muted-foreground mt-1">Real-time demand metrics for top engineering skills.</p>
+        </div>
+        
         {error && <p className="text-red-500">{error}</p>}
+        
         <SkillCards trending={trending} error={error} />
+        
+        <div className="mt-8">
+          <TrendChart trending={trending} />
+        </div>
       </div>
-      <div className="mt-8">
-        <TrendChart trending={trending} />
-      </div>
-    </>
+    </AppShell>
   );
 }
