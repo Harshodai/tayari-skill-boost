@@ -129,7 +129,7 @@ const Auth = () => {
     const validationResult = validationSchema.safeParse(isLogin ? { email, password } : { email, password, fullName: name });
 
     if (!validationResult.success) {
-      const errorMsg = validationResult.error.errors[0].message;
+      const errorMsg = validationResult.error.issues[0].message;
       toast({
         title: "Validation Error",
         description: errorMsg,
