@@ -58,6 +58,7 @@ const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'));
 const AgentPanel = lazy(() => import('./pages/AgentPanel'));
 const APIKeys = lazy(() => import('./pages/APIKeys'));
 const ResumeGraph = lazy(() => import('./pages/ResumeGraph'));
+const OAuthConsent = lazy(() => import('./pages/OAuthConsent'));
 
 const CareerOpsDashboard = lazy(() => import('./pages/CareerOpsDashboard'));
 const LinkedInImport = lazy(() => import('./pages/LinkedInImport'));
@@ -99,6 +100,7 @@ const App = () => (
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
                   <Route path="/resume-graph" element={<ResumeGraph />} />
 
               {/* Conditionally Rendered Routes */}

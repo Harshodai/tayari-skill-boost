@@ -45,10 +45,12 @@ const Auth = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (user) {
-      const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/resume";
+      const nextParam = searchParams.get("next");
+      const safeNext = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : null;
+      const from = safeNext ?? (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/resume";
       navigate(from, { replace: true });
     }
-  }, [user, navigate, location]);
+  }, [user, navigate, location, searchParams]);
 
   // Debounced breach check (client hashes password; only SHA-1 prefix leaves the browser)
   const checkPasswordBreach = useCallback(async (password: string) => {
