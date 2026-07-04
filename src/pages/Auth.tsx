@@ -45,10 +45,12 @@ const Auth = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (user) {
-      const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/resume";
+      const nextParam = searchParams.get("next");
+      const safeNext = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : null;
+      const from = safeNext ?? (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/resume";
       navigate(from, { replace: true });
     }
-  }, [user, navigate, location]);
+  }, [user, navigate, location, searchParams]);
 
   // Debounced breach check (client hashes password; only SHA-1 prefix leaves the browser)
   const checkPasswordBreach = useCallback(async (password: string) => {
@@ -129,7 +131,7 @@ const Auth = () => {
     const validationResult = validationSchema.safeParse(isLogin ? { email, password } : { email, password, fullName: name });
 
     if (!validationResult.success) {
-      const errorMsg = validationResult.error.errors[0].message;
+      const errorMsg = validationResult.error.issues[0].message;
       toast({
         title: "Validation Error",
         description: errorMsg,

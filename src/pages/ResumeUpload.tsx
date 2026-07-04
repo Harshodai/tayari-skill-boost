@@ -135,7 +135,7 @@ const ResumeUpload = () => {
         // Zod Validation
         const validationResult = resumeUploadSchema.safeParse({ file: resumeFile });
         if (!validationResult.success) {
-          const errorMsg = validationResult.error.errors[0].message;
+          const errorMsg = validationResult.error.issues[0].message;
           setParsingError(errorMsg);
           setResumeText("");
           return;

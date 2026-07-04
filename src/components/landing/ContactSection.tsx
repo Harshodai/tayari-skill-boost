@@ -48,7 +48,7 @@ export function ContactSection() {
     // Zod Validation
     const validationResult = contactSchema.safeParse(formData);
     if (!validationResult.success) {
-      const errorMsg = validationResult.error.errors[0].message;
+      const errorMsg = validationResult.error.issues[0].message;
       toast({
         title: "Validation Error",
         description: errorMsg,
