@@ -53,7 +53,7 @@ before claiming done. Commands live in §9 (the checklist). Non-negotiables in �
 | **New feature flag / new page** | New route in `src/App.tsx` | **Register in `src/config/features.ts` (§6).** Wrap visibility in the existing flag logic. |
 | **New dependency** | New npm/Go/Python package | Justify it. Prefer stdlib. Minimal-change rule (§5) — do not add deps that weren't asked for. Leave a `// ponytail:` explaining why the dep is needed. |
 | **DB migration** | New table/column | Document the schema change; add to init/migration scripts (`backend/db/`). `.agents/AGENTS.md`: schema changes must be documented + ideally in init scripts. |
-| **Security / secrets** | Touch auth, add a key | `JWT_SECRET` stays required (§8). Never commit real secrets. Note `.env` is currently tracked — flag rotation if a real key lands. |
+| **Security / secrets** | Touch auth, add a key | `JWT_SECRET` stays required (§8). Never commit real secrets. `.env` is gitignored — keep it that way; put real keys only in your local (untracked) `.env`. |
 | **Vite build config** | Edit `vite.config.ts` | **Never re-add a per-package `manualChunks` splitter (§8/manualChunks). TDZ crash.** |
 | **Go LLM logic / frontend→Python call** | Add AI logic to Go, call Python from React | **Forbidden by service separation (§4).** Move it to Python; route frontend calls through Go. |
 
@@ -229,9 +229,11 @@ Evidence standards for what counts as a real pass: `tayari-validation-and-qa`. T
 (`log.Fatalf`) if `JWT_SECRET` is missing or empty. Never remove that requirement. Never
 commit a real secret.
 
-> **Secret-hygiene flag (verified 2026-07-08):** `.env` is currently *tracked* in the repo
-> (normally gitignored). If a real key ever lands in it, treat it as exposed and rotate it.
-> Do not add real keys to `.env` in a commit.
+> **Secret-hygiene flag (verified 2026-07-08):** `.env` is **gitignored and not tracked**
+> (`.gitignore:2` lists `.env`); a local `.env` with real values exists on disk but is not in
+> git — good. Keep it that way: never `git add -f .env`, and put real keys only in the local
+> untracked `.env`. `.env.example` carries placeholder/stale Supabase-era values (safe to commit).
+> If a real key is ever accidentally committed, treat it as exposed and rotate it.
 
 **Never re-add a naive per-package `manualChunks` splitter to `vite.config.ts`.** Giving
 every `node_modules` package its own Rollup chunk breaks scoped packages that share
@@ -314,7 +316,7 @@ history. Use the sibling skill instead when:
 | Understand feature-flag mechanics in depth | `tayari-config-and-flags` |
 | Build the project / handle env vars & ports | `tayari-build-and-env` |
 | Run the stack / Docker profiles / operate services | `tayari-run-and-operate` |
-| Use diagnostic tooling (codegraph, serena, etc.) | `tayari-diagnostics-and-tooling` |
+| Measure health / mock-vs-real engine / ATS score / green test subset | `tayari-diagnostics-and-tooling` |
 | ATS / LLM / optimizer internals | `resume-ats-llm-reference` |
 | Push back on a fake "all green" report | `tayari-quality-signal-campaign` |
 
