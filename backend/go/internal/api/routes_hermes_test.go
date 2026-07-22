@@ -42,7 +42,7 @@ func (m *hermesMockAuth) Login(ctx context.Context, email, password string) (str
 func (m *hermesMockAuth) Register(ctx context.Context, email, password string) (*models.User, error) {
 	return &models.User{ID: uuid.New(), Email: email}, nil
 }
-func (m *hermesMockAuth) SocialLogin(w http.ResponseWriter, r *http.Request)  {}
+func (m *hermesMockAuth) SocialLogin(w http.ResponseWriter, r *http.Request)    {}
 func (m *hermesMockAuth) SocialCallback(w http.ResponseWriter, r *http.Request) {}
 
 // fakeAIServer returns an httptest.Server whose handler is driven by the

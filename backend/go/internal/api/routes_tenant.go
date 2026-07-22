@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -112,7 +111,7 @@ func (s *Server) handleCreateAdvisorCohort(w http.ResponseWriter, r *http.Reques
 	var req struct {
 		Name string `json:"name"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}

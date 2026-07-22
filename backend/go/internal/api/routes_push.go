@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 
@@ -33,7 +32,7 @@ func (s *Server) handlePushRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req PushRegisterRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -73,7 +72,7 @@ func (s *Server) handlePushSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req PushSendRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}

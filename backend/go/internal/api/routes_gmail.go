@@ -117,13 +117,13 @@ func (s *Server) handleGmailLogin(w http.ResponseWriter, r *http.Request) {
 		"https://www.googleapis.com/auth/userinfo.email",
 	}
 	params := url.Values{
-		"client_id":             {gmailClientID()},
-		"redirect_uri":          {gmailRedirectURI()},
-		"response_type":         {"code"},
-		"scope":                 {strings.Join(scopes, " ")},
-		"access_type":           {"offline"},
-		"prompt":                {"consent"},
-		"state":                 {state},
+		"client_id":              {gmailClientID()},
+		"redirect_uri":           {gmailRedirectURI()},
+		"response_type":          {"code"},
+		"scope":                  {strings.Join(scopes, " ")},
+		"access_type":            {"offline"},
+		"prompt":                 {"consent"},
+		"state":                  {state},
 		"include_granted_scopes": {"true"},
 	}
 	authURL := "https://accounts.google.com/o/oauth2/auth?" + params.Encode()
@@ -387,7 +387,9 @@ func gmailFetchMessages(ctx context.Context, accessToken string, maxResults int)
 	}
 
 	var listResp struct {
-		Messages []struct{ ID string `json:"id"` } `json:"messages"`
+		Messages []struct {
+			ID string `json:"id"`
+		} `json:"messages"`
 	}
 	if err := json.Unmarshal(body, &listResp); err != nil {
 		return nil, fmt.Errorf("gmail list decode: %w", err)

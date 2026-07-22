@@ -1,16 +1,14 @@
-
 package api
 
 import (
-    "context"
-    "crypto/sha256"
-    "encoding/hex"
-    "encoding/json"
-    "log"
-    "net/http"
-    "net/mail"
-    "strings"
-    "tayari-backend/internal/models"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"log"
+	"net/http"
+	"net/mail"
+	"strings"
+	"tayari-backend/internal/models"
 )
 
 // Auth Handlers
@@ -21,7 +19,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		log.Printf("handleRegister: failed to decode request body: %v", err)
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -68,7 +66,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}

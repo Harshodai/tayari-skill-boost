@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -58,7 +57,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		Name      string `json:"name"`
 		RateLimit int    `json:"rate_limit,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -246,7 +245,7 @@ func (s *Server) handlePublicOptimize(w http.ResponseWriter, r *http.Request) {
 		ResumeText     string `json:"resume_text"`
 		JobDescription string `json:"job_description"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}

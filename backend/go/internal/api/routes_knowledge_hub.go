@@ -40,7 +40,7 @@ func (s *Server) handleCreateSave(w http.ResponseWriter, r *http.Request) {
 		Note   string `json:"note"`
 		Source string `json:"source"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}

@@ -25,7 +25,7 @@ func (s *Server) routesCareerOps(r chi.Router) {
 		r.Get("/api/career-ops/followups", s.handleCareerOpsGetFollowups)
 		r.Post("/api/v1/career-ops/followups/action", s.handleCareerOpsFollowupAction)
 		r.Post("/api/career-ops/followups/action", s.handleCareerOpsFollowupAction)
-		
+
 		r.Get("/api/v1/career-ops/portals", s.handleCareerOpsGetPortals)
 		r.Get("/api/career-ops/portals", s.handleCareerOpsGetPortals)
 		r.Post("/api/v1/career-ops/portals", s.handleCareerOpsSavePortal)

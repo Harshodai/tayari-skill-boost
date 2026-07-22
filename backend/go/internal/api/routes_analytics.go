@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -26,14 +25,14 @@ type CreateVariantRequest struct {
 }
 
 type VariantResponse struct {
-	ID              int                    `json:"id"`
-	ResumeID        int                    `json:"resume_id"`
-	Name            string                 `json:"name"`
-	OriginalText    string                 `json:"original_text"`
-	Scores          map[string]interface{} `json:"scores"`
-	Pulls           int                    `json:"pulls"`
-	Conversions     int                    `json:"conversions"`
-	CreatedAt       string                 `json:"created_at"`
+	ID           int                    `json:"id"`
+	ResumeID     int                    `json:"resume_id"`
+	Name         string                 `json:"name"`
+	OriginalText string                 `json:"original_text"`
+	Scores       map[string]interface{} `json:"scores"`
+	Pulls        int                    `json:"pulls"`
+	Conversions  int                    `json:"conversions"`
+	CreatedAt    string                 `json:"created_at"`
 }
 
 func (s *Server) handleCreateResumeVariant(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +50,7 @@ func (s *Server) handleCreateResumeVariant(w http.ResponseWriter, r *http.Reques
 	}
 
 	var req CreateVariantRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -79,8 +78,8 @@ func (s *Server) handleCreateResumeVariant(w http.ResponseWriter, r *http.Reques
 		log.Printf("handleCreateResumeVariant: AI score failed: %v", err)
 		// Fallback mock scores
 		scores = map[string]interface{}{
-			"formatting_score": 75,
-			"metrics_score":    60,
+			"formatting_score":  75,
+			"metrics_score":     60,
 			"readability_score": 80,
 			"keyword_score":     70,
 			"overall_score":     71,
@@ -160,7 +159,7 @@ func (s *Server) handleListResumeVariants(w http.ResponseWriter, r *http.Request
 			log.Printf("handleListResumeVariants: scan failed: %v", err)
 			continue
 		}
-		
+
 		// Parse mock scores for list display
 		pythonPayload := map[string]string{
 			"resume_text":     v.OriginalText,
@@ -169,8 +168,8 @@ func (s *Server) handleListResumeVariants(w http.ResponseWriter, r *http.Request
 		scores, err := s.AI.PostJSON("/api/v1/predictive/score", pythonPayload)
 		if err != nil {
 			scores = map[string]interface{}{
-				"formatting_score": 70,
-				"metrics_score":    50,
+				"formatting_score":  70,
+				"metrics_score":     50,
 				"readability_score": 75,
 				"keyword_score":     65,
 				"overall_score":     65,

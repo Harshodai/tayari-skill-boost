@@ -42,7 +42,7 @@ func (s *Server) handleExtensionCapture(w http.ResponseWriter, r *http.Request) 
 		AddToBoard  bool   `json:"add_to_board"`
 		Stage       string `json:"stage"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -131,7 +131,7 @@ func (s *Server) handleExtensionQuickATS(w http.ResponseWriter, r *http.Request)
 		JobDescription     string `json:"job_description"`
 		CustomInstructions string `json:"custom_instructions"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}

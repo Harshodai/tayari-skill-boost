@@ -242,7 +242,6 @@ func (s *Server) handleHermesRunDetail(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, http.StatusOK, result)
 }
 
-
 // isPythonNotFound returns true when the error from ai.Client.GetJSON indicates
 // the Python service returned 404. The client formats non-2xx as
 // "AI service returned %d: %s", so we detect the 404 status code substring.
@@ -368,7 +367,7 @@ func (s *Server) handleHermesCreateSession(w http.ResponseWriter, r *http.Reques
 		Goal string `json:"goal"`
 		Kind string `json:"kind"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -416,7 +415,7 @@ func (s *Server) handleHermesAddEvent(w http.ResponseWriter, r *http.Request) {
 		Type    string `json:"type"`
 		Message string `json:"message"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}

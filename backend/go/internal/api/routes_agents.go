@@ -6,8 +6,9 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"tayari-backend/internal/models"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // routesAgents wires the Digital Employees and Tool Approvals proxy routes.

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"tayari-backend/internal/models"
+
+	"golang.org/x/time/rate"
 )
 
 // ------------------------------------------------------------------------------
@@ -58,26 +60,39 @@ func (s *Server) requestLoggingMiddleware(next http.Handler) http.Handler {
 }
 
 // ------------------------------------------------------------------------------
-// Rate Limiting Middleware
+// Rate Limiting Middleware (Robust with penalty backoff)
 // ------------------------------------------------------------------------------
 
 type clientLimiter struct {
-	requests    int
-	windowStart time.Time
+	limiter    *rate.Limiter
+	lastSeen   time.Time
+	strikes    int
+	penaltyEnd time.Time
 }
 
 type rateLimiter struct {
 	mu        sync.RWMutex
 	clients   map[string]*clientLimiter
-	limit     int
+	rate      rate.Limit
+	burst     int
 	useUserID bool
 }
 
-func newRateLimiter(limit int, useUserID bool) *rateLimiter {
-	return &rateLimiter{
+func newRateLimiter(r rate.Limit, burst int, useUserID bool) *rateLimiter {
+	rl := &rateLimiter{
 		clients:   make(map[string]*clientLimiter),
-		limit:     limit,
+		rate:      r,
+		burst:     burst,
 		useUserID: useUserID,
+	}
+	go rl.cleanupLoop()
+	return rl
+}
+
+func (rl *rateLimiter) cleanupLoop() {
+	for {
+		time.Sleep(5 * time.Minute)
+		rl.cleanup()
 	}
 }
 
@@ -86,7 +101,7 @@ func (rl *rateLimiter) cleanup() {
 	defer rl.mu.Unlock()
 	now := time.Now()
 	for id, client := range rl.clients {
-		if now.Sub(client.windowStart) > time.Minute {
+		if now.Sub(client.lastSeen) > 10*time.Minute {
 			delete(rl.clients, id)
 		}
 	}
@@ -104,20 +119,44 @@ func (rl *rateLimiter) Middleware(next http.Handler) http.Handler {
 		rl.mu.Lock()
 		client, exists := rl.clients[clientID]
 		now := time.Now()
-		if !exists || now.Sub(client.windowStart) > time.Minute {
-			rl.clients[clientID] = &clientLimiter{
-				requests:    1,
-				windowStart: now,
+		if !exists {
+			client = &clientLimiter{
+				limiter:  rate.NewLimiter(rl.rate, rl.burst),
+				lastSeen: now,
 			}
-		} else {
-			client.requests++
-			if client.requests > rl.limit {
-				rl.mu.Unlock()
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusTooManyRequests)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Rate limit exceeded"})
-				return
+			rl.clients[clientID] = client
+		}
+		client.lastSeen = now
+
+		// Check penalty
+		if now.Before(client.penaltyEnd) {
+			rl.mu.Unlock()
+			w.Header().Set("Retry-After", "60")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Too Many Requests", "message": "You are temporarily blocked. Try again later."})
+			return
+		}
+
+		if !client.limiter.Allow() {
+			client.strikes++
+			// If blocked > 5 times quickly, apply a penalty backoff (exponential)
+			if client.strikes > 5 {
+				penaltyDuration := time.Duration(client.strikes) * time.Minute
+				client.penaltyEnd = now.Add(penaltyDuration)
+				log.Printf("[RATE LIMIT] Penalty applied to %s for %v", clientID, penaltyDuration)
 			}
+			rl.mu.Unlock()
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Rate limit exceeded"})
+			return
+		}
+
+		// Reset strikes if allowed
+		if client.strikes > 0 {
+			client.strikes = 0
 		}
 		rl.mu.Unlock()
 
@@ -182,4 +221,3 @@ func (s *Server) tenantMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-

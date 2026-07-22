@@ -1,25 +1,24 @@
 package api
 
 import (
+	"bytes"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
-	"database/sql"
-	"bytes"
-	"mime/multipart"
 
 	"tayari-backend/internal/models"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
-
 
 // -------------------------------------------------------------------
 // Profile
@@ -48,13 +47,13 @@ func (s *Server) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"profile_id": p.ID,
-		"full_name":  p.FullName,
-		"avatar_url": p.AvatarURL,
-		"email":      p.Email,
-		"headline":   p.Headline,
-		"summary":    p.Summary,
-		"skills":     p.Skills,
+		"profile_id":       p.ID,
+		"full_name":        p.FullName,
+		"avatar_url":       p.AvatarURL,
+		"email":            p.Email,
+		"headline":         p.Headline,
+		"summary":          p.Summary,
+		"skills":           p.Skills,
 		"desired_roles":    p.DesiredRoles,
 		"locations":        p.Locations,
 		"experience_years": p.ExperienceYears,
@@ -72,7 +71,7 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req models.Profile
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -110,7 +109,7 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleJobSearch(w http.ResponseWriter, r *http.Request) {
 	var req map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -144,7 +143,7 @@ func (s *Server) handleAgentSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -197,8 +196,6 @@ func (s *Server) handleAgentSearch(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
-
 func (s *Server) handleSaveJob(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(contextKeyUser).(*models.User)
 	if !ok || user == nil {
@@ -210,7 +207,7 @@ func (s *Server) handleSaveJob(w http.ResponseWriter, r *http.Request) {
 		Job       map[string]interface{} `json:"job"`
 		Status    string                 `json:"status"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -320,7 +317,7 @@ func (s *Server) handleAutopilotStart(w http.ResponseWriter, r *http.Request) {
 		ResumeText    string                 `json:"resume_text"`
 		CandidateName string                 `json:"candidate_name,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -330,10 +327,10 @@ func (s *Server) handleAutopilotStart(w http.ResponseWriter, r *http.Request) {
 	}
 	// Call Python AI to start run
 	pythonPayload := map[string]interface{}{
-		"run_config":      req.RunConfig,
-		"profile":         req.Profile,
-		"resume_text":     req.ResumeText,
-		"candidate_name":  req.CandidateName,
+		"run_config":     req.RunConfig,
+		"profile":        req.Profile,
+		"resume_text":    req.ResumeText,
+		"candidate_name": req.CandidateName,
 	}
 	result, err := s.AI.PostJSON("/api/v1/autopilot/run", pythonPayload)
 	if err != nil {
@@ -503,7 +500,7 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 		ApplyURL           string                 `json:"apply_url,omitempty"`
 		ResumeVariantID    *int                   `json:"resume_variant_id,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -605,7 +602,7 @@ func (s *Server) handleUpdateApplication(w http.ResponseWriter, r *http.Request)
 	var req struct {
 		Status string `json:"status"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -729,7 +726,7 @@ func (s *Server) handleCreateSchedule(w http.ResponseWriter, r *http.Request) {
 		Active    bool                   `json:"active"`
 		NextRunAt *time.Time             `json:"next_run_at,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -817,7 +814,7 @@ func (s *Server) handleUpdateSchedule(w http.ResponseWriter, r *http.Request) {
 		Active    bool                   `json:"active"`
 		NextRunAt *time.Time             `json:"next_run_at,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -876,7 +873,7 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		JobDescription string `json:"job_description,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		// body is optional; ignore error if empty
 		req.JobDescription = ""
 	}
@@ -936,7 +933,7 @@ func (s *Server) handleDeepATS(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		JobDescription string `json:"job_description,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		req.JobDescription = ""
 	}
 	result, err := s.AI.PostJSON("/api/v1/ats/deep", map[string]interface{}{
@@ -968,7 +965,7 @@ func (s *Server) handleExportResume(w http.ResponseWriter, r *http.Request) {
 	var resumeText string
 	if r.Body != nil && r.ContentLength > 0 {
 		var body map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&body); err == nil {
+		if err := DecodeAndValidate(r, &body); err == nil {
 			if opt, ok := body["optimized_text"].(string); ok && opt != "" {
 				resumeText = opt
 			}
@@ -1130,10 +1127,9 @@ func (s *Server) handleDashboardStats(w http.ResponseWriter, r *http.Request) {
 		"applications_count":     applicationsCount,
 		"interviews_count":       interviewsCount,
 		"review_queue_count":     reviewQueueCount,
-		"profile_completion_pct":   profileCompletion,
+		"profile_completion_pct": profileCompletion,
 	})
 }
-
 
 // ---------------------------------------------------------------------------
 // NEW: Cover Letter, Communication, Interview Prep, Knowledge Graph, Profile Import
@@ -1146,7 +1142,7 @@ func (s *Server) handleCoverLetterGenerate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	var req map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid JSON body")
 		return
 	}
@@ -1183,12 +1179,12 @@ func (s *Server) handleCoverLetterGenerate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	result, err := s.AI.PostJSON("/api/v1/cover-letter/generate", map[string]interface{}{
-		"resume_text":    resumeText,
-		"job_title":      jobTitle,
-		"company":        companyName,
+		"resume_text":     resumeText,
+		"job_title":       jobTitle,
+		"company":         companyName,
 		"job_description": jobDescription,
-		"tone":           tone,
-		"personal_notes": personalNotes,
+		"tone":            tone,
+		"personal_notes":  personalNotes,
 	})
 	if err != nil {
 		log.Printf("handleCoverLetterGenerate: AI call failed: %v", err)
@@ -1205,7 +1201,7 @@ func (s *Server) handleCommunicationGenerate(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	var req map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid JSON body")
 		return
 	}
@@ -1250,21 +1246,27 @@ func (s *Server) handleCommunicationGenerate(w http.ResponseWriter, r *http.Requ
 			WHERE a.application_id = $2 AND a.user_id = $1
 			ORDER BY r.created_at DESC LIMIT 1
 		`, user.ID, applicationID).Scan(&appData.JobTitle, &appData.CompanyName, &appData.JobDesc, &appData.ResumeText); err == nil {
-			if jobTitle == "" { jobTitle = appData.JobTitle }
-			if companyName == "" { companyName = appData.CompanyName }
-			if resumeText == "" { resumeText = appData.ResumeText }
+			if jobTitle == "" {
+				jobTitle = appData.JobTitle
+			}
+			if companyName == "" {
+				companyName = appData.CompanyName
+			}
+			if resumeText == "" {
+				resumeText = appData.ResumeText
+			}
 		}
 	}
 
 	result, err := s.AI.PostJSON("/api/v1/communication/generate", map[string]interface{}{
-		"comm_type":        commType,
-		"resume_text":      resumeText,
-		"job_title":        jobTitle,
-		"company_name":     companyName,
-		"recipient_name":   recipientName,
+		"comm_type":         commType,
+		"resume_text":       resumeText,
+		"job_title":         jobTitle,
+		"company_name":      companyName,
+		"recipient_name":    recipientName,
 		"discussion_points": discussionPoints,
-		"offer_details":    offerDetails,
-		"days_since":       int(daysSince),
+		"offer_details":     offerDetails,
+		"days_since":        int(daysSince),
 	})
 	if err != nil {
 		log.Printf("handleCommunicationGenerate: AI call failed: %v", err)
@@ -1308,7 +1310,7 @@ func (s *Server) handleCommunicationResponse(w http.ResponseWriter, r *http.Requ
 	var req struct {
 		ResponseStatus string `json:"response_status"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid JSON body")
 		return
 	}
@@ -1360,11 +1362,11 @@ func (s *Server) handleCommunicationStats(w http.ResponseWriter, r *http.Request
 	}
 	defer rows.Close()
 	type typeStat struct {
-		CommType    string `json:"comm_type"`
-		Total       int    `json:"total"`
-		Responded   int    `json:"responded"`
-		NoResponse  int    `json:"no_response"`
-		ResponseRate int   `json:"response_rate"`
+		CommType     string `json:"comm_type"`
+		Total        int    `json:"total"`
+		Responded    int    `json:"responded"`
+		NoResponse   int    `json:"no_response"`
+		ResponseRate int    `json:"response_rate"`
 	}
 	var stats []typeStat
 	for rows.Next() {
@@ -1447,13 +1449,13 @@ func (s *Server) handleCommunicationSuggestions(w http.ResponseWriter, r *http.R
 		}
 		if suggestionType != "" {
 			suggestions = append(suggestions, map[string]interface{}{
-				"application_id": appID,
-				"job_title":      jobTitle,
-				"company_name":   companyName,
-				"status":         status,
-				"days_since":     daysSince,
+				"application_id":  appID,
+				"job_title":       jobTitle,
+				"company_name":    companyName,
+				"status":          status,
+				"days_since":      daysSince,
 				"suggestion_type": suggestionType,
-				"timing_note":    timing,
+				"timing_note":     timing,
 			})
 		}
 	}
@@ -1467,7 +1469,7 @@ func (s *Server) handleInterviewPrep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid JSON body")
 		return
 	}
@@ -1495,10 +1497,18 @@ func (s *Server) handleInterviewPrep(w http.ResponseWriter, r *http.Request) {
 			WHERE a.application_id = $2 AND a.user_id = $1
 			ORDER BY r.created_at DESC LIMIT 1
 		`, user.ID, applicationID).Scan(&appData.JobTitle, &appData.CompanyName, &appData.JobDescription, &appData.ResumeText); err == nil {
-			if jobTitle == "" { jobTitle = appData.JobTitle }
-			if companyName == "" { companyName = appData.CompanyName }
-			if jobDescription == "" { jobDescription = appData.JobDescription }
-			if resumeText == "" { resumeText = appData.ResumeText }
+			if jobTitle == "" {
+				jobTitle = appData.JobTitle
+			}
+			if companyName == "" {
+				companyName = appData.CompanyName
+			}
+			if jobDescription == "" {
+				jobDescription = appData.JobDescription
+			}
+			if resumeText == "" {
+				resumeText = appData.ResumeText
+			}
 		}
 	}
 	if resumeText == "" {
@@ -1513,11 +1523,11 @@ func (s *Server) handleInterviewPrep(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := s.AI.PostJSON("/api/v1/interview/prep", map[string]interface{}{
-		"resume_text":      resumeText,
-		"job_title":        jobTitle,
-		"company_name":     companyName,
-		"job_description":  jobDescription,
-		"interview_type":   interviewType,
+		"resume_text":     resumeText,
+		"job_title":       jobTitle,
+		"company_name":    companyName,
+		"job_description": jobDescription,
+		"interview_type":  interviewType,
 	})
 	if err != nil {
 		log.Printf("handleInterviewPrep: AI call failed: %v", err)
@@ -1699,7 +1709,7 @@ func (s *Server) handleLinkedInAnalyze(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ProfileText string `json:"profile_text"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -1780,5 +1790,3 @@ func (s *Server) handleOptimizeResumeStream(w http.ResponseWriter, r *http.Reque
 		}
 	}
 }
-
-

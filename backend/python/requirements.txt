@@ -31,3 +31,4 @@ flower==2.0.1
 asyncpg==0.30.0
 crawl4ai==0.4.0
 apify-client==1.8.0
+slowapi

@@ -10,15 +10,16 @@ import (
 	"strings"
 	"time"
 
+	"tayari-backend/internal/ai"
 	"tayari-backend/internal/auth"
 	"tayari-backend/internal/config"
 	"tayari-backend/internal/database"
 	"tayari-backend/internal/models"
-	"tayari-backend/internal/ai"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"golang.org/x/time/rate"
 )
 
 // Context key type to avoid collisions
@@ -49,11 +50,9 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		DB:                db,
 		AI:                ai.NewClient(cfg.PythonAIURL),
 		startTime:         time.Now(),
-		publicRateLimiter: newRateLimiter(100, false),
-		authRateLimiter:   newRateLimiter(1000, true),
-		// Brute-force protection on /auth/login + /auth/register:
-		// 10 attempts / minute per IP.
-		loginRateLimiter: newRateLimiter(1000, false),
+		publicRateLimiter: newRateLimiter(rate.Limit(1.6), 10, false),
+		authRateLimiter:   newRateLimiter(rate.Limit(16.0), 50, true),
+		loginRateLimiter:  newRateLimiter(rate.Limit(0.1), 5, false),
 	}
 	// Start periodic cleanup of rate limiter entries
 	go func() {
@@ -75,11 +74,11 @@ func (s *Server) routes() {
 	s.Router.Use(s.tenantMiddleware)
 
 	/*
-	allowedOrigins := []string{"http://localhost:5173",
-	"http://127.0.0.1:5173", "http://localhost:4173"}
-	if s.Config != nil && len(s.Config.AllowedOrigins) > 0 {
-		allowedOrigins = s.Config.AllowedOrigins
-	}
+		allowedOrigins := []string{"http://localhost:5173",
+		"http://127.0.0.1:5173", "http://localhost:4173"}
+		if s.Config != nil && len(s.Config.AllowedOrigins) > 0 {
+			allowedOrigins = s.Config.AllowedOrigins
+		}
 	*/
 
 	// CORS — explicit allowlist. Never use "*" with AllowCredentials=true:
@@ -129,7 +128,6 @@ func (s *Server) routes() {
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
-
 
 	// Public Routes (IP-based rate limit: 100 RPM)
 	s.Router.Group(func(r chi.Router) {
@@ -366,7 +364,6 @@ func (s *Server) routes() {
 		r.Post("/api/v1/linkedin/analyze", s.handleLinkedInAnalyze)
 		r.Post("/api/linkedin/analyze", s.handleLinkedInAnalyze)
 
-
 		// Review Queue Routes
 		r.Get("/api/v1/review-queue", s.handleListReviewQueue)
 		r.Get("/api/v1/review-queue/{id}", s.handleGetReviewQueueItem)
@@ -450,17 +447,9 @@ func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, http.StatusOK, payload)
 }
 
-
 // -------------------------------------------------------------------
 // Cover Letter
 // -------------------------------------------------------------------
-
-
-
-
-
-
-
 
 // -------------------------------------------------------------------
 // Job Description Handlers
@@ -472,7 +461,7 @@ func (s *Server) handleCreateJD(w http.ResponseWriter, r *http.Request) {
 		Company string `json:"company"`
 		Text    string `json:"text"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -560,7 +549,7 @@ func (s *Server) handleUpdateJD(w http.ResponseWriter, r *http.Request) {
 		Company string `json:"company"`
 		Text    string `json:"text"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -612,7 +601,7 @@ func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 		ResumeID interface{} `json:"resume_id"`
 		JDID     interface{} `json:"jd_id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -721,11 +710,11 @@ func (s *Server) handleAnalysisHistory(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		history = append(history, map[string]interface{}{
-			"id":                  id,
-			"resume_id":           resumeID,
-			"job_description_id":  jdID,
-			"score":               score,
-			"created_at":          createdAt,
+			"id":                 id,
+			"resume_id":          resumeID,
+			"job_description_id": jdID,
+			"score":              score,
+			"created_at":         createdAt,
 		})
 	}
 	if err := rows.Err(); err != nil {

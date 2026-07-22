@@ -1,13 +1,13 @@
 package api
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"tayari-backend/internal/models"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func (s *Server) handleAnalyzeText(w http.ResponseWriter, r *http.Request) {
@@ -16,7 +16,7 @@ func (s *Server) handleAnalyzeText(w http.ResponseWriter, r *http.Request) {
 		JobDescription     string `json:"job_description"`
 		CustomInstructions string `json:"custom_instructions"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -60,7 +60,7 @@ func (s *Server) handleAnalyzeResume(w http.ResponseWriter, r *http.Request) {
 		JobDescription     string `json:"job_description"`
 		CustomInstructions string `json:"custom_instructions"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		// job description might be empty / optional in some contexts, but should be handled
 	}
 

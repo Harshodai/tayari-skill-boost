@@ -3,17 +3,19 @@ Shared Pydantic models for the Python AI Engine.
 """
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # --- Resume / JD ---
 
 class ParsedSection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     section: str
     content: str
 
 
 class ResumeParsed(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     contact: Dict[str, Optional[str]] = Field(default_factory=dict)
     summary: Optional[str] = None
     experience: List[str] = Field(default_factory=list)
@@ -25,6 +27,7 @@ class ResumeParsed(BaseModel):
 
 
 class JobDescription(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     title: Optional[str] = None
     company: Optional[str] = None
     text: str
@@ -33,6 +36,7 @@ class JobDescription(BaseModel):
 # --- ATS Analysis ---
 
 class KeywordAnalysis(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     found: List[str] = Field(default_factory=list)
     missing: List[str] = Field(default_factory=list)
     density: Dict[str, float] = Field(default_factory=dict)
@@ -41,11 +45,13 @@ class KeywordAnalysis(BaseModel):
 
 
 class NGramAnalysis(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     matched: List[str] = Field(default_factory=list)
     missing: List[str] = Field(default_factory=list)
 
 
 class FormattingAnalysis(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     single_column: bool = True
     standard_font: bool = True
     no_complex_tables: bool = True
@@ -54,6 +60,7 @@ class FormattingAnalysis(BaseModel):
 
 
 class SectionCompleteness(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     has_contact: bool = False
     has_summary: bool = False
     has_experience: bool = False
@@ -63,6 +70,7 @@ class SectionCompleteness(BaseModel):
 
 
 class ScoreBreakdown(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     keyword_match: float = 0.0
     ngram_match: float = 0.0
     keyword_density: float = 0.0
@@ -71,6 +79,7 @@ class ScoreBreakdown(BaseModel):
 
 
 class ATSAnalysisResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     score: int = Field(ge=0, le=100)
     breakdown: ScoreBreakdown
     keywords: KeywordAnalysis
@@ -81,6 +90,7 @@ class ATSAnalysisResponse(BaseModel):
 
 
 class QuickScoreResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     score: int = Field(ge=0, le=100)
     matched_keywords: int = 0
     missing_keywords: int = 0
@@ -90,23 +100,27 @@ class QuickScoreResponse(BaseModel):
 # --- Strategic / Entity ---
 
 class ExtractedEntity(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     name: str
     category: str  # e.g., "programming_language", "framework", "tool", "certification"
 
 
 class EntitiesResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     skills: List[str] = Field(default_factory=list)
     tools: List[str] = Field(default_factory=list)
     certifications: List[str] = Field(default_factory=list)
 
 
 class HiddenSkill(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     skill: str
     evidence: str
     confidence: str  # "high", "medium", "low"
 
 
 class StrategicAnalysisResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     hidden_skills: List[HiddenSkill] = Field(default_factory=list)
     strengths: List[str] = Field(default_factory=list)
     templates: List[str] = Field(default_factory=list)
@@ -115,6 +129,7 @@ class StrategicAnalysisResponse(BaseModel):
 
 
 class KeywordInjection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     bullet_index: int
     original: str
     suggestion: str
@@ -123,22 +138,26 @@ class KeywordInjection(BaseModel):
 
 
 class AIProofingAnalysis(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     risk_score: int = Field(ge=0, le=100)
     flagged_phrases: List[str] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
 
 
 class ExportRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     resume_json: Dict[str, Any]
 
 
 class ExportResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     download_url: Optional[str] = None
     deltas: List[str] = Field(default_factory=list)
     status: str = "pending"
 
 
 class CoverLetterRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     resume_text: str
     job_title: str
     company: str
@@ -147,6 +166,7 @@ class CoverLetterRequest(BaseModel):
 
 
 class CoverLetterResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     cover_letter: str
     word_count: int
     bullet_references: List[str] = Field(default_factory=list)
@@ -156,6 +176,7 @@ class CoverLetterResponse(BaseModel):
 
 
 class CommunicationRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     comm_type: str  # follow-up, thank-you, negotiation, status-check
     resume_text: str
     job_title: str
@@ -167,6 +188,7 @@ class CommunicationRequest(BaseModel):
 
 
 class CommunicationResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     subject: str
     body: str
     word_count: int
@@ -176,6 +198,7 @@ class CommunicationResponse(BaseModel):
 
 
 class InterviewPrepRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     resume_text: str
     job_title: str
     company_name: Optional[str] = None
@@ -184,6 +207,7 @@ class InterviewPrepRequest(BaseModel):
 
 
 class InterviewQuestion(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     question: str
     category: str
     source_bullet: Optional[str] = None
@@ -195,6 +219,7 @@ class InterviewQuestion(BaseModel):
 
 
 class InterviewPrepResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     questions: List[InterviewQuestion] = Field(default_factory=list)
     interview_type: str
     company_specific: Optional[Dict[str, Any]] = None
@@ -202,10 +227,12 @@ class InterviewPrepResponse(BaseModel):
 
 
 class KnowledgeGraphRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     resume_text: str
 
 
 class KnowledgeGraphResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     entities: Dict[str, Any] = Field(default_factory=dict)
     achievements: List[Dict[str, Any]] = Field(default_factory=list)
     timeline: List[Dict[str, Any]] = Field(default_factory=list)
@@ -213,6 +240,7 @@ class KnowledgeGraphResponse(BaseModel):
 
 
 class ProfileImportResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     headline: Optional[str] = None
     summary: Optional[str] = None
     skills: List[str] = Field(default_factory=list)

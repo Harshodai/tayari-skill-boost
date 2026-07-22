@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -227,7 +226,7 @@ func (s *Server) handleApproveReviewQueueItem(w http.ResponseWriter, r *http.Req
 	var req struct {
 		Notes string `json:"notes,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		req.Notes = ""
 	}
 
@@ -264,7 +263,7 @@ func (s *Server) handleRejectReviewQueueItem(w http.ResponseWriter, r *http.Requ
 	var req struct {
 		Reason string `json:"reason,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		req.Reason = ""
 	}
 
@@ -305,7 +304,7 @@ func (s *Server) handleModifyReviewQueueItem(w http.ResponseWriter, r *http.Requ
 		Status             string                 `json:"status,omitempty"`
 		Changes            map[string]interface{} `json:"changes,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -357,7 +356,7 @@ func (s *Server) handleBulkReviewQueueAction(w http.ResponseWriter, r *http.Requ
 		ApplicationIDs []string `json:"application_ids"`
 		Notes          string   `json:"notes,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -399,12 +398,12 @@ func (s *Server) handleBulkReviewQueueAction(w http.ResponseWriter, r *http.Requ
 	}
 
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"action":         req.Action,
-		"processed":      processed,
-		"failed":         failed,
-		"total":          len(req.ApplicationIDs),
-		"new_status":     newStatus,
-		"message":        fmt.Sprintf("Processed %d of %d applications", processed, len(req.ApplicationIDs)),
+		"action":     req.Action,
+		"processed":  processed,
+		"failed":     failed,
+		"total":      len(req.ApplicationIDs),
+		"new_status": newStatus,
+		"message":    fmt.Sprintf("Processed %d of %d applications", processed, len(req.ApplicationIDs)),
 	})
 }
 
@@ -438,14 +437,14 @@ func (s *Server) handleReviewQueueStats(w http.ResponseWriter, r *http.Request) 
 	`, user.ID).Scan(&oldestReview)
 
 	stats := map[string]interface{}{
-		"pending_review":       totalCount,
-		"dream_companies":      dreamCount,
-		"high_score_count":     highScoreCount,
-		"average_dream_score":  avgScore,
-		"lifetime_approved":    approvedCount,
-		"lifetime_rejected":    rejectedCount,
-		"lifetime_submitted":   submittedCount,
-		"requires_action":      totalCount > 0,
+		"pending_review":      totalCount,
+		"dream_companies":     dreamCount,
+		"high_score_count":    highScoreCount,
+		"average_dream_score": avgScore,
+		"lifetime_approved":   approvedCount,
+		"lifetime_rejected":   rejectedCount,
+		"lifetime_submitted":  submittedCount,
+		"requires_action":     totalCount > 0,
 	}
 	if oldestReview != nil {
 		stats["oldest_pending"] = oldestReview
@@ -511,16 +510,16 @@ func (s *Server) handleQueueApplicationForReview(w http.ResponseWriter, r *http.
 	}
 
 	var req struct {
-		Job              map[string]interface{} `json:"job"`
-		TailoredResumeText string               `json:"tailored_resume_text,omitempty"`
-		CoverLetter      string                 `json:"cover_letter,omitempty"`
-		DreamScore       int                    `json:"dream_score,omitempty"`
-		AISuggestion     string                 `json:"ai_suggestion,omitempty"`
-		AIConfidence     float64                `json:"ai_confidence,omitempty"`
-		ApplyURL         string                 `json:"apply_url,omitempty"`
-		Notes            string                 `json:"notes,omitempty"`
+		Job                map[string]interface{} `json:"job"`
+		TailoredResumeText string                 `json:"tailored_resume_text,omitempty"`
+		CoverLetter        string                 `json:"cover_letter,omitempty"`
+		DreamScore         int                    `json:"dream_score,omitempty"`
+		AISuggestion       string                 `json:"ai_suggestion,omitempty"`
+		AIConfidence       float64                `json:"ai_confidence,omitempty"`
+		ApplyURL           string                 `json:"apply_url,omitempty"`
+		Notes              string                 `json:"notes,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -571,7 +570,7 @@ func (s *Server) handleSubmitApplication(w http.ResponseWriter, r *http.Request)
 	var req struct {
 		SubmissionMode string `json:"submission_mode,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		req.SubmissionMode = "manual"
 	}
 	if req.SubmissionMode == "" {

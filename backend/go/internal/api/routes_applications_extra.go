@@ -68,7 +68,7 @@ func (s *Server) handleAddNote(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Text string `json:"text"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Text == "" {
+	if err := DecodeAndValidate(r, &req); err != nil || req.Text == "" {
 		s.respondError(w, http.StatusUnprocessableEntity, "text is required")
 		return
 	}
@@ -221,7 +221,7 @@ func (s *Server) handleParseEmail(w http.ResponseWriter, r *http.Request) {
 		Subject     string `json:"subject"`
 		FromAddress string `json:"from_address"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.EmailText) < 10 {
+	if err := DecodeAndValidate(r, &req); err != nil || len(req.EmailText) < 10 {
 		s.respondError(w, http.StatusUnprocessableEntity, "email_text is required")
 		return
 	}
@@ -385,7 +385,11 @@ func (s *Server) handleListApplicationsKanban(w http.ResponseWriter, r *http.Req
 	}
 	stage := r.URL.Query().Get("stage")
 
-	var rows interface{ Close() error; Next() bool; Scan(...interface{}) error }
+	var rows interface {
+		Close() error
+		Next() bool
+		Scan(...interface{}) error
+	}
 	var err error
 	const baseQ = `SELECT application_id, COALESCE(title,''), COALESCE(company,''), COALESCE(location,''),
 		COALESCE(job_url,''), COALESCE(status,'saved'), COALESCE(stage,'saved'),
@@ -459,7 +463,7 @@ func (s *Server) handleCreateApplicationKanban(w http.ResponseWriter, r *http.Re
 		Stage    string `json:"stage"`
 		Notes    string `json:"notes"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -491,7 +495,7 @@ func (s *Server) handleUpdateApplicationKanban(w http.ResponseWriter, r *http.Re
 	}
 	appID := chi.URLParam(r, "id")
 	var req map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -547,7 +551,7 @@ func (s *Server) handleUpdateApplicationStage(w http.ResponseWriter, r *http.Req
 	var req struct {
 		Stage string `json:"stage"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Stage == "" {
+	if err := DecodeAndValidate(r, &req); err != nil || req.Stage == "" {
 		s.respondError(w, http.StatusUnprocessableEntity, "stage is required")
 		return
 	}
@@ -571,7 +575,7 @@ func (s *Server) handleApplicationPrep(w http.ResponseWriter, r *http.Request) {
 	appID := chi.URLParam(r, "id")
 	_ = appID
 	var req map[string]interface{}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	_ = DecodeAndValidate(r, &req)
 	result, err := s.AI.PostJSON("/api/v1/interview/prep", req)
 	if err != nil {
 		s.respondError(w, http.StatusBadGateway, "AI prep failed")

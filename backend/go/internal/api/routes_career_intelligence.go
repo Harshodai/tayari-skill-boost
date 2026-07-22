@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
@@ -108,7 +107,7 @@ func (s *Server) handleGetSkillsGap(w http.ResponseWriter, r *http.Request) {
 	userID := user.ID.String()
 
 	var req GoCareerIntelligenceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != http.ErrBodyReadAfterClose {
+	if err := DecodeAndValidate(r, &req); err != nil && err != http.ErrBodyReadAfterClose {
 		// Tolerate empty body for defaults
 	}
 
@@ -211,7 +210,7 @@ func (s *Server) handleGetLearningPath(w http.ResponseWriter, r *http.Request) {
 	userID := user.ID.String()
 
 	var req GoCareerIntelligenceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != http.ErrBodyReadAfterClose {
+	if err := DecodeAndValidate(r, &req); err != nil && err != http.ErrBodyReadAfterClose {
 		// Tolerate empty body
 	}
 
@@ -273,7 +272,7 @@ func (s *Server) handleGetSalaryBenchmark(w http.ResponseWriter, r *http.Request
 	userID := user.ID.String()
 
 	var req GoCareerIntelligenceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != http.ErrBodyReadAfterClose {
+	if err := DecodeAndValidate(r, &req); err != nil && err != http.ErrBodyReadAfterClose {
 		// Tolerate empty body
 	}
 
