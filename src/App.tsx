@@ -69,6 +69,7 @@ const SkillGapRadar = lazy(() => import('./pages/SkillGapRadar').then(m => ({ de
 const PortfolioGenerator = lazy(() => import('./pages/PortfolioGenerator').then(m => ({ default: m.PortfolioGenerator })));
 const RecruiterOutreach = lazy(() => import('./pages/RecruiterOutreach').then(m => ({ default: m.RecruiterOutreach })));
 const ApplicationAnalytics = lazy(() => import('./pages/ApplicationAnalytics').then(m => ({ default: m.ApplicationAnalytics })));
+const PrivacyReadiness = lazy(() => import('./pages/PrivacyReadiness').then(m => ({ default: m.PrivacyReadiness })));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 const queryClient = new QueryClient();
@@ -320,6 +321,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <ApplicationAnalytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/privacy-diagnostics"
+                element={
+                  <ProtectedRoute>
+                    <PrivacyReadiness />
                   </ProtectedRoute>
                 }
               />

@@ -40,6 +40,9 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 
 		r.Post("/api/v1/analytics/funnel", s.handleOneStopProxy("/api/v1/analytics/funnel"))
 		r.Post("/api/analytics/funnel", s.handleOneStopProxy("/api/v1/analytics/funnel"))
+
+		r.Post("/api/v1/privacy/check", s.handleOneStopProxy("/api/v1/privacy/check"))
+		r.Post("/api/privacy/check", s.handleOneStopProxy("/api/v1/privacy/check"))
 	})
 }
 

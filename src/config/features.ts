@@ -52,6 +52,8 @@ const CONFIG = {
     recruiterOutreach: [true, true],
     // Application conversion funnel analytics
     funnelAnalytics: [true, true],
+    // Self-hosted privacy and offline diagnostics panel
+    privacyReadiness: [true, true],
     // Browser extension availability (disabled by default)
     browserExtension: [false, false],
     // Knowledge hub for resume knowledge graph

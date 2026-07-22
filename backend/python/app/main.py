@@ -950,6 +950,18 @@ async def analytics_funnel_endpoint(payload: FunnelAnalyticsRequest):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.post("/api/v1/privacy/check")
+@app.post("/api/privacy/check")
+async def privacy_check_endpoint():
+    """Verify local AI engine status and zero data leakage privacy audit."""
+    from app.services.privacy_check import check_privacy_and_offline_status
+    try:
+        return check_privacy_and_offline_status()
+    except Exception as exc:
+        logger.error("privacy check failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 # ---------------------------------------------------------------------------
 # Plugin registration (backward compat)
 # ---------------------------------------------------------------------------
