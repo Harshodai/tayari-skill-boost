@@ -62,6 +62,13 @@ const OAuthConsent = lazy(() => import('./pages/OAuthConsent'));
 
 const CareerOpsDashboard = lazy(() => import('./pages/CareerOpsDashboard'));
 const LinkedInImport = lazy(() => import('./pages/LinkedInImport'));
+const InterviewVoiceCoach = lazy(() => import('./pages/InterviewVoiceCoach').then(m => ({ default: m.InterviewVoiceCoach })));
+const NegotiationCopilot = lazy(() => import('./pages/NegotiationCopilot').then(m => ({ default: m.NegotiationCopilot })));
+const CompanyRadar = lazy(() => import('./pages/CompanyRadar').then(m => ({ default: m.CompanyRadar })));
+const SkillGapRadar = lazy(() => import('./pages/SkillGapRadar').then(m => ({ default: m.SkillGapRadar })));
+const PortfolioGenerator = lazy(() => import('./pages/PortfolioGenerator').then(m => ({ default: m.PortfolioGenerator })));
+const RecruiterOutreach = lazy(() => import('./pages/RecruiterOutreach').then(m => ({ default: m.RecruiterOutreach })));
+const ApplicationAnalytics = lazy(() => import('./pages/ApplicationAnalytics').then(m => ({ default: m.ApplicationAnalytics })));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 const queryClient = new QueryClient();
@@ -257,6 +264,62 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <InterviewPrep />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/interview/voice-coach"
+                element={
+                  <ProtectedRoute>
+                    <InterviewVoiceCoach />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/negotiation"
+                element={
+                  <ProtectedRoute>
+                    <NegotiationCopilot />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/radar"
+                element={
+                  <ProtectedRoute>
+                    <CompanyRadar />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/skill-gap-radar"
+                element={
+                  <ProtectedRoute>
+                    <SkillGapRadar />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/portfolio"
+                element={
+                  <ProtectedRoute>
+                    <PortfolioGenerator />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/outreach"
+                element={
+                  <ProtectedRoute>
+                    <RecruiterOutreach />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/analytics-funnel"
+                element={
+                  <ProtectedRoute>
+                    <ApplicationAnalytics />
                   </ProtectedRoute>
                 }
               />

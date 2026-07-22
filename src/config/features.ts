@@ -38,6 +38,20 @@ const CONFIG = {
     communicationHub: [true, true],
     // AI-powered interview coaching
     interviewAI: [true, true],
+    // Voice interview coach with live metrics
+    voiceCoach: [true, true],
+    // Salary negotiation copilot with H1B benchmarks
+    negotiationCopilot: [true, true],
+    // 15-minute Company Radar Job Sentinel
+    companyRadar: [true, true],
+    // Skill gap radar with free learning resources
+    skillGapRadar: [true, true],
+    // AI interactive portfolio site generator
+    portfolioGenerator: [true, true],
+    // Recruiter cold email & LinkedIn note copilot
+    recruiterOutreach: [true, true],
+    // Application conversion funnel analytics
+    funnelAnalytics: [true, true],
     // Browser extension availability (disabled by default)
     browserExtension: [false, false],
     // Knowledge hub for resume knowledge graph

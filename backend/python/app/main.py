@@ -764,6 +764,193 @@ async def browser_automation_endpoint(payload: BrowserAutomationRequest):
 
 
 # ---------------------------------------------------------------------------
+# One-Stop Jobseeker Endpoints (Typst, Radar, Voice Coach, Negotiation)
+# ---------------------------------------------------------------------------
+
+class TypstExportRequest(BaseModel):
+    profile_data: dict
+    template: Optional[str] = "executive"
+
+
+@app.post("/api/v1/export/typst-pdf")
+@app.post("/api/export/typst-pdf")
+async def export_typst_pdf_endpoint(payload: TypstExportRequest):
+    """Compile profile/resume JSON into single-page Typst PDF."""
+    from app.export.typst_exporter import generate_typst_code, compile_typst_to_pdf
+    try:
+        code = generate_typst_code(payload.profile_data, template=payload.template or "executive")
+        pdf_bytes = compile_typst_to_pdf(code)
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": 'attachment; filename="resume_typst.pdf"'},
+        )
+    except Exception as exc:
+        logger.error("typst pdf export failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class RadarCheckRequest(BaseModel):
+    companies: list[str]
+    keywords: Optional[list[str]] = None
+
+
+@app.post("/api/v1/radar/check")
+@app.post("/api/radar/check")
+async def radar_check_endpoint(payload: RadarCheckRequest):
+    """Scan target company career boards for 15-minute job alerts."""
+    from app.services.company_radar import monitor_target_companies
+    try:
+        return await monitor_target_companies(payload.companies, keywords=payload.keywords)
+    except Exception as exc:
+        logger.error("radar check failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class VoiceFeedbackRequest(BaseModel):
+    transcript: str
+    duration_seconds: Optional[float] = 30.0
+    target_role: Optional[str] = "Software Engineer"
+
+
+@app.post("/api/v1/interview/voice-feedback")
+@app.post("/api/interview/voice-feedback")
+async def voice_feedback_endpoint(payload: VoiceFeedbackRequest):
+    """Analyze real-time audio response transcript for WPM, fillers, and STAR score."""
+    from app.services.voice_coach import analyze_transcript_metrics
+    try:
+        return analyze_transcript_metrics(
+            payload.transcript,
+            duration_seconds=payload.duration_seconds or 30.0,
+            target_role=payload.target_role or "Software Engineer",
+        )
+    except Exception as exc:
+        logger.error("voice feedback failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class NegotiationRequest(BaseModel):
+    role: str
+    company: str
+    base_offer: float
+    equity_offer: Optional[float] = 0.0
+    signon_offer: Optional[float] = 0.0
+    competing_offer: Optional[float] = 0.0
+    location: Optional[str] = "San Francisco, CA"
+
+
+@app.post("/api/v1/negotiation/generate")
+@app.post("/api/negotiation/generate")
+async def negotiation_endpoint(payload: NegotiationRequest):
+    """Generate salary benchmark data and 3-stage negotiation emails/script."""
+    from app.services.negotiation_copilot import generate_negotiation_strategy
+    try:
+        return await generate_negotiation_strategy(
+            role=payload.role,
+            company=payload.company,
+            base_offer=payload.base_offer,
+            equity_offer=payload.equity_offer or 0.0,
+            signon_offer=payload.signon_offer or 0.0,
+            competing_offer=payload.competing_offer or 0.0,
+            location=payload.location or "San Francisco, CA",
+        )
+    except Exception as exc:
+        logger.error("negotiation failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class SkillGapRequest(BaseModel):
+    resume_skills: list[str]
+    job_description: str
+
+
+@app.post("/api/v1/skill-gap/analyze")
+@app.post("/api/skill-gap/analyze")
+async def skill_gap_analyze_endpoint(payload: SkillGapRequest):
+    """Analyze missing skill gaps against target JD and attach free learning resources."""
+    from app.services.skill_gap_radar import analyze_skill_gaps
+    try:
+        return await analyze_skill_gaps(
+            resume_skills=payload.resume_skills,
+            job_description=payload.job_description,
+        )
+    except Exception as exc:
+        logger.error("skill gap analyze failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class PortfolioRequest(BaseModel):
+    full_name: str
+    headline: str
+    summary: str
+    skills: list[str]
+
+
+@app.post("/api/v1/portfolio/generate")
+@app.post("/api/portfolio/generate")
+async def portfolio_endpoint(payload: PortfolioRequest):
+    """Generate responsive HTML portfolio website."""
+    from app.services.portfolio_generator import generate_portfolio_html
+    try:
+        html = generate_portfolio_html(payload.dict())
+        return {"html": html}
+    except Exception as exc:
+        logger.error("portfolio generate failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class OutreachRequest(BaseModel):
+    recruiter_name: str
+    company: str
+    target_role: str
+    candidate_proof_points: str
+
+
+@app.post("/api/v1/outreach/generate")
+@app.post("/api/outreach/generate")
+async def outreach_endpoint(payload: OutreachRequest):
+    """Generate recruiter cold email and LinkedIn note."""
+    from app.services.outreach_copilot import generate_recruiter_outreach
+    try:
+        return await generate_recruiter_outreach(
+            recruiter_name=payload.recruiter_name,
+            company=payload.company,
+            target_role=payload.target_role,
+            candidate_proof_points=payload.candidate_proof_points,
+        )
+    except Exception as exc:
+        logger.error("outreach generate failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class FunnelAnalyticsRequest(BaseModel):
+    applications: Optional[list[dict]] = None
+
+
+@app.post("/api/v1/analytics/funnel")
+@app.post("/api/analytics/funnel")
+async def analytics_funnel_endpoint(payload: FunnelAnalyticsRequest):
+    """Calculate conversion funnel metrics and optimization interventions."""
+    from app.services.analytics_service import calculate_conversion_funnel
+    try:
+        stats = calculate_conversion_funnel(payload.applications or [])
+        return {
+            "total_applied": stats.total_applied,
+            "responses_received": stats.responses_received,
+            "interviews_scheduled": stats.interviews_scheduled,
+            "offers_received": stats.offers_received,
+            "response_rate": stats.response_rate,
+            "interview_rate": stats.interview_rate,
+            "offer_rate": stats.offer_rate,
+            "health_status": stats.health_status,
+            "recommendations": stats.recommendations,
+        }
+    except Exception as exc:
+        logger.error("funnel analytics failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
 # Plugin registration (backward compat)
 # ---------------------------------------------------------------------------
 

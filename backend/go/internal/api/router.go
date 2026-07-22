@@ -327,6 +327,7 @@ func (s *Server) routes() {
 		s.RegisterBrowserRoutes(r)
 		s.routesAgents(r)
 		s.routesCareerOps(r)
+		s.RegisterOneStopRoutes(r)
 		// K3/K5 + memory layer (skill-gaps, chain strip, conversations, preferences)
 		s.RegisterSkillGapRoutes(r)
 		s.RegisterChainRoutes(r)
