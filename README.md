@@ -13,7 +13,7 @@ Tayari Skill Boost is a highly scalable, event-driven career operations platform
 2. **Tiered Hermes multi-board scraping** (`app/services/hermes/`) — Tier A keyless ATS JSON (Greenhouse/Lever/Ashby/Workday) → Tier B Firecrawl+SerpApi → Tier C Apify → Tier D Crawl4AI+Playwright, with per-provider circuit breakers. Works with **zero API keys**; upgrades gracefully.
 3. **Hybrid ranking (reciprocal rank fusion)** — three independent rankers fused via RRF, lexical + semantic, instead of a single black-box score.
 4. **Knowledge graph extraction** (`app/services/knowledge_graph.py`) — auto-extracts achievements, skills, and timeline; surfaces skill gaps and links them to a career roadmap. Enterprise HR charges $50K–750K/yr for this; Tayari ships it self-hosted.
-5. **Persistent AI memory** — conversations, episodic events, pgvector semantic retrieval, and learned preference profiles, so the agent retains context across turns and learns from your feedback.
+5. **One-Stop Jobseeker AI Command Suite** — integrated 8-tool career suite: **Typst ATS Exporter** (Rust single-page PDFs), **15-Min Company Radar Sentinel**, **WebSockets Real-Time Voice Interview Coach**, **Salary & Counter-Offer Negotiation Copilot**, **Skill Gap Radar & Free Learning Resource Engine**, **AI Interactive Portfolio Generator**, **Recruiter Cold Outreach Copilot**, and **Application Funnel Conversion Analytics**.
 
 Plus: pipeline **guardrails** (`app/guardrails/` — keyword-stuffing detector, PII redaction, truthfulness gate, `PipelineGate`) that run **before** every application is submitted, and a **durable Celery/Redis autopilot** with run state queryable in Postgres and monitorable in Flower.
 
