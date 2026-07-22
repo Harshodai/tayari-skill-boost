@@ -20,7 +20,11 @@ import {
   Target,
   BookOpen,
   HelpCircle,
-  Send
+  Send,
+  Radar,
+  Mic,
+  DollarSign,
+  Globe,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
@@ -196,6 +200,26 @@ export function Header() {
                     {features.interviewPrep && (
                       <ListItem to="/interview" title="Interview Board" icon={Calendar}>
                         Manage your applications, schedules, and historical review notes.
+                      </ListItem>
+                    )}
+                    {features.companyRadar && (
+                      <ListItem to="/radar" title="Company Radar" icon={Radar}>
+                        15-minute job sentinel monitoring target company career boards.
+                      </ListItem>
+                    )}
+                    {features.voiceCoach && (
+                      <ListItem to="/interview/voice-coach" title="Voice Interview Coach" icon={Mic}>
+                        Live real-time speech WPM, filler word, and STAR feedback.
+                      </ListItem>
+                    )}
+                    {features.negotiationCopilot && (
+                      <ListItem to="/negotiation" title="Salary Negotiation" icon={DollarSign}>
+                        H1B benchmark compensation data and counter-offer scripts.
+                      </ListItem>
+                    )}
+                    {features.portfolioGenerator && (
+                      <ListItem to="/portfolio" title="Portfolio Builder" icon={Globe}>
+                        Generate interactive, responsive HTML portfolio websites.
                       </ListItem>
                     )}
                     {features.communicationHub && (

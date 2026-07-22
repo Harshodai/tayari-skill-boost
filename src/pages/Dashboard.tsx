@@ -24,6 +24,11 @@ import {
   Target,
   AlertCircle,
   RefreshCw,
+  DollarSign,
+  Radar,
+  Globe,
+  Send,
+  BarChart3,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -360,6 +365,81 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* One-Stop Jobseeker AI Command Center */}
+        <Card className="mb-6 border-indigo-900/40 bg-gradient-to-r from-slate-900 via-indigo-950/20 to-slate-900">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2 text-white">
+                <Sparkles className="w-4 h-4 text-indigo-400" />
+                One-Stop Jobseeker Command Center
+              </CardTitle>
+              <CardDescription>All-in-one AI career suite: Search, Tailor, Practice, Apply & Negotiate</CardDescription>
+            </div>
+            <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-xs">
+              8 AI Tools Active
+            </Badge>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Link to="/radar" className="p-3 rounded-lg bg-slate-800/60 hover:bg-indigo-950/40 border border-slate-700/60 hover:border-indigo-500/40 transition-all block group">
+                <div className="flex items-center gap-2 mb-1 text-indigo-400 group-hover:text-indigo-300 font-semibold text-xs">
+                  <Radar className="w-4 h-4" /> Company Radar
+                </div>
+                <div className="text-[11px] text-slate-400 line-clamp-1">15-min ATS career alerts</div>
+              </Link>
+
+              <Link to="/interview/voice-coach" className="p-3 rounded-lg bg-slate-800/60 hover:bg-blue-950/40 border border-slate-700/60 hover:border-blue-500/40 transition-all block group">
+                <div className="flex items-center gap-2 mb-1 text-blue-400 group-hover:text-blue-300 font-semibold text-xs">
+                  <Mic className="w-4 h-4" /> Voice Interview Coach
+                </div>
+                <div className="text-[11px] text-slate-400 line-clamp-1">WPM, filler & STAR feedback</div>
+              </Link>
+
+              <Link to="/negotiation" className="p-3 rounded-lg bg-slate-800/60 hover:bg-emerald-950/40 border border-slate-700/60 hover:border-emerald-500/40 transition-all block group">
+                <div className="flex items-center gap-2 mb-1 text-emerald-400 group-hover:text-emerald-300 font-semibold text-xs">
+                  <DollarSign className="w-4 h-4" /> Salary Negotiation
+                </div>
+                <div className="text-[11px] text-slate-400 line-clamp-1">H1B benchmarks & scripts</div>
+              </Link>
+
+              <Link to="/skill-gap-radar" className="p-3 rounded-lg bg-slate-800/60 hover:bg-teal-950/40 border border-slate-700/60 hover:border-teal-500/40 transition-all block group">
+                <div className="flex items-center gap-2 mb-1 text-teal-400 group-hover:text-teal-300 font-semibold text-xs">
+                  <Target className="w-4 h-4" /> Skill Gap Radar
+                </div>
+                <div className="text-[11px] text-slate-400 line-clamp-1">Free resource mapping</div>
+              </Link>
+
+              <Link to="/portfolio" className="p-3 rounded-lg bg-slate-800/60 hover:bg-purple-950/40 border border-slate-700/60 hover:border-purple-500/40 transition-all block group">
+                <div className="flex items-center gap-2 mb-1 text-purple-400 group-hover:text-purple-300 font-semibold text-xs">
+                  <Globe className="w-4 h-4" /> Portfolio Site Builder
+                </div>
+                <div className="text-[11px] text-slate-400 line-clamp-1">Interactive HTML export</div>
+              </Link>
+
+              <Link to="/outreach" className="p-3 rounded-lg bg-slate-800/60 hover:bg-amber-950/40 border border-slate-700/60 hover:border-amber-500/40 transition-all block group">
+                <div className="flex items-center gap-2 mb-1 text-amber-400 group-hover:text-amber-300 font-semibold text-xs">
+                  <Send className="w-4 h-4" /> Recruiter Outreach
+                </div>
+                <div className="text-[11px] text-slate-400 line-clamp-1">Cold email & LinkedIn notes</div>
+              </Link>
+
+              <Link to="/analytics-funnel" className="p-3 rounded-lg bg-slate-800/60 hover:bg-cyan-950/40 border border-slate-700/60 hover:border-cyan-500/40 transition-all block group">
+                <div className="flex items-center gap-2 mb-1 text-cyan-400 group-hover:text-cyan-300 font-semibold text-xs">
+                  <BarChart3 className="w-4 h-4" /> Funnel Analytics
+                </div>
+                <div className="text-[11px] text-slate-400 line-clamp-1">Conversion diagnostic engine</div>
+              </Link>
+
+              <Link to="/cover-letter" className="p-3 rounded-lg bg-slate-800/60 hover:bg-rose-950/40 border border-slate-700/60 hover:border-rose-500/40 transition-all block group">
+                <div className="flex items-center gap-2 mb-1 text-rose-400 group-hover:text-rose-300 font-semibold text-xs">
+                  <FileText className="w-4 h-4" /> Cover Letter AI
+                </div>
+                <div className="text-[11px] text-slate-400 line-clamp-1">3-paragraph custom letters</div>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Pipeline */}
         <Card className="mb-6">
