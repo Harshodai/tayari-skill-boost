@@ -188,7 +188,8 @@ func TestHermesRunsList_ForwardsQueryParams(t *testing.T) {
 		if r.URL.Path != "/api/v1/hermes/runs" {
 			t.Errorf("unexpected upstream path: %s", r.URL.Path)
 		}
-		if r.URL.RawQuery != "run_type=scrape&status=completed&limit=10" {
+		q := r.URL.Query()
+		if q.Get("run_type") != "scrape" || q.Get("status") != "completed" || q.Get("limit") != "10" {
 			t.Errorf("unexpected upstream query: %q", r.URL.RawQuery)
 		}
 		w.Header().Set("Content-Type", "application/json")

@@ -737,6 +737,32 @@ async def agent_search(payload: AgentSearchRequest):
         raise HTTPException(status_code=502, detail="Agent search failed") from exc
 
 
+class BrowserAutomationRequest(BaseModel):
+    instruction: str
+    max_steps: Optional[int] = 25
+
+
+@app.post("/api/v1/browser/automation")
+@app.post("/api/browser/automation")
+async def browser_automation_endpoint(payload: BrowserAutomationRequest):
+    """Execute autonomous browser instruction via browser-use + Playwright."""
+    from app.services.browser_automation import run_browser_agent
+    try:
+        result = await run_browser_agent(payload.instruction, max_steps=payload.max_steps or 25)
+        return {
+            "success": result.success,
+            "instruction": result.instruction,
+            "summary": result.summary,
+            "visited_urls": result.visited_urls,
+            "actions": result.actions,
+            "error": result.error,
+            "markdown": result.to_markdown(),
+        }
+    except Exception as exc:
+        logger.error("browser automation failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 # ---------------------------------------------------------------------------
 # Plugin registration (backward compat)
 # ---------------------------------------------------------------------------

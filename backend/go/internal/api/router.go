@@ -187,6 +187,7 @@ func (s *Server) routes() {
 
 		// Public API endpoints (API key auth)
 		s.routesPublic(r)
+		s.routesGmail(r)
 	})
 
 	// Protected Routes (user-based rate limit: 1000 RPM)
@@ -323,6 +324,7 @@ func (s *Server) routes() {
 
 		// Hermes agent layer (WS-E) — scrape, cached jobs, run status
 		s.routesHermes(r)
+		s.RegisterBrowserRoutes(r)
 		s.routesAgents(r)
 		s.routesCareerOps(r)
 		// K3/K5 + memory layer (skill-gaps, chain strip, conversations, preferences)
@@ -350,9 +352,6 @@ func (s *Server) routes() {
 
 		// Per-Application Extra features (notes, voice notes, interview questions, email parse)
 		s.routesApplicationsExtra(r)
-
-		// Gmail OAuth & sync integration
-		s.routesGmail(r)
 
 		// Chrome Extension endpoints
 		s.routesExtensionExtra(r)

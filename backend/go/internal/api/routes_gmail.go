@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,16 +22,24 @@ import (
 // routesGmail registers Gmail OAuth + sync routes.
 // All routes degrade gracefully when GOOGLE_CLIENT_ID/SECRET are not set.
 func (s *Server) routesGmail(r chi.Router) {
-	r.Get("/api/gmail/status", s.handleGmailStatus)
-	r.Get("/api/v1/gmail/status", s.handleGmailStatus)
-	r.Get("/api/gmail/login", s.handleGmailLogin)
-	r.Get("/api/v1/gmail/login", s.handleGmailLogin)
+	// Public endpoints (Google OAuth callback and Pub/Sub push webhook)
 	r.Get("/api/oauth/gmail/callback", s.handleGmailCallback)
 	r.Get("/api/v1/oauth/gmail/callback", s.handleGmailCallback)
-	r.Post("/api/gmail/sync", s.handleGmailSync)
-	r.Post("/api/v1/gmail/sync", s.handleGmailSync)
-	r.Post("/api/gmail/disconnect", s.handleGmailDisconnect)
-	r.Post("/api/v1/gmail/disconnect", s.handleGmailDisconnect)
+	r.Post("/api/gmail/webhook", s.handleGmailWebhook)
+	r.Post("/api/v1/gmail/webhook", s.handleGmailWebhook)
+
+	// Authenticated endpoints
+	r.Group(func(r chi.Router) {
+		r.Use(s.authMiddleware)
+		r.Get("/api/gmail/status", s.handleGmailStatus)
+		r.Get("/api/v1/gmail/status", s.handleGmailStatus)
+		r.Get("/api/gmail/login", s.handleGmailLogin)
+		r.Get("/api/v1/gmail/login", s.handleGmailLogin)
+		r.Post("/api/gmail/sync", s.handleGmailSync)
+		r.Post("/api/v1/gmail/sync", s.handleGmailSync)
+		r.Post("/api/gmail/disconnect", s.handleGmailDisconnect)
+		r.Post("/api/v1/gmail/disconnect", s.handleGmailDisconnect)
+	})
 }
 
 // -------------------------------------------------------------------
@@ -297,6 +306,139 @@ func (s *Server) handleGmailDisconnect(w http.ResponseWriter, r *http.Request) {
 	_, _ = s.DB.Conn.ExecContext(r.Context(),
 		`DELETE FROM gmail_tokens WHERE user_id=$1`, user.ID)
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
+}
+
+// -------------------------------------------------------------------
+// Webhook — Google Cloud Pub/Sub Push Notification Listener
+// -------------------------------------------------------------------
+
+type pubSubNotification struct {
+	Message struct {
+		Data        string `json:"data"`
+		MessageID   string `json:"messageId"`
+		PublishTime string `json:"publishTime"`
+	} `json:"message"`
+	Subscription string `json:"subscription"`
+}
+
+type pubSubGmailData struct {
+	EmailAddress string `json:"emailAddress"`
+	HistoryID    uint64 `json:"historyId"`
+}
+
+func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil || len(body) == 0 {
+		http.Error(w, "Invalid body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	var notif pubSubNotification
+	if err := json.Unmarshal(body, &notif); err != nil {
+		s.respondJSON(w, http.StatusOK, map[string]interface{}{"status": "ignored", "reason": "invalid json"})
+		return
+	}
+
+	if notif.Message.Data == "" {
+		s.respondJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "reason": "empty message data"})
+		return
+	}
+
+	dataBytes, err := base64.StdEncoding.DecodeString(notif.Message.Data)
+	if err != nil {
+		s.respondJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "reason": "base64 decode error"})
+		return
+	}
+
+	var gmailData pubSubGmailData
+	_ = json.Unmarshal(dataBytes, &gmailData)
+
+	log.Printf("[GmailWebhook] Received notification for %s (HistoryId: %d)", gmailData.EmailAddress, gmailData.HistoryID)
+
+	go func(email string) {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		if s.DB == nil || s.DB.Conn == nil {
+			return
+		}
+
+		var userID uuid.UUID
+		var accessToken, refreshToken string
+		var expiry time.Time
+
+		var err error
+		if email != "" {
+			err = s.DB.Conn.QueryRowContext(ctx,
+				`SELECT user_id, access_token, refresh_token, expiry FROM gmail_tokens WHERE scope LIKE '%' || $1 || '%' OR user_id IN (SELECT id FROM users WHERE email=$1) LIMIT 1`,
+				email).Scan(&userID, &accessToken, &refreshToken, &expiry)
+		} else {
+			err = s.DB.Conn.QueryRowContext(ctx,
+				`SELECT user_id, access_token, refresh_token, expiry FROM gmail_tokens ORDER BY updated_at DESC LIMIT 1`).Scan(&userID, &accessToken, &refreshToken, &expiry)
+		}
+
+		if err != nil {
+			log.Printf("[GmailWebhook] No matching token for email %s: %v", email, err)
+			return
+		}
+
+		if time.Now().After(expiry.Add(-5 * time.Minute)) {
+			newToken, err := gmailRefreshToken(ctx, refreshToken)
+			if err == nil && newToken.AccessToken != "" {
+				accessToken = newToken.AccessToken
+				newExpiry := time.Now().Add(time.Duration(newToken.ExpiresIn) * time.Second)
+				_, _ = s.DB.Conn.ExecContext(ctx,
+					`UPDATE gmail_tokens SET access_token=$1, expiry=$2, updated_at=NOW() WHERE user_id=$3`,
+					accessToken, newExpiry, userID)
+			}
+		}
+
+		messages, err := gmailFetchMessages(ctx, accessToken, 10)
+		if err != nil {
+			log.Printf("[GmailWebhook] Failed fetching messages: %v", err)
+			return
+		}
+
+		for _, msg := range messages {
+			bodyText := fmt.Sprintf("Subject: %s\nFrom: %s\n\n%s", msg.Subject, msg.From, msg.Body)
+			aiResult, err := s.AI.PostJSON("/api/v1/gmail/parse-email", map[string]interface{}{
+				"email_text":   bodyText,
+				"subject":      msg.Subject,
+				"from_address": msg.From,
+			})
+			if err != nil {
+				continue
+			}
+
+			isJobRelated, _ := aiResult["is_job_related"].(bool)
+			if !isJobRelated {
+				continue
+			}
+
+			company, _ := aiResult["company"].(string)
+			title, _ := aiResult["title"].(string)
+			stage, _ := aiResult["stage"].(string)
+			if stage == "" {
+				stage = "applied"
+			}
+
+			_, _ = s.DB.Conn.ExecContext(ctx, `
+				INSERT INTO applications
+				  (application_id, user_id, title, company, stage, status, notes, job, created_at, updated_at)
+				VALUES ($1,$2,$3,$4,$5,$5,$6,'{}',NOW(),NOW())
+				ON CONFLICT DO NOTHING`,
+				uuid.New(), userID, title, company, stage,
+				fmt.Sprintf("Imported via Gmail Webhook: %s", msg.Subject))
+		}
+	}(gmailData.EmailAddress)
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{"status": "processing"})
 }
 
 // -------------------------------------------------------------------

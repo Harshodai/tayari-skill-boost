@@ -197,6 +197,11 @@ func (s *Server) tenantMiddleware(next http.Handler) http.Handler {
 
 		domain = strings.ToLower(strings.TrimSpace(domain))
 
+		if s.DB == nil || s.DB.Conn == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		var tenant models.Tenant
 		query := `SELECT id, name, domain, logo_url, primary_color, secondary_color, created_at 
 		          FROM tenants 

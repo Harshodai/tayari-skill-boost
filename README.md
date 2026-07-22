@@ -37,6 +37,7 @@ The stack is composed of specialized microservices communicating over HTTP and v
 *   **Features**:
     *   **Resume Optimizer**: Ingests PDFs, extracts text via OCR/PyPDF, and runs semantic similarity matching against target Job Descriptions using LLMs (OpenRouter/Ollama).
     *   **Hermes Pipeline**: Agentic job scraper that pulls web data, structures it, and maps it against user skill vectors.
+    *   **Browser Automation Agent** (`app/services/browser_automation/` & `integrations/browser_automation_agent/`): Autonomous user-based browser driver (`browser-use` + Playwright + Multi-Provider LLM Router) for natural-language web navigation and interactive job application submissions.
     *   **AutoPilot**: Orchestrates cover letter generation and automated email drafting.
 
 ### 3. Asynchronous Task Queue

@@ -3,12 +3,13 @@
 AI job-prep platform: resume optimization vs. job descriptions, ATS scoring, interview prep, job search/autopilot, cover letters. Polyglot monorepo, self-hostable with a local LLM.
 
 # Stack
-React + TS + Vite + Tailwind + shadcn/ui (frontend) · Go + Chi (API gateway: auth + DB) · Python + FastAPI (AI/LLM engine) · PostgreSQL · optional Ollama · Celery + Redis (Hermes job queue). Orchestrated by `docker-compose.yml`. Lovable-managed; Supabase optional.
+React + TS + Vite + Tailwind + shadcn/ui (frontend) · Go + Chi (API gateway: auth + DB) · Python + FastAPI (AI/LLM engine) · PostgreSQL · optional Ollama · Celery + Redis (Hermes job queue) · browser-use + Playwright (Browser Automation Agent). Orchestrated by `docker-compose.yml`. Lovable-managed; Supabase optional.
 
 # Structure
 - `src/` — frontend. All backend calls go through `src/api/` (`apiFetch`, paths `/v1/...`); pages in `src/pages/`, shadcn primitives in `src/components/ui/`.
 - `backend/go/` — API gateway. Routes registered in `internal/api/router.go`; handlers in `internal/api/`; auth in `internal/auth/`.
-- `backend/python/` — FastAPI AI engine. Entry `app/main.py`; engines in `app/services/`.
+- `backend/python/` — FastAPI AI engine. Entry `app/main.py`; engines in `app/services/` (including `app/services/browser_automation/`).
+- `integrations/` — Standalone integrations including `jobtheory_mcp` and `browser_automation_agent`.
 - `extension/` — MV3 browser extension. `backend/db/` — SQL schema + migrations.
 
 # Commands (run via Docker Compose)
