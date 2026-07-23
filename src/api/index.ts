@@ -1059,4 +1059,83 @@ export async function getAPIKeyUsage(id: number): Promise<any> {
   return apiFetch<any>(`/api-keys/usage/${id}`);
 }
 
+export interface OneShotExecuteRequest {
+  user_id?: string;
+  job_title: string;
+  company_name?: string;
+  job_description: string;
+  resume_text: string;
+  target_url?: string;
+  tone?: string;
+}
+
+export interface OneShotExecuteResponse {
+  overall_fit_score: number;
+  audit: {
+    initial_score: number;
+    post_tailoring_score: number;
+    matched_keywords: string[];
+    missing_keywords: string[];
+    relevance_level: string;
+  };
+  tailored_resume: {
+    optimized_text: string;
+    changes_made: string[];
+    word_count: number;
+    typst_code?: string;
+  };
+  cover_letter: string;
+  auto_apply_payload: {
+    target_url: string;
+    stealth_readiness: string;
+    field_mapping: Record<string, string>;
+    shadow_approval_required: boolean;
+  };
+  recruiter_intel: {
+    company_name: string;
+    domain: string;
+    target_roles: string[];
+    verified_email_patterns: string[];
+    email_draft: string;
+    linkedin_draft: string;
+    outreach_strategy: string;
+  };
+  interview_kit: Record<string, any>;
+  proof_vault: any[];
+}
+
+export async function executeOneShotPipeline(payload: OneShotExecuteRequest): Promise<OneShotExecuteResponse> {
+  return apiFetch<OneShotExecuteResponse>("/v1/one-shot/execute", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function simulateAtsParsing(resumeText: string): Promise<any> {
+  return apiFetch<any>("/v1/ats/simulate", {
+    method: "POST",
+    body: JSON.stringify({ resume_text: resumeText }),
+  });
+}
+
+export async function fetchInterviewCopilotHint(interviewerTranscript: string, role?: string): Promise<any> {
+  return apiFetch<any>("/v1/interview/copilot-hint", {
+    method: "POST",
+    body: JSON.stringify({ interviewer_transcript: interviewerTranscript, target_role: role }),
+  });
+}
+
+export async function calculateOfferFinancials(offerData: any): Promise<any> {
+  return apiFetch<any>("/v1/offer/calculate", {
+    method: "POST",
+    body: JSON.stringify(offerData),
+  });
+}
+
+export async function fetchCandidateAnswers(): Promise<any> {
+  return apiFetch<any>("/v1/candidate/answers");
+}
+
+
+
 

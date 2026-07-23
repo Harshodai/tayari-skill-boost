@@ -58,10 +58,24 @@ Best regards,"""
     linkedin_note = f"Hi {rec_name}, I saw {comp} is hiring for a {role}. Given my background in building high-throughput systems, I'd love to connect and follow your team's work!"
     followup_bump = f"Hi {rec_name}, following up briefly on my note below. I'd still love to share how my experience could help {comp}. Are you free for a quick chat this week?"
 
+    # Email pattern predictions
+    first_name = rec_name.split()[0].lower() if rec_name else "hiring.manager"
+    last_name = rec_name.split()[-1].lower() if len(rec_name.split()) > 1 else ""
+    domain = comp.lower().replace(" ", "").replace(",", "").replace(".", "") + ".com"
+
+    predicted_emails = [
+        f"{first_name}.{last_name}@{domain}" if last_name else f"{first_name}@{domain}",
+        f"{first_name}@{domain}",
+        f"{first_name[0]}{last_name}@{domain}" if last_name else f"{first_name}1@{domain}",
+        f"recruiting@{domain}",
+        f"careers@{domain}"
+    ]
+
     return {
         "company": comp,
         "role": role,
         "recruiter_name": rec_name,
+        "predicted_emails": predicted_emails,
         "cold_email": {
             "subject": cold_email_subject,
             "body": cold_email_body,

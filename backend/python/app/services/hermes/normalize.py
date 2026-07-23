@@ -7,9 +7,50 @@ known ATS hosts (Greenhouse, Lever, Ashby, Workday).
 """
 from __future__ import annotations
 
+import re
+import uuid
 from urllib.parse import urlparse
 
-from app.services.job_providers import _norm  # noqa: F401  (re-exported)
+
+def _strip_html(text: str) -> str:
+    text = re.sub(r"<[^>]+>", " ", text or "")
+    text = re.sub(r"&[a-z]+;", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _norm(source, title, company, location, url, description, tags=None,
+          salary=None, posted_at=None, remote=None):
+    result = {
+        "job_id": str(uuid.uuid4()),
+        "source": source,
+        "title": (title or "").strip(),
+        "company": (company or "").strip() or "Unknown",
+        "location": (location or "Remote").strip() or "Remote",
+        "url": url or "",
+        "description": _strip_html(description)[:1500],
+        "tags": [t for t in (tags or []) if t][:12],
+        "salary": salary or "",
+        "posted_at": posted_at or "",
+    }
+    if remote is not None:
+        result["remote"] = bool(remote)
+    return result
+
+
+UA = {"User-Agent": "Mozilla/5.0 (Tayari/1.0; +https://tayari.app)"}
+
+
+def _dedupe(jobs: list) -> list:
+    seen = set()
+    out = []
+    for j in jobs:
+        key = (j["title"].lower(), j["company"].lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(j)
+    return out
+
 
 # ---------------------------------------------------------------------------
 # Board classification

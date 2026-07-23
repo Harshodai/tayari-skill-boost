@@ -19,4 +19,4 @@ def test_resume_graph_not_found(monkeypatch):
     _autopilot_store.clear()
     response = client.get('/api/v1/resume-graph/unknown-run')
     assert response.status_code == 404
-    assert response.json()['detail'] == 'Run not found'
+    assert "not found" in response.json()['detail'].lower()

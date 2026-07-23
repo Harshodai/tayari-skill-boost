@@ -72,7 +72,7 @@ export function NegotiationCopilot() {
     }
   };
 
-  const copyToClipboard = (text: str, key: string) => {
+  const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2000);

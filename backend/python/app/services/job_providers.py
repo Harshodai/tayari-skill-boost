@@ -114,6 +114,19 @@ async def fetch_remoteok(client: httpx.AsyncClient, query: str) -> list:
 
 PROVIDERS = [fetch_remotive, fetch_arbeitnow, fetch_remoteok]
 
+
+def _dedupe(jobs: list) -> list:
+    seen = set()
+    out = []
+    for j in jobs:
+        key = (j["title"].lower(), j["company"].lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(j)
+    return out
+
+
 # --- Hermes provider shims (WS-F) -------------------------------------------
 # Tiered scraping layer: each Hermes provider self-disables when its key is
 # absent (env-gated). The 3 free providers above stay FIRST so the pipeline
@@ -137,18 +150,6 @@ try:
 except Exception as _exc:  # noqa: BLE001 - hermes package is optional
     logger.warning("Hermes provider layer disabled: %s", _exc)
 del _hermes_active
-
-
-def _dedupe(jobs: list) -> list:
-    seen = set()
-    out = []
-    for j in jobs:
-        key = (j["title"].lower(), j["company"].lower())
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(j)
-    return out
 
 
 async def search_jobs(query: str, location: str = "", limit: int = 40) -> list:

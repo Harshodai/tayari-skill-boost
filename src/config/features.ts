@@ -60,6 +60,14 @@ const CONFIG = {
     knowledgeHub: [true, true],
     // Career operations dashboard
     careerOps: [true, true],
+    // One-Shot Autopilot Console
+    oneShotPipeline: [true, true],
+    // Typst ATS Resume Studio
+    typstStudio: [true, true],
+    // Candidate Answer Bank for Auto-Fill
+    candidateAnswerBank: [true, true],
+    // Agent-Reach Content & Social Extractor
+    agentReach: [true, true],
   },
 
   // Navigation Links
@@ -67,6 +75,10 @@ const CONFIG = {
   // Navigation links are filtered based on feature flags above.
   links: [
     { label: "Home", href: "/", feature: null },
+    { label: "One-Shot Console", href: "/one-shot", feature: "oneShotPipeline" },
+    { label: "Content Extractor", href: "/agent-reach", feature: "agentReach" },
+    { label: "Typst Resume Studio", href: "/typst-studio", feature: "typstStudio" },
+    { label: "Answer Bank", href: "/answer-bank", feature: "candidateAnswerBank" },
     { label: "Resume Optimizer", href: "/resume", feature: "resumeOptimizer" },
     { label: "Career Roadmap", href: "/roadmap", feature: "careerRoadmap" },
     { label: "Knowledge Hub", href: "/knowledge-hub", feature: "knowledgeHub" },

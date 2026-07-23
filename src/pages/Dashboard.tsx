@@ -177,6 +177,30 @@ const Dashboard = () => {
         {/* K5 — observable 7-stage chain strip (server-aggregated, polls every 30s) */}
         <ChainStrip />
         <MemoryBadge />
+
+        {/* ⚡ One-Shot Autopilot Console Hero Banner */}
+        <Card className="mb-8 border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-md">
+          <CardContent className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                <Zap className="w-3.5 h-3.5 fill-current" />
+                Featured: The One-Shot Solution for Jobseekers
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                One-Shot Autopilot Console
+              </h2>
+              <p className="text-sm text-muted-foreground max-w-xl">
+                Execute Fit Audit → Typst Resume → Cover Letter → Stealth Auto-Apply → Recruiter Outreach → STAR Interview Kit in a single click.
+              </p>
+            </div>
+            <Button asChild size="lg" className="font-bold shadow-md bg-primary hover:bg-primary/90 text-primary-foreground whitespace-nowrap">
+              <Link to="/one-shot">
+                Launch One-Shot Console <ArrowRight className="w-4 h-4 ml-2" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
         {/* Quick Stats Banner */}
         <StatsGrid columns={4} className="mb-6 animate-fade-in-up">
           <StatsCard

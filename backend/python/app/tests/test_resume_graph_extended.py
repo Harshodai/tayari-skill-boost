@@ -46,6 +46,8 @@ def test_export_resume_graph_success() -> None:
 
 
 def test_get_resume_graph_raw_format() -> None:
+    from app.api.resume_graph import _RATE_LIMIT
+    _RATE_LIMIT.clear()
     run_id = "raw-format-test"
     graph = _dummy_graph(2)
     automation_engine._autopilot_store[run_id] = {"graph": graph}

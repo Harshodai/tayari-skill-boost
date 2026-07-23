@@ -43,6 +43,17 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 
 		r.Post("/api/v1/privacy/check", s.handleOneStopProxy("/api/v1/privacy/check"))
 		r.Post("/api/privacy/check", s.handleOneStopProxy("/api/v1/privacy/check"))
+
+		r.Post("/api/v1/one-shot/execute", s.handleOneStopProxy("/api/v1/one-shot/execute"))
+		r.Post("/api/one-shot/execute", s.handleOneStopProxy("/api/v1/one-shot/execute"))
+
+		r.Post("/api/v1/agent-reach/extract", s.handleOneStopProxy("/api/v1/agent-reach/extract"))
+		r.Post("/api/agent-reach/extract", s.handleOneStopProxy("/api/v1/agent-reach/extract"))
+
+		r.Get("/api/v1/agent-reach/doctor", s.handleOneStopProxyGET("/api/v1/agent-reach/doctor"))
+		r.Post("/api/v1/agent-reach/search", s.handleOneStopProxy("/api/v1/agent-reach/search"))
+		r.Post("/api/v1/agent-reach/transcribe", s.handleOneStopProxy("/api/v1/agent-reach/transcribe"))
+		r.Get("/api/v1/agent-reach/cookies", s.handleOneStopProxyGET("/api/v1/agent-reach/cookies"))
 	})
 }
 
@@ -68,6 +79,22 @@ func (s *Server) handleTypstExport(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) handleOneStopProxyGET(endpoint string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		headers := s.getXUserHeaders(r)
+		result, err := s.AI.PostJSONWithHeaders(endpoint, nil, headers)
+		if err != nil {
+			log.Printf("[OneStopProxyGET] Failed endpoint %s: %v", endpoint, err)
+			http.Error(w, "upstream AI service error", http.StatusBadGateway)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(result)
+	}
 }
 
 func (s *Server) handleOneStopProxy(endpoint string) http.HandlerFunc {

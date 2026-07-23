@@ -36,9 +36,11 @@ class Browser:
             return True
 
         instruction = (
-            f"Navigate to {url}. Fill out the job application for {title} at {company}. "
-            f"Use the candidate's resume summary: '{resume_text[:300]}' and cover letter text: '{cover_letter[:300]}'. "
-            f"Submit the application if ready, or reach the final review stage."
+            f"Navigate to {url}. Fill out the job application for {title} at {company}.\n"
+            f"Candidate Resume Data:\n{resume_text}\n\n"
+            f"Cover Letter:\n{cover_letter}\n\n"
+            f"Fill out all mandatory fields (Full Name, Email, Phone, Work Authorization, Experience summary) accurately from the provided candidate resume data. "
+            f"If an upload field for resume or cover letter exists, attach or paste the tailored content. Reach the final review step or submit if ready."
         )
 
         try:

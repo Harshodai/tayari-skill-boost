@@ -70,6 +70,10 @@ const PortfolioGenerator = lazy(() => import('./pages/PortfolioGenerator').then(
 const RecruiterOutreach = lazy(() => import('./pages/RecruiterOutreach').then(m => ({ default: m.RecruiterOutreach })));
 const ApplicationAnalytics = lazy(() => import('./pages/ApplicationAnalytics').then(m => ({ default: m.ApplicationAnalytics })));
 const PrivacyReadiness = lazy(() => import('./pages/PrivacyReadiness').then(m => ({ default: m.PrivacyReadiness })));
+const OneShotPipeline = lazy(() => import('./pages/OneShotPipeline'));
+const TypstResumeStudio = lazy(() => import('./pages/TypstResumeStudio'));
+const CandidateAnswerBank = lazy(() => import('./pages/CandidateAnswerBank'));
+const AgentReachHub = lazy(() => import('./pages/AgentReachHub').then(m => ({ default: m.AgentReachHub })));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 const queryClient = new QueryClient();
@@ -99,6 +103,9 @@ const App = () => (
               <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Index />} />
+              {features.oneShotPipeline && (
+                <Route path="/one-shot" element={<OneShotPipeline />} />
+              )}
               <Route path="/auth" element={<Auth />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/faq" element={<FAQ />} />
@@ -158,6 +165,9 @@ const App = () => (
                   <Route path="/jobs" element={<Navigate to="/resume" replace />} />
                   <Route path="/jobs/*" element={<Navigate to="/resume" replace />} />
                 </>
+              )}
+              {!features.oneShotPipeline && (
+                <Route path="/one-shot" element={<Navigate to="/" replace />} />
               )}
 
               <Route path="/about" element={<About />} />
@@ -233,6 +243,30 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <ResumeResults />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/typst-studio"
+                element={
+                  <ProtectedRoute>
+                    <TypstResumeStudio />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/answer-bank"
+                element={
+                  <ProtectedRoute>
+                    <CandidateAnswerBank />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/agent-reach"
+                element={
+                  <ProtectedRoute>
+                    <AgentReachHub />
                   </ProtectedRoute>
                 }
               />

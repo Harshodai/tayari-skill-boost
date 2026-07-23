@@ -16,10 +16,9 @@ import httpx
 
 from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from app.services.hermes.cache import get_cached, write_cached
-from app.services.hermes.normalize import _classify_board
+from app.services.hermes.normalize import _classify_board, _dedupe
 from app.services.hermes.providers import ALL_PROVIDERS
 from app.services.hermes.router import select_tier
-from app.services.job_providers import _dedupe
 
 logger = logging.getLogger(__name__)
 

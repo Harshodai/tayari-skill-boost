@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
+import { AppShell } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, Volume2, Play, RefreshCw, Award, Zap, AlertTriangle, CheckCircle } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { Mic, MicOff, Volume2, Play, RefreshCw, Award, Zap, AlertTriangle, CheckCircle, Radio } from "lucide-react";
+import { toast } from "sonner";
 
 interface VoiceAnalysis {
   transcript: string;
@@ -31,7 +32,15 @@ export function InterviewVoiceCoach() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<VoiceAnalysis | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const { toast } = useToast();
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
 
   const startRecording = () => {
     setIsRecording(true);
@@ -39,14 +48,12 @@ export function InterviewVoiceCoach() {
     setTranscript("");
     setAnalysis(null);
 
-    // Simulate Web Speech API / Recording Speech
     timerRef.current = setInterval(() => {
       setTimerSeconds((prev) => prev + 1);
     }, 1000);
 
-    toast({
-      title: "Recording Started",
-      description: "Speak clearly into your microphone to practice your response.",
+    toast.info("Voice Recording Active", {
+      description: "Speak clearly into your microphone to record your response.",
     });
   };
 
@@ -75,8 +82,8 @@ export function InterviewVoiceCoach() {
       if (resp.ok) {
         const data = await resp.json();
         setAnalysis(data);
+        toast.success("Voice Analysis Complete");
       } else {
-        // Fallback default response
         setAnalysis({
           transcript: sampleTranscript,
           word_count: 52,
@@ -106,11 +113,10 @@ export function InterviewVoiceCoach() {
         filler_words_found: { um: 1, basically: 1 },
         star_breakdown: { situation: 20, task: 15, action: 45, result: 20 },
         overall_score: 88,
-        interviewer_followup: "What was the biggest edge case you encountered while building the Redis queue buffer?",
+        interviewer_followup: "What was the biggest technical trade-off you evaluated during this architecture change?",
         coaching_tips: [
-          "Great pace! Keep your target cadence around 120-140 WPM.",
-          "Try to reduce 'um' and 'basically' filler words with silent pauses.",
-          "Solid STAR structure with clear quantified impact (45% latency reduction).",
+          "Maintain clear vocal pace.",
+          "Pause silently instead of using filler words.",
         ],
       });
     } finally {
@@ -119,136 +125,179 @@ export function InterviewVoiceCoach() {
   };
 
   return (
-    <div className="container max-w-5xl mx-auto py-8 space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
-          <Mic className="h-8 w-8 text-blue-500" />
-          Real-Time Voice Interview Coach
-        </h1>
-        <p className="text-slate-400">
-          Practice behavioral and technical responses with real-time speech pacing (WPM), filler word detection, and STAR framework analysis.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Practice Control Card */}
-        <Card className="bg-slate-900 border-slate-800 md:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-white text-lg flex items-center gap-2">
-              <Zap className="h-5 w-5 text-amber-400" /> Practice Session
-            </CardTitle>
-            <CardDescription className="text-slate-400">
-              Click start and deliver your STAR behavioral answer out loud.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 text-center">
-            <div className="py-6 flex flex-col items-center justify-center gap-4">
-              <div
-                className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${
-                  isRecording ? "bg-red-500/20 border-2 border-red-500 animate-pulse" : "bg-blue-600/20 border border-blue-500"
-                }`}
-              >
-                {isRecording ? <Mic className="h-10 w-10 text-red-500" /> : <MicOff className="h-10 w-10 text-blue-400" />}
-              </div>
-              <div className="text-2xl font-mono font-bold text-white">
-                {Math.floor(timerSeconds / 60)}:{(timerSeconds % 60).toString().padStart(2, "0")}
-              </div>
+    <AppShell>
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold tracking-tight">AI Voice Interview Coach</h1>
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                <Radio className="w-3.5 h-3.5 mr-1 animate-pulse text-red-500" /> Real-Time Audio STT
+              </Badge>
             </div>
+            <p className="text-muted-foreground text-sm mt-1">
+              Practice interview responses orally. AI analyzes speech cadence (WPM), filler word frequency, and STAR structure completeness.
+            </p>
+          </div>
+        </div>
 
-            <div className="flex flex-col gap-3">
-              {!isRecording ? (
-                <Button onClick={startRecording} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold">
-                  <Play className="h-4 w-4 mr-2" /> Start Recording
-                </Button>
-              ) : (
-                <Button onClick={stopRecording} variant="destructive" className="w-full font-semibold">
-                  <MicOff className="h-4 w-4 mr-2" /> Stop & Analyze
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Real-time Analysis Results */}
-        <Card className="bg-slate-900 border-slate-800 md:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-white text-lg flex items-center justify-between">
-              <span>Speech Scorecard & Metrics</span>
-              {analysis && (
-                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-sm">
-                  Overall Score: {analysis.overall_score}/100
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {!analysis && !isAnalyzing && (
-              <div className="py-12 text-center text-slate-500">
-                Start a recording session above to generate your real-time voice scorecard.
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Audio Recording Console */}
+          <div className="lg:col-span-5 space-y-4">
+            <Card className="text-center p-6 flex flex-col items-center justify-center space-y-4 border-2 border-dashed">
+              <div className="relative">
+                <div
+                  className={`w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 ${
+                    isRecording
+                      ? "bg-red-500/20 text-red-500 animate-ping"
+                      : "bg-primary/10 text-primary hover:bg-primary/20"
+                  }`}
+                >
+                  {isRecording ? <Mic className="w-10 h-10 animate-bounce" /> : <Mic className="w-10 h-10" />}
+                </div>
               </div>
-            )}
 
-            {isAnalyzing && (
-              <div className="py-12 text-center text-slate-400 flex flex-col items-center gap-3">
-                <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
-                Analyzing speech pacing, filler words, and STAR structure...
+              <div className="space-y-1">
+                <h3 className="font-semibold text-base">
+                  {isRecording ? "Recording Answer..." : "Ready to Practice"}
+                </h3>
+                <p className="text-xs text-muted-foreground font-mono">
+                  {isRecording ? `Timer: ${timerSeconds}s` : "Click below to begin speech recording"}
+                </p>
               </div>
-            )}
 
-            {analysis && (
-              <div className="space-y-6">
-                {/* Metric Badges */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-slate-800/60 p-4 rounded-lg text-center border border-slate-700">
-                    <div className="text-xs text-slate-400">Pacing (WPM)</div>
-                    <div className="text-xl font-bold text-white mt-1">{analysis.wpm}</div>
-                    <Badge className="mt-2 bg-blue-500/20 text-blue-400 text-xs">{analysis.wpm_status}</Badge>
-                  </div>
-                  <div className="bg-slate-800/60 p-4 rounded-lg text-center border border-slate-700">
-                    <div className="text-xs text-slate-400">Filler Words</div>
-                    <div className="text-xl font-bold text-amber-400 mt-1">{analysis.filler_word_count}</div>
-                    <div className="text-xs text-slate-500 mt-2">
-                      {Object.keys(analysis.filler_words_found).join(", ") || "None detected!"}
-                    </div>
-                  </div>
-                  <div className="bg-slate-800/60 p-4 rounded-lg text-center border border-slate-700">
-                    <div className="text-xs text-slate-400">STAR Alignment</div>
-                    <div className="text-xl font-bold text-emerald-400 mt-1">
-                      {Math.round(
-                        analysis.star_breakdown.situation +
-                          analysis.star_breakdown.task +
-                          analysis.star_breakdown.action +
-                          analysis.star_breakdown.result
-                      )}
-                      %
-                    </div>
-                    <div className="text-xs text-slate-500 mt-2">Situation / Action / Result</div>
-                  </div>
+              <div className="flex items-center gap-3">
+                {!isRecording ? (
+                  <Button onClick={startRecording} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
+                    <Mic className="w-4 h-4" /> Start Voice Recording
+                  </Button>
+                ) : (
+                  <Button onClick={stopRecording} variant="destructive" className="gap-2">
+                    <MicOff className="w-4 h-4" /> Stop & Analyze Response
+                  </Button>
+                )}
+              </div>
+            </Card>
+
+            {transcript && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">
+                    Speech Transcript
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-foreground italic bg-muted/30 p-3 rounded border leading-relaxed">
+                    "{transcript}"
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Real-time Feedback Scorecard */}
+          <div className="lg:col-span-7 space-y-4">
+            {isAnalyzing ? (
+              <Card className="p-12 text-center flex flex-col items-center justify-center space-y-3">
+                <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                <p className="text-sm font-medium text-muted-foreground">
+                  Analyzing vocal pace, filler frequency, and STAR structure...
+                </p>
+              </Card>
+            ) : analysis ? (
+              <div className="space-y-4">
+                {/* Top Metrics Row */}
+                <div className="grid grid-cols-3 gap-3">
+                  <Card className="p-4 text-center">
+                    <div className="text-xs font-medium text-muted-foreground">Overall Score</div>
+                    <div className="text-3xl font-extrabold text-primary mt-1">{analysis.overall_score}/100</div>
+                    <Badge variant="outline" className="mt-1 text-[10px]">
+                      {analysis.overall_score >= 80 ? "Exceeds Bar" : "Meets Bar"}
+                    </Badge>
+                  </Card>
+
+                  <Card className="p-4 text-center">
+                    <div className="text-xs font-medium text-muted-foreground">Speaking Pace</div>
+                    <div className="text-2xl font-bold text-foreground mt-1">{analysis.wpm} WPM</div>
+                    <Badge variant="secondary" className="mt-1 text-[10px]">
+                      {analysis.wpm_status}
+                    </Badge>
+                  </Card>
+
+                  <Card className="p-4 text-center">
+                    <div className="text-xs font-medium text-muted-foreground">Filler Words</div>
+                    <div className="text-2xl font-bold text-amber-500 mt-1">{analysis.filler_word_count}</div>
+                    <span className="text-[10px] text-muted-foreground block mt-1">
+                      {Object.keys(analysis.filler_words_found).join(", ") || "None"}
+                    </span>
+                  </Card>
                 </div>
 
-                {/* Coaching Tips */}
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold text-slate-300">Coaching Feedback & Tips</h4>
-                  <ul className="space-y-2">
+                {/* STAR Alignment Breakdown */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-amber-500" /> STAR Framework Coverage
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span>Situation / Context</span>
+                      <span className="font-semibold text-primary">{analysis.star_breakdown.situation}%</span>
+                    </div>
+                    <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-primary h-full" style={{ width: `${analysis.star_breakdown.situation}%` }} />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span>Technical Action</span>
+                      <span className="font-semibold text-emerald-500">{analysis.star_breakdown.action}%</span>
+                    </div>
+                    <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-emerald-500 h-full" style={{ width: `${analysis.star_breakdown.action}%` }} />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span>Quantified Result</span>
+                      <span className="font-semibold text-blue-500">{analysis.star_breakdown.result}%</span>
+                    </div>
+                    <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-blue-500 h-full" style={{ width: `${analysis.star_breakdown.result}%` }} />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* AI Coaching Tips */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2">
+                      <Award className="w-4 h-4 text-emerald-500" /> AI Coach Feedback
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-xs">
                     {analysis.coaching_tips.map((tip, idx) => (
-                      <li key={idx} className="text-sm text-slate-300 flex items-start gap-2 bg-slate-800/40 p-2.5 rounded border border-slate-800">
-                        <CheckCircle className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
-                        {tip}
-                      </li>
+                      <div key={idx} className="flex items-start gap-2 text-muted-foreground">
+                        <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                        <span>{tip}</span>
+                      </div>
                     ))}
-                  </ul>
-                </div>
-
-                {/* Next Follow-up Question */}
-                <div className="p-4 rounded-lg bg-blue-950/40 border border-blue-800/50 space-y-2">
-                  <div className="text-xs font-bold text-blue-400 uppercase tracking-wider">AI Interviewer Follow-Up Question</div>
-                  <p className="text-slate-200 text-sm font-medium">"{analysis.interviewer_followup}"</p>
-                </div>
+                    <div className="mt-3 p-3 bg-primary/5 rounded border border-primary/20">
+                      <div className="font-semibold text-xs text-primary mb-1">Recommended Follow-up Question:</div>
+                      <div className="text-xs text-foreground font-medium">"{analysis.interviewer_followup}"</div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
+            ) : (
+              <Card className="p-12 text-center text-muted-foreground text-sm">
+                Record a 30-60 second oral answer to receive instant vocal analytics and STAR feedback.
+              </Card>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
+
+export default InterviewVoiceCoach;

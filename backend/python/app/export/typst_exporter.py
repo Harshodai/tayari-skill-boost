@@ -2,6 +2,8 @@
 
 Compiles resume Knowledge Graph / profile JSON into bulletproof, single-page,
 ATS-optimized PDF documents using the Typst typesetting system (Rust-based).
+Supports 6 industry-standard templates: executive_slate, modern_tech, minimalist_ats,
+academic_cv, creative_compact, faang_single_page.
 """
 
 from __future__ import annotations
@@ -15,10 +17,10 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 
-EXECUTIVE_TYPST_TEMPLATE = """
+MINIMALIST_ATS_TEMPLATE = """
 #set page(paper: "us-letter", margin: (x: 0.5in, y: 0.5in))
 #set text(font: "Liberation Sans", size: 10pt)
-#set par(justify: true, leading: 0.55em)
+#set par(justify: true, leading: 0.52em)
 
 #align(center)[
   #text(size: 16pt, weight: "bold")[VAR_FULL_NAME] \\
@@ -32,42 +34,169 @@ EXECUTIVE_TYPST_TEMPLATE = """
 == Professional Summary
 VAR_SUMMARY
 
-== Core Technical Skills
+== Technical Skills & Core Competencies
 VAR_SKILLS
 
 == Professional Experience
 VAR_EXPERIENCE
 
-== Education & Certifications
+== Education & Credentials
 VAR_EDUCATION
 """
 
-MODERN_TECH_TYPST_TEMPLATE = """
+MODERN_TECH_TEMPLATE = """
 #set page(paper: "us-letter", margin: (x: 0.4in, y: 0.4in))
 #set text(font: "DejaVu Sans", size: 9.5pt)
 #set par(justify: true, leading: 0.5em)
 
 #grid(
   columns: (1fr, auto),
-  [*#text(size: 18pt, weight: "bold")[VAR_FULL_NAME]* \ _VAR_HEADLINE_],
+  [*#text(size: 18pt, weight: "bold", fill: rgb("#1e3a8a"))[VAR_FULL_NAME]* \ _VAR_HEADLINE_],
   align(right)[#text(size: 8.5pt)[VAR_CONTACT_INFO]]
 )
 
-#v(4pt)
+#v(3pt)
 #line(length: 100%, stroke: 1.5pt + rgb("#2563eb"))
 #v(4pt)
 
-*SKILLS & TECHNOLOGIES* \
+*CORE SKILLS & TECHNOLOGIES* \
 VAR_SKILLS
 
 #v(4pt)
-*EXPERIENCE* \
+*PROFESSIONAL EXPERIENCE* \
 VAR_EXPERIENCE
 
 #v(4pt)
-*EDUCATION & CREDENTIALS* \
+*EDUCATION & CERTIFICATIONS* \
 VAR_EDUCATION
 """
+
+EXECUTIVE_SLATE_TEMPLATE = """
+#set page(paper: "us-letter", margin: (x: 0.5in, y: 0.5in))
+#set text(font: "Liberation Serif", size: 10.5pt)
+#set par(justify: true, leading: 0.6em)
+
+#align(center)[
+  #text(size: 20pt, weight: "bold", fill: rgb("#0f172a"))[VAR_FULL_NAME] \\
+  #text(size: 10pt, style: "italic")[VAR_HEADLINE] \\
+  #v(2pt)
+  #text(size: 9pt)[VAR_CONTACT_INFO]
+]
+
+#v(4pt)
+#line(length: 100%, stroke: 1pt + rgb("#0f172a"))
+#v(4pt)
+
+#text(weight: "bold", size: 12pt, fill: rgb("#0f172a"))[EXECUTIVE PROFILE]
+#v(-2pt)
+VAR_SUMMARY
+
+#v(4pt)
+#text(weight: "bold", size: 12pt, fill: rgb("#0f172a"))[CORE COMPETENCIES & LEADERSHIP]
+#v(-2pt)
+VAR_SKILLS
+
+#v(4pt)
+#text(weight: "bold", size: 12pt, fill: rgb("#0f172a"))[CAREER HISTORY]
+#v(-2pt)
+VAR_EXPERIENCE
+
+#v(4pt)
+#text(weight: "bold", size: 12pt, fill: rgb("#0f172a"))[EDUCATION]
+#v(-2pt)
+VAR_EDUCATION
+"""
+
+FAANG_SINGLE_PAGE_TEMPLATE = """
+#set page(paper: "us-letter", margin: (x: 0.35in, y: 0.35in))
+#set text(font: "Liberation Sans", size: 9.5pt)
+#set par(justify: true, leading: 0.48em)
+
+#align(center)[
+  #text(size: 18pt, weight: "bold")[VAR_FULL_NAME] \\
+  #text(size: 8.5pt)[VAR_CONTACT_INFO]
+]
+
+#v(-2pt)
+#line(length: 100%, stroke: 0.8pt + rgb("#111827"))
+#v(-2pt)
+
+*SKILLS* --- VAR_SKILLS
+
+#v(2pt)
+*EXPERIENCE*
+VAR_EXPERIENCE
+
+#v(2pt)
+*EDUCATION*
+VAR_EDUCATION
+"""
+
+CREATIVE_COMPACT_TEMPLATE = """
+#set page(paper: "us-letter", margin: (x: 0.4in, y: 0.4in))
+#set text(font: "DejaVu Sans", size: 9pt)
+#set par(justify: true, leading: 0.45em)
+
+#grid(
+  columns: (2.2in, 1fr),
+  gutter: 12pt,
+  [
+    #rect(fill: rgb("#f1f5f9"), inset: 8pt, radius: 4pt, width: 100%)[
+      #text(size: 14pt, weight: "bold", fill: rgb("#0f172a"))[VAR_FULL_NAME] \
+      #text(size: 8.5pt, fill: rgb("#475569"))[VAR_HEADLINE] \
+      #v(6pt)
+      #text(size: 8pt)[VAR_CONTACT_INFO]
+      #v(6pt)
+      *SKILLS* \
+      VAR_SKILLS
+      #v(6pt)
+      *EDUCATION* \
+      VAR_EDUCATION
+    ]
+  ],
+  [
+    *SUMMARY* \
+    VAR_SUMMARY
+    #v(6pt)
+    *EXPERIENCE* \
+    VAR_EXPERIENCE
+  ]
+)
+"""
+
+ACADEMIC_CV_TEMPLATE = """
+#set page(paper: "us-letter", margin: (x: 0.6in, y: 0.6in))
+#set text(font: "Liberation Serif", size: 11pt)
+#set par(justify: true, leading: 0.65em)
+
+#align(center)[
+  #text(size: 22pt, weight: "bold")[VAR_FULL_NAME] \\
+  #text(size: 10pt)[VAR_CONTACT_INFO]
+]
+
+#v(6pt)
+== Curriculum Vitae & Summary
+VAR_SUMMARY
+
+== Education & Academic Credentials
+VAR_EDUCATION
+
+== Research & Technical Experience
+VAR_EXPERIENCE
+
+== Publications & Technical Skills
+VAR_SKILLS
+"""
+
+TEMPLATES = {
+    "minimalist_ats": MINIMALIST_ATS_TEMPLATE,
+    "modern_tech": MODERN_TECH_TEMPLATE,
+    "executive_slate": EXECUTIVE_SLATE_TEMPLATE,
+    "faang_single_page": FAANG_SINGLE_PAGE_TEMPLATE,
+    "creative_compact": CREATIVE_COMPACT_TEMPLATE,
+    "academic_cv": ACADEMIC_CV_TEMPLATE,
+    "executive": EXECUTIVE_SLATE_TEMPLATE,  # Alias
+}
 
 
 def _sanitize_typst(text: str) -> str:
@@ -89,7 +218,7 @@ def _sanitize_typst(text: str) -> str:
     return res
 
 
-def generate_typst_code(data: Dict[str, Any], template: str = "executive") -> str:
+def generate_typst_code(data: Dict[str, Any], template: str = "modern_tech") -> str:
     """Generate Typst markup string from profile/resume dictionary."""
     full_name = _sanitize_typst(data.get("full_name") or data.get("name") or "Candidate Name")
     headline = _sanitize_typst(data.get("headline") or data.get("current_role") or "Software Engineer")
@@ -103,6 +232,8 @@ def generate_typst_code(data: Dict[str, Any], template: str = "executive") -> st
         contact_parts.append(str(data["location"]))
     if data.get("linkedin"):
         contact_parts.append(str(data["linkedin"]))
+    if data.get("github"):
+        contact_parts.append(str(data["github"]))
     contact_info = " | ".join([_sanitize_typst(c) for c in contact_parts if c])
 
     summary = _sanitize_typst(data.get("summary") or data.get("about") or "")
@@ -110,7 +241,7 @@ def generate_typst_code(data: Dict[str, Any], template: str = "executive") -> st
     # Format skills
     raw_skills = data.get("skills") or []
     if isinstance(raw_skills, list):
-        skills_str = ", ".join([_sanitize_typst(str(s)) for s in raw_skills[:25]])
+        skills_str = ", ".join([_sanitize_typst(str(s)) for s in raw_skills[:30]])
     else:
         skills_str = _sanitize_typst(str(raw_skills))
 
@@ -130,6 +261,13 @@ def generate_typst_code(data: Dict[str, Any], template: str = "executive") -> st
                     for b in bullets[:5]:
                         block += f"  - {_sanitize_typst(str(b))}\n"
                 exp_blocks.append(block)
+    elif isinstance(raw_exp, str) and raw_exp.strip():
+        lines = [l.strip() for l in raw_exp.splitlines() if l.strip()]
+        for line in lines:
+            clean_line = line.lstrip("-•* ")
+            if clean_line:
+                exp_blocks.append(f"  - {_sanitize_typst(clean_line)}")
+
     experience_str = "\n".join(exp_blocks) if exp_blocks else "  - Built scalable web applications and microservices."
 
     # Format education
@@ -144,7 +282,7 @@ def generate_typst_code(data: Dict[str, Any], template: str = "executive") -> st
                 edu_blocks.append(f"* {degree} *, _{school}_ #h(1fr) {year}")
     education_str = "\n".join(edu_blocks) if edu_blocks else "* B.S. in Computer Science *"
 
-    template_code = MODERN_TECH_TYPST_TEMPLATE if template == "modern_tech" else EXECUTIVE_TYPST_TEMPLATE
+    template_code = TEMPLATES.get(template, MODERN_TECH_TEMPLATE)
 
     code = template_code.replace("VAR_FULL_NAME", full_name)
     code = code.replace("VAR_HEADLINE", headline)
@@ -179,10 +317,8 @@ def compile_typst_to_pdf(typst_code: str) -> bytes:
             else:
                 logger.warning("[Typst] typst compile returned %d: %s. Using fallback.", res.returncode, res.stderr)
         except FileNotFoundError:
-            logger.info("[Typst] typst binary not found on PATH. Falling back to HTML/Weasyprint.")
+            logger.info("[Typst] typst binary not found on PATH. Falling back to PDFExporter.")
 
-        # Fallback to HTML/Weasyprint if typst binary is not installed
         from app.export.pdf_exporter import PDFExporter
-        # Convert code to plain markdown text for fallback
         plain_text = typst_code.replace("#", "").replace("*", "**")
         return PDFExporter.export_to_pdf(plain_text)

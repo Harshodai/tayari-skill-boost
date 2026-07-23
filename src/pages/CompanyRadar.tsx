@@ -11,7 +11,7 @@ interface RadarMatch {
   title: string;
   company: string;
   location: string;
-  url: str;
+  url: string;
   ats_source: string;
 }
 

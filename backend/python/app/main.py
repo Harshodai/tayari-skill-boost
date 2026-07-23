@@ -37,22 +37,26 @@ from app.llm.strategic_analyzer import StrategicAnalyzer
 from app.export.pdf_exporter import PDFExporter
 from app.export.json_exporter import JSONExporter
 from app.services import ats_engine, optimizer, job_agent, docx_builder, automation_engine
-import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
 
-sentry_dsn = os.getenv("SENTRY_DSN", "")
-if sentry_dsn:
-    sentry_sdk.init(
-        dsn=sentry_dsn,
-        environment=os.getenv("SENTRY_ENVIRONMENT", "development"),
-        integrations=[FastApiIntegration()],
-        traces_sample_rate=0.2,
-    )
+    sentry_dsn = os.getenv("SENTRY_DSN", "")
+    if sentry_dsn:
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            environment=os.getenv("SENTRY_ENVIRONMENT", "development"),
+            integrations=[FastApiIntegration()],
+            traces_sample_rate=0.2,
+        )
+except ImportError:
+    pass
 
 from app.services.circuit_breaker import circuit_breaker
 from app.guardrails import PipelineGate
 from app.telemetry import stage_complete, stage_fail
 from app.services.llm_service import active_engine, llm_complete
+from app.services.one_shot_engine import OneShotRequest
 from app.services.cover_letter import CoverLetterGenerator
 from app.services.communication import CommunicationGenerator
 from app.services.interview_ai import InterviewPrepGenerator
@@ -960,6 +964,151 @@ async def privacy_check_endpoint():
     except Exception as exc:
         logger.error("privacy check failed: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/v1/one-shot/execute")
+@app.post("/api/one-shot/execute")
+async def one_shot_execute_endpoint(payload: OneShotRequest):
+    """Execute the complete 6-stage one-shot jobseeker application pipeline."""
+    from app.services.one_shot_engine import execute_one_shot_pipeline
+    try:
+        res = await execute_one_shot_pipeline(payload)
+        return res.dict()
+    except Exception as exc:
+        logger.error("one-shot pipeline execution failed: %s", exc)
+        raise HTTPException(status_code=500, detail="One-shot pipeline execution failed") from exc
+
+
+@app.post("/api/v1/ats/simulate")
+async def ats_simulate_endpoint(payload: dict):
+    """Simulate ATS plain-text parsing and warning diagnostic."""
+    from app.services.ats_simulator import simulate_ats_parsing
+    resume_text = payload.get("resume_text", "")
+    return simulate_ats_parsing(resume_text)
+
+
+@app.post("/api/v1/interview/copilot-hint")
+async def interview_copilot_hint_endpoint(payload: dict):
+    """Generate real-time STAR response hints during live interview."""
+    from app.services.live_interview_copilot import CopilotHintRequest, generate_interview_hint
+    req = CopilotHintRequest(**payload)
+    res = await generate_interview_hint(req)
+    return res.dict()
+
+
+@app.post("/api/v1/offer/calculate")
+async def offer_calculate_endpoint(payload: dict):
+    """Calculate normalized compensation and compare multi-offer packages."""
+    from app.services.offer_calculator import OfferDetails, compare_multiple_offers, calculate_offer_financials
+    offers = payload.get("offers", [])
+    if offers:
+        parsed_offers = [OfferDetails(**o) for o in offers]
+        return [res.dict() for res in compare_multiple_offers(parsed_offers)]
+    else:
+        single_offer = OfferDetails(**payload)
+        return calculate_offer_financials(single_offer).dict()
+
+
+@app.get("/api/v1/candidate/answers")
+async def candidate_answers_endpoint():
+    """Retrieve stored candidate answer bank."""
+    from app.services.candidate_answer_bank import get_answer_bank
+    return get_answer_bank().answers
+
+
+
+
+@app.post("/api/v1/ats/detect")
+async def ats_detect_endpoint(payload: dict):
+    """Detect company ATS system and return parsing constraints and tips."""
+    from app.services.ats_detector import ATSDetector
+    url = payload.get("url", "")
+    html_content = payload.get("html_content", "")
+    return ATSDetector.detect(url=url, html_content=html_content)
+
+
+@app.post("/api/v1/typst/compile")
+async def typst_compile_endpoint(payload: dict):
+    """Generate Typst code and compile into PDF binary or plain string."""
+    from app.export.typst_exporter import generate_typst_code, compile_typst_to_pdf
+    template = payload.get("template", "modern_tech")
+    resume_data = payload.get("resume_data", payload)
+    typst_code = generate_typst_code(resume_data, template=template)
+    try:
+        pdf_bytes = compile_typst_to_pdf(typst_code)
+        return {
+            "template": template,
+            "typst_code": typst_code,
+            "pdf_available": True,
+            "pdf_data": pdf_bytes.hex() if isinstance(pdf_bytes, bytes) else pdf_bytes,
+        }
+    except Exception as exc:
+        logger.warning("typst compilation unavailable: %s", exc)
+        return {
+            "template": template,
+            "typst_code": typst_code,
+            "pdf_available": False,
+        }
+
+
+@app.post("/api/v1/interview/voice-feedback")
+async def voice_feedback_endpoint(payload: dict):
+    """Analyze candidate speech cadence (WPM), filler words, and STAR coverage."""
+    from app.services.live_interview_copilot import VoiceAnalysisRequest, analyze_candidate_speech
+    req = VoiceAnalysisRequest(**payload)
+    return analyze_candidate_speech(req).dict()
+
+
+@app.post("/api/v1/recruiter/patterns")
+async def recruiter_patterns_endpoint(payload: dict):
+    """Generate corporate email permutations and multi-touch cold outreach sequence."""
+    from app.services.recruiter_intelligence import find_recruiter_intel
+    company_name = payload.get("company_name", "Target Company")
+    job_title = payload.get("job_title", "Software Engineer")
+    return find_recruiter_intel(company_name, job_title)
+
+
+@app.post("/api/v1/agent-reach/extract")
+async def agent_reach_extract_endpoint(payload: dict):
+    """Extract YouTube transcripts, LinkedIn posts, Substack/Medium articles & Reddit threads into Knowledge Graph."""
+    from app.services.agent_reach import AgentReachRequest, process_agent_reach
+    req = AgentReachRequest(**payload)
+    res = await process_agent_reach(req)
+    return res.dict()
+
+
+@app.get("/api/v1/agent-reach/doctor")
+async def agent_reach_doctor_endpoint():
+    """Run diagnostic health check across all 16 Agent-Reach channels and local cookies."""
+    from app.services.agent_reach import run_agent_reach_doctor
+    report = run_agent_reach_doctor()
+    return report.dict()
+
+
+@app.post("/api/v1/agent-reach/search")
+async def agent_reach_search_endpoint(payload: dict):
+    """Perform Exa AI semantic search over web and career platforms."""
+    from app.services.agent_reach import run_exa_search
+    query = payload.get("query", "Software Engineer Interview Prep")
+    results = await run_exa_search(query)
+    return {"query": query, "results": results}
+
+
+@app.post("/api/v1/agent-reach/transcribe")
+async def agent_reach_transcribe_endpoint(payload: dict):
+    """Transcribe audio/video podcast or URL using Whisper API (Groq/OpenAI)."""
+    from app.services.agent_reach_transcribe import process_audio_transcription
+    url = payload.get("url", "")
+    provider = payload.get("provider", "auto")
+    transcript = await process_audio_transcription(url, provider=provider)
+    return {"url": url, "provider": provider, "transcript": transcript}
+
+
+@app.get("/api/v1/agent-reach/cookies")
+async def agent_reach_cookies_endpoint():
+    """Inspect local system browser cookie availability."""
+    from app.services.agent_reach import extract_browser_cookies
+    return {"browsers": extract_browser_cookies()}
 
 
 # ---------------------------------------------------------------------------

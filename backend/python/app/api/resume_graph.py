@@ -1,3 +1,4 @@
+from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request, Response, Query
 from fastapi.responses import JSONResponse
 import logging
@@ -6,9 +7,8 @@ from typing import Any, Dict, List
 
 from pydantic import BaseModel
 
-from app.services import automation_engine
+from app.services import automation_engine, resume_parser
 from app.services.resume_graph_storage import store_graph, load_graph, delete_graph
-from app.services.resume_parser import parse_resume
 
 router = APIRouter()
 
@@ -147,7 +147,7 @@ async def post_resume_graph(request: ResumeGraphRequest) -> Dict[str, Any]:
     store = automation_engine._autopilot_store.get(run_id)
     if store is None:
         raise HTTPException(status_code=404, detail="Run not found")
-    graph = parse_resume(request.resume_text)
+    graph = resume_parser.parse_resume(request.resume_text)
     if graph is None:
         raise HTTPException(status_code=400, detail="Resume parsing failed")
     store["graph"] = graph

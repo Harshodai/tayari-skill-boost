@@ -178,3 +178,84 @@ After Phase 2:
 | Humanization quality | **8/10** | Depends on NIM output; has safe fallback |
 | NIM provider reliability | **9/10** | 3-attempt backoff handles transient failures |
 | Heuristic ATS score | **7/10** | Structural only; not a real Greenhouse/Workday score |
+
+---
+
+## 🛡 Redirect-Based SSRF — `follow_redirects=True` Silently Opens Internal Networks
+
+When using `httpx.AsyncClient` to fetch external URLs, `follow_redirects=True` lets an attacker bypass `assert_safe_public_url` by providing a URL that 302-redirects to `http://169.254.169.254/` or other internal services.
+
+### The Fix
+Set `follow_redirects=False` and manually follow redirects, calling `assert_safe_public_url` on each resolved hop:
+
+```python
+async def _safe_redirect_get(client, url, **kwargs):
+    max_redirects = 5
+    current = url
+    for _ in range(max_redirects):
+        res = await client.get(current, follow_redirects=False, **kwargs)
+        if res.status_code in (301, 302, 303, 307, 308):
+            location = res.headers.get("Location", "")
+            assert_safe_public_url(urljoin(current, location))
+            current = urljoin(current, location)
+            continue
+        return res
+    return await client.get(current, follow_redirects=False, **kwargs)
+```
+
+---
+
+## 🔄 `CandidateAnswerBank.tsx` Load/Save Round-Trip — Truthy Checks Lose Empty Strings
+
+Using `if (parsed.field)` to restore form state from localStorage silently drops intentionally cleared fields. If a user clears a text input and saves, the empty string is not restored because `""` is falsy.
+
+### The Fix
+Replace truthy checks with explicit type checks: `typeof parsed.field === "string"`. This preserves empty strings and still rejects non-string values like `null`/`undefined`.
+
+Also: **every field that is loaded must be saved**. If diversity fields are loaded from saved state but omitted from the save payload, they disappear on the next save+reload.
+
+---
+
+## 🧩 `CustomQA` Shape Validation — Guard Against Corrupt localStorage
+
+When restoring `customQAs` from `localStorage`, a direct `if (parsed.customQAs) setCustomQAs(parsed.customQAs)` silently passes non-array or malformed data, causing a runtime crash in the `.map()` render path.
+
+### The Fix
+Define a type guard that validates both the array wrapper and the shape of each element:
+
+```typescript
+const isCustomQAArray = (v: unknown): v is CustomQA[] =>
+  Array.isArray(v) && v.every(item =>
+    typeof item === "object" && item !== null &&
+    typeof item.id === "string" &&
+    typeof item.question === "string" &&
+    typeof item.answer === "string"
+  );
+```
+
+---
+
+## 🎯 Success Toast Outside Conditional — Toast Fires Even on Failure
+
+If `toast.success(...)` sits outside a `if (data.pdf_available && data.pdf_data)` block, the user sees "Compiled Successfully!" even when the backend returns `pdf_available: False`.
+
+### The Fix
+Move the success toast *inside* the conditional. Add an `else` branch with a descriptive error toast so the user always gets honest feedback.
+
+---
+
+## 🗄 File-Backed Persistence for In-Memory Dicts — `candidate_answer_bank.py`
+
+The `_answer_banks` dict was in-memory only — data lost on every restart. For a service that manages candidate screening answers, this effectively made it a toy.
+
+### The Fix
+Add JSON file persistence with `ANSWER_BANK_STORAGE_PATH` env var (defaults to `data/answer_banks.json`). The `get_answer_bank()` function loads from disk on first access and persists after creating a new bank. Also: remove the `default_user` fallback and require a valid `user_id` with `ValueError` on empty.
+
+---
+
+## 🏷 Response Key Renames Require Downstream Audit — `verified_email_patterns`
+
+Renaming a response key from `verified_email_patterns` to `inferred_email_patterns` changes the contract with every consumer. Even though no consumer was using the key by the old name in this round, the rename must be flagged: search all `find_recruiter_intel` call sites and the frontend `RecruiterOutreach` page to confirm they don't destructure the old key name.
+
+### Lesson
+Before renaming any response key, `grep` the entire codebase for both the old key name and the function that produces it.

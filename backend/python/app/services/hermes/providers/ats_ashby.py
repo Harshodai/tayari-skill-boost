@@ -11,8 +11,7 @@ import logging
 
 import httpx
 
-from app.services.hermes.normalize import _norm
-from app.services.job_providers import UA
+from app.services.hermes.normalize import _norm, UA
 
 logger = logging.getLogger(__name__)
 
