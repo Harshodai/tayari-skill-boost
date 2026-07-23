@@ -253,6 +253,24 @@ func (s *Server) routes() {
 		// Interview AI
 		r.Post("/api/interview/prep", s.handleInterviewPrep)
 		r.Post("/api/v1/interview/prep", s.handleInterviewPrep)
+		r.Post("/api/interview/copilot", s.handleInterviewCopilot)
+		r.Post("/api/v1/interview/copilot", s.handleInterviewCopilot)
+
+		// Candidate Answer Bank & ATS Detect
+		r.Post("/api/candidate-bank/match", s.handleCandidateBankMatch)
+		r.Post("/api/v1/candidate-bank/match", s.handleCandidateBankMatch)
+		r.Post("/api/ats/detect", s.handleATSDetect)
+		r.Post("/api/v1/ats/detect", s.handleATSDetect)
+
+		// Truth Check Guardrail
+		r.Post("/api/guardrails/truth-check", s.handleTruthCheck)
+		r.Post("/api/v1/guardrails/truth-check", s.handleTruthCheck)
+
+		// Recruiter Lookup & Offer Calculator
+		r.Post("/api/recruiter/lookup", s.handleRecruiterLookup)
+		r.Post("/api/v1/recruiter/lookup", s.handleRecruiterLookup)
+		r.Post("/api/offer/calculate", s.handleOfferCalculate)
+		r.Post("/api/v1/offer/calculate", s.handleOfferCalculate)
 
 		// Resume Knowledge Graph
 		r.Post("/api/v1/resumes/{id}/knowledge-graph", s.handleResumeKnowledgeGraph)
@@ -260,6 +278,7 @@ func (s *Server) routes() {
 		// Profile Import
 		r.Post("/api/profile/import-pdf", s.handleImportProfilePDF)
 		r.Post("/api/v1/profile/import-pdf", s.handleImportProfilePDF)
+
 
 		// Job Description Routes
 		r.Post("/api/v1/job-descriptions", s.handleCreateJD)

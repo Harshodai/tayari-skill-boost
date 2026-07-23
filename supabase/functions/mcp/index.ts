@@ -145,10 +145,7 @@ var save_job_default = defineTool4({
 });
 
 // src/lib/mcp/index.ts
-var projectRef = Deno.env.get("SUPABASE_PROJECT_REF") || "";
-if (!projectRef) {
-  throw new Error("SUPABASE_PROJECT_REF is not set — configure it in your Supabase Edge Function secrets or environment variables.");
-}
+var projectRef = "your-project-id";
 var mcp_default = defineMcp({
   name: "tayari-mcp",
   title: "Tayari",

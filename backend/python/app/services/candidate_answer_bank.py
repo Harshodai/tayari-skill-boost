@@ -1,93 +1,145 @@
-"""Candidate Answer Bank Service.
-
-Manages persistent answers to standard and recurring ATS screening questions
-(e.g., work authorization, notice period, salary expectations, custom essay responses).
-
-Data is persisted to a JSON file on disk for durability across restarts.
 """
-
+Candidate Answer Bank Service.
+Stores deterministic answers for standard ATS application questions (work authorization,
+visa sponsorship, salary expectations, notice period, location preferences, EEO parameters)
+and provides fuzzy question matching to eliminate hallucinated answers during job auto-apply.
+"""
 from __future__ import annotations
-import json
-import logging
-import os
-from typing import Dict, Any, Optional
+import re
+from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
 
-DEFAULT_SCREENING_ANSWERS: Dict[str, str] = {
-    "work_authorization": "Yes, I am authorized to work in the country.",
-    "sponsorship_required": "No, I do not require visa sponsorship now or in the future.",
-    "notice_period": "2 weeks",
-    "desired_salary": "Open to discussion based on competitive market rates and role scope.",
-    "relocation": "Open to remote or relocation for the right role.",
-    "why_us": "I am drawn to your team's mission, engineering rigor, and culture of building high-impact products.",
-    "greatest_strength": "Problem solving with high-throughput distributed systems and delivering clean, maintainable code rapidly."
-}
-
-_STORAGE_PATH = os.environ.get("ANSWER_BANK_STORAGE_PATH",
-                               os.path.join(os.path.dirname(__file__), "..", "..", "data", "answer_banks.json"))
-
-
-class CandidateAnswerBank(BaseModel):
-    user_id: str = "default_user"
-    answers: Dict[str, str] = Field(default_factory=lambda: DEFAULT_SCREENING_ANSWERS.copy())
-
-    def get_answer_for_question(self, question: str) -> str:
-        """Match a screening question string against stored candidate answers."""
-        q_lower = question.lower()
-        if "sponsor" in q_lower:
-            return self.answers.get("sponsorship_required", DEFAULT_SCREENING_ANSWERS["sponsorship_required"])
-        if "authorize" in q_lower or "legally eligible" in q_lower:
-            return self.answers.get("work_authorization", DEFAULT_SCREENING_ANSWERS["work_authorization"])
-        if "notice" in q_lower or "start date" in q_lower:
-            return self.answers.get("notice_period", DEFAULT_SCREENING_ANSWERS["notice_period"])
-        if "salary" in q_lower or "compensation" in q_lower or "pay" in q_lower:
-            return self.answers.get("desired_salary", DEFAULT_SCREENING_ANSWERS["desired_salary"])
-        if "relocat" in q_lower:
-            return self.answers.get("relocation", DEFAULT_SCREENING_ANSWERS["relocation"])
-        if "why" in q_lower and ("company" in q_lower or "us" in q_lower or "role" in q_lower):
-            return self.answers.get("why_us", DEFAULT_SCREENING_ANSWERS["why_us"])
-        return "Based on candidate background: Experienced software professional eager to contribute immediately to this role."
+class CandidateAnswers(BaseModel):
+    work_authorization: str = Field(default="Authorized to work in the US without restriction", description="US work authorization status")
+    requires_sponsorship: bool = Field(default=False, description="Whether visa sponsorship is required")
+    sponsorship_answer: str = Field(default="No, I do not require sponsorship now or in the future.", description="Standard answer for sponsorship")
+    target_salary_min: int = Field(default=140000, description="Minimum acceptable base salary in USD")
+    target_salary_max: int = Field(default=180000, description="Target base salary in USD")
+    salary_answer: str = Field(default="$150,000 - $180,000 (negotiable based on total compensation)", description="Formatted salary answer")
+    notice_period_days: int = Field(default=14, description="Notice period in days")
+    notice_period_answer: str = Field(default="2 weeks", description="Notice period response")
+    relocation_willing: bool = Field(default=True, description="Willingness to relocate")
+    work_preference: str = Field(default="Remote / Hybrid", description="Work location preference")
+    years_experience: int = Field(default=5, description="Total professional years of experience")
+    gender: Optional[str] = Field(default="Decline to Self-Identify", description="EEO Gender")
+    race_ethnicity: Optional[str] = Field(default="Decline to Self-Identify", description="EEO Race/Ethnicity")
+    veteran_status: Optional[str] = Field(default="I am not a protected veteran", description="EEO Veteran Status")
+    disability_status: Optional[str] = Field(default="No, I do not have a disability", description="EEO Disability Status")
+    custom_qa: Dict[str, str] = Field(default_factory=dict, description="Custom key-value question answer pairs")
 
 
-_answer_banks: Dict[str, CandidateAnswerBank] = {}
+DEFAULT_ANSWER_BANK = CandidateAnswers()
 
 
-def _load_banks() -> Dict[str, CandidateAnswerBank]:
-    if not os.path.exists(_STORAGE_PATH):
-        return {}
-    try:
-        with open(_STORAGE_PATH, "r") as f:
-            raw = json.load(f)
-        return {uid: CandidateAnswerBank(user_id=uid, answers=data.get("answers", DEFAULT_SCREENING_ANSWERS.copy()))
-                for uid, data in raw.items()}
-    except Exception as exc:
-        logger.warning("Failed to load answer banks: %s", exc)
-        return {}
-
-
-def _save_banks(banks: Dict[str, CandidateAnswerBank]) -> None:
-    try:
-        os.makedirs(os.path.dirname(_STORAGE_PATH), exist_ok=True)
-        with open(_STORAGE_PATH, "w") as f:
-            json.dump({uid: {"answers": bank.answers} for uid, bank in banks.items()}, f)
-    except Exception as exc:
-        logger.warning("Failed to save answer banks: %s", exc)
-
-
-def get_answer_bank(user_id: str) -> CandidateAnswerBank:
-    """Retrieve or create an answer bank instance keyed by user_id.
-
-    Raises ValueError if user_id is empty or None.
-    Data is loaded from disk on first access and persisted on each mutation.
+def match_question_to_answer(question_text: str, bank: CandidateAnswers = DEFAULT_ANSWER_BANK) -> Dict[str, Any]:
     """
-    if not user_id:
-        raise ValueError("user_id is required and must be non-empty")
-    if user_id not in _answer_banks:
-        persisted = _load_banks()
-        _answer_banks.update(persisted)
-        if user_id not in _answer_banks:
-            _answer_banks[user_id] = CandidateAnswerBank(user_id=user_id)
-            _save_banks(_answer_banks)
-    return _answer_banks[user_id]
+    Fuzzy match an ATS form label or question prompt against the candidate answer bank.
+    Returns dict with matched answer string, confidence score (0.0 to 1.0), and matched category.
+    """
+    q_lower = question_text.lower().strip()
+    
+    # 1. Work Authorization & Sponsorship
+    if any(k in q_lower for k in ["sponsorship", "visa", "require sponsorship", "future sponsorship", "h1b"]):
+        return {
+            "matched": True,
+            "answer": bank.sponsorship_answer if not bank.requires_sponsorship else "Yes, I will require sponsorship.",
+            "value": "No" if not bank.requires_sponsorship else "Yes",
+            "confidence": 0.98,
+            "category": "sponsorship"
+        }
+    
+    if any(k in q_lower for k in ["authorized to work", "legally authorized", "work authorization", "eligible to work"]):
+        return {
+            "matched": True,
+            "answer": bank.work_authorization,
+            "value": "Yes",
+            "confidence": 0.98,
+            "category": "work_authorization"
+        }
+
+    # 2. Salary Expectations
+    if any(k in q_lower for k in ["salary", "compensation", "desired pay", "expected salary", "pay rate"]):
+        return {
+            "matched": True,
+            "answer": bank.salary_answer,
+            "value": str(bank.target_salary_max),
+            "confidence": 0.95,
+            "category": "salary"
+        }
+
+    # 3. Notice Period / Availability
+    if any(k in q_lower for k in ["notice period", "start date", "how soon can you start", "available to start"]):
+        return {
+            "matched": True,
+            "answer": bank.notice_period_answer,
+            "value": bank.notice_period_answer,
+            "confidence": 0.92,
+            "category": "notice_period"
+        }
+
+    # 4. Years of Experience
+    if any(k in q_lower for k in ["years of experience", "total experience", "how many years"]):
+        return {
+            "matched": True,
+            "answer": f"{bank.years_experience} years",
+            "value": str(bank.years_experience),
+            "confidence": 0.90,
+            "category": "years_experience"
+        }
+
+    # 5. EEO Questions
+    if "gender" in q_lower or "sex" in q_lower:
+        return {
+            "matched": True,
+            "answer": bank.gender or "Decline to Self-Identify",
+            "value": bank.gender or "Decline",
+            "confidence": 0.99,
+            "category": "eeo_gender"
+        }
+
+    if any(k in q_lower for k in ["race", "ethnicity"]):
+        return {
+            "matched": True,
+            "answer": bank.race_ethnicity or "Decline to Self-Identify",
+            "value": bank.race_ethnicity or "Decline",
+            "confidence": 0.99,
+            "category": "eeo_race"
+        }
+
+    if "veteran" in q_lower:
+        return {
+            "matched": True,
+            "answer": bank.veteran_status or "I am not a protected veteran",
+            "value": bank.veteran_status or "No",
+            "confidence": 0.99,
+            "category": "eeo_veteran"
+        }
+
+    if "disability" in q_lower:
+        return {
+            "matched": True,
+            "answer": bank.disability_status or "No, I do not have a disability",
+            "value": bank.disability_status or "No",
+            "confidence": 0.99,
+            "category": "eeo_disability"
+        }
+
+    # 6. Check custom QA entries
+    for key, val in bank.custom_qa.items():
+        if key.lower() in q_lower:
+            return {
+                "matched": True,
+                "answer": val,
+                "value": val,
+                "confidence": 0.88,
+                "category": "custom"
+            }
+
+    return {
+        "matched": False,
+        "answer": "",
+        "value": "",
+        "confidence": 0.0,
+        "category": "unknown"
+    }

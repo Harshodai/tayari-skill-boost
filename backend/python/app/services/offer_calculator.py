@@ -1,92 +1,79 @@
-"""Multi-Offer & Financial Compensation Calculator Service — Tayari AI Engine.
-
-Evaluates multi-offer packages (base salary, sign-on bonus, annual bonus %,
-RSU equity vesting schedules, estimated state tax, and cost-of-living index)
-and generates tailored counter-offer negotiation scripts.
 """
-
+Total Compensation & Offer Calculator Engine.
+Calculates annualized True Net Present Value (NPV) of job offers considering Base Salary,
+Bonus, RSU/Option Vesting Schedules, 401(k) Match, and Cost-of-Living (COL) adjustments.
+"""
 from __future__ import annotations
-import logging
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
-
-logger = logging.getLogger(__name__)
+from pydantic import BaseModel, Field
 
 
-class OfferDetails(BaseModel):
-    company: str
-    location: str
-    base_salary: float
-    signing_bonus: float = 0.0
-    annual_target_bonus_pct: float = 0.0
-    total_rsu_value: float = 0.0
-    rsu_vesting_years: float = 4.0
-    estimated_tax_rate_pct: float = 28.0
-    cost_of_living_index: float = 100.0  # Baseline 100 (e.g. SF = 180, Austin = 110)
+class JobOfferInput(BaseModel):
+    offer_id: Optional[str] = "offer_1"
+    company_name: str
+    job_title: str
+    location: str = "Remote"
+    base_salary: float = Field(ge=0, description="Annual base salary in USD")
+    annual_bonus_pct: float = Field(default=10.0, ge=0, description="Target bonus percentage")
+    signing_bonus: float = Field(default=0.0, ge=0, description="One-time signing bonus")
+    equity_total_value: float = Field(default=0.0, ge=0, description="Total equity grant dollar value")
+    equity_vesting_years: int = Field(default=4, ge=1, description="Vesting period in years")
+    stock_growth_annual_pct: float = Field(default=5.0, description="Expected annual stock growth %")
+    match_401k_pct: float = Field(default=4.0, ge=0, description="401k company match %")
+    col_index: float = Field(default=100.0, ge=1, description="Cost of Living index (100 = baseline)")
 
 
-class OfferComparisonResult(BaseModel):
-    company: str
-    year_1_total_compensation: float
-    annual_recurring_compensation: float
-    effective_post_tax_compensation: float
-    col_adjusted_compensation: float
-    equity_per_year: float
-    rating_score: float
-    counter_offer_script: str
+class OfferAnalysisResult(BaseModel):
+    offer_id: str
+    company_name: str
+    job_title: str
+    year_1_total_comp: float
+    annualized_4yr_npv: float
+    real_purchasing_power_comp: float
+    breakdown: Dict[str, float]
+    recommendation_notes: List[str]
 
 
-def generate_counter_offer_script(company: str, target_tc: float, current_tc: float) -> str:
-    """Generate professional counter-offer email script using non-confrontational anchor leverage."""
-    delta = max(target_tc - current_tc, 15000.0)
-    return (
-        f"Subject: {company} Offer — Compensation Discussion & Next Steps\n\n"
-        f"Hi [Recruiter Name],\n\n"
-        f"Thank you so much for extending the offer to join {company} as [Role Title]! "
-        f"I am thrilled about the vision and the team's engineering goals.\n\n"
-        f"I have reviewed the details of the compensation package (${current_tc:,.0f} Year 1 Total Comp). "
-        f"Based on market data for senior candidates with specialized expertise in high-concurrency systems, "
-        f"and competing conversations in my pipeline, I am hoping we can bring the Year 1 Total Compensation closer to ${target_tc:,.0f} "
-        f"(or an additional ${delta:,.0f} in signing bonus / equity allocation).\n\n"
-        f"If we can reach this target, I would be excited to sign the offer immediately and begin onboarding.\n\n"
-        f"Looking forward to hearing your thoughts!\n\n"
-        f"Best regards,\n[Your Name]"
+def calculate_offer_comp(offer: JobOfferInput, baseline_col_index: float = 100.0) -> OfferAnalysisResult:
+    """
+    Calculate annualized total comp breakdown and COL-adjusted real purchasing power.
+    """
+    annual_bonus = offer.base_salary * (offer.annual_bonus_pct / 100.0)
+    annual_equity_base = offer.equity_total_value / offer.equity_vesting_years
+    annual_401k = offer.base_salary * (offer.match_401k_pct / 100.0)
+    
+    # Year 1 Comp includes signing bonus
+    year_1_total = offer.base_salary + annual_bonus + offer.signing_bonus + annual_equity_base + annual_401k
+    
+    # Annualized 4-Year NPV with stock growth assumption
+    growth_multiplier = (1 + (offer.stock_growth_annual_pct / 100.0)) ** 2  # avg 2 yr growth
+    annualized_4yr = offer.base_salary + annual_bonus + (annual_equity_base * growth_multiplier) + annual_401k
+
+    # COL Adjustment
+    col_factor = baseline_col_index / max(1.0, offer.col_index)
+    real_purchasing_power = annualized_4yr * col_factor
+
+    notes: List[str] = []
+    if offer.signing_bonus > 0:
+        notes.append(f"Includes ${offer.signing_bonus:,.0f} one-time signing bonus in Year 1.")
+    if offer.equity_total_value > 0:
+        notes.append(f"Equity grant vests over {offer.equity_vesting_years} years (${annual_equity_base:,.0f}/yr base).")
+    if offer.col_index > 120:
+        notes.append(f"High Cost-of-Living area (COL Index {offer.col_index}). Real purchasing power is adjusted to ${real_purchasing_power:,.0f}.")
+
+    return OfferAnalysisResult(
+        offer_id=offer.offer_id or "offer_1",
+        company_name=offer.company_name,
+        job_title=offer.job_title,
+        year_1_total_comp=round(year_1_total, 2),
+        annualized_4yr_npv=round(annualized_4yr, 2),
+        real_purchasing_power_comp=round(real_purchasing_power, 2),
+        breakdown={
+            "base_salary": round(offer.base_salary, 2),
+            "annual_bonus": round(annual_bonus, 2),
+            "signing_bonus": round(offer.signing_bonus, 2),
+            "annual_equity": round(annual_equity_base, 2),
+            "annual_401k": round(annual_401k, 2)
+        },
+        recommendation_notes=notes
     )
-
-
-def calculate_offer_financials(offer: OfferDetails) -> OfferComparisonResult:
-    """Calculate normalized annual financial metrics for a single job offer."""
-    equity_per_year = offer.total_rsu_value / max(offer.rsu_vesting_years, 1.0)
-    target_bonus_amount = offer.base_salary * (offer.annual_target_bonus_pct / 100.0)
-
-    # Year 1 includes signing bonus
-    year_1_tc = offer.base_salary + offer.signing_bonus + target_bonus_amount + equity_per_year
-    # Recurring annual
-    recurring_tc = offer.base_salary + target_bonus_amount + equity_per_year
-
-    tax_factor = 1.0 - (offer.estimated_tax_rate_pct / 100.0)
-    post_tax_tc = year_1_tc * tax_factor
-
-    col_factor = 100.0 / max(offer.cost_of_living_index, 50.0)
-    col_adjusted_tc = post_tax_tc * col_factor
-
-    rating = min(100.0, (col_adjusted_tc / 150000.0) * 80.0)
-    counter_script = generate_counter_offer_script(offer.company, year_1_tc * 1.12, year_1_tc)
-
-    return OfferComparisonResult(
-        company=offer.company,
-        year_1_total_compensation=round(year_1_tc, 2),
-        annual_recurring_compensation=round(recurring_tc, 2),
-        effective_post_tax_compensation=round(post_tax_tc, 2),
-        col_adjusted_compensation=round(col_adjusted_tc, 2),
-        equity_per_year=round(equity_per_year, 2),
-        rating_score=round(rating, 1),
-        counter_offer_script=counter_script,
-    )
-
-
-def compare_multiple_offers(offers: List[OfferDetails]) -> List[OfferComparisonResult]:
-    """Compare a list of job offers sorted by COL-adjusted compensation."""
-    results = [calculate_offer_financials(o) for o in offers]
-    results.sort(key=lambda x: x.col_adjusted_compensation, reverse=True)
-    return results

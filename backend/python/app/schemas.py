@@ -250,3 +250,29 @@ class ProfileImportResponse(BaseModel):
     companies: List[str] = Field(default_factory=list)
     job_titles: List[str] = Field(default_factory=list)
     certifications: List[str] = Field(default_factory=list)
+
+
+# --- Candidate Answer Bank & ATS Detection ---
+
+class MatchQuestionRequest(BaseModel):
+    question_text: str
+    custom_qa: Optional[Dict[str, str]] = None
+
+
+class ATSDetectRequest(BaseModel):
+    url: str
+    html_snippet: Optional[str] = ""
+
+
+class TruthCheckRequest(BaseModel):
+    original_text: str
+    optimized_text: str
+
+
+class RecruiterLookupRequest(BaseModel):
+    company_name: str
+    job_title: str
+    hiring_manager_name: Optional[str] = None
+    user_name: Optional[str] = "Candidate"
+    user_skills: Optional[List[str]] = Field(default_factory=list)
+

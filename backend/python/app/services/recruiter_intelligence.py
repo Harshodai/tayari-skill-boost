@@ -1,104 +1,94 @@
 """
-Recruiter Intelligence & Cold Outreach Generator — Tayari AI Engine.
-
-Generates plausible corporate email patterns based on company domain and drafts
-high-converting 3-touch outreach email campaigns and LinkedIn connection notes.
-Email patterns are inferred from domain conventions, not verified.
+Recruiter Intelligence & Referral Radar Service.
+Discovers hiring manager email patterns, candidate referral channels, and drafts personalized warm intro request emails.
 """
-
 from __future__ import annotations
-import logging
 import re
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
+
+class RecruiterContact(BaseModel):
+    company_name: str
+    company_domain: str
+    email_pattern: str
+    suggested_emails: List[str] = Field(default_factory=list)
+    referral_intro_template: str
+    cold_outreach_subject: str
+    cold_outreach_body: str
 
 
-def generate_email_patterns(first_name: str, last_name: str, domain: str) -> List[Dict[str, str]]:
-    """Generate common corporate email permutations for candidate outreach."""
-    first = re.sub(r"[^\w]", "", first_name.lower())
-    last = re.sub(r"[^\w]", "", last_name.lower())
-    f_initial = first[0] if first else ""
-    clean_domain = domain.lower().replace("https://", "").replace("http://", "").split("/")[0]
+def generate_recruiter_intelligence(
+    company_name: str,
+    job_title: str,
+    hiring_manager_name: Optional[str] = None,
+    user_name: str = "Candidate",
+    user_skills: List[str] = None
+) -> RecruiterContact:
+    """
+    Generate recruiter email candidates, email pattern heuristics, and referral templates.
+    """
+    clean_domain = re.sub(r'[^a-zA-Z0-9]', '', company_name.lower()) + ".com"
+    skills_str = ", ".join(user_skills[:3]) if user_skills else "software engineering & system architecture"
 
-    return [
-        {"pattern": f"{first}.{last}@{clean_domain}", "confidence": "High (90%)", "type": "first.last"},
-        {"pattern": f"{first}@{clean_domain}", "confidence": "Medium (75%)", "type": "first"},
-        {"pattern": f"{f_initial}{last}@{clean_domain}", "confidence": "High (85%)", "type": "finitial.last"},
-        {"pattern": f"{first}_{last}@{clean_domain}", "confidence": "Low (40%)", "type": "first_last"},
+    mgr_name = hiring_manager_name or "Hiring Manager"
+    first_name = mgr_name.split()[0] if mgr_name else "Hiring"
+    last_name = mgr_name.split()[-1] if len(mgr_name.split()) > 1 else "Manager"
+
+    suggested_emails = [
+        f"{first_name.lower()}.{last_name.lower()}@{clean_domain}",
+        f"{first_name.lower()}@{clean_domain}",
+        f"{first_name[0].lower()}{last_name.lower()}@{clean_domain}",
+        f"careers@{clean_domain}",
+        f"recruiting@{clean_domain}"
     ]
 
-
-def find_recruiter_intel(company_name: str, job_title: str, job_description: str = "") -> Dict[str, Any]:
-    """
-    Identifies hiring manager profiles and generates structured multi-touch outreach campaigns.
-    """
-    clean_company = re.sub(r"[^\w\s]", "", company_name).strip()
-    domain = clean_company.lower().replace(" ", "") + ".com"
-
-    # Infer decision maker titles
-    title_lower = job_title.lower()
-    if any(kw in title_lower for kw in ["software", "engineer", "developer", "tech", "data", "ai"]):
-        manager_role = f"Engineering Director / VP of Engineering at {company_name}"
-        recruiter_role = f"Technical Recruiter at {company_name}"
-    elif any(kw in title_lower for kw in ["product", "design", "ux"]):
-        manager_role = f"Head of Product / Director of Design at {company_name}"
-        recruiter_role = f"Product Recruiter at {company_name}"
-    else:
-        manager_role = f"Hiring Manager - {job_title} at {company_name}"
-        recruiter_role = f"Talent Acquisition Lead at {company_name}"
-
-    email_patterns = [{"pattern": f"firstname.lastname@{domain}", "confidence": "Template", "verified": False},
-                       {"pattern": f"firstname@{domain}", "confidence": "Template", "verified": False}]
-
-    # Touch 1: Initial Cold Pitch (Day 0)
-    touch1_subject = f"Application for {job_title} — Quick question on {company_name}'s tech stack"
-    touch1_body = (
-        f"Hi [Hiring Manager Name],\n\n"
-        f"I recently submitted my application for the {job_title} position at {company_name}. "
-        f"Having led engineering projects that scaled systems to 2M+ requests while maintaining 99.99% uptime, "
-        f"I was particularly drawn to {company_name}'s recent work in high-concurrency systems.\n\n"
-        f"I've attached my ATS-optimized resume for your quick review. "
-        f"Would you be open to a brief 5-minute chat next Tuesday regarding your team's immediate priorities?\n\n"
-        f"Best regards,\n[Your Name]\n[Your Portfolio Link]"
+    referral_intro = (
+        f"Hi [Contact Name],\n\n"
+        f"I noticed you're currently working at {company_name}! I'm applying for the {job_title} role "
+        f"and have a strong background in {skills_str}.\n\n"
+        f"Would you be open to a quick 5-minute chat or passing along my resume for an internal referral? "
+        f"I'd deeply appreciate any insights on the team culture!\n\n"
+        f"Best regards,\n{user_name}"
     )
 
-    # Touch 2: Value Add Follow-Up (Day 3)
-    touch2_subject = f"Re: Application for {job_title} — Brief insight"
-    touch2_body = (
-        f"Hi [Hiring Manager Name],\n\n"
-        f"Following up on my note from earlier this week regarding the {job_title} role. "
-        f"I came across a recent article on {company_name}'s architecture expansion and thought of a similar caching optimization "
-        f"we implemented that cut latency by 45%.\n\n"
-        f"I'd love to share the brief case study if useful for your engineering team.\n\n"
-        f"Best,\n[Your Name]"
+    outreach_subject = f"Application for {job_title} — {user_name} (Background in {skills_str})"
+    outreach_body = (
+        f"Hi {first_name},\n\n"
+        f"I recently submitted my application for the {job_title} role at {company_name}.\n\n"
+        f"Given my hands-on experience in {skills_str}, I am confident I can make an immediate impact on your team's goals. "
+        f"I've attached my ATS-optimized resume for your convenience.\n\n"
+        f"Would you have 10 minutes next week for a brief introductory call?\n\n"
+        f"Best regards,\n{user_name}"
     )
 
-    # Touch 3: Final Breakaway Check (Day 7)
-    touch3_subject = f"Final check — {job_title} role at {company_name}"
-    touch3_body = (
-        f"Hi [Hiring Manager Name],\n\n"
-        f"I know your schedule is extremely busy. I'll make this my final check-in regarding the {job_title} position. "
-        f"If the role has been filled or priorities have shifted, no worries at all!\n\n"
-        f"If you're still interviewing strong candidates, I'd welcome 5 minutes to introduce myself.\n\n"
-        f"Thanks again,\n[Your Name]"
+    return RecruiterContact(
+        company_name=company_name,
+        company_domain=clean_domain,
+        email_pattern="first.last@" + clean_domain,
+        suggested_emails=suggested_emails,
+        referral_intro_template=referral_intro,
+        cold_outreach_subject=outreach_subject,
+        cold_outreach_body=outreach_body
     )
 
-    linkedin_note = (
-        f"Hi [Name], I just applied for the {job_title} position at {company_name}! "
-        f"With a strong background building resilient backend microservices, I'd love to connect and share a quick overview of my experience."
-    )
 
+def find_recruiter_intel(company_name: str, job_title: str) -> Dict[str, Any]:
+    """Helper alias returning dict for one_shot_engine and legacy endpoints."""
+    res = generate_recruiter_intelligence(company_name, job_title)
     return {
-        "company_name": company_name,
-        "domain": domain,
-        "target_roles": [manager_role, recruiter_role],
-        "inferred_email_patterns": email_patterns,
-        "sequence": [
-            {"touch": 1, "day": 0, "name": "Initial Pitch", "subject": touch1_subject, "body": touch1_body},
-            {"touch": 2, "day": 3, "name": "Value-Add Follow-up", "subject": touch2_subject, "body": touch2_body},
-            {"touch": 3, "day": 7, "name": "Breakaway Check", "subject": touch3_subject, "body": touch3_body},
-        ],
-        "linkedin_draft": linkedin_note,
-        "outreach_strategy": "5R Framework (Respect, Relevance, Results, Request)",
+        "company": res.company_name,
+        "role": res.job_title,
+        "recruiter_name": "Hiring Team",
+        "patterns": res.suggested_emails,
+        "cold_email": {
+            "subject": res.cold_outreach_subject,
+            "body": res.cold_outreach_body
+        },
+        "followup_1": {
+            "subject": f"Re: Application for {job_title} — Brief insight",
+            "body": f"Hi,\n\nFollowing up on my application for {job_title} at {company_name}. I would love to connect for 5 minutes.\n\nBest regards,"
+        },
+        "linkedin_note": res.referral_intro_template
     }
+

@@ -1790,3 +1790,82 @@ func (s *Server) handleOptimizeResumeStream(w http.ResponseWriter, r *http.Reque
 		}
 	}
 }
+
+func (s *Server) handleCandidateBankMatch(w http.ResponseWriter, r *http.Request) {
+	var body map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		body = make(map[string]interface{})
+	}
+	result, err := s.AI.PostJSON("/api/v1/candidate-bank/match", body)
+	if err != nil {
+		s.respondError(w, http.StatusBadGateway, "Candidate bank match failed")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleATSDetect(w http.ResponseWriter, r *http.Request) {
+	var body map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		body = make(map[string]interface{})
+	}
+	result, err := s.AI.PostJSON("/api/v1/ats/detect", body)
+	if err != nil {
+		s.respondError(w, http.StatusBadGateway, "ATS detection failed")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleTruthCheck(w http.ResponseWriter, r *http.Request) {
+	var body map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		body = make(map[string]interface{})
+	}
+	result, err := s.AI.PostJSON("/api/v1/guardrails/truth-check", body)
+	if err != nil {
+		s.respondError(w, http.StatusBadGateway, "Truth check failed")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleRecruiterLookup(w http.ResponseWriter, r *http.Request) {
+	var body map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		body = make(map[string]interface{})
+	}
+	result, err := s.AI.PostJSON("/api/v1/recruiter/lookup", body)
+	if err != nil {
+		s.respondError(w, http.StatusBadGateway, "Recruiter lookup failed")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleOfferCalculate(w http.ResponseWriter, r *http.Request) {
+	var body map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		body = make(map[string]interface{})
+	}
+	result, err := s.AI.PostJSON("/api/v1/offer/calculate", body)
+	if err != nil {
+		s.respondError(w, http.StatusBadGateway, "Offer calculation failed")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleInterviewCopilot(w http.ResponseWriter, r *http.Request) {
+	var body map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		body = make(map[string]interface{})
+	}
+	result, err := s.AI.PostJSON("/api/v1/interview/copilot", body)
+	if err != nil {
+		s.respondError(w, http.StatusBadGateway, "Live interview copilot failed")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+

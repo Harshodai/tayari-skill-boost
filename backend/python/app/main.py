@@ -1111,11 +1111,73 @@ async def agent_reach_cookies_endpoint():
     return {"browsers": extract_browser_cookies()}
 
 
+@app.post("/api/v1/candidate-bank/match")
+async def match_candidate_bank_endpoint(payload: dict):
+    """Match ATS form label against deterministic candidate answer bank."""
+    from app.services.candidate_answer_bank import match_question_to_answer, CandidateAnswers
+    question = payload.get("question_text", "")
+    custom_qa = payload.get("custom_qa", {})
+    bank = CandidateAnswers(custom_qa=custom_qa)
+    return match_question_to_answer(question, bank)
+
+
+@app.post("/api/v1/ats/detect")
+async def detect_ats_endpoint(payload: dict):
+    """Detect ATS vendor from job post URL or HTML snippet and return tailored formatting rules."""
+    from app.services.ats_detector import detect_ats_from_url
+    url = payload.get("url", "")
+    html_snippet = payload.get("html_snippet", "")
+    rules = detect_ats_from_url(url, html_snippet)
+    return rules.dict()
+
+
+@app.post("/api/v1/guardrails/truth-check")
+async def truth_check_endpoint(payload: dict):
+    """Verify optimized resume against master profile to flag hallucinated titles or metrics."""
+    from app.guardrails.truth_gate import verify_resume_truthfulness
+    orig = payload.get("original_text", "")
+    opt = payload.get("optimized_text", "")
+    res = verify_resume_truthfulness(orig, opt)
+    return res.dict()
+
+
+@app.post("/api/v1/recruiter/lookup")
+async def recruiter_lookup_endpoint(payload: dict):
+    """Generate recruiter email candidates, pattern heuristics, and warm referral intro templates."""
+    from app.services.recruiter_intelligence import generate_recruiter_intelligence
+    company = payload.get("company_name", "Target Company")
+    title = payload.get("job_title", "Software Engineer")
+    manager = payload.get("hiring_manager_name")
+    user = payload.get("user_name", "Candidate")
+    skills = payload.get("user_skills", [])
+    intel = generate_recruiter_intelligence(company, title, manager, user, skills)
+    return intel.dict()
+
+
+@app.post("/api/v1/offer/calculate")
+async def offer_calculate_endpoint(payload: dict):
+    """Calculate annualized NPV total compensation and COL-adjusted purchasing power."""
+    from app.services.offer_calculator import JobOfferInput, calculate_offer_comp
+    offer_input = JobOfferInput(**payload)
+    res = calculate_offer_comp(offer_input)
+    return res.dict()
+
+
+@app.post("/api/v1/interview/copilot")
+async def live_copilot_endpoint(payload: dict):
+    """Generate instant bulleted STAR framework hints and metrics for live interviewer questions."""
+    from app.services.live_interview_copilot import LiveCopilotRequest, generate_live_copilot_hints
+    req = LiveCopilotRequest(**payload)
+    res = await generate_live_copilot_hints(req)
+    return res.dict()
+
+
 # ---------------------------------------------------------------------------
 # Plugin registration (backward compat)
 # ---------------------------------------------------------------------------
 
 from app.plugins import register_plugins  # noqa: E402
+
 
 
 register_plugins(app)

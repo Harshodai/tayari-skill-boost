@@ -1,189 +1,130 @@
-"""ATS Fingerprinting and Detection Engine — Tayari AI Engine.
-
-Identifies the specific ATS platform (Workday, Greenhouse, Lever, Ashby, Taleo, iCIMS, SmartRecruiters, BambooHR)
-from job URLs or page DOM HTML, returning parser rules, formatting quirks, and scoring constraints.
 """
-
+ATS Target Signature Detector Service.
+Detects underlying ATS vendor from job posting URLs or page contents (Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Taleo, iCIMS)
+and provides vendor-specific formatting rules for resume tailoring.
+"""
 from __future__ import annotations
-
 import re
-import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
+from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
 
-# Pattern signatures for popular ATS platforms
-ATS_SIGNATURES = {
-    "greenhouse": [
-        r"boards\.greenhouse\.io",
-        r"greenhouse\.io",
-        r"gh_jid",
-        r"grnh\.se",
-    ],
-    "lever": [
-        r"jobs\.lever\.co",
-        r"lever\.co",
-        r"lever-job-title",
-    ],
-    "workday": [
-        r"myworkdayjobs\.com",
-        r"workday\.com",
-        r"wd3\.myworkday",
-        r"wd5\.myworkday",
-        r"workday-app",
-    ],
-    "ashby": [
-        r"jobs\.ashbyhq\.com",
-        r"ashbyhq\.com",
-        r"ashby_embed",
-    ],
-    "taleo": [
-        r"taleo\.net",
-        r"oraclecloud\.com/hcm",
-        r"taleo-job",
-    ],
-    "icims": [
-        r"icims\.com",
-        r"jobs-icims",
-        r"icims_portal",
-    ],
-    "smartrecruiters": [
-        r"smartrecruiters\.com",
-        r"jobs\.smartrecruiters",
-    ],
-    "bamboohr": [
-        r"bamboohr\.com/careers",
-        r"bamboohr\.com/jobs",
-    ]
-}
+class ATSRules(BaseModel):
+    vendor: str = Field(description="Detected ATS vendor name")
+    displayName: str = Field(description="Human readable ATS name")
+    max_pages: int = Field(default=1, description="Recommended max page count")
+    single_column_required: bool = Field(default=True, description="Strict single column layout required")
+    avoid_tables: bool = Field(default=True, description="Avoid complex tables")
+    avoid_graphics: bool = Field(default=True, description="Avoid header icons / graphic elements")
+    header_style: str = Field(default="ALL_CAPS", description="Recommended section header formatting style")
+    bullet_symbol: str = Field(default="•", description="Safe bullet point symbol")
+    parsing_notes: str = Field(default="", description="Specific notes for passing this ATS scanner")
 
-ATS_PARSER_RULES = {
-    "workday": {
-        "name": "Workday Recruiting",
-        "strictness": "High",
-        "parsing_type": "Plain Text Block Extractor",
-        "column_support": False,
-        "table_support": False,
-        "recommended_font": "Arial / Liberation Sans",
-        "font_size_pt": 10,
-        "bullet_style": "Standard dash (-)",
-        "header_footer_parsed": False,
-        "preferred_format": "PDF / DOCX",
-        "tips": [
-            "Avoid two-column layouts; Workday merges left and right columns horizontally.",
-            "Use standard section headers ('Work Experience', 'Education', 'Skills').",
-            "Avoid graphic elements, text boxes, or embedded images."
-        ]
-    },
-    "greenhouse": {
-        "name": "Greenhouse Software",
-        "strictness": "Medium",
-        "parsing_type": "PDF Structured Parser",
-        "column_support": True,
-        "table_support": True,
-        "recommended_font": "Liberation Sans / Helvetica",
-        "font_size_pt": 9.5,
-        "bullet_style": "Standard bullet (•)",
-        "header_footer_parsed": True,
-        "preferred_format": "PDF",
-        "tips": [
-            "Supports clean 2-column layouts if bounding boxes are distinct.",
-            "Parses LinkedIn URLs and email addresses reliably from top header.",
-            "Keywords in bullet points are weighted heavily in candidate match scoring."
-        ]
-    },
-    "lever": {
-        "name": "Lever Hire",
-        "strictness": "Medium",
-        "parsing_type": "Full Document Text Extractor",
-        "column_support": True,
-        "table_support": False,
-        "recommended_font": "DejaVu Sans / Inter",
-        "font_size_pt": 10,
-        "bullet_style": "Standard bullet (•)",
-        "header_footer_parsed": True,
-        "preferred_format": "PDF",
-        "tips": [
-            "Lever parses company names and job titles first.",
-            "Keep date ranges in standard format (e.g., 'Jan 2022 - Present').",
-            "Lever highlights exact tech stack matches directly in the recruiter UI."
-        ]
-    },
-    "ashby": {
-        "name": "Ashby HQ",
-        "strictness": "Low (Modern LLM-Powered)",
-        "parsing_type": "Semantic LLM Parser",
-        "column_support": True,
-        "table_support": True,
-        "recommended_font": "Modern Clean Sans",
-        "font_size_pt": 9.5,
-        "bullet_style": "Any standard bullet",
-        "header_footer_parsed": True,
-        "preferred_format": "PDF",
-        "tips": [
-            "Ashby uses modern AI parsing — highly flexible with columns and formatting.",
-            "Quantified achievements (% metrics, revenue numbers) rank highest in Ashby search.",
-            "Custom skills lists are auto-categorized into tech stack buckets."
-        ]
-    },
-    "generic": {
-        "name": "Standard ATS Parser",
-        "strictness": "Medium",
-        "parsing_type": "Standard Text Extraction",
-        "column_support": False,
-        "table_support": False,
-        "recommended_font": "Liberation Sans",
-        "font_size_pt": 10,
-        "bullet_style": "Standard bullet (•)",
-        "header_footer_parsed": False,
-        "preferred_format": "PDF",
-        "tips": [
-            "Use clear single-column structure for maximum compatibility.",
-            "Ensure email, phone, and location are in clear body text.",
-            "Include explicit tech skills section."
-        ]
-    }
+
+ATS_RULE_PRESETS: Dict[str, ATSRules] = {
+    "workday": ATSRules(
+        vendor="workday",
+        displayName="Workday ATS",
+        max_pages=2,
+        single_column_required=True,
+        avoid_tables=True,
+        avoid_graphics=True,
+        header_style="ALL_CAPS",
+        bullet_symbol="•",
+        parsing_notes="Workday strips multi-column layouts and textboxes into unstructured text blocks. Use standard section headers: WORK EXPERIENCE, EDUCATION, SKILLS."
+    ),
+    "greenhouse": ATSRules(
+        vendor="greenhouse",
+        displayName="Greenhouse",
+        max_pages=2,
+        single_column_required=False,
+        avoid_tables=True,
+        avoid_graphics=True,
+        header_style="Title Case",
+        bullet_symbol="•",
+        parsing_notes="Greenhouse parses standard PDF/Word text cleanly. Strong support for markdown text formatting and bold achievement metrics."
+    ),
+    "lever": ATSRules(
+        vendor="lever",
+        displayName="Lever",
+        max_pages=2,
+        single_column_required=False,
+        avoid_tables=True,
+        avoid_graphics=True,
+        header_style="Title Case",
+        bullet_symbol="-",
+        parsing_notes="Lever extracts clean experience timelines. Ensure explicit Start Date - End Date formatting (MM/YYYY - MM/YYYY)."
+    ),
+    "ashby": ATSRules(
+        vendor="ashby",
+        displayName="Ashby",
+        max_pages=2,
+        single_column_required=False,
+        avoid_tables=False,
+        avoid_graphics=True,
+        header_style="Clean Header",
+        bullet_symbol="•",
+        parsing_notes="Modern ATS parser with strong LLM extraction. Parses raw skills, github links, and portfolio links seamlessly."
+    ),
+    "taleo": ATSRules(
+        vendor="taleo",
+        displayName="Oracle Taleo",
+        max_pages=1,
+        single_column_required=True,
+        avoid_tables=True,
+        avoid_graphics=True,
+        header_style="ALL_CAPS",
+        bullet_symbol="•",
+        parsing_notes="Legacy enterprise parser. Extremely strict keyword matching and single-column text requirements. Avoid any non-standard symbols."
+    ),
+    "icims": ATSRules(
+        vendor="icims",
+        displayName="iCIMS",
+        max_pages=2,
+        single_column_required=True,
+        avoid_tables=True,
+        avoid_graphics=True,
+        header_style="ALL_CAPS",
+        bullet_symbol="•",
+        parsing_notes="iCIMS parses clean standard resumes. Highly weights exact skill match frequency and location match."
+    ),
+    "generic": ATSRules(
+        vendor="generic",
+        displayName="Standard ATS Engine",
+        max_pages=1,
+        single_column_required=True,
+        avoid_tables=True,
+        avoid_graphics=True,
+        header_style="ALL_CAPS",
+        bullet_symbol="•",
+        parsing_notes="Universal ATS-compliant rules applied."
+    )
 }
 
 
-class ATSDetector:
-    """Detects ATS platform signatures and supplies targeted optimization rules."""
+def detect_ats_from_url(url: str, html_snippet: str = "") -> ATSRules:
+    """
+    Detect ATS vendor based on job post URL domain or page HTML patterns.
+    """
+    url_lower = url.lower()
+    html_lower = html_snippet.lower()
 
-    @staticmethod
-    def detect(url: str = "", html_content: str = "") -> Dict[str, Any]:
-        """Detect ATS from URL or page HTML snippet."""
-        target_ats = "generic"
-        matched_pattern = ""
+    if "myworkdayjobs.com" in url_lower or "workday" in url_lower or "workday" in html_lower:
+        return ATS_RULE_PRESETS["workday"]
 
-        # Check URL
-        if url:
-            for ats_key, patterns in ATS_SIGNATURES.items():
-                for pattern in patterns:
-                    if re.search(pattern, url, re.IGNORECASE):
-                        target_ats = ats_key
-                        matched_pattern = pattern
-                        break
-                if target_ats != "generic":
-                    break
+    if "greenhouse.io" in url_lower or "greenhouse" in url_lower or "gh_src" in url_lower or "greenhouse" in html_lower:
+        return ATS_RULE_PRESETS["greenhouse"]
 
-        # Check HTML content if URL match not found
-        if target_ats == "generic" and html_content:
-            for ats_key, patterns in ATS_SIGNATURES.items():
-                for pattern in patterns:
-                    if re.search(pattern, html_content, re.IGNORECASE):
-                        target_ats = ats_key
-                        matched_pattern = pattern
-                        break
-                if target_ats != "generic":
-                    break
+    if "lever.co" in url_lower or "lever" in url_lower or "lever" in html_lower:
+        return ATS_RULE_PRESETS["lever"]
 
-        rules = ATS_PARSER_RULES.get(target_ats, ATS_PARSER_RULES["generic"])
+    if "ashbyhq.com" in url_lower or "ashby" in url_lower or "ashby" in html_lower:
+        return ATS_RULE_PRESETS["ashby"]
 
-        logger.info(f"[ATSDetector] Detected ATS '{target_ats}' (matched: '{matched_pattern}') for URL: {url}")
+    if "taleo.net" in url_lower or "taleo" in url_lower or "taleo" in html_lower:
+        return ATS_RULE_PRESETS["taleo"]
 
-        return {
-            "ats_key": target_ats,
-            "ats_name": rules["name"],
-            "matched_pattern": matched_pattern,
-            "rules": rules,
-        }
+    if "icims.com" in url_lower or "icims" in url_lower or "icims" in html_lower:
+        return ATS_RULE_PRESETS["icims"]
+
+    return ATS_RULE_PRESETS["generic"]

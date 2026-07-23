@@ -1136,6 +1136,47 @@ export async function fetchCandidateAnswers(): Promise<any> {
   return apiFetch<any>("/v1/candidate/answers");
 }
 
+export async function matchCandidateBank(questionText: string, customQa?: Record<string, string>): Promise<any> {
+  return apiFetch<any>("/v1/candidate-bank/match", {
+    method: "POST",
+    body: JSON.stringify({ question_text: questionText, custom_qa: customQa || {} }),
+  });
+}
+
+export async function detectAtsSignature(url: string, htmlSnippet: string = ""): Promise<any> {
+  return apiFetch<any>("/v1/ats/detect", {
+    method: "POST",
+    body: JSON.stringify({ url, html_snippet: htmlSnippet }),
+  });
+}
+
+export async function verifyResumeTruthfulness(originalText: string, optimizedText: string): Promise<any> {
+  return apiFetch<any>("/v1/guardrails/truth-check", {
+    method: "POST",
+    body: JSON.stringify({ original_text: originalText, optimized_text: optimizedText }),
+  });
+}
+
+export async function lookupRecruiterIntelligence(
+  companyName: string,
+  jobTitle: string,
+  hiringManagerName?: string,
+  userName?: string,
+  userSkills?: string[]
+): Promise<any> {
+  return apiFetch<any>("/v1/recruiter/lookup", {
+    method: "POST",
+    body: JSON.stringify({
+      company_name: companyName,
+      job_title: jobTitle,
+      hiring_manager_name: hiringManagerName,
+      user_name: userName || "Candidate",
+      user_skills: userSkills || [],
+    }),
+  });
+}
+
+
 
 
 
