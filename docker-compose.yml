@@ -54,6 +54,8 @@ services:
       - ORQ_API_KEY=${ORQ_API_KEY:-}
       - ORQ_MODEL=${ORQ_MODEL:-alibaba/qwen3.6-flash}
       - ORQ_BASE_URL=${ORQ_BASE_URL:-https://api.orq.ai/v3/router}
+    volumes:
+      - ./backend/python:/app
     ports:
       - "8002:8000"
     restart: unless-stopped

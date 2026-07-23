@@ -996,35 +996,12 @@ async def interview_copilot_hint_endpoint(payload: dict):
     return res.dict()
 
 
-@app.post("/api/v1/offer/calculate")
-async def offer_calculate_endpoint(payload: dict):
-    """Calculate normalized compensation and compare multi-offer packages."""
-    from app.services.offer_calculator import OfferDetails, compare_multiple_offers, calculate_offer_financials
-    offers = payload.get("offers", [])
-    if offers:
-        parsed_offers = [OfferDetails(**o) for o in offers]
-        return [res.dict() for res in compare_multiple_offers(parsed_offers)]
-    else:
-        single_offer = OfferDetails(**payload)
-        return calculate_offer_financials(single_offer).dict()
-
-
 @app.get("/api/v1/candidate/answers")
 async def candidate_answers_endpoint():
     """Retrieve stored candidate answer bank."""
-    from app.services.candidate_answer_bank import get_answer_bank
-    return get_answer_bank().answers
+    from app.services.candidate_answer_bank import DEFAULT_ANSWER_BANK
+    return DEFAULT_ANSWER_BANK.dict()
 
-
-
-
-@app.post("/api/v1/ats/detect")
-async def ats_detect_endpoint(payload: dict):
-    """Detect company ATS system and return parsing constraints and tips."""
-    from app.services.ats_detector import ATSDetector
-    url = payload.get("url", "")
-    html_content = payload.get("html_content", "")
-    return ATSDetector.detect(url=url, html_content=html_content)
 
 
 @app.post("/api/v1/typst/compile")
@@ -1128,7 +1105,7 @@ async def detect_ats_endpoint(payload: dict):
     url = payload.get("url", "")
     html_snippet = payload.get("html_snippet", "")
     rules = detect_ats_from_url(url, html_snippet)
-    return rules.dict()
+    return rules
 
 
 @app.post("/api/v1/guardrails/truth-check")
@@ -1138,7 +1115,7 @@ async def truth_check_endpoint(payload: dict):
     orig = payload.get("original_text", "")
     opt = payload.get("optimized_text", "")
     res = verify_resume_truthfulness(orig, opt)
-    return res.dict()
+    return res
 
 
 @app.post("/api/v1/recruiter/lookup")
@@ -1151,7 +1128,7 @@ async def recruiter_lookup_endpoint(payload: dict):
     user = payload.get("user_name", "Candidate")
     skills = payload.get("user_skills", [])
     intel = generate_recruiter_intelligence(company, title, manager, user, skills)
-    return intel.dict()
+    return intel
 
 
 @app.post("/api/v1/offer/calculate")
@@ -1160,7 +1137,7 @@ async def offer_calculate_endpoint(payload: dict):
     from app.services.offer_calculator import JobOfferInput, calculate_offer_comp
     offer_input = JobOfferInput(**payload)
     res = calculate_offer_comp(offer_input)
-    return res.dict()
+    return res
 
 
 @app.post("/api/v1/interview/copilot")
@@ -1169,7 +1146,8 @@ async def live_copilot_endpoint(payload: dict):
     from app.services.live_interview_copilot import LiveCopilotRequest, generate_live_copilot_hints
     req = LiveCopilotRequest(**payload)
     res = await generate_live_copilot_hints(req)
-    return res.dict()
+    return res
+
 
 
 # ---------------------------------------------------------------------------

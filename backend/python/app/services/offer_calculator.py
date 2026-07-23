@@ -10,10 +10,10 @@ from pydantic import BaseModel, Field
 
 class JobOfferInput(BaseModel):
     offer_id: Optional[str] = "offer_1"
-    company_name: str
-    job_title: str
+    company_name: str = "Target Company"
+    job_title: str = "Software Engineer"
     location: str = "Remote"
-    base_salary: float = Field(ge=0, description="Annual base salary in USD")
+    base_salary: float = Field(default=120000.0, ge=0, description="Annual base salary in USD")
     annual_bonus_pct: float = Field(default=10.0, ge=0, description="Target bonus percentage")
     signing_bonus: float = Field(default=0.0, ge=0, description="One-time signing bonus")
     equity_total_value: float = Field(default=0.0, ge=0, description="Total equity grant dollar value")
