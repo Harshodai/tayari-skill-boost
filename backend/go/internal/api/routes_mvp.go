@@ -1869,3 +1869,8 @@ func (s *Server) handleInterviewCopilot(w http.ResponseWriter, r *http.Request) 
 	s.respondJSON(w, http.StatusOK, result)
 }
 
+func (s *Server) handleAnalyticsPerformance(w http.ResponseWriter, r *http.Request) {
+	s.respondJSON(w, http.StatusOK, map[string]string{"status": "recorded"})
+}
+
+

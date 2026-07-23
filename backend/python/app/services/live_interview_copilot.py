@@ -11,11 +11,16 @@ from app.services.llm_service import llm_complete
 
 
 class LiveCopilotRequest(BaseModel):
-    interviewer_transcript: str = Field(description="Transcribed interviewer text snippet")
+    interviewer_transcript: str = Field(default="Can you describe a challenging project you delivered?", description="Transcribed interviewer text snippet")
+    question: Optional[str] = Field(default=None)
     job_title: str = Field(default="Software Engineer")
     company_name: Optional[str] = Field(default=None)
     candidate_resume_summary: Optional[str] = Field(default=None)
     target_skills: List[str] = Field(default_factory=list)
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.question and not self.interviewer_transcript:
+            self.interviewer_transcript = self.question
 
 
 class LiveCopilotResponse(BaseModel):

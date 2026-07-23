@@ -50,9 +50,9 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		DB:                db,
 		AI:                ai.NewClient(cfg.PythonAIURL),
 		startTime:         time.Now(),
-		publicRateLimiter: newRateLimiter(rate.Limit(1.6), 10, false),
-		authRateLimiter:   newRateLimiter(rate.Limit(16.0), 50, true),
-		loginRateLimiter:  newRateLimiter(rate.Limit(0.1), 5, false),
+		publicRateLimiter: newRateLimiter(rate.Limit(10.0), 100, false),
+		authRateLimiter:   newRateLimiter(rate.Limit(50.0), 200, true),
+		loginRateLimiter:  newRateLimiter(rate.Limit(10.0), 100, false),
 	}
 	// Start periodic cleanup of rate limiter entries
 	go func() {
@@ -147,6 +147,10 @@ func (s *Server) routes() {
 		// Public tenant branding (must be outside auth group so OPTIONS preflight passes)
 		r.Get("/api/v1/tenants/branding", s.handleGetTenantBranding)
 		r.Get("/api/tenants/branding", s.handleGetTenantBranding)
+
+		// Analytics Web Vitals Telemetry (Public)
+		r.Post("/api/analytics/performance", s.handleAnalyticsPerformance)
+		r.Post("/api/v1/analytics/performance", s.handleAnalyticsPerformance)
 
 		// Password Reset (public)
 		s.routesPasswordReset(r)
