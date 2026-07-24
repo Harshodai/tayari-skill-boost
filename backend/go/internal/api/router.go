@@ -152,6 +152,10 @@ func (s *Server) routes() {
 		r.Post("/api/analytics/performance", s.handleAnalyticsPerformance)
 		r.Post("/api/v1/analytics/performance", s.handleAnalyticsPerformance)
 
+		// Public Agent Reach Doctor Check
+		r.Get("/api/agent-reach/doctor", s.handleAgentReachDoctor)
+		r.Get("/api/v1/agent-reach/doctor", s.handleAgentReachDoctor)
+
 		// Password Reset (public)
 		s.routesPasswordReset(r)
 
@@ -208,6 +212,25 @@ func (s *Server) routes() {
 		r.Put("/api/profile", s.handleUpdateProfile)
 		r.Get("/api/v1/profile", s.handleGetProfile)
 		r.Put("/api/v1/profile", s.handleUpdateProfile)
+
+		// Agent Reach endpoints
+		r.Get("/api/v1/agent-reach/doctor", s.handleAgentReachDoctor)
+		r.Get("/api/agent-reach/doctor", s.handleAgentReachDoctor)
+		r.Get("/api/v1/agent-reach/cookies", s.handleAgentReachCookies)
+		r.Get("/api/agent-reach/cookies", s.handleAgentReachCookies)
+		r.Post("/api/v1/agent-reach/extract", s.handleAgentReachExtract)
+		r.Post("/api/agent-reach/extract", s.handleAgentReachExtract)
+
+		// Analysis History & Knowledge Hub Saves
+		r.Get("/api/analyze/history", s.handleListAnalysisHistory)
+		r.Get("/api/v1/analyze/history", s.handleListAnalysisHistory)
+		s.routesKnowledgeHub(r)
+
+		// Application Extra Features
+		r.Post("/api/applications/{id}/notes", s.handleAddApplicationNote)
+		r.Post("/api/v1/applications/{id}/notes", s.handleAddApplicationNote)
+		r.Post("/api/applications/parse-email", s.handleParseApplicationEmail)
+		r.Post("/api/v1/applications/parse-email", s.handleParseApplicationEmail)
 
 		// Resume upload (multipart, archive compatible)
 		r.Post("/api/resumes", s.handleCreateResume)

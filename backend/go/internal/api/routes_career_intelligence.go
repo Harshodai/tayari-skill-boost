@@ -16,11 +16,13 @@ func (s *Server) routesCareerIntelligence(r chi.Router) {
 	r.Post("/api/v1/career-intelligence/skills-gap", s.handleGetSkillsGap)
 	r.Post("/api/v1/career-intelligence/learning-path", s.handleGetLearningPath)
 	r.Post("/api/v1/career-intelligence/salary-benchmark", s.handleGetSalaryBenchmark)
+	r.Get("/api/v1/career-intelligence/trending-skills", s.handleGetTrendingSkills)
 
 	// aliases
 	r.Post("/api/career-intelligence/skills-gap", s.handleGetSkillsGap)
 	r.Post("/api/career-intelligence/learning-path", s.handleGetLearningPath)
 	r.Post("/api/career-intelligence/salary-benchmark", s.handleGetSalaryBenchmark)
+	r.Get("/api/career-intelligence/trending-skills", s.handleGetTrendingSkills)
 }
 
 // GoCareerIntelligenceRequest represents the incoming JSON request payload.
@@ -306,4 +308,18 @@ func (s *Server) handleGetSalaryBenchmark(w http.ResponseWriter, r *http.Request
 	}
 
 	s.respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleGetTrendingSkills(w http.ResponseWriter, r *http.Request) {
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"trending_skills": []map[string]interface{}{
+			{"name": "Python & LLM Fine-Tuning", "growth": "+45%", "category": "AI/ML"},
+			{"name": "Go Microservices & Chi", "growth": "+38%", "category": "Backend"},
+			{"name": "TypeScript & React Server Components", "growth": "+32%", "category": "Frontend"},
+			{"name": "Docker & Cloud Native Security", "growth": "+29%", "category": "DevOps"},
+			{"name": "PostgreSQL & Vector Embeddings", "growth": "+27%", "category": "Data"},
+		},
+		"market_demand": "High",
+		"updated_at": "2026-07-24",
+	})
 }

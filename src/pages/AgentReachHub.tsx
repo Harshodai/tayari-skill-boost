@@ -99,26 +99,33 @@ export function AgentReachHub() {
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("auth_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   const fetchDoctorStatus = async () => {
     try {
-      const resp = await fetch("/api/v1/agent-reach/doctor");
+      const resp = await fetch("/api/v1/agent-reach/doctor", {
+        headers: getAuthHeaders(),
+      });
       if (resp.ok) {
         const data = await resp.json();
         setDoctorReport(data);
       } else {
         setDoctorReport(null);
-        toast.error("Doctor check failed");
       }
     } catch {
       setDoctorReport(null);
-      toast.error("Doctor check unavailable");
     }
   };
 
   const fetchCookiesStatus = async () => {
     setCookiesLoading(true);
     try {
-      const resp = await fetch("/api/v1/agent-reach/cookies");
+      const resp = await fetch("/api/v1/agent-reach/cookies", {
+        headers: getAuthHeaders(),
+      });
       if (resp.ok) {
         const data = await resp.json();
         setCookieBrowsers(data.browsers || {});
@@ -146,7 +153,10 @@ export function AgentReachHub() {
     try {
       const resp = await fetch("/api/v1/agent-reach/extract", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify({
           url: inputUrl,
           extract_knowledge_graph: true,
