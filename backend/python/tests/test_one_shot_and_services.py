@@ -63,3 +63,86 @@ def test_offer_calculator():
     res = calculate_offer_comp(offer)
     assert res.year_1_total_comp > 250000
     assert res.breakdown["base_salary"] == 180000
+
+
+@pytest.mark.asyncio
+async def test_typst_compile_endpoint_base64_encoding(monkeypatch):
+    import base64
+    from app.main import typst_compile_endpoint
+
+    mock_pdf_bytes = b"%PDF-1.4 mock pdf binary header and content"
+    monkeypatch.setattr("app.export.typst_exporter.compile_typst_to_pdf", lambda code: mock_pdf_bytes)
+
+    payload = {
+        "template": "modern_tech",
+        "resume_data": {"full_name": "Test User", "email": "test@example.com"}
+    }
+    result = await typst_compile_endpoint(payload)
+    assert result["pdf_available"] is True
+
+    pdf_data = result.get("pdf_data")
+    assert isinstance(pdf_data, str)
+    decoded = base64.b64decode(pdf_data, validate=True)
+    assert decoded.startswith(b"%PDF-")
+
+
+@pytest.mark.asyncio
+async def test_typst_compile_endpoint_empty_bytes_fallback(monkeypatch):
+    from app.main import typst_compile_endpoint
+
+    # Test empty bytes payload
+    monkeypatch.setattr("app.export.typst_exporter.compile_typst_to_pdf", lambda code: b"")
+    payload = {"template": "modern_tech", "resume_data": {}}
+    res_empty = await typst_compile_endpoint(payload)
+    assert res_empty["pdf_available"] is False
+    assert "pdf_data" not in res_empty
+
+    # Test non-bytes payload
+    monkeypatch.setattr("app.export.typst_exporter.compile_typst_to_pdf", lambda code: None)
+    res_none = await typst_compile_endpoint(payload)
+    assert res_none["pdf_available"] is False
+    assert "pdf_data" not in res_none
+
+
+def test_pdf_exporter_autoescape(monkeypatch):
+    from app.export.pdf_exporter import PDFExporter
+
+    captured_html = []
+
+    class DummyHTML:
+        def __init__(self, string=None):
+            captured_html.append(string)
+
+        def write_pdf(self, target):
+            target.write(b"%PDF-1.4 mock pdf")
+
+    monkeypatch.setattr("app.export.pdf_exporter.WEASYPRINT_AVAILABLE", True)
+    monkeypatch.setattr("app.export.pdf_exporter.HTML", DummyHTML, raising=False)
+
+    exporter = PDFExporter()
+
+    # Exercise export_to_pdf
+    script_payload = "<script>alert('xss')</script>"
+    pdf_out = exporter.export_to_pdf(script_payload)
+    assert pdf_out == b"%PDF-1.4 mock pdf"
+
+    rendered_to_pdf = captured_html[-1]
+    assert rendered_to_pdf is not None
+    assert "&lt;script&gt;" in rendered_to_pdf
+    assert "<script>" not in rendered_to_pdf
+
+    # Exercise export
+    resume_payload = {
+        "contact": {"name": "<b>Jane</b>"},
+        "summary": script_payload,
+    }
+    export_out = exporter.export(resume_payload)
+    assert export_out == b"%PDF-1.4 mock pdf"
+
+    rendered_export = captured_html[-1]
+    assert rendered_export is not None
+    assert "&lt;script&gt;" in rendered_export
+    assert "<script>" not in rendered_export
+    assert "&lt;b&gt;" in rendered_export
+    assert "<b>" not in rendered_export
+

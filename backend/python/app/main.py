@@ -1013,11 +1013,18 @@ async def typst_compile_endpoint(payload: dict):
     typst_code = generate_typst_code(resume_data, template=template)
     try:
         pdf_bytes = compile_typst_to_pdf(typst_code)
+        if isinstance(pdf_bytes, bytes) and len(pdf_bytes) > 0:
+            import base64
+            return {
+                "template": template,
+                "typst_code": typst_code,
+                "pdf_available": True,
+                "pdf_data": base64.b64encode(pdf_bytes).decode("utf-8"),
+            }
         return {
             "template": template,
             "typst_code": typst_code,
-            "pdf_available": True,
-            "pdf_data": pdf_bytes.hex() if isinstance(pdf_bytes, bytes) else pdf_bytes,
+            "pdf_available": False,
         }
     except Exception as exc:
         logger.warning("typst compilation unavailable: %s", exc)

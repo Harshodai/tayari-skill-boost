@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DollarSign, TrendingUp, Mail, Phone, Copy, Check, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
+import { AppShell } from "@/components/layout";
+
 export function NegotiationCopilot() {
   const [role, setRole] = useState("Senior Software Engineer");
   const [company, setCompany] = useState("Stripe");
@@ -80,138 +82,142 @@ export function NegotiationCopilot() {
   };
 
   return (
-    <div className="container max-w-5xl mx-auto py-8 space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
-          <DollarSign className="h-8 w-8 text-emerald-500" />
-          Salary & Counter-Offer Negotiation Copilot
-        </h1>
-        <p className="text-slate-400">
-          Turn your job offers into maximum compensation packages using data-backed H1B benchmarks and multi-stage negotiation scripts.
-        </p>
-      </div>
+    <AppShell>
+      <div className="container max-w-5xl mx-auto py-8 space-y-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+            <DollarSign className="h-8 w-8 text-emerald-500" />
+            Salary & Counter-Offer Negotiation Copilot
+          </h1>
+          <p className="text-muted-foreground">
+            Turn your job offers into maximum compensation packages using data-backed H1B benchmarks and multi-stage negotiation scripts.
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Input Form */}
-        <Card className="bg-slate-900 border-slate-800 md:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-white text-lg">Offer Details</CardTitle>
-            <CardDescription className="text-slate-400">Enter your initial offer terms to calculate target counter package.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleGenerate} className="space-y-4">
-              <div>
-                <Label className="text-slate-300">Target Role</Label>
-                <Input value={role} onChange={(e) => setRole(e.target.value)} className="bg-slate-800 border-slate-700 text-white mt-1" />
-              </div>
-              <div>
-                <Label className="text-slate-300">Company Name</Label>
-                <Input value={company} onChange={(e) => setCompany(e.target.value)} className="bg-slate-800 border-slate-700 text-white mt-1" />
-              </div>
-              <div>
-                <Label className="text-slate-300">Base Offer ($)</Label>
-                <Input value={baseOffer} onChange={(e) => setBaseOffer(e.target.value)} className="bg-slate-800 border-slate-700 text-white mt-1" />
-              </div>
-              <div>
-                <Label className="text-slate-300">Equity Grant ($)</Label>
-                <Input value={equityOffer} onChange={(e) => setEquityOffer(e.target.value)} className="bg-slate-800 border-slate-700 text-white mt-1" />
-              </div>
-              <div>
-                <Label className="text-slate-300">Location</Label>
-                <Input value={location} onChange={(e) => setLocation(e.target.value)} className="bg-slate-800 border-slate-700 text-white mt-1" />
-              </div>
-              <Button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
-                <Sparkles className="h-4 w-4 mr-2" /> {loading ? "Calculating..." : "Generate Strategy"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Strategy Output */}
-        <Card className="bg-slate-900 border-slate-800 md:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-white text-lg">Negotiation Strategy & Scripts</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {!result ? (
-              <div className="py-12 text-center text-slate-500">Enter your offer terms on the left to generate your counter-offer strategy.</div>
-            ) : (
-              <div className="space-y-6">
-                {/* Comparison Card */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-800/60 p-4 rounded-lg border border-slate-700">
-                    <div className="text-xs text-slate-400">Current First-Year Package</div>
-                    <div className="text-2xl font-bold text-white mt-1">${result.current_offer?.total_first_year?.toLocaleString()}</div>
-                    <div className="text-xs text-slate-500 mt-1">Base ${result.current_offer?.base?.toLocaleString()} + Equity ${result.current_offer?.equity?.toLocaleString()}</div>
-                  </div>
-                  <div className="bg-emerald-950/40 p-4 rounded-lg border border-emerald-800/60">
-                    <div className="text-xs text-emerald-400 font-semibold">Recommended Target Counter</div>
-                    <div className="text-2xl font-bold text-emerald-400 mt-1">${result.recommended_counter?.total_first_year?.toLocaleString()}</div>
-                    <div className="text-xs text-emerald-300/80 mt-1">Base ${result.recommended_counter?.base?.toLocaleString()} + Equity ${result.recommended_counter?.equity?.toLocaleString()}</div>
-                  </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Input Form */}
+          <Card className="md:col-span-1">
+            <CardHeader>
+              <CardTitle className="text-lg">Offer Details</CardTitle>
+              <CardDescription>Enter your initial offer terms to calculate target counter package.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleGenerate} className="space-y-4">
+                <div>
+                  <Label>Target Role</Label>
+                  <Input value={role} onChange={(e) => setRole(e.target.value)} className="mt-1" />
                 </div>
+                <div>
+                  <Label>Company Name</Label>
+                  <Input value={company} onChange={(e) => setCompany(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Base Offer ($)</Label>
+                  <Input value={baseOffer} onChange={(e) => setBaseOffer(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Equity Grant ($)</Label>
+                  <Input value={equityOffer} onChange={(e) => setEquityOffer(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Location</Label>
+                  <Input value={location} onChange={(e) => setLocation(e.target.value)} className="mt-1" />
+                </div>
+                <Button type="submit" disabled={loading} className="w-full font-semibold">
+                  <Sparkles className="h-4 w-4 mr-2" /> {loading ? "Calculating..." : "Generate Strategy"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
 
-                {/* Counter Templates */}
-                <Tabs defaultValue="appreciation" className="w-full">
-                  <TabsList className="bg-slate-800 text-slate-400">
-                    <TabsTrigger value="appreciation" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">
-                      Soft Counter Email
-                    </TabsTrigger>
-                    <TabsTrigger value="databacked" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">
-                      Data-Backed Counter
-                    </TabsTrigger>
-                    <TabsTrigger value="verbal" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">
-                      Verbal Call Script
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="appreciation" className="space-y-3 mt-4">
-                    <div className="relative p-4 rounded bg-slate-950 border border-slate-800 font-mono text-sm text-slate-300 whitespace-pre-wrap">
-                      {result.emails?.warm_appreciation}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => copyToClipboard(result.emails?.warm_appreciation, "warm")}
-                        className="absolute top-2 right-2 text-slate-400 hover:text-white"
-                      >
-                        {copiedKey === "warm" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                      </Button>
+          {/* Strategy Output */}
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-lg">Negotiation Strategy & Scripts</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {!result ? (
+                <div className="py-12 text-center text-muted-foreground">Enter your offer terms on the left to generate your counter-offer strategy.</div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Comparison Card */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-muted/60 p-4 rounded-lg border">
+                      <div className="text-xs text-muted-foreground">Current First-Year Package</div>
+                      <div className="text-2xl font-bold mt-1">${result.current_offer?.total_first_year?.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Base ${result.current_offer?.base?.toLocaleString()} + Equity ${result.current_offer?.equity?.toLocaleString()}</div>
                     </div>
-                  </TabsContent>
-
-                  <TabsContent value="databacked" className="space-y-3 mt-4">
-                    <div className="relative p-4 rounded bg-slate-950 border border-slate-800 font-mono text-sm text-slate-300 whitespace-pre-wrap">
-                      {result.emails?.data_backed}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => copyToClipboard(result.emails?.data_backed, "databacked")}
-                        className="absolute top-2 right-2 text-slate-400 hover:text-white"
-                      >
-                        {copiedKey === "databacked" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                      </Button>
+                    <div className="bg-emerald-500/10 p-4 rounded-lg border border-emerald-500/20">
+                      <div className="text-xs text-emerald-500 font-semibold">Recommended Target Counter</div>
+                      <div className="text-2xl font-bold text-emerald-500 mt-1">${result.recommended_counter?.total_first_year?.toLocaleString()}</div>
+                      <div className="text-xs text-emerald-500/80 mt-1">Base ${result.recommended_counter?.base?.toLocaleString()} + Equity ${result.recommended_counter?.equity?.toLocaleString()}</div>
                     </div>
-                  </TabsContent>
+                  </div>
 
-                  <TabsContent value="verbal" className="space-y-3 mt-4">
-                    <div className="relative p-4 rounded bg-slate-950 border border-slate-800 font-mono text-sm text-slate-300 whitespace-pre-wrap">
-                      {result.verbal_script}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => copyToClipboard(result.verbal_script, "verbal")}
-                        className="absolute top-2 right-2 text-slate-400 hover:text-white"
-                      >
-                        {copiedKey === "verbal" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  {/* Counter Templates */}
+                  <Tabs defaultValue="appreciation" className="w-full">
+                    <TabsList className="w-full justify-start">
+                      <TabsTrigger value="appreciation">
+                        Soft Counter Email
+                      </TabsTrigger>
+                      <TabsTrigger value="databacked">
+                        Data-Backed Counter
+                      </TabsTrigger>
+                      <TabsTrigger value="verbal">
+                        Verbal Call Script
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="appreciation" className="space-y-3 mt-4">
+                      <div className="relative p-4 rounded bg-muted font-mono text-sm whitespace-pre-wrap border">
+                        {result.emails?.warm_appreciation}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => copyToClipboard(result.emails?.warm_appreciation, "warm")}
+                          className="absolute top-2 right-2"
+                        >
+                          {copiedKey === "warm" ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="databacked" className="space-y-3 mt-4">
+                      <div className="relative p-4 rounded bg-muted font-mono text-sm whitespace-pre-wrap border">
+                        {result.emails?.data_backed}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => copyToClipboard(result.emails?.data_backed, "databacked")}
+                          className="absolute top-2 right-2"
+                        >
+                          {copiedKey === "databacked" ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="verbal" className="space-y-3 mt-4">
+                      <div className="relative p-4 rounded bg-muted font-mono text-sm whitespace-pre-wrap border">
+                        {result.verbal_script}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => copyToClipboard(result.verbal_script, "verbal")}
+                          className="absolute top-2 right-2"
+                        >
+                          {copiedKey === "verbal" ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
+
+export default NegotiationCopilot;

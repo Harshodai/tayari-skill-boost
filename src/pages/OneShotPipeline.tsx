@@ -60,7 +60,7 @@ export default function OneShotPipeline() {
         job_title: jobTitle,
         company_name: companyName || "Target Company",
         job_description: jobDescription,
-        resume_text: defaultResume,
+        resume_text: resumeText,
         target_url: targetUrl,
         tone: "Confident"
       });

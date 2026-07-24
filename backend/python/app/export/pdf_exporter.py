@@ -5,7 +5,7 @@ Produces a single-column, standard-font, ATS-parseable PDF.
 import io
 from typing import Dict, Any
 
-from jinja2 import Environment, PackageLoader
+from jinja2 import Environment, PackageLoader, select_autoescape
 
 
 try:
@@ -23,7 +23,10 @@ class PDFExporter:
         if not WEASYPRINT_AVAILABLE:
             raise ImportError("weasyprint is not installed. Run: pip install weasyprint")
 
-        env = Environment(loader=PackageLoader("app", "data"))
+        env = Environment(
+            loader=PackageLoader("app", "data"),
+            autoescape=select_autoescape(["html", "xml"])
+        )
         template = env.get_template("resume.html")
 
         html_content = template.render(
@@ -39,3 +42,18 @@ class PDFExporter:
         pdf_buffer = io.BytesIO()
         HTML(string=html_content).write_pdf(pdf_buffer)
         return pdf_buffer.getvalue()
+
+    @staticmethod
+    def export_to_pdf(text: str) -> bytes:
+        if not WEASYPRINT_AVAILABLE:
+            raise ImportError("weasyprint is not installed. Run: pip install weasyprint")
+        env = Environment(
+            loader=PackageLoader("app", "data"),
+            autoescape=select_autoescape(["html", "xml"])
+        )
+        template = env.get_template("resume.html")
+        html_content = template.render(contact={}, summary=text)
+        pdf_buffer = io.BytesIO()
+        HTML(string=html_content).write_pdf(pdf_buffer)
+        return pdf_buffer.getvalue()
+

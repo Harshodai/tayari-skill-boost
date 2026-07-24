@@ -62,3 +62,5 @@ export function CareerIntelligence() {
     </AppShell>
   );
 }
+
+export default CareerIntelligence;
