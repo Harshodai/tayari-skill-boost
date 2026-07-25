@@ -259,3 +259,74 @@ Renaming a response key from `verified_email_patterns` to `inferred_email_patter
 
 ### Lesson
 Before renaming any response key, `grep` the entire codebase for both the old key name and the function that produces it.
+
+---
+
+## 📁 Postgres Entrypoint Ignores Subdirectories — `migrations/` Silently Skipped on Fresh Init
+
+After `docker compose down -v`, the fresh Postgres container ran `init.sql` and `mvp_additions.sql` but silently ignored `backend/db/migrations/`. The Go backend hit `relation "tenants" does not exist` on every request, and resume creation returned 500.
+
+### The Problem
+Postgres's official Docker entrypoint only runs `.sql`/`.sh` files directly in `/docker-entrypoint-initdb.d/`. Subdirectories are logged as `ignoring /docker-entrypoint-initdb.d/migrations` and skipped. All 14 migration files were never executed.
+
+### The Fix
+Created `backend/db/init.sh` that runs `init.sql`, `mvp_additions.sql`, then iterates over all `migrations/*.sql` in sorted order via `psql -f`. Also inserts default tenant rows for `localhost` and `127.0.0.1`.
+
+Since `.sh` runs before `.sql` in the entrypoint, the script creates everything first. The entrypoint's `.sql` phase re-runs `init.sql` and `mvp_additions.sql` — harmless due to `IF NOT EXISTS`.
+
+### Verifying
+```bash
+# Count tables after fresh init — should be 51, not 17
+docker compose exec postgres psql -U tayari -d tayari -c "\dt" | wc -l
+
+# Check init.log for the critical line
+docker compose logs postgres | grep "running /docker-entrypoint-initdb.d/init.sh"
+```
+
+---
+
+## 🎯 Auth Redirect via `window.location.href` Bypasses React Router — Use CustomEvent
+
+When the Go backend returned 401, `handleUnauthorized()` did `window.location.href = "/auth?expired=true"` — a hard navigation that bypasses React Router, losing all routing state and context.
+
+### The Problem
+- Hard redirect forces a full page reload, destroying React state
+- URL param `?expired=true` was only visible on the auth page after reload, never consumed
+- The redirect happened even on anonymous landing page visits, creating an unwanted bounce
+
+### The Fix
+Replace hard redirect with a `CustomEvent` dispatch:
+```typescript
+// In handleUnauthorized() — src/api/index.ts
+window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+```
+
+Then listen in `AuthContext.tsx` and let `ProtectedRoute` handle the navigation naturally:
+```typescript
+// AuthContext.tsx
+useEffect(() => {
+  const handler = () => { setUser(null); setSession(null); };
+  window.addEventListener("auth:unauthorized", handler);
+  return () => window.removeEventListener("auth:unauthorized", handler);
+}, []);
+```
+
+### The Lesson
+- `window.location.href` is an escape hatch, not a routing strategy — it tears down the entire SPA
+- CustomEvent lets your auth layer signal React without coupling to a specific router version
+- Anonymous root visits should never redirect to `/auth` — `ProtectedRoute` handles that per-route
+
+---
+
+## 💰 Vaporware Products Stay Visible with "Soon" Badge — Don't Hide Them
+
+Sprint A removed "STAR mock interview prep" from Pro features in the pricing page and disabled `interviewPrep`/`interviewAI`/`voiceCoach` feature flags. But Mock Interview, Clash of Code, and Practice Problems remained in `ProductsSection.tsx` with `available: false`.
+
+### The Fix
+- Keep vaporware cards visible but disabled — users see the roadmap and know what's coming
+- `ProductsSection.tsx` guards CTA buttons with `disabled={!product.available}` and shows a "Soon" badge
+- `settings.showFullProductsSection` depends on `features.interviewPrep` (now `false`) — this hides the ProductsSection from the landing page entirely, so the "Soon" cards are only visible via direct nav or if the flag flips back
+- Never remove nav entries from `features.ts` that are referenced by `getNavLinks()` — the `interviewPrep` flag already gates them; removing the entries breaks the nav entirely
+
+### The Lesson
+Don't hide unshipped features — mark them honestly. Users prefer "coming soon" over "missing" when evaluating a platform. But gate their routes via feature flags so they can't be navigated to.
