@@ -83,7 +83,7 @@ const products = [
     ],
     href: "/jobs",
     cta: "Find Your Job",
-    available: false,
+    available: true,
   },
   {
     icon: Target,
@@ -93,13 +93,12 @@ const products = [
       "Skill gap analysis",
       "Learning resources",
       "Goal tracking",
-      "Mentor matching",
       "Progress insights",
       "Industry trends",
     ],
     href: "/roadmap",
     cta: "Plan Your Career",
-    available: false,
+    available: true,
   },
 ];
 
