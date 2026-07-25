@@ -18,21 +18,19 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    profiles: ["dev", "prod"]
+    profiles: ["dev", "prod", "eval"]
 
   python-ai:
     build:
       context: ./backend/python
       dockerfile: Dockerfile
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - PORT=8000
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
-      # Hermes + Celery/Redis layer (WS-C). Lets FastAPI enqueue Celery tasks
-      # and read agent_runs/scraped_jobs from Postgres.
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgres://tayari:tayari_dev@postgres:5432/tayari?sslmode=disable
       - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
@@ -46,14 +44,6 @@ services:
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
-      - NVIDIA_NIM_API_KEY=${NVIDIA_NIM_API_KEY:-}
-      - NVIDIA_NIM_MODEL=${NVIDIA_NIM_MODEL:-meta/llama-3.1-70b-instruct}
-      - NVIDIA_NIM_BASE_URL=${NVIDIA_NIM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      - ORQ_API_KEY=${ORQ_API_KEY:-}
-      - ORQ_MODEL=${ORQ_MODEL:-alibaba/qwen3.6-flash}
-      - ORQ_BASE_URL=${ORQ_BASE_URL:-https://api.orq.ai/v3/router}
     volumes:
       - ./backend/python:/app
     ports:
@@ -62,14 +52,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-    profiles: ["dev", "prod"]
+    profiles: ["dev", "prod", "eval"]
 
   redis:
     image: redis:7-alpine
@@ -80,7 +68,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ping || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -104,21 +92,22 @@ services:
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.celery_app:celery_app inspect ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     profiles: ["dev", "prod"]
 
   celery-flower:
-    # Build from the worker context so the image has the app package + deps.
-    # The mher/flower image lacks `app` and can't import app.celery_app.
     build:
       context: ./backend/python
       dockerfile: Dockerfile.worker
@@ -127,19 +116,6 @@ services:
       - FLOWER_UNAUTHENTICATED_API=true
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgres://tayari:tayari_dev@postgres:5432/tayari?sslmode=disable
-      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
-      - APIFY_API_TOKEN=${APIFY_API_TOKEN:-}
-      - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
-      - CRAWL4AI_BASE_URL=${CRAWL4AI_BASE_URL:-}
-      - HERMES_AGENT_URL=${HERMES_AGENT_URL:-}
-      - HERMES_API_KEY=${HERMES_API_KEY:-}
-      - HERMES_MODEL=${HERMES_MODEL:-hermes3:8b}
-      - LLM_BASE_URL=${LLM_BASE_URL:-}
-      - LLM_API_KEY=${LLM_API_KEY:-}
-      - LLM_MODEL=${LLM_MODEL:-}
-      - LLM_PROVIDER=${LLM_PROVIDER:-}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
     ports:
       - "5555:5555"
     depends_on:
@@ -148,6 +124,11 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5555/flower/\")' || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     profiles: ["dev", "prod"]
 
   go-backend:
@@ -174,11 +155,11 @@ services:
       python-ai:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-    profiles: ["dev", "prod"]
+    profiles: ["dev", "prod", "eval"]
 
   ollama:
     image: ollama/ollama:0.1.39
@@ -190,6 +171,11 @@ services:
     environment:
       - OLLAMA_HOST=0.0.0.0
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || curl -f http://localhost:11434/api/tags"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     profiles: ["dev", "prod"]
 
   frontend:
@@ -209,6 +195,11 @@ services:
     restart: unless-stopped
     depends_on:
       - go-backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ || exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     profiles: ["dev", "prod"]
 
   caddy:
@@ -228,6 +219,35 @@ services:
       - go-backend
       - celery-flower
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "caddy version || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    profiles: ["dev", "prod"]
+
+  celery-beat:
+    build:
+      context: ./backend/python
+      dockerfile: Dockerfile.worker
+    command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=info"]
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgres://tayari:tayari_dev@postgres:5432/tayari?sslmode=disable
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.celery_app status || exit 0"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
     profiles: ["dev", "prod"]
 
 volumes:

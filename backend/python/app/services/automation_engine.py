@@ -28,6 +28,8 @@ import concurrent.futures
 import logging
 import uuid
 from datetime import datetime, timezone
+from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, Field
 
 from app.services.ats_engine import heuristic_ats_score
 from app.services.resume_parser import parse_resume
@@ -389,8 +391,8 @@ async def run_autopilot(
                 if config.get("auto_apply", True) and gate_ok:
                     try:
                         apply_job(job, tailored_text, cover)
-                        application["status"] = "auto_applied"
-                        _log(run_id, "APPLY", f"Auto‑applied to {job['title']} @ {job['company']}")
+                        application["status"] = "prepared"
+                        _log(run_id, "PREPARE", f"Application package prepared for {job['title']} @ {job['company']} (queued for user review)")
                     except Exception as exc:
                         logger.error("Auto‑apply failed for %s: %s", job.get("company"), exc)
                         application["status"] = "apply_failed"
@@ -448,3 +450,57 @@ def get_run_status(run_id: str) -> dict | None:
         _autopilot_store[run_id] = loaded
         return loaded
     return None
+
+
+# -------------------------------------------------------------------
+# Standing Interest Watches & LLM Budget Guards (Mission M15)
+# -------------------------------------------------------------------
+
+class StandingWatch(BaseModel):
+    user_id: str
+    target_role: str
+    target_location: str = "Remote"
+    salary_floor: float = 100000.0
+    schedule_tier: str = "30min"  # "30min" | "6h" | "daily"
+    enabled: bool = True
+    last_run: Optional[str] = None
+
+
+VALID_STATUS_TRANSITIONS = {
+    "queued": ["prepared", "gate_blocked", "failed"],
+    "prepared": ["applied", "rejected", "withdrawn", "failed"],
+    "applied": ["phone_screen", "interview", "offer", "rejected", "ghost"],
+    "phone_screen": ["interview", "offer", "rejected"],
+    "interview": ["offer", "rejected"],
+    "offer": ["accepted", "declined"],
+    "gate_blocked": ["prepared", "withdrawn"],
+    "failed": ["queued", "prepared"],
+}
+
+
+def validate_status_transition(current_stage: str, new_stage: str) -> bool:
+    """Validate application status state machine per Mission M15 rules.
+
+    Rejects illegal transitions (e.g. going directly from 'queued' to 'applied' without user confirmation).
+    """
+    if current_stage == new_stage:
+        return True
+    allowed = VALID_STATUS_TRANSITIONS.get(current_stage, [])
+    return new_stage in allowed
+
+
+_DAILY_TOKEN_USAGE: Dict[str, int] = {}
+DEFAULT_DAILY_LLM_TOKEN_BUDGET = 50000
+
+
+def check_daily_llm_budget(user_id: str, estimated_tokens: int = 1000) -> bool:
+    """Check if the user has remaining daily LLM token budget, keyed by user and UTC date."""
+    if estimated_tokens < 0:
+        return False
+    date_key = datetime.utcnow().strftime("%Y-%m-%d")
+    key = f"{user_id}:{date_key}"
+    used = _DAILY_TOKEN_USAGE.get(key, 0)
+    if used + estimated_tokens > DEFAULT_DAILY_LLM_TOKEN_BUDGET:
+        return False
+    _DAILY_TOKEN_USAGE[key] = used + estimated_tokens
+    return True

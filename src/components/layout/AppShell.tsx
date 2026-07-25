@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import { MobileTabBar } from "./MobileTabBar";
 import { AskTayariButton } from "@/components/ai/AskTayariButton";
+import { DemoModeBanner } from "./DemoModeBanner";
 
 interface AppShellProps {
   children: ReactNode;
@@ -57,6 +58,7 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
         <AppSidebar />
 
         <div className="flex-1 flex flex-col min-w-0">
+          <DemoModeBanner />
           <header className="sticky top-0 z-30 h-14 flex items-center gap-3 border-b border-border/60 bg-background/85 backdrop-blur px-3 md:px-5">
             <SidebarTrigger />
             <div className="flex-1 min-w-0">

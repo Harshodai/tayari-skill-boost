@@ -1,33 +1,17 @@
-// src/components/ResumeGraphViz.tsx
-// A lightweight force‑directed graph visualisation for resume data.
-// Uses d3-force for layout and renders an SVG.
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from "react";
+import { forceSimulation, forceLink, forceManyBody, forceCenter } from "d3-force";
+import { toBlob } from "html-to-image";
 
-import { useEffect, useState, forwardRef, useImperativeHandle, useRef } from "react";
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let forceSimulation: any, forceLink: any, forceManyBody: any, forceCenter: any;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-  ({ forceSimulation, forceLink, forceManyBody, forceCenter } = (0, eval)("require")("d3-force"));
-} catch {
-  // Provide no-op fallbacks for test environment / missing dep
-  forceSimulation = () => ({ force: () => ({ stop: () => {} }), tick: () => {}, on: () => {} });
-  forceLink = () => ({ id: () => ({ distance: () => {} }), distance: () => ({ id: () => {} }) });
-  forceManyBody = () => ({ strength: () => {} });
-  forceCenter = () => {};
-}
-
-// Types for the graph data – keep them simple and reusable.
 export interface GraphNode {
   id: string;
   label: string;
-  /** Position injected by the force layout */
   x?: number;
   y?: number;
 }
 
 export interface GraphLink {
-  source: string; // node id
-  target: string; // node id
+  source: string;
+  target: string;
 }
 
 export interface GraphData {
@@ -35,12 +19,19 @@ export interface GraphData {
   links: GraphLink[];
 }
 
-/**
- * Reusable visualisation component.
- * @param graph The knowledge graph to render. It must contain `nodes` with an `id`
- * and `label`, and `links` referencing those ids.
- */
-import { toBlob } from "html-to-image";
+function getBoundedPosition(idx: number, total: number, width: number = 600, height: number = 400) {
+  const cols = Math.ceil(Math.sqrt(total)) || 1;
+  const rows = Math.ceil(total / cols) || 1;
+  const col = idx % cols;
+  const row = Math.floor(idx / cols);
+  const marginX = 80;
+  const marginY = 60;
+  const stepX = cols > 1 ? (width - 2 * marginX) / (cols - 1) : 0;
+  const stepY = rows > 1 ? (height - 2 * marginY) / (rows - 1) : 0;
+  const x = cols > 1 ? marginX + col * stepX : width / 2;
+  const y = rows > 1 ? marginY + row * stepY : height / 2;
+  return { x: Math.round(x), y: Math.round(y) };
+}
 
 export const ResumeGraphViz = forwardRef<{ exportAsPNG: () => Promise<Blob> }, { graph: GraphData }>(function ResumeGraphViz({ graph }, ref) {
   const [nodes, setNodes] = useState<GraphNode[]>([]);
@@ -50,21 +41,47 @@ export const ResumeGraphViz = forwardRef<{ exportAsPNG: () => Promise<Blob> }, {
   const height = 400;
 
   useEffect(() => {
-    // Clone nodes so the simulation can mutate them without affecting props.
-    const simNodes = graph.nodes.map((n) => ({ ...n }));
-    const simulation = forceSimulation(simNodes)
-      .force(
-        "link",
-        forceLink(graph.links)
-          .id((d: GraphNode) => d.id)
-          .distance(100)
-      )
-      .force("charge", forceManyBody().strength(-200))
-      .force("center", forceCenter(width / 2, height / 2))
-      .stop();
+    // Clone nodes and assign deterministic bounded fallback positions up front
+    const simNodes = graph.nodes.map((n, idx) => {
+      const pos = getBoundedPosition(idx, graph.nodes.length, width, height);
+      return {
+        ...n,
+        x: Number.isFinite(n.x) ? n.x! : pos.x,
+        y: Number.isFinite(n.y) ? n.y! : pos.y,
+      };
+    });
 
-    // Run a few ticks to settle the layout.
-    for (let i = 0; i < 300; ++i) simulation.tick();
+    // Clone link objects so D3 forceLink does not mutate graph.links props
+    const simLinks = graph.links.map((l) => ({
+      source: typeof l.source === 'object' ? (l.source as any).id : l.source,
+      target: typeof l.target === 'object' ? (l.target as any).id : l.target,
+    }));
+
+    try {
+      const simulation = forceSimulation(simNodes);
+      if (simulation && typeof simulation.force === "function") {
+        simulation.force("link", forceLink(simLinks).id((d: any) => d.id).distance(100) as any);
+        simulation.force("charge", forceManyBody().strength(-200) as any);
+        simulation.force("center", forceCenter(width / 2, height / 2) as any);
+        if (typeof simulation.stop === "function") simulation.stop();
+        if (typeof simulation.tick === "function") {
+          for (let i = 0; i < 300; ++i) simulation.tick();
+        }
+      }
+    } catch {
+      // In headless / HappyDOM environments, retain bounded positions
+    }
+
+    // Ensure all node coordinates remain bounded within the 600x400 viewBox
+    simNodes.forEach((n, idx) => {
+      if (!Number.isFinite(n.x) || n.x! < 20 || n.x! > width - 20) {
+        n.x = getBoundedPosition(idx, simNodes.length, width, height).x;
+      }
+      if (!Number.isFinite(n.y) || n.y! < 20 || n.y! > height - 20) {
+        n.y = getBoundedPosition(idx, simNodes.length, width, height).y;
+      }
+    });
+
     setNodes(simNodes);
   }, [graph]);
 
@@ -97,10 +114,10 @@ export const ResumeGraphViz = forwardRef<{ exportAsPNG: () => Promise<Blob> }, {
           return (
             <line
               key={`link-${i}`}
-              x1={source.x!}
-              y1={source.y!}
-              x2={target.x!}
-              y2={target.y!}
+              x1={source.x}
+              y1={source.y}
+              x2={target.x}
+              y2={target.y}
               stroke="var(--color-accent)"
               strokeWidth={1}
             />
@@ -109,13 +126,13 @@ export const ResumeGraphViz = forwardRef<{ exportAsPNG: () => Promise<Blob> }, {
         {/* Nodes */}
         {nodes.map((node) => (
           <g key={node.id}>
-            <circle cx={node.x!} cy={node.y!} r={10} fill="var(--color-accent)" />
+            <circle cx={node.x} cy={node.y} r={10} fill="var(--color-accent)" />
             <text
-              x={node.x!}
-              y={node.y! - 12}
+              x={node.x}
+              y={(node.y ?? 0) - 12}
               textAnchor="middle"
-              fill="currentColor"
               fontSize={12}
+              fill="currentColor"
             >
               {node.label}
             </text>

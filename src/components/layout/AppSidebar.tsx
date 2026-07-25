@@ -42,44 +42,35 @@ type Item = { title: string; url: string; icon: any; enabled?: boolean };
 
 const buildGroups = () => [
   {
-    label: "Core",
+    label: "Discover",
     items: [
       { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, enabled: true },
-      { title: "Profile", url: "/profile", icon: User, enabled: true },
-      { title: "Resume", url: "/resume", icon: FileText, enabled: features.resumeOptimizer },
-    ] as Item[],
-  },
-  {
-    label: "Apply",
-    items: [
       { title: "Smart Search", url: "/jobs", icon: Search, enabled: features.jobSearch },
-      { title: "Pipeline", url: "/pipeline", icon: LayoutDashboard, enabled: features.jobSearch },
-      { title: "Apply Assist", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
-      { title: "Agent Panel", url: "/agents", icon: Users, enabled: true },
-      { title: "Career-Ops", url: "/career-ops", icon: Terminal, enabled: features.careerOps },
-      { title: "Cover Letters", url: "/cover-letter", icon: Mail, enabled: features.coverLetter },
+      { title: "Career Radar", url: "/career-ops", icon: Terminal, enabled: features.careerOps },
     ] as Item[],
   },
   {
     label: "Prepare",
     items: [
-      { title: "Interview Board", url: "/interview", icon: Bookmark, enabled: features.interviewPrep },
+      { title: "Resume Optimizer", url: "/resume", icon: FileText, enabled: features.resumeOptimizer },
+      { title: "Cover Letters", url: "/cover-letter", icon: Mail, enabled: features.coverLetter },
       { title: "Knowledge Hub", url: "/knowledge-hub", icon: BookOpen, enabled: features.knowledgeHub },
-      { title: "AI Interview Prep", url: "/interview/prep", icon: Mic, enabled: features.interviewAI },
-      { title: "Communication", url: "/communication", icon: MessageSquare, enabled: features.communicationHub },
+      { title: "Interview Prep", url: "/interview/prep", icon: Mic, enabled: features.interviewAI },
     ] as Item[],
   },
   {
-    label: "Grow",
+    label: "Apply & Track",
     items: [
-      { title: "Career Roadmap", url: "/roadmap", icon: Map, enabled: features.careerRoadmap },
-      { title: "Blog", url: "/blog", icon: BookOpen, enabled: features.blog },
+      { title: "Interview Board", url: "/interview", icon: Bookmark, enabled: features.interviewPrep },
+      { title: "Pipeline", url: "/pipeline", icon: LayoutDashboard, enabled: features.jobSearch },
+      { title: "Apply Assist", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
     ] as Item[],
   },
   {
-    label: "Enterprise",
+    label: "Settings",
     items: [
-      { title: "Advisor Portal", url: "/advisor", icon: Users, enabled: true },
+      { title: "Profile", url: "/profile", icon: User, enabled: true },
+      { title: "Settings & API Keys", url: "/settings", icon: Settings, enabled: true },
     ] as Item[],
   },
 ];

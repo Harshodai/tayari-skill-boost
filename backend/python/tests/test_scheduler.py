@@ -19,6 +19,8 @@ from typing import Any
 
 import pytest
 
+pytest.importorskip("pydantic")
+
 from app.services import scheduler
 
 

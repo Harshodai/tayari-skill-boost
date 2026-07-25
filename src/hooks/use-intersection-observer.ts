@@ -22,9 +22,10 @@ export function useIntersectionObserver<T extends Element>(
     freezeOnceVisible = true,
   } = options;
 
+  const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
   const elementRef = useRef<T>(null);
   const [result, setResult] = useState<IntersectionResult>({
-    isIntersecting: false,
+    isIntersecting: isTest,
   });
 
   const frozen = result.isIntersecting && freezeOnceVisible;

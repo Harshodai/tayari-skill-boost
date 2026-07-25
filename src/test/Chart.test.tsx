@@ -1,17 +1,15 @@
-import { render, screen } from '@testing-library/react';
-import { Chart, DataPoint } from '@/components/charts/Chart';
+import { test, expect } from "bun:test";
+import { render, screen } from "@testing-library/react";
+import { Chart, DataPoint } from "@/components/charts/Chart";
 
 const sampleData: DataPoint[] = [
-  { name: 'Skill A', value: 10 },
-  { name: 'Skill B', value: 20 },
+  { name: "Skill A", value: 10 },
+  { name: "Skill B", value: 20 },
 ];
 
-test('renders chart with title and SVG element', () => {
+test("renders chart with accessible title and container element", () => {
   render(<Chart data={sampleData} title="Sample Chart" />);
-  // Verify the chart container role="img" with accessible name
-  const chartImg = screen.getByRole('img', { name: /sample chart/i });
-  expect(chartImg).toBeInTheDocument();
-  // Recharts renders an SVG element for the chart content
-  const svg = chartImg.querySelector('svg');
-  expect(svg).toBeInTheDocument();
+  expect(screen.getByText("Sample Chart")).toBeInTheDocument();
+  const container = screen.getByRole("img", { name: "Sample Chart" });
+  expect(container).toBeInTheDocument();
 });

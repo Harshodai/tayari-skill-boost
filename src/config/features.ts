@@ -54,8 +54,8 @@ const CONFIG = {
     funnelAnalytics: [true, true],
     // Self-hosted privacy and offline diagnostics panel
     privacyReadiness: [true, true],
-    // Browser extension availability (disabled by default)
-    browserExtension: [false, false],
+    // Browser extension availability (enabled)
+    browserExtension: [true, true],
     // Knowledge hub for resume knowledge graph
     knowledgeHub: [true, true],
     // Career operations dashboard

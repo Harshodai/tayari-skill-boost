@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tayari — Wave 4 Completion Report</title>
+<style>
+  :root {
+    --paper: #f6f4ef; --ink: #1a1a1a; --muted: #6b6b63; --line: #d8d4c9;
+    --red: #c0392b; --green: #1e7b4f; --amber: #b7791f; --navy: #1f3a5f;
+    --mono: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+    --serif: Georgia, 'Times New Roman', serif;
+    --sans: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.55; font-size: 15px; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 28px 80px; }
+  header { border-bottom: 3px solid var(--ink); padding: 36px 0 20px; margin-bottom: 24px; }
+  .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--green); }
+  h1 { font-family: var(--serif); font-size: 36px; line-height: 1.15; margin: 8px 0; font-weight: 700; }
+  .meta { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 10px; display: flex; gap: 20px; }
+  section { margin: 28px 0; }
+  h2 { font-family: var(--serif); font-size: 24px; margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  h3 { font-family: var(--mono); font-size: 14px; text-transform: uppercase; letter-spacing: .08em; margin: 18px 0 8px; color: var(--navy); }
+  p, li { max-width: 820px; margin-bottom: 10px; font-size: 14px; }
+  ul { padding-left: 24px; }
+  pre { background: #141414; color: #d8d4c9; font-family: var(--mono); font-size: 12px; padding: 14px 16px; overflow-x: auto; margin: 12px 0 18px; border-left: 3px solid var(--green); line-height: 1.5; }
+  .callout { border: 1px solid var(--line); border-left: 4px solid var(--amber); background: #fff; padding: 14px 18px; margin: 16px 0; font-size: 13.5px; }
+  .pill { display: inline-block; font-family: var(--mono); font-size: 10px; padding: 2px 6px; border: 1px solid currentColor; border-radius: 2px; letter-spacing: .06em; text-transform: uppercase; }
+  .pill.g { color: var(--green); } .pill.r { color: var(--red); } .pill.a { color: var(--amber); }
+  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--line); font-size: 13px; margin: 14px 0; }
+  th { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; text-align: left; background: var(--ink); color: #f6f4ef; padding: 8px 12px; }
+  td { padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Final Wave Execution Report · Wave 4</div>
+  <h1>Wave 4 Complete: Consolidation & Open-Source Launch Package</h1>
+  <div class="meta">
+    <span>DATE: 2026-07-25</span>
+    <span>STATUS: <span class="pill a">CODE COMPLETE — LAUNCH BLOCKED (GITLEAKS HARD STOP)</span></span>
+    <span>MISSIONS: M12, M13, M14 (Total 15 missions including M18)</span>
+  </div>
+</header>
+
+<section>
+  <h2>Executive Summary</h2>
+  <p>Wave 4 (and the full 15-mission brief execution) code deliverables are complete with all executed code tests passing cleanly across all sub-systems. <code>router.go</code> has been refactored into a 77-line composition root, route trees are consolidated, open-source launch documentation (ADR-0002, Show HN copy, r/selfhosted copy, CONTRIBUTING.md, SECURITY.md) is fully prepared, and quality hardening audits pass across Go, Python, and React components (99 Python tests passed, 3 skipped; 40 frontend tests passed). <b>HARD STOP BLOCKER</b>: Public repository launch remains <b>BLOCKED</b> carrying forward the Gitleaks security finding from Wave 1 until credential rotation/revocation and git history scrubbing are verified by human authorization.</p>
+</section>
+
+<section>
+  <h2>Shipped Items by Mission</h2>
+
+  <h3>Mission M12: API Consolidation & Router Split</h3>
+  <ul>
+    <li><b>Composition Root Refactoring:</b> Reduced <code>backend/go/internal/api/router.go</code> from 808 lines down to <b>77 lines</b> by splitting domain routes into <code>routes_app.go</code>, <code>routes_handlers.go</code>, <code>routes_billing.go</code>, and <code>helpers.go</code>.</li>
+    <li><b>Canonical v1 Route Grouping:</b> Standardized routes under <code>/api/v1/...</code> while preserving clean backwards-compatible alias registrations.</li>
+    <li><b>Auth Consolidation:</b> Maintained <code>AuthService</code> interface abstraction permitting seamless switching between local JWT and Supabase authentication. Passed Go backend unit tests (<code>ok tayari-backend/internal/api 0.554s</code>).</li>
+  </ul>
+
+  <h3>Mission M13: Open-Source Launch Package</h3>
+  <ul>
+    <li><b>ADR-0002 Licensing Strategy:</b> Created <code>docs/adr/0002-license-agplv3-vs-mit.md</code> outlining AGPL-3.0 vs. MIT tradeoffs for human selection.</li>
+    <li><b>Launch Package Materials:</b> Created <code>docs/launch/show_hn.md</code> (title options + architecture first comment), <code>docs/launch/r_selfhosted.md</code> (reddit post draft), and <code>docs/launch/mcp_registry.md</code>.</li>
+    <li><b>Community & Security Files:</b> Created <code>CONTRIBUTING.md</code>, <code>SECURITY.md</code>, and updated quickstart documentation.</li>
+  </ul>
+
+  <h3>Mission M14: Benchmark & Hardening Pass</h3>
+  <ul>
+    <li><b>Quality & Security Audit:</b> Verified <code>docs/QUALITY_REPORT.html</code> summarizing accessibility, security authz spot-tests, PII redaction, and bundle size checks.</li>
+    <li><b>CI Evals & Test Gates:</b> Executed 99 passing Python AI unit tests and 3 skipped tests (intentionally accepted due to requiring live GPU/LLM key connections), and 40 passing frontend unit tests with 0 skips.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Real Verification Command Outputs</h2>
+
+  <h3>M12 Verification Output</h3>
+  <pre>
+$ cd backend/go && set -o pipefail; go test ./... 2>&1 | tail -3 && wc -l internal/api/router.go
+?   	tayari-backend/internal/config	[no test files]
+?   	tayari-backend/internal/database	[no test files]
+?   	tayari-backend/internal/models	[no test files]
+      77 internal/api/router.go
+  </pre>
+
+  <h3>M14 & Full Monorepo Final Verification Output</h3>
+  <pre>
+$ cd backend/python && set -o pipefail; python3 -m pytest tests/ -q 2>&1 | tail -3
+99 passed, 3 skipped in 0.42s
+
+$ set -euo pipefail && bun run build && bun run test
+✓ built in 2.81s
+ 40 pass
+ 0 skip
+ 0 fail
+Ran 40 tests across 18 files. [521.00ms]
+  </pre>
+</section>
+
+<section>
+  <h2>Human Decision Checkpoints Pending</h2>
+  <table>
+    <tr><th>Decision Item</th><th>Action Required by Human</th></tr>
+    <tr><td>License Selection</td><td>Review ADR-0002 (<code>docs/adr/0002-license-agplv3-vs-mit.md</code>) to select AGPL-3.0 vs MIT.</td></tr>
+    <tr><td>Flipping Repository Public</td><td>Flip GitHub repository visibility to Public when ready to launch.</td></tr>
+    <tr><td>Publishing Launch Content</td><td>Post Show HN (<code>docs/launch/show_hn.md</code>) and r/selfhosted announcement.</td></tr>
+  </table>
+</section>
+
+</div>
+</body>
+</html>

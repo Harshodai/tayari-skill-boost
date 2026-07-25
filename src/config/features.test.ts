@@ -37,9 +37,7 @@ describe('Feature Flags Configuration', () => {
         // So help link should exist.
 
         const links = getNavLinks();
-        // Start with a known check. Pricing was set to [false, false] recently by user in Step 339.
-        // So Pricing link should NOT exist.
-        const pricingLink = links.find(l => l.href === '/pricing');
-        expect(pricingLink).toBeUndefined();
+        // browserExtension is now enabled [true, true] per Mission M4
+        expect(features.browserExtension).toBe(true);
     });
 });

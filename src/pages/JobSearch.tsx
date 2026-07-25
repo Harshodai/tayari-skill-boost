@@ -98,6 +98,7 @@ const JobSearch = () => {
   const [heroGap, setHeroGap] = useState<{ gaps: { skill: string }[]; overlap_score: number } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isAgentSearching, setIsAgentSearching] = useState(false);
+  const [hideGhostJobs, setHideGhostJobs] = useState(false);
   const [visibleAgentEvents, setVisibleAgentEvents] = useState<any[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [alertOn, setAlertOn] = useState(false);
@@ -226,13 +227,17 @@ const JobSearch = () => {
 
   const filtered = useMemo(
     () =>
-      results.filter((j) => {
+      results.filter((j: any) => {
         const s = j.score || j.fit_score || 0;
         if (s < minScore) return false;
         if (remoteOnly && j.location && !/remote/i.test(j.location)) return false;
+        if (hideGhostJobs) {
+          const badge = j.posting_health?.badge || j.health_badge || (j.posted_at && (Date.now() - new Date(j.posted_at).getTime() > 45 * 86400000) ? "Likely ghost" : "Fresh");
+          if (badge === "Likely ghost") return false;
+        }
         return true;
       }),
-    [results, minScore, remoteOnly]
+    [results, minScore, remoteOnly, hideGhostJobs]
   );
 
   const selected = filtered[selectedIdx] || filtered[0];
@@ -319,11 +324,25 @@ const JobSearch = () => {
               )}
             </Button>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-              <Sparkles className="w-3 h-3" /> Hermes Agent
-            </span>
-            <span>Aggregating Greenhouse · Lever · Ashby · Workday · Remotive</span>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                <Sparkles className="w-3 h-3" /> Hermes Agent
+              </span>
+              <span>Aggregating Greenhouse · Lever · Ashby · Workday · Remotive</span>
+            </div>
+            <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-foreground/80 hover:text-foreground">
+              <input
+                type="checkbox"
+                checked={hideGhostJobs}
+                onChange={(e) => {
+                  setHideGhostJobs(e.target.checked);
+                  setSelectedIdx(0);
+                }}
+                className="rounded border-border text-primary focus:ring-primary/20 h-3.5 w-3.5"
+              />
+              <span>Hide likely-ghost jobs</span>
+            </label>
           </div>
         </div>
       </div>

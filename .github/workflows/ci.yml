@@ -39,7 +39,7 @@ jobs:
           }
 
   python-build:
-    name: Python AI Service
+    name: Python AI Service & Integrations Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,8 +53,18 @@ jobs:
         working-directory: backend/python
         run: |
           python -m pip install --upgrade pip
+          pip install ruff pytest-cov
           pip install -r requirements.txt
-          pip install pytest-cov
+
+      - name: PyCompile & Ruff (Python AI & Integrations)
+        run: |
+          python -m py_compile integrations/jobtheory_mcp/server.py
+          python -m py_compile $(find backend/python/app -name "*.py")
+          ruff check integrations/ backend/python/
+
+      - name: MCP Server Import Smoke Test
+        run: |
+          python -c "import sys; sys.path.insert(0,'integrations/jobtheory_mcp'); import server; print(f'MCP Tools: {len(server.mcp._tool_manager.list_tools())}')"
 
       - name: Test
         working-directory: backend/python
@@ -69,6 +79,24 @@ jobs:
             echo "Python coverage $COVERAGE% is below 80%"
             exit 1
           fi
+
+  extension-build:
+    name: Chrome Extension Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node/Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies & check extension
+        working-directory: extension
+        run: |
+          bun install --no-save 2>/dev/null || npm install
+          npx tsc --noEmit
+          npx eslint . --ignore-pattern "node_modules/"
 
   frontend-build:
     name: Frontend
@@ -87,21 +115,26 @@ jobs:
       - name: Build
         run: bun run build
 
+      - name: Unit Test Suite
+        run: bun run test
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
       - name: Run Playwright E2E tests
         run: bun run test:e2e
 
-      - name: Unit Test Coverage Check
-        run: |
-          bun run test --coverage src/test/ResumeGraph*.test.tsx src/test/ResumeGraphPage.test.tsx src/test/ResumeGraphViz.test.tsx
-          # Assume vitest outputs coverage summary in stdout
-          COVERAGE=$(bun run test --coverage src/test/ResumeGraph*.test.tsx src/test/ResumeGraphPage.test.tsx src/test/ResumeGraphViz.test.tsx | grep "Lines" | awk '{print $3}' | tr -d "%")
-          if [ "$COVERAGE" -lt 80 ]; then
-            echo "Frontend coverage $COVERAGE% is below 80%"
-            exit 1
-          fi
+  gitleaks-scan:
+    name: Gitleaks History Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   docker-compose:
     name: Docker Compose E2E

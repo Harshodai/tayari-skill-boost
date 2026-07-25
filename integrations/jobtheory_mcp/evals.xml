@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<evals server="tayari-mcp" version="2.0">
+  <eval id="eval-01">
+    <user_query>What is my latest uploaded resume text and profile context?</user_query>
+    <expected_tool_call>get_context()</expected_tool_call>
+    <verification_criteria>Calls get_context and returns profile, preferences, and latest resume text without error.</verification_criteria>
+  </eval>
+
+  <eval id="eval-02">
+    <user_query>Find remote Senior Go Engineer jobs on tech boards.</user_query>
+    <expected_tool_call>search_jobs(query="Senior Go Engineer", remote_only=True)</expected_tool_call>
+    <verification_criteria>Calls search_jobs with query and remote_only parameters set appropriately.</verification_criteria>
+  </eval>
+
+  <eval id="eval-03">
+    <user_query>What skills am I missing for a Lead AI Engineer position?</user_query>
+    <expected_tool_call>skill_gap(target_role="Lead AI Engineer")</expected_tool_call>
+    <verification_criteria>Calls skill_gap tool and returns matched_skills and missing_skills lists.</verification_criteria>
+  </eval>
+
+  <eval id="eval-04">
+    <user_query>Check if this resume bullet has keyword stuffing: "Python Python Python Machine Learning ML AI".</user_query>
+    <expected_tool_call>check_guardrails(text="Python Python Python Machine Learning ML AI")</expected_tool_call>
+    <verification_criteria>Calls check_guardrails and evaluates is_truthful and keyword_stuffing_detected.</verification_criteria>
+  </eval>
+
+  <eval id="eval-05">
+    <user_query>Run a reflective optimization loop on my resume ID 42 for a Principal Architect role.</user_query>
+    <expected_tool_call>optimize_resume(resume_id="42", job_description="Principal Architect role...")</expected_tool_call>
+    <verification_criteria>Calls optimize_resume and returns before_score, after_score, iterations, and optimized_text.</verification_criteria>
+  </eval>
+
+  <eval id="eval-06">
+    <user_query>Query my knowledge graph for distributed systems experience.</user_query>
+    <expected_tool_call>query_knowledge_graph(question="distributed systems experience")</expected_tool_call>
+    <verification_criteria>Calls query_knowledge_graph and returns answer and node data.</verification_criteria>
+  </eval>
+
+  <eval id="eval-07">
+    <user_query>List the first 10 applications currently on my Interview Board.</user_query>
+    <expected_tool_call>list_applications(limit=10)</expected_tool_call>
+    <verification_criteria>Calls list_applications with limit=10 and returns application array with pagination data.</verification_criteria>
+  </eval>
+
+  <eval id="eval-08">
+    <user_query>Give me a salary benchmark and company briefing for Stripe in San Francisco.</user_query>
+    <expected_tool_call>company_research(company="Stripe", role="Software Engineer")</expected_tool_call>
+    <verification_criteria>Calls company_research and returns company salary benchmarks and intelligence.</verification_criteria>
+  </eval>
+
+  <eval id="eval-09">
+    <user_query>Save this staff backend engineer job posting from Google to my saved list.</user_query>
+    <expected_tool_call>save_job(title="Staff Backend Engineer", company="Google")</expected_tool_call>
+    <verification_criteria>Calls save_job with correct title and company parameters.</verification_criteria>
+  </eval>
+
+  <eval id="eval-10">
+    <user_query>Queue an application for Senior React Developer at Vercel in Review Mode so I can review it before submitting.</user_query>
+    <expected_tool_call>queue_autopilot(title="Senior React Developer", company="Vercel")</expected_tool_call>
+    <verification_criteria>Calls queue_autopilot in Review Mode without auto-submitting.</verification_criteria>
+  </eval>
+</evals>

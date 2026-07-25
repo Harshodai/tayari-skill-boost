@@ -3,6 +3,7 @@
   "name": "Tayari Job Companion",
   "version": "2.0.0",
   "description": "Detect jobs, autofill applications, and track your job search journey with Tayari AI.",
+  "options_page": "options.html",
   "externally_connectable": {
     "matches": [
       "https://tayari-skill-boost.lovable.app/*",
@@ -10,7 +11,8 @@
       "https://*.lovableproject.com/*",
       "http://localhost:5173/*",
       "http://localhost:8080/*",
-      "http://localhost:8083/*"
+      "http://localhost:8083/*",
+      "http://localhost:8085/*"
     ]
   },
   "permissions": [
@@ -18,35 +20,15 @@
     "storage",
     "scripting",
     "tabs",
-    "clipboardWrite",
-    "notifications",
-    "contextMenus"
+    "notifications"
   ],
   "host_permissions": [
-    "https://www.linkedin.com/*",
-    "https://*.indeed.com/*",
-    "https://*.glassdoor.com/*",
     "https://*.greenhouse.io/*",
     "https://*.workday.com/*",
     "https://*.lever.co/*",
     "https://*.ashbyhq.com/*",
-    "https://*.smartrecruiters.com/*",
-    "https://*.icims.com/*",
-    "https://*.taleo.net/*",
-    "https://*.jobs2web.com/*",
-    "https://*.bamboohr.com/*",
-    "https://*.applytojob.com/*",
-    "https://*.recruitee.com/*",
-    "https://*.teamtailor.com/*",
-    "https://*.recruiterbox.com/*",
-    "https://*.jobvite.com/*",
-    "https://*.bullhornstaffing.com/*",
-    "https://jobs.*/*",
-    "https://careers.*/*",
-    "https://*/*/jobs/*",
-    "https://*/*/careers/*",
-    "https://*/*apply*",
-    "https://*/*application*"
+    "https://www.linkedin.com/*",
+    "https://*.indeed.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -57,30 +39,10 @@
         "https://www.linkedin.com/jobs/view/*",
         "https://www.linkedin.com/jobs/search/*",
         "https://*.indeed.com/viewjob*",
-        "https://*.indeed.com/jobs/*",
-        "https://*.indeed.com/apply*",
-        "https://*.glassdoor.com/job-listing/*",
         "https://*.greenhouse.io/*",
         "https://*.workday.com/*",
         "https://*.lever.co/*",
-        "https://*.ashbyhq.com/*",
-        "https://*.smartrecruiters.com/*",
-        "https://*.icims.com/*",
-        "https://*.taleo.net/*",
-        "https://*.jobs2web.com/*",
-        "https://*.bamboohr.com/*",
-        "https://*.applytojob.com/*",
-        "https://*.recruitee.com/*",
-        "https://*.teamtailor.com/*",
-        "https://*.recruiterbox.com/*",
-        "https://*.jobvite.com/*",
-        "https://*.bullhornstaffing.com/*",
-        "https://jobs.*/*",
-        "https://careers.*/*",
-        "https://*/*/jobs/*",
-        "https://*/*/careers/*",
-        "https://*/*apply*",
-        "https://*/*application*"
+        "https://*.ashbyhq.com/*"
       ],
       "js": ["content.js"],
       "css": ["content.css"],
@@ -103,7 +65,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/*.png", "icons/*.svg", "injected.js"],
+      "resources": ["icons/*.png", "icons/*.svg"],
       "matches": ["<all_urls>"]
     }
   ]

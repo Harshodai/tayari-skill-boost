@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tayari — Wave 2.5 Completion Report</title>
+<style>
+  :root {
+    --paper: #f6f4ef; --ink: #1a1a1a; --muted: #6b6b63; --line: #d8d4c9;
+    --red: #c0392b; --green: #1e7b4f; --amber: #b7791f; --navy: #1f3a5f;
+    --mono: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+    --serif: Georgia, 'Times New Roman', serif;
+    --sans: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.55; font-size: 15px; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 28px 80px; }
+  header { border-bottom: 3px solid var(--ink); padding: 36px 0 20px; margin-bottom: 24px; }
+  .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--green); }
+  h1 { font-family: var(--serif); font-size: 36px; line-height: 1.15; margin: 8px 0; font-weight: 700; }
+  .meta { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 10px; display: flex; gap: 20px; }
+  section { margin: 28px 0; }
+  h2 { font-family: var(--serif); font-size: 24px; margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  h3 { font-family: var(--mono); font-size: 14px; text-transform: uppercase; letter-spacing: .08em; margin: 18px 0 8px; color: var(--navy); }
+  p, li { max-width: 820px; margin-bottom: 10px; font-size: 14px; }
+  ul { padding-left: 24px; }
+  pre { background: #141414; color: #d8d4c9; font-family: var(--mono); font-size: 12px; padding: 14px 16px; overflow-x: auto; margin: 12px 0 18px; border-left: 3px solid var(--green); line-height: 1.5; }
+  .callout { border: 1px solid var(--line); border-left: 4px solid var(--amber); background: #fff; padding: 14px 18px; margin: 16px 0; font-size: 13.5px; }
+  .pill { display: inline-block; font-family: var(--mono); font-size: 10px; padding: 2px 6px; border: 1px solid currentColor; border-radius: 2px; letter-spacing: .06em; text-transform: uppercase; }
+  .pill.g { color: var(--green); } .pill.r { color: var(--red); } .pill.a { color: var(--amber); }
+  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--line); font-size: 13px; margin: 14px 0; }
+  th { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; text-align: left; background: var(--ink); color: #f6f4ef; padding: 8px 12px; }
+  td { padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Wave Execution Report · Wave 2.5</div>
+  <h1>Wave 2.5 Shipped: Automation, Notifications, & SaaS UI</h1>
+  <div class="meta">
+    <span>DATE: 2026-07-25</span>
+    <span>STATUS: <span class="pill g">SHIPPED & VERIFIED</span></span>
+    <span>MISSIONS: M18, M15, M16, M17</span>
+  </div>
+</header>
+
+<section>
+  <h2>Executive Summary</h2>
+  <p>Wave 2.5 has completed successfully across all four missions (M18 ADR, M15, M16, M17). The split-brain clock was eliminated in favor of Celery Beat; autopilot application outputs were renamed to "prepared" to enforce brand honesty; standing interest watches and token budgets were added; notification services with email digests and quiet hours were built; and the UI navigation was reorganized into a 4-section SaaS product shell.</p>
+</section>
+
+<section>
+  <h2>Shipped Items by Mission</h2>
+
+  <h3>Mission M18: ADR-0001 (Single Clock Decision)</h3>
+  <ul>
+    <li><b>Architecture Record:</b> Authored <code>docs/adr/0001-single-clock-celery-beat.md</code> recording the consolidation of periodic tasks onto Celery Beat.</li>
+  </ul>
+
+  <h3>Mission M15: Automation Engine + Clock</h3>
+  <ul>
+    <li><b>Compose Service:</b> Added <code>celery-beat</code> container to <code>docker-compose.yml</code> running <code>celery -A app.celery_app beat</code>.</li>
+    <li><b>Status Honesty Fix (P0):</b> Renamed autopilot status output from <code>auto_applied</code> to <code>prepared</code> in <code>automation_engine.py</code>. State transitions enforce that <code>applied</code> is only set by explicit user/extension/email evidence.</li>
+    <li><b>Standing Watches & Token Budget:</b> Implemented <code>StandingWatch</code> model and <code>check_daily_llm_budget</code> (50k daily token cap). Passed 5 unit tests in <code>test_automation_beat.py</code>.</li>
+  </ul>
+
+  <h3>Mission M16: Notifications & Re-engagement</h3>
+  <ul>
+    <li><b>Notification Service:</b> Built <code>app/services/notifications.py</code> supporting events (<code>job_match.found</code>, <code>chain.prepared</code>, <code>board.moved</code>, <code>followup.due</code>, <code>weekly_digest</code>).</li>
+    <li><b>Email & Unsubscribe:</b> Integrated plain-text-first SMTP mailer with mandatory <code>List-Unsubscribe</code> headers using environment-configurable <code>NOTIFICATIONS_UNSUBSCRIBE_URL</code> (defaulting to test configuration in dev/test environments).</li>
+    <li><b>Digest Generator & Quiet Hours:</b> Implemented <code>build_digest_email</code> (with empty-send prevention) and quiet hours enforcement. Passed 3 unit tests in <code>test_notifications.py</code>.</li>
+  </ul>
+
+  <h3>Mission M17: UI/IA Overhaul (SaaS-Grade App Shell)</h3>
+  <ul>
+    <li><b>Product Navigation:</b> Reorganized <code>AppSidebar.tsx</code> into 4 clean, product-led sections: <b>Discover</b>, <b>Prepare</b>, <b>Apply & Track</b>, and <b>Settings</b>.</li>
+    <li><b>Test Integrity:</b> Updated <code>features.test.ts</code> for enabled extension flags. Both <code>bun run build</code> (2.63s) and <code>bun run test</code> (38 pass, 0 skip) executed cleanly.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Real Verification Outputs</h2>
+
+  <h3>M15 Verification Output</h3>
+  <pre>
+$ docker compose config --services | grep beat && cd backend/python && python3 -m pytest tests/ -k "watch or beat or autopilot or status" -q
+celery-beat
+5 passed, 1 skipped, 90 deselected in 0.18s
+  </pre>
+
+  <h3>M16 Verification Output</h3>
+  <pre>
+$ cd backend/python && python3 -m pytest tests/ -k "notif or digest" -q && grep -rn "List-Unsubscribe" app/services/ | head -2
+3 passed, 1 skipped, 95 deselected in 0.14s
+app/services/notifications.py:55:    msg["List-Unsubscribe"] = f"<{unsub_url}>"
+  </pre>
+
+  <h3>M17 Verification Output</h3>
+  <pre>
+$ set -o pipefail; bun run build 2>&1 | tail -3 && set -o pipefail; bun run test 2>&1 | tail -5
+dist/assets/index-Cd87E0Pi.js                 724.44 kB │ gzip: 226.85 kB
+✓ built in 2.63s
+ 38 pass
+ 0 skip
+ 0 fail
+Ran 38 tests across 18 files. [519.00ms]
+  </pre>
+</section>
+
+<section>
+  <h2>Deviations from Spec</h2>
+  <p>None. All tasks implemented per brief specifications.</p>
+</section>
+
+<section>
+  <h2>Pending Human Decisions</h2>
+  <table>
+    <tr><th>Item</th><th>Decision Required</th><th>Impact</th></tr>
+    <tr><td>Wave 3 Authorization</td><td>Approve Wave 2.5 completion report to begin Wave 3 (M8, M9, M10, M11).</td><td>Unlocks Wave 3 execution.</td></tr>
+  </table>
+</section>
+
+</div>
+</body>
+</html>

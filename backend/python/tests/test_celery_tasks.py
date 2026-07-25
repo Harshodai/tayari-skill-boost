@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+pytest.importorskip("celery")
+
 from app.celery_app import celery_app
 from app.services import automation_engine as ae
 from app.tasks import automation as automation_task

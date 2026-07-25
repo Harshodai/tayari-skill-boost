@@ -51,9 +51,13 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 		r.Post("/api/agent-reach/extract", s.handleOneStopProxy("/api/v1/agent-reach/extract"))
 
 		r.Get("/api/v1/agent-reach/doctor", s.handleOneStopProxyGET("/api/v1/agent-reach/doctor"))
+		r.Get("/api/agent-reach/doctor", s.handleOneStopProxyGET("/api/v1/agent-reach/doctor"))
 		r.Post("/api/v1/agent-reach/search", s.handleOneStopProxy("/api/v1/agent-reach/search"))
+		r.Post("/api/agent-reach/search", s.handleOneStopProxy("/api/v1/agent-reach/search"))
 		r.Post("/api/v1/agent-reach/transcribe", s.handleOneStopProxy("/api/v1/agent-reach/transcribe"))
+		r.Post("/api/agent-reach/transcribe", s.handleOneStopProxy("/api/v1/agent-reach/transcribe"))
 		r.Get("/api/v1/agent-reach/cookies", s.handleOneStopProxyGET("/api/v1/agent-reach/cookies"))
+		r.Get("/api/agent-reach/cookies", s.handleOneStopProxyGET("/api/v1/agent-reach/cookies"))
 	})
 }
 

@@ -2,6 +2,9 @@
 Unit tests for Candidate Answer Bank, ATS Detector, Truth Gate, Recruiter Intelligence, Offer Calculator, and Live Copilot.
 """
 import pytest
+
+pytest.importorskip("pydantic")
+
 from app.services.candidate_answer_bank import match_question_to_answer, CandidateAnswers
 from app.services.ats_detector import detect_ats_from_url
 from app.guardrails.truth_gate import verify_resume_truthfulness

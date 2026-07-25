@@ -1,13 +1,13 @@
 package api
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"log"
 	"net/http"
 	"net/mail"
 	"strings"
+	"tayari-backend/internal/auth"
 	"tayari-backend/internal/models"
 )
 
@@ -114,7 +114,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), contextKeyUser, user)
+		ctx := auth.WithUserContext(r.Context(), user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

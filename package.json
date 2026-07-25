@@ -9,7 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "bun test --dom --preload ./src/test/setup.ts src/test/ResumeGraph*.test.tsx src/test/ResumeGraphPage.test.tsx src/test/ResumeGraphViz.test.tsx",
+    "test": "bun test --dom --preload ./src/test/setup.ts src/",
     "test:e2e": "playwright test --reporter=list"
   },
   "dependencies": {
