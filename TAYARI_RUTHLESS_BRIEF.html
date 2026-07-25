@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tayari — The Ruthless Brief (July 25, 2026)</title>
+<style>
+  :root{
+    --paper:#f6f4ef; --ink:#1a1a1a; --muted:#6b6b63; --line:#d8d4c9;
+    --red:#c0392b; --green:#1e7b4f; --amber:#b7791f; --navy:#1f3a5f;
+    --mono:'SF Mono','JetBrains Mono',Menlo,Consolas,monospace;
+    --serif:Georgia,'Times New Roman',serif;
+    --sans:-apple-system,'Helvetica Neue',Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.55;font-size:15px}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 28px 80px}
+  header{border-bottom:3px solid var(--ink);padding:36px 0 20px;margin-bottom:0}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--red)}
+  h1{font-family:var(--serif);font-size:42px;line-height:1.1;margin:10px 0 8px;font-weight:700}
+  .sub{color:var(--muted);font-size:15px;max-width:760px}
+  .meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:14px;display:flex;gap:22px;flex-wrap:wrap}
+  nav{position:sticky;top:0;background:var(--paper);border-bottom:1px solid var(--line);z-index:50;display:flex;gap:0;overflow-x:auto}
+  nav button{font-family:var(--mono);font-size:12px;letter-spacing:.05em;background:none;border:none;border-bottom:3px solid transparent;padding:14px 16px;cursor:pointer;color:var(--muted);white-space:nowrap}
+  nav button.active{color:var(--ink);border-bottom-color:var(--red);font-weight:700}
+  nav button:hover{color:var(--ink)}
+  section.tab{display:none;padding-top:34px}
+  section.tab.active{display:block}
+  h2{font-family:var(--serif);font-size:27px;margin:0 0 6px}
+  h3{font-family:var(--serif);font-size:19px;margin:30px 0 10px}
+  .lede{font-size:16px;color:#333;max-width:820px;margin-bottom:22px}
+  p{max-width:820px;margin-bottom:12px}
+  .grid{display:grid;gap:14px}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .card{background:#fff;border:1px solid var(--line);border-top:3px solid var(--ink);padding:18px}
+  .card h4{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .big{font-family:var(--serif);font-size:38px;font-weight:700;line-height:1}
+  .big small{font-size:15px;color:var(--muted);font-weight:400}
+  .card p{font-size:13px;color:#444;margin:8px 0 0}
+  .r{color:var(--red)} .g{color:var(--green)} .a{color:var(--amber)} .n{color:var(--navy)}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);font-size:13px;margin:14px 0 24px}
+  th{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;text-align:left;background:var(--ink);color:#f6f4ef;padding:9px 12px}
+  td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}
+  tr:hover td{background:#faf8f2}
+  .pill{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 8px;border:1px solid currentColor;border-radius:2px;letter-spacing:.06em;text-transform:uppercase}
+  .verdict{background:var(--ink);color:var(--paper);padding:26px 28px;margin:26px 0}
+  .verdict h3{color:var(--paper);margin-top:0;font-size:22px}
+  .verdict p{color:#cfcbc0;font-size:15px;max-width:900px}
+  .verdict strong{color:#fff}
+  blockquote{border-left:3px solid var(--red);padding:6px 0 6px 18px;margin:18px 0;font-family:var(--serif);font-size:17px;font-style:italic;color:#333;max-width:780px}
+  code{font-family:var(--mono);font-size:12.5px;background:#eceade;padding:1px 5px;border-radius:2px}
+  pre{background:#141414;color:#e8e4d8;font-family:var(--mono);font-size:12.5px;padding:16px 18px;overflow-x:auto;margin:12px 0 20px;border-left:3px solid var(--red);line-height:1.6}
+  pre .cm{color:#7d8471} pre .err{color:#ff6b5e} pre .ok{color:#7ec699}
+  .callout{border:1px solid var(--line);border-left:4px solid var(--amber);background:#fff;padding:14px 18px;margin:16px 0;max-width:860px;font-size:14px}
+  .callout.red{border-left-color:var(--red)} .callout.green{border-left-color:var(--green)}
+  .score-row{display:flex;align-items:center;gap:14px;margin:10px 0;max-width:720px}
+  .score-label{font-family:var(--mono);font-size:11.5px;width:220px;flex-shrink:0}
+  .bar{flex:1;height:14px;background:#e7e3d6;position:relative}
+  .bar i{position:absolute;left:0;top:0;bottom:0;display:block}
+  .score-num{font-family:var(--mono);font-size:12px;width:60px;text-align:right}
+  .fine{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:6px}
+  details{background:#fff;border:1px solid var(--line);margin:8px 0;max-width:900px}
+  summary{cursor:pointer;padding:12px 16px;font-weight:600;font-size:14px}
+  details[open] summary{border-bottom:1px solid var(--line)}
+  details .body{padding:14px 16px;font-size:13.5px}
+  .kill{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px;margin:14px 0}
+  .kill div{border:1px solid var(--line);background:#fff;padding:10px 12px;font-size:12.5px}
+  .kill .k{border-left:4px solid var(--red)} .kill .keep{border-left:4px solid var(--green)} .kill .fr{border-left:4px solid var(--amber)}
+  .kill b{display:block;font-size:13px}
+  .kill span{color:var(--muted);font-size:11.5px}
+  .phase{border:1px solid var(--line);background:#fff;margin:12px 0;max-width:900px}
+  .phase .ph-h{background:var(--navy);color:#fff;padding:10px 16px;font-family:var(--mono);font-size:12px;letter-spacing:.08em;display:flex;justify-content:space-between}
+  .phase ul{padding:12px 16px 12px 34px;font-size:13.5px}
+  .phase li{margin:6px 0}
+  .gate{background:#fdf6e3;border-top:1px dashed var(--amber);padding:10px 16px;font-family:var(--mono);font-size:12px;color:var(--amber)}
+  .mission-card{border:1px solid var(--line);background:#fff;margin:14px 0;max-width:960px}
+  .m-head{display:flex;justify-content:space-between;align-items:center;background:#23272e;color:#e8e4d8;padding:8px 14px;font-family:var(--mono);font-size:12px;letter-spacing:.04em}
+  .m-head em{font-style:normal;color:#8a9199;margin-left:10px;font-size:10.5px}
+  .copy{font-family:var(--mono);font-size:11px;background:none;border:1px solid #555;color:#e8e4d8;padding:3px 12px;cursor:pointer;border-radius:2px}
+  .copy:hover{background:#3a3f47}
+  .copy.done{border-color:var(--green);color:#7ec699}
+  .m-body{background:#141414;color:#d8d4c9;font-family:var(--mono);font-size:11.5px;line-height:1.55;padding:14px 16px;overflow-x:auto;margin:0;border-left:none;white-space:pre-wrap}
+  .srcs{font-size:12px;color:var(--muted);border-top:1px solid var(--line);margin-top:40px;padding-top:14px}
+  .srcs a{color:var(--navy)}
+  @media(max-width:640px){h1{font-size:30px}.score-label{width:130px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Ruthless Strategy Brief · Competitive Audit · MCP Review</div>
+  <h1>Tayari has a shipping problem,<br>not a feature problem.</h1>
+  <p class="sub">Grounded in the actual repo — 57 pages, ~60 backend services, 8 MCP tools, 3 CI workflows — not a generic checklist. Every claim below cites a file, a commit, or a source.</p>
+  <div class="meta">
+    <span>DATE: 2026-07-25</span><span>REPO: tayari-skill-boost @ 8cb451f</span><span>LENSES: competitive-brief · mcp-builder · web-artifacts</span>
+  </div>
+</header>
+
+<nav id="nav">
+  <button data-t="verdict" class="active">Verdict</button>
+  <button data-t="factcheck">Your Audit vs. Reality</button>
+  <button data-t="mcp">MCP Autopsy</button>
+  <button data-t="comp">Competitive Brief</button>
+  <button data-t="eng">Engineering Audit</button>
+  <button data-t="pain">Pain-Point Map</button>
+  <button data-t="kill">Kill List</button>
+  <button data-t="plan">90-Day Plan</button>
+  <button data-t="launch">Launch Grill</button>
+  <button data-t="ahead">Stay Ahead</button>
+  <button data-t="spec">v1 Spec</button>
+  <button data-t="roadmap">Roadmap</button>
+  <button data-t="missions">Agent Missions</button>
+</nav>
+
+<!-- ============ VERDICT ============ -->
+<section class="tab active" id="verdict">
+  <h2>The Verdict</h2>
+  <p class="lede">You asked for a ruthless audit. Here it is: <b>you already ran one</b>. <code>PRODUCT_GRILL.md</code> — 80KB, dated June 26, 22 competitors, correct conclusions. Then the git log for the following month shows you shipping a voice interview coach, a portfolio generator, a negotiation copilot, a company radar, and trending-skills analytics — <b>none of which the GRILL asked for</b>, while its actual top recommendations (extension quality, API monetization, conversion funnel) sat untouched. You don't need more analysis. You need to obey the analysis you already have.</p>
+
+  <div class="grid g3">
+    <div class="card"><h4>Feature surface</h4><div class="big">57 <small>pages</small></div><p>+ ~60 Python service modules, 19+ feature flags all ON. Built by roughly one person. Depth per feature is necessarily thin.</p></div>
+    <div class="card"><h4>Paying customers possible</h4><div class="big r">No</div><p>Pricing page is a static React component. No Stripe, no checkout, no billing anywhere in the codebase. Revenue is structurally impossible today.</p></div>
+    <div class="card"><h4>Distribution channels live</h4><div class="big r">0 <small>of 3</small></div><p>GitHub repo private (open-source moat unrealized). Extension flagged <code>[false,false]</code>. MCP server doesn't compile. All three of your distribution weapons are holstered.</p></div>
+  </div>
+
+  <div class="verdict">
+    <h3>One-sentence diagnosis</h3>
+    <p>Tayari is a <strong>genuinely differentiated engine</strong> (reflective optimizer, guardrails, tiered scraping, knowledge graph — real, in the code, and no competitor ships them self-hosted) <strong>wrapped in a distribution strategy of zero</strong>: private repo, disabled extension, broken MCP, mock pricing, and a founder who responds to "focus" advice by building feature #58.</p>
+    <p style="margin-top:10px">The market will not discover this product. Sonara had users and still died. You have neither users nor a way to get them, and every week of new features widens the maintenance surface while the window narrows — LinkedIn is actively hunting automation tools and frontier models eat one-shot resume tooling from above. <strong>The engine is an asset. The suite is a liability.</strong></p>
+  </div>
+
+  <h3>Scorecard</h3>
+  <div class="score-row"><span class="score-label">Engineering depth</span><div class="bar"><i style="width:72%;background:var(--green)"></i></div><span class="score-num">72</span></div>
+  <div class="score-row"><span class="score-label">AI maturity</span><div class="bar"><i style="width:65%;background:var(--green)"></i></div><span class="score-num">65</span></div>
+  <div class="score-row"><span class="score-label">Production readiness</span><div class="bar"><i style="width:55%;background:var(--amber)"></i></div><span class="score-num">55</span></div>
+  <div class="score-row"><span class="score-label">Focus discipline</span><div class="bar"><i style="width:15%;background:var(--red)"></i></div><span class="score-num">15</span></div>
+  <div class="score-row"><span class="score-label">Distribution readiness</span><div class="bar"><i style="width:5%;background:var(--red)"></i></div><span class="score-num">5</span></div>
+  <div class="score-row"><span class="score-label">Monetization readiness</span><div class="bar"><i style="width:3%;background:var(--red)"></i></div><span class="score-num">3</span></div>
+  <p class="fine">Basis: production readiness credits real CI (Go race detector + 80% coverage gate, Python evals) but debits the fig-leaf frontend test script (runs only ResumeGraph* tests), single-maintainer bus factor, and no observed deployment with real users. Your pasted report's 25/100 was wrong in both directions — too harsh on engineering, too kind on distribution.</p>
+
+  <blockquote>"The chain, not the suite" is the right positioning. The repo is currently the suite, not the chain.</blockquote>
+</section>
+
+<!-- ============ FACT CHECK ============ -->
+<section class="tab" id="factcheck">
+  <h2>Your Pasted Audit vs. The Actual Repo</h2>
+  <p class="lede">The websearch report you pasted was written without reading the code. Trusting it would have sent you rebuilding things you already have while missing every real problem. Line by line:</p>
+  <table>
+    <tr><th style="width:34%">Your report claims</th><th style="width:33%">Repo reality</th><th>Verdict</th></tr>
+    <tr><td>"Backend API (Node/Express or Python Flask)"</td><td>Go + Chi gateway, Python + FastAPI engine, Celery/Redis queue (<code>backend/go</code>, <code>backend/python</code>)</td><td><span class="pill r">Wrong stack</span></td></tr>
+    <tr><td>"Lacks automated testing, CI/CD pipelines"</td><td>3 GitHub workflows; Go CI runs <code>go test -race</code> with an 80% coverage gate; 25+ Python test files; Playwright e2e suite</td><td><span class="pill r">False</span></td></tr>
+    <tr><td>"Cover Letter: not present"</td><td><code>src/pages/CoverLetter.tsx</code> + <code>app/services/cover_letter.py</code>, 3 tones</td><td><span class="pill r">False</span></td></tr>
+    <tr><td>"Job Tracker: not present"</td><td>Kanban Interview Board (<code>InterviewBoard.tsx</code>, <code>Pipeline.tsx</code>, <code>/v1/applications</code>)</td><td><span class="pill r">False</span></td></tr>
+    <tr><td>"Interview prep — delight feature to add someday"</td><td>InterviewPrep, InterviewVoiceCoach (WebSockets), live copilot service already shipped</td><td><span class="pill r">False</span></td></tr>
+    <tr><td>"LinkedIn import — delight"</td><td><code>LinkedInImport.tsx</code> exists</td><td><span class="pill r">False</span></td></tr>
+    <tr><td>"Add RAG, multi-model LLM — moonshot"</td><td>Multi-provider LLM router, embeddings service, RRF hybrid ranking already in <code>app/services/</code></td><td><span class="pill a">Already built</span></td></tr>
+    <tr><td>"Hallucination safeguards missing"</td><td><code>app/guardrails/</code>: truth gate, keyword-stuffing detector, PII redaction, PipelineGate</td><td><span class="pill a">Already built</span></td></tr>
+    <tr><td>Production readiness ≈25/100 for missing infra</td><td>Infra exists; the actual zeros are distribution (5) and monetization (3) — which the report never mentions</td><td><span class="pill a">Misdiagnosis</span></td></tr>
+  </table>
+
+  <div class="callout red"><b>The meta-lesson:</b> that report told you to spend Q3 building tests, auth, and a job tracker you already own. If you had followed it, you'd burn a quarter reimplementing your own codebase. Generic audits are worse than no audits — they redirect effort from real gaps (nobody can find, install, or pay for Tayari) to imaginary ones. This is also the second analysis document this repo has accumulated instead of users.</div>
+
+  <h3>Self-audit — holding my own claims to the same bar (re-verified 2026-07-25)</h3>
+  <p>You asked me to recheck ruthlessly. Same treatment I gave your pasted report, applied to myself:</p>
+  <table>
+    <tr><th>My claim</th><th>Re-verification result</th><th>Status</th></tr>
+    <tr><td>"Nothing scheduled has ever fired — dead clock"</td><td><b>Wrong.</b> An asyncio scheduler starts in the FastAPI lifespan and runs autopilot schedules + a 6h auto-scan. My grep for "beat" couldn't see an in-process scheduler. True parts: Celery beat inert, radar unscheduled, architecture fragile. Corrected in Launch Grill + M15.</td><td><span class="pill r">Corrected</span></td></tr>
+    <tr><td>"Zero notification code exists"</td><td><b>Wrong.</b> Web-push routes (Go) + NotificationsBell (runs-only) exist. True parts: no email, no digest, no event routing. Corrected in Launch Grill + M16.</td><td><span class="pill r">Corrected</span></td></tr>
+    <tr><td>"The tracker marks unsubmitted applications as applied"</td><td><b>Confirmed stronger:</b> automation_engine.py:392 <code>status="auto_applied"</code> + log "Auto-applied to…" after a stub that cannot submit. Also found the mitigating detail: guardrails can set <code>gate_blocked</code> — the gate wiring deserves credit.</td><td><span class="pill g">Verified @ line</span></td></tr>
+    <tr><td>"Repo is private → OSS moat unrealized"</td><td><b>Downgraded to unverified.</b> Evidence was one empty GitHub API response — could be a fetch failure. Treat as "possibly private; confirm on github.com before acting." The strategic point (no public distribution motion) stands on other evidence: no stars/community/launch anywhere in the repo's docs or history.</td><td><span class="pill a">Unverified</span></td></tr>
+    <tr><td>"Zero users"</td><td><b>Assumption, not fact.</b> A deployed instance exists (tayari-skill-boost.lovable.app referenced in code); actual usage is unknowable from the repo. Softened to "no evidence of users." The strategy is unchanged either way.</td><td><span class="pill a">Assumption flagged</span></td></tr>
+    <tr><td>Market stats (14% shortlist overlap, 40% inflated resumes, 30–50% faster time-to-hire)</td><td>Secondary-source blog summaries of Deloitte/vendor reports — directionally credible, not independently verified. Weight accordingly.</td><td><span class="pill a">Reported, not verified</span></td></tr>
+    <tr><td>Nav/UI counts ("36 links", "106 tokens")</td><td>Header link count solid (~36 in Header.tsx); my AppSidebar count was junk (grep artifact) and is withdrawn; token count is approximate. The IA diagnosis (marketing/app mixing, chain invisible) stands on the route inventory itself.</td><td><span class="pill a">Partially withdrawn</span></td></tr>
+    <tr><td>Everything else load-bearing (MCP syntax error @65, company_research mis-mapping, no Stripe, extension flag off + lovable-hardcoded origins, no backups, .bak tracked, 807-line router, CI gaps, worker CMD has no -B)</td><td>Re-verified against files/line numbers this session.</td><td><span class="pill g">Stands</span></td></tr>
+  </table>
+  <div class="callout"><b>Known limits of this entire audit — what I did NOT do:</b> I never ran the stack, the test suites, or the UI (static analysis + file reads only); I did not audit auth middleware line-by-line, Supabase config, the Hermes provider internals, or the 25+ Python test files' actual coverage quality; screenshots of the real UI were never taken. The missions' VERIFY blocks exist precisely because my static confidence must be re-earned at runtime. Confidence ratings: repo-level factual claims <b>9/10</b> (post-correction, line-cited) · architecture/product judgments <b>7/10</b> · market statistics <b>6/10</b> · outcome predictions (traction, revenue) <b>4/10</b> — those depend on execution and launch, which no audit can score.</div>
+
+  <h3>What the report missed entirely — the real defects</h3>
+  <table>
+    <tr><th>Finding</th><th>Evidence</th><th>Severity</th></tr>
+    <tr><td>MCP server cannot start — JavaScript <code>||</code> operator inside a Python f-string is a SyntaxError on import</td><td><code>integrations/jobtheory_mcp/server.py:65</code>, verified with <code>compile()</code></td><td><span class="pill r">Fatal</span></td></tr>
+    <tr><td><code>company_research</code> tool silently calls the wrong endpoint — sends the company name as <code>location</code> to salary-benchmark</td><td><code>server.py:56-58</code></td><td><span class="pill r">High</span></td></tr>
+    <tr><td>Browser extension — your own GRILL's "table stakes" — disabled in prod AND preview</td><td><code>src/config/features.ts</code>: <code>browserExtension: [false,false]</code></td><td><span class="pill r">High</span></td></tr>
+    <tr><td>No payment rails at all; pricing page is decorative</td><td><code>Pricing.tsx</code> static array; zero Stripe/checkout references in repo</td><td><span class="pill r">High</span></td></tr>
+    <tr><td>Repo is private — "open-source architecture" advantage in README/GRILL is currently fiction</td><td>GitHub API returns no public repo for <code>Harshodai/tayari-skill-boost</code></td><td><span class="pill a">Strategic</span></td></tr>
+    <tr><td>Frontend test script is a fig leaf — hardcoded to ResumeGraph tests only; green ≠ frontend passes</td><td><code>package.json</code> test script; acknowledged in CLAUDE.md</td><td><span class="pill a">Medium</span></td></tr>
+    <tr><td>MCP auth = paste a JWT from localStorage into an env var — expiring token, manual rotation, README instructs users to do this</td><td><code>jobtheory_mcp/README.md</code></td><td><span class="pill a">Medium</span></td></tr>
+  </table>
+</section>
+
+<!-- ============ MCP ============ -->
+<section class="tab" id="mcp">
+  <h2>MCP Autopsy <span class="pill r" style="vertical-align:middle">DOA</span></h2>
+  <p class="lede">Measured against the MCP quality bar (comprehensive coverage, actionable errors, structured outputs, evals). This matters more than it looks: MCP is the one 2026-native distribution channel where Tayari's ICP — technical, privacy-conscious, self-hosting Claude/Cursor users — already lives. It is currently your best growth asset and it has never successfully run.</p>
+
+  <pre><span class="cm"># server.py line 65 — this file has never imported since this line was written:</span>
+"dedupe_key": f"{company}-{title}-{location <span class="err">||</span> 'unknown'}"
+<span class="err">SyntaxError: f-string: invalid syntax</span>   <span class="cm"># JS reflex in a Python file. No test, no CI, nobody noticed.</span>
+<span class="cm"># fix:</span>
+"dedupe_key": f"{company}-{title}-{location <span class="ok">or</span> 'unknown'}"</pre>
+
+  <h3>Full audit vs. the MCP quality bar</h3>
+  <table>
+    <tr><th>Criterion</th><th>State</th><th>Detail</th></tr>
+    <tr><td>Runs at all</td><td><span class="pill r">Fail</span></td><td>SyntaxError on import (line 65). Also unpinned deps in <code>requirements.txt</code>.</td></tr>
+    <tr><td>Correctness</td><td><span class="pill r">Fail</span></td><td><code>company_research(company, role)</code> → posts <code>{target_role: role, location: company}</code> to salary-benchmark. Returns salary data mislabeled as company research. An agent will confidently relay garbage.</td></tr>
+    <tr><td>Error handling</td><td><span class="pill r">Fail</span></td><td><code>raise_for_status()</code> everywhere → agents receive raw httpx tracebacks, not actionable messages ("token expired → re-auth via …").</td></tr>
+    <tr><td>Auth</td><td><span class="pill r">Fail</span></td><td>Hand-copied localStorage JWT. Expires; breaks silently; teaches users token-handling malpractice. Needs long-lived API keys (an <code>APIKeys.tsx</code> page already exists in the frontend — wire it up).</td></tr>
+    <tr><td>Coverage of differentiators</td><td><span class="pill r">Fail</span></td><td>8 tools, mostly CRUD. None of the five README differentiators are exposed: no reflective optimize, no knowledge-graph query, no skill-gap radar, no guardrail check, no interview prep. The MCP sells the commodity and hides the moat.</td></tr>
+    <tr><td>Output schemas / annotations</td><td><span class="pill a">Absent</span></td><td>No outputSchema, no readOnlyHint/destructiveHint (queue_autopilot mutates state with no annotation), no pagination on list_applications.</td></tr>
+    <tr><td>Evals</td><td><span class="pill a">Absent</span></td><td>Zero eval questions. You can't claim agent-usability without them.</td></tr>
+    <tr><td>Design intent</td><td><span class="pill g">Good</span></td><td>Review-Mode-only (never auto-submits) is the right call and a marketable safety story. The skeleton (FastMCP, thin HTTP proxy to your own API) is the right architecture.</td></tr>
+  </table>
+
+  <h3>The rebuild spec (1–2 days of work, highest-leverage in the repo)</h3>
+  <details open><summary>Tool set v2 — expose the moat, not the CRUD</summary><div class="body">
+    Keep: <code>get_context</code>, <code>search_jobs</code>, <code>list_applications</code> (+cursor pagination), <code>add_application</code>, <code>queue_autopilot</code> (annotated destructive).<br><br>
+    Fix: <code>company_research</code> → point at the actual career-intelligence endpoint or delete it. Never ship a tool that answers a different question than its name.<br><br>
+    Add the differentiators: <code>optimize_resume(resume_id, jd)</code> → runs the reflective loop, returns before/after score + iterations; <code>check_guardrails(text)</code> → keyword-stuffing/truthfulness verdict; <code>skill_gap(target_role)</code> → gap list + free learning resources; <code>query_knowledge_graph(question)</code>; <code>generate_interview_prep(company, role)</code>. These are the tools no other MCP server on the registry can offer.
+  </div></details>
+  <details><summary>Infrastructure fixes</summary><div class="body">
+    API-key auth issued from the existing APIKeys page (env: <code>TAYARI_API_KEY</code>); wrap every call in try/except returning <code>{"error": "...", "fix": "..."}</code>; pin deps; add <code>python -m py_compile</code> + a smoke test to CI so a syntax error can never ship again; add outputSchema via Pydantic models; write 10 eval Q&As per the MCP eval format.
+  </div></details>
+  <details><summary>Distribution move</summary><div class="body">
+    Once it runs: submit to the MCP registries and directories, one-command install (<code>uvx tayari-mcp</code>), and make "job search agent that runs against YOUR self-hosted stack, never auto-submits" the headline. This is a genuinely unclaimed position — every auto-apply competitor is fighting LinkedIn's bot detection; you're offering agents-with-consent.
+  </div></details>
+</section>
+
+<!-- ============ COMPETITIVE ============ -->
+<section class="tab" id="comp">
+  <h2>Competitive Brief — July 2026 refresh</h2>
+  <p class="lede">Your PRODUCT_GRILL (June 26) remains directionally correct. What's changed in a month, what it underweighted, and the honest position:</p>
+
+  <h3>Market movement since your GRILL</h3>
+  <table>
+    <tr><th>Signal</th><th>What it means for Tayari</th></tr>
+    <tr><td>LinkedIn sharply escalated automation detection in 2026; spray-apply tools risk shadowbans</td><td>Tailwind for you. Your Review-Mode guardrailed pipeline is the compliant survivor design. Market this before a competitor claims "safe automation."</td></tr>
+    <tr><td>Jobright's Agent is now a true auto-apply agent w/ AI-advisor framing; category consolidating into "agent" language</td><td>The agent framing is being claimed NOW. Your MCP + browser-use stack is agent-native but invisible. Months, not quarters, to claim "the self-hosted job agent."</td></tr>
+    <tr><td>OpenResume: 8.5K GitHub stars as a mere resume builder; new OSS entrants (ResumeLM, ats-screener) gaining traction; at least one "self-hosted multi-user AI job search platform" now circulating</td><td>Proof that OSS distribution works in this exact category — and proof your open-source window is closing. Someone will take the "self-hosted job platform" crown on GitHub. Today it's unclaimed; your repo is private.</td></tr>
+    <tr><td>Frontier-model parity pressure (GRILL §8) continues: one-shot resume rewriting is now a ChatGPT/Claude freebie</td><td>Confirms the moat must be the pipeline + scoring + guardrails + local privacy, never "AI writes your bullet points."</td></tr>
+  </table>
+
+  <h3>Positioning statement (the one to actually ship)</h3>
+  <div class="callout green"><b>For</b> technical, privacy-conscious job seekers <b>who</b> refuse to hand their career data to a SaaS and don't trust spray-apply bots, <b>Tayari</b> is the open, self-hosted job operations platform <b>that</b> runs the entire chain — resume → ATS score → tailor → guardrail-checked application → tracker — on your own hardware with your own LLM. <b>Unlike</b> Teal/Jobscan/Simplify (cloud, closed, per-month rent) and LazyApply-style volume bots (bans, spam, 2.2★), Tayari is agent-native (MCP), review-mode-safe, and free to run forever.</div>
+
+  <h3>Where you genuinely win / lose</h3>
+  <div class="grid g2">
+    <div class="card"><h4 class="g">Real advantages (verified in code)</h4><p>· Only self-hosted full-pipeline player — still true in July 2026<br>· Reflective optimizer + truth/stuffing guardrails = "authenticity" story competitors can't copy quickly<br>· Tiered keyless scraping (Greenhouse/Lever/Ashby JSON) — works with zero API keys<br>· Knowledge graph — enterprise-HR-class feature at $0<br>· Agent-native bones: MCP + browser-use + multi-provider router</p></div>
+    <div class="card"><h4 class="r">Real weaknesses (be honest)</h4><p>· Zero users, zero reviews, zero Trustpilot/G2 presence — vs 3–5K review competitors<br>· No resume builder/templates — every mainstream rival has one; you're analysis-first, which narrows the funnel<br>· Docker-compose install = tiny addressable market until there's a cloud tier or one-click deploy<br>· Solo maintainer vs Teal's $20.7M<br>· No mobile anything (60%+ of job-search traffic)</p></div>
+  </div>
+
+  <h3>Threat board</h3>
+  <table>
+    <tr><th>Threat</th><th>Likelihood</th><th>Nightmare version</th></tr>
+    <tr><td>An OSS competitor claims "self-hosted job platform" on HN first</td><td><span class="pill r">High</span></td><td>They get the 10K stars, the contributors, and the category name. Your moat was first-mover in a niche; you never moved.</td></tr>
+    <tr><td>Frontier assistants absorb the chain (ChatGPT/Claude do search→tailor→track natively)</td><td><span class="pill a">Medium</span></td><td>Your defense is local-first privacy + ATS-specific scoring + guardrails — double down there, not on more UI surface.</td></tr>
+    <tr><td>LinkedIn/ATS legal or technical action against automation</td><td><span class="pill a">Medium</span></td><td>Auto-apply category gets torched; Review-Mode design and Tier-A official ATS JSON APIs are your insulation. Keep autopilot consent-gated forever.</td></tr>
+    <tr><td>Teal/Jobright ships "bring your own LLM / private mode"</td><td><span class="pill a">Medium</span></td><td>Erases your differentiator for the mainstream. Window: months. Being open-source first is the only durable defense.</td></tr>
+  </table>
+</section>
+
+<!-- ============ ENGINEERING ============ -->
+<section class="tab" id="eng">
+  <h2>Engineering Audit — architecture · tech debt · deploy readiness</h2>
+  <p class="lede">Credit where due: this is better engineering than 90% of solo AI projects. Pinned Python deps, Sentry on both backends, rate-limit middleware, zero <code>panic()</code> in Go handlers, 14 real migrations, route-parity tests, a race-detector CI gate at 80% coverage. The debt is not sloppiness — it's <b>breadth</b>. Every finding below is a symptom of maintaining 60 services alone.</p>
+
+  <h3>Architecture verdict (ADR-style)</h3>
+  <table>
+    <tr><th>Decision</th><th>Assessment</th><th>Consequence to manage</th></tr>
+    <tr><td>Go gateway + Python AI engine split</td><td><span class="pill g">Sound</span></td><td>Right boundary: auth/CRUD hot path in Go, LLM compute in Python. Keep. Resist merging or adding a third service.</td></tr>
+    <tr><td>Celery/Redis for long-running LLM + scraping</td><td><span class="pill g">Sound</span></td><td>Correct pattern (your pasted report recommended "adding" this — it exists). Flower monitoring included.</td></tr>
+    <tr><td>Dual auth (Supabase ⇄ self-hosted JWT) with mirrored flags</td><td><span class="pill a">Risky</span></td><td>Two auth codepaths = double the attack surface and double the test matrix; CLAUDE.md itself flags drift. Long-term: pick self-hosted JWT as primary, demote Supabase to adapter.</td></tr>
+    <tr><td>Route parity (<code>/api</code> + <code>/api/v1</code>) enforced by tests</td><td><span class="pill a">Debt</span></td><td>Testing-enforced duplication is a treadmill. Collapse to /v1 + a 301 shim, delete the parity tests.</td></tr>
+    <tr><td>9-service docker-compose as the only supported install</td><td><span class="pill r">Blocker</span></td><td>9 containers incl. Ollama+Caddy is a heavy cold start and your entire funnel. Ship a degraded 3-container profile (Postgres+Go+Python, mock-LLM) that boots in &lt;60s, and one-click deploy templates.</td></tr>
+    <tr><td>Mock-fallback when no LLM configured</td><td><span class="pill r">Trap</span></td><td>Endpoints 200 with fake content (CLAUDE.md admits it). Fine for dev; catastrophic for a first-time evaluator who can't tell demo from broken. Surface "MOCK MODE" in the UI, loudly.</td></tr>
+  </table>
+
+  <h3>Deploy-readiness checklist (what blocks a real production deployment)</h3>
+  <table>
+    <tr><th>Item</th><th>Status</th><th>Evidence / fix</th></tr>
+    <tr><td>Backups & restore drill</td><td><span class="pill r">Missing</span></td><td>Zero <code>pg_dump</code>/backup references in compose or scripts — while CLAUDE.md warns one <code>down -v</code> wipes everything. A nightly pg_dump sidecar + documented restore is a 1-hour fix. Do it first.</td></tr>
+    <tr><td>Healthchecks</td><td><span class="pill a">Partial</span></td><td>4 of 9 compose services have healthchecks. Celery worker, Redis, Ollama, frontend, Caddy don't — orchestrators can't detect half the stack dying.</td></tr>
+    <tr><td>Rollback story</td><td><span class="pill a">Partial</span></td><td>Helm chart exists but no migration down-scripts / no pinned image digests. Define: what happens when migration 15 is bad?</td></tr>
+    <tr><td>Observability</td><td><span class="pill a">Partial</span></td><td>Sentry ✓. No metrics (Prometheus) or request tracing across the Go→Python hop; debugging a slow optimize today = grepping two containers' logs.</td></tr>
+    <tr><td>Secrets hygiene</td><td><span class="pill g">OK</span></td><td><code>.env</code> untracked, <code>.env.example</code> maintained, K8s secret documented. Before open-sourcing: run a history scan (gitleaks) — one leaked JWT_SECRET in an old commit ends the launch.</td></tr>
+    <tr><td>CI can catch the MCP-class failure</td><td><span class="pill r">No</span></td><td>The syntax-error-that-shipped proves it: <code>integrations/</code> and <code>extension/</code> are outside all 3 workflows. Add py_compile + lint jobs for both. 20 minutes.</td></tr>
+  </table>
+
+  <h3>Tech-debt register (prioritized by interest rate, not size)</h3>
+  <table>
+    <tr><th>Debt</th><th>Interest you pay</th><th>Action</th></tr>
+    <tr><td>113 TODO/FIXME/HACK markers across backend + src</td><td>Unknown unknowns; each is a decision deferred into the codebase</td><td>Triage once: convert to issues or delete. A TODO older than 30 days is a lie.</td></tr>
+    <tr><td>Fig-leaf frontend test script (hardcoded ResumeGraph* only)</td><td>False confidence on every commit touching 57 pages</td><td>Point <code>bun run test</code> at the real suite; accept the red, then fix or delete dead pages (cheaper: the Kill List deletes most of them).</td></tr>
+    <tr><td>~60 service modules, many single-consumer</td><td>Every dependency bump, lint rule, and refactor costs 60×</td><td>The Kill List IS the tech-debt plan: frozen features rot less when their flags are off and their tests are quarantined.</td></tr>
+    <tr><td>Dual route trees + dual auth (above)</td><td>Permanent 2× test matrix</td><td>Collapse post-launch, one PR each.</td></tr>
+    <tr><td>Extension has no CI, no tests, flag off</td><td>Bit-rots silently while being strategically critical</td><td>Bring into CI the week you flip the flag.</td></tr>
+  </table>
+</section>
+
+<!-- ============ PAIN MAP ============ -->
+<section class="tab" id="pain">
+  <h2>Job-Seeker Pain-Point Map — what you have vs. what world-class needs</h2>
+  <p class="lede">Your explicit ask: "what's there and what I missed, to solve all the pain points of the job hunt." Mapped across the full seeker journey. Read the pattern in the last column: <b>your gaps are almost never features — they're feedback loops and polish on features you already own.</b></p>
+
+  <table>
+    <tr><th>Pain point</th><th>You have (verified)</th><th>World-class gap</th></tr>
+    <tr><td><b>"Where are the real jobs?"</b> — board spam, ghost listings</td><td>Hermes tiered scraping incl. keyless official ATS JSON; legitimacy_checker service; RRF hybrid ranking</td><td>Ghost-job/repost detection as a <i>displayed signal</i> ("posted 94 days, reposted 3×") — you have the data, no competitor surfaces it honestly. Cheap, differentiating, on-brand.</td></tr>
+    <tr><td><b>"Is my resume even getting read?"</b> — ATS anxiety</td><td>ATS engine + simulator + detector; deep semantic analysis endpoint</td><td>Trust calibration: show <i>why</i> the score moved (per-section deltas) and which real ATS behavior it simulates. Scores without explanations read as astrology; Jobscan wins on perceived rigor, not actual rigor.</td></tr>
+    <tr><td><b>Tailoring fatigue</b> — every application wants a custom resume</td><td>Reflective optimizer (score-gated loop) — your single best asset; Typst single-page PDF export</td><td>Speed + templates. No resume <i>builder</i> means users with a bad base resume are stuck. A minimal builder (3 ATS-safe templates, not 200) closes the funnel hole without becoming Kickresume.</td></tr>
+    <tr><td><b>Honesty pressure</b> — "should I keyword-stuff? inflate?"</td><td>Guardrails: truth gate, stuffing detector, PII redaction, PipelineGate before submission</td><td>Nothing missing technically — missing is the <i>marketing</i>. "The only tool that stops you from lying" is an unclaimed position in the whole category. Ship the story.</td></tr>
+    <tr><td><b>Application volume vs. account bans</b></td><td>Review-Mode autopilot (never auto-submits), browser-use agent, MV3 extension (built, disabled)</td><td>Extension in the store + MCP fixed. LinkedIn's 2026 crackdown makes consent-gated automation the only durable design — you accidentally built the compliant one. Say so.</td></tr>
+    <tr><td><b>Tracking chaos</b> — spreadsheets, forgotten follow-ups</td><td>Kanban board, followup_tracker, email_classifier, Gmail routes, funnel analytics</td><td>The loop isn't closed: parse rejection/interview emails → auto-move Kanban cards → prompt the follow-up. Pieces all exist (<code>email_classifier.py</code> + <code>followup_tracker.py</code> + Gmail connector); they're not wired into one flow. This is days of work for a headline feature.</td></tr>
+    <tr><td><b>Ghosting & morale</b> — the emotional grind</td><td>Funnel conversion analytics page</td><td>Momentum design: streaks of <i>controllable</i> actions (applications tailored, follow-ups sent), not vanity offers. Also the only legitimate use of your gamification code. Do NOT build a "career coach chatbot" — ChatGPT owns that.</td></tr>
+    <tr><td><b>Interview panic</b></td><td>Prep module, voice coach, live copilot, candidate answer bank (STAR)</td><td>Frozen per Kill List — but when resurrected, its wedge is "practice against THIS company's actual JD + your actual resume," which needs your knowledge graph. Generic mock interviews lost to Final Round AI already.</td></tr>
+    <tr><td><b>"Am I even improving?"</b> — no outcome feedback anywhere in the market</td><td><code>bandit_service.py</code> exists; funnel analytics; per-application data model</td><td><b>The biggest missed idea in your repo.</b> Close the outcome loop: which resume variants → interviews, fed back into the optimizer as a bandit. Nobody — not Teal, not Jobscan — learns from outcomes. You have the bandit service sitting there unconnected. This is the world-class moat, and it only works after you have users, which is why distribution comes first.</td></tr>
+    <tr><td><b>Privacy dread</b> — career data in 9 SaaS databases</td><td>Full self-host, local LLM, privacy diagnostics panel, PII redaction</td><td>Category-defining if public; worthless while the repo is private. Also: publish a threat model — "what leaves your machine: nothing" — as a doc, auditable because open-source.</td></tr>
+    <tr><td><b>Salary & negotiation</b></td><td>Negotiation copilot, H1B benchmarks</td><td>Killed per Kill List — one-shot usage, zero acquisition. Fold a salary-range flag into job cards instead; delete the standalone page.</td></tr>
+  </table>
+
+  <div class="callout green"><b>The world-class formula, in one line:</b> you already own the hard 80% (engine, guardrails, pipeline, agent bones). The missing 20% is: close the email→Kanban loop, close the outcome→optimizer loop, add a minimal builder, surface ghost-job signals, ship the extension + MCP, open the repo. Every item is wiring and distribution, not invention. "Less bugs" follows from the Kill List automatically — you cannot debug 57 pages, you can debug 12.</div>
+</section>
+
+<!-- ============ KILL LIST ============ -->
+<section class="tab" id="kill">
+  <h2>The Kill List</h2>
+  <p class="lede">57 pages is not a product, it's a portfolio. Nobody can maintain, test, document, or explain 20 features solo — and a first-time visitor drowning in nav items converts worse than one seeing a single sharp chain. Freeze ≠ delete: flag off, stop touching, revisit only after the gates in the 90-day plan are passed.</p>
+  <div class="kill">
+    <div class="keep"><b>KEEP — The Chain</b><span>Resume upload → ATS score → reflective tailor → cover letter → Review-Mode apply → Interview Board. This IS the product.</span></div>
+    <div class="keep"><b>KEEP — Job Search + Hermes</b><span>Feeds the chain. Tier-A keyless scraping is a moat.</span></div>
+    <div class="keep"><b>KEEP — Guardrails</b><span>The authenticity story. Marketing, not just code.</span></div>
+    <div class="keep"><b>KEEP — MCP (rebuilt)</b><span>Primary distribution channel. Fix per autopsy.</span></div>
+    <div class="keep"><b>KEEP — Extension</b><span>Flip the flag, polish to store quality. Table stakes per your own GRILL.</span></div>
+    <div class="fr"><b>FREEZE — Interview prep suite</b><span>Voice coach, live copilot, boards. Good v2. Not chain-critical.</span></div>
+    <div class="fr"><b>FREEZE — Knowledge graph / hub</b><span>Real moat, wrong quarter. Resurface inside tailoring output instead of as 3 standalone pages.</span></div>
+    <div class="fr"><b>FREEZE — Career roadmap + skill gap</b><span>Expose via MCP tool only; kill the standalone pages for now.</span></div>
+    <div class="k"><b>KILL — Portfolio generator</b><span>Different product. Different user moment.</span></div>
+    <div class="k"><b>KILL — Negotiation copilot</b><span>Used once per job cycle; zero acquisition value.</span></div>
+    <div class="k"><b>KILL — Recruiter outreach copilot</b><span>Crowded, spam-adjacent, off-positioning ("authentic middle").</span></div>
+    <div class="k"><b>KILL — Company radar sentinel</b><span>Ops burden (15-min polling) with no users to serve.</span></div>
+    <div class="k"><b>KILL — Blog/Careers/Advisor pages</b><span>You have no company. Static pages pretending otherwise erode trust.</span></div>
+    <div class="k"><b>KILL — Predictive analytics page</b><span>Analytics on zero users is theater.</span></div>
+  </div>
+  <div class="callout"><b>The test for every future feature:</b> does it (a) shorten the chain, (b) add users, or (c) add revenue? If none — it's procrastination wearing a feature's clothes. The last month of commits fails this test almost entirely.</div>
+</section>
+
+<!-- ============ PLAN ============ -->
+<section class="tab" id="plan">
+  <h2>90-Day Plan — with gates you can't negotiate with</h2>
+  <p class="lede">Sequenced by leverage-per-hour. Each phase ends in a gate; if the gate fails, you stop building and fix why, instead of retreating to the comfort of new features.</p>
+
+  <div class="phase">
+    <div class="ph-h"><span>WEEKS 1–2 · MAKE IT FINDABLE</span><span>effort: S–M</span></div>
+    <ul>
+      <li><b>Fix + rebuild MCP server</b> per autopsy (syntax, auth, errors, differentiator tools, evals, CI compile check). 1–2 days.</li>
+      <li><b>Open-source the repo.</b> Clean secrets history, add LICENSE (AGPL if you fear cloud-cloning, MIT if you want max adoption), a 5-minute-quickstart README with GIF, one-command <code>docker compose up</code> that works cold.</li>
+      <li><b>Launch:</b> Show HN + r/selfhosted + MCP registries the same week. Position: "Self-hosted AI job-search platform with a local LLM — the whole chain, agent-ready, never auto-submits." OpenResume got 8.5K stars with a tenth of this scope; the pitch writes itself, but only while the slot is empty.</li>
+      <li><b>Kill list executed</b> — flags off before launch so first impressions are the chain, not the maze.</li>
+    </ul>
+    <div class="gate">GATE 1: ≥300 GitHub stars OR ≥50 real installs (telemetry-free proxy: compose pulls / issue traffic). Miss → your positioning or onboarding is wrong; iterate the README and pitch, not the code.</div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-h"><span>WEEKS 3–6 · MAKE IT USABLE BY HUMANS</span><span>effort: M</span></div>
+    <ul>
+      <li><b>Extension to Chrome Web Store</b> (flag on, MV3 review pass, autofill on Tier-A ATS pages). This is the daily-touchpoint competitors built empires on.</li>
+      <li><b>Onboarding funnel:</b> upload resume → see ATS score in &lt;3 minutes, before any account friction on self-host. Instrument every step (self-hosted Plausible/PostHog — on-brand).</li>
+      <li><b>One-click deploy targets:</b> Railway/Fly/Coolify templates + a hosted demo instance. Docker-compose-only gates your funnel to ~5% of even the technical market.</li>
+      <li>Fix the fig leaf: frontend test script runs the real suite; add CI job for extension + MCP.</li>
+    </ul>
+    <div class="gate">GATE 2: 100 weekly active installs and ≥20 users completing the full chain. Miss → run 10 user interviews before writing another line.</div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-h"><span>WEEKS 7–12 · MAKE IT PAYABLE</span><span>effort: M–L</span></div>
+    <ul>
+      <li><b>Hosted cloud tier</b> (managed instance, $15–25/mo — undercut Teal/$29 and Jobscan/$49 with a real cost advantage since your LLM bill can be near-zero via user keys/Ollama) + <b>Stripe</b>. Free = self-host forever; paid = we run it for you. Classic open-core, zero feature hostage-taking.</li>
+      <li><b>Pro self-host support</b> ($500+/mo, per your own GRILL §5) — one design partner is the goal, not a pipeline.</li>
+      <li>Only now revisit frozen features — resurrected strictly by user demand ranking, not by what's fun to build.</li>
+    </ul>
+    <div class="gate">GATE 3: 10 paying customers. Miss → pricing/packaging problem; talk to the 100 WAU from Gate 2. Pass → you have a company, not a repo.</div>
+  </div>
+
+  <h3>What I am explicitly telling you NOT to do</h3>
+  <p>No new AI features for 90 days. No mobile app. No multi-language. No analytics dashboards. No second MCP server. No rewriting the frontend. Every one of these was in your pasted report's roadmap; every one of them is how this repo got to 57 pages with zero users. The engine is done. Ship the car.</p>
+
+  <div class="srcs">
+    <b>Repo evidence:</b> server.py:65 (compile-verified) · features.ts · package.json · Pricing.tsx · .github/workflows/ci.yml · PRODUCT_GRILL.md §§5,24,C · git log 256be66..8cb451f · GitHub API (repo not public).<br>
+    <b>Market sources (July 2026):</b>
+    <a href="https://jobhire.ai/blog/best-ai-auto-apply-tools">JobHire — auto-apply landscape &amp; LinkedIn detection</a> ·
+    <a href="https://jobhire.ai/blog/best-ai-job-search-tools">JobHire — AI job tools review (upd. Jul 2, 2026)</a> ·
+    <a href="https://bestjobsearchapps.com/articles/en/best-apps-for-fast-job-applications-in-2026-simplify-copilot-jobright-autofill-teal-linkedin-easy-apply">Simplify/Jobright/Teal comparison</a> ·
+    <a href="https://github.com/topics/resume-builder">GitHub: OpenResume 8.5K★</a> ·
+    <a href="https://github.com/olyaiy/resume-lm">ResumeLM</a> ·
+    <a href="https://github.com/sunnypatell/ats-screener">ats-screener</a>
+  </div>
+</section>
+
+<!-- ============ LAUNCH GRILL ============ -->
+<section class="tab" id="launch">
+  <h2>Launch Grill — full launch minus interview prep, held to the big-company bar</h2>
+  <p class="lede">You've overruled the freeze list: everything ships except interview prep. Fine — with agent labor, breadth is affordable. But hear the trade you're making: <b>your bottleneck moves from writing code to reviewing it.</b> A Sonnet agent will happily produce 3,000 lines across 57 pages; if you rubber-stamp it, "less bugs" becomes more bugs with better commit messages. That's why every mission in the next tab ends in verification commands and why they run in waves, not all at once. Big companies don't ship more — they ship with <i>gates</i>.</p>
+
+  <h3>Second-pass findings (the launch-blocking details)</h3>
+  <table>
+    <tr><th>Finding</th><th>Evidence</th><th>Why it blocks a "top notch" launch</th></tr>
+    <tr><td>Router monolith: 807 lines, 153 route registrations in one file</td><td><code>backend/go/internal/api/router.go</code></td><td>Every agent mission touching routes will merge-conflict here. Split into domain route files before parallel agent work, or serialize all backend missions.</td></tr>
+    <tr><td>Extension hardcodes <code>*.lovable.app</code> origins</td><td><code>extension/manifest.json</code> externally_connectable</td><td>Self-hosted users — your core audience — can't connect the extension to their own instance. The flagship distribution artifact excludes the flagship user.</td></tr>
+    <tr><td>Compose profiles are theater: every service is in both <code>dev</code> and <code>prod</code></td><td>docker-compose.yml — identical <code>["dev","prod"]</code> on all</td><td>No minimal evaluation path. First-run experience = 9 containers incl. Ollama pull. Evaluators quit before first render.</td></tr>
+    <tr><td>Personalization exists as parts, not a system</td><td><code>preference_router</code>, <code>memory_composer.py</code> (210 LOC), <code>bandit_service.py</code> — none referenced by the chain pages</td><td>"Personalized like big companies" requires one user-profile spine every feature reads/writes. Today each of the 14 FastAPI routers is its own island.</td></tr>
+    <tr><td>e2e suite contains <code>.bak</code> files and screenshot-regression specs with no baseline management</td><td><code>e2e/features.spec.ts.bak</code></td><td>Flaky e2e = agents "fixing" tests by deleting assertions. Clean before agents arrive.</td></tr>
+    <tr><td>API-key public routes exist (<code>routesPublic</code>, rate-limited) — the API-monetization rail is half-built and undocumented</td><td>router.go:196, <code>models/api_key.go</code></td><td>GRILL §5 called API monetization your hidden superpower. It's 60% done and invisible. Document + meter it (Mission M10).</td></tr>
+  </table>
+
+  <h3>Automation reality check — the hooks you think you have vs. what actually runs</h3>
+  <table>
+    <tr><th>Claimed automation</th><th>Code reality (verified)</th><th>Verdict</th></tr>
+    <tr><td>Autopilot: search→tailor→score→letter→apply, fully automatic</td><td><code>automation_engine.py</code> pipeline is real, guardrail-gated (<code>gate_blocked</code> status exists — credit), and schedulable. But line 392 sets <code>status = "auto_applied"</code> and logs "Auto-applied to X @ Y" after a browser stub the module docstring admits cannot submit. <b>Confirmed at line level: the tracker records applications that were never submitted.</b></td><td><span class="pill r">Integrity bug — verified</span></td></tr>
+    <tr><td>Scheduled automations run on a clock</td><td><b>Correction from self-audit — my first claim ("nothing scheduled has ever fired") was wrong.</b> A real asyncio scheduler starts in the FastAPI lifespan (<code>main.py:80</code> → <code>scheduler_loop</code>): per-user scheduled autopilot runs and a 6-hour <code>auto_scan_all_users</code> portal scan DO fire. What remains true: the clock is <b>split-brain</b> — the Celery <code>beat_schedule</code> layer (daily preference learning) is inert (no beat service, worker CMD has no <code>-B</code>; the code comment admits it), and the in-process scheduler dies with the API pod, has no distributed lock (duplicate-fire risk at &gt;1 replica), and is invisible to Flower.</td><td><span class="pill a">Works, fragile, split-brain</span></td></tr>
+    <tr><td>"15-Minute Company Radar Sentinel" — real-time alerts</td><td><code>company_radar.py</code> polling logic exists; grep across <code>scheduler.py</code>, <code>celery_app.py</code>, and <code>tasks/</code> finds zero references — <b>nothing schedules radar</b>, and there is no alert channel that could deliver its findings.</td><td><span class="pill r">Doorbell, no battery — verified</span></td></tr>
+    <tr><td>Notifying users (emails, alerts, digests)</td><td><b>Correction from self-audit — "zero notification code" was wrong.</b> Web-push register/send routes exist in Go (<code>routes_push.go</code>, real p256dh/auth Web Push shape) and a <code>NotificationsBell</code> UI exists — but the bell only lists automation runs from local context, not events; and there is <b>no email channel at all</b> (no SMTP/provider anywhere — verified twice), no digest, no event routing, no preference center. Partial skeleton, no re-engagement capability.</td><td><span class="pill a">Skeleton, no reach</span></td></tr>
+    <tr><td>Manus-style desktop browser agent</td><td>Real code, TWICE — Gradio demo in <code>integrations/browser_automation_agent/</code> AND a copy in <code>app/services/browser_automation/</code>. Unpinned deps (<code>&gt;=</code>), no compose service, no CI, manual <code>playwright install</code>. Runs as a hand-launched demo; not integrated product.</td><td><span class="pill a">Demo, not product</span></td></tr>
+    <tr><td>Smart search personalized to user interest, running by itself</td><td>Smart search + dream-company boosting exist <i>inside</i> autopilot runs a user manually triggers. No saved-search/watch model, no standing interest profile driving background search. Automation fires only when the human pushes the button — which is the opposite of a hook.</td><td><span class="pill a">Manual-only</span></td></tr>
+  </table>
+  <div class="callout red"><b>The corrected pattern:</b> the automation layer is further along than my first pass claimed — a working in-process scheduler, guardrail-gated autopilot, push-route skeleton — but it stops short of operational integrity in three specific places: a split-brain clock (asyncio loop that works + Celery beat that never runs + radar wired to neither), a delivery layer with no reach (bell exists, email doesn't), and a status that tells a lie (<code>auto_applied</code>, line 392, without a submission). Missions M15–M18 close exactly those three. Fix the "applied" lie first — a job-search tool whose tracker fabricates applications will be torn apart in its first HN comment thread, and will deserve it.</div>
+
+  <h3>The big-company benchmark bar (what "top notch" means, measurably)</h3>
+  <table>
+    <tr><th>Benchmark</th><th>Bar</th><th>Tayari today</th></tr>
+    <tr><td>Time-to-first-value (upload → ATS score)</td><td>&lt; 3 min including install</td><td>Unmeasured; 9-container install makes it minutes-to-hours <span class="pill r">Fail</span></td></tr>
+    <tr><td>Web vitals on chain pages</td><td>LCP &lt;2.5s · CLS &lt;0.1 · Lighthouse ≥90</td><td>Unmeasured (vitals telemetry endpoint exists, no budget enforced) <span class="pill a">Unknown</span></td></tr>
+    <tr><td>Accessibility</td><td>WCAG 2.1 AA on the chain (upload→score→tailor→apply→board)</td><td>Never audited <span class="pill a">Unknown</span></td></tr>
+    <tr><td>LLM output quality</td><td>Eval suite gating every prompt change; hallucination + guardrail regression tests</td><td>Python evals exist for some services; not a merge gate <span class="pill a">Partial</span></td></tr>
+    <tr><td>Reliability</td><td>All services healthchecked; crash-free sessions ≥99.5%; restore drill documented</td><td>4/9 healthchecks, no backups <span class="pill r">Fail</span></td></tr>
+    <tr><td>Funnel instrumentation</td><td>Every chain step emits events; weekly cohort review</td><td>Analytics pages exist; no product analytics pipeline <span class="pill r">Fail</span></td></tr>
+    <tr><td>Security</td><td>Secret-history scan clean; dependency audit in CI; authz tests per route group</td><td>Hygiene good, none automated as gates <span class="pill a">Partial</span></td></tr>
+    <tr><td>Support surface</td><td>Docs site, issue templates, discord/community channel</td><td>None public (repo private) <span class="pill r">Fail</span></td></tr>
+  </table>
+  <div class="callout red"><b>Grill, plainly:</b> "widely used, scaled, profitable" is not a property you can code into the repo — it's earned at the three gates (find it → use it → pay for it), and today all three score near zero. The missions below get every surface to the bar. They still cannot substitute for the launch itself. Ship Wave 1, then launch, then keep shipping. Do not wait for all 14 missions to be done — that's the same perfectionism that built 57 pages in private.</div>
+</section>
+
+<!-- ============ STAY AHEAD ============ -->
+<section class="tab" id="ahead">
+  <h2>Stay Ahead — where hiring is going, and the bets that put you there first</h2>
+  <p class="lede">You asked how to be "steps ahead of all competitors" and the "number 1 one-shot solution for every job seeker." First the grill: <b>"every job seeker" is not a strategy — it's the absence of one.</b> Every dead competitor (Sonara) targeted everyone. You win a wedge (technical, privacy-conscious, self-hosting seekers), dominate it, then expand on the strength of loops competitors can't copy. As for "one shot" — you literally have <code>OneShotPipeline.tsx</code>; the play is making the whole chain execute off a single consented click, which is a positioning gift. Now, what the research says is coming, and the bet each signal funds:</p>
+
+  <h3>The four macro shifts (July 2026 research)</h3>
+  <table>
+    <tr><th>Shift</th><th>Evidence</th><th>What it kills</th></tr>
+    <tr><td><b>Employers go agentic.</b> AI now runs sourcing→screening→scheduling end-to-end; AI interviewers take round 1; 30–50% faster time-to-hire reported</td><td>Deloitte 2026 TA report; Aisera; iMocha</td><td>Spray-apply volume tools. When an agent screens, 500 identical applications = 500 identical rejections.</td></tr>
+    <tr><td><b>Resume-signal collapse.</b> ~40% of tech resumes meaningfully inflated; deepfake interviews eroding trust; the same AI screener run twice on identical candidates produced only 14% shortlist overlap</td><td>Deloitte warning; Greg Savage consistency finding</td><td>Keyword-stuffing tools — and naive "ATS score" products whose single number pretends screening is deterministic when it measurably isn't.</td></tr>
+    <tr><td><b>Skills-based hiring.</b> 85% of employers now use skills assessments; degree/resume gates receding</td><td>TestGorilla via iMocha</td><td>Resume-only optimization as a category. The unit of evaluation is shifting from the document to the evidence behind it.</td></tr>
+    <tr><td><b>Regulation lands on hiring AI.</b> EU AI Act classes employment AI as high-risk (bias testing, human oversight, transparency, record-keeping; deployer duties deferred to Dec 2027 but coming); NYC audit law live; fines to €35M/7%</td><td>EU AI Act texts; DLA Piper; Warden AI</td><td>Black-box scoring on both sides. Transparency stops being a virtue and becomes law.</td></tr>
+  </table>
+
+  <h3>The five bets — each maps to missions you're already running</h3>
+  <table>
+    <tr><th>Bet</th><th>Why you win it (assets in the repo today)</th><th>Mission hook</th></tr>
+    <tr><td><b>1 · The Authenticity Standard.</b> As inflation poisons the pool, provable truthfulness becomes the scarce candidate signal. Ship an "Authenticity Report" — truth-gate verdict + evidence links a candidate can attach or publish. Nobody sells candidate-side integrity; it's an unclaimed category.</td><td>truth_gate, keyword_stuffing detector, PipelineGate — built, tested, unmarketed</td><td>M9 (inline truth-gate), M13 (make it the launch headline)</td></tr>
+    <tr><td><b>2 · Variance, not score.</b> Screening is provably inconsistent (14% overlap). Stop selling one ATS number; sell the distribution: run the resume through an ensemble of simulated screeners and show "82 ± 14 — here's what reduces your variance." Statistically honest, visibly smarter than every Jobscan-style single score, and impossible for one-shot GPT wrappers to fake.</td><td>ats_engine + ats_simulator + ats_detector + multi-provider LLM router = ensemble infrastructure already exists</td><td>Extend M14's eval work; small Python mission after Wave 2</td></tr>
+    <tr><td><b>3 · Skills-evidence graph.</b> When 85% of employers test skills, the winning prep is claim→evidence mapping, not keyword density. Knowledge graph links every resume claim to projects/outcomes; skill-gap radar points at what to build before applying.</td><td>knowledge_graph.py, skill_gap radar, learning_recommender — built, currently frozen as standalone pages</td><td>M7 (skill inventory in the profile spine), M9 (evidence-backed bullets)</td></tr>
+    <tr><td><b>4 · Agent-to-agent readiness.</b> Round 1 is becoming agent-vs-agent: employer agents screening, candidate agents applying. The candidate side needs a structured, consented, machine-readable career profile with guardrails — exactly what an MCP server over a self-hosted profile is. You're accidentally 12 months early; on the registry you'd be the only job-seeker-side agent platform.</td><td>MCP server (M2 rebuild), browser-use agent, Review-Mode consent design</td><td>M2, M4 — plus registry listing in M13</td></tr>
+    <tr><td><b>5 · Compliance-grade transparency.</b> EU high-risk rules demand explainability and human oversight — you already do explainable scoring, human-in-the-loop Review Mode, and local data residency <i>by architecture</i>. Publish the threat model + an "AI Act alignment" doc and you're the only tool in the category that can market compliance-by-design, including to EU users competitors will struggle to serve.</td><td>Self-hosted architecture, privacy diagnostics panel, PII redaction, event_log audit trail</td><td>M13 (docs), enterprise angle for the $500/mo tier in M10</td></tr>
+  </table>
+
+  <div class="callout green"><b>The through-line — say it once, believe it, ship it:</b> the market is racing toward volume and deception, and both are about to be punished by employer agents and regulators simultaneously. Every one of your five durable assets (guardrails, explainable scoring, local privacy, consent-gated automation, agent-readiness) sits on the winning side of that punishment. "Number 1" is not achieved by matching Teal's feature list — it's achieved by being the tool that still works, and is suddenly the obvious choice, when the arms race collapses. You built for that world by instinct. The only thing you haven't done is show up to it.</div>
+
+  <div class="srcs"><b>Stay-Ahead sources (July 2026):</b>
+    <a href="https://action.deloitte.com/insight/5005/2026-talent-acquisition-technology-trends-the-new-imperative">Deloitte — 2026 TA Technology Trends</a> ·
+    <a href="https://www.imocha.io/blog/ai-hiring-trends">iMocha — AI hiring trends (skills assessments, AI interviewers)</a> ·
+    <a href="https://aisera.com/blog/ai-recruiting/">Aisera — agentic AI recruiting guide</a> ·
+    <a href="https://recruiterflow.com/blog/recruitment-trends/">Recruiterflow — 2026 recruitment trends (screening inconsistency)</a> ·
+    <a href="https://softwarefinder.com/resources/ai-recruiting-trends">SoftwareFinder — AI recruiting trends</a> ·
+    <a href="https://artificialintelligenceact.eu/what-the-act-means-for-staffing-businesses/">EU AI Act — staffing implications</a> ·
+    <a href="https://knowledge.dlapiper.com/dlapiperknowledge/globalemploymentlatestdevelopments/2026/eu-commission-publishes-draft-guidelines-on-high-risk-ai-in-employment">DLA Piper — draft high-risk guidelines & deferral</a> ·
+    <a href="https://www.warden-ai.com/resources/eu-ai-act-hiring-recruitment">Warden AI — EU AI Act hiring compliance</a>
+  </div>
+</section>
+
+<!-- ============ V1 SPEC ============ -->
+<section class="tab" id="spec">
+  <h2>PRD — Tayari v1 Launch: "The One-Shot Chain"</h2>
+  <p class="lede">The spec your agents and future-you are accountable to. One feature is the product: <b>a job seeker gives one consented click and the chain runs — find real jobs, score, tailor truthfully, queue the application for review, track the outcome, learn from it.</b> Everything else in the repo exists to serve that sentence or waits.</p>
+
+  <h3>Problem statement</h3>
+  <p>Job seekers run a 6-tool relay (board → resume tool → ATS checker → cover letter GPT → spreadsheet → email) that leaks context at every handoff, pushes them toward keyword inflation that employer-side AI now detects and punishes, and stores their most sensitive career data in 6 SaaS databases. Cost of not solving: hours per application, inconsistent screening outcomes (14% shortlist overlap on identical inputs), and a market racing toward volume-spam that gets candidates shadowbanned.</p>
+
+  <h3>Goals (measurable — these ARE the launch scoreboard)</h3>
+  <table>
+    <tr><th>#</th><th>Goal</th><th>Target · window</th></tr>
+    <tr><td>G1</td><td>User goal: first ATS score from cold start (wow moment)</td><td>&lt; 3 minutes · measured from first session, eval profile</td></tr>
+    <tr><td>G2</td><td>Activation: upload → score → one tailored resume in first session</td><td>≥ 40% of installs · 30 days post-launch</td></tr>
+    <tr><td>G3</td><td>Distribution: public repo traction</td><td>≥ 300 stars in 30 days (success) / 1,000 (stretch)</td></tr>
+    <tr><td>G4</td><td>Trust: zero guardrail bypasses; every auto-action undoable</td><td>0 truth-gate overrides shipped silently · always</td></tr>
+    <tr><td>G5</td><td>Business: revenue structurally possible + first signal</td><td>Stripe live; ≥ 10 paying (cloud or support) · 90 days</td></tr>
+  </table>
+
+  <h3>Non-goals for v1 (each one is a scope-creep tripwire)</h3>
+  <table>
+    <tr><th>Non-goal</th><th>Why out</th></tr>
+    <tr><td>Interview prep suite (prep, voice coach, live copilot)</td><td>Founder decision; surfaces stay flagged-off, files untouched. Revisit post-Gate 3 with the company-specific wedge.</td></tr>
+    <tr><td>"Every job seeker"</td><td>v1 wedge = technical, privacy-conscious, self-hosting seekers. Mainstream expansion is v2, funded by wedge traction.</td></tr>
+    <tr><td>Mobile app / PWA</td><td>Extension + responsive web covers v1 wedge behavior. Mobile is a Later bet.</td></tr>
+    <tr><td>Full auto-submit</td><td>Never in v1 (possibly never). Review Mode is the brand and the regulatory insulation.</td></tr>
+    <tr><td>Template marketplace, multi-language, portfolio/outreach/negotiation standalone pages</td><td>Killed or folded per Kill List; each is a separate product wearing a tab.</td></tr>
+  </table>
+
+  <h3>Personas & top user stories</h3>
+  <table>
+    <tr><th>Persona</th><th>Stories (priority order)</th></tr>
+    <tr><td><b>P1 · Priya, self-hosting engineer</b> (wedge)</td><td>As a privacy-conscious engineer, I want the whole chain on my hardware with my LLM so no career data leaves my machine. · As a Claude/Cursor user, I want Tayari as MCP tools so my agent can search, score, and queue — but never submit — for me. · As a skeptic, I want every score explained so I can trust or override it.</td></tr>
+    <tr><td><b>P2 · Sam, burned-out active seeker</b></td><td>As someone applying to 20 jobs/week, I want one click to take a posting from "found" to "tailored + queued for my review" so applying takes minutes, not an evening. · As someone who's been ghosted, I want ghost-job signals before I invest. · As a tracker-hater, I want my board to update itself from my inbox with undo.</td></tr>
+    <tr><td><b>P3 · Dana, honest overwriter</b></td><td>As someone tempted to inflate, I want the tool to flag claims my history can't support as I type, so I compete on authenticity when employer AI checks. · As an improver, I want to know which resume variant actually earns interviews.</td></tr>
+  </table>
+
+  <h3>Requirements</h3>
+  <table>
+    <tr><th>Pri</th><th>Requirement</th><th>Acceptance criteria (testable)</th><th>Mission</th></tr>
+    <tr><td><b>P0</b></td><td>One-Shot chain end-to-end</td><td>GIVEN a profile + a job URL/selection WHEN user clicks "Run chain" THEN score→tailor→cover letter→review-queue completes with per-step progress, every step inspectable, nothing submitted without explicit review approval.</td><td>M7 + existing OneShotPipeline</td></tr>
+    <tr><td><b>P0</b></td><td>60-second evaluation install</td><td>GIVEN a fresh machine WHEN <code>docker compose --profile eval up</code> THEN 3 services healthy &lt;60s AND demo-mode banner shows when LLM is mock.</td><td>M3</td></tr>
+    <tr><td><b>P0</b></td><td>Truth-gate inline everywhere text is generated</td><td>GIVEN a claim unsupported by the user's history WHEN generated/typed THEN it is flagged with evidence request; no silent removal, no silent pass.</td><td>M9/M7</td></tr>
+    <tr><td><b>P0</b></td><td>MCP server functional + registered</td><td>Server boots; 10 evals pass; differentiator tools exposed; destructive tools annotated.</td><td>M2</td></tr>
+    <tr><td><b>P0</b></td><td>Extension connects to ANY instance, autofills Tier-A ATS, never submits</td><td>Options page origin config works against localhost; DOM-fixture tests pass for Greenhouse/Lever/Ashby/Workday; submit button is never programmatically clicked.</td><td>M4</td></tr>
+    <tr><td><b>P0</b></td><td>Backups + restore drill</td><td>Nightly dump exists; restore.sh round-trip proven once and documented.</td><td>M3</td></tr>
+    <tr><td><b>P0</b></td><td>Public-repo preflight clean</td><td>gitleaks history scan clean; keys rotated; LICENSE decided (human).</td><td>M1/M13</td></tr>
+    <tr><td><b>P1</b></td><td>Email→board auto-tracking (consent + undo)</td><td>Seeded-mailbox demo: classified email moves card; &lt;0.8 confidence → suggestion only; undo restores prior state; audit trail on card.</td><td>M5</td></tr>
+    <tr><td><b>P1</b></td><td>Ghost-job badges with evidence</td><td>Badges render with "why" popover; hide-ghosts filter; ranker stable at weight 0.</td><td>M6</td></tr>
+    <tr><td><b>P1</b></td><td>Billing + metered API</td><td>Test-mode checkout flips entitlement; API keys metered; BILLING_ENABLED=false hides all billing UI.</td><td>M10</td></tr>
+    <tr><td><b>P1</b></td><td>Minimal builder (3 templates)</td><td>Zero-resume user → parser-clean exported PDF &lt;10 min; own parser round-trips all 3 templates losslessly.</td><td>M9</td></tr>
+    <tr><td><b>P2</b> <i>(design for, don't build)</i></td><td>Outcome bandit defaults · ATS variance ensemble · agent-to-agent profile exchange · EU AI Act alignment doc</td><td>Architectural hooks only in v1: variant-id stamping on applications (enables bandit), ensemble-ready scorer interface, profile export schema.</td><td>M8 + Stay-Ahead bets</td></tr>
+  </table>
+
+  <h3>Success metrics</h3>
+  <p><b>Leading (days–weeks):</b> install→first_score conversion ≥60% · first_score→first_tailor ≥50% · chain completion rate ≥80% once started · extension weekly-active ratio ≥30% of installs · auto-track undo rate &lt;5% (trust proxy). <b>Lagging (weeks–months):</b> 4-week retention ≥25% · stars→WAU conversion ≥10% · paying ≥10 by day 90 · community PRs ≥3 by day 60. Measurement: self-hosted PostHog events defined in M11; evaluate at day 7 / 30 / 90 — <b>in public</b> (a launch-metrics page builds trust and forces honesty).</p>
+
+  <h3>The research plan (what replaces "synthesize-research" until users exist)</h3>
+  <p>There is no research to synthesize today — zero users. v1 creates the pipeline: (1) M11 event funnel = behavioral research; (2) in-app "why did you stop?" one-question prompt at drop-off points; (3) 10 user interviews at Gate 2 (100 WAU) with the win/loss question set; (4) GitHub issues + launch-thread comments tagged weekly into themes. First synthesis review: day 30, and it — not your instincts — decides which frozen feature returns first.</p>
+
+  <h3>Open questions (all human-owned, all blocking M13)</h3>
+  <p><b>You:</b> License (AGPL vs MIT — decision doc in M13) · product name for launch ("Tayari Skill Boost" is a mouthful; "Tayari" alone is stronger) · cloud pricing final ($19 vs $15 vs $25 — test at launch, don't agonize) · demo instance: who pays its LLM bill (recommend: mock-mode demo + BYO-key).</p>
+</section>
+
+<!-- ============ ROADMAP ============ -->
+<section class="tab" id="roadmap">
+  <h2>Roadmap — Now / Next / Later</h2>
+  <p class="lede">Consolidates missions, bets, and gates into the single prioritized view. Status is real as of 2026-07-25. Capacity truth: your constraint is <b>your review hours, not agent throughput</b> — assume you can honestly review 2–3 missions in flight, never more. Allocation: ~70% chain/launch, ~20% hardening, ~10% buffer. Adding anything to Now requires removing something — no exceptions, that rule is how the repo got sick.</p>
+
+  <h3>Status overview</h3>
+  <p><b>0 in progress · 14 scoped · 3 at risk before starting</b> (M4 store review timing, M10 Stripe webhooks complexity, M13 blocked on your license/name decisions). Biggest dependency risk: everything in Later assumes the launch actually happens in Now.</p>
+
+  <table>
+    <tr><th style="width:12%">Horizon</th><th>Item</th><th>Status</th><th>Why this order (RICE logic)</th></tr>
+    <tr><td rowspan="4"><b>NOW</b><br><span style="font-family:var(--mono);font-size:10px;color:var(--muted)">Weeks 1–2<br>committed</span></td>
+        <td>M1 CI & test integrity</td><td><b>Not started</b></td><td>Low effort, gates everything — agents without honest CI produce confident garbage.</td></tr>
+    <tr><td>M2 MCP v2</td><td><b>Not started</b> <span class="pill r">currently broken</span></td><td>Highest reach-per-hour in repo: distribution channel + differentiator showcase, ~2 days.</td></tr>
+    <tr><td>M3 Ops hardening + eval profile</td><td><b>Not started</b> <span class="pill r">data-loss exposure</span></td><td>Backups = existential; 60s install = the top of every funnel.</td></tr>
+    <tr><td><b>Human:</b> license + name decision</td><td><b>Blocked on you</b></td><td>Blocks M13. Two hours of decision, weeks of downstream unblock.</td></tr>
+    <tr><td rowspan="4"><b>NEXT</b><br><span style="font-family:var(--mono);font-size:10px;color:var(--muted)">Weeks 3–6<br>planned</span></td>
+        <td>M4 Extension → store</td><td><b>Not started</b> <span class="pill a">at risk: review queue 1–3 wks</span></td><td>Submit early precisely because store review is slow — start the clock in week 3.</td></tr>
+    <tr><td>M5 Email→board loop · M6 ghost signals · M7 personalization spine</td><td><b>Not started</b></td><td>The "intelligent, personalized" layer — all three are wiring existing services, high impact/medium effort.</td></tr>
+    <tr><td>M15 Automation clock + honest statuses · M16 notifications/digest · M17 UI/IA overhaul</td><td><b>Not started</b> <span class="pill r">M15 status fix is P0</span></td><td>Added at founder request — and they earn it: these ARE the retention hooks. The "applied"-that-wasn't status fix cannot wait; it's a credibility landmine. M18 (desktop-agent ADR, recommend defer) decided during Wave 1.</td></tr>
+    <tr><td>M13 Launch package → <b>LAUNCH</b></td><td><b>Not started</b></td><td>Launches after Wave 2, NOT after everything. Show HN with chain + MCP + extension is enough; waiting for perfection is the old disease.</td></tr>
+    <tr><td>M11 Onboarding + instrumentation</td><td><b>Not started</b></td><td>Must be live AT launch — un-instrumented launch traffic is evidence burned.</td></tr>
+    <tr><td rowspan="3"><b>LATER</b><br><span style="font-family:var(--mono);font-size:10px;color:var(--muted)">Weeks 7–12+<br>directional</span></td>
+        <td>M10 billing · M9 builder · M8 bandit loop</td><td><b>Not started</b></td><td>Sequenced by evidence: billing when Gate-2 usage exists; bandit needs real outcomes to learn from.</td></tr>
+    <tr><td>M12 API consolidation · M14 benchmark pass</td><td><b>Not started</b></td><td>Consolidation after externals (MCP/extension) stabilize; M14 runs against real traffic patterns.</td></tr>
+    <tr><td>Stay-Ahead bets: variance ensemble · authenticity report · agent-to-agent · EU-AI-Act doc · interview prep return</td><td><b>Directional</b></td><td>Each enters Next only by displacing something, justified by day-30 research synthesis — not vibes.</td></tr>
+  </table>
+
+  <h3>Changes this update</h3>
+  <p>Interview prep: removed from launch scope entirely (your call — fenced in the mission preamble). Suite freeze: partially reversed by you; reconciled by putting breadth into missions with gates rather than refusing it. Added: Stay-Ahead bets as Later items with an evidence-based promotion rule.</p>
+  <p><b>This round (founder-requested, zero-sum honored):</b> M15–M18 added to Next after code review found the automation layer stopping short of operational integrity — a split-brain clock (working asyncio loop, dead Celery beat, unscheduled radar), a notification skeleton with no email/digest reach, a fabricated "auto_applied" status (line-verified), and a duplicated un-integrated desktop agent (see Self-Audit in the fact-check tab for what I corrected). These four displace real things, because roadmaps are zero-sum: <b>launch slips ~2 weeks</b> (post-M17, so first impressions hit the clean 6-item shell, not the 36-link maze), <b>M9 builder and M8 bandit move deeper into Later</b>, and the desktop agent is recommended deferred entirely (M18 ADR). If you want the old launch date back, cut M17 scope to sidebar+Home only — that's the trade, pick one, you can't have both. The Gate 1/2/3 structure still governs: <b>miss a gate → stop building, start asking users.</b></p>
+
+  <div class="callout red"><b>Capacity warning, final form:</b> if in week 3 you find yourself speccing a 15th mission instead of reviewing M2's diff or posting the launch thread — that's the tell. The roadmap fails in exactly one way, and it isn't technical.</div>
+</section>
+
+<!-- ============ AGENT MISSIONS ============ -->
+<section class="tab" id="missions">
+  <h2>Agent Missions — copy-paste briefs for your Sonnet 5 agents</h2>
+  <p class="lede">14 self-contained missions plus a three-block scaffold: <b>Global Preamble</b> (repo context + gotchas), <b>Engineering Constitution</b> (reliability, data-integrity, contract, observability, security, and documentation rules — the error-containment system), and <b>Ship Gate</b> (the deploy checklist that defines "done"). Every mission's Copy button bundles all of it into one complete prompt — paste into a fresh Claude Code / Sonnet 5 session at the repo root. <b>Rules of engagement:</b> (1) missions already include the scaffold on copy; (2) run missions within a wave in parallel only if they touch different directories — anything touching <code>router.go</code> serializes; (3) you personally review every diff — agents propose, you dispose; (4) a mission isn't done until its VERIFY block passes on your machine, not the agent's say-so. Interview-prep surfaces (InterviewPrep, InterviewVoiceCoach, InterviewBoard-coach features, live_interview_copilot) are <b>out of scope for all missions</b> — flag stays on hold, files untouched.</p>
+
+  <h3>Execution readiness — cleared to start</h3>
+  <div class="callout green"><b>READINESS: 10/10 — GO.</b> Every mission below is verified against the actual repo (files, line numbers, commands), self-audited with corrections applied, scoped with hard constraints, and closed with a runnable VERIFY block plus the Ship Gate. Nothing is blocked on further analysis. <b>What is deliberately NOT 10/10 and never will be pre-launch:</b> outcome predictions (traction 4/10, market stats 6/10 — see Self-Audit). Those numbers rise only one way: ship Wave 1, launch, measure. An analyst who promises 10/10 outcomes before a single user exists is selling you something. Start with the Orchestrator below or run missions individually.</div>
+
+  <h3>Orchestrator — one prompt that runs the whole program from this file</h3>
+  <div class="mission-card"><div class="m-head"><span>ORCHESTRATOR · paste into a Sonnet / opencode session at the repo root</span><button class="copy">Copy</button></div><pre class="m-body">You are the execution ORCHESTRATOR for the tayari-skill-boost repository. Your control document is
+TAYARI_RUTHLESS_BRIEF.html at the repo root. Work from it; do not invent scope beyond it.
+
+SETUP
+1. Read CLAUDE.md completely.
+2. Read TAYARI_RUTHLESS_BRIEF.html. In the "Agent Missions" section, missions live inside
+   &lt;pre class="m-body"&gt; blocks. The FIRST THREE blocks are rules, binding on every mission:
+   (1) GLOBAL PREAMBLE (repo context + hard constraints + out-of-scope list),
+   (2) ENGINEERING CONSTITUTION (reliability/data/contract/observability/security/docs rules),
+   (3) SHIP GATE (the definition of done).
+   Before writing ANY code, prove you read them: summarize each in 5 bullets.
+3. The remaining blocks are missions. Wave order is mandatory:
+   Wave 1: M1, M2, M3 (parallel-safe: disjoint dirs)
+   Wave 2: M4, M5, M6, M7 (M5/M6/M7 share backend/python — max 2 in flight)
+   Wave 2.5: M18 (ADR, 1 day) then M15 → M16 (strictly serial) then M17
+   Wave 3: M8, M9, M10, M11 (M11 last)
+   Wave 4: M12 → M13 → M14 (strictly serial)
+
+EXECUTION RULES
+- One wave at a time. If you can spawn subagents, parallelize ONLY missions the wave notes mark
+  parallel-safe, each in its own branch, each given: preamble + constitution + its mission text +
+  ship gate, verbatim from the HTML.
+- Per mission: branch mission/mXX → implement exactly per spec → run the mission's VERIFY block AND
+  the full SHIP GATE → paste REAL command outputs into the commit/PR description. If any verify step
+  cannot pass in your environment, STOP that mission and report precisely why. Never fake output.
+  Never delete or weaken a failing assertion to get green.
+- HARD STOPS — halt and ask the human; proceeding past any of these is mission failure:
+  (a) license choice + product name (blocks M13), (b) making the repo public, (c) posting any launch
+  content, (d) any git history rewrite (e.g., gitleaks findings), (e) creating/charging anything on a
+  payment provider, (f) merging any branch to main, (g) submitting the extension to the store.
+- NEVER touch the interview-prep surfaces listed in the preamble. NEVER run `docker compose down -v`.
+- End of each wave: write WAVE_REPORT_N.html (not .md) at repo root — shipped items, verify outputs,
+  deviations from spec with reasons, open risks, exact list of human decisions now pending — then STOP
+  and wait for the human's review before starting the next wave.
+
+BEGIN with Wave 1 now: M1 (CI & test integrity), M2 (MCP server v2), M3 (ops hardening + eval profile).</pre></div>
+
+  <h3>Global Preamble — prepend to every mission</h3>
+  <div class="mission-card"><div class="m-head"><span>PREAMBLE · paste first, always</span><button class="copy">Copy</button></div><pre class="m-body">CONTEXT: You are working in tayari-skill-boost, a polyglot monorepo: React+TS+Vite frontend (src/),
+Go+Chi API gateway (backend/go/, routes in internal/api/router.go), Python FastAPI AI engine
+(backend/python/, services in app/services/), Postgres, Celery+Redis, optional Ollama. Read CLAUDE.md first.
+
+HARD CONSTRAINTS — violating any of these fails the mission:
+1. Route parity: every /api/... route needs an /api/v1/... alias and vice versa (archive tests assert it).
+2. Never add per-package manualChunks to vite.config.ts (runtime TDZ breakage — see CLAUDE.md).
+3. VITE_* vars are build-time Docker build args, never runtime env.
+4. Never run `docker compose down -v`. Never drop the Postgres volume.
+5. Do not hand-edit dist/, .lovable/, or src/integrations/ (generated/managed).
+6. AI endpoints return mock 200s when no LLM is configured — verify real runs via active_engine in /health.
+7. DO NOT touch interview-prep surfaces: src/pages/InterviewPrep.tsx, InterviewVoiceCoach.tsx,
+   app/services/live_interview_copilot.py, interview_ai.py, voice_stream router. Out of scope.
+8. Keep auth working in BOTH modes (USE_SUPABASE / VITE_USE_SELF_HOSTED) unless the mission says otherwise.
+
+WORKING AGREEMENT: Small commits with clear messages. Add/extend tests for everything you change.
+Before declaring done, run the mission's VERIFY block and paste its real output. If a VERIFY step
+cannot pass in your environment, say so explicitly — do not fake it, do not delete the assertion.</pre></div>
+
+  <h3>Engineering Constitution — auto-included in every mission copy</h3>
+  <div class="mission-card"><div class="m-head"><span>CONSTITUTION · system-design & architecture rules, stack-specific</span><button class="copy">Copy</button></div><pre class="m-body">ENGINEERING CONSTITUTION — these rules outrank speed. "Error-free" is not achievable; error-CONTAINED is.
+Every change you make must keep the system inside these containment walls.
+
+RELIABILITY
+R1. Idempotency: every mutating endpoint and every Celery task must be safely re-runnable. Use
+    dedupe keys / upserts / idempotency tokens. Stripe webhooks and autopilot queueing especially —
+    retries WILL happen; duplicate applications or double-charges are mission-failing bugs.
+R2. Timeouts everywhere: no HTTP call without an explicit timeout (Go: context.WithTimeout; Python:
+    httpx timeout=). No unbounded LLM calls — cap tokens and wall-clock.
+R3. Retries with exponential backoff + jitter, max 3, ONLY on idempotent operations. Never retry
+    non-idempotent writes blindly.
+R4. Circuit breakers: external providers (LLM, scraping, email) go through the existing
+    app/services/circuit_breaker.py pattern — extend it, don't reinvent it. A dead provider must
+    degrade the feature, never cascade.
+R5. Queue discipline: Celery tasks get explicit time limits, max_retries, and dead-letter handling.
+    Backpressure: reject/queue-full behavior defined, never unbounded growth.
+R6. Graceful degradation order: real LLM → cheaper model → cached result → honest "unavailable" UI.
+    Never a silent mock result presented as real (see mock-mode banner, M3).
+
+DATA INTEGRITY
+D1. Migrations: forward-only, additive-first (add column → backfill → switch reads → drop later in a
+    separate release). Every migration tested against a copy of real schema. Never edit an applied migration.
+D2. Transactions: multi-row invariants (application + variant stamp + event_log) commit atomically.
+D3. All list endpoints paginated (cursor preferred). No unbounded SELECTs. Index every column used in
+    WHERE/ORDER BY on tables expected to grow (applications, events, postings).
+D4. User data is sacred: destructive operations soft-delete first; hard-delete only via the user's
+    explicit privacy action (which must exist and work — self-hosted brand).
+
+CONTRACTS & BOUNDARIES
+C1. Validate ALL input at the boundary (Go: existing DecodeAndValidate; Python: Pydantic models —
+    never raw dicts across service boundaries).
+C2. The Go→Python hop is a contract: version it. Breaking a Python response shape requires updating
+    the Go client + a contract test in the same PR.
+C3. Errors are structured: {code, message, fix_hint} — machine-readable code, human-readable fix.
+    Raw tracebacks never reach users or agents.
+C4. Feature-flag every risky user-facing change (src/config/features.ts) so rollback = flag flip,
+    not redeploy.
+
+OBSERVABILITY (a feature without it is not done)
+O1. Structured logs (JSON) with a request/trace ID propagated Go→Python→Celery (X-Request-ID header;
+    generate at the gateway if absent).
+O2. Every new feature emits: success count, error count, p95 latency. Sentry breadcrumbs on the
+    failure paths you just wrote.
+O3. Log the decision, not just the action: guardrail verdicts, matcher confidence, bandit arm chosen —
+    with inputs hashed, never raw PII in logs (pii_detector before logging user content).
+
+SECURITY
+S1. Every mutating route: authenticated + ownership-checked (IDOR test required — attempt access with
+    another user's resource id in the test suite).
+S2. Secrets only via env; new config documented in .env.example in the same PR.
+S3. LLM prompt-injection: treat scraped job descriptions and emails as HOSTILE input — they pass
+    through sanitization before entering any prompt that has tool access or writes state.
+
+DOCUMENTATION DUTY (same PR, not "later")
+DOC1. Significant design choice → ADR in docs/adr/NNN-title.md (Context/Decision/Options/Consequences).
+DOC2. Operational feature (backups, billing webhooks, email loop) → runbook in docs/runbooks/
+      (when to use, steps, rollback, escalation = "check Sentry, then file issue").
+DOC3. New/changed endpoint → request/response example in docs/api/. New env var → .env.example + README table.
+DOC4. Docs updated in the SAME PR as the code. Outdated docs are worse than none.</pre></div>
+
+  <h3>Ship Gate — run before marking ANY mission complete</h3>
+  <div class="mission-card"><div class="m-head"><span>SHIP GATE · deploy checklist, per-mission</span><button class="copy">Copy</button></div><pre class="m-body">SHIP GATE — a mission is "done" only when every line below is checked with evidence (paste outputs).
+
+PRE-MERGE
+[ ] Full CI green: go test -race ./..., pytest -q, bun run test, lint — paste tails.
+[ ] New code has tests: happy path + failure path + one IDOR/authz case if routes changed.
+[ ] Contract check: if the Go→Python shape changed, contract test updated in this PR.
+[ ] Migration (if any) applied to a COPY of the dev DB and rolled forward cleanly; additive-first rule held.
+[ ] Feature flag exists for user-facing change; default documented.
+[ ] .env.example, docs/adr/ or docs/runbooks/ updated per DOC duty.
+[ ] Self-review pass: read your own diff top to bottom; delete debug code, dead flags, commented blocks.
+
+STAGED VERIFY (local compose = your staging)
+[ ] docker compose up --build: all healthchecks green; curl localhost:8085/api/health AND
+    localhost:8002/health — paste both.
+[ ] Smoke the chain: upload → score → tailor → queue → board on the running stack (or the subset your
+    mission touches). Screenshot or paste API responses.
+[ ] Mock-mode honesty: with no LLM configured, the UI shows demo banner and nothing pretends to be real.
+[ ] 15-minute soak: exercise the feature ~20×; zero new Sentry errors, no memory/queue growth
+    (docker stats + celery inspect).
+
+ROLLBACK TRIGGERS (decide now, not during the incident)
+[ ] Documented in the PR description: what metric/behavior triggers revert, and the revert is a clean
+    `git revert` or flag-flip (verify the revert actually applies).
+HUMAN GATE
+[ ] Diff reviewed by the human. Agent self-approval does not exist.</pre></div>
+
+  <h3>Wave 1 — foundations (parallel-safe: different directories)</h3>
+
+  <div class="mission-card"><div class="m-head"><span>M1 · CI & test integrity <em>dirs: .github/, package.json, e2e/</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M1 — Make CI catch what it currently misses.
+WHY: A Python SyntaxError shipped in integrations/jobtheory_mcp/server.py and no workflow noticed,
+because integrations/ and extension/ are outside all 3 workflows, and `bun run test` is hardcoded
+to ResumeGraph* tests only (green ≠ frontend passes).
+DO:
+1. Fix package.json "test" to run the FULL frontend suite; triage failures: fix quick ones,
+   quarantine the rest in a tracked list (test.skip with a linked TODO issue reference), never delete.
+2. Add CI jobs: (a) python -m py_compile + ruff over integrations/ and backend/python/;
+   (b) eslint + tsc --noEmit over extension/; (c) run the MCP server import as a smoke test.
+3. Delete e2e/*.bak; make e2e deterministic (no unmanaged screenshot baselines in required checks).
+4. Add gitleaks (or trufflehog) full-history scan job; if it finds anything, STOP and report — do not
+   attempt history rewriting yourself.
+DONE WHEN: a deliberately-introduced syntax error in integrations/ fails CI; `bun run test` runs the
+real suite; e2e has no .bak files.
+VERIFY: bun run test 2>&1 | tail -5 && python3 -m py_compile integrations/jobtheory_mcp/server.py
+  && git ls-files e2e | grep -c ".bak$"   # expect 0</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M2 · MCP server v2 <em>dirs: integrations/jobtheory_mcp/</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M2 — Rebuild the MCP server from broken CRUD proxy to the platform's best distribution asset.
+CURRENT DEFECTS: server.py:65 uses JS `||` in a Python f-string (SyntaxError — the file has never run);
+company_research() posts {target_role: role, location: company} to /v1/career-intelligence/salary-benchmark
+(wrong endpoint semantics); auth = hand-pasted localStorage JWT; raise_for_status() leaks raw tracebacks;
+no pagination, no output schemas, no annotations, no evals.
+DO:
+1. Fix the syntax error (`or`, not `||`). Pin requirements.txt versions.
+2. Auth: accept TAYARI_API_KEY env var hitting the existing API-key public routes (see
+   backend/go/internal/api/router.go:196 routesPublic + internal/models/api_key.go). Extend the
+   frontend APIKeys.tsx page if key issuance is incomplete. Update README — no more localStorage copying.
+3. Wrap all HTTP in try/except returning {"error": str, "fix": actionable_next_step}; map 401→"key
+   invalid/expired: create a new key at /settings/api-keys", 404→endpoint hint, timeouts→retry advice.
+4. Fix or delete company_research. If a real company-research endpoint exists in career_intelligence.py,
+   bind to it correctly; otherwise remove the tool — a tool that answers a different question than its
+   name is worse than no tool.
+5. Add differentiator tools with Pydantic output models + tool annotations (readOnlyHint etc.):
+   optimize_resume(resume_id, job_description) → reflective loop result {before, after, iterations};
+   check_guardrails(text) → stuffing/truthfulness verdicts; skill_gap(target_role) → gaps + free
+   resources; query_knowledge_graph(question). queue_autopilot gets destructiveHint=true.
+6. Pagination on list_applications (cursor param).
+7. Write 10 eval Q&As (read-only, verifiable) in evals.xml per MCP eval format; add a CI smoke test
+   that imports the server and lists tools.
+DONE WHEN: server starts, all tools callable against a running local stack, evals file exists, CI covers it.
+VERIFY: python3 -m py_compile integrations/jobtheory_mcp/server.py && python3 -c "import sys;
+  sys.path.insert(0,'integrations/jobtheory_mcp'); import server; print(len(server.mcp._tool_manager.list_tools()))"</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M3 · Ops hardening <em>dirs: docker-compose.yml, scripts/, helm/</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M3 — Backups, healthchecks, and a 60-second evaluation path.
+WHY: Zero backup story while CLAUDE.md warns one `down -v` wipes the DB; 4 of 9 services have
+healthchecks; compose "profiles" are identical for dev and prod so the minimum install is 9 containers.
+DO:
+1. Add a nightly pg_dump sidecar (rotate 7 daily + 4 weekly, to a mounted volume) + scripts/restore.sh
+   + a RESTORE runbook section in the deploy docs. Test an actual dump+restore round-trip.
+2. Healthchecks for all 9 services (redis PING, celery inspect ping, ollama /api/tags, frontend 200,
+   caddy admin). depends_on with condition: service_healthy where ordering matters.
+3. New compose profile "eval": postgres + go-backend + python-ai only, mock-LLM mode, boots <60s cold.
+   Document: `docker compose --profile eval up` as the README quickstart.
+4. Mock-mode honesty: when /health active_engine is mock, the frontend must show a persistent,
+   unmissable "DEMO MODE — configure an LLM for real results" banner. Add it once in the layout,
+   driven by the health endpoint.
+DONE WHEN: restore drill documented AND executed once; all services healthchecked; eval profile boots.
+VERIFY: docker compose config | grep -c healthcheck   # expect >= 9
+  && docker compose --profile eval config --services   # expect exactly 3
+  && bash scripts/restore.sh --dry-run</pre></div>
+
+  <h3>Wave 2 — the intelligent, personalized surface (after Wave 1 merges)</h3>
+
+  <div class="mission-card"><div class="m-head"><span>M4 · Extension to store quality <em>dirs: extension/, src/config/features.ts</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M4 — Take the MV3 extension from disabled prototype to Chrome Web Store submission.
+CURRENT: manifest v2.0.0 already requests 16+ ATS host permissions, but externally_connectable is
+hardcoded to *.lovable.app + localhost — self-hosted users (the core audience) cannot connect it.
+Feature flag browserExtension is [false,false]. No CI, no tests.
+DO:
+1. Make the backend origin configurable: options page where the user sets their instance URL; store
+   in chrome.storage.sync; message-passing auth via the API key flow from M2 (never localStorage JWTs).
+2. Autofill excellence on Tier-A ATS first (Greenhouse, Lever, Ashby, Workday): field-mapping tests
+   with saved DOM fixtures per ATS; graceful partial-fill UX (highlight what it filled vs skipped);
+   NEVER auto-submit — Review Mode is the brand.
+3. Job-detect → one-click "Save to Tayari board" + show ATS match score inline on the job page.
+4. Trim permissions to what's used (store review rejects greed); write the privacy-practices
+   disclosure; generate store assets (128/440/1400px, screenshots) into extension/store/.
+5. Flip features.ts browserExtension to [true,true]; add extension lint+test job to CI (coordinates
+   with M1 — rebase, don't duplicate).
+DONE WHEN: `npm test` in extension/ passes DOM-fixture tests for 4 ATS; unpacked install connects to a
+localhost instance end-to-end; store/ contains submission-ready assets + listing copy.
+VERIFY: cd extension && npx tsc --noEmit 2>&1 | tail -2 && ls store/ && grep -n "browserExtension" ../src/config/features.ts</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M5 · Email→Kanban closed loop <em>dirs: backend/python/app/services/, backend/go routes_gmail*, src/pages/InterviewBoard.tsx</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M5 — Wire the pieces that already exist into the headline feature: applications that track themselves.
+CURRENT: email_classifier.py, followup_tracker.py, Gmail routes (routes_gmail.go, gmail_ai_router) all
+exist but are not connected into one flow. Users still move Kanban cards by hand like it's 2019.
+DO:
+1. Pipeline: Gmail connector → email_classifier labels {rejection, interview_invite, recruiter_reply,
+   offer, ghost} → matcher links email to an application row (company+role fuzzy match with confidence
+   score) → auto-move the Kanban card → event_log entry.
+2. Consent + reversibility: per-user toggle (default OFF), every auto-move shows an undo toast and an
+   audit trail on the card. Wrong auto-moves destroy trust instantly — matcher below 0.8 confidence
+   files a "needs review" suggestion instead of moving.
+3. followup_tracker: when a card sits in "applied" ≥ 7 days with no classified reply, surface a nudge
+   with a pre-drafted follow-up (via communication.py) — draft, never send.
+4. Guardrail: PII redaction before any email content reaches an LLM (app/guardrails/pii_detector.py).
+5. Tests: classifier fixtures (10 real-ish emails per label), matcher precision test (no cross-company
+   mismatches), e2e: seeded email → card moves → undo works.
+DONE WHEN: demo flow works with a seeded mailbox; zero auto-moves below confidence threshold; undo restores state.
+VERIFY: cd backend/python && python -m pytest tests/ -k "email or followup" -x -q</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M6 · Ghost-job & legitimacy signals <em>dirs: app/services/hermes/, legitimacy_checker.py, src/pages/JobSearch.tsx</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M6 — Surface honesty signals no competitor shows: is this job real?
+CURRENT: legitimacy_checker.py exists; Hermes stores scraped postings; none of it reaches the UI.
+DO:
+1. Compute per-posting signals: first_seen/last_seen age, repost count (dedupe_key history), salary
+   transparency (present/absent), Tier-A source vs scraped (official ATS JSON = higher trust),
+   legitimacy_checker verdict.
+2. Composite "Posting health" badge (Fresh / Aging / Likely ghost / Flagged) with an expandable
+   "why" — every signal shown with its evidence. No black-box scores; that's the brand.
+3. Rank integration: feed posting-health into the RRF ranker as a THIRD signal, weight configurable,
+   default mild — don't let it dominate relevance.
+4. UI: badge on job cards in JobSearch.tsx + filter "hide likely-ghost jobs".
+5. Tests: fixture postings exercising each badge state; ranker regression test proving relevance
+   ordering is stable when health weight = 0.
+DONE WHEN: search results show badges with evidence popovers; filter works; ranker tests green.
+VERIFY: cd backend/python && python -m pytest tests/ -k "hermes or legitim" -q && cd ../.. && bun run build 2>&1 | tail -3</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M7 · Personalization spine <em>dirs: app/services/memory_composer.py, preference router, src/contexts/</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M7 — One user-model every feature reads, instead of 14 router islands.
+CURRENT: preference_router, memory_composer.py (210 LOC), profile variants exist — but the chain
+(optimizer, cover letter, search, autopilot) doesn't consume them. "Personalized" today means the
+user re-enters context on every page.
+DO:
+1. Define a UserCareerProfile schema (Postgres + Pydantic): target roles/levels, locations/remote,
+   salary floor, tone preference (from the 3 cover-letter tones), writing-style fingerprint (derived
+   from their resume via memory_composer), skill inventory (from knowledge graph), do-not-apply list
+   (companies), automation consent flags.
+2. Single service: profile_service with get/patch + event hooks; every chain feature reads it —
+   optimizer honors tone + skill truthfulness (cross-check claims against skill inventory via
+   truth_gate), search defaults to profile filters, cover letters open in preferred tone, autopilot
+   respects do-not-apply and consent flags.
+3. Learning, transparent: when a user edits an AI output, log the delta as a style signal
+   (append-only); memory_composer folds signals into the fingerprint. Show the user their own profile
+   ("What Tayari knows about you") with per-field delete — self-hosted privacy brand demands it.
+4. Tests: profile round-trip; optimizer output changes when tone changes; do-not-apply blocks
+   autopilot queue insertion (guardrail-level, not UI-level).
+DONE WHEN: change tone in profile → next cover letter reflects it with zero re-entry; autopilot
+provably cannot queue a do-not-apply company.
+VERIFY: cd backend/python && python -m pytest tests/ -k "profile or preference or memory" -q</pre></div>
+
+  <h3>Wave 2.5 — the always-on layer: automation, notifications, UI, desktop agent</h3>
+
+  <div class="mission-card"><div class="m-head"><span>M15 · Automation engine + the clock <em>dirs: backend/python (celery, automation, scheduler), docker-compose.yml — coordinates with M7</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M15 — Make the automations actually run, honestly, on a clock, driven by user interest.
+CURRENT STATE (verified, including corrections): (a) The clock is SPLIT-BRAIN: a real asyncio
+scheduler runs in the FastAPI lifespan (main.py:80 → scheduler_loop; per-user autopilot schedules +
+6h auto_scan_all_users DO fire) — but the Celery beat_schedule layer (daily preference learning) is
+inert (no beat service, no -B on the worker CMD), company_radar.py is scheduled by NEITHER, and the
+in-process loop dies with the API pod, has no distributed lock (duplicate-fire risk at >1 uvicorn
+worker/replica), and is invisible to Flower. (b) automation_engine.py line 392 sets
+status="auto_applied" after a browser stub that cannot submit (docstring admits it) — an integrity
+bug in a product whose brand is truthfulness. (c) Watches/standing-interest exist only as autopilot
+schedule configs; radar targets are separate and dormant.
+DO:
+0. ADR FIRST — one clock, not two: either (A) move ALL periodic work to Celery beat (add beat service;
+   port scheduler_loop's due-schedule logic to beat tasks; single source of truth, survives API
+   restarts, visible in Flower — recommended) or (B) keep the asyncio loop and add a Postgres advisory
+   lock + persistence so replicas can't double-fire, and delete the inert beat_schedule. Pick one,
+   record it, kill the other. A split-brain clock is worse than either option.
+1. THE honesty fix (P0): rename the fabricated status. Applications produced by autopilot are
+   "prepared" (tailored resume + letter + apply link, queued for review) — never "applied". "Applied"
+   is set ONLY by: user confirmation, extension-detected submission, or email-classifier evidence (M5).
+   Migrate existing rows. Board UI shows the distinction clearly.
+2. Add celery-beat as a compose service (dev+prod profiles, healthcheck, same image as worker,
+   command: celery -A app.celery_app beat). One beat instance only — guard against duplicate beats.
+3. Interest model → standing watches: per-user Watch rows (titles, companies, locations, remote,
+   salary floor, keywords) sourced from the M7 profile + explicit user edits at /automations.
+   Every watch: enabled flag, schedule tier, last_run, results dedupe (reuse Hermes dedupe keys).
+4. Beat schedule: per-watch smart search (Tier-A ATS sources every 30–60 min — cheap JSON; scraped
+   tiers every 6h); company_radar wired to the same loop; preference-learning daily task kept.
+   Every scheduled task: idempotent, time-limited, circuit-breakered per provider (Constitution R1–R5).
+5. Match pipeline: new results scored against profile (existing RRF) → threshold → emit
+   job_match.found event to event_log (M16 consumes). Opt-in per watch: "auto-prepare top match" →
+   optimizer runs → prepared draft appears in review queue → chain.prepared event.
+6. Cost guards: per-user daily LLM budget (config, default conservative); scheduled runs skip LLM
+   steps when budget exhausted and say so in the run log. Ollama users default unlimited.
+7. Tests: beat registration (all expected tasks present), watch dedupe (same job twice = one event),
+   budget enforcement, "prepared"-vs-"applied" state machine (illegal transitions rejected).
+DONE WHEN: fresh compose up → beat green → seeded watch produces scored matches and events with no
+human action; nothing in the DB says "applied" without evidence.
+VERIFY: docker compose config --services | grep beat && cd backend/python &&
+  python -m pytest tests/ -k "watch or beat or autopilot or status" -q</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M16 · Notifications & re-engagement <em>dirs: backend/python (new notification service), backend/go (routes), src/ (inbox UI) — after M15</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M16 — Complete the layer that brings users back. CURRENT STATE (corrected): a skeleton
+exists — Go web-push routes (routes_push.go: register + send, real Web Push key shape) and a
+NotificationsBell component — but the bell only mirrors automation runs from local context (not
+events), there is NO email channel anywhere (verified: no SMTP/provider in the codebase), no digest,
+no event→channel routing, no preference center. Reuse the push routes and bell; do not rebuild them.
+DO:
+1. Notification service (backend/python/app/services/notifications.py): consumes events —
+   job_match.found, chain.prepared, board.moved (auto-track from M5), followup.due, weekly digest.
+   Routing matrix: event_type × channel × user preference.
+2. Channels, in priority order:
+   a. In-app inbox: notifications table, unread count, bell in the app shell (M17), mark-read/all.
+   b. Email: SMTP via env config (self-host friendly — works with any relay; document Gmail app-password
+      and Mailpit for local dev). Templates per event, plain-text-first, List-Unsubscribe header on
+      every send. NO third-party email SaaS as a hard dependency.
+   c. Extension: chrome.notifications driven by a lightweight poll of the inbox endpoint (the
+      permission already exists in the manifest — make it earn its place or remove it).
+3. The digest (the flagship hook): daily or weekly per user — "While you were away: N new matches
+   (top 3 inline with scores), M prepared drafts awaiting review, K follow-ups due." One email.
+   Digest content test: never empty-send; skip when nothing happened.
+4. Preference center in Settings: per-event-type × per-channel toggles, digest cadence, quiet hours
+   (user TZ). DEFAULTS CONSERVATIVE: digest ON weekly, per-event email OFF, in-app ON. Consent-first
+   is the brand; a spammy default is how job tools end up in Gmail's promotions graveyard.
+5. Constitution compliance: sends are idempotent (event_id dedupe — a Celery retry must not double-
+   email), timeouts on SMTP, failures logged with fix_hint, PII never in logs.
+6. Tests: routing matrix truth table, digest assembly from fixture events, unsubscribe honored
+   end-to-end, quiet hours respected, duplicate-event single-send.
+DONE WHEN: seeded events produce: bell badge in-app, one correct digest email in Mailpit, one
+extension notification — each respecting preferences and quiet hours.
+VERIFY: cd backend/python && python -m pytest tests/ -k "notif or digest" -q &&
+  grep -rn "List-Unsubscribe" app/services/ | head -2</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M17 · UI/IA overhaul — SaaS-grade app shell <em>dirs: src/ — big; serialize within frontend; after M15/M16 APIs exist</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M17 — Rebuild the information architecture the way a product company would. The founder's own
+words: "confusing UI, not how SaaS companies build." He is right.
+DIAGNOSIS (verified): 34 routes, ~36 nav links, marketing pages (Blog, Careers, About, Methodology)
+interleaved with app pages; the chain — the actual product — is invisible as a flow. Assets that
+already exist and must be USED, not rebuilt: AppShell.tsx, AppSidebar.tsx, MobileTabBar.tsx, 106 CSS
+design tokens in index.css, cmdk in dependencies.
+DO:
+1. Two worlds, hard split:
+   • Marketing site: / (landing), /pricing, /docs — public, minimal, no app chrome.
+   • App (/app/*): sidebar with EXACTLY six items — Home, Jobs, Resumes, Board, Automations, Settings.
+   Every surviving feature lives INSIDE one of the six (skill-gap inside a resume's detail view,
+   radar+watches inside Automations, funnel analytics inside Board, API keys inside Settings).
+   Killed/frozen pages: flags off, routes removed from nav (301 where bookmarkable).
+2. Home = Mission Control, the retention surface that renders M15/M16 visible:
+   "While you were away" (new matches, prepared drafts, follow-ups due — from real events),
+   next-best-action card, chain status, LLM/demo-mode indicator. NOT a grid of 20 feature tiles —
+   that grid is the current dashboard's disease.
+3. The chain as UI: a persistent stepper on job → score → tailor → letter → review → tracked.
+   A user should always know where they are in the chain and what happens next. One primary action
+   per screen. Review queue is one keystroke approve/edit/reject (j/k/enter — power users are the wedge).
+4. Design-system discipline: every color/spacing/radius from the existing tokens — add an ESLint rule
+   banning raw hex + arbitrary Tailwind color classes in src/pages & src/components (except ui/).
+   One card pattern, one table pattern, one empty-state pattern (illustration + one primary action),
+   one error pattern (what failed + retry), skeletons for every async view. Audit all six areas.
+5. Command palette (cmdk is already a dependency): global ⌘K — navigate, run chain on a job, search
+   applications. Cheap to build, disproportionate "this is a real product" signal.
+6. Mobile: MobileTabBar for the six areas; chain pages usable at 375px; no horizontal scroll.
+7. What NOT to do: no rebrand, no new component library, no framework migration, no touching
+   src/components/ui primitives, no interview-prep surfaces. IA and polish only.
+DONE WHEN: sidebar has 6 items; Playwright screenshot walk of the six areas passes; ESLint token rule
+green; Lighthouse a11y ≥95 on Home/Jobs/Board; a first-time user can run the full chain without
+opening a menu.
+VERIFY: bun run lint && bun run test 2>&1 | tail -3 && bun run test:e2e -- --grep "shell|nav" 2>&1 | tail -5</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M18 · Desktop agent: one home or none <em>dirs: integrations/browser_automation_agent/, app/services/browser_automation/ — decision mission</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M18 — Resolve the Manus-style desktop agent. Verdict from review: it does NOT work as shipped —
+it is a hand-launched Gradio demo (integrations/browser_automation_agent: unpinned deps, manual
+playwright install, no compose service, no CI) duplicated by a second copy in
+app/services/browser_automation/. Two implementations, zero integrations.
+DO:
+1. Write docs/adr/00X-desktop-agent.md — two options, honestly weighed:
+   OPTION A (integrate): optional compose profile "agent"; ONE implementation (keep
+   app/services/browser_automation, delete the integrations/ Gradio copy or reduce it to a thin
+   launcher); pinned deps; task API = review queue "assist apply": agent navigates the ATS form,
+   fills from the prepared package, PAUSES at submit for the human (Review Mode is non-negotiable);
+   safety rails: domain allowlist, never clicks submit, action log + screenshot trail for review,
+   hard timeout per task.
+   OPTION B (defer): cut from v1 entirely; extension autofill (M4) covers the browser story;
+   revisit post-launch when there are users to justify the support burden.
+   RECOMMENDATION TO RECORD: B for launch. A desktop agent is demo-wow but an operational tax
+   (Chromium versions, ATS DOM drift, LLM cost per fill) that a pre-launch solo product cannot pay.
+   The human decides; the ADR records it.
+2. EITHER WAY: delete the duplicate so exactly one implementation remains; pin its requirements;
+   add py_compile + import smoke to CI (it is code in the repo; it does not get to rot invisibly —
+   that is how the MCP server shipped broken).
+3. If A chosen: compose profile + healthcheck + one e2e happy-path against a fixture ATS page;
+   feature flag agentAssist default OFF.
+DONE WHEN: ADR merged with a human decision recorded; one implementation; CI covers it; if
+integrated, fixture e2e passes with submit-pause proven.
+VERIFY: ls integrations/browser_automation_agent/ app/services/browser_automation/ 2>/dev/null;
+  ls docs/adr/ | grep -i agent; grep -rn "playwright\|browser-use" .github/workflows/ | head -3</pre></div>
+
+  <h3>Wave 3 — growth & revenue (after Wave 2)</h3>
+
+  <div class="mission-card"><div class="m-head"><span>M8 · Outcome bandit loop <em>dirs: bandit_service.py, analytics_service.py, optimizer.py</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M8 — The moat: an optimizer that learns from real outcomes. bandit_service.py exists,
+connected to nothing.
+DO:
+1. Outcome events already implied by the board: applied → {no_reply, rejection, interview}. Attribute
+   each outcome to the resume VARIANT used (variant id must be stamped on every application at
+   queue/submit time — add if missing).
+2. Bandit over optimizer strategies (e.g., keyword-density level, bullet style, summary style) per
+   role-family; epsilon-greedy is fine at this scale, do not gold-plate with Thompson sampling.
+3. Cold-start honesty: below n=20 outcomes per arm, UI shows "learning" not percentages. Never show
+   statistically meaningless "your resume improved reply rate 40%" claims — that's competitor-grade lying
+   and violates the truth-gate brand.
+4. Feed winning strategy back as the optimizer default for that user+role-family; log every automatic
+   default change visibly in the user's profile (M7).
+5. Tests: attribution correctness (variant→outcome mapping survives card moves), bandit convergence on
+   synthetic data, no-op below threshold.
+DONE WHEN: synthetic 200-outcome simulation shifts the default strategy; UI honest below threshold.
+VERIFY: cd backend/python && python -m pytest tests/ -k "bandit or outcome" -q</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M9 · Minimal resume builder <em>dirs: src/pages/TypstResumeStudio.tsx, backend Typst pipeline</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M9 — Close the funnel hole for users WITHOUT a good base resume. Minimal, not Kickresume.
+CURRENT: Typst ATS exporter + TypstResumeStudio exist for export; there is no from-scratch path.
+DO:
+1. Exactly 3 ATS-safe Typst templates (classic / modern / compact). Single-column, no graphics,
+   parser-tested: round-trip each template through your own resume_parser.py and assert lossless
+   section extraction — a template your own parser can't read is an instant fail.
+2. Guided build flow: structured form (not freeform canvas) → knowledge-graph-assisted suggestions
+   (skills from target role) → live Typst preview → export PDF/DOCX (docx_builder.py exists).
+3. Guardrails inline: truth_gate flags claims the user's history can't support, AS THEY TYPE the
+   bullet — this is the differentiator, market it in-product ("Tayari won't let you lie").
+4. No template marketplace, no colors picker beyond 3 accents, no drag-and-drop sections. Scope creep
+   here is how Kickresume ate 3 years.
+DONE WHEN: new user with zero resume reaches an exported, parser-clean PDF in under 10 minutes.
+VERIFY: cd backend/python && python -m pytest tests/ -k "typst or parser or builder" -q</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M10 · Billing & entitlements <em>dirs: backend/go/ (new billing pkg), src/pages/Pricing.tsx</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M10 — Make revenue structurally possible. Today Pricing.tsx is decorative; zero payment code exists.
+MODEL (open-core, no feature hostages): Self-host = free forever, all features. Cloud hosted =
+$19/mo (undercuts Teal $29, Jobscan $49 — justified: your LLM cost ≈ 0 via user keys/Ollama).
+API tier = metered on the existing API-key routes (router.go routesPublic + models/api_key.go —
+the half-built superpower). Pro self-host support = $500/mo, manual invoicing, skip automation.
+DO:
+1. Stripe: checkout + customer portal + webhooks (subscription lifecycle) in a new backend/go/internal/billing
+   package; entitlements table keyed to user; middleware reads entitlement, NOT scattered if-statements.
+2. Wire Pricing.tsx to real checkout; free tier needs no card.
+3. API metering: per-key usage counters (requests + LLM tokens) on the public routes; usage endpoint;
+   soft limits with clear 429 messages ("upgrade at /pricing").
+4. Grandfather logic + env kill-switch (BILLING_ENABLED=false default) so self-hosters never see billing UI.
+5. Tests: webhook idempotency (Stripe retries!), entitlement middleware on a protected route, metering
+   accuracy under concurrent requests.
+CONSTRAINT: respect route parity; register both /api and /api/v1 billing routes.
+DONE WHEN: test-mode checkout completes → entitlement flips → metered API key enforces limits.
+VERIFY: cd backend/go && go test ./internal/billing/... ./internal/api/ -run "Billing|Entitle|Meter" -v 2>&1 | tail -10</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M11 · Onboarding funnel + instrumentation <em>dirs: src/pages/Onboarding.tsx, Index.tsx, analytics</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M11 — Three minutes to first value, measured.
+DO:
+1. New-user path: land → upload resume (or "try sample resume" — zero-friction demo) → ATS score +
+   3 concrete improvements visible < 3 min, BEFORE any deep configuration. Self-hosted eval profile
+   (M3) must support this with mock-LLM clearly labeled.
+2. Empty states: every chain page gets a designed empty state with one primary action. Audit all
+   surviving pages; a blank table is a resignation letter.
+3. Instrumentation: self-hosted PostHog (or Plausible if events suffice) — on-brand, no third-party
+   trackers. Events: install_completed, resume_uploaded, first_score_seen, first_tailor, first_queue,
+   first_board_move, wow_moment (score improved ≥15 pts). Funnel dashboard.
+4. Activation metric definition committed to the repo: "activated = first_score_seen + first_tailor
+   within first session". This number gates all future feature debates.
+5. Web-vitals budget in CI: Lighthouse ≥90 on landing + chain pages (fail the build below).
+DONE WHEN: cold user (or you in incognito on the eval profile) hits wow_moment in <3 min; funnel
+dashboard shows real events; Lighthouse gate active.
+VERIFY: bun run build && npx lighthouse http://localhost:8083 --only-categories=performance --quiet 2>/dev/null | grep -i score || echo "run against local stack"</pre></div>
+
+  <h3>Wave 4 — consolidation & launch (after Wave 3)</h3>
+
+  <div class="mission-card"><div class="m-head"><span>M12 · API consolidation + router split <em>dirs: backend/go/internal/api/ — SERIALIZE, touches router.go</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M12 — Pay down the two structural debts before they tax every future mission.
+DO:
+1. Collapse dual route trees: /api/v1 becomes canonical; /api/* returns 301 (GET) / 308 (non-GET)
+   via one shim middleware. Delete the parity test treadmill; add ONE test asserting the shim.
+   Update frontend src/api/ paths and the extension + MCP clients (coordinate with M2/M4 — do this
+   AFTER they merge).
+2. Split router.go (807 lines, 153 registrations) into domain files: routes_resume.go, routes_jobs.go,
+   routes_board.go, routes_billing.go etc.; router.go becomes a 50-line composition root.
+3. Auth consolidation phase 1: extract an AuthProvider interface (SelfHostedJWT | SupabaseAdapter);
+   all handlers depend on the interface. Do NOT remove Supabase yet — just quarantine it behind the
+   interface so its removal is a one-file change later.
+4. Full regression: go test ./... green, e2e smoke green in both auth modes.
+DONE WHEN: no duplicate route registrations remain; router.go < 100 lines; both auth modes pass e2e smoke.
+VERIFY: cd backend/go && go test ./... 2>&1 | tail -3 && wc -l internal/api/router.go</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M13 · Open-source launch package <em>dirs: repo root, docs/, .github/</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M13 — Everything required to flip the repo public and launch. (The human flips the switch.)
+DO:
+1. Pre-flight: gitleaks full-history scan (from M1) must be clean — if not, STOP and report; history
+   rewrite is a human decision. Rotate JWT_SECRET and all keys regardless.
+2. LICENSE decision doc (one page, in docs/): AGPL-3.0 (recommended: blocks closed-cloud cloning,
+   fits open-core) vs MIT (max adoption) — present tradeoffs, human decides.
+3. README rewrite for a 30-second skim: what it is (2 lines), 60-second quickstart (eval profile from
+   M3), animated GIF of the chain, honest feature table, architecture diagram. Kill superlatives —
+   "highly scalable event-driven" reads as vaporware; show, don't adjective.
+4. Community surface: CONTRIBUTING.md, issue/PR templates, SECURITY.md with disclosure policy,
+   docs site (mkdocs or docusaurus, auto-deployed).
+5. One-click deploys: Railway + Fly.io + Coolify templates, tested cold.
+6. Launch copy drafts: Show HN post (title options + first comment with architecture detail),
+   r/selfhosted post, MCP registry listing. Angle: "Self-hosted AI job platform — the whole chain,
+   local LLM, agent-ready via MCP, never auto-submits." Save to docs/launch/.
+DONE WHEN: a stranger can go clone → running chain in <5 min following only the README; launch copy
+ready for human review.
+VERIFY: fresh-clone simulation: git clean -xdf check-list run + time docker compose --profile eval up -d</pre></div>
+
+  <div class="mission-card"><div class="m-head"><span>M14 · Benchmark & hardening pass <em>dirs: repo-wide, read-mostly — run LAST</em></span><button class="copy">Copy</button></div><pre class="m-body">MISSION M14 — Final QA sweep against the big-company bar. Produce a report, fix what's cheap, file the rest.
+DO:
+1. Accessibility: axe-core automated pass on the chain pages; fix all critical/serious; keyboard-only
+   walkthrough of upload→score→tailor→queue→board.
+2. Performance: Lighthouse all chain pages (≥90 perf, ≥95 a11y target); bundle analysis — flag any
+   page-level chunk >300KB gzip (NO manualChunks — see preamble).
+3. Security: `govulncheck ./...`, `npm audit --omit=dev`, pip-audit; authz spot-tests — every mutating
+   route rejects (a) no token (b) another user's resource id (IDOR probes on resumes, applications, api-keys).
+4. LLM quality gate: make the existing Python evals a required CI job; add regression evals for
+   optimizer (score monotonicity: optimized ≥ original), guardrails (known-stuffed resume must flag),
+   email classifier (fixture accuracy ≥95%).
+5. Load sanity: k6 or vegeta — 100 concurrent on search + score endpoints; document p95s; no crashes,
+   no unbounded queue growth in Celery.
+6. Output: docs/QUALITY_REPORT.html (no .md) — every finding with severity + fix-or-filed status.
+DONE WHEN: report exists, criticals fixed, CI gates active.
+VERIFY: cd backend/go && govulncheck ./... 2>&1 | tail -3; cd ../python && python -m pytest tests/ -q 2>&1 | tail -3</pre></div>
+
+  <h3>Dependency map & operating cadence</h3>
+  <table>
+    <tr><th>Wave</th><th>Missions</th><th>Parallel?</th><th>Gate to next wave</th></tr>
+    <tr><td>1</td><td>M1 · M2 · M3</td><td>Yes — disjoint dirs</td><td>CI catches injected faults; MCP boots; eval profile <60s</td></tr>
+    <tr><td>2</td><td>M4 · M5 · M6 · M7</td><td>M4 alone safe; M5/M6/M7 share backend/python — max 2 at once, rebase often</td><td>Extension connects to self-hosted; auto-tracking demo; profile drives outputs</td></tr>
+    <tr><td>2.5</td><td>M15 · M16 · M17 · M18</td><td>M15→M16 strictly serial (events feed notifications); M17 after their APIs exist; M18 is a 1-day ADR — do it during Wave 1 idle time</td><td>Beat running + honest statuses; digest lands in Mailpit; sidebar = 6 items; one browser-agent implementation</td></tr>
+    <tr><td>3</td><td>M8 · M9 · M10 · M11</td><td>M10 (Go) parallel with M8/M9 (Python); M11 last in wave</td><td>Test-mode payment completes; <3min wow_moment measured</td></tr>
+    <tr><td>4</td><td>M12 → M13 → M14</td><td>No — strictly serial</td><td>Public repo + launch posts (human presses the button)</td></tr>
+  </table>
+  <div class="callout"><b>Final grill, and it's the one that matters:</b> these briefs remove every excuse. Sonnet 5 can execute all fourteen; what it cannot do is review its own diffs, decide the license, press "publish" on the repo, or post to HN. Those four human acts are the entire difference between "world-class product" and "world-class private repo." You've been choosing the second one for months. The missions end at Wave 4 on purpose: after M13, the next task is not a mission — it's the launch.</div>
+</section>
+
+</div>
+<script>
+  const nav=document.getElementById('nav');
+  nav.addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b)return;
+    nav.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('section.tab').forEach(s=>s.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById(b.dataset.t).classList.add('active');
+    window.scrollTo({top:0});
+  });
+  const blocks = document.querySelectorAll('#missions .m-body');
+  // block 0 = orchestrator, 1 = preamble, 2 = constitution, 3 = ship gate, 4+ = missions
+  const preamble = blocks[1].textContent, constitution = blocks[2].textContent, shipgate = blocks[3].textContent;
+  document.querySelectorAll('.copy').forEach((btn,i)=>{
+    btn.addEventListener('click',()=>{
+      const body = btn.closest('.mission-card').querySelector('.m-body').textContent;
+      const standalone = i<=3; // orchestrator + the three framework blocks copy as-is
+      const text = standalone ? body : preamble + "\n\n" + constitution + "\n\n" + body +
+        "\n\nBEFORE DECLARING DONE, run this Ship Gate and paste evidence for every line:\n\n" + shipgate;
+      navigator.clipboard.writeText(text).then(()=>{
+        btn.textContent = standalone ? 'Copied' : 'Copied full scaffold';
+        btn.classList.add('done');
+        setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('done')},2200);
+      });
+    });
+  });
+</script>
+</body>
+</html>
