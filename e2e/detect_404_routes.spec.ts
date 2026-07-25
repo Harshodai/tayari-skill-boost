@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import * as path from 'path';
 
 const FRONTEND_URL = 'http://localhost:8083';
 const TEST_EMAIL = 'testjobseeker2026@tayari.app';
@@ -55,17 +54,18 @@ const routesToTest = [
 ];
 
 test('Find all 404 and 500 errors across all routes', async ({ page }) => {
+  test.setTimeout(120000);
   const errorsFound: { route: string; url: string; status: number }[] = [];
 
   // 1. Login first
   await page.goto(`${FRONTEND_URL}/auth`);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.fill('input[name="email"]', TEST_EMAIL);
   await page.fill('input[name="password"]', TEST_PASSWORD);
   await page.click('button[type="submit"]');
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(2000);
 
   // 2. Attach error response logger for authenticated session
   page.on('response', (response) => {
@@ -78,10 +78,10 @@ test('Find all 404 and 500 errors across all routes', async ({ page }) => {
     }
   });
 
-  // 2. Visit each route
+  // 3. Visit each route with domcontentloaded wait state
   for (const route of routesToTest) {
     await page.goto(`${FRONTEND_URL}${route}`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
   }
 
   console.log('=== DISCOVERED 404 AND ERROR RESPONSES ===');

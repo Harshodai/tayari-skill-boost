@@ -128,7 +128,7 @@ const Auth = () => {
 
     // Zod Validation
     const validationSchema = isLogin ? loginSchema : signupSchema;
-    const validationResult = validationSchema.safeParse(isLogin ? { email, password } : { email, password, fullName: name });
+    const validationResult = validationSchema.safeParse(isLogin ? { email, password } : { email, password, name });
 
     if (!validationResult.success) {
       const errorMsg = validationResult.error.issues[0].message;

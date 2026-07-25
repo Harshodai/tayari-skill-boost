@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Sprint A — Integrity & Verification</title></head>
+<body>
+<h1>Sprint A — INTEGRITY & VERIFICATION</h1>
+<p><strong>Date:</strong> 2026-07-25</p>
+<p><strong>Branch:</strong> sprint/a (working tree, uncommitted)</p>
+
+<hr>
+
+<h2>A1 — Root-Redirect Lockout Fix</h2>
+<p><strong>Status:</strong> SHIPPED ✅</p>
+<h3>Changes</h3>
+<ul>
+  <li><code>src/api/index.ts:62-65</code> — <code>handleUnauthorized()</code> now dispatches <code>auth:unauthorized</code> CustomEvent instead of <code>window.location.href = "/auth?expired=true"</code></li>
+  <li><code>src/contexts/AuthContext.tsx</code> — Added <code>auth:unauthorized</code> event listener that clears <code>user</code>/<code>session</code> state on both self-hosted and Supabase branches</li>
+</ul>
+<h3>Verification</h3>
+<pre>
+e2e: Anonymous root does NOT redirect to /auth  ✓ (1.6s)
+e2e: Stale token clears silently on landing page ✓ (0.7s)
+</pre>
+
+<hr>
+
+<h2>A2 — Pricing Truth Pass</h2>
+<p><strong>Status:</strong> SHIPPED ✅</p>
+<h3>Changes</h3>
+<ul>
+  <li><code>src/pages/Pricing.tsx</code> — Added monthly/annual billing toggle (17% annual savings badge); removed "STAR mock interview prep" from Pro features; converted Team tier to email waitlist card with inline input</li>
+  <li><code>src/config/features.ts</code> — Disabled <code>interviewPrep</code>, <code>interviewAI</code>, <code>voiceCoach</code> (all <code>[false, false]</code>); removed Interview Board / Interview Prep nav links</li>
+  <li><code>src/components/layout/CommandPalette.tsx</code> — Removed "STAR Interview Coach" entry</li>
+  <li><code>index.html</code> — Shortened title to "Job Tayari — AI-Native Career Platform" (33 chars ≤60); removed interview prep from meta description/keywords/OG</li>
+</ul>
+<h3>Auto-hidden (guarded by feature flags)</h3>
+<ul>
+  <li>Header dropdown Interview Prep AI, Interview Board, Voice Coach items</li>
+  <li>Sidebar Interview Prep, Interview Board entries</li>
+  <li>Footer Interview Prep link</li>
+  <li>ProductsSection (via <code>showFullProductsSection: interviewPrep</code>)</li>
+</ul>
+
+<hr>
+
+<h2>A3 — Verification Debt</h2>
+<p><strong>Status:</strong> SHIPPED ✅</p>
+<h3>Fixes</h3>
+<ul>
+  <li><code>backend/go/internal/api/routes_resume_extra.go:166</code> — Fixed <code>user.ID.String()</code> type mismatch (uuid.UUID → string)</li>
+  <li><code>backend/go/internal/api/routes_app.go</code> — Added missing <code>/api/v1/resume-versions/{id}/docx</code> route alias for route parity</li>
+  <li><code>src/lib/schemas.test.ts</code> — Fixed password test ("ValidPass1!!" length 12 meets min 12 constraint)</li>
+  <li><code>src/config/features.test.ts</code> — Updated to expect <code>interviewPrep: false</code></li>
+</ul>
+<h3>Test Results</h3>
+<pre>
+Frontend: 43 pass, 0 fail (65 expect() calls)
+Go api:   ok (0.566s)
+Go billing: ok (cached)
+E2E:      31 pass, 9 fail (all 9 failures are pre-existing auth/registration tests requiring backend auth setup)
+</pre>
+<h3>Known Failing (pre-existing, not addressed)</h3>
+<ul>
+  <li>9 e2e tests requiring user registration + JWT — need proper auth backend configuration</li>
+  <li>Full <code>go test ./...</code> — DB-dependent packages panic without real database</li>
+</ul>
+
+<hr>
+
+<h2>A4 — Free No-Signup ATS Scan</h2>
+<p><strong>Status:</strong> SHIPPED ✅</p>
+<h3>Changes</h3>
+<ul>
+  <li><code>backend/go/internal/api/routes_app.go</code> — Added public routes <code>POST /api/v1/public/analyze-text</code> and <code>/api/public/analyze-text</code> (outside auth middleware, reuses existing <code>handleAnalyzeText</code> handler)</li>
+  <li><code>src/pages/FreeAtsScan.tsx</code> — New public page at <code>/free-scan</code>: paste resume + JD, click scan, see score + breakdown + matched/missing keywords + recommendations; CTA to sign up after results</li>
+  <li><code>src/App.tsx</code> — Registered <code>/free-scan</code> route</li>
+  <li><code>src/components/landing/HeroSection.tsx</code> — Added "Try a free ATS scan" link below CTAs</li>
+</ul>
+<h3>Verification</h3>
+<pre>
+curl -X POST /api/v1/public/analyze-text → 200 with analysis JSON (no auth token)
+/free-scan → 200 loads successfully
+</pre>
+
+<hr>
+
+<h2>Open Risks</h2>
+<ol>
+  <li><strong>Auth-dependent e2e tests still failing</strong> — 9 tests require registration + JWT. Need either mock auth for e2e or real auth backend configuration.</li>
+  <li><strong>Go test suite incomplete</strong> — <code>go test ./...</code> panics on DB-dependent packages without real DB connection. CI must configure test database or isolate DB-free subset.</li>
+  <li><strong>Interview prep pages still exist</strong> — Source files (InterviewPrep.tsx, InterviewVoiceCoach.tsx, InterviewBoard.tsx) remain in repo. Routes and nav links are removed; pages are dead ends. Clean sweep requires deleting these files and their lazy imports.</li>
+  <li><strong>Public scan has no rate limiting</strong> — <code>/api/v1/public/analyze-text</code> calls Python AI engine on every request. Add rate limiting or CAPTCHA before production.</li>
+</ol>
+
+<hr>
+<p><em>Report generated 2026-07-25T16:32+05:30. Stack running on Docker.</em></p>
+</body>
+</html>

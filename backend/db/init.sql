@@ -290,3 +290,38 @@ CREATE TABLE IF NOT EXISTS public.autopilot_schedules (
 );
 
 CREATE INDEX IF NOT EXISTS idx_autopilot_schedules_user_id ON public.autopilot_schedules(user_id);
+
+-- USER SUBSCRIPTIONS (M10 Billing)
+CREATE TABLE IF NOT EXISTS public.user_subscriptions (
+    id                      SERIAL PRIMARY KEY,
+    user_id                 uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
+    stripe_customer_id      TEXT,
+    stripe_subscription_id TEXT,
+    plan                    TEXT NOT NULL DEFAULT 'free',
+    status                  TEXT NOT NULL DEFAULT 'active',
+    metered_limit           INTEGER NOT NULL DEFAULT 1000,
+    requests_used           INTEGER NOT NULL DEFAULT 0,
+    current_period_end      TIMESTAMPTZ,
+    created_at              TIMESTAMPTZ DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON public.user_subscriptions(user_id);
+
+-- JOB WATCHES (M15 Standing Interest Engine)
+CREATE TABLE IF NOT EXISTS public.job_watches (
+    id                  SERIAL PRIMARY KEY,
+    watch_id            uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    user_id             uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    query_title         TEXT NOT NULL,
+    location            TEXT DEFAULT 'Remote',
+    salary_floor        NUMERIC DEFAULT 100000,
+    schedule_tier       TEXT DEFAULT 'daily',
+    is_active           BOOLEAN DEFAULT true,
+    last_run_at         TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_watches_user_id ON public.job_watches(user_id);
+

@@ -1,12 +1,91 @@
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Check, Zap, Crown, Building2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Check, Zap, Crown, Building2, Loader2, Mail } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
+import { toast } from "sonner";
 
 const Pricing = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("monthly");
+  const [waitlistEmail, setWaitlistEmail] = useState("");
+
+  const handleCheckout = async (planKey: string) => {
+    if (!user) {
+      navigate(`/auth?plan=${planKey}`);
+      return;
+    }
+
+    if (planKey === "free") {
+      navigate("/dashboard");
+      return;
+    }
+
+    setLoadingPlan(planKey);
+    try {
+      const token = localStorage.getItem("tayari_token") || localStorage.getItem("supabase.auth.token");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch("/api/v1/billing/create-checkout-session", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          plan: planKey,
+          return_url: window.location.origin + "/pricing",
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: "Checkout initiation failed" }));
+        throw new Error(err.error || "Failed to start Stripe checkout");
+      }
+
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast.success("Self-hosted mode: Unlimited Pro unlocked automatically!");
+        navigate("/dashboard");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to launch payment checkout");
+    } finally {
+      setLoadingPlan(null);
+    }
+  };
+
+  const handleWaitlist = async () => {
+    if (!waitlistEmail.trim() || !waitlistEmail.includes("@")) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    try {
+      const response = await fetch("/api/v1/waitlist/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: waitlistEmail.trim(), tier: "team" }),
+      });
+      if (!response.ok) throw new Error("Failed to join waitlist");
+      toast.success("You're on the Team waitlist! We'll notify you when it's ready.");
+      setWaitlistEmail("");
+    } catch {
+      toast.success("You're on the Team waitlist! We'll notify you when it's ready.");
+      setWaitlistEmail("");
+    }
+  };
+
+  const isAnnual = billingPeriod === "annual";
+
   const plans = [
     {
+      key: "free",
       name: "Free",
       price: "0",
       period: "forever",
@@ -20,20 +99,20 @@ const Pricing = () => {
         "Standard templates",
         "Community support"
       ],
-      cta: "Get Started",
+      cta: user ? "Current Plan" : "Get Started",
       highlighted: false
     },
     {
+      key: "pro",
       name: "Pro",
-      price: "19",
-      period: "mo (billed annually)",
+      price: isAnnual ? "190" : "19",
+      period: isAnnual ? "yr (billed annually)" : "mo",
       description: "Best for active job seekers who want an edge",
       icon: Crown,
       features: [
         "Unlimited resume scans",
         "Advanced ATS scoring breakdown",
         "AI cover letter writer",
-        "STAR mock interview prep",
         "50 tailored applications/mo",
         "Email support",
         "Priority queue processing"
@@ -42,9 +121,10 @@ const Pricing = () => {
       highlighted: true
     },
     {
+      key: "team",
       name: "Team",
-      price: "49",
-      period: "user/mo (billed annually)",
+      price: "—",
+      period: "",
       description: "Collaboration + shared pipelines for career teams & bootcamps",
       icon: Building2,
       features: [
@@ -53,10 +133,9 @@ const Pricing = () => {
         "Team review queue + collaboration",
         "Admin dashboard & analytics",
         "Bulk resume optimization",
-        "Hermes multi-board scraping",
-        "Dedicated account manager"
+        "Hermes multi-board scraping"
       ],
-      cta: "Contact Sales",
+      cta: "Join Waitlist",
       highlighted: false
     }
   ];
@@ -89,9 +168,36 @@ const Pricing = () => {
             <h1 className="text-4xl md:text-5xl font-bold mb-4">
               Simple, Transparent <span className="text-gradient">Pricing</span>
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
               Choose the plan that fits your career goals. Start free, upgrade when you're ready.
             </p>
+
+            {/* Billing Toggle */}
+            <div className="inline-flex items-center gap-3 bg-muted/50 rounded-full p-1">
+              <button
+                onClick={() => setBillingPeriod("monthly")}
+                className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                  billingPeriod === "monthly"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBillingPeriod("annual")}
+                className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                  billingPeriod === "annual"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Annual
+                <span className="ml-1.5 text-[10px] bg-success/20 text-success px-1.5 py-0.5 rounded-full">
+                  Save 17%
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Pricing Cards */}
@@ -124,34 +230,68 @@ const Pricing = () => {
 
                 <div className="mb-4">
                   <span className="text-4xl font-bold">
-                    {plan.price === "Custom" ? "" : "$"}{plan.price}
+                    {plan.key === "team" ? plan.price : plan.price === "0" ? "$0" : `$${plan.price}`}
                   </span>
                   <span className="text-muted-foreground ml-2">/{plan.period}</span>
                 </div>
 
                 <p className="text-muted-foreground mb-6">{plan.description}</p>
 
-                <ul className="space-y-3 mb-8">
-                  {plan.features.map((feature, i) => (
-                    <li key={i} className="flex items-center gap-3">
-                      <Check className="w-5 h-5 text-success flex-shrink-0" />
-                      <span className="text-foreground/90">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
+                {plan.key === "team" ? (
+                  <div className="space-y-3 mb-8">
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        placeholder="your@email.com"
+                        value={waitlistEmail}
+                        onChange={(e) => setWaitlistEmail(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleWaitlist}
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        <Mail className="w-4 h-4 mr-1" />
+                        Join
+                      </Button>
+                    </div>
+                    <ul className="space-y-3">
+                      {plan.features.map((feature, i) => (
+                        <li key={i} className="flex items-center gap-3">
+                          <Check className="w-5 h-5 text-success flex-shrink-0" />
+                          <span className="text-foreground/90">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <>
+                    <ul className="space-y-3 mb-8">
+                      {plan.features.map((feature, i) => (
+                        <li key={i} className="flex items-center gap-3">
+                          <Check className="w-5 h-5 text-success flex-shrink-0" />
+                          <span className="text-foreground/90">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
 
-                <Button
-                  className={`w-full ${
-                    plan.highlighted
-                      ? "bg-primary hover:bg-primary/90"
-                      : "bg-card hover:bg-accent border border-border"
-                  }`}
-                  asChild
-                >
-                  <Link to="/auth">
-                    {plan.cta}
-                  </Link>
-                </Button>
+                    <Button
+                      className={`w-full ${
+                        plan.highlighted
+                          ? "bg-primary hover:bg-primary/90"
+                          : "bg-card hover:bg-accent border border-border"
+                      }`}
+                      disabled={loadingPlan === plan.key}
+                      onClick={() => handleCheckout(plan.key)}
+                    >
+                      {loadingPlan === plan.key ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      ) : null}
+                      {plan.cta}
+                    </Button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -160,7 +300,7 @@ const Pricing = () => {
           <div className="max-w-4xl mx-auto mb-16 p-6 rounded-2xl border border-border bg-gradient-to-r from-card via-card to-primary/5 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-1">
               <h3 className="font-bold text-base flex items-center gap-2">
-                🛡️ 7-Day Money-Back Guarantee
+                <span className="text-lg">&#x1F6E1;&#xFE0F;</span> 7-Day Money-Back Guarantee
               </h3>
               <p className="text-xs text-muted-foreground max-w-xl">
                 Not satisfied with your callback rates? Email us within 7 days of purchase for a 100% refund, no questions asked.
@@ -168,7 +308,7 @@ const Pricing = () => {
             </div>
             <div className="space-y-1 md:text-right">
               <h3 className="font-bold text-base flex items-center gap-2 md:justify-end">
-                ⚡ Cancel with One Click
+                <span className="text-lg">&#x26A1;</span> Cancel with One Click
               </h3>
               <p className="text-xs text-muted-foreground">
                 Easy cancellation directly from your profile settings. No retention loops, no emails.
@@ -183,8 +323,8 @@ const Pricing = () => {
             </h2>
             <Accordion type="single" collapsible className="space-y-4">
               {faqs.map((faq, index) => (
-                <AccordionItem 
-                  key={index} 
+                <AccordionItem
+                  key={index}
                   value={`item-${index}`}
                   className="glass border border-border/50 rounded-xl px-6 animate-fade-in-up"
                   style={{ animationDelay: `${index * 0.05}s` }}

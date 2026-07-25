@@ -159,7 +159,7 @@ export function AppSidebar() {
             </SidebarMenuItem>
           )}
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={async () => { await signOut(); navigate("/"); }} tooltip="Sign out">
+            <SidebarMenuButton aria-label="Sign out" onClick={async () => { await signOut(); navigate("/"); }} tooltip="Sign out">
               <LogOut className="h-4 w-4" />
               {!collapsed && <span>Sign out</span>}
             </SidebarMenuButton>

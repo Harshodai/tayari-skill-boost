@@ -91,6 +91,12 @@ export function HeroSection() {
               </Link>
             </Button>
           </div>
+          <p className="text-sm text-muted-foreground/70 animate-fade-in-up animation-delay-350">
+            No signup?{" "}
+            <Link to="/free-scan" className="text-primary hover:underline font-medium">
+              Try a free ATS scan
+            </Link>
+          </p>
 
           {/* Role selector tabs */}
           <div className="flex justify-center gap-2.5 mb-6 animate-fade-in-up animation-delay-400">

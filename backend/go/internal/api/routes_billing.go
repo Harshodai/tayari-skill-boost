@@ -12,13 +12,17 @@ import (
 )
 
 func (s *Server) RegisterBillingRoutes(r chi.Router, b *billing.BillingService) {
-	// Protected Billing Status
+	// Protected Billing Status, Checkout & Portal Creation
 	r.Group(func(r chi.Router) {
 		r.Use(s.authMiddleware)
 		r.Use(s.authRateLimiter.Middleware)
 
 		r.Get("/api/v1/billing/status", s.handleBillingStatus(b))
 		r.Get("/api/billing/status", s.handleBillingStatus(b))
+		r.Post("/api/v1/billing/create-checkout-session", s.handleCreateCheckoutSession(b))
+		r.Post("/api/billing/create-checkout-session", s.handleCreateCheckoutSession(b))
+		r.Post("/api/v1/billing/create-portal-session", s.handleCreatePortalSession(b))
+		r.Post("/api/billing/create-portal-session", s.handleCreatePortalSession(b))
 	})
 
 	// Public Webhook Endpoint (Stripe Signature Verified)
@@ -35,6 +39,64 @@ func (s *Server) handleBillingStatus(b *billing.BillingService) http.HandlerFunc
 		}
 		ent := b.GetEntitlement(user.ID.String())
 		s.respondJSON(w, http.StatusOK, ent)
+	}
+}
+
+func (s *Server) handleCreateCheckoutSession(b *billing.BillingService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := auth.UserFromContext(r.Context())
+		if !ok || user == nil || user.ID == [16]byte{} {
+			s.respondError(w, http.StatusUnauthorized, "unauthorized - valid authentication required")
+			return
+		}
+
+		var req struct {
+			Plan      string `json:"plan"`
+			ReturnURL string `json:"return_url"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Plan == "" {
+			req.Plan = "pro"
+		}
+		if req.ReturnURL == "" {
+			req.ReturnURL = s.Config.FrontendURL + "/pricing"
+		}
+
+		url, err := b.CreateCheckoutSession(user.ID.String(), user.Email, req.Plan, req.ReturnURL)
+		if err != nil {
+			s.respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		s.respondJSON(w, http.StatusOK, map[string]string{
+			"url": url,
+		})
+	}
+}
+
+func (s *Server) handleCreatePortalSession(b *billing.BillingService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := auth.UserFromContext(r.Context())
+		if !ok || user == nil || user.ID == [16]byte{} {
+			s.respondError(w, http.StatusUnauthorized, "unauthorized - valid authentication required")
+			return
+		}
+
+		var req struct {
+			ReturnURL string `json:"return_url"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ReturnURL == "" {
+			req.ReturnURL = s.Config.FrontendURL + "/settings"
+		}
+
+		url, err := b.CreatePortalSession(user.ID.String(), req.ReturnURL)
+		if err != nil {
+			s.respondError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		s.respondJSON(w, http.StatusOK, map[string]string{
+			"url": url,
+		})
 	}
 }
 
@@ -58,10 +120,13 @@ func (s *Server) handleStripeWebhook(b *billing.BillingService) http.HandlerFunc
 			Type string `json:"type"`
 			Data struct {
 				Object struct {
+					ID                string `json:"id"`
 					Customer          string `json:"customer"`
+					Subscription      string `json:"subscription"`
 					ClientReferenceID string `json:"client_reference_id"`
 					Metadata          struct {
 						UserID string `json:"user_id"`
+						Plan   string `json:"plan"`
 					} `json:"metadata"`
 					Plan struct {
 						ID string `json:"id"`
@@ -79,11 +144,19 @@ func (s *Server) handleStripeWebhook(b *billing.BillingService) http.HandlerFunc
 		if userID == "" {
 			userID = payload.Data.Object.ClientReferenceID
 		}
-		if userID == "" {
-			userID = payload.Data.Object.Customer
+
+		plan := payload.Data.Object.Metadata.Plan
+		if plan == "" {
+			plan = payload.Data.Object.Plan.ID
 		}
 
-		b.ProcessStripeWebhook(payload.ID, payload.Type, userID, payload.Data.Object.Plan.ID)
+		customerID := payload.Data.Object.Customer
+		subID := payload.Data.Object.Subscription
+		if subID == "" {
+			subID = payload.Data.Object.ID
+		}
+
+		b.ProcessStripeWebhook(payload.ID, payload.Type, customerID, subID, userID, plan)
 		s.respondJSON(w, http.StatusOK, map[string]string{"status": "processed"})
 	}
 }

@@ -29,6 +29,7 @@
     }
     input:focus { outline: none; border-color: #38bdf8; }
     .hint { font-size: 11px; color: #64748b; margin-top: 4px; }
+    .btn-group { display: flex; gap: 10px; }
     button {
       background: #0284c7;
       color: white;
@@ -39,7 +40,9 @@
       font-size: 14px;
       cursor: pointer;
     }
+    button.secondary { background: #334155; }
     button:hover { background: #0369a1; }
+    button.secondary:hover { background: #475569; }
     .status { margin-top: 14px; font-size: 13px; font-weight: 500; }
     .status.success { color: #4ade80; }
     .status.error { color: #f87171; }
@@ -61,7 +64,10 @@
     <div class="hint">Generate an API key in your Tayari dashboard under Settings → API Keys.</div>
   </div>
 
-  <button id="saveBtn">Save Settings</button>
+  <div class="btn-group">
+    <button id="saveBtn">Save Settings</button>
+    <button id="testBtn" class="secondary">Test Connection</button>
+  </div>
   <div id="status" class="status"></div>
 
   <script src="options.js"></script>

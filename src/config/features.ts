@@ -21,7 +21,7 @@ const CONFIG = {
     // Career roadmap visual planning tool
     careerRoadmap: [true, true],
     // Interactive interview preparation module
-    interviewPrep: [true, true],
+    interviewPrep: [false, false],
     // Job search interface and autopilot integration
     jobSearch: [true, true],
     // Blog content section
@@ -37,9 +37,9 @@ const CONFIG = {
     // Communication hub for messaging templates
     communicationHub: [true, true],
     // AI-powered interview coaching
-    interviewAI: [true, true],
+    interviewAI: [false, false],
     // Voice interview coach with live metrics
-    voiceCoach: [true, true],
+    voiceCoach: [false, false],
     // Salary negotiation copilot with H1B benchmarks
     negotiationCopilot: [true, true],
     // 15-minute Company Radar Job Sentinel
@@ -82,8 +82,7 @@ const CONFIG = {
     { label: "Resume Optimizer", href: "/resume", feature: "resumeOptimizer" },
     { label: "Career Roadmap", href: "/roadmap", feature: "careerRoadmap" },
     { label: "Knowledge Hub", href: "/knowledge-hub", feature: "knowledgeHub" },
-    { label: "Interview Board", href: "/interview", feature: "interviewPrep" },
-    { label: "Interview Prep", href: "/interview/prep", feature: "interviewAI" },
+
     { label: "Job Search", href: "/jobs", feature: "jobSearch" },
     { label: "Apply Assist", href: "/jobs/autopilot", feature: "jobSearch" },
     { label: "Cover Letter", href: "/cover-letter", feature: "coverLetter" },

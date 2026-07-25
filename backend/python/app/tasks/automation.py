@@ -276,3 +276,55 @@ def run_agent_task(self, task_id: str, user_id: str, agent_id: str, config: dict
             return {"task_id": task_id, "status": "failed", "error": str(exc)}
 
     return asyncio.run(_async_run())
+
+
+@celery_app.task(name="autopilot.run_standing_job_watches", bind=True)
+def run_standing_job_watches(self) -> dict:
+    """Query active job_watches from Postgres and trigger scheduled autopilot runs."""
+    import os
+    async def _execute():
+        from app.services.db import get_pool
+        pool = await get_pool()
+        if not pool:
+            return {"status": "skipped_no_db"}
+        async with pool.acquire() as conn:
+            watches = await conn.fetch(
+                """SELECT watch_id, user_id, query_title, location, salary_floor, schedule_tier
+                   FROM public.job_watches WHERE is_active = true"""
+            )
+        triggered = 0
+        for w in watches:
+            user_id = str(w["user_id"])
+            title = w["query_title"]
+            loc = w["location"] or "Remote"
+            config = {
+                "user_id": user_id,
+                "job_titles": [title],
+                "location": loc,
+                "standing_watch_id": str(w["watch_id"]),
+            }
+            run_scheduled.delay(user_id=user_id, config=config)
+            triggered += 1
+        return {"status": "success", "watches_triggered": triggered}
+
+    try:
+        return asyncio.run(_execute())
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("run_standing_job_watches failed: %s", exc)
+        return {"status": "failed", "error": str(exc)}
+
+
+@celery_app.task(name="system.nightly_database_backup", bind=True)
+def nightly_database_backup(self) -> dict:
+    """Execute nightly Postgres backup script."""
+    import os
+    import subprocess
+    script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../scripts/backup.sh"))
+    if not os.path.exists(script_path):
+        script_path = "/app/scripts/backup.sh"
+    try:
+        res = subprocess.run(["bash", script_path], capture_output=True, text=True, timeout=300)
+        return {"status": "success" if res.returncode == 0 else "failed", "output": res.stdout, "error": res.stderr}
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("nightly_database_backup failed: %s", exc)
+        return {"status": "failed", "error": str(exc)}

@@ -59,6 +59,7 @@ const AgentPanel = lazy(() => import('./pages/AgentPanel'));
 const APIKeys = lazy(() => import('./pages/APIKeys'));
 const ResumeGraph = lazy(() => import('./pages/ResumeGraph'));
 const OAuthConsent = lazy(() => import('./pages/OAuthConsent'));
+const FreeAtsScan = lazy(() => import('./pages/FreeAtsScan'));
 
 const CareerOpsDashboard = lazy(() => import('./pages/CareerOpsDashboard'));
 const LinkedInImport = lazy(() => import('./pages/LinkedInImport'));
@@ -108,6 +109,7 @@ const App = () => (
               )}
               <Route path="/auth" element={<Auth />} />
               <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/free-scan" element={<FreeAtsScan />} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/terms" element={<Terms />} />

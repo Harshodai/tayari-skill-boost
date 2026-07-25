@@ -47,12 +47,18 @@ celery_app.conf.update(
     task_soft_time_limit=720,
     # Results
     result_expires=86400,
-    # ponytail: daily preference-learning fan-out at 03:30 UTC (off-peak).
-    # beat_schedule is inert without `celery -A app.celery_app beat` running,
-    # which the worker stack doesn't start by default — explicit opt-in.
+    # Scheduled beat tasks: preference learning, job watches, nightly backups
     beat_schedule={
         "preference-learning-daily": {
             "task": "learning.run_preference_learning_all",
+            "schedule": 60 * 60 * 24,  # 24h
+        },
+        "standing-job-watches-hourly": {
+            "task": "autopilot.run_standing_job_watches",
+            "schedule": 60 * 60,  # 1h
+        },
+        "nightly-db-backup": {
+            "task": "system.nightly_database_backup",
             "schedule": 60 * 60 * 24,  # 24h
         },
     },

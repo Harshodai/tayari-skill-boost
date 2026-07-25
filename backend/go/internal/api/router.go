@@ -44,7 +44,7 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		Config:            cfg,
 		DB:                db,
 		AI:                ai.NewClient(cfg.PythonAIURL),
-		Billing:           billing.NewBillingService(),
+		Billing:           billing.NewBillingService(db),
 		startTime:         time.Now(),
 		publicRateLimiter: newRateLimiter(rate.Limit(10.0), 100, false),
 		authRateLimiter:   newRateLimiter(rate.Limit(50.0), 200, true),
@@ -101,4 +101,14 @@ func (s *Server) routes() {
 	s.registerCoreRoutes(s.Router)
 	s.RegisterOneStopRoutes(s.Router)
 	s.RegisterBillingRoutes(s.Router, s.Billing)
+	s.routesJobWatches(s.Router)
+	s.routesCareerOps(s.Router)
+	s.routesCareerIntelligence(s.Router)
+	s.routesReviewQueue(s.Router)
+	s.routesExtensionExtra(s.Router)
+	s.routesAgents(s.Router)
+	s.routesAnalytics(s.Router)
+	s.routesTenant(s.Router)
+	s.routesPush(s.Router)
+	s.routesVoice(s.Router)
 }

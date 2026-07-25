@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tayari — Ultimate Review (Post-Launch-Build, July 25 2026)</title>
+<style>
+  :root{--paper:#f6f4ef;--ink:#1a1a1a;--muted:#6b6b63;--line:#d8d4c9;--red:#c0392b;--green:#1e7b4f;--amber:#b7791f;--navy:#1f3a5f;
+  --mono:'SF Mono','JetBrains Mono',Menlo,Consolas,monospace;--serif:Georgia,'Times New Roman',serif;--sans:-apple-system,'Helvetica Neue',Arial,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.55;font-size:15px}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 28px 80px}
+  header{border-bottom:3px solid var(--ink);padding:36px 0 20px}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--red)}
+  h1{font-family:var(--serif);font-size:40px;line-height:1.12;margin:10px 0 8px;font-weight:700}
+  .sub{color:var(--muted);font-size:15px;max-width:780px}
+  .meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:14px;display:flex;gap:22px;flex-wrap:wrap}
+  nav{position:sticky;top:0;background:var(--paper);border-bottom:1px solid var(--line);z-index:50;display:flex;overflow-x:auto}
+  nav button{font-family:var(--mono);font-size:12px;background:none;border:none;border-bottom:3px solid transparent;padding:14px 14px;cursor:pointer;color:var(--muted);white-space:nowrap}
+  nav button.active{color:var(--ink);border-bottom-color:var(--red);font-weight:700}
+  nav button:hover{color:var(--ink)}
+  section.tab{display:none;padding-top:34px} section.tab.active{display:block}
+  h2{font-family:var(--serif);font-size:26px;margin:0 0 6px}
+  h3{font-family:var(--serif);font-size:18px;margin:28px 0 10px}
+  .lede{font-size:16px;color:#333;max-width:840px;margin-bottom:20px}
+  p{max-width:840px;margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);font-size:13px;margin:14px 0 22px}
+  th{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;text-align:left;background:var(--ink);color:#f6f4ef;padding:9px 12px}
+  td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}
+  tr:hover td{background:#faf8f2}
+  .pill{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 8px;border:1px solid currentColor;border-radius:2px;letter-spacing:.06em;text-transform:uppercase}
+  .r{color:var(--red)}.g{color:var(--green)}.a{color:var(--amber)}.n{color:var(--navy)}
+  .callout{border:1px solid var(--line);border-left:4px solid var(--amber);background:#fff;padding:14px 18px;margin:16px 0;max-width:880px;font-size:14px}
+  .callout.red{border-left-color:var(--red)}.callout.green{border-left-color:var(--green)}
+  code{font-family:var(--mono);font-size:12.5px;background:#eceade;padding:1px 5px;border-radius:2px}
+  blockquote{border-left:3px solid var(--red);padding:6px 0 6px 18px;margin:18px 0;font-family:var(--serif);font-size:17px;font-style:italic;color:#333;max-width:780px}
+  .score-row{display:flex;align-items:center;gap:14px;margin:10px 0;max-width:720px}
+  .score-label{font-family:var(--mono);font-size:11.5px;width:230px;flex-shrink:0}
+  .bar{flex:1;height:14px;background:#e7e3d6;position:relative}
+  .bar i{position:absolute;left:0;top:0;bottom:0}
+  .bar em{position:absolute;top:0;bottom:0;width:2px;background:#999}
+  .score-num{font-family:var(--mono);font-size:12px;width:84px;text-align:right}
+  .fine{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:6px}
+  .grid{display:grid;gap:14px}.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .card{background:#fff;border:1px solid var(--line);border-top:3px solid var(--ink);padding:18px}
+  .card h4{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .srcs{font-size:12px;color:var(--muted);border-top:1px solid var(--line);margin-top:36px;padding-top:14px}
+  .srcs a{color:var(--navy)}
+  .check{font-family:var(--mono);font-size:13px}
+  @media(max-width:640px){h1{font-size:28px}.score-label{width:130px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Ultimate Review · Nine Lenses · Post-Implementation, Live-Verified</div>
+  <h1>The stack is alive. Now it has to stop lying and start selling.</h1>
+  <p class="sub">Grounded in: the executed commit (414c56b, verified file-by-file), three live screenshots of the running product (root, /pricing, footer), prior repo audit, and July-2026 market research. Closed-source SaaS trajectory, interview prep excluded, per founder decisions.</p>
+  <div class="meta"><span>DATE: 2026-07-25</span><span>PRODUCT: JobTayari (live @ :8083)</span><span>LENSES: design · docs · deploy · competitive ×2 · brainstorm · roadmap · stakeholder · SEO</span></div>
+</header>
+
+<nav id="nav">
+  <button data-t="verdict" class="active">Verdict</button>
+  <button data-t="design">Design Review</button>
+  <button data-t="deploy">Deploy Checklist</button>
+  <button data-t="comp">Competitive ×2</button>
+  <button data-t="seo">SEO & Acquisition</button>
+  <button data-t="brainstorm">Brainstorm</button>
+  <button data-t="roadmap">Roadmap v3</button>
+  <button data-t="stakeholder">Stakeholder Update</button>
+  <button data-t="docs">Docs Plan</button>
+  <button data-t="runit">Run It</button>
+</nav>
+
+<!-- VERDICT -->
+<section class="tab active" id="verdict">
+  <h2>Verdict — where you actually are</h2>
+  <p class="lede">Three weeks ago this was a private repo with a broken MCP server and a tracker that fabricated applications. Today a real product boots in Docker with honest statuses, a unified clock, a notification engine, an API-keyed MCP, and a pricing page a stranger could believe. That is real movement and you should hear it plainly: <b>the engineering turnaround worked.</b> Now the bad news, live-verified: the front door is broken, the pricing page sells features that don't exist, revenue is still a stub, and zero human beings have touched any of it.</p>
+
+  <h3>Scorecard — then → now (marker = where you were at first audit)</h3>
+  <div class="score-row"><span class="score-label">Engineering depth</span><div class="bar"><i style="width:80%;background:var(--green)"></i><em style="left:72%"></em></div><span class="score-num">72→80</span></div>
+  <div class="score-row"><span class="score-label">Production readiness</span><div class="bar"><i style="width:70%;background:var(--amber)"></i><em style="left:55%"></em></div><span class="score-num">55→70</span></div>
+  <div class="score-row"><span class="score-label">Product integrity (UI truth)</span><div class="bar"><i style="width:45%;background:var(--red)"></i><em style="left:30%"></em></div><span class="score-num">~30→45</span></div>
+  <div class="score-row"><span class="score-label">Monetization readiness</span><div class="bar"><i style="width:15%;background:var(--red)"></i><em style="left:3%"></em></div><span class="score-num">3→15</span></div>
+  <div class="score-row"><span class="score-label">Distribution / users</span><div class="bar"><i style="width:5%;background:var(--red)"></i><em style="left:5%"></em></div><span class="score-num">5→5</span></div>
+  <p class="fine">Product integrity scored down for live findings: root redirect lockout + vaporware tiers on /pricing. Distribution unmoved: local Docker is not distribution.</p>
+
+  <h3>The five things that matter this week (everything else is noise)</h3>
+  <table>
+    <tr><th>#</th><th>Item</th><th>Why it outranks everything</th></tr>
+    <tr><td>1</td><td><b>Fix the front-door bug</b>: <code>/</code> redirects anonymous visitors to <code>/auth?expired=true</code>. Your landing page is unreachable.</td><td>100% of future visitors bounce off a login wall. Every marketing dollar and SEO hour is worthless until this two-hour fix ships.</td></tr>
+    <tr><td>2</td><td><b>Pricing truth pass</b>: Pro sells "STAR mock interview prep" (a feature you cut); Team ($49) sells shared pipelines/admin dashboards/bulk optimization (never built).</td><td>Your brand is the truth gate. Selling vaporware on the pricing page is the one hypocrisy the market will never forgive — and it's consumer-protection exposure once money flows.</td></tr>
+    <tr><td>3</td><td><b>Run the verification debt</b>: the mega-commit merged 5,221 lines to main including a 725-line router rewrite with zero recorded test runs.</td><td>go test / pytest / bun test / e2e against the live stack. Until green, "it boots" is the only thing you know.</td></tr>
+    <tr><td>4</td><td><b>Make billing real</b>: billing.go has no Stripe SDK. The $19 button can render forever; it cannot charge.</td><td>Money-back guarantees and cancel promises on /pricing are commitments your backend cannot honor.</td></tr>
+    <tr><td>5</td><td><b>Ten strangers</b>: nobody outside this chat has used the product.</td><td>Every remaining question — pricing, IA, features, positioning — is answered faster by ten users than by a tenth analysis document (this is the fourth; it should be the last until users exist).</td></tr>
+  </table>
+
+  <blockquote>The footer already says the right thing: "AI-powered job preparation platform for software engineers." That's the wedge. Now make every page, keyword, and feature decision agree with it.</blockquote>
+</section>
+
+<!-- DESIGN -->
+<section class="tab" id="design">
+  <h2>Design Review — live product, three screenshots, no mercy</h2>
+  <p class="lede">Reviewed live: root route, /auth, /pricing (full scroll). What I could NOT review: the logged-in app shell (no credentials — I don't create accounts). Overall surprise: the visual design is <b>better than expected</b> — coherent dark theme, clean cards, restrained marketing nav (Features · Job Search · Roadmap · Resources), theme toggle, "Most Popular" badge, FAQ accordion, guarantee strip. Someone with taste shipped this. The failures are integrity and flow, not aesthetics.</p>
+
+  <table>
+    <tr><th>Finding</th><th>Evidence (live)</th><th>Severity · Fix</th></tr>
+    <tr><td><b>Root lockout.</b> Anonymous visit to <code>/</code> lands on <code>/auth?expired=true</code>. The marketing site — hero, features, social proof — is unreachable. Likely a stale-token check in the protected-route wrapper hijacking public routes.</td><td>Navigated to <code>/</code> twice; both landed on the login wall. "Back to Home" link exists but the loop re-fires.</td><td><span class="pill r">P0</span> Public routes never redirect; expired token → silently clear storage, stay put. Add an e2e: anonymous <code>/</code> renders hero.</td></tr>
+    <tr><td><b>Pricing sells cut & unbuilt features.</b> Pro: "STAR mock interview prep" — explicitly excluded from launch. Team: "shared candidate pipelines, team review queue, admin dashboard & analytics, bulk resume optimization" — no team/tenant model exists in the backend.</td><td>/pricing screenshot, both tiers.</td><td><span class="pill r">P0</span> Strike every unshipped line. Either delete the Team tier or relabel "coming soon — join waitlist" (waitlist = free demand signal for whether to build it).</td></tr>
+    <tr><td><b>Annual-only price framing.</b> "$19/mo (billed annually)" with no monthly price visible anywhere.</td><td>/pricing, Pro card.</td><td><span class="pill a">P1</span> Show monthly ($29?) and annual side by side with a toggle. Hidden-annual is dark-pattern-adjacent and erodes the honesty brand.</td></tr>
+    <tr><td><b>Footer links to Interview Prep.</b> Cut feature, still in the Product footer column.</td><td>/pricing footer.</td><td><span class="pill a">P1</span> Nav integrity sweep: no link anywhere to a flagged-off surface.</td></tr>
+    <tr><td><b>Title tag is a billboard.</b> "Job Tayari — The AI-Native Career Chain: Resume → Interview in One Observable Pipeline" (~90 chars) on every page including auth.</td><td>Browser tab, all pages.</td><td><span class="pill a">P1</span> Per-route titles ≤60 chars. "JobTayari — AI Job Search for Software Engineers". Also fix: "Resume → Interview" promises the excluded module.</td></tr>
+    <tr><td><b>OAuth buttons unverified.</b> Google/GitHub/LinkedIn sign-in rendered prominently. If providers aren't configured for the deployed domain, the first click a user makes errors.</td><td>/auth screenshot.</td><td><span class="pill a">P1</span> Render only configured providers (backend capability check). A broken OAuth button on first contact is fatal.</td></tr>
+    <tr><td><b>Money-back microcopy references "callback rates."</b> "Not satisfied with your callback rates? …100% refund."</td><td>/pricing guarantee strip.</td><td><span class="pill g">Keep</span> — this is good, outcome-anchored copy. Just ensure billing can actually refund before it goes live.</td></tr>
+    <tr><td><b>Unreviewed: the app shell.</b> Sidebar, Mission Control, chain stepper, empty states, mobile — the M17 work I graded "barely happened" from the diff.</td><td>—</td><td><span class="pill a">Debt</span> Log in yourself, walk the chain at 375px width, screenshot every empty state. Or hand me a session next round.</td></tr>
+  </table>
+
+  <div class="callout green"><b>What's genuinely good (credit where earned):</b> visual coherence, the slim marketing nav (36-link maze is gone from the public site), theme toggle, believable tier structure and price points, FAQ + guarantee reducing purchase anxiety, and a footer positioning line — "for software engineers" — that is the smartest strategic sentence anyone has written in this repo. The design system discipline paid off.</div>
+</section>
+
+<!-- DEPLOY -->
+<section class="tab" id="deploy">
+  <h2>Deploy Checklist — local Docker → paying strangers</h2>
+  <p class="lede">"Live in Docker on my machine" is a milestone, not a deployment. This is the gap between your laptop and a product humans can pay for. Status is honest: mostly ❌.</p>
+
+  <h3 class="check">PHASE A — Verify what you merged (before any deploy)</h3>
+  <table>
+    <tr><th>Item</th><th>Status</th><th>Detail</th></tr>
+    <tr><td class="check">go test -race ./... green</td><td><span class="pill a">Unproven</span></td><td>No recorded run since the 725-line router rewrite. Non-negotiable first step.</td></tr>
+    <tr><td class="check">pytest full suite green</td><td><span class="pill a">Unproven</span></td><td>Includes new notifications/bandit/typst code paths.</td></tr>
+    <tr><td class="check">bun run build + test + e2e smoke</td><td><span class="pill a">Unproven</span></td><td>e2e must include the new anonymous-root test (design P0).</td></tr>
+    <tr><td class="check">Chain walkthrough on live stack</td><td><span class="pill a">Partial</span></td><td>It boots; nobody has run upload→score→tailor→queue→board end-to-end and said so.</td></tr>
+    <tr><td class="check">Rollback point</td><td><span class="pill r">Missing</span></td><td>Tag current images + DB dump BEFORE further changes. backup.sh exists — run it, verify restore.sh round-trips.</td></tr>
+  </table>
+
+  <h3 class="check">PHASE B — Production infrastructure</h3>
+  <table>
+    <tr><th>Item</th><th>Status</th><th>Detail</th></tr>
+    <tr><td class="check">Host + domain + TLS</td><td><span class="pill r">Missing</span></td><td>Pick: Fly/Railway (fast) or Hetzner+your helm chart (cheap, more ops). Buy the domain this week — SEO clock starts at first crawl.</td></tr>
+    <tr><td class="check">Managed Postgres + scheduled backups</td><td><span class="pill r">Missing</span></td><td>backup.sh is scheduled by NOTHING — the dead-clock pattern again. Cron/sidecar it in the same PR that deploys.</td></tr>
+    <tr><td class="check">Secrets: prod JWT_SECRET, rotated keys, VITE_* build args for prod domain</td><td><span class="pill r">Missing</span></td><td>Remember: VITE_ vars bake at build time — prod needs its own image build with prod API URL.</td></tr>
+    <tr><td class="check">OAuth redirect URLs for prod domain</td><td><span class="pill r">Missing</span></td><td>Or hide the buttons (design P1). CORS + GoTrue callback config must match the new domain (your own lessons.md documents this trap).</td></tr>
+    <tr><td class="check">SMTP: real provider + SPF/DKIM/DMARC</td><td><span class="pill r">Missing</span></td><td>notifications.py defaults to localhost:1025 (Mailpit). Digests from an unauthenticated domain = spam folder = the hook never fires.</td></tr>
+    <tr><td class="check">Stripe live: SDK, webhook endpoint, test-mode E2E</td><td><span class="pill r">Missing</span></td><td>billing.go has no processor SDK. Until this lands, remove the guarantee/cancel promises from /pricing.</td></tr>
+    <tr><td class="check">Observability: prod Sentry DSNs, uptime monitor, alert to your phone</td><td><span class="pill a">Partial</span></td><td>Sentry wired in code; needs prod project + a free UptimeRobot ping on /health ×2.</td></tr>
+    <tr><td class="check">Abuse guards: per-user rate limits + LLM cost caps verified under load</td><td><span class="pill a">Partial</span></td><td>Middleware exists; k6 100-concurrent run on search+score before strangers arrive. One hostile user with a loop = your LLM bill.</td></tr>
+    <tr><td class="check">Legal: real ToS/Privacy, data deletion flow works, DPA template</td><td><span class="pill r">Missing</span></td><td>You will hold strangers' resumes — regulated PII. The static pages need a real pass; deletion must actually delete (soft→hard path).</td></tr>
+  </table>
+
+  <h3 class="check">PHASE C — Launch-day + rollback triggers</h3>
+  <table>
+    <tr><th>Item</th><th>Detail</th></tr>
+    <tr><td class="check">Staging deploy first; run full e2e against staging URL</td><td>Compose prod profile on the real host, seeded demo account, all Phase A checks re-run remotely.</td></tr>
+    <tr><td class="check">Canary window</td><td>First 48h: error rate &lt;2%, /health both services 200, zero Sentry criticals, first real signup completes chain. Any breach → rollback to tagged images + restored dump.</td></tr>
+    <tr><td class="check">Support surface live</td><td>support@ address answered by you, in-app feedback link, status page (even a free instatus page).</td></tr>
+  </table>
+  <div class="callout"><b>Time estimate, honest:</b> Phase A = 2–3 days. Phase B = 1.5–2 weeks solo (Stripe and email deliverability are the long poles). Phase C = 2 days. Call it three weeks to first stranger's credit card — IF you stop adding scope.</div>
+</section>
+
+<!-- COMPETITIVE -->
+<section class="tab" id="comp">
+  <h2>Competitive Brief ×2 — product positioning + marketing battlecard</h2>
+  <p class="lede">Merged PM + marketing lenses, updated for what changed: you're now closed-source SaaS, live, with a visible wedge ("for software engineers") and a real price ($19). That changes who you actually fight.</p>
+
+  <h3>The positioning, finalized (stop editing this; start repeating it)</h3>
+  <div class="callout green"><b>For software engineers</b> who are done juggling six tools and don't trust spray-apply bots, <b>JobTayari</b> is the AI job-search platform that runs the entire chain — find real jobs, score against real ATS behavior, tailor truthfully, apply with your approval, track automatically — <b>with guardrails that refuse to let you lie</b> and a local-LLM mode where your career data never leaves your machine. <b>Unlike</b> Teal (organizer, no automation), Jobscan (scanner, no chain), and auto-apply bots (bans, spam, fabricated "applied" counts), JobTayari is the honest operator: everything automated, nothing submitted without you.</div>
+
+  <h3>Battlecard — who you fight and how you win the deal</h3>
+  <table>
+    <tr><th>vs</th><th>They win because</th><th>You win because</th><th>Kill shot line</th></tr>
+    <tr><td><b>Teal</b> ($29/mo)</td><td>Polish, brand, 4.9★ extension, years of content SEO</td><td>They organize; you operate. No autopilot, no guardrails, no local mode. You're $19.</td><td>"Teal tracks your job search. Tayari runs it."</td></tr>
+    <tr><td><b>Jobscan</b> ($49.95/mo)</td><td>Category ownership of "ATS score", massive SEO moat</td><td>Single opaque score vs your explained, variance-aware scoring + the whole chain after the score. Half the price.</td><td>"A score is a diagnosis. Tayari is the treatment."</td></tr>
+    <tr><td><b>Jobright</b> ($39.99/mo — just raised from $29.99)</td><td>True auto-apply agent, 8M jobs, AI-advisor UX</td><td>Their agent submits without judgment; LinkedIn is hunting exactly that in 2026. Your Review-Mode + truth gate is the compliant survivor. Engineers-wedge vs their generalist play. Their price hike widens your $19 gap — category prices are rising while you undercut.</td><td>"Their agent applies for you. Ours works for you — and never gets you banned."</td></tr>
+    <tr><td><b>Simplify</b> (free autofill)</td><td>Free, frictionless, huge student base</td><td>Autofill is your extension's table stakes; the chain behind it is what they don't have. Don't fight them on free autofill — absorb it.</td><td>"Autofill is a feature. It shouldn't be the whole product."</td></tr>
+    <tr><td><b>ChatGPT/Claude</b> (the real competitor)</td><td>Free-ish, already open in every engineer's tab</td><td>No ATS engine, no tracking, no automation, no guardrails, context evaporates per session. You are the system of record + the operator.</td><td>"You could also do your taxes in a chat window."</td></tr>
+  </table>
+
+  <h3>Messaging pillars (marketing lens — every asset maps to one)</h3>
+  <table>
+    <tr><th>Pillar</th><th>Proof you must ship with it</th></tr>
+    <tr><td><b>1 · The whole chain, one click.</b> Find → score → tailor → apply(review) → track, automated.</td><td>60-second screen recording of a real run. This video IS the launch asset.</td></tr>
+    <tr><td><b>2 · The AI that won't let you lie.</b> Truth gate, stuffing detector, honest "prepared vs applied" statuses.</td><td>Show a blocked inflation attempt on screen. Nobody else can demo this.</td></tr>
+    <tr><td><b>3 · Your data, your machine.</b> Local-LLM mode, no resume ever leaves.</td><td>The privacy diagnostics panel, filmed. (Closed-source weakens this pillar — see the risk below.)</td></tr>
+    <tr><td><b>4 · Built for engineers.</b> Tier-A ATS coverage, keyboard-first review, MCP for your agents.</td><td>The MCP demo in Claude/Cursor — uniquely yours, screenshots at minimum.</td></tr>
+  </table>
+
+  <h3>Threats — updated</h3>
+  <table>
+    <tr><th>Threat</th><th>Change since last brief</th></tr>
+    <tr><td>Closed-source undermines pillar 3</td><td><b>New, self-inflicted.</b> "Trust us, it's private" is what every SaaS says. Mitigations: publish the threat model, offer a paid self-host license, or open-source ONLY the guardrails module as verifiable proof. Pick one before launch messaging ships.</td></tr>
+    <tr><td>Teal/Jobright ship "private mode"</td><td>Unchanged, months not years. Your speed is the only defense.</td></tr>
+    <tr><td>OSS competitor takes the self-host crown</td><td><b>Worse now</b> — you vacated the position. Accept the loss consciously or hedge with the self-host license.</td></tr>
+    <tr><td>Marketing site invisible</td><td>Root-redirect bug means today Teal wins every comparison by default: their site loads.</td></tr>
+  </table>
+</section>
+
+<!-- SEO -->
+<section class="tab" id="seo">
+  <h2>SEO & Acquisition Audit — honest version</h2>
+  <p class="lede">Ruthless truth first: <b>there is nothing to audit.</b> No public domain, no crawlable pages, no backlinks, no Search Console. What follows is the audit of what exists (on-page signals visible locally) plus the foundation plan that decides whether SEO ever works for you. One more truth: Jobscan and Teal have spent years and content teams owning the head terms — you will not outrank "resume checker." Don't try. Win the flanks.</p>
+
+  <h3>On-page findings from the live build (fix before first crawl)</h3>
+  <table>
+    <tr><th>Issue</th><th>Severity</th></tr>
+    <tr><td>Root redirect = your future homepage 302s to a login wall. Googlebot indexes an auth page or nothing. This single bug zeroes all SEO.</td><td><span class="pill r">Fatal</span></td></tr>
+    <tr><td>One global 90-char title tag on every route; no per-page titles/descriptions visible.</td><td><span class="pill r">High</span></td></tr>
+    <tr><td>Vite SPA = client-rendered marketing pages. Google mostly copes; Bing/LLM-crawlers (increasingly the discovery layer in 2026) cope worse. Prerender or SSG the marketing routes (vite-plugin or move marketing to Astro later).</td><td><span class="pill a">High</span></td></tr>
+    <tr><td>No sitemap.xml / robots.txt / canonical tags / OG images evident; no schema.org (SoftwareApplication, FAQPage — your pricing FAQ is literally ready for FAQ markup).</td><td><span class="pill a">Medium</span></td></tr>
+    <tr><td>Pricing FAQ content exists — good bones for long-tail. Footer positioning line is index-worthy copy.</td><td><span class="pill g">Asset</span></td></tr>
+  </table>
+
+  <h3>Keyword strategy — flanks, not head-on</h3>
+  <table>
+    <tr><th>Tier</th><th>Targets</th><th>Why winnable</th></tr>
+    <tr><td><b>Do not fight</b></td><td>"resume checker", "ATS resume", "resume builder"</td><td>Jobscan/Teal/Zety own these with DR-80 domains and content factories. Years and $$$ to crack.</td></tr>
+    <tr><td><b>Wedge terms</b></td><td>"ai job search agent", "job application automation for engineers", "local llm resume", "ollama job search", "mcp job search", "claude job application agent"</td><td>Low volume, near-zero competition, exactly your buyer, and rising fast with the agent wave. You can own page 1 in weeks.</td></tr>
+    <tr><td><b>Programmatic flank</b></td><td>Per-ATS guides: "greenhouse application tips", "workday resume format", "[ATS] autofill" ×16 ATS you already integrate. Per-role: "senior backend engineer resume keywords" from your own skill taxonomy.</td><td>Your Hermes/ATS code IS the research. 30–50 genuinely expert pages competitors' content mills can't match for accuracy.</td></tr>
+    <tr><td><b>Free-tool magnet</b></td><td>A no-signup ATS scan (3/mo free tier already exists — expose one scan pre-signup)</td><td>Jobscan's entire empire is built on this exact loop: free tool → email → upgrade. It's the highest-ROI acquisition asset you can build, and the backend already exists.</td></tr>
+  </table>
+
+  <h3>Acquisition beyond SEO (closed-source reality: you must buy or earn attention)</h3>
+  <p>Priority order for an engineer wedge with $0 budget: (1) the 60-second chain video on X/LinkedIn/r/cscareerquestions — demo &gt; adjectives; (2) MCP registry listing — free distribution to exactly your ICP, unique to you; (3) HN "Show HN" still works for closed products IF the demo is instantly try-able (free scan, no signup); (4) 2 bootcamp/career-coach partnerships — they ARE your Team tier demand test; (5) the authenticity angle pitched to tech-career newsletters (the anti-spray-apply story is contrarian and timely). Paid ads: not yet — $19/mo product with unknown activation can't pay CPC math.</p>
+  <div class="callout"><b>SEO verdict:</b> 0/100 today, fixable to a credible 60 in one focused week (domain, prerender, titles, sitemap, schema, 5 wedge pages, free scan). The compounding asset is the free scan tool + programmatic ATS pages. Start the clock: domains and backlinks age like wine and you own neither.</div>
+</section>
+
+<!-- BRAINSTORM -->
+<section class="tab" id="brainstorm">
+  <h2>Brainstorm — ranked, not sprayed</h2>
+  <p class="lede">Product-brainstorming lens, ICE-scored (Impact × Confidence × Ease, 1–10 each), pre-filtered by the only test that matters now: does it add users or revenue within 60 days? Ideas that don't ship until later are listed to be explicitly parked, not forgotten.</p>
+  <table>
+    <tr><th>Idea</th><th>ICE</th><th>The play</th></tr>
+    <tr><td><b>Free no-signup ATS scan</b></td><td>9·9·8 = <b>648</b></td><td>Landing page: paste JD + upload resume → score + 3 fixes, then signup gate for the chain. Backend exists. This is simultaneously your lead magnet, SEO asset, demo, and activation funnel. Build first.</td></tr>
+    <tr><td><b>The 60-second chain video</b></td><td>8·9·9 = <b>648</b></td><td>One take, real run, honest statuses visible. Pin it everywhere. Costs an afternoon.</td></tr>
+    <tr><td><b>Shareable "Authenticity Report"</b></td><td>8·7·7 = <b>392</b></td><td>Truth-gate verdict as a shareable card ("0 inflated claims, 94% evidence-backed"). Engineers share credentials; every share is an ad for the anti-lying category you're creating.</td></tr>
+    <tr><td><b>Team-tier waitlist (instead of building it)</b></td><td>7·8·9 = <b>504</b></td><td>Fixes the pricing lie AND tests bootcamp/career-center demand with zero code. If 20 orgs join, build it; if 2, delete the tier.</td></tr>
+    <tr><td><b>Referral: give a month / get a month</b></td><td>6·7·7 = <b>294</b></td><td>Job seekers cluster (cohorts, layoff waves, Discords). Cheap once Stripe exists. After billing, not before.</td></tr>
+    <tr><td><b>Public "state of the job hunt" data posts</b></td><td>7·6·6 = <b>252</b></td><td>Once ~100 users: reply rates by ATS, ghost-job rates by board — from your own pipeline data. Nobody else can publish this; every post is a backlink magnet. Parked until users.</td></tr>
+    <tr><td><b>Variance-score ensemble ("82 ± 14")</b></td><td>8·6·5 = <b>240</b></td><td>The statistically-honest differentiator vs single-score competitors. Post-launch: it's a feature, and features don't matter until distribution works.</td></tr>
+    <tr><td><b>Parked explicitly:</b> mobile app, multi-language, interview prep return, desktop agent, marketplace, community forum</td><td>—</td><td>Each fails the 60-day users-or-revenue test. Revisit at 500 users. Written here so they stop resurfacing in your head at 2am.</td></tr>
+  </table>
+</section>
+
+<!-- ROADMAP -->
+<section class="tab" id="roadmap">
+  <h2>Roadmap v3 — Now / Next / Later (post-implementation, closed-SaaS)</h2>
+  <p class="lede">Supersedes v2 in the Ruthless Brief. Capacity truth unchanged: one reviewer. Zero-sum rule unchanged: nothing enters Now without something leaving.</p>
+  <table>
+    <tr><th style="width:12%">Horizon</th><th>Item</th><th>Status</th><th>Exit criterion</th></tr>
+    <tr><td rowspan="4"><b>NOW</b><br><span class="fine">this week</span></td><td>Fix root-redirect lockout + nav/title integrity sweep</td><td><span class="pill r">P0 bug</span></td><td>Anonymous e2e: / renders hero; no link to cut features anywhere.</td></tr>
+    <tr><td>Pricing truth pass (strike vaporware; Team → waitlist; show monthly price)</td><td><span class="pill r">P0 integrity</span></td><td>Every pricing line maps to a shipped feature or says "waitlist."</td></tr>
+    <tr><td>Verification debt: full test suites + chain walkthrough + tagged rollback point</td><td><span class="pill a">Unproven merge</span></td><td>All suites green, outputs saved; backup/restore round-trip executed once.</td></tr>
+    <tr><td>Free no-signup ATS scan page</td><td><span class="pill g">Highest ICE</span></td><td>Stranger → score in &lt;90s with no account.</td></tr>
+    <tr><td rowspan="3"><b>NEXT</b><br><span class="fine">weeks 2–4</span></td><td>Stripe real (SDK, webhooks, test-mode E2E) + monthly/annual toggle</td><td>Not started</td><td>Test-mode card completes; entitlement flips; refund works (the guarantee demands it).</td></tr>
+    <tr><td>Production deploy: domain, TLS, managed PG + cron'd backups, SMTP w/ SPF/DKIM, prod Sentry, uptime alert</td><td>Not started</td><td>Staging green 48h → prod; digest email lands in a Gmail inbox, not spam.</td></tr>
+    <tr><td>SEO foundation week + launch assets (video, MCP registry, Show HN draft)</td><td>Not started</td><td>5 wedge pages live; free scan indexed; video published.</td></tr>
+    <tr><td rowspan="2"><b>LATER</b><br><span class="fine">gated on users</span></td><td>10 strangers → interviews → iterate; then authenticity report, referral, data posts, variance ensemble</td><td>Gated</td><td>Gate: 100 signups. Miss → positioning iteration, not features.</td></tr>
+    <tr><td>Team tier build (if waitlist ≥20 orgs) · M17 completion audit · self-host license decision · parked list</td><td>Gated</td><td>Each enters Next only by displacing something.</td></tr>
+  </table>
+  <p><b>Changed from v2:</b> OSS launch replaced by closed-SaaS motion (your call — the self-host license question is now the open strategic decision); free-scan funnel promoted to Now (it was implicit in M11); M17 completion demoted until the app shell is actually reviewed; everything else held.</p>
+</section>
+
+<!-- STAKEHOLDER -->
+<section class="tab" id="stakeholder">
+  <h2>Stakeholder Update — the honest one-pager (use it for investors, advisors, or the mirror)</h2>
+  <div class="card" style="max-width:880px">
+    <h4>JobTayari · Status · 2026-07-25 · Founder update</h4>
+    <p><b>TL;DR:</b> Product is functionally complete for v1 and running end-to-end in Docker. Pre-revenue, pre-users, pre-deploy. Next 3 weeks: integrity fixes, billing, production deploy, first 10 users.</p>
+    <p><b>Progress (last 30 days):</b> Executed an 18-mission engineering program with AI agents: rebuilt agent-integration layer (MCP, 11 tools), unified task scheduling, honest application-status model, notification/digest engine, API gateway refactor (807→104-line router), CI hardening, backup tooling, billing scaffold, pricing page, design-system pass. Stack boots with 10 healthchecked services.</p>
+    <p><b>Metrics:</b> Users: 0. Revenue: $0. Test-suite status: unverified since final merge (top risk). Burn: founder time + LLM costs only.</p>
+    <p><b>Problems (unvarnished):</b> (1) Landing page unreachable due to auth-redirect bug — fix in flight. (2) Pricing page advertises two capabilities not in the build — being corrected to shipped-features-only. (3) Billing is scaffold-only; no payment processor integrated yet. (4) Distribution strategy reset by closed-source decision; new motion = free-scan funnel + engineer-wedge content + MCP registry.</p>
+    <p><b>Plans (next 30 days):</b> Week 1: P0 fixes + full verification + free-scan page. Weeks 2–3: Stripe + production deploy on real domain + email deliverability. Week 4: launch assets out (demo video, Show HN, MCP registry) with a target of 100 signups / 10 activated / first paid conversion.</p>
+    <p><b>Asks:</b> intros to 10 job-seeking engineers for supervised first sessions; one advisor conversation on open-core vs closed licensing; nothing financial at this stage.</p>
+  </div>
+  <div class="callout"><b>Why this format:</b> Progress/Metrics/Problems/Plans/Asks, problems unvarnished — because the version of this update that hides the four problems is the version that guarantees they surface later, in front of users. Send updates monthly even if the only reader is you; the discipline of writing "Users: 0" is what makes it become false.</div>
+</section>
+
+<!-- DOCS -->
+<section class="tab" id="docs">
+  <h2>Documentation Plan — what a paying user must be able to read</h2>
+  <p class="lede">Doc-coauthoring lens applied as a plan (the docs themselves are repo work, not report work). Ordering is by user-blocking-ness, not comprehensiveness. Rule from the Constitution stands: docs ship in the same PR as the feature they describe.</p>
+  <table>
+    <tr><th>Priority</th><th>Document</th><th>Reader · Job-to-be-done</th></tr>
+    <tr><td><span class="pill r">P0</span></td><td><b>Privacy Policy + ToS (real, reviewed)</b></td><td>Every signup · "Can I trust them with my resume?" Current static pages are placeholders holding legal risk. Include: what's stored, LLM data flow (what leaves when cloud LLM vs local), retention, deletion SLA.</td></tr>
+    <tr><td><span class="pill r">P0</span></td><td><b>Getting-started (cloud)</b>: signup → first score → first tailored resume, with screenshots, &lt;5 min</td><td>New user · the activation path in words. Doubles as the onboarding checklist content.</td></tr>
+    <tr><td><span class="pill r">P0</span></td><td><b>"How scoring works" explainer</b></td><td>Skeptical engineer · trust calibration. What the ATS engine simulates, why scores vary, what the guardrails block. This page IS the differentiator in prose — competitors can't publish theirs honestly.</td></tr>
+    <tr><td><span class="pill a">P1</span></td><td><b>Billing & plans</b>: what's metered, refunds (the 7-day promise), cancel flow</td><td>Payer · pre-purchase anxiety + support deflection.</td></tr>
+    <tr><td><span class="pill a">P1</span></td><td><b>MCP setup guide</b>: Claude Desktop/Cursor config, API key issuance, tool list with examples</td><td>Agent user · your most differentiated integration deserves better than a README buried in a repo they can't see (closed source now — this must move to public docs).</td></tr>
+    <tr><td><span class="pill a">P1</span></td><td><b>Extension install & Review-Mode explainer</b></td><td>Extension user · also required material for the Chrome store listing.</td></tr>
+    <tr><td><span class="pill n">P2</span></td><td><b>API reference</b> (metered public API), <b>changelog</b>, <b>status page</b>, internal runbooks (backup/restore, billing webhooks, incident basics)</td><td>Developers/you · the runbooks were mandated by the Constitution — audit that the agent actually wrote them; the diff suggests thin coverage.</td></tr>
+  </table>
+  <div class="callout green"><b>Structural call:</b> public docs as a prerendered /docs route (SEO double-duty — the "how scoring works" page targets wedge keywords) rather than a separate tool. One repo, one deploy, indexed content. Total P0 writing effort: 2–3 focused days, and none of it is skippable for a product asking strangers for $19 and their resume.</div>
+  <div class="srcs"><b>Basis:</b> Live screenshots (root, /auth, /pricing ×2) · commit 414c56b file audit · docker-compose/CI/billing/notifications source · prior session research (PRODUCT_GRILL.md, July 2026 competitor + EU AI Act searches, cited in TAYARI_RUTHLESS_BRIEF.html). Pricing re-verified 2026-07-25:
+    <a href="https://resumeup.ai/jobscan-vs-teal">Jobscan vs Teal pricing</a> ·
+    <a href="https://outapply.com/blog/jobright-ai-pricing">Jobright pricing (recent increase)</a> ·
+    <a href="https://resumehog.com/blog/posts/jobright-ai-review-2026-is-this-job-search-copilot-worth-it.html">Jobright review 2026</a> ·
+    <a href="https://www.jobfix.ai/blog/resume-writing/jobfix-vs-jobscan-vs-teal-2026">JobFix comparison 2026</a>.
+    Not verified: test-suite status, logged-in app shell, OAuth provider config.</div>
+</section>
+
+<!-- RUN IT -->
+<section class="tab" id="runit">
+  <h2>Run It — the orchestrator for this review</h2>
+  <p class="lede">This converts the nine tabs into three executable sprints. It inherits the rulebook from <code>TAYARI_RUTHLESS_BRIEF.html</code> (Preamble, Engineering Constitution, Ship Gate) — both files must be at the repo root. Copy the block, paste into a fresh Sonnet / opencode session at the repo root. It stops between sprints and at every hard stop; your job is reviewing sprint reports and pressing the buttons only humans may press.</p>
+  <div style="border:1px solid var(--line);background:#fff;max-width:960px;margin:14px 0">
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#23272e;color:#e8e4d8;padding:8px 14px;font-family:var(--mono);font-size:12px"><span>ORCHESTRATOR v2 · Sprints A–C from this review</span><button id="copybtn" style="font-family:var(--mono);font-size:11px;background:none;border:1px solid #555;color:#e8e4d8;padding:3px 12px;cursor:pointer;border-radius:2px">Copy</button></div>
+    <pre id="orchtext" style="background:#141414;color:#d8d4c9;font-family:var(--mono);font-size:11.5px;line-height:1.55;padding:14px 16px;overflow-x:auto;margin:0;white-space:pre-wrap">You are the execution ORCHESTRATOR for the tayari-skill-boost repository, running the program defined
+in TAYARI_ULTIMATE_REVIEW.html (findings) governed by the rulebook in TAYARI_RUTHLESS_BRIEF.html.
+Both files are at the repo root. Do not invent scope beyond them.
+
+SETUP
+1. Read CLAUDE.md completely.
+2. Read TAYARI_RUTHLESS_BRIEF.html → in its "Agent Missions" section, the 2nd, 3rd and 4th
+   &lt;pre class="m-body"&gt; blocks are the GLOBAL PREAMBLE, ENGINEERING CONSTITUTION, and SHIP GATE.
+   They bind every task below. Prove you read them: summarize each in 5 bullets before any code.
+3. Read TAYARI_ULTIMATE_REVIEW.html fully — Verdict, Design Review, Deploy Checklist, SEO, Roadmap v3
+   and Docs Plan tabs define the tasks. Where this prompt and that file conflict, the file wins.
+
+SPRINT A — INTEGRITY & VERIFICATION (do first, sequential)
+A1. Fix the root-redirect lockout: anonymous visit to "/" must render the landing page; expired
+    tokens clear silently without redirecting public routes. Add an anonymous-root e2e test.
+A2. Pricing truth pass: remove every feature line not shipped (STAR interview prep on Pro; all Team
+    tier capabilities). Convert Team tier to a "Join waitlist" card capturing email. Add a
+    monthly/annual price toggle showing both real prices. Sweep ALL nav/footer/title tags: no link or
+    mention of cut features anywhere; per-route titles ≤60 chars.
+A3. Verification debt: run go test -race ./..., full pytest, bun run build + test, e2e including the
+    new A1 test, against the live compose stack. Fix what you can; list what you cannot with reasons.
+    Then: execute scripts/backup.sh, verify restore.sh round-trips, git tag the verified state.
+A4. Free no-signup ATS scan: public page — paste JD + upload resume → score + top-3 fixes (reuse the
+    existing scan backend, rate-limited by IP, mock-mode banner if no LLM) → signup CTA to unlock the
+    chain. This is the acquisition funnel; treat quality accordingly.
+
+SPRINT B — REVENUE & DEPLOY READINESS
+B1. Stripe for real: official Go SDK, checkout + customer portal + webhooks (idempotent — Stripe
+    retries), entitlements middleware, refund flow (the 7-day guarantee requires it), monthly+annual
+    prices, BILLING_ENABLED kill-switch. Test-mode E2E must complete: checkout → entitlement flips →
+    cancel → refund.
+B2. Deploy preparation per the Deploy Checklist tab Phase B: production compose/helm values, secrets
+    templating (no secrets in code), backup cron actually scheduled, SMTP provider config with
+    SPF/DKIM documentation, prod Sentry config, uptime-check documentation, OAuth buttons rendered
+    only when the provider is configured (capability check endpoint).
+B3. P0 docs as a prerendered public /docs route: privacy policy + ToS DRAFTS (mark clearly:
+    "DRAFT — requires human/legal review"), getting-started with screenshots, "How scoring works"
+    explainer. Same-PR-as-code rule applies.
+
+SPRINT C — ACQUISITION FOUNDATION
+C1. SEO foundation per the SEO tab: prerender/SSG marketing routes, per-route titles+meta+OG,
+    sitemap.xml, robots.txt, canonical tags, FAQPage schema on /pricing, SoftwareApplication schema,
+    5 wedge-keyword pages (ai job search agent / job automation for engineers / local llm resume /
+    per-ATS guides seeded from the Hermes integrations).
+C2. Launch asset drafts into docs/launch/: 60-second demo video script + shot list (human films),
+    MCP registry listing copy, Show HN draft with first-comment architecture note.
+C3. App-shell audit: Playwright screenshot walk of every core screen incl. 375px mobile, empty
+    states inventory, list of M17 gaps as issues. Report only — no UI rewrites in this sprint.
+
+RULES (inherited + absolute)
+- Branch per task (sprint/aX), Ship Gate with pasted real outputs before any task is "done", never
+  fake or weaken a failing check, never touch interview-prep surfaces, never `docker compose down -v`.
+- HARD STOPS — halt and ask the human: purchasing domains, creating/charging any payment or Stripe
+  account, deploying anywhere public, publishing any content, legal sign-off on ToS/privacy, merging
+  to main, git history rewrites.
+- End each sprint: write SPRINT_REPORT_A|B|C.html at repo root (shipped, verify outputs, deviations,
+  open risks, pending human decisions) — then STOP and wait for human review.
+
+BEGIN with Sprint A now, task A1.</pre>
+  </div>
+  <div class="callout red"><b>The four buttons only you can press, unchanged:</b> review each sprint report before the next starts, open the Stripe account, buy the domain, and put the product in front of ten strangers. The orchestrator will stop at each one. If you find yourself asking for a fifth analysis document instead of pressing them — that's the tell, and you know it by now.</div>
+</section>
+
+</div>
+<script>
+  const nav=document.getElementById('nav');
+  nav.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    nav.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('section.tab').forEach(s=>s.classList.remove('active'));
+    b.classList.add('active');document.getElementById(b.dataset.t).classList.add('active');window.scrollTo({top:0});});
+  document.getElementById('copybtn').addEventListener('click',()=>{
+    navigator.clipboard.writeText(document.getElementById('orchtext').textContent).then(()=>{
+      const b=document.getElementById('copybtn');b.textContent='Copied';b.style.borderColor='#1e7b4f';b.style.color='#7ec699';
+      setTimeout(()=>{b.textContent='Copy';b.style.borderColor='#555';b.style.color='#e8e4d8'},2200);});});
+</script>
+</body>
+</html>

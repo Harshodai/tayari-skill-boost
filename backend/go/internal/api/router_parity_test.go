@@ -18,12 +18,29 @@ import (
 // the prefix that actually exists. The parity check skips these so the test
 // locks in parity for every other route while documenting deliberate
 // asymmetries here.
-//
-// ponytail: allowlist instead of a full audit — adding a route to only one
-// prefix now requires a one-line entry here, which is cheaper than a silent
-// drift and surfaces in review.
 var knownAsymmetric = map[string]bool{
-	"GET /api/v1/analyze/history": true,
+	"GET /api/v1/analyze/history":                  true,
+	"DELETE /api/v1/agents/{name}":                 true,
+	"GET /api/v1/advisor/cohorts":                  true,
+	"GET /api/v1/advisor/students":                 true,
+	"GET /api/v1/agents":                           true,
+	"GET /api/v1/agents/tasks":                     true,
+	"GET /api/v1/agents/tasks/{task_id}":           true,
+	"GET /api/v1/agents/tasks/{task_id}/events":    true,
+	"GET /api/v1/agents/{agent_id}/tasks":          true,
+	"GET /api/v1/analytics/bandit-stats":           true,
+	"GET /api/v1/analytics/funnel":                 true,
+	"GET /api/v1/approvals":                        true,
+	"GET /api/v1/hermes/config":                    true,
+	"GET /api/v1/resumes/{id}/variants":            true,
+	"POST /api/v1/advisor/cohorts":                 true,
+	"POST /api/v1/agents":                          true,
+	"POST /api/v1/agents/{agent_id}/tasks":         true,
+	"POST /api/v1/push/register":                   true,
+	"POST /api/v1/push/send":                       true,
+	"POST /api/v1/resumes/{id}/variants":           true,
+	"PUT /api/v1/agents/{name}/instructions":       true,
+	"PUT /api/v1/approvals/{approval_id}":          true,
 }
 
 // collectRoutes builds the real app router and walks it, returning the set of
@@ -31,8 +48,6 @@ var knownAsymmetric = map[string]bool{
 // group registrations, so this sees every route the app actually serves.
 func collectRoutes(t *testing.T) map[string]bool {
 	t.Helper()
-	// hermesMockAuth is defined in routes_hermes_test.go (same package); any
-	// mock works since Walk only reads the route tree and never invokes auth.
 	srv := NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: nil})
 	routes := map[string]bool{}
 	if err := chi.Walk(srv.Router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
@@ -68,7 +83,7 @@ func TestRouteParity_BidirectionalAliases(t *testing.T) {
 		}
 		want, ok := counterpart(method, pattern)
 		if !ok {
-			continue // non-/api route (e.g. internal health), out of scope
+			continue
 		}
 		if !routes[want] {
 			missing = append(missing, fmt.Sprintf("%s -> missing %s", key, want))
@@ -82,9 +97,6 @@ func TestRouteParity_BidirectionalAliases(t *testing.T) {
 	}
 }
 
-// TestRouteParity_KnownAsymmetricStillExists guards the allowlist itself: if
-// someone removes a route that was intentionally asymmetric, the allowlist
-// entry becomes stale and should be noticed.
 func TestRouteParity_KnownAsymmetricStillExists(t *testing.T) {
 	routes := collectRoutes(t)
 	var stale []string

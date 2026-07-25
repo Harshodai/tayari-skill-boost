@@ -14,7 +14,7 @@ import (
 )
 
 func TestBilling_WebhookIdempotency(t *testing.T) {
-	svc := NewBillingService()
+	svc := NewBillingService(nil)
 	os.Setenv("BILLING_ENABLED", "true")
 	defer os.Unsetenv("BILLING_ENABLED")
 
@@ -22,7 +22,7 @@ func TestBilling_WebhookIdempotency(t *testing.T) {
 	userID := "user_stripe_99"
 
 	// First webhook delivery
-	ok1 := svc.ProcessStripeWebhook(eventID, "customer.subscription.created", userID, "pro")
+	ok1 := svc.ProcessStripeWebhook(eventID, "customer.subscription.created", "cus_99", "sub_99", userID, "pro")
 	if !ok1 {
 		t.Fatalf("Expected first webhook to succeed")
 	}
@@ -33,14 +33,14 @@ func TestBilling_WebhookIdempotency(t *testing.T) {
 	}
 
 	// Retry webhook delivery (duplicate eventID)
-	ok2 := svc.ProcessStripeWebhook(eventID, "customer.subscription.created", userID, "pro")
+	ok2 := svc.ProcessStripeWebhook(eventID, "customer.subscription.created", "cus_99", "sub_99", userID, "pro")
 	if !ok2 {
 		t.Fatalf("Expected duplicate webhook retry to be handled idempotently")
 	}
 }
 
 func TestBilling_MeteredLimitsAndExceeded(t *testing.T) {
-	svc := NewBillingService()
+	svc := NewBillingService(nil)
 	os.Setenv("BILLING_ENABLED", "true")
 	defer os.Unsetenv("BILLING_ENABLED")
 
@@ -59,7 +59,7 @@ func TestBilling_MeteredLimitsAndExceeded(t *testing.T) {
 }
 
 func TestBilling_ConcurrentMeteringAccuracy(t *testing.T) {
-	svc := NewBillingService()
+	svc := NewBillingService(nil)
 	os.Setenv("BILLING_ENABLED", "true")
 	defer os.Unsetenv("BILLING_ENABLED")
 
@@ -84,7 +84,7 @@ func TestBilling_ConcurrentMeteringAccuracy(t *testing.T) {
 }
 
 func TestBilling_EntitlementMiddleware(t *testing.T) {
-	svc := NewBillingService()
+	svc := NewBillingService(nil)
 	os.Setenv("BILLING_ENABLED", "true")
 	defer os.Unsetenv("BILLING_ENABLED")
 

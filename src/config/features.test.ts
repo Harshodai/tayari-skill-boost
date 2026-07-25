@@ -9,9 +9,8 @@ import { features, isProductionMode, getNavLinks } from '@/config/features';
 // But we definitely can test `getNavLinks` and `features` derivation.
 
 describe('Feature Flags Configuration', () => {
-    it('should have interviewPrep enabled in both environments (based on current config)', () => {
-        // Assuming config is: interviewPrep: [true, true]
-        expect(features.interviewPrep).toBe(true);
+    it('should have interviewPrep disabled (cut feature)', () => {
+        expect(features.interviewPrep).toBe(false);
     });
 
     it('should generate navigation links', () => {

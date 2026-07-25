@@ -3,15 +3,51 @@ import { test, expect } from '@playwright/test';
 const FRONTEND_URL = 'http://127.0.0.1:8083';
 const API_URL = 'http://127.0.0.1:8085/api';
 
-const TEST_EMAIL = 'e2e-test@example.com';
-const TEST_PASS = 'test12345678';
+const TEST_EMAIL = 'e2e-test-suite-2026@example.com';
+const TEST_PASS = 'TayariSuperSecretPassword2026!';
 
 test.describe('Tayari Skill Boost — End to End Smoke', () => {
+
+  test.beforeAll(async ({ request }) => {
+    await request.post(`${API_URL}/auth/register`, {
+      data: { email: TEST_EMAIL, password: TEST_PASS },
+    });
+  });
 
   test('1. Homepage loads successfully', async ({ page }) => {
     const resp = await page.goto(FRONTEND_URL, { waitUntil: 'networkidle' });
     expect(resp?.status()).toBe(200);
     await expect(page.locator('body')).not.toBeEmpty();
+  });
+
+  test('1b. Anonymous root does NOT redirect to /auth', async ({ page }) => {
+    // Two visits to confirm no stale-token loop
+    for (let i = 0; i < 2; i++) {
+      await page.goto(FRONTEND_URL, { waitUntil: 'networkidle' });
+      const url = page.url();
+      expect(url).not.toContain('/auth');
+      expect(url).not.toContain('expired=true');
+      expect(url).toBe(FRONTEND_URL + '/');
+      await expect(page.locator('body')).not.toBeEmpty();
+    }
+  });
+
+  test('1c. Stale token clears silently on landing page', async ({ page }) => {
+    // Inject an obviously-expired JWT, then verify the landing page still renders
+    // without redirect. The token will be cleared by AuthContext on /me failure.
+    await page.goto(FRONTEND_URL, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => {
+      localStorage.setItem('auth_token', 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dummy_expired_token');
+    });
+    const resp = await page.goto(FRONTEND_URL, { waitUntil: 'networkidle' });
+    expect(resp?.status()).toBe(200);
+    const url = page.url();
+    expect(url).not.toContain('/auth');
+    expect(url).not.toContain('expired=true');
+    await expect(page.locator('body')).not.toBeEmpty();
+    // Verify the stale token was cleaned up
+    const tokenAfter = await page.evaluate(() => localStorage.getItem('auth_token'));
+    expect(tokenAfter).toBeNull();
   });
 
   test('2. Health endpoints respond 200', async ({ request }) => {

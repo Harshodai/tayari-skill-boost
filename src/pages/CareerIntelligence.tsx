@@ -16,7 +16,7 @@ function SkillCards({ trending, error }: { trending: TrendingSkill[]; error: str
         <Card key={s.skill}>
           <CardContent className="p-4">
             <h2 className="text-xl font-semibold">{s.skill}</h2>
-            <p>Popularity: {s.popularity}</p>
+            <p className="text-sm text-muted-foreground mt-1">Demand Rating: {s.popularity}</p>
           </CardContent>
         </Card>
       ))}
@@ -36,7 +36,18 @@ export function CareerIntelligence() {
 
   useEffect(() => {
     trendingSkills()
-      .then(setTrending)
+      .then((data: any) => {
+        let list: TrendingSkill[] = [];
+        if (Array.isArray(data)) {
+          list = data;
+        } else if (data && Array.isArray(data.trending_skills)) {
+          list = data.trending_skills.map((item: any) => ({
+            skill: item.name || item.skill || 'Skill',
+            popularity: parseInt(item.growth) || item.popularity || 40,
+          }));
+        }
+        setTrending(list);
+      })
       .catch((e) => {
         console.error('Failed to load trending skills', e);
         setError('Could not load data');

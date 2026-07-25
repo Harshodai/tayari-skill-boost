@@ -10,7 +10,7 @@ import { checkRateLimit, recordFailedAttempt, resetRateLimit } from "@/lib/rate-
 
 // Configuration for Auth Mode
 const USE_SELF_HOSTED = import.meta.env.VITE_USE_SELF_HOSTED === 'true';
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 const EXTENSION_ID = import.meta.env.VITE_EXTENSION_ID || "tayari-extension-id";
 
 interface AuthContextType {
@@ -87,6 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    const onUnauthorized = () => {
+      setUser(null);
+      setSession(null);
+      syncTokenToExtension(null);
+    };
+    window.addEventListener("auth:unauthorized", onUnauthorized);
+
     if (USE_SELF_HOSTED) {
       const controller = new AbortController();
       // Check for local JWT
@@ -122,7 +129,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
         syncTokenToExtension(null);
       }
-      return () => controller.abort();
+      return () => {
+        controller.abort();
+        window.removeEventListener("auth:unauthorized", onUnauthorized);
+      };
     } else {
       // Supabase logic
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -141,7 +151,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         syncTokenToExtension(session?.access_token ?? null);
       });
 
-      return () => subscription.unsubscribe();
+      return () => {
+        subscription.unsubscribe();
+        window.removeEventListener("auth:unauthorized", onUnauthorized);
+      };
     }
   }, []);
 

@@ -22,7 +22,9 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Get("/api/v1/health/detailed", s.handleHealthDetailed)
 
 		r.With(s.loginRateLimiter.Middleware).Post("/api/v1/auth/register", s.handleRegister)
+		r.With(s.loginRateLimiter.Middleware).Post("/api/auth/register", s.handleRegister)
 		r.With(s.loginRateLimiter.Middleware).Post("/api/v1/auth/login", s.handleLogin)
+		r.With(s.loginRateLimiter.Middleware).Post("/api/auth/login", s.handleLogin)
 
 		r.Get("/api/v1/tenants/branding", s.handleGetTenantBranding)
 		r.Post("/api/v1/analytics/performance", s.handleAnalyticsPerformance)
@@ -41,6 +43,10 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		// Public legacy aliases
 		r.Get("/api/health", s.handleHealth)
 		r.Get("/api/health/detailed", s.handleHealthDetailed)
+
+		// Public no-signup ATS scan
+		r.Post("/api/v1/public/analyze-text", s.handleAnalyzeText)
+		r.Post("/api/public/analyze-text", s.handleAnalyzeText)
 	})
 
 	// Protected Routes
@@ -54,6 +60,7 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Get("/api/v1/profile", s.handleGetProfile)
 		r.Put("/api/v1/profile", s.handleUpdateProfile)
 
+		r.Post("/api/v1/analyze", s.handleAnalyzeText)
 		r.Get("/api/v1/analyze/history", s.handleListAnalysisHistory)
 		s.routesKnowledgeHub(r)
 
@@ -71,7 +78,9 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Post("/api/v1/resumes/{id}/export", s.handleExportResume)
 		r.Get("/api/v1/resumes/{id}/docx", s.handleDownloadResumeDocx)
 		r.Get("/api/v1/resume-versions/{id}/docx", s.handleDownloadVersionDocx)
-
+		r.Post("/api/v1/job-descriptions", s.handleCreateJD)
+		r.Get("/api/v1/job-descriptions", s.handleListJDs)
+		r.Get("/api/v1/job-descriptions/{id}", s.handleGetJD)
 		s.routesApplications(r)
 		s.routesAPIKeys(r)
 		s.routesHermes(r)
@@ -113,8 +122,6 @@ func (s *Server) handleSocialCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) registerLegacyAliases(r chi.Router) {
-	r.Post("/api/auth/register", s.handleRegister)
-	r.Post("/api/auth/login", s.handleLogin)
 	r.Get("/api/profile", s.handleGetProfile)
 	r.Put("/api/profile", s.handleUpdateProfile)
 	r.Get("/api/auth/me", s.handleMe)
@@ -124,12 +131,17 @@ func (s *Server) registerLegacyAliases(r chi.Router) {
 	r.Post("/api/resumes", s.handleCreateResume)
 	r.Get("/api/resumes/{id}", s.handleGetResume)
 	r.Delete("/api/resumes/{id}", s.handleDeleteResume)
+	r.Post("/api/analyze", s.handleAnalyzeText)
 	r.Post("/api/resumes/analyze-text", s.handleAnalyzeText)
 	r.Post("/api/resumes/{id}/optimize", s.handleOptimizeResume)
 	r.Post("/api/resumes/{id}/analyze", s.handleAnalyzeResume)
 	r.Post("/api/resumes/{id}/export", s.handleExportResume)
 	r.Get("/api/resumes/{id}/docx", s.handleDownloadResumeDocx)
 	r.Get("/api/resume-versions/{id}/docx", s.handleDownloadVersionDocx)
+	r.Get("/api/v1/resume-versions/{id}/docx", s.handleDownloadVersionDocx)
+	r.Post("/api/job-descriptions", s.handleCreateJD)
+	r.Get("/api/job-descriptions", s.handleListJDs)
+	r.Get("/api/job-descriptions/{id}", s.handleGetJD)
 	r.Get("/api/tenants/branding", s.handleGetTenantBranding)
 	r.Post("/api/analytics/performance", s.handleAnalyticsPerformance)
 	r.Get("/api/applications", s.handleListApplications)

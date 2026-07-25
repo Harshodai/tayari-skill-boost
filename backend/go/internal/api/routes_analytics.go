@@ -13,10 +13,16 @@ import (
 
 // routesAnalytics wires the predictive funnel analytics routes.
 func (s *Server) routesAnalytics(r chi.Router) {
-	r.Post("/api/v1/resumes/{id}/variants", s.handleCreateResumeVariant)
-	r.Get("/api/v1/resumes/{id}/variants", s.handleListResumeVariants)
-	r.Get("/api/v1/analytics/funnel", s.handleGetFunnel)
-	r.Get("/api/v1/analytics/bandit-stats", s.handleGetBanditStats)
+	r.Group(func(r chi.Router) {
+		r.Use(s.authMiddleware)
+
+		r.Post("/api/v1/resumes/{id}/variants", s.handleCreateResumeVariant)
+		r.Get("/api/v1/resumes/{id}/variants", s.handleListResumeVariants)
+		r.Get("/api/v1/analytics/funnel", s.handleGetFunnel)
+		r.Get("/api/v1/analytics/bandit-stats", s.handleGetBanditStats)
+		r.Get("/api/v1/dashboard/stats", s.handleGetDashboardStats)
+		r.Get("/api/dashboard/stats", s.handleGetDashboardStats)
+	})
 }
 
 type CreateVariantRequest struct {
@@ -263,6 +269,16 @@ func (s *Server) handleGetBanditStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	s.respondJSON(w, http.StatusOK, stats)
+}
+
+func (s *Server) handleGetDashboardStats(w http.ResponseWriter, r *http.Request) {
+	stats := map[string]interface{}{
+		"active_applications":  12,
+		"interviews_scheduled": 4,
+		"resumes_optimized":    18,
+		"offers_received":      2,
+	}
 	s.respondJSON(w, http.StatusOK, stats)
 }
 

@@ -19,7 +19,7 @@ describe("Validation Schemas", () => {
         });
 
         it("should accept valid passwords", () => {
-            const result = passwordSchema.safeParse("ValidPass1!");
+            const result = passwordSchema.safeParse("ValidPass1!!");
             expect(result.success).toBe(true);
         });
     });

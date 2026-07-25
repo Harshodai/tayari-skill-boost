@@ -29,7 +29,7 @@ export type {
 };
 
 const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8080/api";
+  import.meta.env.VITE_API_URL || "/api";
 const USE_SELF_HOSTED = import.meta.env.VITE_USE_SELF_HOSTED === "true";
 
 function getToken(): string | null {
@@ -61,7 +61,7 @@ export class ApiError extends Error {
 
 function handleUnauthorized(): never {
   localStorage.removeItem("auth_token");
-  window.location.href = "/auth?expired=true";
+  window.dispatchEvent(new CustomEvent("auth:unauthorized"));
   throw new ApiError("Session expired", 401);
 }
 
