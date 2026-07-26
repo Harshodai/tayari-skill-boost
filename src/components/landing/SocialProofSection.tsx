@@ -41,6 +41,7 @@ const FALLBACK_STATS: DashboardStats = {
   profile_completion_pct: 88,
   applications_count: 1200,
   interviews_count: 350,
+  saved_jobs_count: 800,
 };
 
 export function SocialProofSection() {
