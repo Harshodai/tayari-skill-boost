@@ -31,7 +31,7 @@ export function InterviewVoiceCoach() {
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<VoiceAnalysis | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     return () => {
