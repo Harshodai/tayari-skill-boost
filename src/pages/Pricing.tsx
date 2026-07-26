@@ -27,7 +27,7 @@ const Pricing = () => {
 
     setLoadingPlan(planKey);
     try {
-      const token = localStorage.getItem("tayari_token") || localStorage.getItem("supabase.auth.token");
+      const token = localStorage.getItem("auth_token");
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
