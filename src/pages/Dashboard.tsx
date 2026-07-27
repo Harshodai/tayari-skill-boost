@@ -51,7 +51,7 @@ import { toast } from "sonner";
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const { startRun, open: openActivity, runs } = useAutomation();
+  const { startRun, runChain, open: openActivity, runs } = useAutomation();
   const userId = user?.id;
   const [activeTab, setActiveTab] = useState<"match" | "outcomes">("match");
 
