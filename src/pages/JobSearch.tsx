@@ -38,7 +38,9 @@ import { useAutomation } from "@/contexts/AutomationContext";
 import { SkillGapWidget } from "@/components/jobs/SkillGapWidget";
 import { JobFeedbackButtons } from "@/components/jobs/JobFeedbackButtons";
 import { SavedSearches } from "@/components/jobs/SavedSearches";
+import { buildApplyChain } from "@/lib/automation/applyChain";
 import { cn } from "@/lib/utils";
+
 
 const ATS_LOGOS: Record<string, string> = {
   greenhouse: "🌱", lever: "⚙️", ashby: "📋", workday: "📅",
