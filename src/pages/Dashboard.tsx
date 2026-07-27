@@ -101,19 +101,22 @@ const Dashboard = () => {
     };
   })();
 
-  const triggerApplyChain = () => {
-    const job = savedJobs[0];
-    startRun({
-      title: "Apply workflow",
-      context: job ? `${job.title} @ ${job.company}` : "Demo job",
-      steps: [
-        "Optimizing resume against JD",
-        "Generating tailored cover letter",
-        "Drafting recruiter outreach",
-        "Queued for AutoPilot submission",
-      ],
+  const triggerApplyChain = async () => {
+    const saved = savedJobs[0];
+    if (!saved) {
+      toast.info("Save a job first — Apply Assist runs on a real job.");
+      return;
+    }
+    const job = (saved as any).job || saved;
+    const { ok } = await runChain({
+      title: "Apply Assist",
+      context: `${job.title ?? saved.title} @ ${job.company ?? saved.company}`,
+      steps: buildApplyChain(job),
     });
+    if (ok) toast.success("Apply Assist finished — see Activity");
+    else toast.error("Apply Assist stopped — open Activity for the reason");
   };
+
 
   const FocusIcon = focus.icon;
 
