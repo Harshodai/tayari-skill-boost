@@ -253,28 +253,25 @@ const JobSearch = () => {
     saveMutation.mutate({ dedupe_key: dedupeKey, job, status: "saved" } as any);
   };
 
-  const handleApplyChain = (job: Job) => {
-    startRun({
-      title: `Apply to ${job.title}`,
+  const handleApplyChain = async (job: Job) => {
+    const { ok } = await runChain({
+      title: `Apply Assist — ${job.title}`,
       context: `${job.company}${job.location ? " · " + job.location : ""}`,
-      steps: [
-        "Tailoring resume to JD",
-        "Generating cover letter",
-        "Drafting recruiter outreach",
-        "Queueing application via AutoPilot",
-      ],
+      steps: buildApplyChain(job as any),
     });
-    toast.success("Apply chain started — see Activity");
+    if (ok) toast.success("Apply Assist finished — see Activity");
+    else toast.error("Apply Assist stopped — open Activity for the reason");
   };
 
   const handleQueueAutoPilot = (job: Job) => {
     startRun({
-      title: `AutoPilot: ${job.title}`,
+      title: `AutoPilot preview: ${job.title}`,
       context: job.company,
       steps: ["Verifying eligibility", "Filling application", "Submitting", "Logging to pipeline"],
     });
-    toast.success("Queued for AutoPilot");
+    toast.info("AutoPilot is a preview — nothing was submitted");
   };
+
 
   return (
     <AppShell title="Smart Job Search" subtitle="Search • Match • Apply — in one flow">
