@@ -326,7 +326,7 @@ const JobSearch = () => {
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                <Sparkles className="w-3 h-3" /> Hermes Agent
+                <Sparkles className="w-3 h-3" /> Live job feeds
               </span>
               <span>Aggregating Greenhouse · Lever · Ashby · Workday · Remotive</span>
             </div>
@@ -350,7 +350,7 @@ const JobSearch = () => {
         <Card className="mb-6 border-primary/20 bg-primary/5 backdrop-blur p-4">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-            <h4 className="text-sm font-bold text-primary font-sans">Hermes Search Agent Execution Log</h4>
+            <h4 className="text-sm font-bold text-primary font-sans">Search log</h4>
           </div>
           <div className="space-y-2 max-h-40 overflow-y-auto font-sans text-xs">
             {visibleAgentEvents.map((evt, idx) => (
