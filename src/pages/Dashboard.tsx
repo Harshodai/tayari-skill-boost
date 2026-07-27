@@ -45,6 +45,9 @@ import { MemoryBadge } from "@/components/pipeline/MemoryBadge";
 import { GamificationBadge } from "@/components/GamificationBadge";
 import { AchievementsBadge } from "@/components/AchievementsBadge";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { buildApplyChain } from "@/lib/automation/applyChain";
+import { toast } from "sonner";
+
 
 const Dashboard = () => {
   const { user } = useAuth();
