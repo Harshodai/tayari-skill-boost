@@ -85,7 +85,7 @@ const scoreRing = (s: number) =>
 const JobSearch = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { startRun } = useAutomation();
+  const { startRun, runChain } = useAutomation();
 
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
