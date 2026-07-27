@@ -38,7 +38,9 @@ import { useAutomation } from "@/contexts/AutomationContext";
 import { SkillGapWidget } from "@/components/jobs/SkillGapWidget";
 import { JobFeedbackButtons } from "@/components/jobs/JobFeedbackButtons";
 import { SavedSearches } from "@/components/jobs/SavedSearches";
+import { buildApplyChain } from "@/lib/automation/applyChain";
 import { cn } from "@/lib/utils";
+
 
 const ATS_LOGOS: Record<string, string> = {
   greenhouse: "🌱", lever: "⚙️", ashby: "📋", workday: "📅",
@@ -85,7 +87,7 @@ const scoreRing = (s: number) =>
 const JobSearch = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { startRun } = useAutomation();
+  const { startRun, runChain } = useAutomation();
 
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
@@ -253,28 +255,25 @@ const JobSearch = () => {
     saveMutation.mutate({ dedupe_key: dedupeKey, job, status: "saved" } as any);
   };
 
-  const handleApplyChain = (job: Job) => {
-    startRun({
-      title: `Apply to ${job.title}`,
+  const handleApplyChain = async (job: Job) => {
+    const { ok } = await runChain({
+      title: `Apply Assist — ${job.title}`,
       context: `${job.company}${job.location ? " · " + job.location : ""}`,
-      steps: [
-        "Tailoring resume to JD",
-        "Generating cover letter",
-        "Drafting recruiter outreach",
-        "Queueing application via AutoPilot",
-      ],
+      steps: buildApplyChain(job as any),
     });
-    toast.success("Apply chain started — see Activity");
+    if (ok) toast.success("Apply Assist finished — see Activity");
+    else toast.error("Apply Assist stopped — open Activity for the reason");
   };
 
   const handleQueueAutoPilot = (job: Job) => {
     startRun({
-      title: `AutoPilot: ${job.title}`,
+      title: `AutoPilot preview: ${job.title}`,
       context: job.company,
       steps: ["Verifying eligibility", "Filling application", "Submitting", "Logging to pipeline"],
     });
-    toast.success("Queued for AutoPilot");
+    toast.info("AutoPilot is a preview — nothing was submitted");
   };
+
 
   return (
     <AppShell title="Smart Job Search" subtitle="Search • Match • Apply — in one flow">
@@ -327,7 +326,7 @@ const JobSearch = () => {
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                <Sparkles className="w-3 h-3" /> Hermes Agent
+                <Sparkles className="w-3 h-3" /> Live job feeds
               </span>
               <span>Aggregating Greenhouse · Lever · Ashby · Workday · Remotive</span>
             </div>
@@ -351,7 +350,7 @@ const JobSearch = () => {
         <Card className="mb-6 border-primary/20 bg-primary/5 backdrop-blur p-4">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-            <h4 className="text-sm font-bold text-primary font-sans">Hermes Search Agent Execution Log</h4>
+            <h4 className="text-sm font-bold text-primary font-sans">Search log</h4>
           </div>
           <div className="space-y-2 max-h-40 overflow-y-auto font-sans text-xs">
             {visibleAgentEvents.map((evt, idx) => (

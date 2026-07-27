@@ -133,7 +133,7 @@ const Pricing = () => {
         "Team review queue + collaboration",
         "Admin dashboard & analytics",
         "Bulk resume optimization",
-        "Hermes multi-board scraping"
+        "Multi-board job aggregation"
       ],
       cta: "Join Waitlist",
       highlighted: false

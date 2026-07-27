@@ -1,13 +1,14 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Search, Send, User } from "lucide-react";
+import { LayoutDashboard, Search, FileText, Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { to: "/dashboard", label: "Home", icon: LayoutDashboard },
   { to: "/jobs", label: "Jobs", icon: Search },
-  { to: "/pipeline", label: "Apply", icon: Send },
-  { to: "/profile", label: "Profile", icon: User },
+  { to: "/resume", label: "Resume", icon: FileText },
+  { to: "/pipeline", label: "Applied", icon: Bookmark },
 ];
+
 
 export function MobileTabBar() {
   const { pathname } = useLocation();
