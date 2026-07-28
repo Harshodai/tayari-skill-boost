@@ -10,14 +10,14 @@ describe("SocialProofSection", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("renders social proof section headers, trust logos, and aspirational cards", () => {
+  it("renders social proof headers, testimonials, and aspirational cards", () => {
     render(
       <MemoryRouter>
         <SocialProofSection />
       </MemoryRouter>
     );
-    expect(screen.getByText("Google")).toBeInTheDocument();
-    expect(screen.getByText("Stripe")).toBeInTheDocument();
+    expect(screen.getByText(/What early users say/i)).toBeInTheDocument();
+    expect(screen.getByText(/Live platform activity/i)).toBeInTheDocument();
     expect(screen.getByText(/From application to offer/i)).toBeInTheDocument();
   });
 
@@ -28,6 +28,7 @@ describe("SocialProofSection", () => {
           resumes_count: 850,
           profile_completion_pct: 95,
           applications_count: 1400,
+          saved_jobs_count: 95,
           interviews_count: 420,
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
