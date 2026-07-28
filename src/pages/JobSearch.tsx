@@ -104,6 +104,9 @@ const JobSearch = () => {
   const [visibleAgentEvents, setVisibleAgentEvents] = useState<any[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [alertOn, setAlertOn] = useState(false);
+  // Mobile master-detail: below lg the list and detail share the viewport.
+  const [mobileDetail, setMobileDetail] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const { data: savedJobs = [] } = useQuery({
     queryKey: ["saved-jobs"],
@@ -408,10 +411,26 @@ const JobSearch = () => {
         </Card>
       )}
 
-      {/* 3-pane workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_minmax(0,1.1fr)] gap-4 min-h-[70vh]">
+      {/* Mobile-only filter toggle — the sidebar is a drawer under lg */}
+      <div className="lg:hidden mb-3">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-between"
+          onClick={() => setFiltersOpen((o) => !o)}
+        >
+          <span className="inline-flex items-center gap-2">
+            <SlidersHorizontal className="w-4 h-4" />
+            Filters &amp; saved searches
+          </span>
+          <ChevronDown className={cn("w-4 h-4 transition-transform", filtersOpen && "rotate-180")} />
+        </Button>
+      </div>
+
+      {/* 3-pane workspace (stacks to a master-detail flow under lg) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_minmax(0,1.1fr)] gap-4 lg:min-h-[70vh]">
         {/* Filters & saved searches */}
-        <aside className="space-y-4">
+        <aside className={cn("space-y-4 lg:block", filtersOpen ? "block" : "hidden")}>
           <Card className="p-4 space-y-4">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
@@ -489,7 +508,7 @@ const JobSearch = () => {
 
 
         {/* Results list */}
-        <section>
+        <section className={cn("lg:block", mobileDetail && "hidden")}>
           <Card className="h-full p-0 overflow-hidden">
             <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between">
               <h3 className="text-sm font-semibold">
@@ -540,7 +559,10 @@ const JobSearch = () => {
                     return (
                       <button
                         key={i}
-                        onClick={() => setSelectedIdx(i)}
+                        onClick={() => {
+                          setSelectedIdx(i);
+                          setMobileDetail(true);
+                        }}
                         className={cn(
                           "w-full text-left p-3 rounded-lg border transition-all",
                           active
@@ -603,10 +625,10 @@ const JobSearch = () => {
         </section>
 
         {/* Detail pane */}
-        <section>
+        <section className={cn("lg:block", mobileDetail ? "block" : "hidden")}>
           <Card className="h-full p-0 overflow-hidden">
             {!selected ? (
-              <div className="h-full flex items-center justify-center p-8 text-center">
+              <div className="h-full flex items-center justify-center p-8 text-center min-h-[240px]">
                 <div>
                   <Star className="w-10 h-10 mx-auto mb-3 text-muted-foreground/50" />
                   <p className="text-sm font-medium">Pick a role to see the breakdown</p>
@@ -616,8 +638,16 @@ const JobSearch = () => {
                 </div>
               </div>
             ) : (
-              <ScrollArea className="h-[calc(100vh-280px)]">
-                <div className="p-5 space-y-5">
+              <ScrollArea className="h-[70vh] lg:h-[calc(100vh-280px)]">
+                <div className="p-4 md:p-5 space-y-5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="lg:hidden -ml-2 h-8 px-2 text-muted-foreground"
+                    onClick={() => setMobileDetail(false)}
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" /> Back to results
+                  </Button>
                   <div className="flex items-start gap-4">
                     <div
                       className={cn(
