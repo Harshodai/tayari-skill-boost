@@ -47,6 +47,7 @@ import { AchievementsBadge } from "@/components/AchievementsBadge";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { buildApplyChain } from "@/lib/automation/applyChain";
 import { toast } from "sonner";
+import { WelcomeTour } from "@/components/onboarding/WelcomeTour";
 
 
 const Dashboard = () => {
@@ -125,6 +126,7 @@ const Dashboard = () => {
 
   return (
     <AppShell>
+      <WelcomeTour />
       <div className="container mx-auto px-4 py-10 max-w-7xl">
         {/* ponytail: minimal loading skeleton + error retry — single guard for all dashboard queries */}
         {isLoading && (
