@@ -11,6 +11,8 @@
 -- No RLS/auth.uid() policies here, matching every other file in this
 -- directory: the Go backend connects as a superuser (bypasses RLS anyway)
 -- and does its own `WHERE user_id=$1` / ownership checks in-handler.
+-- The PostgREST-facing copies of these tables (self-hosted stack) get RLS +
+-- owner-scoped policies in 20260731_social_rls_hardening.sql.
 -- ==========================================
 
 -- ==========================================
@@ -204,6 +206,26 @@ BEGIN
     REFRESH MATERIALIZED VIEW public.user_preference_summary;
 END;
 $$ LANGUAGE plpgsql;
+
+-- updated_at maintenance for the tables above, following the shared
+-- public.handle_updated_at convention (defined in
+-- 20260625_archive_integration.sql, which runs before this file).
+-- Coexists with trg_connections_lock_identity: both are BEFORE UPDATE
+-- triggers and fire on the same event.
+DROP TRIGGER IF EXISTS on_connections_update ON public.connections;
+CREATE TRIGGER on_connections_update
+    BEFORE UPDATE ON public.connections
+    FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS on_siq_update ON public.shared_interview_questions;
+CREATE TRIGGER on_siq_update
+    BEFORE UPDATE ON public.shared_interview_questions
+    FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS on_application_outcomes_update ON public.application_outcomes;
+CREATE TRIGGER on_application_outcomes_update
+    BEFORE UPDATE ON public.application_outcomes
+    FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
 COMMENT ON TABLE public.connections IS 'User connection graph for social features (Phase 4.2)';
 COMMENT ON TABLE public.shared_interview_questions IS 'Community interview question bank with visibility controls (Phase 4.2)';

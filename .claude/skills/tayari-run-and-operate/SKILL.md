@@ -98,11 +98,12 @@ Redis `6380` is host-exposed but mainly internal. Full table + container-interna
 # Go gateway (needs DATABASE_URL + JWT_SECRET in env). Start `db` (and the
 # rest of the Supabase stack, or at least `db`) first via
 # `docker compose --profile dev up -d db` if you're not running the full stack.
-cd backend/go && JWT_SECRET=dev-secret DATABASE_URL=postgres://postgres:PASSWORD@localhost:54329/postgres?sslmode=disable go run cmd/server/main.go
-# Caveat: with the default USE_SUPABASE=true, JWT_SECRET here must exactly
-# match supabase-local/.env's JWT_SECRET (GoTrue signs with that one) or
-# every request 401s with no distinguishing error — don't just copy
-# "dev-secret" verbatim if you're running against the real Supabase stack.
+# With the default USE_SUPABASE=true, JWT_SECRET must exactly match
+# supabase-local/.env's (GoTrue signs with that one) or every request 401s
+# with no distinguishing error — pull the real value out instead of typing a
+# literal, so the two can't drift. In self-hosted mode (USE_SUPABASE=false)
+# any value works.
+cd backend/go && JWT_SECRET=$(grep '^JWT_SECRET=' ../supabase-local/.env | cut -d= -f2-) DATABASE_URL=postgres://postgres:PASSWORD@localhost:54329/postgres?sslmode=disable go run cmd/server/main.go
 
 # Python engine (starts the Auto-Pilot scheduler as a lifespan background task)
 cd backend/python && uvicorn app.main:app --reload --port 8000

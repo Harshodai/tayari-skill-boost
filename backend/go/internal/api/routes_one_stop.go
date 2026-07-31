@@ -47,36 +47,33 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 		r.Post("/api/v1/one-shot/execute", s.handleOneStopProxy("/api/v1/one-shot/execute"))
 		r.Post("/api/one-shot/execute", s.handleOneStopProxy("/api/v1/one-shot/execute"))
 
-		r.Post("/api/v1/agent-reach/extract", s.handleOneStopProxy("/api/v1/agent-reach/extract"))
-		r.Post("/api/agent-reach/extract", s.handleOneStopProxy("/api/v1/agent-reach/extract"))
-
 		r.Get("/api/v1/agent-reach/doctor", s.handleOneStopProxyGET("/api/v1/agent-reach/doctor"))
 		r.Get("/api/agent-reach/doctor", s.handleOneStopProxyGET("/api/v1/agent-reach/doctor"))
 		r.Post("/api/v1/agent-reach/search", s.handleOneStopProxy("/api/v1/agent-reach/search"))
 		r.Post("/api/agent-reach/search", s.handleOneStopProxy("/api/v1/agent-reach/search"))
 		r.Post("/api/v1/agent-reach/transcribe", s.handleOneStopProxy("/api/v1/agent-reach/transcribe"))
 		r.Post("/api/agent-reach/transcribe", s.handleOneStopProxy("/api/v1/agent-reach/transcribe"))
-		r.Get("/api/v1/agent-reach/cookies", s.handleOneStopProxyGET("/api/v1/agent-reach/cookies"))
-		r.Get("/api/agent-reach/cookies", s.handleOneStopProxyGET("/api/v1/agent-reach/cookies"))
 
-		r.Post("/api/v1/candidate-answer-bank/match", s.handleOneStopProxy("/api/v1/candidate-answer-bank/match"))
-		r.Post("/api/candidate-answer-bank/match", s.handleOneStopProxy("/api/v1/candidate-answer-bank/match"))
 		r.Post("/api/v1/candidate-bank/match", s.handleOneStopProxy("/api/v1/candidate-bank/match"))
 		r.Post("/api/candidate-bank/match", s.handleOneStopProxy("/api/v1/candidate-bank/match"))
 
-		r.Get("/api/v1/communication/suggestions", s.handleOneStopProxyGET("/api/v1/communication/suggestions"))
-		r.Get("/api/communication/suggestions", s.handleOneStopProxyGET("/api/v1/communication/suggestions"))
-
 		// ats/detect, guardrails/truth-check, recruiter/lookup, offer/calculate,
-		// and interview/copilot are NOT registered here — routesMVP (routes_mvp.go)
-		// registers the same method+pattern for all five with billing-gated
-		// handlers (handleATSDetect, handleTruthCheck, handleRecruiterLookup,
-		// handleOfferCalculate, handleInterviewCopilot) and is called after
+		// interview/copilot, agent-reach/extract, agent-reach/cookies,
+		// candidate-answer-bank/match, and communication/suggestions are NOT
+		// registered here — routesMVP (routes_mvp.go) registers the same
+		// method+pattern for all nine with billing-gated handlers
+		// (handleATSDetect, handleTruthCheck, handleRecruiterLookup,
+		// handleOfferCalculate, handleInterviewCopilot, handleAgentReachExtract,
+		// handleAgentReachCookies, handleCandidateBankMatch,
+		// handleCommunicationSuggestions) and is called after
 		// RegisterOneStopRoutes in router.go's s.routes(), so chi's "last
 		// registration wins" behavior means routesMVP's versions are the only
 		// ones actually reachable. Registering them here too was dead code that
 		// silently lost the billing entitlement checks if the registration
-		// order ever changed — see routesMVP's comment for the counterpart.
+		// order ever changed (and, for candidate-answer-bank/match specifically,
+		// proxied to a nonexistent Python endpoint — the real one is
+		// /api/v1/candidate-bank/match, which routesMVP's handler calls
+		// correctly) — see routesMVP's comment for the counterpart.
 	})
 }
 

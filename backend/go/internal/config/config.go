@@ -15,6 +15,7 @@ type Config struct {
 	JWTSecret          string
 	SupabaseURL        string
 	SupabaseKey        string
+	SupabaseServiceRoleKey string
 	FrontendURL        string
 	PythonAIURL        string
 
@@ -44,6 +45,10 @@ func LoadConfig() *Config {
 		JWTSecret:      jwtSecret,
 		SupabaseURL:    getEnv("SUPABASE_URL", ""),
 		SupabaseKey:    getEnv("SUPABASE_ANON_KEY", ""),
+		// Optional: enables the GoTrue Admin-API account-deletion path
+		// (DELETE /auth/v1/admin/users/{id}) in handleDeleteAccount. Without
+		// it, deletion falls back to a direct `DELETE FROM auth.users`.
+		SupabaseServiceRoleKey: getEnv("SUPABASE_SERVICE_ROLE_KEY", ""),
 		FrontendURL:    getEnv("FRONTEND_URL", "http://localhost:5173"),
 		PythonAIURL:    getEnv("PYTHON_AI_URL", getEnv("AI_SERVICE_URL", "http://localhost:8000")),
 

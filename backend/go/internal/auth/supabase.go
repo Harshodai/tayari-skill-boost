@@ -24,6 +24,15 @@ type SupabaseAuth struct {
 	DB     *database.DB
 }
 
+// Token claims GoTrue issues in the self-hosted stack (supabase-local/):
+// iss = GOTRUE_SITE_URL + "/auth/v1" and aud = GOTRUE_JWT_AUD. If you change
+// either in supabase-local/.env / supabase-local/docker-compose.yml, update
+// these to match or every verified request fails with ErrInvalidToken.
+const (
+	supabaseJWTIssuer   = "http://localhost:3000/auth/v1" // supabase-local/.env SITE_URL + /auth/v1
+	supabaseJWTAudience = "authenticated"                  // GOTRUE_JWT_AUD in supabase-local/docker-compose.yml
+)
+
 func NewSupabaseAuth(cfg *config.Config, db *database.DB) *SupabaseAuth {
 	return &SupabaseAuth{Config: cfg, DB: db}
 }
@@ -57,6 +66,16 @@ func (a *SupabaseAuth) VerifyToken(tokenString string) (*models.User, error) {
 		return nil, ErrInvalidToken
 	}
 
+	// Verify the issuer/audience GoTrue actually issues. This rejects tokens
+	// minted by this gateway's own generateToken() (iss "tayari-backend"),
+	// which must never be accepted in Supabase mode.
+	if iss, ok := claims["iss"].(string); !ok || iss != supabaseJWTIssuer {
+		return nil, ErrInvalidToken
+	}
+	if aud, ok := claims["aud"].(string); !ok || aud != supabaseJWTAudience {
+		return nil, ErrInvalidToken
+	}
+
 	// Enforce expiration check
 	if exp, ok := claims["exp"].(float64); ok {
 		if time.Now().Unix() > int64(exp) {
@@ -74,6 +93,16 @@ func (a *SupabaseAuth) VerifyToken(tokenString string) (*models.User, error) {
 
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
+		return nil, ErrInvalidToken
+	}
+
+	// Revocation by existence: account deletion removes the auth.users row
+	// (handleDeleteAccount's cascade), so a still-unexpired token must stop
+	// working immediately rather than staying valid until exp.
+	var exists bool
+	if err := a.DB.Conn.QueryRowContext(context.Background(),
+		`SELECT EXISTS (SELECT 1 FROM auth.users WHERE id=$1)`, userID,
+	).Scan(&exists); err != nil || !exists {
 		return nil, ErrInvalidToken
 	}
 
@@ -248,6 +277,14 @@ func (a *SupabaseAuth) provisionSocialUser(ctx context.Context, gothUser goth.Us
 }
 
 func (a *SupabaseAuth) generateToken(user *models.User) (string, error) {
+	// Go never mints tokens in Supabase mode: tokens signed here would carry
+	// iss "tayari-backend", which VerifyToken now rejects (iss/aud must match
+	// GoTrue's), and GoTrue would not recognize them for refresh/revocation
+	// either. Social auth goes through the frontend SDK in this mode.
+	if a.Config.UseSupabase {
+		return "", fmt.Errorf("operation not supported in Supabase mode: use the frontend SDK (supabase.auth.signInWithOAuth)")
+	}
+
 	// Generate a token compatible with Supabase JWT standards
 	claims := jwt.MapClaims{
 		"sub":  user.ID.String(),

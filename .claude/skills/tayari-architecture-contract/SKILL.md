@@ -71,10 +71,14 @@ Each: the rule, why, how it's enforced, what breaks if violated.
 ### 2.1 Service separation
 - **Rule.** Go = routing/auth/CRUD/DB only. Python = ALL AI/NLP/scraping/Celery. Frontend
   calls the Go gateway only for everything business-logic/AI — never the Python engine
-  directly. **Exception (deliberate, not a violation):** when `USE_SUPABASE=true` (default),
-  the frontend calls Supabase Auth (`supabase.auth.*`, via Kong) directly for
-  register/login/session — Go never issues tokens in this mode, it only verifies them
-  (`internal/auth/supabase.go`). Every other call still goes through Go.
+  directly. **Exception (deliberate, not a violation):** only when BOTH `USE_SUPABASE=true`
+  (Go) AND `VITE_USE_SELF_HOSTED=false` (frontend) — the default pairing — does the frontend
+  call Supabase Auth (`supabase.auth.*`, via Kong) directly for register/login/session; Go
+  never issues tokens in this mode, it only verifies them (`internal/auth/supabase.go`).
+  Every other call still goes through Go. When the two flags disagree, or when either is set
+  to self-hosted (`USE_SUPABASE=false` / `VITE_USE_SELF_HOSTED=true`), auth instead goes
+  through the Go gateway's self-hosted-JWT flow (`internal/auth/local.go`) — see `tayari-config-and-flags`
+  §4 for the specific failure modes when the two flags are set inconsistently.
 - **Why.** Keeps AI deps out of the auth path; single audited front door; independent scaling.
 - **Enforced by.** `.agents/AGENTS.md` (review discipline — not compiler-enforced).
 - **Breaks if violated.** LLM logic in Go bloats the gateway and couples auth to AI failures;

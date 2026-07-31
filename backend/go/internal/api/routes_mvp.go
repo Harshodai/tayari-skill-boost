@@ -2052,14 +2052,15 @@ func (s *Server) routesMVP(r chi.Router) {
 		r.Post("/api/candidate-answer-bank/match", s.handleCandidateBankMatch)
 
 		// ---- ATS Detect / Truth Check / Recruiter Lookup / Offer ----------
-		// These are the sole registration for these five method+patterns —
-		// RegisterOneStopRoutes (routes_one_stop.go) used to also register
-		// them via the generic handleOneStopProxy, but chi does NOT dedupe
-		// duplicate patterns; it silently makes the LAST registration win
-		// (registrations here run after RegisterOneStopRoutes in s.routes()),
-		// which was quietly shadowing the billing-gated handlers below with
-		// an unbilled proxy pass-through. The duplicate registrations were
-		// removed from routes_one_stop.go to make these the single owner.
+		// These, plus candidate-answer-bank/match and communication/suggestions
+		// above and agent-reach/cookies+extract below, are the sole registration
+		// for their method+patterns — RegisterOneStopRoutes (routes_one_stop.go)
+		// used to also register them via the generic handleOneStopProxy, but chi
+		// does NOT dedupe duplicate patterns; it silently makes the LAST
+		// registration win (registrations here run after RegisterOneStopRoutes
+		// in s.routes()), which was quietly shadowing the billing-gated handlers
+		// below with an unbilled proxy pass-through. The duplicate registrations
+		// were removed from routes_one_stop.go to make these the single owner.
 		r.Post("/api/v1/ats/detect", s.handleATSDetect)
 		r.Post("/api/ats/detect", s.handleATSDetect)
 		r.Post("/api/v1/guardrails/truth-check", s.handleTruthCheck)

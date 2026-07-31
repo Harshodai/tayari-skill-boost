@@ -5,12 +5,38 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"tayari-backend/internal/models"
 )
+
+// deleteSupabaseUser deletes the user through GoTrue's admin API, which also
+// revokes the user's sessions and refresh tokens. A 404 is fine (user already
+// gone); anything else is returned so the caller can fall back to SQL.
+func (s *Server) deleteSupabaseUser(ctx context.Context, userID string) error {
+	url := strings.TrimRight(s.Config.SupabaseURL, "/") + "/auth/v1/admin/users/" + userID
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("apikey", s.Config.SupabaseServiceRoleKey)
+	req.Header.Set("Authorization", "Bearer "+s.Config.SupabaseServiceRoleKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	return fmt.Errorf("GoTrue admin delete: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+}
 
 // exportJSONRows runs a query expected to return a single JSON array column
 // (typically `SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (...) t`)
@@ -67,7 +93,22 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 		`DELETE FROM push_subscriptions WHERE user_id=$1`,
 		`DELETE FROM user_subscriptions WHERE user_id=$1`,
 		`DELETE FROM public.profiles WHERE id=$1`,
-		`DELETE FROM auth.users WHERE id=$1`,
+		// auth.users is deliberately NOT in this list: when a GoTrue service
+		// role key is configured, the user row is deleted through GoTrue's
+		// admin API (DELETE /auth/v1/admin/users/{id}) after the commit — the
+		// sanctioned path, which also revokes the user's sessions/refresh
+		// tokens. Without a key, the direct delete below is appended instead.
+	}
+	// privacy_audit_log is deliberately NOT included above: it's an append-only
+	// retention log required for GDPR Article 30 accountability, kept even after
+	// account deletion. See DEPLOYMENT.md's GDPR section.
+
+	// Without a GoTrue service role key the auth.users row must still die for
+	// deletion to be complete (auth.users is the FK parent of most tables
+	// above) — the token-revocation consequence is enforced by
+	// SupabaseAuth.VerifyToken's existence check.
+	if s.Config.SupabaseServiceRoleKey == "" {
+		cascadeQueries = append(cascadeQueries, `DELETE FROM auth.users WHERE id=$1`)
 	}
 
 	for _, q := range cascadeQueries {
@@ -82,6 +123,20 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 		log.Printf("handleDeleteAccount: commit failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Deletion failed")
 		return
+	}
+
+	// Post-commit session revocation: delete the user through GoTrue's admin
+	// API (deletes auth.users + cascades its FK children + revokes sessions
+	// and refresh tokens). If it fails, fall back to the direct SQL delete so
+	// the account is still fully removed — revocation then relies on
+	// VerifyToken's existence check, which the deleted row already triggers.
+	if s.Config.SupabaseServiceRoleKey != "" {
+		if err := s.deleteSupabaseUser(r.Context(), uid); err != nil {
+			log.Printf("handleDeleteAccount: GoTrue admin delete failed, falling back to direct SQL: %v", err)
+			if _, derr := s.DB.Conn.ExecContext(r.Context(), `DELETE FROM auth.users WHERE id=$1`, uid); derr != nil {
+				log.Printf("handleDeleteAccount: fallback auth.users delete failed: %v", derr)
+			}
+		}
 	}
 
 	log.Printf("[GDPR] Account hard-deleted: user_id=%s at %s", uid, time.Now().UTC().Format(time.RFC3339))
@@ -132,6 +187,11 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 				})
 			}
 		}
+		if err := rows.Err(); err != nil {
+			log.Printf("handleExportAccount: resumes rows iteration failed: %v", err)
+			s.respondError(w, http.StatusInternalServerError, "Failed to export account data")
+			return
+		}
 		export["resumes"] = resumes
 	}
 
@@ -151,6 +211,11 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 					"created_at": createdAt.Format(time.RFC3339),
 				})
 			}
+		}
+		if err := appRows.Err(); err != nil {
+			log.Printf("handleExportAccount: applications rows iteration failed: %v", err)
+			s.respondError(w, http.StatusInternalServerError, "Failed to export account data")
+			return
 		}
 		export["applications"] = apps
 	}

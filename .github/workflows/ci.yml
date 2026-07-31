@@ -188,9 +188,7 @@ jobs:
           USE_SUPABASE=true
           VITE_USE_SELF_HOSTED=false
           VITE_SUPABASE_URL=http://localhost:8000
-          VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICJyb2xlIjogImFub24iLAogICAiaXNzIjogInN1cGFiYXNlLWRlbW8iLAogICAiaWF0IjogMTY0MTc2OTIwMCwKICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE
           SUPABASE_URL=http://kong:8000
-          SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICJyb2xlIjogImFub24iLAogICAiaXNzIjogInN1cGFiYXNlLWRlbW8iLAogICAiaWF0IjogMTY0MTc2OTIwMCwKICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE
           FLOWER_USER=ci
           FLOWER_PASSWORD=ci-flower-password
           EOF
@@ -203,6 +201,17 @@ jobs:
             -e 's#^POSTGRES_PASSWORD=.*#POSTGRES_PASSWORD=tayari_test_2026#' \
             -e 's#^JWT_SECRET=.*#JWT_SECRET=test-jwt-secret-for-ci-only-change-me-32ch#' \
             supabase-local/.env
+
+          # Kong's key-auth plugin does exact-string matching against the
+          # configured ANON_KEY (not JWT signature verification) — a
+          # separately hardcoded literal here can silently drift from
+          # supabase-local's real key and 401 every Kong-routed request.
+          # Pull the real value out instead.
+          ANON_KEY=$(grep '^ANON_KEY=' supabase-local/.env | cut -d= -f2-)
+          cat >> .env << EOF
+          VITE_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}
+          SUPABASE_ANON_KEY=${ANON_KEY}
+          EOF
 
       - name: Start full stack
         run: docker compose --profile dev up -d --wait

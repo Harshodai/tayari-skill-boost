@@ -13,23 +13,19 @@ import { cn } from "@/lib/utils";
 
 export function NotificationsBell() {
   // AutomationContext exposes a list of runs; fall back gracefully if not mounted.
-  const ctx = (() => {
-    try { return useAutomation(); } catch { return null; }
-  })();
-
-  const runs = (ctx as any)?.runs ?? [];
+  const { runs } = useAutomation();
   const items = useMemo(() => {
     return runs
       .slice(0, 8)
-      .map((r: any) => ({
+      .map((r) => ({
         id: r.id,
-        title: r.title || r.label || r.current_step || "Automation run",
-        status: r.status || "running",
-        at: r.updated_at || r.created_at,
+        title: r.title || r.context || r.steps[0]?.label || "Automation run",
+        status: r.steps[r.steps.length - 1]?.status || "running",
+        at: r.createdAt,
       }));
   }, [runs]);
 
-  const unread = items.filter((i: any) => i.status === "completed" || i.status === "done").length;
+  const unread = items.filter((i) => i.status === "completed" || i.status === "done").length;
 
   return (
     <DropdownMenu>
@@ -55,7 +51,7 @@ export function NotificationsBell() {
           </div>
         ) : (
           <ul className="max-h-80 overflow-y-auto py-1">
-            {items.map((it: any) => (
+            {items.map((it) => (
               <li key={it.id} className="px-3 py-2 text-xs hover:bg-muted/60">
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate font-medium">{it.title}</span>

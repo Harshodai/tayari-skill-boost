@@ -1,7 +1,6 @@
 import { defineTool, type ToolContext } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-
-const API = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+import { callApi, toolError } from "./_client";
 
 export default defineTool({
   name: "get_interview_questions",
@@ -14,14 +13,14 @@ export default defineTool({
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ resume_id, job_description, company }, ctx: ToolContext) => {
-    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    const resp = await fetch(`${API()}/api/v1/interview/prep`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-      body: JSON.stringify({ resume_id, job_description, company }),
-    });
-    const data = await resp.json();
-    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    try {
+      const data = await callApi(ctx, "/api/v1/interview/prep", {
+        body: { resume_id, job_description, company },
+      });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    } catch (err) {
+      return toolError(err instanceof Error ? err.message : String(err));
+    }
   },
 });

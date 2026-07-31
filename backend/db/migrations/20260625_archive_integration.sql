@@ -101,7 +101,7 @@ CREATE INDEX IF NOT EXISTS idx_oauth_states_user_id ON public.oauth_states(user_
 CREATE TABLE IF NOT EXISTS public.voice_note_files (
     id             uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id        uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    application_id uuid,
+    application_id uuid REFERENCES public.applications(application_id) ON DELETE SET NULL,
     file_path      TEXT NOT NULL,
     content_type   TEXT DEFAULT 'audio/webm',
     transcript     TEXT DEFAULT '',

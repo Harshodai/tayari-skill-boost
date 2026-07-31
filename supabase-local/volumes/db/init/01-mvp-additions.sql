@@ -34,7 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_saved_jobs_status ON public.saved_jobs(status);
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.autopilot_runs (
     id                  SERIAL PRIMARY KEY,
-    run_id              uuid NOT NULL DEFAULT gen_random_uuid(),
+    run_id              uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
     user_id             uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     config              JSONB NOT NULL DEFAULT '{}',
     status              TEXT NOT NULL DEFAULT 'pending',

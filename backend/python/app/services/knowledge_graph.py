@@ -183,13 +183,22 @@ Resume:
         # LLM achievements come back as {"metric","action","context"} (per the
         # prompt schema above) with no "text" key, but schemas.Achievement
         # requires text — synthesize it so the merged list still validates.
+        # The metric is NOT dropped: it maps onto Achievement.impact_metric,
+        # the one schema field the regex-extracted achievements never
+        # populate, so LLM-extracted quantified impact survives to the API.
         llm_achievements = []
         for a in llm_data.get("achievements", []):
             if not isinstance(a, dict):
                 continue
             text = a.get("text") or " ".join(str(v) for v in (a.get("action"), a.get("context")) if v).strip()
-            if text:
-                llm_achievements.append({**a, "text": text})
+            if not text:
+                continue
+            normalized = {**a, "text": text}
+            if a.get("metric") and not normalized.get("impact_metric"):
+                normalized["impact_metric"] = str(a["metric"])
+            if a.get("category") and not normalized.get("category"):
+                normalized["category"] = str(a["category"])
+            llm_achievements.append(normalized)
         achievements = achievements + llm_achievements
 
         result = {

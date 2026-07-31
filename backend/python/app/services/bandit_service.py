@@ -32,7 +32,7 @@ class BanditService:
         return best_variant.get("variant_id", 0)
 
 
-def _get_arm_stats(role_family: str, strategy: str, user_id: str = "__global__") -> Dict[str, int]:
+def _get_arm_stats(role_family: str, strategy: str, user_id: str) -> Dict[str, int]:
     """Retrieve or initialize arm stats, scoped by user_id."""
     if user_id not in _ARM_STATS:
         _ARM_STATS[user_id] = {}
@@ -48,12 +48,15 @@ def record_outcome(
     strategy: str,
     outcome: str,
     variant_id: Optional[str] = None,
-    user_id: str = "__global__",
+    *,
+    user_id: str,
 ) -> Dict[str, Any]:
     """Record application outcome for a resume strategy arm.
 
     Outcomes: 'interview' (conversion +1), 'rejection' (0), 'no_reply' (0).
-    user_id MUST be the authenticated user's ID so stats are not mixed across users.
+    user_id MUST be the authenticated user's ID (keyword-only, no default) so
+    stats are never mixed across users — the SECURITY NOTE at the top of this
+    module is load-bearing, not advisory.
     """
     stats = _get_arm_stats(role_family, strategy, user_id)
     stats["pulls"] += 1
@@ -76,11 +79,13 @@ def select_strategy(
     epsilon: float = 0.15,
     min_samples_threshold: int = 20,
     rng: Optional[random.Random] = None,
-    user_id: str = "__global__",
+    *,
+    user_id: str,
 ) -> Dict[str, Any]:
     """Select best optimizer strategy arm using Epsilon-Greedy selection with cold-start honesty.
 
     Below min_samples_threshold (n=20), status is strictly 'learning' (no deceptive claims).
+    user_id MUST be the authenticated user's ID (keyword-only, no default) — see SECURITY NOTE.
     """
     r = rng if rng is not None else random
     if not available_strategies:

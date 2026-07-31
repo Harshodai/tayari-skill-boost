@@ -1,7 +1,6 @@
 import { defineTool, type ToolContext } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-
-const API = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+import { callApi, toolError } from "./_client";
 
 export default defineTool({
   name: "generate_cover_letter",
@@ -15,24 +14,14 @@ export default defineTool({
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ resume_id, job_description, company_name, tone }, ctx: ToolContext) => {
-    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    let resp: Response;
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
     try {
-      resp = await fetch(`${API()}/api/v1/cover-letter/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-        body: JSON.stringify({ resume_id, job_description, company_name, tone }),
+      const data = await callApi(ctx, "/api/v1/cover-letter/generate", {
+        body: { resume_id, job_description, company_name, tone },
       });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
     } catch (err) {
-      return { content: [{ type: "text", text: `Network error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+      return toolError(err instanceof Error ? err.message : String(err));
     }
-    let data;
-    try {
-      data = await resp.json();
-    } catch (err) {
-      return { content: [{ type: "text", text: `Invalid response from server: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
-    }
-    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
   },
 });

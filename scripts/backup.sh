@@ -27,7 +27,9 @@ if command -v pg_dump >/dev/null 2>&1; then
     PGPASSWORD="${PGPASSWORD:?Set PGPASSWORD to the db POSTGRES_PASSWORD (see supabase-local/.env)}" pg_dump -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -F p "${DB_NAME}" | gzip > "${DAILY_FILE}"
 else
     echo "[backup] pg_dump not found locally. Running pg_dump inside the Supabase db container..."
-    docker exec supabase-db pg_dump -U "${DB_USER}" "${DB_NAME}" 2>/dev/null | gzip > "${DAILY_FILE}" || \
+    # Only the compose-qualified form: with project-based container naming the
+    # container is <project>-supabase-db-1, never bare "supabase-db", so a
+    # bare `docker exec supabase-db` fails on every modern Compose project.
     docker compose exec -T db pg_dump -U "${DB_USER}" "${DB_NAME}" | gzip > "${DAILY_FILE}"
 fi
 

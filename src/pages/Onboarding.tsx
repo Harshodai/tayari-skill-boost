@@ -70,7 +70,10 @@ export default function Onboarding() {
         "tayari_onboarding",
         JSON.stringify({ goal, roles, hasResume: !!file || !!linkedin, completedAt: Date.now() })
       );
-    } catch {}
+    } catch {
+      // localStorage may be unavailable (private mode, storage quota); onboarding
+      // is best-effort and re-offered next time.
+    }
     navigate("/dashboard");
   };
 

@@ -182,13 +182,26 @@ func planRank(plan string) int {
 	// raw price IDs, or lookup keys like "pro_monthly"/"enterprise_annual" —
 	// rather than the canonical "pro"/"enterprise" tier names (see
 	// ProcessStripeWebhook, which stores whatever Stripe sends verbatim).
-	// Match by substring the same way ProcessStripeWebhook already does
-	// when computing metered limits, so a paying customer with a variant
-	// plan string isn't silently ranked the same as free (rank 0).
-	if strings.Contains(p, "enterprise") || strings.Contains(p, "team") {
+	// Match on whole "_"/"-"-delimited tokens (not bare substring) so a
+	// paying customer with a variant plan string isn't silently ranked the
+	// same as free (rank 0) — while "steam" (contains "team") and
+	// "free_promo"/"promo_2026"/"price_promo" (contain "pro") don't
+	// falsely match "team"/"pro".
+	tokens := strings.FieldsFunc(p, func(r rune) bool {
+		return r == '_' || r == '-'
+	})
+	hasToken := func(target string) bool {
+		for _, t := range tokens {
+			if t == target {
+				return true
+			}
+		}
+		return false
+	}
+	if hasToken("enterprise") || hasToken("team") {
 		return 2
 	}
-	if strings.Contains(p, "pro") {
+	if hasToken("pro") {
 		return 1
 	}
 	return 0

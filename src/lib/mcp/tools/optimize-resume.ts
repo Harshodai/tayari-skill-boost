@@ -1,7 +1,6 @@
 import { defineTool, type ToolContext } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-
-const API = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+import { callApi, toolError, REQUEST_TIMEOUT_MS } from "./_client";
 
 export default defineTool({
   name: "optimize_resume",
@@ -13,37 +12,16 @@ export default defineTool({
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ resume_id, job_description }, ctx: ToolContext) => {
-    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-
-    const OPTIMIZE_TIMEOUT_MS = 60_000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), OPTIMIZE_TIMEOUT_MS);
-
-    let resp: Response;
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
     try {
-      resp = await fetch(`${API()}/api/v1/resumes/${resume_id}/optimize`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-        body: JSON.stringify({ job_description }),
-        signal: controller.signal,
+      // LLM optimization is slow — explicit timeout instead of the default.
+      const data = await callApi(ctx, `/api/v1/resumes/${resume_id}/optimize`, {
+        body: { job_description },
+        timeoutMs: REQUEST_TIMEOUT_MS,
       });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
     } catch (err) {
-      const isTimeout = err instanceof Error && err.name === "AbortError";
-      return {
-        content: [{ type: "text", text: isTimeout ? "Request timed out" : `Network error: ${err instanceof Error ? err.message : String(err)}` }],
-        isError: true,
-      };
-    } finally {
-      clearTimeout(timeoutId);
+      return toolError(err instanceof Error ? err.message : String(err));
     }
-
-    let data;
-    try {
-      data = await resp.json();
-    } catch (err) {
-      return { content: [{ type: "text", text: `Invalid response from server: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
-    }
-    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
   },
 });

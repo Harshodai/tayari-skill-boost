@@ -23,6 +23,27 @@ CREATE INDEX IF NOT EXISTS idx_applications_dream_score
 ON public.applications(user_id, dream_score DESC)
 WHERE status = 'review';
 
+-- Prerequisite: applications.application_id must be UNIQUE for the FK below —
+-- PostgreSQL requires FK target columns to be UNIQUE or PK. 01-mvp-additions
+-- creates applications with application_id as a plain uuid column (the PK is
+-- `id SERIAL`), so backfill the constraint HERE, in the same file that first
+-- references it in an FK. Idempotent via pg_constraint check. The duplicate
+-- guard at the top of 03-20260620_hermes_agents.sql is now a harmless no-op.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'applications'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'applications_application_id_key'
+          AND conrelid = 'public.applications'::regclass
+    ) THEN
+        ALTER TABLE public.applications
+            ADD CONSTRAINT applications_application_id_key UNIQUE (application_id);
+    END IF;
+END $$;
+
 -- Review queue history log table (audit trail)
 CREATE TABLE IF NOT EXISTS public.review_queue_history (
     id          SERIAL PRIMARY KEY,

@@ -14,9 +14,19 @@ import getMarketSalaryTool from "./tools/get-market-salary";
 import checkCompanyTool from "./tools/check-company";
 import reportOutcomeTool from "./tools/report-outcome";
 
-// Build the Supabase issuer from the project ref at build time. Vite inlines
-// VITE_SUPABASE_PROJECT_ID as a literal, keeping this file import-safe.
-const projectRef = import.meta.env.VITE_SUPABASE_PROJECT_ID ?? "project-ref-unset";
+// Build the Supabase issuer from the project ref. Prefer the Vite build-time
+// ref (inlined as a literal for the frontend build); fall back to the edge
+// runtime's injected SUPABASE_URL (https://<project-ref>.supabase.co) so the
+// deployed edge function gets a valid issuer even when the build-time ref
+// was empty (the historical bundle shipped `projectRef = ""` → issuer
+// "https://.supabase.co/auth/v1", which no OAuth server ever answers to).
+const projectRef =
+  (import.meta.env.VITE_SUPABASE_PROJECT_ID &&
+  import.meta.env.VITE_SUPABASE_PROJECT_ID !== "project-ref-unset"
+    ? import.meta.env.VITE_SUPABASE_PROJECT_ID
+    : String(process.env.SUPABASE_URL ?? "")
+        .replace(/^https?:\/\//, "")
+        .replace(/\.supabase\.co.*$/, "")) || "";
 
 export default defineMcp({
   name: "tayari-mcp",

@@ -130,7 +130,8 @@ export const settings = {
 export const getNavLinks = () => {
   return CONFIG.links.filter(link => {
     if (!link.feature) return true;
-    // @ts-ignore
+    // @ts-expect-error — CONFIG.links may reference a feature key this build's
+    // feature set doesn't define; unknown features are disabled.
     return features[link.feature];
   }).map(l => ({ label: l.label, href: l.href }));
 };

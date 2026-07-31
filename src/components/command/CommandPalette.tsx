@@ -45,9 +45,7 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const { theme, toggleTheme } = (() => {
-    try { return useTheme(); } catch { return { theme: "dark" as const, toggleTheme: () => {} }; }
-  })();
+  const { theme, toggleTheme } = useTheme();
 
   // Global shortcuts (palette + jump-to navigation)
   useHotkeys({

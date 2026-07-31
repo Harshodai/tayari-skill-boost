@@ -147,7 +147,52 @@ var save_job_default = defineTool4({
 // src/lib/mcp/tools/optimize-resume.ts
 import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z4 } from "npm:zod@^4.4.3";
+
+// src/lib/mcp/tools/_client.ts
 var API = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+var REQUEST_TIMEOUT_MS = 6e4;
+var ApiError = class extends Error {
+  data;
+};
+async function callApi(ctx, path, options = {}) {
+  const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let resp;
+  try {
+    resp = await fetch(`${API()}${path}`, {
+      method: options.method ?? "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
+      body: options.body === void 0 ? void 0 : JSON.stringify(options.body),
+      signal: controller.signal
+    });
+  } catch (err) {
+    const isTimeout = err instanceof Error && err.name === "AbortError";
+    throw new Error(
+      isTimeout ? `Request timed out after ${timeoutMs}ms` : `Network error: ${err instanceof Error ? err.message : String(err)}`
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
+  let data;
+  try {
+    data = await resp.json();
+  } catch (err) {
+    throw new Error(`Invalid response from server: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (!resp.ok) {
+    const msg = typeof data === "object" && data !== null && "error" in data && typeof data.error === "string" ? data.error || "Failed" : "Failed";
+    const err = new ApiError(msg);
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+function toolError(text) {
+  return { content: [{ type: "text", text }], isError: true };
+}
+
+// src/lib/mcp/tools/optimize-resume.ts
 var optimize_resume_default = defineTool5({
   name: "optimize_resume",
   title: "Optimize resume",
@@ -158,42 +203,22 @@ var optimize_resume_default = defineTool5({
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ resume_id, job_description }, ctx) => {
-    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    const OPTIMIZE_TIMEOUT_MS = 6e4;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), OPTIMIZE_TIMEOUT_MS);
-    let resp;
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
     try {
-      resp = await fetch(`${API()}/api/v1/resumes/${resume_id}/optimize`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-        body: JSON.stringify({ job_description }),
-        signal: controller.signal
+      const data = await callApi(ctx, `/api/v1/resumes/${resume_id}/optimize`, {
+        body: { job_description },
+        timeoutMs: REQUEST_TIMEOUT_MS
       });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
     } catch (err) {
-      const isTimeout = err instanceof Error && err.name === "AbortError";
-      return {
-        content: [{ type: "text", text: isTimeout ? "Request timed out" : `Network error: ${err instanceof Error ? err.message : String(err)}` }],
-        isError: true
-      };
-    } finally {
-      clearTimeout(timeoutId);
+      return toolError(err instanceof Error ? err.message : String(err));
     }
-    let data;
-    try {
-      data = await resp.json();
-    } catch (err) {
-      return { content: [{ type: "text", text: `Invalid response from server: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
-    }
-    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
   }
 });
 
 // src/lib/mcp/tools/get-ats-score.ts
 import { defineTool as defineTool6 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z5 } from "npm:zod@^4.4.3";
-var API2 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
 var get_ats_score_default = defineTool6({
   name: "get_ats_score",
   title: "Get ATS score",
@@ -204,22 +229,21 @@ var get_ats_score_default = defineTool6({
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ resume_text, job_description }, ctx) => {
-    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    const resp = await fetch(`${API2()}/api/v1/analyze`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-      body: JSON.stringify({ resume_text, job_description })
-    });
-    const data = await resp.json();
-    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    try {
+      const data = await callApi(ctx, "/api/v1/analyze", {
+        body: { resume_text, job_description }
+      });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    } catch (err) {
+      return toolError(err instanceof Error ? err.message : String(err));
+    }
   }
 });
 
 // src/lib/mcp/tools/generate-cover-letter.ts
 import { defineTool as defineTool7 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z6 } from "npm:zod@^4.4.3";
-var API3 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
 var generate_cover_letter_default = defineTool7({
   name: "generate_cover_letter",
   title: "Generate cover letter",
@@ -232,25 +256,15 @@ var generate_cover_letter_default = defineTool7({
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ resume_id, job_description, company_name, tone }, ctx) => {
-    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    let resp;
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
     try {
-      resp = await fetch(`${API3()}/api/v1/cover-letter/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-        body: JSON.stringify({ resume_id, job_description, company_name, tone })
+      const data = await callApi(ctx, "/api/v1/cover-letter/generate", {
+        body: { resume_id, job_description, company_name, tone }
       });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
     } catch (err) {
-      return { content: [{ type: "text", text: `Network error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+      return toolError(err instanceof Error ? err.message : String(err));
     }
-    let data;
-    try {
-      data = await resp.json();
-    } catch (err) {
-      return { content: [{ type: "text", text: `Invalid response from server: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
-    }
-    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
   }
 });
 
@@ -289,7 +303,6 @@ var get_pipeline_default = defineTool8({
 // src/lib/mcp/tools/add-to-pipeline.ts
 import { defineTool as defineTool9 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z8 } from "npm:zod@^4.4.3";
-var API4 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
 var add_to_pipeline_default = defineTool9({
   name: "add_to_pipeline",
   title: "Add job to pipeline",
@@ -304,32 +317,21 @@ var add_to_pipeline_default = defineTool9({
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ title, company, url, location, description, stage }, ctx) => {
-    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    let resp;
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
     try {
-      resp = await fetch(`${API4()}/api/v1/extension/capture`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-        body: JSON.stringify({ title, company, url, location, description, stage, add_to_board: true })
+      const data = await callApi(ctx, "/api/v1/extension/capture", {
+        body: { title, company, url, location, description, stage, add_to_board: true }
       });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
     } catch (err) {
-      return { content: [{ type: "text", text: `Network error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+      return toolError(err instanceof Error ? err.message : String(err));
     }
-    let data;
-    try {
-      data = await resp.json();
-    } catch (err) {
-      return { content: [{ type: "text", text: `Invalid response from server: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
-    }
-    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
   }
 });
 
 // src/lib/mcp/tools/get-interview-questions.ts
 import { defineTool as defineTool10 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z9 } from "npm:zod@^4.4.3";
-var API5 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
 var get_interview_questions_default = defineTool10({
   name: "get_interview_questions",
   title: "Get interview questions",
@@ -341,22 +343,21 @@ var get_interview_questions_default = defineTool10({
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ resume_id, job_description, company }, ctx) => {
-    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    const resp = await fetch(`${API5()}/api/v1/interview/prep`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-      body: JSON.stringify({ resume_id, job_description, company })
-    });
-    const data = await resp.json();
-    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    try {
+      const data = await callApi(ctx, "/api/v1/interview/prep", {
+        body: { resume_id, job_description, company }
+      });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    } catch (err) {
+      return toolError(err instanceof Error ? err.message : String(err));
+    }
   }
 });
 
 // src/lib/mcp/tools/get-skill-gaps.ts
 import { defineTool as defineTool11 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z10 } from "npm:zod@^4.4.3";
-var API6 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
 var get_skill_gaps_default = defineTool11({
   name: "get_skill_gaps",
   title: "Get skill gaps",
@@ -368,22 +369,28 @@ var get_skill_gaps_default = defineTool11({
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async (args, ctx) => {
-    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    const resp = await fetch(`${API6()}/api/v1/career-intelligence/skills-gap`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-      body: JSON.stringify(args)
-    });
-    const data = await resp.json();
-    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    if (!args.job_description_text && !args.target_role) {
+      return toolError("At least one of job_description_text or target_role is required");
+    }
+    try {
+      const data = await callApi(ctx, "/api/v1/career-intelligence/skills-gap", {
+        body: {
+          resume_id: args.resume_id,
+          job_description_text: args.job_description_text,
+          target_role: args.target_role
+        }
+      });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    } catch (err) {
+      return toolError(err instanceof Error ? err.message : String(err));
+    }
   }
 });
 
 // src/lib/mcp/tools/get-market-salary.ts
 import { defineTool as defineTool12 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z11 } from "npm:zod@^4.4.3";
-var API7 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
 var get_market_salary_default = defineTool12({
   name: "get_market_salary",
   title: "Get market salary",
@@ -394,22 +401,21 @@ var get_market_salary_default = defineTool12({
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
   handler: async ({ target_role, location }, ctx) => {
-    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    const resp = await fetch(`${API7()}/api/v1/career-intelligence/salary-benchmark`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-      body: JSON.stringify({ target_role, location })
-    });
-    const data = await resp.json();
-    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    try {
+      const data = await callApi(ctx, "/api/v1/career-intelligence/salary-benchmark", {
+        body: { target_role, location }
+      });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    } catch (err) {
+      return toolError(err instanceof Error ? err.message : String(err));
+    }
   }
 });
 
 // src/lib/mcp/tools/check-company.ts
 import { defineTool as defineTool13 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z12 } from "npm:zod@^4.4.3";
-var API8 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
 var check_company_default = defineTool13({
   name: "check_company",
   title: "Check company",
@@ -420,22 +426,21 @@ var check_company_default = defineTool13({
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
   handler: async ({ company_name, job_url }, ctx) => {
-    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    const resp = await fetch(`${API8()}/api/v1/agent-reach/doctor`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-      body: JSON.stringify({ company: company_name, url: job_url })
-    });
-    const data = await resp.json();
-    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    try {
+      const data = await callApi(ctx, "/api/v1/agent-reach/doctor", {
+        body: { company: company_name, url: job_url }
+      });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    } catch (err) {
+      return toolError(err instanceof Error ? err.message : String(err));
+    }
   }
 });
 
 // src/lib/mcp/tools/report-outcome.ts
 import { defineTool as defineTool14 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z13 } from "npm:zod@^4.4.3";
-var API9 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
 var report_outcome_default = defineTool14({
   name: "report_outcome",
   title: "Report application outcome",
@@ -453,20 +458,23 @@ var report_outcome_default = defineTool14({
   },
   annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false },
   handler: async ({ application_id, ...rest }, ctx) => {
-    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    const resp = await fetch(`${API9()}/api/v1/applications/${application_id}/outcome`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-      body: JSON.stringify(rest)
-    });
-    const data = await resp.json();
-    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    if (Object.keys(rest).length === 0) {
+      return toolError("At least one outcome field is required");
+    }
+    try {
+      const data = await callApi(ctx, `/api/v1/applications/${application_id}/outcome`, {
+        body: rest
+      });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+    } catch (err) {
+      return toolError(err instanceof Error ? err.message : String(err));
+    }
   }
 });
 
 // src/lib/mcp/index.ts
-var projectRef = "";
+var projectRef = ("" ? "" : String(process.env.SUPABASE_URL ?? "").replace(/^https?:\/\//, "").replace(/\.supabase\.co.*$/, "")) || "";
 var mcp_default = defineMcp({
   name: "tayari-mcp",
   title: "Tayari",

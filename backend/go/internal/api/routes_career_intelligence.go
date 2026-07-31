@@ -319,7 +319,8 @@ func (s *Server) handleGetSalaryBenchmark(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleGetTrendingSkills(w http.ResponseWriter, r *http.Request) {
-	result, err := s.AI.PostJSON("/api/v1/career-intelligence/trending-skills", nil)
+	// Python registers this as @router.get (no body param) — POST 405s.
+	result, err := s.AI.GetJSON("/api/v1/career-intelligence/trending-skills")
 	if err != nil {
 		log.Printf("handleGetTrendingSkills: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "ai_service_unavailable")

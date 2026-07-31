@@ -271,6 +271,8 @@ services:
       - ./volumes/db/init/16-20260731_social_privacy_preferences.sql:/docker-entrypoint-initdb.d/migrations/zz-16-20260731_social_privacy_preferences.sql:Z
       - ./volumes/db/init/17-seed-tenants.sql:/docker-entrypoint-initdb.d/migrations/zz-17-seed-tenants.sql:Z
       - ./volumes/db/init/18-20260731_self_hosted_rls_hardening.sql:/docker-entrypoint-initdb.d/migrations/zz-18-20260731_self_hosted_rls_hardening.sql:Z
+      - ./volumes/db/init/19-20260731_connections_pair_unique.sql:/docker-entrypoint-initdb.d/migrations/zz-19-20260731_connections_pair_unique.sql:Z
+      - ./volumes/db/init/20-20260731_social_rls_hardening.sql:/docker-entrypoint-initdb.d/migrations/zz-20-20260731_social_rls_hardening.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:

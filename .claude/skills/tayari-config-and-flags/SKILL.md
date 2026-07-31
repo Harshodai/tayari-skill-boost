@@ -163,8 +163,18 @@ curl -s http://localhost:8002/health | grep -o '"model_status":"[^"]*"'
 | `USE_SUPABASE` | Go env | Gateway verifies Supabase-issued JWTs; `Register`/`Login` return "use frontend SDK" errors (Go never issues tokens in this mode) | `true` |
 | `VITE_USE_SELF_HOSTED` | Vite build arg | Frontend uses the local Go JWT backend (self-hosted); `false` → frontend calls `supabase.auth.*` directly | `false` |
 
-They must agree: self-hosted frontend + Supabase Go = broken login (frontend gets a Go-issued
-token in a scheme the Go `SupabaseAuth.VerifyToken` doesn't expect, or vice versa).
+They must agree: self-hosted frontend + Supabase Go = broken login — the frontend calls Go's
+`/register`/`/login` endpoints (self-hosted mode), which under `USE_SUPABASE=true` route to
+`SupabaseAuth.Register`/`Login`, both of which
+literally `return fmt.Errorf("operation not supported in Supabase mode: use frontend SDK")` — signup/
+login fails outright with that error. The reverse mismatch (`VITE_USE_SELF_HOSTED=false` +
+`USE_SUPABASE=false`) breaks differently: the frontend gets a GoTrue-issued token, but
+`LocalAuth.VerifyToken` requires `jwt.WithIssuer("tayari-backend")` and rejects it — every
+authenticated request 401s.
+Note `SupabaseAuth.VerifyToken` validates `iss`/`aud` against what GoTrue issues
+(`http://localhost:3000/auth/v1`, `authenticated`), so a token minted by the gateway's own
+`generateToken` (`iss "tayari-backend"`) is rejected in Supabase mode — and `generateToken`
+refuses to run there at all (social auth goes through the frontend SDK).
 `JWT_SECRET` is required either way, and when `USE_SUPABASE=true` it must additionally match
 `supabase-local/.env`'s `JWT_SECRET` — see `tayari-build-and-env` §4. Architecture rationale:
 `tayari-architecture-contract` §2.5.
