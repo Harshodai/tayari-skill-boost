@@ -60,29 +60,9 @@ func (s *Server) handleAnalyzeText(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.AI.PostJSON("/api/v1/resumes/analyze-text", req)
 	if err != nil || result == nil {
-		log.Printf("handleAnalyzeText: AI call failed or timed out: %v. Returning high-fidelity fallback analysis.", err)
-		result = map[string]interface{}{
-			"overall_score": 88,
-			"match_score":   88,
-			"score_breakdown": map[string]interface{}{
-				"skills":     90,
-				"experience": 85,
-				"education":  90,
-				"formatting": 87,
-			},
-			"key_findings": []string{
-				"Strong alignment with Go & Python backend infrastructure requirements.",
-				"Solid database experience with PostgreSQL and distributed microservices.",
-				"High domain match for cloud native engineering role.",
-			},
-			"matching_skills": []string{"Go", "Python", "PostgreSQL", "Docker", "REST APIs", "Microservices"},
-			"missing_skills":  []string{"Kubernetes", "gRPC"},
-			"recommendations": []string{
-				"Highlight specific system throughput metrics (RPS/QPS) for core payment pipelines.",
-				"Add brief summary of gRPC or event-driven streaming protocols if applicable.",
-			},
-			"tailored_summary": "High-impact Backend Engineer with proven experience delivering scalable Go/Python services and resilient data architectures.",
-		}
+		log.Printf("handleAnalyzeText: AI call failed or timed out: %v", err)
+		s.respondError(w, http.StatusBadGateway, "AI analysis failed")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, result)
 }
@@ -121,24 +101,8 @@ func (s *Server) handleAnalyzeResume(w http.ResponseWriter, r *http.Request) {
 	result, err := s.AI.PostJSON("/api/v1/resumes/analyze-text", aiReq)
 	if err != nil || result == nil {
 		log.Printf("handleAnalyzeResume: AI call failed: %v", err)
-		result = map[string]interface{}{
-			"overall_score": 85,
-			"match_score":   85,
-			"score_breakdown": map[string]interface{}{
-				"skills":     88,
-				"experience": 84,
-				"education":  85,
-				"formatting": 85,
-			},
-			"key_findings": []string{
-				"Strong experience in backend engineering and cloud deployments.",
-			},
-			"matching_skills": []string{"Go", "Python", "SQL"},
-			"missing_skills":  []string{"AWS"},
-			"recommendations": []string{
-				"Quantify achievements with measurable operational results.",
-			},
-		}
+		s.respondError(w, http.StatusBadGateway, "AI analysis failed")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, result)
 }

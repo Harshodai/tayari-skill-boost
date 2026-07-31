@@ -43,6 +43,26 @@ from app.services.hermes import config as hermes_config
 logger = logging.getLogger(__name__)
 
 
+class LLMNotConfiguredError(Exception):
+    """Raised when no real LLM provider is configured, or the configured provider
+    failed, and no explicit mock-fallback opt-in is set.
+
+    Callers must treat this as an honest failure (surface a 503, retry, etc.) —
+    never silently substitute ``_mock_text()`` in its place. Mock output must
+    never masquerade as a real completion.
+    """
+
+
+def _mock_fallback_allowed() -> bool:
+    """Explicit opt-in only — never the silent default on failure/missing config.
+
+    Set LLM_ALLOW_MOCK_FALLBACK=true to let local dev exercise the pipeline with
+    canned mock text when no real LLM is reachable. Unset (the default), any
+    provider failure or missing configuration raises LLMNotConfiguredError.
+    """
+    return os.environ.get("LLM_ALLOW_MOCK_FALLBACK", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 # ---------------------------------------------------------------------------
 # Interface (Liskov + Dependency Inversion)
 # ---------------------------------------------------------------------------
@@ -278,19 +298,35 @@ class HermesProvider(LLMProvider):
                 resp.raise_for_status()
             return resp.json()["choices"][0]["message"]["content"]
         except Exception as exc:  # noqa: BLE001
-            logger.warning("hermes completion failed (%s); falling back to mock", exc)
-            return _mock_text()
+            if _mock_fallback_allowed():
+                logger.warning("hermes completion failed (%s); LLM_ALLOW_MOCK_FALLBACK=true, using mock", exc)
+                return _mock_text()
+            logger.error("hermes completion failed: %s", exc)
+            raise LLMNotConfiguredError(f"Hermes LLM request failed: {exc}") from exc
 
     def active_engine_label(self) -> str:
         return f"hermes-{hermes_config.HERMES_MODEL}"
 
 
 class MockProvider(LLMProvider):
-    """Graceful no-op when no LLM is configured. Never crashes."""
+    """Fallback used when no real LLM is configured.
+
+    Does NOT silently hand back mock text — that would let a fabricated
+    completion flow through the pipeline indistinguishable from a real one.
+    complete() raises LLMNotConfiguredError unless the caller has explicitly
+    opted into mock mode via LLM_ALLOW_MOCK_FALLBACK=true (for local dev only).
+    """
 
     async def complete(self, system_message: str, user_message: str,
                        max_tokens: int = 800, temperature: float = 0.3) -> str:
-        logger.warning("No LLM configured — returning mock response.")
+        if not _mock_fallback_allowed():
+            raise LLMNotConfiguredError(
+                "No LLM provider is configured. Set LLM_BASE_URL/LLM_PROVIDER "
+                "(or HERMES_AGENT_URL) to use a real model, or set "
+                "LLM_ALLOW_MOCK_FALLBACK=true to explicitly opt into mock "
+                "responses for local development."
+            )
+        logger.warning("No LLM configured — returning mock response (LLM_ALLOW_MOCK_FALLBACK=true).")
         return _mock_text(system_message, user_message)
 
     def active_engine_label(self) -> str:
@@ -377,15 +413,26 @@ async def llm_complete(
     max_tokens: int = 800,
     temperature: float = 0.3,
 ) -> str:
-    """Single-shot completion. tier: 'fast'/'smart' (same provider), 'hermes'."""
+    """Single-shot completion. tier: 'fast'/'smart' (same provider), 'hermes'.
+
+    Raises LLMNotConfiguredError if the provider fails, returns an empty result,
+    or no real provider is configured — callers must never receive fabricated
+    mock text silently as if it were a real completion. Set
+    LLM_ALLOW_MOCK_FALLBACK=true to explicitly opt into mock output instead.
+    """
     provider = build_provider(tier if tier == "hermes" else "default")
     try:
         result = await provider.complete(system_message, user_message,
                                          max_tokens=max_tokens, temperature=temperature)
-        return result if result else _mock_text(system_message, user_message)
+    except LLMNotConfiguredError:
+        raise
     except Exception as exc:
         logger.error("LLM completion error: %s", exc)
-        return _mock_text(system_message, user_message)
+        raise LLMNotConfiguredError(f"LLM completion failed: {exc}") from exc
+    if not result:
+        logger.error("LLM provider returned an empty completion")
+        raise LLMNotConfiguredError("LLM provider returned an empty completion")
+    return result
 
 
 def _mock_text(system_message: str = "", user_message: str = "") -> str:

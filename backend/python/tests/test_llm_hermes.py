@@ -5,8 +5,10 @@ Validates the additive ``hermes`` LLM tier in ``app.services.llm_service``:
 - ``active_engine()`` reports ``hermes-{model}`` when the Hermes endpoint is set.
 - ``llm_complete(..., tier="hermes")`` routes to the Hermes endpoint and
   returns the mocked ``choices[0].message.content``.
-- When the Hermes endpoint is not configured, ``tier="hermes"`` degrades to
-  the mock fallback (no crash).
+- When the Hermes endpoint fails or is not configured, ``llm_complete`` raises
+  ``LLMNotConfiguredError`` by default (never silently returns fabricated mock
+  text), and only degrades to the mock fallback when the caller has explicitly
+  opted in via ``LLM_ALLOW_MOCK_FALLBACK=true``.
 
 httpx is mocked via ``httpx.MockTransport`` (no extra deps required).
 
@@ -124,9 +126,23 @@ def test_llm_complete_hermes_without_auth_header(clean_llm_env, monkeypatch):
     assert captured["auth"] is None
 
 
-def test_llm_complete_hermes_http_error_falls_back_to_mock(clean_llm_env, monkeypatch):
-    """A 500 from the Hermes endpoint degrades to the mock fallback (no crash)."""
+def test_llm_complete_hermes_http_error_raises_by_default(clean_llm_env, monkeypatch):
+    """A 500 from the Hermes endpoint raises LLMNotConfiguredError, not a silent mock."""
     monkeypatch.setattr(hermes_config, "HERMES_AGENT_URL", "http://ollama:11434/v1")
+    monkeypatch.delenv("LLM_ALLOW_MOCK_FALLBACK", raising=False)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="boom")
+
+    _patch_client(monkeypatch, handler)
+    with pytest.raises(llm_service.LLMNotConfiguredError):
+        asyncio.run(llm_service.llm_complete("s", "u", tier="hermes"))
+
+
+def test_llm_complete_hermes_http_error_uses_mock_when_opted_in(clean_llm_env, monkeypatch):
+    """With LLM_ALLOW_MOCK_FALLBACK=true, a Hermes failure degrades to mock (explicit opt-in only)."""
+    monkeypatch.setattr(hermes_config, "HERMES_AGENT_URL", "http://ollama:11434/v1")
+    monkeypatch.setenv("LLM_ALLOW_MOCK_FALLBACK", "true")
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, text="boom")
@@ -138,16 +154,17 @@ def test_llm_complete_hermes_http_error_falls_back_to_mock(clean_llm_env, monkey
     assert "score" in parsed
 
 
-def test_llm_complete_hermes_tier_without_endpoint_falls_back_to_mock(clean_llm_env):
-    """tier='hermes' but HERMES_AGENT_URL unset + no LLM_BASE_URL -> mock."""
-    result = asyncio.run(llm_service.llm_complete("s", "u", tier="hermes"))
-    parsed = json.loads(result)
-    assert "score" in parsed
+def test_llm_complete_hermes_tier_without_endpoint_raises_by_default(clean_llm_env, monkeypatch):
+    """tier='hermes' but HERMES_AGENT_URL unset + no LLM_BASE_URL -> raises, no silent mock."""
+    monkeypatch.delenv("LLM_ALLOW_MOCK_FALLBACK", raising=False)
+    with pytest.raises(llm_service.LLMNotConfiguredError):
+        asyncio.run(llm_service.llm_complete("s", "u", tier="hermes"))
 
 
 def test_llm_complete_fast_tier_unchanged_when_hermes_set(clean_llm_env, monkeypatch):
     """tier='fast' must NOT route to hermes even when hermes is configured."""
     monkeypatch.setattr(hermes_config, "HERMES_AGENT_URL", "http://ollama:11434/v1")
+    monkeypatch.delenv("LLM_ALLOW_MOCK_FALLBACK", raising=False)
     called_hermes = {"n": 0}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -157,8 +174,7 @@ def test_llm_complete_fast_tier_unchanged_when_hermes_set(clean_llm_env, monkeyp
         })
 
     _patch_client(monkeypatch, handler)
-    # tier="fast" with no LLM_BASE_URL -> mock fallback (hermes NOT called)
-    result = asyncio.run(llm_service.llm_complete("s", "u", tier="fast"))
+    # tier="fast" with no LLM_BASE_URL -> raises (hermes NOT called, no silent mock)
+    with pytest.raises(llm_service.LLMNotConfiguredError):
+        asyncio.run(llm_service.llm_complete("s", "u", tier="fast"))
     assert called_hermes["n"] == 0
-    parsed = json.loads(result)
-    assert "score" in parsed

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -55,7 +55,7 @@ except ImportError:
 from app.services.circuit_breaker import circuit_breaker
 from app.guardrails import PipelineGate
 from app.telemetry import stage_complete, stage_fail
-from app.services.llm_service import active_engine, llm_complete
+from app.services.llm_service import active_engine, llm_complete, LLMNotConfiguredError
 from app.services.one_shot_engine import OneShotRequest
 from app.services.cover_letter import CoverLetterGenerator
 from app.services.communication import CommunicationGenerator
@@ -259,6 +259,9 @@ async def optimize_resume(payload: OptimizerRequest):
             job_description=payload.job_description,
         )
         return result
+    except LLMNotConfiguredError as exc:
+        logger.error("optimizer/optimize: LLM not configured/available: %s", exc)
+        return JSONResponse(status_code=503, content={"error": "llm_not_configured"})
     except Exception as exc:
         logger.error("optimizer/optimize failed: %s", exc)
         raise HTTPException(status_code=502, detail="Optimization failed") from exc
@@ -320,7 +323,10 @@ async def optimize_resume_stream(
             yield f"data: {_json.dumps(meta_payload)}\n\n"
             
             yield "data: [DONE]\n\n"
-            
+
+        except LLMNotConfiguredError as e:
+            logger.error("Streaming optimization: LLM not configured/available: %s", e)
+            yield f"data: {_json.dumps({'type': 'error', 'error': 'llm_not_configured', 'message': 'LLM not configured'})}\n\n"
         except Exception as e:
             logger.error("Streaming optimization failed: %s", e)
             # ponytail: generic message to client; full detail stays server-side via logger.error above
@@ -658,6 +664,9 @@ async def analyze_text_endpoint(payload: AnalyzeTextRequest):
             payload.custom_instructions or ""
         )
         return {"result": result}
+    except LLMNotConfiguredError as exc:
+        logger.error("resumes/analyze-text: LLM not configured/available: %s", exc)
+        return JSONResponse(status_code=503, content={"error": "llm_not_configured"})
     except Exception as exc:
         logger.error("resumes/analyze-text failed: %s", exc)
         raise HTTPException(status_code=502, detail="AI analysis failed") from exc
