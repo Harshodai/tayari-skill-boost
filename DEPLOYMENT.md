@@ -7,15 +7,16 @@
 cp .env.example .env
 # Edit .env with your API keys
 
-# 2. Start all services
-docker compose up -d
+# 2. Start all services (--profile is required — every service declares one;
+#    a bare `docker compose up -d` starts zero containers, silently)
+docker compose --profile dev up -d --build
 
-# 3. Check health
-curl http://localhost:8080/api/health
-curl http://localhost:8000/health
+# 3. Check health (host ports, not the containers' internal ports)
+curl http://localhost:8085/api/health
+curl http://localhost:8002/health
 
 # 4. Open frontend
-open http://localhost
+open http://localhost:8083
 ```
 
 ## Production Deployment (Railway / Render / Fly.io)

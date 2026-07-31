@@ -14,14 +14,20 @@ Thank you for your interest in contributing to Tayari!
 git clone https://github.com/tayari-ai/tayari-skill-boost.git
 cd tayari-skill-boost
 
-# 2. Start local stack with Docker
-docker compose --profile eval up -d
+# 2. Set up environment (required — see .env.example for the COMPOSE_PROFILES note)
+cp .env.example .env
 
-# 3. Run verification tests
+# 3. Start the full local stack with Docker (frontend + Go + Python + DB + Redis/Celery)
+docker compose --profile dev up -d --build
+
+# 4. Run verification tests
 bun run test
 cd backend/go && go test ./...
 cd ../python && python3 -m pytest tests/
 ```
+
+Note: `--profile eval` (used by CI) only starts `postgres` + `python-ai` + `go-backend` —
+no frontend, no Redis/Celery. Use `--profile dev` for actual local development.
 
 ## Pull Request Guidelines
 1. Ensure all tests pass in both Go and Python service directories.

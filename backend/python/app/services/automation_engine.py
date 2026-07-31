@@ -388,7 +388,7 @@ async def run_autopilot(
                     application["status"] = "gate_blocked"
 
                 # ---- APPLY ---------------------------------------------------
-                if config.get("auto_apply", True) and gate_ok:
+                if config.get("auto_apply", False) and gate_ok:
                     try:
                         apply_job(job, tailored_text, cover)
                         application["status"] = "prepared"

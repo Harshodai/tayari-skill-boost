@@ -13,7 +13,7 @@ React + TS + Vite + Tailwind + shadcn/ui (frontend) · Go + Chi (API gateway: au
 - `extension/` — MV3 browser extension. `backend/db/` — SQL schema + migrations.
 
 # Commands (run via Docker Compose)
-- `docker compose up -d --build` — full stack. Host ports: frontend 8083, Go 8085, Python 8002, Postgres 5433, Ollama 11434.
+- `docker compose --profile dev up -d --build` — full stack. Host ports: frontend 8083, Go 8085, Python 8002, Postgres 5433, Ollama 11434. **The `--profile` flag is required** — every service declares one; a bare `docker compose up -d` starts zero containers, silently. `.env.example` sets `COMPOSE_PROFILES=dev` so a plain `docker compose up -d --build` also works once you've copied it to `.env`.
 - Health check: `curl localhost:8085/api/health` and `curl localhost:8002/health`.
 - Frontend only: `bun run dev` (Vite :8080) · `bun run build` · `bun run lint`. Note: `bun run test` runs ONLY the hardcoded `ResumeGraph*` tests (see package.json), not the full suite — don't read its green as "frontend passes". `bun run test:e2e` = Playwright.
 - Go: `cd backend/go && go test ./...`. Python evals: see `backend/python/CLAUDE.md`.

@@ -4,9 +4,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: tayari
-      POSTGRES_PASSWORD: tayari_dev
-      POSTGRES_DB: tayari
+      POSTGRES_USER: ${POSTGRES_USER:-tayari}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tayari_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-tayari}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/db:/docker-entrypoint-initdb.d:ro
@@ -32,7 +32,7 @@ services:
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgres://tayari:tayari_dev@postgres:5432/tayari?sslmode=disable
+      - DATABASE_URL=postgres://${POSTGRES_USER:-tayari}:${POSTGRES_PASSWORD:-tayari_dev}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
       - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
       - APIFY_API_TOKEN=${APIFY_API_TOKEN:-}
       - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
@@ -80,7 +80,7 @@ services:
       dockerfile: Dockerfile.worker
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgres://tayari:tayari_dev@postgres:5432/tayari?sslmode=disable
+      - DATABASE_URL=postgres://${POSTGRES_USER:-tayari}:${POSTGRES_PASSWORD:-tayari_dev}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
       - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
       - APIFY_API_TOKEN=${APIFY_API_TOKEN:-}
       - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
@@ -115,7 +115,7 @@ services:
     environment:
       - FLOWER_UNAUTHENTICATED_API=true
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgres://tayari:tayari_dev@postgres:5432/tayari?sslmode=disable
+      - DATABASE_URL=postgres://${POSTGRES_USER:-tayari}:${POSTGRES_PASSWORD:-tayari_dev}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
     ports:
       - "5555:5555"
     depends_on:
@@ -136,8 +136,9 @@ services:
       context: ./backend/go
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=postgres://tayari:tayari_dev@postgres:5432/tayari?sslmode=disable
+      - DATABASE_URL=postgres://${POSTGRES_USER:-tayari}:${POSTGRES_PASSWORD:-tayari_dev}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
       - AI_SERVICE_URL=http://python-ai:8000
+      - USE_SUPABASE=${USE_SUPABASE:-false}
       - JWT_SECRET=${JWT_SECRET:-tayari-dev-secret-change-me}
       - PORT=8080
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8080,http://localhost:8083}
@@ -233,7 +234,7 @@ services:
     command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=info"]
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgres://tayari:tayari_dev@postgres:5432/tayari?sslmode=disable
+      - DATABASE_URL=postgres://${POSTGRES_USER:-tayari}:${POSTGRES_PASSWORD:-tayari_dev}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
       - LLM_BASE_URL=${LLM_BASE_URL:-}
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-}

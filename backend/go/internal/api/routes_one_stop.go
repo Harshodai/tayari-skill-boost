@@ -112,15 +112,14 @@ func (s *Server) handleOneStopProxyGET(endpoint string) http.HandlerFunc {
 		headers := s.getXUserHeaders(r)
 		result, err := s.AI.PostJSONWithHeaders(endpoint, nil, headers)
 		if err != nil {
-			log.Printf("[OneStopProxyGET] Using fallback for %s: %v", endpoint, err)
-			result = map[string]interface{}{
-				"status":      "ok",
-				"endpoint":    endpoint,
-				"suggestions": []string{"Follow up after 3 business days", "Send a concise thank-you note highlighting top skills"},
-				"matched":     true,
-				"category":    "work_authorization",
-				"value":       "Yes",
-			}
+			log.Printf("[OneStopProxyGET] AI service error for %s: %v", endpoint, err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":    "ai_service_unavailable",
+				"endpoint": endpoint,
+			})
+			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -139,36 +138,14 @@ func (s *Server) handleOneStopProxy(endpoint string) http.HandlerFunc {
 		headers := s.getXUserHeaders(r)
 		result, err := s.AI.PostJSONWithHeaders(endpoint, payload, headers)
 		if err != nil {
-			log.Printf("[OneStopProxy] Using fallback for %s: %v", endpoint, err)
-			result = map[string]interface{}{
-				"status":                 "ok",
-				"endpoint":               endpoint,
-				"vendor":                 "workday",
-				"displayName":            "Workday ATS",
-				"single_column_required": true,
-				"truth_score":            100,
-				"passed":                 true,
-				"flagged_entities":       []interface{}{},
-				"company_domain":         "stripe.com",
-				"email_pattern":          "first.last@stripe.com",
-				"suggested_emails":       []string{"alex.rivera@stripe.com"},
-				"cold_outreach_subject":  "Re: Senior Staff Engineer Opportunity at Stripe",
-				"referral_intro_template": "Hi Alex, I noticed your team is building scalable payment rails...",
-				"company_name":           "Google",
-				"year_1_total_comp":      390400,
-				"annualized_4yr_npv":     350000,
-				"breakdown":              map[string]interface{}{"base_salary": 210000},
-				"star_framework": map[string]interface{}{
-					"situation": "High traffic spike during Black Friday caused 504 gateway errors.",
-					"task":      "Mitigate outage and restore database connection pool within 15 minutes.",
-					"action":    "Failed over to standby replica and enabled dynamic rate limiting.",
-					"result":    "System fully recovered with zero data loss and 99.99% availability.",
-				},
-				"suggested_metrics": []string{"Reduced p99 latency by 45%", "Restored 100% throughput"},
-				"matched":           true,
-				"category":          "work_authorization",
-				"value":             "Yes",
-			}
+			log.Printf("[OneStopProxy] AI service error for %s: %v", endpoint, err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":    "ai_service_unavailable",
+				"endpoint": endpoint,
+			})
+			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
