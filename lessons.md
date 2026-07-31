@@ -330,3 +330,21 @@ Sprint A removed "STAR mock interview prep" from Pro features in the pricing pag
 
 ### The Lesson
 Don't hide unshipped features — mark them honestly. Users prefer "coming soon" over "missing" when evaluating a platform. But gate their routes via feature flags so they can't be navigated to.
+
+---
+
+## 🐘 Migrating Off Bare Postgres to Self-Hosted Supabase — Three Silent Traps
+
+`docker-compose.yml`'s `postgres` service (a plain `postgres:16-alpine` image, self-hosted-JWT auth only) was replaced with the full self-hosted Supabase stack in `supabase-local/` (Postgres + GoTrue + PostgREST + Kong + Realtime + Storage + Studio + Supavisor), merged in via Compose's `include:` so `docker compose --profile dev up` still brings up everything in one command. Three bugs would have made this look broken even though the merge itself was correct:
+
+### Trap 1 — `migrate.sh` globs `migrations/*.sql` non-recursively
+The `supabase/postgres` image's own `/docker-entrypoint-initdb.d/migrate.sh` runs `for sql in "$db"/migrations/*.sql` — a flat glob. Mounting a host directory as a *subdirectory* under `migrations/` (e.g. `./volumes/db/init:/docker-entrypoint-initdb.d/migrations/tayari`) is silently invisible to it — zero tables get created, zero errors logged. Fix: mount each schema file individually as its own file (`./volumes/db/init/00-x.sql:/docker-entrypoint-initdb.d/migrations/zz-00-x.sql:Z`), same pattern the stack's own `realtime.sql`/`roles.sql`/etc. mounts already use. Prefix with something that sorts after every baked-in migration (dbmate-style timestamps like `20250417190610_*`) so `auth.users` and the `anon`/`authenticated`/`service_role` roles exist first.
+
+### Trap 2 — `${VAR:?err}` in Compose interpolation isn't scoped by profile
+Tried making `FLOWER_USER`/`FLOWER_PASSWORD` "required" via `${FLOWER_USER:?must be set}` in celery-flower's environment block. Compose interpolates `${VAR}` for every service in the file at parse time, regardless of which `--profile` is active — so this broke `docker compose --profile prod up` even though celery-flower (`profiles: ["dev"]`) never runs in prod. Fix: check for the value inside the container's own `command:` (`sh -c 'if [ -z "$$FLOWER_USER" ]; then exit 1; fi; exec ...'`) instead — that only fails when the service actually starts.
+
+### Trap 3 — Supabase auth mode never bridged the session token to the REST client
+`AuthContext.tsx`'s self-hosted-JWT branch wrote `localStorage.setItem('auth_token', ...)` on login, which `src/api/index.ts`'s `apiFetch` reads on every call to the Go backend. The Supabase branch (`supabase.auth.onAuthStateChange` / `getSession()`) only ever set React state and never wrote that key — so every `apiFetch` call in real Supabase mode went out with no `Authorization` header and 401'd, even though the user was genuinely signed in and `supabase.auth.getSession()` had a valid token. This was invisible because the project's actual default had always been self-hosted-JWT mode until now; flipping `USE_SUPABASE=true` by default was what first exercised the dead code path. Fix: write/clear `localStorage['auth_token']` from `session?.access_token` in both the `onAuthStateChange` callback and the initial `getSession()` call.
+
+### The Lesson
+When two auth strategies share one HTTP client but only one strategy was ever the default, the untaken branch can be broken for a long time with zero symptoms — the same class of bug as an untested `except` clause. Actually driving the untaken code path (real signup → real dashboard load, not just curling the API with a hand-copied token) is what surfaced all three traps; none of them would show up in a unit test or a backend-only smoke check.

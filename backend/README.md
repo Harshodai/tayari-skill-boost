@@ -14,21 +14,21 @@ backend/
 ## Quick Start
 
 ```bash
-# Start all services
-docker-compose up --build -d
+# Start all services (--profile is required, see root CLAUDE.md)
+docker compose --profile dev up -d --build
 
 # View logs
-docker logs -f tayari-backend-go
-docker logs -f tayari-backend-ai
+docker compose logs -f go-backend
+docker compose logs -f python-ai
 ```
 
 ## Services
 
-| Service | Port | Description |
+| Service | Host port | Description |
 |---------|------|-------------|
-| `backend-go` | 8080 | API Gateway, Authentication, Core Logic |
-| `backend-ai` | 8000 | AI/ML workloads (Resume analysis) |
-| `postgres` | 5432 | PostgreSQL Database |
+| `go-backend` | 8085 | API Gateway, Authentication, Core Logic |
+| `python-ai` | 8002 | AI/ML workloads (Resume analysis) |
+| `db` (Supabase, self-hosted stack in `supabase-local/`) | 54329 | PostgreSQL Database — see `supabase-local/README.md` |
 
 ## Environment Variables
 

@@ -27,12 +27,13 @@ go/
 ## Development
 
 ```bash
-# Run locally (requires DB)
+# Run locally (requires DB — start supabase-local/'s db service, or run
+# the full stack and point DATABASE_URL at it, see root CLAUDE.md)
 cd backend/go
 go run cmd/server/main.go
 
 # Or via Docker
-docker-compose up backend-go
+docker compose --profile dev up -d go-backend
 ```
 
 ## Dependencies

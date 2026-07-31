@@ -1,7 +1,7 @@
 // Tayari Browser Extension — Popup Controller (v2.0.0)
 // Bridges popup UI with background service worker and content script
 
-const CONFIG = { apiUrl: 'http://localhost:8080/api', token: null };
+const CONFIG = { apiUrl: 'http://localhost:8085/api', token: null };
 
 const $ = (id) => document.getElementById(id);
 const $$ = (sel) => document.querySelectorAll(sel);

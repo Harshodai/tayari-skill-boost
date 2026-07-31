@@ -34,7 +34,28 @@ CREATE POLICY "connections_insert" ON public.connections
 CREATE POLICY "connections_update" ON public.connections
     FOR UPDATE USING (
         auth.uid() = addressee_id AND status = 'pending'
+    )
+    WITH CHECK (
+        auth.uid() = addressee_id AND status IN ('accepted', 'rejected')
     );
+
+-- WITH CHECK above can only see the NEW row, so it can't stop a client from
+-- also rewriting requester_id/addressee_id in the same UPDATE — enforce that
+-- with a trigger that compares against OLD.
+CREATE OR REPLACE FUNCTION public.connections_lock_identity()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.requester_id <> OLD.requester_id OR NEW.addressee_id <> OLD.addressee_id THEN
+        RAISE EXCEPTION 'requester_id and addressee_id cannot be changed';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_connections_lock_identity ON public.connections;
+CREATE TRIGGER trg_connections_lock_identity
+    BEFORE UPDATE ON public.connections
+    FOR EACH ROW EXECUTE FUNCTION public.connections_lock_identity();
 
 CREATE POLICY "connections_delete" ON public.connections
     FOR DELETE USING (
@@ -56,14 +77,21 @@ CREATE TABLE IF NOT EXISTS public.shared_interview_questions (
                                             'culture', 'hr', 'other')),
     visibility      TEXT NOT NULL DEFAULT 'connections'
                         CHECK (visibility IN ('private', 'connections', 'public')),
-    upvotes         INTEGER NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- No stored upvotes counter: see public.question_upvotes below, which
+-- dedupes one vote per (question, user) — a bare counter can't do that.
 
 CREATE INDEX IF NOT EXISTS idx_siq_user       ON public.shared_interview_questions (user_id);
 CREATE INDEX IF NOT EXISTS idx_siq_company    ON public.shared_interview_questions (company);
 CREATE INDEX IF NOT EXISTS idx_siq_visibility ON public.shared_interview_questions (visibility);
+
+-- pg_trgm powers the feed's leading-wildcard `company ILIKE '%term%'` filter,
+-- which the plain B-tree index above can't accelerate.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_siq_company_trgm
+    ON public.shared_interview_questions USING GIN (company gin_trgm_ops);
 
 -- RLS
 ALTER TABLE public.shared_interview_questions ENABLE ROW LEVEL SECURITY;
@@ -91,6 +119,26 @@ CREATE POLICY "siq_connections_read" ON public.shared_interview_questions
             )
         )
     );
+
+-- ===================================================================
+-- question_upvotes: one vote per (question, user), dedup for the feed's
+-- upvote counter (replaces the old bare shared_interview_questions.upvotes
+-- integer, which had no way to stop a user voting more than once)
+-- ===================================================================
+CREATE TABLE IF NOT EXISTS public.question_upvotes (
+    question_id UUID NOT NULL REFERENCES public.shared_interview_questions(id) ON DELETE CASCADE,
+    user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (question_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_question_upvotes_question ON public.question_upvotes (question_id);
+
+ALTER TABLE public.question_upvotes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "question_upvotes_own" ON public.question_upvotes
+    FOR ALL USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
 
 -- ===================================================================
 -- application_outcomes: instrument the real conversion funnel (M2)
@@ -121,4 +169,5 @@ CREATE POLICY "outcomes_own" ON public.application_outcomes
 
 COMMENT ON TABLE public.connections IS 'User connection graph for social features (Phase 4.2)';
 COMMENT ON TABLE public.shared_interview_questions IS 'Community interview question bank with visibility controls (Phase 4.2)';
+COMMENT ON TABLE public.question_upvotes IS 'One vote per (question, user) — dedupes shared_interview_questions upvotes';
 COMMENT ON TABLE public.application_outcomes IS 'Real outcome tracking for autopilot conversion funnel (M2)';

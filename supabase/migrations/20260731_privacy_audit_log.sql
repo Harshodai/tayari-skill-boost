@@ -9,9 +9,13 @@ CREATE TABLE IF NOT EXISTS public.privacy_audit_log (
     action      TEXT        NOT NULL,   -- 'llm_inference' | 'data_export' | 'hermes_scrape' | ...
     resource    TEXT,                   -- endpoint or service name
     detail      JSONB       NOT NULL DEFAULT '{}',
-    ip_hash     TEXT,                   -- SHA-256 of client IP (never store raw IP)
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- No IP column: no caller currently records a client IP (see privacy_ledger.py),
+-- and an unkeyed hash of an IPv4 address is trivially reversible by brute force
+-- (the whole address space fits in memory) so it would provide no real
+-- pseudonymity. Add a keyed HMAC-SHA-256 column backed by a managed secret if
+-- IP correlation becomes a real requirement.
 
 -- Index for user-scoped queries (Privacy Readiness panel)
 CREATE INDEX IF NOT EXISTS idx_pal_user_created
@@ -29,5 +33,5 @@ CREATE POLICY pal_own ON public.privacy_audit_log
 -- No explicit policy needed for INSERT from backend services.
 
 COMMENT ON TABLE public.privacy_audit_log IS
-    'GDPR Art.30 Records of Processing Activities. Append-only. Never delete rows \u2014 '
+    'GDPR Art.30 Records of Processing Activities. Append-only. Never delete rows — '
     'redact via anonymise_user() on account deletion instead.';

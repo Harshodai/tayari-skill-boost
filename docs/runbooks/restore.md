@@ -1,7 +1,7 @@
 # Runbook: Database Backup & Restore Procedures
 
 ## Overview
-This runbook documents the automated database backup, validation, and disaster recovery procedures for Tayari Skill Boost PostgreSQL instances.
+This runbook documents the automated database backup, validation, and disaster recovery procedures for Tayari Skill Boost PostgreSQL instances — Supabase's Postgres (self-hosted stack in `supabase-local/`, compose service `db`, container `supabase-db`), reached at `localhost:${SUPABASE_DB_PORT:-54329}` as user/database `postgres`. `scripts/backup.sh`/`scripts/restore.sh` fall back to `docker compose exec -T db` if `pg_dump`/`psql` aren't installed locally.
 
 ---
 
@@ -30,7 +30,12 @@ BACKUP_FILE="./backups/daily/<TARGET_BACKUP_FILE>.sql.gz"
 ```
 
 ### Prerequisite Checks (Mandatory Before Destructive Restore)
-1. **Write Quiescence**: Stop backend API write traffic (`docker compose stop go-backend python-ai celery-worker`).
+1. **Write Quiescence**: Stop backend API write traffic AND Supabase's own write-capable
+   services — a DB restore is not safe with GoTrue still writing to `auth.users` on every
+   login/signup, or PostgREST/Storage still accepting authenticated writes:
+   ```bash
+   docker compose stop go-backend python-ai celery-worker celery-beat auth rest storage
+   ```
 2. **Fresh Pre-Restore Backup**: Take an immediate safety snapshot before importing:
    ```bash
    bash scripts/backup.sh
@@ -57,7 +62,7 @@ bash scripts/restore.sh "${BACKUP_FILE}"
 
 ## 3. Rollback Procedure
 If the restored database fails application validation or contains corrupted state:
-1. Quiesce application services (`docker compose stop go-backend python-ai celery-worker`).
+1. Quiesce application AND Supabase write-capable services (`docker compose stop go-backend python-ai celery-worker celery-beat auth rest storage`).
 2. Locate the pre-restore safety backup created in Prerequisite Step 2 under `./backups/daily/`:
    ```bash
    SAFETY_BACKUP="./backups/daily/<PRE_RESTORE_SAFETY_SNAPSHOT>.sql.gz"
@@ -66,8 +71,8 @@ If the restored database fails application validation or contains corrupted stat
    ```bash
    bash scripts/restore.sh "${SAFETY_BACKUP}" --force
    ```
-4. Restart application services (`docker compose start go-backend python-ai celery-worker`).
-5. Verify health endpoints (`curl http://localhost:8080/api/health`).
+4. Restart application AND Supabase write-capable services (`docker compose start go-backend python-ai celery-worker celery-beat auth rest storage`).
+5. Verify health endpoints (`curl http://localhost:${GO_BACKEND_PORT:-8085}/api/health` — substitute your configured port if you overrode `GO_BACKEND_PORT` in `.env`).
 
 ---
 

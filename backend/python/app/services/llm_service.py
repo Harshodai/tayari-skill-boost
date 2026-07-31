@@ -42,6 +42,11 @@ from app.services.hermes import config as hermes_config
 
 logger = logging.getLogger(__name__)
 
+# Holds references to fire-and-forget background tasks (privacy ledger writes)
+# so they aren't garbage-collected mid-execution — asyncio only holds a weak
+# reference to a task once nothing else refers to it.
+_background_tasks: set = set()
+
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -387,6 +392,13 @@ def active_engine() -> str:
     return build_provider().active_engine_label()
 
 
+def is_llm_configured() -> bool:
+    """True when a real LLM provider is configured (not the MockProvider)."""
+    if _hermes_active():
+        return True
+    return not isinstance(build_provider(), MockProvider)
+
+
 async def llm_complete(
     system_message: str,
     user_message: str,
@@ -416,12 +428,14 @@ async def llm_complete(
     if _user_id:
         try:
             from app.services.privacy_ledger import ledger  # avoid circular at import time
-            asyncio.create_task(ledger.record(
+            task = asyncio.create_task(ledger.record(
                 user_id=_user_id,
                 action="llm_inference",
                 resource=_resource or "llm_complete",
                 detail={"provider": provider.active_engine_label(), "tier": tier, "max_tokens": max_tokens},
             ))
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
         except Exception:
             pass  # ledger failure must never affect the LLM response
 
@@ -533,12 +547,15 @@ def extract_json(text: str):
 
 
 async def llm_json(system_message: str, user_message: str,
-                   tier: str = "fast") -> dict | list:
+                   tier: str = "fast",
+                   _user_id: Optional[str] = None,
+                   _resource: Optional[str] = None) -> dict | list:
     """Complete and parse response as JSON. Adds JSON instruction to system prompt."""
     sys2 = (system_message +
             "\n\nIMPORTANT: Respond with ONLY a single valid JSON value. "
             "No markdown fences, no commentary, no preface.")
-    raw = await llm_complete(sys2, user_message, tier=tier, max_tokens=1200)
+    raw = await llm_complete(sys2, user_message, tier=tier, max_tokens=1200,
+                             _user_id=_user_id, _resource=_resource)
     return extract_json(raw)
 
 

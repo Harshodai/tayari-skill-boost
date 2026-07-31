@@ -6,11 +6,11 @@ description: >-
   real vs mock, running or reading the test/eval suites, adding a Go or Python
   test, judging whether a green check is meaningful, interpreting CI status, or
   writing a "definition of done." Owns: the mock≠passing rule, the verified
-  green/red map (Go DB-free subset green, full `go test ./...` red), route-parity
-  gate, the eval datasets (ats_scoring_v1 / tayari_resume_v1) and their
-  assertions, acceptance thresholds, how to add a test without breaking parity or
-  hitting the tenantMiddleware panic, and a done checklist. Facts verified
-  2026-07-08.
+  green/red map (full `go test ./...` is GREEN as of 2026-07-31 — the
+  tenantMiddleware nil-DB panic is fixed; the Go **coverage** gate is still red,
+  14% vs 80% required), route-parity gate, the eval datasets (ats_scoring_v1 /
+  tayari_resume_v1) and their assertions, acceptance thresholds, how to add a
+  test without breaking parity, and a done checklist. Facts verified 2026-07-31.
 ---
 
 # Tayari Skill Boost — Validation & QA
@@ -21,7 +21,7 @@ gate (route parity) or hitting a known panic. This skill is about *judging and
 producing evidence*. It is deliberately brutal about what the suite does **not**
 prove.
 
-All facts below verified against the repo on **2026-07-08**. Re-run the commands
+All facts below verified against the repo on **2026-07-31**. Re-run the commands
 before you trust a number — this repo's "green" is partial.
 
 ---
@@ -45,29 +45,37 @@ This skill answers: **"Is this result real, and does the suite actually back it 
 **A green test or a 200 response is NOT evidence the real product worked.** Two
 failure modes silently manufacture fake "success" in this repo:
 
-### 1a. The mock LLM masks everything
-The Python LLM layer (`app/services/llm_service.py`) returns **mock text on any
-exception or empty result, and never raises**. With no LLM configured, the
-provider factory falls through to `MockProvider` ("mock-fallback"). So:
+### 1a. The mock LLM used to mask everything — now it 503s instead (verify the eval path separately)
+**Fixed (this session):** the Python LLM layer (`app/services/llm_service.py`)
+no longer returns fake text. With no LLM configured, the provider factory
+falls through to `MockProvider`, whose `complete()` **always raises
+`LLMNotConfiguredError`** — it never fabricates a response. `llm_complete()`
+propagates that upward. So, for the HTTP API surface:
 
-- The optimizer produces a plausible-looking optimized resume with **no real
-  model behind it**.
-- AI endpoints return **200 with mock content**.
-- Eval cases about "optimization quality" pass against mock output that was never
-  optimized.
+- AI-calling endpoints (`/api/v1/optimizer/optimize`, `/api/v1/optimize/stream`,
+  `/api/v1/resumes/analyze-text`, etc.) return **HTTP 503
+  `{"error":"ai_service_unavailable"}`**, not 200 with mock content.
+- A 200 from one of these endpoints now means a real provider actually ran.
 
-**How to know a real engine ran (remote check):** hit the Python health endpoint
-and read `model_status`.
+**The mock-masking risk still exists, just moved**: `eval/runner.py`'s
+`_safe_optimize()` calls `optimize_with_reflection` directly (bypassing HTTP)
+inside a broad `try/except Exception`, and on **any** exception — including
+the now-raised `LLMNotConfiguredError` — silently degrades to the original,
+unchanged resume text plus an `_error` key (see §1b). So eval runs can still
+"pass" against unoptimized input with no LLM configured; the HTTP API path
+just can't silently do that anymore.
 
-```bash
-curl -s http://localhost:8002/health        # host port; container-internal is 8000
-```
-
-- `model_status: "loaded"`  → a real provider is wired (`active_engine()` is
-  something other than `mock-fallback`, e.g. `ollama-<model>`,
-  `openrouter/<model>`, `nvidia-nim/<model>`, `openai-compatible (<model>)`,
-  `hermes-<model>`).
-- `model_status: "llm_not_configured"` → **mock mode. Any AI result is fake.**
+**How to know a real engine ran:**
+- **HTTP API calls:** a 200 response means real; a 503
+  `ai_service_unavailable` means unconfigured/failed.
+- **Eval runs (`eval/runner.py`):** check the report for an `_error` key —
+  its presence means the optimizer call failed/was unconfigured and the case
+  ran against unmodified input.
+- **`/health`'s `model_status` field** (`curl http://localhost:8002/health`) —
+  `"loaded"` means a real provider is configured, `"llm_not_configured"` means
+  `MockProvider`. It calls `is_llm_configured()`
+  (`not isinstance(build_provider(), MockProvider)`), so it's a reliable
+  check for the HTTP API path.
 
 For the full engine-detection / provider-selection detail, see
 **tayari-diagnostics-and-tooling** and **tayari-config-and-flags**.
@@ -81,7 +89,8 @@ quietly degrades to "the input passed." Always check for `_error` in the report
 (`generate_report()` surfaces it) before believing an eval result.
 
 **Rule of thumb:** before you write "verified" or "works," answer:
-1. Did a **real engine** run? (`model_status == "loaded"`)
+1. Did a **real engine** run? (HTTP: response was 200, not 503
+   `ai_service_unavailable`. Eval runs: no `_error` key in the report.)
 2. Did the code path actually **execute**, or did an exception get swallowed?
 3. Is the assertion checking a **real behavior**, or a structural artifact the
    mock also satisfies?
@@ -91,40 +100,32 @@ quality unverified."*
 
 ---
 
-## 2. WHAT "GREEN" ACTUALLY MEANS TODAY (verified 2026-07-08)
+## 2. WHAT "GREEN" ACTUALLY MEANS TODAY (verified 2026-07-31)
 
 ### Go gateway (`backend/go/`)
 
 | Command | Result | Meaning |
 |---|---|---|
 | `cd backend/go && go build ./...` | **OK (exit 0)** | Compiles clean. |
-| `cd backend/go && go test ./...` | **RED (exit 1)** | 16 tests in `internal/api` **panic** — do not treat as passing. |
-| `cd backend/go && go test ./internal/api -run 'TestSmoke\|TestRouteParity'` | **GREEN (19 pass)** | The **DB-free certified subset**. This is the real green you can rely on locally. |
+| `cd backend/go && go test ./...` | **GREEN (exit 0)** — fixed since 2026-07-08 | `tenantMiddleware` now guards `s.DB == nil \|\| s.DB.Conn == nil` (`internal/api/middleware.go` ~line 200) before touching the DB, so the previously-panicking Hermes/social-auth tests (built with `Conn: nil`) pass cleanly instead of nil-dereffing. Confirmed with `go test -race ./...` too (matches CI's exact invocation). |
+| `cd backend/go && go test ./internal/api -run 'TestSmoke\|TestRouteParity'` | **GREEN (19 pass)** | The DB-free certified subset — still the fastest thing to run for a quick check, but the full suite is no longer red. |
 
-**Why the full suite is red (root cause, verified):** the global
-`tenantMiddleware` (in `internal/api/middleware.go`) runs on **every** request and
-calls `s.DB.Conn.QueryRowContext(...)` unconditionally. The Hermes and
-social-auth tests build the server with `&database.DB{Conn: nil}`
-(`newHermesServer` in `routes_hermes_test.go`), and its comment *"Hermes routes
-never touch the Go DB"* is **false** because of that middleware. With a nil conn,
-the first served request nil-derefs:
-
+**Coverage gate is the real remaining Go gap, not test correctness:**
 ```
-panic: runtime error: invalid memory address or nil pointer dereference
-  database/sql.(*DB).QueryContext.func1
+go test -coverprofile=/tmp/coverage.out ./... && go tool cover -func=/tmp/coverage.out | grep total
+# total: (statements) 14.1%   -- vs the 80% ci.yml requires
 ```
+`ci.yml`'s `go-build` job's "Coverage Check" step will still fail CI even though
+tests pass — closing that gap means writing substantially more Go tests
+(`internal/billing`, `internal/config`, `internal/database`, `internal/models`,
+`internal/concurrency` currently have 0% or near-0% coverage), not a config fix.
+Don't claim "Go CI is green" without checking this step specifically.
 
-Failing set (16): `TestSocialAuthRoutes_ProviderInjection` (+ subtests) and every
-Hermes route test (`TestHermesScrape_*`, `TestHermesJobsBoard_*`,
-`TestHermesRunsList_*`, `TestHermesRunDetail_*`, `TestHermesUnknownRoute_404`,
-`TestHermesUnauthenticated_401`). **Status: OPEN as of 2026-07-08.**
-
-**Why smoke/parity survive:**
-- `handlers_smoke_test.go` builds the server with `&database.DB{Conn: fakeDB()}` —
-  a **non-nil** stdlib fake driver, so `QueryRowContext` returns a *swallowed
-  error* instead of panicking.
-- `router_parity_test.go` uses `Conn: nil` too, but only calls `chi.Walk` to walk
-  the route tree — it **never serves a request**, so the middleware never runs.
+**Historical root cause (RESOLVED, kept for context):** the global
+`tenantMiddleware` used to call `s.DB.Conn.QueryRowContext(...)` unconditionally
+on every request; the Hermes/social-auth tests built the server with
+`&database.DB{Conn: nil}` and nil-derefed on the first served request. Full
+incident write-up: `tayari-failure-archaeology` Entry 1 (now marked RESOLVED).
 
 ### Python AI engine (`backend/python/`)
 
@@ -173,19 +174,21 @@ Two overlapping workflows both trigger on push + PR to `main`:
   lint`, `yarn tsc --noEmit`, `bun test --coverage`, `yarn build`, docker build,
   **placeholder** helm deploy (`echo "Deploy step would run helm upgrade here"`).
 
-**Known-broken / aspirational, verified against the repo:**
+**Status as of 2026-07-31 — most of the previously-broken assumptions are now fixed in the YAML; still verify a live run, don't trust the config alone:**
 
-| Check | Problem |
+| Check | Status |
 |---|---|
-| `ci.yml` → `go-build` → `go test -race ./...` | Hits the **same 16 nil-ptr panics** as §2 (no DB in CI). **Expected-red.** |
-| `ci.yml` → `docker-compose` → `docker compose up -d --wait` | Passes **no profile**. All 9 services in `docker-compose.yml` are gated behind `profiles: ["dev","prod"]`, so bare `up` starts **zero** services. |
-| `ci.yml` → `docker-compose` → health-check `localhost:8008` (supabase-kong) and `localhost:3005` (supabase-studio) | **Those services do not exist** in the current `docker-compose.yml`. The job cannot go green as written. |
-| `ci.yml` → `performance` | Runs `scripts/perf_check.sh`, a **simulated placeholder** (sleeps ~1s, writes `perf_time.txt`). Not a real benchmark. |
-| coverage ≥80% gates (Go/Python/frontend, both workflows) | Aspirational; the frontend coverage grep is fragile and the Go job can't reach the gate because tests panic first. |
+| `ci.yml` → `go-build` → `go test -race ./...` | **Tests now pass** (§2's fix). The job's separate **Coverage Check** step still fails (14% vs 80% required) — that's a real, unclosed gap, not a config bug. |
+| `ci.yml` → `docker-compose` → `docker compose --profile dev up -d --wait` | **Fixed 2026-07-31** — now passes `--profile dev` and creates both `.env` (root) and `supabase-local/.env` with matching `POSTGRES_PASSWORD`/`JWT_SECRET`. |
+| `ci.yml` → `docker-compose` → health-check Kong/Studio | **Fixed 2026-07-31** — Kong/Studio are real services now (`supabase-local/`, merged via `include:`); checks moved to their actual ports (8000/3001) and accept the actual response codes those services return unauthenticated (Kong 401s, Studio 307-redirects — neither returns a bare 2xx, so the checks explicitly allow those codes instead of using `curl -f`). |
+| `ci.yml` → `performance` | Runs `scripts/perf_check.sh`, a **simulated placeholder** (sleeps ~1s, writes `perf_time.txt`). Still not a real benchmark — untouched by the 2026-07-31 session. |
+| Go coverage ≥80% gate | **Still unmet** (14.1%) — see §2. Real gap, needs actual test-writing. |
+| Python/frontend coverage ≥80% gates | Not re-verified 2026-07-31 — re-check before trusting. |
 
-**Rule:** never write "CI is green." Write: *"CI is partly aspirational; several
-jobs cannot pass as written; verify the live GitHub Actions status before
-claiming anything."* Check the actual run, not the YAML.
+**Rule:** never write "CI is green" from reading the YAML. Write what you
+actually verified: *"the docker-compose job's assumptions now match the real
+stack; the go-build job's test step passes but its coverage step doesn't."*
+Check the actual GitHub Actions run when you can, not just the config.
 
 ---
 
@@ -271,11 +274,12 @@ pass."* For the full breakdown of the scorer's limits, see
 
 ### 6a. Go table-test (in `internal/api`)
 
-**Avoid the panic:** build the server with a **non-nil** fake DB, never
-`Conn: nil`. The helper already exists — `newSmokeServer(t)` in
-`handlers_smoke_test.go` wraps `NewServer(&hermesMockAuth{}, &config.Config{},
-&database.DB{Conn: fakeDB()})`. `fakeDB()` registers a stdlib no-op driver whose
-queries return errors (swallowed by `tenantMiddleware`) instead of nil-derefing.
+`tenantMiddleware` now guards nil DB, so `Conn: nil` no longer panics — but
+prefer a non-nil fake DB anyway when your test actually queries something.
+`newSmokeServer(t)` in `handlers_smoke_test.go` wraps `NewServer(&hermesMockAuth{},
+&config.Config{}, &database.DB{Conn: fakeDB()})`. `fakeDB()` registers a stdlib
+no-op driver whose queries return errors (swallowed by `tenantMiddleware` and
+most handlers) instead of nil-derefing.
 
 Pattern:
 
@@ -304,11 +308,12 @@ to `knownAsymmetric` in `router_parity_test.go` (and leave a `// ponytail:`
 rationale if the choice is non-obvious). See **tayari-change-control** for the
 full parity doctrine.
 
-Run your new test with the DB-free subset so you don't drown in the 16 known
-panics:
+Run your new test with the DB-free subset for a fast check, or the full suite
+for the real gate:
 
 ```bash
-cd backend/go && go test ./internal/api -run 'TestSmoke|TestRouteParity' -v
+cd backend/go && go test ./internal/api -run 'TestSmoke|TestRouteParity' -v   # fast
+cd backend/go && go test ./...                                                # full, now green
 ```
 
 ### 6b. Python eval case
@@ -351,13 +356,21 @@ Run the ones relevant to what you touched. Do not claim "works" on "should work.
       `bun run build`. Python: `python -m py_compile` on changed files.
 - [ ] **Real behavior exercised, not mock.** If the change touches an AI path,
       confirm `model_status: "loaded"` at `curl http://localhost:8002/health`
-      before trusting output. If it's mock, say so explicitly.
+      (or that the call returned 200, not 503 `ai_service_unavailable`)
+      before trusting output. If it's mock/unconfigured, say so explicitly.
 - [ ] **No swallowed exception hid a failure.** For eval runs, check the report
       for `_error` keys (`generate_report()` surfaces them).
-- [ ] **Go DB-free subset green:**
-      `cd backend/go && go test ./internal/api -run 'TestSmoke|TestRouteParity'`
-      → **19 pass**. (Full `go test ./...` is expected-red; note it, don't be
-      surprised by it.)
+- [ ] **Go tests green (plain):** `cd backend/go && go test ./...` → expect
+      exit 0 (fixed 2026-07-31).
+- [ ] **Go tests green (race, matches CI's exact gate):**
+      `cd backend/go && go test -race ./...` → expect exit 0. Report this
+      separately — passing the plain command doesn't by itself confirm the
+      race-detector variant CI actually runs also passes, even though both
+      are currently green.
+      The DB-free subset
+      (`go test ./internal/api -run 'TestSmoke|TestRouteParity'` → 19 pass) is
+      still fine for a fast check. Don't claim the Go **coverage** gate passes —
+      it doesn't (14% vs 80%, §2).
 - [ ] **Route parity intact** if you added/changed a route — both prefixes
       registered, or `knownAsymmetric` updated. Covered by the parity subset above.
 - [ ] **Python unit/eval** relevant to your change:
@@ -374,26 +387,24 @@ Run the ones relevant to what you touched. Do not claim "works" on "should work.
 
 ## Provenance and maintenance
 
-- **Verified 2026-07-08** against the repo by re-opening and/or running:
-  `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`,
-  `backend/python/eval/runner.py`,
-  `backend/python/eval/datasets/ats_scoring_v1.yaml` (15 cases),
-  `backend/python/eval/datasets/tayari_resume_v1.yaml` (20 cases),
+- **Verified 2026-07-31** against the repo by re-opening and/or running:
+  `.github/workflows/ci.yml`, `backend/go/internal/api/middleware.go`,
   `backend/go/internal/api/router_parity_test.go`,
   `backend/go/internal/api/handlers_smoke_test.go`,
-  `backend/go/internal/api/routes_hermes_test.go`, `package.json`,
-  `e2e/smoke.spec.ts`, `backend/python/CLAUDE.md`.
-- **Live-confirmed commands (2026-07-08):**
+  `backend/go/internal/api/routes_hermes_test.go`, `package.json`.
+  `.github/workflows/deploy.yml` and the eval-dataset case counts were **not**
+  re-checked this pass — treat those specific numbers as last confirmed
+  2026-07-08 until re-verified.
+- **Live-confirmed commands (2026-07-31):**
   `go test ./internal/api -run 'TestSmoke|TestRouteParity'` → **19 pass**;
-  `go test ./internal/api/` → **panic** (`database/sql.(*DB).QueryContext`,
-  nil-ptr) with `TestSocialAuthRoutes_ProviderInjection` and the `TestHermes*`
-  set failing.
-- **Re-verify when:** the tenantMiddleware / nil-DB panic is fixed (the 16-fail
-  set should shrink and `go test ./...` may go green — update §2/§3/§7); eval
-  datasets gain/lose cases (counts in §4); `package.json` `test` script changes
-  which files it runs (§2); CI workflows are corrected (the supabase-kong/studio
-  health checks or the missing compose profile — §3); or `heuristic_ats_score`
-  check names change (§4).
+  `go test ./...` → **exit 0** (all packages pass, including `-race`);
+  `go test -coverprofile=... ./... && go tool cover -func=...` → **14.1% total**
+  (vs 80% CI requires).
+- **Re-verify when:** Go test coverage changes meaningfully (currently the real
+  open gap — update §2/§3/§7 if it crosses 80%); eval datasets gain/lose cases
+  (counts in §4, not re-checked 2026-07-31); `package.json` `test` script
+  changes which files it runs (§2); CI workflows change again; or
+  `heuristic_ats_score` check names change (§4).
 - **Sibling skills:** gating rules → **tayari-change-control**; measuring/health
   tooling → **tayari-diagnostics-and-tooling**; the deep quality push →
   **tayari-quality-signal-campaign**; ATS heuristic limits →

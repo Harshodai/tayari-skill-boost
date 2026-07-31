@@ -112,7 +112,10 @@ class KnowledgeGraphExtractor:
         for match in date_pattern.finditer(resume_text):
             start = match.group(1)
             end = match.group(2)
-            timeline.append({"start": start, "end": end})
+            # Keys match schemas.TimelineEvent (company/title are required
+            # there); the regex has no way to attribute a date range to a
+            # specific employer, so those stay blank.
+            timeline.append({"company": "", "title": "", "start_date": start, "end_date": end})
 
         # Education
         edu_pattern = re.compile(r'\b(BS|BA|MS|MA|MBA|PhD|MD|JD|B\.S\.|B\.A\.|M\.S\.|M\.A\.|M\.B\.A\.|Ph\.D\.)\b.*?(?:in|of)\s+([A-Za-z\s]+?)(?:,|\.|\n|$)', re.IGNORECASE)
@@ -153,7 +156,12 @@ Resume:
                 # Validate against typed schema if available
                 if KnowledgeGraphLLMOutput is not None:
                     validated = KnowledgeGraphLLMOutput(**raw)
-                    llm_data = validated.model_dump()
+                    # exclude_defaults so an empty/near-empty LLM response
+                    # (every field left at its [] default) dumps to {} —
+                    # otherwise `bool(llm_data)` below would be True purely
+                    # because model_dump() always emits every field key,
+                    # falsely marking llm_enhanced=True for a no-op response.
+                    llm_data = validated.model_dump(exclude_defaults=True)
                 else:
                     llm_data = raw
         except LLMNotConfiguredError:
@@ -164,7 +172,28 @@ Resume:
         except Exception:
             pass
 
-        return {
+        # Merge LLM-extracted skills/companies/job_titles into the regex
+        # results — the prompt asks for all three but they were previously
+        # discarded here (only technologies/certifications/education/timeline
+        # were merged), silently dropping real LLM extraction data.
+        skills = list(dict.fromkeys(skills + [str(x).lower() for x in llm_data.get("skills", []) if x]))[:20]
+        companies = list(dict.fromkeys(companies + [str(x) for x in llm_data.get("companies", []) if x]))[:10]
+        titles = list(dict.fromkeys(titles + [str(x) for x in llm_data.get("job_titles", []) if x]))[:8]
+
+        # LLM achievements come back as {"metric","action","context"} (per the
+        # prompt schema above) with no "text" key, but schemas.Achievement
+        # requires text — synthesize it so the merged list still validates.
+        llm_achievements = []
+        for a in llm_data.get("achievements", []):
+            if not isinstance(a, dict):
+                continue
+            text = a.get("text") or " ".join(str(v) for v in (a.get("action"), a.get("context")) if v).strip()
+            if text:
+                llm_achievements.append({**a, "text": text})
+        achievements = achievements + llm_achievements
+
+        result = {
+            "skills": [{"name": s} for s in skills],
             "entities": {
                 "skills": skills,
                 "companies": companies,
@@ -177,3 +206,9 @@ Resume:
             "timeline": timeline + llm_data.get("timeline", []),
             "llm_enhanced": bool(llm_data),
         }
+        # Validate against the typed schema so a shape regression here fails
+        # loudly at the source instead of surfacing as a confusing downstream
+        # FastAPI serialization error.
+        from app.schemas import KnowledgeGraphResponse
+        KnowledgeGraphResponse(**result)
+        return result

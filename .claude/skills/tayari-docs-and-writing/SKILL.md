@@ -9,7 +9,7 @@ description: >-
   (what each doc owns + its verified trust status), the README-is-corrupted advisory + a
   safe fix checklist, the terse "caveman" house style, copy-paste templates (migration
   note, lessons.md entry, commit message, PR skeleton, doc-update checklist), and the
-  one-home-per-fact / date-stamp discipline. Facts verified 2026-07-08.
+  one-home-per-fact / date-stamp discipline. Facts verified 2026-07-31.
 ---
 
 # Tayari Docs and Writing
@@ -43,26 +43,26 @@ the change-control gate. See `tayari-change-control` (docs-only row).
 
 ---
 
-## 1. The Doc Map — what each doc owns, and whether to trust it (verified 2026-07-08)
+## 1. The Doc Map — what each doc owns, and whether to trust it (verified 2026-07-31)
 
 Find the doc you're about to read or edit. **Trust** tells you whether to believe its
 current contents at face value. When a doc is stale on a fact, the "Owns / caveats" column
 names who owns the correct value instead.
 
-| Doc | Owns | Trust (verified 2026-07-08) |
+| Doc | Owns | Trust (verified 2026-07-31) |
 |---|---|---|
-| **`CLAUDE.md`** (root) | High-level project map: stack, structure, commands, conventions, gotchas. The best single orientation doc. | **Trust, two known slips.** Says Ollama `11434` (that's the *container* port; **host is 11435**) and `docker compose up -d` (bare `up` starts **zero** services — needs `--profile dev`). Ports owned by `tayari-build-and-env` / `tayari-run-and-operate`. |
-| **`backend/python/CLAUDE.md`** | Python-engine local rules: run `python -m py_compile` on changed files before commit; `pytest`+`pyyaml` are NOT in `requirements.txt` (install separately); `app/plugins/resume_optimizer/` is auto-discovered. | **Trust.** Small and accurate. |
-| **`.agents/AGENTS.md`** | **The hard architectural rules.** Service separation, frontend→Go-only, `VITE_USE_SELF_HOSTED`, feature-flag registration, E2E-on-auth/nav/pricing, 12-char password minimum, prefer `127.0.0.1`. | **Authoritative — quote it, don't paraphrase.** These are contracts, not suggestions. Verbatim rules in §1a below. |
-| **`AGENT_SPEC.md`** | Subagent coordination + "shared contracts" for a past parallel-build effort. Historical context for how the codebase was assembled. | **Partial.** Rules OK; its "Shared Contracts" **ports are container-internal** (Python `8000`, Go `8080`) and it lists frontend dev `5173` — **legacy Vite default; current dev port is 8080** (`vite.config.ts`). Do not quote its ports as host ports. |
-| **`lessons.md`** | Real engineering lessons: stopword pollution, TF-IDF vs heuristic ATS, STAR heuristic, humanization pass, NVIDIA NIM backoff, cv-tailor 5-phase mapping, confidence ratings. | **Trust the lessons; DISTRUST the port table.** Its opening port table (frontend `4175`, Supabase Kong `8008` / Studio `3005` / db `54326`) describes an **older parallel stack that is not in the current `docker-compose.yml`**. Those Supabase services do not exist now. |
-| **`DEPLOYMENT.md`** | Intent: how to run locally and deploy (Railway/Render/Fly, Vercel/Netlify). | **STALE for local run.** Uses `docker compose up -d` (no profile → starts nothing) and container-internal ports as if they were host ports (`localhost:8080`, `:8000`, `:80`). Real host ports: Go `8085`, Python `8002`, frontend `8083`. Operational truth: `tayari-run-and-operate`. |
+| **`CLAUDE.md`** (root) | High-level project map: stack, structure, commands, conventions, gotchas. The best single orientation doc. | **Trust — rewritten 2026-07-31** for the Postgres→self-hosted-Supabase migration (removed `postgres` service, added `supabase-local/` via `include:`, new `.env` pair requirement, auth-mode defaults flipped). One known slip: says Ollama `11434` (that's the *container* port; **host is 11435**). Ports owned by `tayari-build-and-env` / `tayari-run-and-operate`. |
+| **`backend/python/CLAUDE.md`** | Python-engine local rules: run `python -m py_compile` on changed files before commit; `pytest`+`pyyaml` are NOT in `requirements.txt` (install separately); `app/plugins/resume_optimizer/` is auto-discovered. | **Trust.** Small and accurate; unaffected by the Supabase migration. |
+| **`.agents/AGENTS.md`** | **The hard architectural rules.** Service separation, frontend→Go-only, `VITE_USE_SELF_HOSTED`, feature-flag registration, E2E-on-auth/nav/pricing, 12-char password minimum, prefer `127.0.0.1`. | **Authoritative — quote it, don't paraphrase.** These are contracts, not suggestions. Verbatim rules in §1a below. Not re-verified 2026-07-31 (no reason to expect drift — it's rules, not ports/facts). |
+| **`AGENT_SPEC.md`** | Subagent coordination + "shared contracts" for a past parallel-build effort. Historical context for how the codebase was assembled. | **Partial, historical.** Rules OK; its "Shared Contracts" **ports are container-internal** (Python `8000`, Go `8080`) and it lists frontend dev `5173` — **legacy Vite default; current dev port is 8080** (`vite.config.ts`). Do not quote its ports as host ports. |
+| **`lessons.md`** | Real engineering lessons: stopword pollution, TF-IDF vs heuristic ATS, STAR heuristic, humanization pass, NVIDIA NIM backoff, cv-tailor 5-phase mapping, confidence ratings, and (new 2026-07-31) the three Supabase-migration traps. | **Trust the lessons; the opening port table is a one-off, not the shipped defaults.** Its first entry (frontend `4175`, Supabase Kong `8008` / Studio `3005` / db `54326`) describes a **specific port remap** from running Tayari alongside an unrelated "Mukthi Guru" stack on one machine — not what ships in `.env.example`. Shipped defaults (Kong 8000, Studio 3001, db 54329) live in `tayari-build-and-env`. |
+| **`DEPLOYMENT.md`** | How to run locally and deploy (Railway/Render/Fly, Vercel/Netlify), backups/PITR, GDPR endpoints. | **Trust — rewritten 2026-07-31** for the Supabase migration: two-`.env`-file setup, `db`/`supabase-local` service names throughout, Supabase Cloud vs self-hosted prod paths, `scripts/backup.sh`/`restore.sh` cross-referenced. A couple of Railway/Fly snippets illustrate container-internal ports by design (that's normal in a Dockerfile-build context) — don't confuse those with the host port table. |
 | **`IMPLEMENTATION_SUMMARY.md`** | A point-in-time build log (dated 2026-06-20): P0 fixes, new services, new pages, files changed. Good for "when/why did feature X land". | **Trust as history, not as current ops.** Its "How to Run" also uses bare `docker-compose up -d`. Do not cite it for current commands. |
 | **`PRODUCT_GRILL.md`** | Competitive analysis, gaps, recommendations. Positioning material. | **Positioning, not engineering truth.** For external claims use `tayari-external-positioning` and keep the no-oversell rule (§3). |
 | **`research/*`** | Roadmaps + strategy (`WORLD_CLASS_ROADMAP.md`, `NEXT_PHASE_ROADMAP.md`, `DIFFERENTIATION_STRATEGY.md`, `competitor_landscape.md`, `dim01…dim09_*.md`, `prd_gap_analysis.md`, etc.). | **Forward-looking / aspirational.** Describes intended, not shipped, work. Do not cite as "implemented". Roadmap/research posture: `tayari-research-frontier`, `tayari-research-methodology`. |
-| **`README.md`** | *Intends* to own: pitch, five differentiators, architecture, docker/deploy, testing, feature-flag intro. | **PARTLY CORRUPTED — do NOT cite as clean.** A "Kubernetes secret / New features" block is duplicated ~10× and code fences are malformed; ports are stale (frontend `4173`, `8090` via Caddy). The differentiators section (top) is intact. Full advisory + safe fix checklist in §2. |
-| **`backend/python/README.md`** | Python service overview: plugin architecture, FastAPI entry, how to add a plugin. | **Trust the plugin story.** Port `8000` it cites is container-internal. |
-| **`backend/go/README.md`** | Go gateway overview: package layout, dual-mode auth, social login, deps. | **Trust the structure.** Thin; the router/parity detail lives in `tayari-architecture-contract` / `tayari-change-control`. |
+| **`README.md`** | Pitch, five differentiators, stack/ports tables, architecture, docker/deploy, testing, feature-flag intro. | **Trust — corruption advisory below is STALE, and the doc was independently rewritten 2026-07-31** for the Supabase migration (ports table, setup steps, "what happens on fresh start"). See the corrected §2. |
+| **`backend/python/README.md`** | Python service overview: plugin architecture, FastAPI entry, how to add a plugin. | **Trust.** Updated 2026-07-31 (compose command fix); plugin story unaffected. |
+| **`backend/go/README.md`** | Go gateway overview: package layout, dual-mode auth, social login, deps. | **Trust.** Updated 2026-07-31 (compose command, DB note); thin otherwise — router/parity detail lives in `tayari-architecture-contract` / `tayari-change-control`. |
 
 **General rule when a doc's prose disagrees with these skills on a volatile fact
 (ports/commands/versions/test status): the skills win, because they are date-stamped and
@@ -97,64 +97,55 @@ Enforcement of these as change gates: `tayari-change-control`. Full architecture
 
 ---
 
-## 2. README is partly corrupted — advisory + safe fix checklist
+## 2. README corruption advisory — CORRECTED 2026-07-31, was already stale
 
-**Status (verified 2026-07-08): `README.md` is partly corrupted. Do not cite it as a
-clean source, and do not copy its docker/deploy blocks.**
+**Status (re-checked 2026-07-31): `README.md` is NOT corrupted.**
+`grep -c '^\*\*Kubernetes secret\*\*' README.md` → **0**. `grep -c '^```' README.md` → **6**
+(even). No duplicated block, no fused fences. This section previously (verified 2026-07-08)
+described the file as partly corrupted with a "Kubernetes secret" block duplicated ~10× — that
+description no longer matches the file, whether because it was fixed between 2026-07-08 and
+2026-07-31 or because the original finding was already stale by the time it was written down.
+Either way: **do not act on the old advisory below as current fact** — it's kept only as a
+worked example of the safe-fix checklist discipline (§below), and as a lesson: an inherited
+"known broken" claim about a doc is itself a fact that can go stale, same as a port number. Check
+before you fix.
 
-What broke, precisely:
+The README was also independently rewritten 2026-07-31 for the Postgres→self-hosted-Supabase
+migration (ports table, setup steps, "what happens on fresh start" section) — current and
+trustworthy as of that date.
 
-- **A block is duplicated ~10 times.** The text starting `**Kubernetes secret**: Before
-  installing, create a secret…` through `…updated accordingly.` is repeated throughout the
-  Docker/Deployment/Feature-Flag sections. It is a copy-paste stutter, not intentional.
-- **Code fences are malformed / fused.** The opening fence language got orphaned: a closing
-  ```` ``` ```` is immediately followed by the duplicated block, and the language tag
-  (`bash`, `typescript`) is stuck onto the **end** of the block instead of onto its own
-  fence line (e.g. `…updated accordingly.bash` then `docker compose …`). Rendered, the
-  code samples leak into prose and the prose leaks into code.
-- **Stale ports.** It says frontend `4173` → host `8083` and "`:8090` via Caddy". The
-  container/nginx port is `80`, not `4173`; host frontend is `8083`; Caddy host is `8090`.
-  It also shows bare `docker compose up -d` / `docker compose --profile dev up -d` — the
-  bare form starts nothing.
+**Historical advisory (as originally written 2026-07-08, kept for the checklist template
+below — do not treat the "what broke" facts as current):**
 
-**What is intact and MUST be preserved:** the top of the file — the tagline, the
-"Five differentiators no competitor ships" list, and the System Architecture section
-(roughly the first ~50 lines through the differentiators + architecture). **Do not delete
-or reword the differentiators when cleaning up.** Positioning wording is owned by
-`tayari-external-positioning`; a docs cleanup must not silently rewrite claims.
+- ~~A block is duplicated ~10 times~~ — not reproducible as of 2026-07-31.
+- ~~Code fences are malformed / fused~~ — not reproducible as of 2026-07-31.
+- ~~Stale ports (frontend 4173, "8090 via Caddy" instead of a real host mapping)~~ — the
+  file's actual ports table as of 2026-07-31 matches `docker-compose.yml`.
 
-### Safe fix checklist (this skill instructs; the edit routes through change-control)
+### Safe fix checklist template (still the right process for a *real* future corruption)
 
-You are **not** authorized to fix the README from this skill alone. Fixing a doc of record
-is a docs-only change and goes through `tayari-change-control`. When you do fix it:
+If a future check finds README (or any doc of record) genuinely corrupted again, this is still
+the right procedure — this skill instructs, the edit still routes through `tayari-change-control`:
 
 - [ ] **Announce first.** Per house style (§3), say in plain English what you're about to
       change and why before editing.
-- [ ] **Preserve the differentiators + architecture header verbatim.** Diff the top ~50
-      lines to zero. If the positioning wording needs to change, that's a separate task via
+- [ ] **Preserve positioning-sensitive sections verbatim** (differentiators, architecture
+      pitch) unless the task is specifically a positioning change — that goes through
       `tayari-external-positioning`, not a cleanup.
-- [ ] **Collapse the duplicated block to exactly one canonical instance,** placed once in
-      the Helm/Kubernetes section where it belongs. Detect duplicates:
+- [ ] **Detect duplication before assuming it exists:**
       ```bash
-      grep -c '^\*\*Kubernetes secret\*\*' README.md   # expect 1 after the fix; today it's ~10
+      grep -c '^\*\*Kubernetes secret\*\*' README.md   # whatever pattern is actually duplicated
       ```
-- [ ] **Repair every fence.** Each code sample must be a clean triple-backtick block with
-      its language on the opening fence and nothing fused to the closing fence. Verify the
-      fence count is even:
+- [ ] **Verify fence balance:**
       ```bash
-      grep -c '^```' README.md    # must be an EVEN number after the fix
-      grep -n '```' README.md     # eyeball: no "accordingly.bash", no orphaned language tags
+      grep -c '^```' README.md    # must be an EVEN number
       ```
-- [ ] **Correct stale ports while you're in there** (one home per fact — §5): frontend host
-      `8083` (container `80`), Go `8085`, Python `8002`, Caddy `8090`. Replace bare
-      `docker compose up -d` with `docker compose --profile dev up -d` (all services are
-      profile-gated). Authoritative port/command values: `tayari-build-and-env`,
-      `tayari-run-and-operate`.
-- [ ] **Do not invent.** If the Helm chart / K8s secret instructions can't be verified
-      against a real chart in the repo, keep only what's true and mark the rest clearly, or
-      drop it. Do not "tidy" it into confident-sounding fiction.
-- [ ] **Re-render / re-read** the file top-to-bottom before claiming done. A corrupted-doc
-      fix is only done when the whole file reads clean, not when the diff looks plausible.
+- [ ] **Correct stale ports against the authoritative table** (one home per fact — §5):
+      `tayari-build-and-env`, `tayari-run-and-operate`.
+- [ ] **Do not invent.** If instructions can't be verified against something real in the repo,
+      keep only what's true and mark the rest clearly, or drop it.
+- [ ] **Re-render / re-read** the file top-to-bottom before claiming done — and before writing
+      an advisory that a doc is broken, re-check it's *still* broken right now.
 
 ---
 
@@ -209,7 +200,7 @@ rules from §3 (terse docs; normal prose in commits/PRs; explicit security notes
 ### 4a. DB migration note
 
 Migrations live in `backend/db/migrations/` and are named **`YYYYMMDD_desc.sql`** —
-date prefix, then a short snake_case description (verified pattern 2026-07-08, e.g.
+date prefix, then a short snake_case description (verified pattern 2026-07-31, e.g.
 `20260620_hermes_agents.sql`, `20260701_add_resume_graph_table.sql`). `.agents/AGENTS.md`:
 schema changes "must be meticulously documented and ideally added to init scripts."
 
@@ -334,8 +325,9 @@ Run this whenever you touch a doc of record.
       mock-capable LLM are labeled honestly; nothing claims "beats real ATS" /
       "recruiter-grade" without evidence. Positioning goes through
       `tayari-external-positioning`.
-- [ ] **Ports/commands correct** against the current stack: host `8083`/`8085`/`8002`/
-      `5433`; Ollama host `11435`; `docker compose --profile dev up -d` (never bare).
+- [ ] **Ports/commands correct** against the current stack: host `8083`/`8085`/`8002`;
+      Ollama host `11435`; Supabase Kong `8000`/Studio `3001`/Postgres `54329` (no standalone
+      `postgres` service — removed 2026-07-31); `docker compose --profile dev up -d` (never bare).
 - [ ] **Read the whole file after editing** — especially near code fences (README lesson, §2).
 - [ ] **Routed through the gate** for the edit: `tayari-change-control` (docs-only row).
 
@@ -389,26 +381,48 @@ skipping any change-control gate — even a documentation fix goes through the g
 
 ## Provenance and maintenance
 
-All facts verified against the repo on **2026-07-08**. Volatile facts are date-stamped
-inline. Re-verify with these one-liners (run from repo root):
+All facts verified against the repo on **2026-07-31** (Doc Map §1, README status §2, doc-update
+checklist port list). Volatile facts are date-stamped inline. Re-verify with these one-liners
+(run from repo root):
 
 ```bash
-# README corruption still present (duplicated block should collapse to 1 after a fix)
-grep -c '^\*\*Kubernetes secret\*\*' README.md      # ~10 today; target 1
-grep -c '^```' README.md                            # fence count must be EVEN once repaired
+# README corruption claim — should stay negative; if this ever comes back positive,
+# the advisory in §2 needs to flip back to "corrupted" and a real fix is needed
+grep -c '^\*\*Kubernetes secret\*\*' README.md      # expect 0
+grep -c '^```' README.md                            # expect an EVEN number
 
 # Doc-of-record inventory still exists
 ls -1 CLAUDE.md .agents/AGENTS.md AGENT_SPEC.md lessons.md DEPLOYMENT.md \
       IMPLEMENTATION_SUMMARY.md PRODUCT_GRILL.md backend/python/README.md backend/go/README.md
-ls research/
+ls research/ supabase-local/
 
 # Migration naming convention (YYYYMMDD_desc.sql)
 ls backend/db/migrations/
 
-# Stale-port claims still in the stale docs (so you know the caveats still apply)
-grep -n '4175\|8008\|3005\|54326' lessons.md         # lessons.md OLD parallel-stack ports
-grep -n 'localhost:8080\|localhost:8000\|up -d' DEPLOYMENT.md
-grep -n '5173' AGENT_SPEC.md                         # legacy Vite dev port
+# Every backend/db/migrations/*.sql file must have a matching NN-prefixed
+# copy in supabase-local/volumes/db/init/ (the two are NOT auto-synced —
+# adding one without the other silently never applies to the self-hosted
+# stack). Flags any migration missing its mirror.
+for f in backend/db/migrations/*.sql; do
+  base=$(basename "$f")
+  ls supabase-local/volumes/db/init/*"-${base}" >/dev/null 2>&1 || echo "MISSING mirror for: $base"
+done
+
+# Every file in supabase-local/volumes/db/init/ must be individually mounted
+# in supabase-local/docker-compose.yml's db: service — the postgres image's
+# init glob is non-recursive, so a directory-level mount is silently
+# invisible to it (zero tables created, zero errors logged).
+for f in supabase-local/volumes/db/init/*.sql; do
+  base=$(basename "$f")
+  grep -q "init/${base}:" supabase-local/docker-compose.yml || echo "NOT MOUNTED: $base"
+done
+# Confirm no directory-level mount shadows the individual-file mounts above
+grep -n 'volumes/db/init:' supabase-local/docker-compose.yml    # expect NO output
+
+# Supabase migration facts (2026-07-31) still hold
+grep -n 'include:' -A2 docker-compose.yml                      # the merge
+grep -c 'postgres:' docker-compose.yml                           # expect 0 (service removed)
+grep -n '5173' AGENT_SPEC.md                                     # legacy Vite dev port, still historical
 
 # .agents/AGENTS.md hard rules still worded as quoted in §1a
 grep -n 'ONLY be used\|NEVER call the Python\|features.ts\|12-character\|127.0.0.1' .agents/AGENTS.md
@@ -417,7 +431,6 @@ grep -n 'ONLY be used\|NEVER call the Python\|features.ts\|12-character\|127.0.0
 git log --oneline -30
 ```
 
-If any of these drift — the README gets repaired, a stale doc gets corrected, the migration
-naming changes, or a doc's ownership moves — update the corresponding row/section here and
-bump the verification date. If the README is fixed, update §2 from "is corrupted" to a
-short historical note and point new readers at the clean file.
+If any of these drift — README gets genuinely corrupted, a doc gets corrected, the migration
+naming changes, or a doc's ownership moves — update the corresponding row/section here and bump
+the verification date.

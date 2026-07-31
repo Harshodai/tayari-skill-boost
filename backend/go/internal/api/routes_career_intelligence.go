@@ -11,18 +11,26 @@ import (
 )
 
 // routesCareerIntelligence wires the career intelligence proxy routes.
+// These all call out to the Python AI backend, so — matching the auth-gating
+// convention used for other AI-calling proxy routes (routes_social.go,
+// routes_mvp.go) — they're kept behind authMiddleware to avoid unauthenticated
+// abuse of the AI service.
 func (s *Server) routesCareerIntelligence(r chi.Router) {
-	// v1 routes
-	r.Post("/api/v1/career-intelligence/skills-gap", s.handleGetSkillsGap)
-	r.Post("/api/v1/career-intelligence/learning-path", s.handleGetLearningPath)
-	r.Post("/api/v1/career-intelligence/salary-benchmark", s.handleGetSalaryBenchmark)
-	r.Get("/api/v1/career-intelligence/trending-skills", s.handleGetTrendingSkills)
+	r.Group(func(r chi.Router) {
+		r.Use(s.authMiddleware)
 
-	// aliases
-	r.Post("/api/career-intelligence/skills-gap", s.handleGetSkillsGap)
-	r.Post("/api/career-intelligence/learning-path", s.handleGetLearningPath)
-	r.Post("/api/career-intelligence/salary-benchmark", s.handleGetSalaryBenchmark)
-	r.Get("/api/career-intelligence/trending-skills", s.handleGetTrendingSkills)
+		// v1 routes
+		r.Post("/api/v1/career-intelligence/skills-gap", s.handleGetSkillsGap)
+		r.Post("/api/v1/career-intelligence/learning-path", s.handleGetLearningPath)
+		r.Post("/api/v1/career-intelligence/salary-benchmark", s.handleGetSalaryBenchmark)
+		r.Get("/api/v1/career-intelligence/trending-skills", s.handleGetTrendingSkills)
+
+		// aliases
+		r.Post("/api/career-intelligence/skills-gap", s.handleGetSkillsGap)
+		r.Post("/api/career-intelligence/learning-path", s.handleGetLearningPath)
+		r.Post("/api/career-intelligence/salary-benchmark", s.handleGetSalaryBenchmark)
+		r.Get("/api/career-intelligence/trending-skills", s.handleGetTrendingSkills)
+	})
 }
 
 // GoCareerIntelligenceRequest represents the incoming JSON request payload.

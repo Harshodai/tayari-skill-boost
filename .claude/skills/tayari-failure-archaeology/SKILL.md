@@ -5,8 +5,9 @@ description: >-
   still-open failures. Load BEFORE investigating a bug or "fixing" something that may have
   a known history — to check whether a battle is already settled and avoid re-fighting it.
   Each entry: Symptom → Root cause → Evidence → Status (OPEN/RESOLVED/DOC-DRIFT) → Lesson.
-  Covers the nil-DB Go test panic, the CI/compose drift, the manualChunks TDZ crash, the
-  white-screen fix, stopword pollution, and the port-doc drift. Facts verified 2026-07-08.
+  Covers the nil-DB Go test panic (RESOLVED 2026-07-31), the CI/compose drift (RESOLVED
+  2026-07-31), the manualChunks TDZ crash, the white-screen fix, stopword pollution, the
+  port-doc drift, and the Postgres→self-hosted-Supabase migration. Facts verified 2026-07-31.
 ---
 
 # Tayari Failure Archaeology
@@ -25,50 +26,64 @@ record of *why* and *what was already tried*.
 
 ---
 
-## 1. [OPEN] Go test suite is red: 16 nil-pointer panics
+## 1. [RESOLVED 2026-07-31] Go test suite was red: 16 nil-pointer panics
 
-- **Symptom.** `cd backend/go && go test ./...` exits 1. Package `tayari-backend/internal/api`
-  reports 16 failures: `TestSocialAuthRoutes_ProviderInjection` and every Hermes route test
-  (`TestHermesScrape_*`, `TestHermesJobsBoard_*`, `TestHermesRunsList_*`, `TestHermesRunDetail_*`,
-  `TestHermesUnknownRoute_404`, `TestHermesUnauthenticated_401`). Each panics:
+- **Symptom (historical).** `cd backend/go && go test ./...` exited 1. Package
+  `tayari-backend/internal/api` reported 16 failures: `TestSocialAuthRoutes_ProviderInjection`
+  and every Hermes route test (`TestHermesScrape_*`, `TestHermesJobsBoard_*`,
+  `TestHermesRunsList_*`, `TestHermesRunDetail_*`, `TestHermesUnknownRoute_404`,
+  `TestHermesUnauthenticated_401`). Each panicked:
   `panic: runtime error: invalid memory address or nil pointer dereference` inside
   `database/sql.(*DB).QueryContext`.
-- **Root cause.** The global `tenantMiddleware` (`internal/api/middleware.go`, ~line 146) is
-  registered on **every** route (`s.Router.Use(s.tenantMiddleware)` in `router.go`) and calls
-  `s.DB.Conn.QueryRowContext(...)` to resolve a tenant on each request. The Hermes tests build
-  the server via `newHermesServer` with `&database.DB{Conn: nil}` and a comment that says
-  *"The DB is nil (Hermes routes never touch the Go DB — they only proxy)."* That comment is
-  **false**: the middleware touches the DB before the handler runs, so a nil `Conn` nil-derefs.
-- **Evidence.** `routes_hermes_test.go` (`newHermesServer` → `Conn: nil`); `middleware.go`
-  `tenantMiddleware` doing `s.DB.Conn.QueryRowContext`; the smoke tests
-  (`handlers_smoke_test.go`) instead pass `&database.DB{Conn: fakeDB()}` (non-nil) and survive
-  because `QueryRowContext` returns an error (swallowed) rather than panicking.
-- **Status.** **OPEN** as of 2026-07-08. Green DB-free subset:
-  `go test ./internal/api -run 'TestSmoke|TestRouteParity'` → 19 pass.
+- **Root cause.** The global `tenantMiddleware` (`internal/api/middleware.go`) was
+  registered on **every** route (`s.Router.Use(s.tenantMiddleware)` in `router.go`) and called
+  `s.DB.Conn.QueryRowContext(...)` to resolve a tenant on each request, unconditionally. The
+  Hermes tests build the server via `newHermesServer` with `&database.DB{Conn: nil}` and a
+  comment that says *"The DB is nil (Hermes routes never touch the Go DB — they only proxy)."*
+  That comment was **false**: the middleware touches the DB before the handler runs, so a nil
+  `Conn` nil-derefed.
+- **Fix.** `tenantMiddleware` (`internal/api/middleware.go` ~line 200) now checks
+  `if s.DB == nil || s.DB.Conn == nil` and skips tenant resolution when there's no DB, before
+  ever calling `QueryRowContext`.
+- **Evidence.** `routes_hermes_test.go` (`newHermesServer` → `Conn: nil`, still nil, no longer
+  panics); `middleware.go`'s nil guard; `go test ./...` and `go test -race ./...` both exit 0.
+- **Status.** **RESOLVED**, confirmed live 2026-07-31 (`go test ./...` → exit 0,
+  `go test -race ./...` → exit 0). Green DB-free subset still works too:
+  `go test ./internal/api -run 'TestSmoke|TestRouteParity'` → 19 pass. **Remaining Go gap:**
+  test **coverage** is 14.1% vs the 80% `ci.yml` requires — that's a different problem (not
+  enough tests, not broken tests) — see `tayari-validation-and-qa`.
 - **Lesson.** Adding a global DB-touching middleware silently broke every DB-less test. Test
   doubles must satisfy the assumptions of *global middleware*, not just the handler under test.
-  Two ways to close it: (a) give the Hermes tests a non-nil fake DB like the smoke tests do, or
-  (b) make `tenantMiddleware` no-op when `s.DB == nil || s.DB.Conn == nil`. Whichever you pick
-  routes through `tayari-change-control` and must keep the parity/smoke tests green.
+  The eventual fix was option (b) from the original entry: make `tenantMiddleware` no-op when
+  `s.DB == nil || s.DB.Conn == nil`, rather than giving every DB-less test a fake DB.
 
-## 2. [DOC-DRIFT / CI-BROKEN] CI's docker-compose job cannot pass as written
+## 2. [RESOLVED 2026-07-31] CI's docker-compose job couldn't pass as written
 
-- **Symptom.** The `docker-compose` job in `.github/workflows/ci.yml` health-checks
-  `http://localhost:8008` (supabase-kong) and `http://localhost:3005` (supabase-studio), and
-  starts the stack with `docker compose up -d --wait`.
-- **Root cause.** (a) No Supabase Kong/Studio services exist in the current `docker-compose.yml`
-  at all — only frontend, go-backend, python-ai, postgres, redis, celery-worker/flower, ollama,
-  caddy. (b) All 9 services are profile-gated `["dev","prod"]`, so `docker compose up -d` with no
-  `--profile` starts nothing. The job thus waits on services that never come up and health-checks
-  hosts that never exist. `ci.yml`'s `go-build` job also runs `go test -race ./...` with no DB →
-  hits the 16 panics from Entry 1.
-- **Evidence.** `grep -iE 'kong|studio' docker-compose.yml` (no service match);
-  `grep -c 'profiles:' docker-compose.yml` → 9; `ci.yml` health-check steps.
-- **Status.** DOC-DRIFT / CI aspirational. Two overlapping workflows (`ci.yml`, `deploy.yml`)
-  both fire on push+PR to main. `scripts/perf_check.sh` is a **simulated** placeholder (sleeps 1s).
-- **Lesson.** Do **not** equate "CI config exists" with "CI is green." Verify live GitHub Actions
-  status. If you own this: add a `--profile`, delete the kong/studio checks (or add the services),
-  and fix Entry 1 so `go test -race ./...` passes. See `tayari-validation-and-qa`.
+- **Symptom (historical).** The `docker-compose` job in `.github/workflows/ci.yml`
+  health-checked `http://localhost:8008` (supabase-kong) and `http://localhost:3005`
+  (supabase-studio), and started the stack with `docker compose up -d --wait` (no profile).
+- **Root cause.** (a) No Supabase Kong/Studio services existed in `docker-compose.yml` at
+  all — only frontend, go-backend, python-ai, a standalone `postgres`, redis,
+  celery-worker/flower, ollama, caddy. (b) Every service was profile-gated `["dev","prod"]`, so
+  `docker compose up -d` with no `--profile` started nothing. The job waited on services that
+  never came up and health-checked hosts that never existed.
+- **Fix (part of the 2026-07-31 Postgres→self-hosted-Supabase migration, not a standalone CI
+  patch).** The standalone `postgres` service was replaced with the full self-hosted Supabase
+  stack (`supabase-local/`, merged via `include:`) — so Kong/Studio are now real services. CI's
+  `docker-compose` job was updated to (a) pass `--profile dev`, (b) create both `.env` and
+  `supabase-local/.env` with matching `POSTGRES_PASSWORD`/`JWT_SECRET`, and (c) health-check
+  Kong/Studio at their real ports (8000/3001) with response-code checks that account for Kong
+  having no bare `/health` route (401s unauthenticated requests — that's the "alive" signal) and
+  Studio redirecting (307) its root path.
+- **Evidence.** `docker compose --profile dev config --services` now lists `db`/`kong`/`auth`/
+  `rest`/`realtime`/`storage`/`meta`/`studio`/`supavisor` alongside the root services; `ci.yml`'s
+  updated `Create .env files`/health-check steps.
+- **Status.** RESOLVED in the YAML. Still verify a live GitHub Actions run — "config matches
+  reality" is necessary but not sufficient for "CI is green." The `go-build` job's separate
+  Coverage Check step is still red (14% vs 80%, unrelated to this fix — see Entry 1).
+  `scripts/perf_check.sh` is still a **simulated** placeholder (sleeps 1s), untouched.
+- **Lesson.** Do **not** equate "CI config exists" with "CI is green," even after fixing the
+  config — verify live GitHub Actions status. See `tayari-validation-and-qa`.
 
 ## 3. [RESOLVED] Vite `manualChunks` TDZ crash — white screen
 
@@ -136,22 +151,31 @@ record of *why* and *what was already tried*.
 - **Lesson.** Respect `VITE_USE_SELF_HOSTED`; never hardcode a cloud dependency into a
   self-hostable path (`.agents/AGENTS.md`).
 
-## 8. [DOC-DRIFT] Port documentation disagrees with the compose file
+## 8. [DOC-DRIFT, partially resolved 2026-07-31] Port documentation disagrees with the compose file
 
 - **Symptom.** Docs cite mutually inconsistent ports; newcomers curl the wrong host/port and
   conclude a service is down.
-- **Reality (authoritative = `docker-compose.yml`, verified 2026-07-08).** Host ports: frontend
-  **8083**, Go **8085**, Python **8002**, Postgres **5433**, Redis **6380**, Flower **5555**,
-  Ollama **11435**, Caddy **8090/8443**.
-- **Drifting docs.** `lessons.md` (frontend 4175; Supabase Kong 8008 / Studio 3005 / db 54326 —
-  an **older/parallel** stack that no longer exists here); `DEPLOYMENT.md` (uses container-internal
-  `8080/8000/80` as if host); `README.md` (partly corrupted, see below); `CLAUDE.md` (says Ollama
-  11434 — that's the container port; host is 11435); `AGENT_SPEC.md` (frontend "5173" is legacy
-  Vite default).
-- **Status.** DOC-DRIFT, unresolved. Authoritative table lives in `tayari-build-and-env`.
-- **Lesson.** Trust `docker-compose.yml` for host ports; treat prose docs as possibly stale.
-- **Bonus.** `README.md` is **partly corrupted**: a "Kubernetes secret / New features" block is
-  duplicated ~10× with malformed code fences. Cleanup guidance in `tayari-docs-and-writing`.
+- **Reality (authoritative = `docker-compose.yml` incl. `include:`d `supabase-local/docker-compose.yml`,
+  verified 2026-07-31).** Host ports: frontend **8083**, Go **8085**, Python **8002**, Redis
+  **6380**, Flower **5555**, Ollama **11435**, Caddy **8090/8443**, Supabase Kong **8000**
+  (`KONG_HTTP_PORT`), Supabase Studio **3001**, Supabase Postgres **54329**
+  (`SUPABASE_DB_PORT`). There is no standalone `postgres` service anymore (removed 2026-07-31).
+- **Remaining drift.** `lessons.md`'s opening entry cites frontend 4175 / Supabase Kong 8008 /
+  Studio 3005 / db 54326 — that's a **specific, one-off port remap** from running Tayari
+  alongside an unrelated "Mukthi Guru" stack on the same machine, not the shipped defaults;
+  `AGENT_SPEC.md` (frontend "5173" is legacy Vite default). `README.md`'s corruption (below) was
+  independently found to be **already fixed** — see the corrected status there.
+- **Status.** Mostly resolved 2026-07-31 — the docs were rewritten in the same session as the
+  Postgres→Supabase migration since almost every port changed at once. Re-verify anything not
+  explicitly listed as updated before trusting it. Authoritative table: `tayari-build-and-env`.
+- **Lesson.** Trust `docker-compose.yml` (+ its `include:`s) for host ports; treat prose docs as
+  possibly stale, especially right after a port-changing migration — update every doc that cites
+  the changed fact in the same session, not "later."
+- **Bonus (corrected 2026-07-31).** `README.md` is **not** corrupted as of this check —
+  `grep -c '^\*\*Kubernetes secret\*\*' README.md` → 0, fence count even. The corruption
+  described in `tayari-docs-and-writing` §2 either predates this check or was already fixed;
+  either way it no longer applies. Don't skip re-verifying a doc just because an older entry says
+  it's broken.
 
 ## 9. [WON'T-FIX / INFORMATIONAL] Dead agent branches
 
@@ -162,6 +186,41 @@ record of *why* and *what was already tried*.
 - **Status.** Nothing to salvage. Don't resurrect or cherry-pick from them.
 - **Lesson.** The useful history is in `main`; git messages are mostly opaque "Changes" commits,
   so rely on code + docs + this chronicle rather than `git log` prose.
+
+## 10. [RESOLVED] Standalone `postgres` service replaced with self-hosted Supabase
+
+- **Symptom.** User asked to stop using a bare Postgres image and use Docker-based Supabase
+  only. The codebase already had `internal/auth/supabase.go` (a `SupabaseAuth` implementation
+  that verifies GoTrue-issued JWTs) sitting unused, and `supabase-local/` (a full self-hosted
+  Supabase Docker Compose bundle) sitting unmerged into the main stack — plus `lessons.md`
+  already documented a **prior** attempt at this exact migration (port-remap entry, dated
+  before this session), suggesting an earlier worktree did this work and it was lost/reverted.
+- **Fix.** Removed the standalone `postgres` service from `docker-compose.yml`; merged
+  `supabase-local/docker-compose.yml` in via Compose's `include:`; ported `backend/db/`'s full
+  schema (auth-schema stub stripped) into `supabase-local/volumes/db/init/` as individually
+  mounted files; flipped `USE_SUPABASE=true`/`VITE_USE_SELF_HOSTED=false` defaults.
+- **Three additional bugs found and fixed only by actually driving the app** (not just curling
+  the API with a hand-copied token) — full detail in `lessons.md`'s "Migrating Off Bare Postgres"
+  entry:
+  1. Supabase's `migrate.sh` globs `migrations/*.sql` **non-recursively** — a directory mount
+     was silently invisible to it (zero tables, zero errors).
+  2. `${VAR:?err}` Compose interpolation isn't scoped by profile — broke `--profile prod` for a
+     dev-only service.
+  3. `AuthContext.tsx`'s Supabase branch never bridged the session token into the
+     `localStorage` key `apiFetch` reads — every backend call in Supabase mode was silently
+     unauthenticated, invisible until someone actually signed up through the real UI.
+- **Status.** RESOLVED, verified live 2026-07-31: `down -v && up --build` twice, 18/18
+  services healthy, real GoTrue signup → real JWT → Go verifies it → full CRUD → GDPR delete
+  removes the real Supabase auth user → browser-driven signup with zero console/network errors.
+  Caveat: this is a persistent-volume restart verification, not a from-scratch init verification
+  — `supabase-local/volumes/db/data` is a bind mount, not a named Docker volume, so `down -v`
+  did not actually wipe it (see the "Never `docker compose down -v`..." gotcha in `CLAUDE.md`).
+  The init SQL scripts running correctly against a genuinely empty volume is unverified by this
+  entry; it would need an explicit `rm -rf supabase-local/volumes/db/data` first.
+- **Lesson.** An auth strategy that's implemented but never the default can be silently broken
+  for a long time with zero symptoms, the same class of risk as an untested `except` clause.
+  Flipping the default is what first exercises the dead path — budget time to actually drive the
+  previously-dormant path end-to-end, not just unit-test around it.
 
 ---
 
@@ -188,18 +247,21 @@ keep the lesson, and remove any now-stale row from `tayari-debugging-playbook`.
 
 ## Provenance and maintenance
 
-Facts verified against the repo on **2026-07-08**. Re-verify:
+Facts verified against the repo on **2026-07-31**. Re-verify:
 
 ```bash
-cd backend/go && go test ./... ; echo "exit=$?"          # Entry 1: expect non-zero until fixed
+cd backend/go && go test ./... ; echo "exit=$?"           # Entry 1: expect 0 (fixed)
+cd backend/go && go test -race ./... ; echo "exit=$?"     # Entry 1: expect 0 (matches CI)
 grep -n 'Conn: nil' backend/go/internal/api/routes_hermes_test.go
-grep -n 'tenantMiddleware' backend/go/internal/api/middleware.go
-grep -inE 'kong|studio|localhost:8008|localhost:3005' .github/workflows/ci.yml   # Entry 2
-grep -c 'profiles:' docker-compose.yml                    # Entry 2: expect 9
+grep -n 's.DB == nil' backend/go/internal/api/middleware.go   # the nil-guard that fixed Entry 1
+docker compose --profile dev config --services            # Entry 2: full merged list, incl. Supabase
+grep -inE 'kong|studio|profile dev' .github/workflows/ci.yml   # Entry 2
 grep -n 'manualChunks' vite.config.ts                     # Entry 3
 git show --stat 2adee81 1d20375 95ec118 2>/dev/null | head -40   # Entries 3-5
 grep -n 'TECH_SKILL_WHITELIST\|_build_stopwords' backend/python/app/services/ats_engine.py  # Entry 6
 git branch -a                                             # Entry 9
+grep -n 'include:' -A2 docker-compose.yml                 # Entry 10: the Supabase merge
+grep -n "localStorage.setItem('auth_token'" src/contexts/AuthContext.tsx  # Entry 10: must be in both branches
 ```
 
 Bump the date when an entry's status changes.

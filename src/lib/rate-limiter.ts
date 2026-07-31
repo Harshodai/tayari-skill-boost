@@ -7,9 +7,16 @@ export interface RateLimitResult {
   message: string | null;
 }
 
-// In self-hosted mode, Supabase Edge Functions are not available.
-// Skip all rate limit calls silently to avoid ERR_CONNECTION_REFUSED noise.
-const USE_SELF_HOSTED = import.meta.env.VITE_USE_SELF_HOSTED === "true";
+// Edge Functions only exist on a real supabase.co project — neither the
+// old self-hosted-JWT mode nor the self-hosted Supabase Docker stack in
+// supabase-local/ deploys an edge-runtime service (deliberately excluded
+// there to save RAM). Checking VITE_USE_SELF_HOSTED alone used to miss the
+// "self-hosted Supabase, real GoTrue auth, but still no Edge Functions"
+// case, causing every login to fire a doomed request against Kong with no
+// upstream to answer it. Skip whenever we're not pointed at a cloud project.
+const USE_SELF_HOSTED =
+  import.meta.env.VITE_USE_SELF_HOSTED === "true" ||
+  !String(import.meta.env.VITE_SUPABASE_URL ?? "").includes(".supabase.co");
 
 const RATE_LIMIT_OPEN: RateLimitResult = {
   allowed: true,

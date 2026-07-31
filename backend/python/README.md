@@ -29,7 +29,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 
 # Or via Docker
-docker-compose up backend-ai
+docker compose --profile dev up -d python-ai
 ```
 
 ## Adding New AI Plugins

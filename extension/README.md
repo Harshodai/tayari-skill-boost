@@ -108,7 +108,8 @@ extension/
 
 ## API Endpoints Used
 
-The extension communicates with the Tayari backend at `http://localhost:8080/api`:
+The extension communicates with the Tayari backend at `http://localhost:8085/api`
+(configurable in the extension's settings popup):
 
 - `GET /api/v1/profile` — Fetch profile data for autofill
 - `POST /api/v1/jobs/save` — Save a detected job

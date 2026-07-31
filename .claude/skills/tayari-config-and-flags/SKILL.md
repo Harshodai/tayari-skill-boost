@@ -7,7 +7,7 @@ description: >-
   a feature flag, switching auth mode (self-hosted JWT vs Supabase), confirming which engine
   is actually active, or adding a new config axis. Owns the env-var table, the build_provider
   priority order, the Ollama-host-port trap, and the features.ts mechanics. Facts verified
-  2026-07-08.
+  2026-07-31.
 ---
 
 # Tayari Config and Flags
@@ -31,14 +31,14 @@ new one. It does not run the stack (`tayari-run-and-operate`) or measure what's 
 ## 1. Backend env var catalog
 
 Consumed by: **Go** (`internal/config/config.go`, `os.Getenv`), **Python** (`os.environ`),
-**Vite** (build-time), **compose** (passthrough in `docker-compose.yml`). Verified 2026-07-08.
+**Vite** (build-time), **compose** (passthrough in `docker-compose.yml`). Verified 2026-07-31.
 
 | Var | Consumed by | Default | Required? | Notes |
 |---|---|---|---|---|
-| `JWT_SECRET` | Go | — | **YES** (Go `log.Fatalf` if empty) | Auth signing key. Must match Supabase JWT secret when `USE_SUPABASE=true`. |
-| `DATABASE_URL` | Go, Python, worker | `""` | Yes in practice | `postgres://tayari:tayari_dev@postgres:5432/tayari?sslmode=disable` in-compose. |
+| `JWT_SECRET` | Go | — | **YES** (Go `log.Fatalf` if empty) | Auth signing key. Must exactly match `supabase-local/.env`'s `JWT_SECRET` (GoTrue signs with it) when `USE_SUPABASE=true` — the two are separate values from separate env files, only equal if set to match by hand. |
+| `DATABASE_URL` | Go, Python, worker | `""` | Yes in practice | `postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres?sslmode=disable` in-compose — Supabase's Postgres (`supabase-local/`), user/db always `postgres`. `POSTGRES_PASSWORD` must match `supabase-local/.env`. No standalone `postgres` service exists (removed 2026-07-31). |
 | `PORT` | Go, Python | Go `8080`, Py `8000` (container) | No | Container-internal port. |
-| `USE_SUPABASE` | Go | `false` | No | `true` → Supabase auth; else local JWT. Pair with `VITE_USE_SELF_HOSTED`. |
+| `USE_SUPABASE` | Go | `true` | No | `true` (default as of 2026-07-31) → Go verifies Supabase-issued JWTs, frontend talks to Supabase Auth directly for register/login. `false` → Go issues/verifies its own JWTs (self-hosted-JWT mode, no Supabase Auth involved). Pair with `VITE_USE_SELF_HOSTED`. |
 | `ALLOWED_ORIGINS` | Go | `http://localhost:5173` | No | Comma-separated CORS allowlist. Never `*` with credentials. |
 | `CORS_ALLOWED_ORIGINS` | Go | `""` | No | Additional CORS origins (merged with defaults). |
 | `FRONTEND_URL` | Go | `http://localhost:5173` | No | OAuth redirect base. |
@@ -60,21 +60,24 @@ Consumed by: **Go** (`internal/config/config.go`, `os.Getenv`), **Python** (`os.
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | Go, Python | `""`/`production` | No | Error tracking (off if DSN empty). |
 | `GOOGLE_*`, `GITHUB_*`, `LINKEDIN_*` (client id/secret/callback) | Go | `""` | No | Social OAuth. |
 | `VITE_API_URL` | Vite (build) | `/api` (compose) / `http://localhost:8080/api` (code default) | **Build-time** | Point at Go host `http://localhost:8085/api` for local dev (see trap). |
-| `VITE_USE_SELF_HOSTED` | Vite (build) | `true` (.env.example) | Build-time | Pair with Go `USE_SUPABASE`. |
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID` | Vite (build) | — | Build-time | Baked into the bundle; a change re-hashes the build (vite fingerprint). |
+| `VITE_USE_SELF_HOSTED` | Vite (build) | `false` (.env.example, as of 2026-07-31) | Build-time | Pair with Go `USE_SUPABASE`. `false` → frontend calls `supabase.auth.*` (GoTrue via Kong) directly for register/login. |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID` | Vite (build) | `http://localhost:8000` (local Kong)/local `ANON_KEY`/`""` | Build-time | Baked into the bundle; a change re-hashes the build (vite fingerprint). Point at `supabase-local`'s Kong host port (`KONG_HTTP_PORT` in `supabase-local/.env`, default 8000 — change if it collides with another local project) + its `ANON_KEY` for local dev; a real `*.supabase.co` project + its own anon key for cloud Supabase. |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Go | `http://kong:8000` / `""` | No | Server-side Supabase URL/key, read into `config.SupabaseURL`/`SupabaseKey` — currently unused by any Go handler (SupabaseAuth verifies JWTs locally with `JWT_SECRET`, doesn't call Supabase's API), reserved for future Admin API use. |
 
 > **`VITE_*` are build-time.** Vite statically replaces them at build. In Docker they are
 > **build args** (`Dockerfile.frontend` ARGs), not runtime env. Changing one requires a rebuild.
 
-> **Secret hygiene.** `.env` is gitignored/untracked (`.gitignore:2`) — keep it that way; real
-> keys live only in your local `.env`. `.env.example` holds placeholders (some stale Supabase-era).
+> **Secret hygiene.** `.env` and `supabase-local/.env` are both gitignored/untracked
+> (`.gitignore`) — keep it that way; real keys live only in your local `.env` files.
+> `.env.example`/`supabase-local/.env.example` hold matching functional placeholders (same
+> `POSTGRES_PASSWORD`/`JWT_SECRET` in both by default) — see `tayari-build-and-env` §4.
 
 ---
 
 ## 2. LLM provider selection — the priority order
 
 `build_provider(tier)` in `backend/python/app/services/llm_service.py` picks a provider in this
-exact order (verified 2026-07-08). First match wins:
+exact order (verified 2026-07-31). First match wins:
 
 1. `tier=="hermes"` AND `HERMES_AGENT_URL` set → **HermesProvider**.
 2. `LLM_PROVIDER=openrouter` AND (`OPENROUTER_API_KEY` or `LLM_API_KEY`) → **OpenRouterProvider**
@@ -132,7 +135,7 @@ curl -s http://localhost:8002/health | grep -o '"model_status":"[^"]*"'
 - `CONFIG.features`: map of `key: [productionEnabled, previewEnabled]` booleans.
 - `CONFIG.links`: nav links, each `{ label, href, feature }`, filtered by the flag.
 
-**Current flags (verified 2026-07-08):**
+**Current flags (verified 2026-07-31):**
 
 | Flag | [prod, preview] | Flag | [prod, preview] |
 |---|---|---|---|
@@ -155,13 +158,16 @@ curl -s http://localhost:8002/health | grep -o '"model_status":"[^"]*"'
 
 ## 4. Auth mode switch
 
-| Setting | Location | `true` means |
-|---|---|---|
-| `USE_SUPABASE` | Go env | Gateway verifies Supabase-issued JWTs |
-| `VITE_USE_SELF_HOSTED` | Vite build arg | Frontend uses the local Go JWT backend (self-hosted) |
+| Setting | Location | `true` means | Default (2026-07-31) |
+|---|---|---|---|
+| `USE_SUPABASE` | Go env | Gateway verifies Supabase-issued JWTs; `Register`/`Login` return "use frontend SDK" errors (Go never issues tokens in this mode) | `true` |
+| `VITE_USE_SELF_HOSTED` | Vite build arg | Frontend uses the local Go JWT backend (self-hosted); `false` → frontend calls `supabase.auth.*` directly | `false` |
 
-They must agree: self-hosted frontend + Supabase Go = broken login. `JWT_SECRET` is required
-either way. Architecture rationale: `tayari-architecture-contract` §2.5.
+They must agree: self-hosted frontend + Supabase Go = broken login (frontend gets a Go-issued
+token in a scheme the Go `SupabaseAuth.VerifyToken` doesn't expect, or vice versa).
+`JWT_SECRET` is required either way, and when `USE_SUPABASE=true` it must additionally match
+`supabase-local/.env`'s `JWT_SECRET` — see `tayari-build-and-env` §4. Architecture rationale:
+`tayari-architecture-contract` §2.5.
 
 ---
 
@@ -188,7 +194,7 @@ either way. Architecture rationale: `tayari-architecture-contract` §2.5.
 
 ## Provenance and maintenance
 
-Facts verified against the repo on **2026-07-08**. Re-verify:
+Facts verified against the repo on **2026-07-31**. Re-verify:
 
 ```bash
 grep -n 'getEnv\|getEnvRequired' backend/go/internal/config/config.go   # Go env surface

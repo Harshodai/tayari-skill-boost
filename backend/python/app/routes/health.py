@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.services.llm_service import active_engine
+from app.services.llm_service import active_engine, is_llm_configured
 try:
     from fastapi_cache.decorator import cache
 except ImportError:
@@ -20,12 +20,12 @@ class HealthResponse(BaseModel):
 
 @router.get("/health", response_model=HealthResponse)
 @router.get("/api/health", response_model=HealthResponse)
-@router.get("/api/health", response_model=HealthResponse)
+@router.get("/api/v1/health", response_model=HealthResponse)
 @cache(expire=60)
 def health_check():
     return HealthResponse(
         status="ok",
         service="python-ai-engine",
         version="1.0.0",
-        model_status="loaded" if active_engine() != "mock-fallback" else "llm_not_configured",
+        model_status="loaded" if is_llm_configured() else "llm_not_configured",
     )

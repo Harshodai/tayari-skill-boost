@@ -7,7 +7,7 @@ Hey r/selfhosted!
 I wanted to share **Tayari**, an open-source, self-hosted platform built for managing your entire job search locally without sending your resume or career history to third-party SaaS vendors.
 
 ### What it does:
-1. **Self-Hosted Local Stack**: Go gateway + Python AI engine + PostgreSQL + Redis + Celery.
+1. **Self-Hosted Local Stack**: Go gateway + Python AI engine + self-hosted Supabase (Postgres + Auth + Storage + Realtime) + Redis + Celery — one `docker compose` command, no cloud dependency.
 2. **Local LLM & MCP Integration**: Full Model Context Protocol (MCP v2) server interface for Cursor, Claude, or local Ollama instances.
 3. **ATS Typst PDF Builder**: Generates single-column ATS-friendly resumes using Typst.
 4. **Hermes Job Scraper**: Asynchronous background worker for web scraping job listings safely.
@@ -18,8 +18,9 @@ I wanted to share **Tayari**, an open-source, self-hosted platform built for man
 
 ### Quickstart
 ```bash
-docker compose --profile eval up -d
+cp .env.example .env && cp supabase-local/.env.example supabase-local/.env
+docker compose --profile dev up -d --build
 ```
 
 GitHub: https://github.com/tayari-ai/tayari-skill-boost
-Docker Compose & deployment guides: `docs/deploy/`
+Docker Compose & deployment guide: `DEPLOYMENT.md`

@@ -67,20 +67,16 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 		r.Get("/api/v1/communication/suggestions", s.handleOneStopProxyGET("/api/v1/communication/suggestions"))
 		r.Get("/api/communication/suggestions", s.handleOneStopProxyGET("/api/v1/communication/suggestions"))
 
-		r.Post("/api/v1/ats/detect", s.handleOneStopProxy("/api/v1/ats/detect"))
-		r.Post("/api/ats/detect", s.handleOneStopProxy("/api/v1/ats/detect"))
-
-		r.Post("/api/v1/guardrails/truth-check", s.handleOneStopProxy("/api/v1/guardrails/truth-check"))
-		r.Post("/api/guardrails/truth-check", s.handleOneStopProxy("/api/v1/guardrails/truth-check"))
-
-		r.Post("/api/v1/recruiter/lookup", s.handleOneStopProxy("/api/v1/recruiter/lookup"))
-		r.Post("/api/recruiter/lookup", s.handleOneStopProxy("/api/v1/recruiter/lookup"))
-
-		r.Post("/api/v1/offer/calculate", s.handleOneStopProxy("/api/v1/offer/calculate"))
-		r.Post("/api/offer/calculate", s.handleOneStopProxy("/api/v1/offer/calculate"))
-
-		r.Post("/api/v1/interview/copilot", s.handleOneStopProxy("/api/v1/interview/copilot"))
-		r.Post("/api/interview/copilot", s.handleOneStopProxy("/api/v1/interview/copilot"))
+		// ats/detect, guardrails/truth-check, recruiter/lookup, offer/calculate,
+		// and interview/copilot are NOT registered here — routesMVP (routes_mvp.go)
+		// registers the same method+pattern for all five with billing-gated
+		// handlers (handleATSDetect, handleTruthCheck, handleRecruiterLookup,
+		// handleOfferCalculate, handleInterviewCopilot) and is called after
+		// RegisterOneStopRoutes in router.go's s.routes(), so chi's "last
+		// registration wins" behavior means routesMVP's versions are the only
+		// ones actually reachable. Registering them here too was dead code that
+		// silently lost the billing entitlement checks if the registration
+		// order ever changed — see routesMVP's comment for the counterpart.
 	})
 }
 

@@ -20,6 +20,9 @@ export default defineTool({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ stage, limit }, ctx: ToolContext) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_PUBLISHABLE_KEY) {
+      return { content: [{ type: "text", text: "Server misconfigured: SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY not set" }], isError: true };
+    }
     let q = sb(ctx).from("applications")
       .select("application_id,title,company,stage,status,created_at,updated_at")
       .order("updated_at", { ascending: false })

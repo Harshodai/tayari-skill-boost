@@ -22,10 +22,11 @@ Tayari is a **self-hosted, local-first AI job platform** designed for job seeker
 ```bash
 git clone https://github.com/tayari-ai/tayari-skill-boost.git
 cd tayari-skill-boost
-docker compose --profile eval up -d
+cp .env.example .env && cp supabase-local/.env.example supabase-local/.env
+docker compose --profile dev up -d --build
 ```
 
-Open `http://localhost:5173` — all features run locally out of the box with zero external cloud requirements.
+Open `http://localhost:8083` — all features run locally out of the box with zero external cloud requirements (self-hosted Supabase included, no cloud DB/auth dependency).
 
 Repo: https://github.com/tayari-ai/tayari-skill-boost
 Feedback, PRs, and self-hosted experience reports welcome!

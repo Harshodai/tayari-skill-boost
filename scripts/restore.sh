@@ -24,10 +24,14 @@ for arg in "$@"; do
     esac
 done
 
+# See scripts/backup.sh for why these defaults changed: the database is
+# Supabase's Postgres (supabase-local/, service "db", container "supabase-db"),
+# always user/database "postgres", host port from SUPABASE_DB_PORT
+# (supabase-local/.env, default 54329) -- not "postgres" service/tayari/5433.
 DB_HOST="${DB_HOST:-localhost}"
-DB_PORT="${DB_PORT:-5433}"
-DB_USER="${DB_USER:-tayari}"
-DB_NAME="${DB_NAME:-tayari}"
+DB_PORT="${DB_PORT:-54329}"
+DB_USER="${DB_USER:-postgres}"
+DB_NAME="${DB_NAME:-postgres}"
 
 if [ "${DRY_RUN}" = "true" ]; then
     echo "[restore] DRY-RUN MODE: Verifying script syntax and backup restoration prerequisites."
@@ -47,14 +51,14 @@ if [ "${DRY_RUN}" = "true" ]; then
 
     echo "[restore] Checking database connectivity..."
     if command -v psql >/dev/null 2>&1; then
-        if ! PGPASSWORD="${PGPASSWORD:-tayari_dev}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT 1;" >/dev/null 2>&1; then
+        if ! PGPASSWORD="${PGPASSWORD:?Set PGPASSWORD to the db POSTGRES_PASSWORD (see supabase-local/.env)}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT 1;" >/dev/null 2>&1; then
             echo "[restore] ERROR: Target database is not reachable at ${DB_HOST}:${DB_PORT}." >&2
             exit 1
         fi
     else
         echo "[restore] psql not found locally. Checking connectivity via docker compose exec..."
-        if ! docker compose exec -T postgres psql -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT 1;" >/dev/null 2>&1; then
-            echo "[restore] ERROR: Target database is not reachable via docker compose container postgres." >&2
+        if ! docker compose exec -T db psql -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT 1;" >/dev/null 2>&1; then
+            echo "[restore] ERROR: Target database is not reachable via docker compose service 'db'." >&2
             exit 1
         fi
     fi
@@ -92,10 +96,10 @@ fi
 echo "[restore] CAUTION: Restoring database ${DB_NAME} from ${BACKUP_FILE} in single-transaction mode..."
 
 if command -v psql >/dev/null 2>&1; then
-    PGPASSWORD="${PGPASSWORD:-tayari_dev}" gunzip -c "${BACKUP_FILE}" | psql --single-transaction -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}"
+    PGPASSWORD="${PGPASSWORD:?Set PGPASSWORD to the db POSTGRES_PASSWORD (see supabase-local/.env)}" gunzip -c "${BACKUP_FILE}" | psql --single-transaction -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}"
 else
     echo "[restore] psql not found locally. Importing via docker compose..."
-    gunzip -c "${BACKUP_FILE}" | docker compose exec -T postgres psql --single-transaction -U "${DB_USER}" -d "${DB_NAME}"
+    gunzip -c "${BACKUP_FILE}" | docker compose exec -T db psql --single-transaction -U "${DB_USER}" -d "${DB_NAME}"
 fi
 
 echo "[restore] Database restore completed successfully."

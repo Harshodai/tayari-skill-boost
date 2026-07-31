@@ -29,6 +29,10 @@ DEFAULT_LIMIT = 100  # ESCO API page size max is 100
 SKILLS_CONCEPT_URI = "http://data.europa.eu/esco/concept-scheme/skills"
 
 
+class EscoRequestError(RuntimeError):
+    """Raised when an ESCO API request fails (network error or bad JSON)."""
+
+
 def esco_get(path: str, params: dict) -> dict:
     url = f"{ESCO_BASE}{path}?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
@@ -36,12 +40,18 @@ def esco_get(path: str, params: dict) -> dict:
         with urllib.request.urlopen(req, timeout=15) as resp:
             return json.loads(resp.read())
     except Exception as e:
-        print(f"[ESCO] GET {url} failed: {e}", file=sys.stderr)
-        return {}
+        # Propagate instead of returning {} — a swallowed failure looks
+        # identical to a legitimate empty final page to fetch_skills below,
+        # which would silently truncate the taxonomy instead of aborting.
+        raise EscoRequestError(f"GET {url} failed: {e}") from e
 
 
 def fetch_skills(limit: int = DEFAULT_LIMIT, language: str = "en") -> list[dict]:
-    """Fetch ESCO skills using the /search endpoint."""
+    """Fetch ESCO skills using the /search endpoint.
+
+    Raises EscoRequestError if any page request fails — callers must not
+    treat a partial result as complete.
+    """
     results = []
     offset = 0
     while len(results) < limit:
@@ -49,6 +59,8 @@ def fetch_skills(limit: int = DEFAULT_LIMIT, language: str = "en") -> list[dict]
         data = esco_get("/search", {
             "type": "skill",
             "language": language,
+            "full": "true",
+            "selectedVersion": "v1.2.0",
             "limit": page_size,
             "offset": offset,
         })
@@ -84,6 +96,10 @@ def build_taxonomy_entries(skills: list[dict]) -> dict:
         for lang_block in skill.get("alternativeLabel", {}).values():
             if isinstance(lang_block, list):
                 alt_labels.extend(normalize_label(a) for a in lang_block if a)
+            elif isinstance(lang_block, str) and lang_block:
+                # ESCO collapses a single alt label to a bare string instead
+                # of a one-item list for some skills.
+                alt_labels.append(normalize_label(lang_block))
         # Deduplicate and exclude canonical itself
         alt_labels = sorted(set(a for a in alt_labels if a and a != canonical))[:6]
         entries[canonical] = (alt_labels, [])
@@ -96,14 +112,25 @@ def format_python_entry(canonical: str, synonyms: list, adjacent: list) -> str:
     return f'    {json.dumps(canonical)}: ({syns}, {adj}),'
 
 
+def positive_int(value: str) -> int:
+    ivalue = int(value)
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError(f"--limit must be a positive integer, got {value}")
+    return ivalue
+
+
 def main():
     parser = argparse.ArgumentParser(description="Seed ESCO skills into taxonomy")
     parser.add_argument("--dry-run", action="store_true", help="Print entries without writing files")
-    parser.add_argument("--limit", type=int, default=200, help="Max skills to fetch (default 200)")
+    parser.add_argument("--limit", type=positive_int, default=200, help="Max skills to fetch (default 200)")
     args = parser.parse_args()
 
     print(f"[ESCO Seeder] Fetching up to {args.limit} skills from ESCO API...")
-    skills = fetch_skills(limit=args.limit)
+    try:
+        skills = fetch_skills(limit=args.limit)
+    except EscoRequestError as e:
+        print(f"[ESCO Seeder] ABORT: {e}", file=sys.stderr)
+        sys.exit(1)
     print(f"[ESCO Seeder] Fetched {len(skills)} skills.")
 
     entries = build_taxonomy_entries(skills)
@@ -128,7 +155,7 @@ def main():
         return
 
     out_path = "backend/python/app/services/skill_taxonomy_esco.py"
-    with open(out_path, "w") as f:
+    with open(out_path, "w", encoding="utf-8") as f:
         f.write(output)
     print(f"[ESCO Seeder] Written to {out_path}")
     print("Next: review the file, then merge desired entries into skill_taxonomy.py TAXONOMY dict.")

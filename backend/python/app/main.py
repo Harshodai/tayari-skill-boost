@@ -261,7 +261,7 @@ async def optimize_resume(payload: OptimizerRequest):
         return result
     except LLMNotConfiguredError as exc:
         logger.error("optimizer/optimize: LLM not configured/available: %s", exc)
-        return JSONResponse(status_code=503, content={"error": "llm_not_configured"})
+        return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
     except Exception as exc:
         logger.error("optimizer/optimize failed: %s", exc)
         raise HTTPException(status_code=502, detail="Optimization failed") from exc
@@ -326,7 +326,7 @@ async def optimize_resume_stream(
 
         except LLMNotConfiguredError as e:
             logger.error("Streaming optimization: LLM not configured/available: %s", e)
-            yield f"data: {_json.dumps({'type': 'error', 'error': 'llm_not_configured', 'message': 'LLM not configured'})}\n\n"
+            yield f"data: {_json.dumps({'type': 'error', 'error': 'ai_service_unavailable', 'message': 'LLM not configured'})}\n\n"
         except Exception as e:
             logger.error("Streaming optimization failed: %s", e)
             # ponytail: generic message to client; full detail stays server-side via logger.error above
@@ -666,7 +666,7 @@ async def analyze_text_endpoint(payload: AnalyzeTextRequest):
         return {"result": result}
     except LLMNotConfiguredError as exc:
         logger.error("resumes/analyze-text: LLM not configured/available: %s", exc)
-        return JSONResponse(status_code=503, content={"error": "llm_not_configured"})
+        return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
     except Exception as exc:
         logger.error("resumes/analyze-text failed: %s", exc)
         raise HTTPException(status_code=502, detail="AI analysis failed") from exc

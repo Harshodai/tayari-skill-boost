@@ -3,6 +3,7 @@ package billing
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -100,6 +101,14 @@ func (b *BillingService) GetEntitlement(userID string) *Entitlement {
 			}
 			return &ent
 		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			// A transient DB error (timeout, connection drop, etc.) is not
+			// the same as "no subscription row exists" — log it distinctly
+			// so it isn't confused with a genuinely free/no-subscription
+			// user. Falls through to the in-memory cache below, which may
+			// still hold this user's entitlement from a prior webhook.
+			log.Printf("[billing] GetEntitlement: DB query failed for user %s (falling back to cache/free): %v", userID, err)
+		}
 	}
 
 	// In-memory fallback
@@ -130,7 +139,10 @@ const (
 )
 
 // FEATURE_LIMITS maps feature names to the minimum plan required.
-// "" means available on all plans including free.
+// TierFree (rank 0) as the requirement means the feature is available on
+// ALL plans — free, pro, and enterprise alike — not "free plan only";
+// planRank(anyActivePlan) is never less than planRank(TierFree)==0, so the
+// requireFeature gate always passes for these entries.
 var FEATURE_LIMITS = map[string]string{
 	// Free tier features
 	"resume_optimize":    TierFree,
@@ -157,13 +169,27 @@ var FEATURE_LIMITS = map[string]string{
 
 // planRank returns a numeric rank for comparison.
 func planRank(plan string) int {
-	switch plan {
+	p := strings.ToLower(plan)
+	switch p {
 	case TierFree:
 		return 0
 	case TierPro, TierSelfHosted:
 		return 1
 	case TierEnterprise:
 		return 2
+	}
+	// Stripe webhook events can deliver un-normalized plan identifiers —
+	// raw price IDs, or lookup keys like "pro_monthly"/"enterprise_annual" —
+	// rather than the canonical "pro"/"enterprise" tier names (see
+	// ProcessStripeWebhook, which stores whatever Stripe sends verbatim).
+	// Match by substring the same way ProcessStripeWebhook already does
+	// when computing metered limits, so a paying customer with a variant
+	// plan string isn't silently ranked the same as free (rank 0).
+	if strings.Contains(p, "enterprise") || strings.Contains(p, "team") {
+		return 2
+	}
+	if strings.Contains(p, "pro") {
+		return 1
 	}
 	return 0
 }

@@ -1,25 +1,22 @@
-version: "3.8"
+# Database is the self-hosted Supabase stack in supabase-local/ (db, kong,
+# auth/GoTrue, rest/PostgREST, realtime, storage, meta, studio, supavisor) --
+# not a bare Postgres image. `include:` merges it into this project so one
+# `docker compose --profile dev up` still brings up everything; its services
+# have no `profiles:` of their own, so they're always active regardless of
+# which profile is selected here.
+#
+# POSTGRES_PASSWORD and JWT_SECRET below MUST be identical to the values in
+# supabase-local/.env -- Compose resolves each file's ${VAR} against its own
+# env file, so these are two separate values that only end up equal if you
+# set them to match. GoTrue signs tokens with supabase-local's JWT_SECRET;
+# go-backend verifies them with this file's JWT_SECRET (see
+# internal/auth/supabase.go VerifyToken) -- a mismatch means every login
+# looks like an invalid token, not an obvious "wrong secret" error.
+include:
+  - path: supabase-local/docker-compose.yml
+    env_file: supabase-local/.env
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-tayari}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tayari_dev}
-      POSTGRES_DB: ${POSTGRES_DB:-tayari}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/db:/docker-entrypoint-initdb.d:ro
-    ports:
-      - "5433:5432"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tayari"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    profiles: ["dev", "prod", "eval"]
-
   python-ai:
     build:
       context: ./backend/python
@@ -32,7 +29,7 @@ services:
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgres://${POSTGRES_USER:-tayari}:${POSTGRES_PASSWORD:-tayari_dev}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
+      - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres?sslmode=disable
       - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
       - APIFY_API_TOKEN=${APIFY_API_TOKEN:-}
       - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
@@ -44,13 +41,15 @@ services:
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
     volumes:
       - ./backend/python:/app
     ports:
-      - "8002:8000"
+      - "${PYTHON_AI_PORT:-8002}:8000"
     restart: unless-stopped
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
@@ -63,7 +62,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6380:6379"
+      - "${REDIS_PORT:-6380}:6379"
     restart: unless-stopped
     volumes:
       - redis_data:/data
@@ -80,7 +79,7 @@ services:
       dockerfile: Dockerfile.worker
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgres://${POSTGRES_USER:-tayari}:${POSTGRES_PASSWORD:-tayari_dev}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
+      - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres?sslmode=disable
       - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
       - APIFY_API_TOKEN=${APIFY_API_TOKEN:-}
       - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
@@ -92,12 +91,14 @@ services:
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     depends_on:
       redis:
         condition: service_healthy
-      postgres:
+      db:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -113,17 +114,32 @@ services:
       dockerfile: Dockerfile.worker
     # WARNING: Never expose port 5555 publicly in production.
     # Flower is dev-only — use 'docker compose --profile dev up' to start it.
-    command: ["celery", "-A", "app.celery_app:celery_app", "flower", "--port=5555", "--url-prefix=flower"]
+    # Credentials are checked at container startup (not via Compose ${VAR:?}
+    # interpolation) — that interpolation runs for every service in the file
+    # regardless of active profile, so it would break `--profile prod up`
+    # even though prod never starts this service. Failing inside the
+    # container instead means only starting celery-flower without both vars
+    # set fails closed.
+    command: >
+      sh -c '
+        if [ -z "$$FLOWER_USER" ] || [ -z "$$FLOWER_PASSWORD" ]; then
+          echo "FLOWER_USER and FLOWER_PASSWORD must both be set in .env — refusing to start Flower without dashboard auth." >&2;
+          exit 1;
+        fi;
+        exec celery -A app.celery_app:celery_app flower --port=5555 --url-prefix=flower
+      '
     environment:
       # Disable unauthenticated API — require basic auth credentials.
       # Set FLOWER_USER and FLOWER_PASSWORD in .env (never commit them).
       - FLOWER_UNAUTHENTICATED_API=false
-      - FLOWER_BASIC_AUTH=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-changeme}
+      - FLOWER_USER=${FLOWER_USER:-}
+      - FLOWER_PASSWORD=${FLOWER_PASSWORD:-}
+      - FLOWER_BASIC_AUTH=${FLOWER_USER:-}:${FLOWER_PASSWORD:-}
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgres://${POSTGRES_USER:-tayari}:${POSTGRES_PASSWORD:-tayari_dev}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
+      - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres?sslmode=disable
     ports:
       # Bind to localhost only — do not expose on 0.0.0.0 in production.
-      - "127.0.0.1:5555:5555"
+      - "127.0.0.1:${FLOWER_PORT:-5555}:5555"
     depends_on:
       celery-worker:
         condition: service_started
@@ -132,21 +148,22 @@ services:
     restart: unless-stopped
     profiles: ["dev"]  # dev ONLY — removed 'prod' to prevent accidental exposure
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5555/flower\")' || exit 0"]
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5555/flower\")'"]
       interval: 15s
       timeout: 5s
       retries: 3
-    profiles: ["dev", "prod"]
 
   go-backend:
     build:
       context: ./backend/go
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=postgres://${POSTGRES_USER:-tayari}:${POSTGRES_PASSWORD:-tayari_dev}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
+      - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres?sslmode=disable
       - AI_SERVICE_URL=http://python-ai:8000
-      - USE_SUPABASE=${USE_SUPABASE:-false}
-      - JWT_SECRET=${JWT_SECRET:-tayari-dev-secret-change-me}
+      - USE_SUPABASE=${USE_SUPABASE:-true}
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-token-with-at-least-32-characters-long}
+      - SUPABASE_URL=${SUPABASE_URL:-http://kong:8000}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
       - PORT=8080
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8080,http://localhost:8083}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8083}
@@ -155,10 +172,10 @@ services:
       - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
       - APP_VERSION=${APP_VERSION:-0.1.0}
     ports:
-      - "8085:8080"
+      - "${GO_BACKEND_PORT:-8085}:8080"
     restart: unless-stopped
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
       python-ai:
         condition: service_healthy
@@ -170,10 +187,10 @@ services:
     profiles: ["dev", "prod", "eval"]
 
   ollama:
-    image: ollama/ollama:0.1.39
+    image: ollama/ollama:0.32.5
     container_name: tayari-ollama
     ports:
-      - "11435:11434"
+      - "${OLLAMA_PORT:-11435}:11434"
     volumes:
       - ollama_data:/root/.ollama
     environment:
@@ -199,7 +216,7 @@ services:
         - VITE_SENTRY_DSN=${SENTRY_DSN:-}
         - VITE_SENTRY_ENVIRONMENT=${VITE_SENTRY_ENVIRONMENT:-development}
     ports:
-      - "8083:80"
+      - "${FRONTEND_PORT:-8083}:80"
     restart: unless-stopped
     depends_on:
       - go-backend
@@ -225,7 +242,12 @@ services:
     depends_on:
       - frontend
       - go-backend
-      - celery-flower
+      # celery-flower is dev-only (profiles: ["dev"]) — depending on it here
+      # breaks `--profile prod up`, since Compose rejects a depends_on target
+      # that isn't part of the active profile set. The Caddyfile's
+      # `/flower/*` reverse_proxy route is unaffected: with no depends_on
+      # ordering, Caddy just 502s that path until Flower is up, same as any
+      # other race with a slow-starting upstream.
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "caddy version || exit 0"]
@@ -241,15 +263,19 @@ services:
     command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=info"]
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgres://${POSTGRES_USER:-tayari}:${POSTGRES_PASSWORD:-tayari_dev}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
+      - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres?sslmode=disable
       - LLM_BASE_URL=${LLM_BASE_URL:-}
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     depends_on:
       redis:
         condition: service_healthy
-      postgres:
+      db:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "celery -A app.celery_app status || exit 0"]
@@ -259,7 +285,6 @@ services:
     profiles: ["dev", "prod"]
 
 volumes:
-  postgres_data:
   ollama_data:
   redis_data:
   caddy_data:

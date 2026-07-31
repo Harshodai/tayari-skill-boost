@@ -78,10 +78,12 @@ func (a *SupabaseAuth) VerifyToken(tokenString string) (*models.User, error) {
 	}
 
 	role, _ := claims["role"].(string)
+	email, _ := claims["email"].(string)
 
 	return &models.User{
-		ID:   userID,
-		Role: role,
+		ID:    userID,
+		Role:  role,
+		Email: email,
 	}, nil
 }
 

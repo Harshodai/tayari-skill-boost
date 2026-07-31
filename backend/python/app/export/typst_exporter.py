@@ -211,6 +211,7 @@ def _sanitize_typst(text: str) -> str:
         ("$", "\\$"),
         ("*", "\\*"),
         ("_", "\\_"),
+        ("@", "\\@"),
     ]
     res = str(text)
     for old, new in replacements:

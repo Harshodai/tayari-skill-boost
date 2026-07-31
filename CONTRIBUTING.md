@@ -26,8 +26,11 @@ cd backend/go && go test ./...
 cd ../python && python3 -m pytest tests/
 ```
 
-Note: `--profile eval` (used by CI) only starts `postgres` + `python-ai` + `go-backend` —
-no frontend, no Redis/Celery. Use `--profile dev` for actual local development.
+Note: `--profile eval` (used by CI) starts `python-ai` + `go-backend` — no
+frontend, no Redis/Celery. The self-hosted Supabase stack (`db`, `auth`,
+`kong`, etc. in `supabase-local/`) always comes up regardless of which
+profile you pick, since go-backend/python-ai need a real database either
+way. Use `--profile dev` for actual local development.
 
 ## Pull Request Guidelines
 1. Ensure all tests pass in both Go and Python service directories.

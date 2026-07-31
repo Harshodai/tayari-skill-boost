@@ -26,7 +26,14 @@ func NewClient(baseURL string) *Client {
 	return &Client{
 		BaseURL: baseURL,
 		client: http.Client{
-			Timeout: 120 * time.Second,
+			// 240s: the resume optimizer runs a 2-call reflection loop
+			// (optimize + re-prompt) against whatever LLM is configured —
+			// a free-tier/shared-capacity model can push past 120s total,
+			// which was silently 502ing every optimize call under that
+			// condition (verified live: OpenRouter free-tier google/gemma
+			// completions, 2m0s "context deadline exceeded" in go-backend
+			// logs while python-ai was still working).
+			Timeout: 240 * time.Second,
 		},
 	}
 }

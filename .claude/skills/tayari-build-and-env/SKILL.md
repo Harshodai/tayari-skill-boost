@@ -7,7 +7,7 @@ description: >
   environment, build, or toolchain-version errors ("go version mismatch", "python 3.9 vs 3.11",
   "WeasyPrint won't import", "bun.lockb missing", "docker compose up starts nothing", "which port is
   the API on"). Owns the authoritative host↔container PORT TABLE and the .env / JWT_SECRET setup.
-  Facts verified 2026-07-08.
+  Facts verified 2026-07-31.
 ---
 
 # Tayari Skill Boost — Build & Environment Runbook
@@ -15,7 +15,7 @@ description: >
 Imperative setup guide for a mid-level engineer (or a Sonnet-class agent) recreating this polyglot
 monorepo from a clean checkout and building every service. This skill OWNS toolchain versions, the
 authoritative host↔container port table, and `.env`/`JWT_SECRET` bootstrap. Everything here was
-re-opened and verified against the repo on 2026-07-08.
+re-opened and verified against the repo on 2026-07-31.
 
 ## When NOT to use / use instead
 - Starting, orchestrating, or deploying the running stack (compose up, healthchecks, scaling) → **tayari-run-and-operate** (it cross-references the port table below).
@@ -36,10 +36,10 @@ The project pins these in Dockerfiles and `go.mod`. Match them locally; a newer 
 | **Python** | `3.11` — both `backend/python/Dockerfile` and `Dockerfile.worker`: `python:3.11-slim-bookworm`; CI uses 3.11 | AI engine. A stock macOS `python3` may be 3.9 — that is **too old** for this code; use a real 3.11 (`pyenv`/`brew install python@3.11`) in a per-project venv. |
 | **Node** | `22` — `Dockerfile.frontend`: `node:22-alpine` | Frontend build/tooling. **Node 25.x OOM-crashes the WASM tooling — use Node 22 LTS.** |
 | **Bun** | frontend package manager (`package.json` `test` uses `bun test`; `Dockerfile.frontend` installs via bun) | Primary FE installer/builder; ≥1.3.14 recommended. |
-| **Docker + Compose v2** | `docker compose` (v2 subcommand syntax used throughout) | Full-stack orchestration. |
-| **Postgres** | `16` — compose `postgres:16-alpine` | DB (compose-managed). |
+| **Docker + Compose v2** | `docker compose` (v2 subcommand syntax used throughout); `include:` support (Compose v2.20+) merges `supabase-local/docker-compose.yml` into this project | Full-stack orchestration. |
+| **Database** | Self-hosted Supabase (`supabase/postgres:15.8.1.085` underneath) — `supabase-local/docker-compose.yml`, merged in via root `docker-compose.yml`'s `include:`. **Not** a standalone `postgres` service — that was removed 2026-07-31. | DB + Auth (GoTrue) + PostgREST + Kong + Realtime + Storage + Studio. |
 | **Redis** | `7` — compose `redis:7-alpine` | Celery broker/backend (compose-managed). |
-| Ollama (optional) | `ollama/ollama:0.1.39` (compose) | Local LLM (compose-managed). |
+| Ollama (optional) | `ollama/ollama:0.32.5` (compose) | Local LLM (compose-managed). Ships with zero models — `docker exec tayari-ollama ollama pull <model>` first. The `0.1.39` pin used before 2026-07-31 couldn't load any current model (`done_getting_tensors` GGUF mismatch — its bundled llama.cpp predates modern model formats). |
 | Caddy / nginx | `caddy:2.7.6-alpine` (reverse proxy), `nginx:alpine` (serves FE `dist/`) | compose-managed. |
 
 Verify your local toolchains before building:
@@ -70,9 +70,11 @@ cd backend/go
 CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/server
 # CI variant: go build -o tayari-backend ./cmd/server/main.go
 ```
-`go build ./...` succeeds; **`go test ./...` currently FAILS** (nil-DB panics in the Hermes/social-auth
-suite) — that is a known-red test reality, not a build problem. See **tayari-debugging-playbook** /
-**tayari-validation-and-qa** for the DB-free green subset.
+`go build ./...` succeeds; **`go test ./...` also passes** (fixed 2026-07-31 —
+`tenantMiddleware` now guards nil DB, see `tayari-failure-archaeology` Entry 1). The remaining
+gap is **test coverage**, not correctness: `go test -coverprofile=... ./...` → 14.1% vs the 80%
+CI requires. See **tayari-validation-and-qa** for the coverage detail and the DB-free fast
+subset.
 
 ### Python AI engine — `backend/python/`
 `weasyprint` (PDF export) needs native system libraries. The Dockerfiles install exactly these
@@ -121,19 +123,23 @@ chromium` for Crawl4AI — see Trap (e).
 
 ## 3. AUTHORITATIVE PORT TABLE (host ↔ container)
 
-**Source of truth: `docker-compose.yml`.** Reproduce these exactly. Everything else in the repo's
-docs is suspect (see stale-doc warning below). All 9 services are profile-gated (see Trap (a)).
+**Source of truth: `docker-compose.yml`** (root `services:` + `include:`d `supabase-local/docker-compose.yml`). Reproduce these exactly. Everything else in the repo's
+docs is suspect (see stale-doc warning below). Root services are profile-gated (see Trap (a));
+the included Supabase services have no `profiles:` of their own and are always on.
 
 | Service | **Host port** | Container port | Internal DNS (inside compose) | Notes |
 |---------|---------------|----------------|-------------------------------|-------|
 | frontend | **8083** | 80 | `frontend:80` | nginx serving `dist/` |
 | go-backend | **8085** | 8080 | `go-backend:8080` | API gateway |
 | python-ai | **8002** | 8000 | `python-ai:8000` | FastAPI |
-| postgres | **5433** | 5432 | `postgres:5432` | user/db/pass: `tayari`/`tayari`/`tayari_dev` |
 | redis | **6380** | 6379 | `redis:6379` | host is **6380**, not 6379 |
 | celery-flower | **5555** | 5555 | — | url-prefix `/flower` |
 | ollama | **11435** | 11434 | `ollama:11434` | host is **11435** — see Ollama trap below |
 | caddy | **8090** (`CADDY_HTTP_PORT`), **8443** (`CADDY_HTTPS_PORT`) | 80 / 443 | — | reverse proxy |
+| **Supabase `db`** | `SUPABASE_DB_PORT` in `supabase-local/.env`, default **54329** | 5432 | `db:5432` | user/db always `postgres`/`postgres` — Supabase's fixed convention, no `POSTGRES_USER`/`POSTGRES_DB` vars anymore |
+| **Supabase `kong`** | `KONG_HTTP_PORT` in `supabase-local/.env`, default **8000** | 8000 | `kong:8000` | API gateway for Auth/PostgREST/Storage/Realtime — no bare `/health` route, 401s unauthenticated requests to real routes (that IS the "alive" signal) |
+| **Supabase `studio`** | **3001** | 3000 | `studio:3000` | DB admin UI |
+| **Supabase `supavisor`** (pooler) | `POOLER_PROXY_PORT_TRANSACTION` in `supabase-local/.env`, default **6543** | 6543 | `supavisor:6543` | not used by go-backend/python-ai (they connect to `db` directly) |
 
 Health checks (from the **host**):
 ```bash
@@ -148,41 +154,65 @@ a host process at `http://localhost:11435` falls through to the generic OpenAI-c
 (wrong API path). Inside compose use `http://ollama:11434` (contains `"ollama"`, works). Details in
 **tayari-config-and-flags**.
 
+**Port collisions with unrelated local projects.** Kong (8000), Supabase Postgres (54329), and
+Studio (3001) are common collision points if you're also running a Supabase CLI project
+(`supabase start`, which defaults to 54321/54322/54323) or another Docker Compose stack on the
+same machine. If `up` fails with "port is already allocated", change the colliding
+`*_PORT`/`SUPABASE_DB_PORT`/`KONG_HTTP_PORT` var in `supabase-local/.env` rather than stopping the
+other project — see `lessons.md`'s port-remapping entry for a worked example.
+
 ### STALE-DOC WARNING — do not trust ports from these files
 The port table above is the ONLY correct one. Other docs contradict it and are wrong:
-- **`CLAUDE.md`** says Ollama `11434` — the **host** port is `11435` (11434 is container-internal).
-- **`DEPLOYMENT.md`** uses `localhost:8080` / `:8000` / `:80` — those are **container-internal** ports, not reachable from the host. Real host ports are 8085 / 8002 / 8083.
-- **`lessons.md`** cites frontend host `4175` and Supabase Kong `8008` / Studio `3005` / db `54326` — those services **do not exist** in the current `docker-compose.yml` (older/parallel stack).
-- **`README.md`** mixes `4173`→`8083` and "8090 via Caddy" and is partly corrupted (duplicated blocks). Don't cite it as clean.
+- **`CLAUDE.md`** says Ollama `11434` — the **host** port is `11435` (11434 is container-internal). (Otherwise `CLAUDE.md` was updated 2026-07-31 for the Supabase migration and is trustworthy on the rest.)
+- **`DEPLOYMENT.md`** uses `localhost:8080` / `:8000` / `:80` in a couple of illustrative Railway/Render/Fly snippets — those are **container-internal** ports, not reachable from the host. Real host ports are 8085 / 8002 / 8083. (Updated 2026-07-31 for the Supabase migration otherwise.)
+- **`lessons.md`**'s opening entry cites frontend host `4175` and Supabase Kong `8008` / Studio `3005` / db `54326` — that's a **different, one-off port remap** from a session running Tayari alongside an unrelated "Mukthi Guru" stack, not the shipped defaults. The shipped defaults are the table above (Kong 8000, Studio 3001, db 54329).
 - **`AGENT_SPEC.md`** says frontend dev `5173` — legacy Vite default; current Vite dev port is `8080` (`vite.config.ts`).
 
 ---
 
-## 4. `.env` setup
+## 4. `.env` setup — TWO files now, not one
 
 ```bash
 cp .env.example .env
+cp supabase-local/.env.example supabase-local/.env
 ```
-Then edit `.env`. **`JWT_SECRET` is REQUIRED** — the Go gateway calls `getEnvRequired("JWT_SECRET")`
-and `log.Fatalf`s (process exits) if it is missing or empty. Compose supplies a dev fallback
-(`JWT_SECRET=${JWT_SECRET:-tayari-dev-secret-change-me}`), but a bare local `go run` without it will fatal.
+Root `docker-compose.yml` and `supabase-local/docker-compose.yml` are two separate Compose
+projects merged via `include:` — each resolves its own `${VAR}` references against its own env
+file. **`POSTGRES_PASSWORD` and `JWT_SECRET` in `.env` must be byte-identical to the same-named
+vars in `supabase-local/.env`.** There's no enforcement of this at parse time — a mismatch just
+makes GoTrue-issued JWTs fail Go's verification silently (every login looks like an invalid
+token, not an obviously-wrong-secret error). `.env.example`'s defaults for both already match
+`supabase-local/.env.example`'s defaults, so leaving both untouched (dev only!) keeps them
+aligned automatically.
 
-Secret hygiene (verified 2026-07-08):
-- `.env` currently **exists on disk** (~3.5 KB, with real-looking values) but is **gitignored** (`.gitignore` lists `.env`, `.env.*`, un-ignoring only `.env.example`) and is **not tracked in git**. Only `.env.example` is committed. Still — real keys sitting in a working-tree `.env` should be **rotated** if they were ever anything but placeholders.
-- Heads-up: `.env.example` carries **stale Supabase-era values** (`VITE_SUPABASE_URL=http://localhost:8008`, `DATABASE_URL=...@db:5432`, `SUPABASE_URL=http://kong:8000`, CORS origins `5173/4173/4175`). These reference services that are not in the current compose file. Set the LLM/DB/JWT vars you actually need; ignore the Supabase-Kong scaffolding unless you are running that older stack. See **tayari-config-and-flags** for which vars are live.
+**`JWT_SECRET` is REQUIRED** — the Go gateway calls `getEnvRequired("JWT_SECRET")`
+and `log.Fatalf`s (process exits) if it is missing or empty. Compose's fallback matches
+`supabase-local/.env.example`'s own JWT_SECRET placeholder
+(`your-super-secret-jwt-token-with-at-least-32-characters-long`), but a bare local `go run`
+without it set will fatal.
+
+Secret hygiene:
+- `.env` and `supabase-local/.env` are both **gitignored** (`.gitignore` lists `.env`, `.env.*`) and **not tracked in git**. Only the two `.env.example` files are committed. Real keys sitting in a working-tree `.env` should still be **rotated** if they were ever anything but placeholders.
+- `supabase-local/.env`'s `ENABLE_EMAIL_AUTOCONFIRM` must stay `true` — the minimal Supabase setup has no mail/SMTP service, so with autoconfirm off every signup fails with "Error sending confirmation email" (500). `.env.example` defaults it to `true` for exactly this reason.
+- `.env.example`'s `VITE_SUPABASE_URL`/`SUPABASE_URL`/`SUPABASE_ANON_KEY` are **current and required**, not legacy scaffolding to ignore — Supabase is the default auth/DB backend as of 2026-07-31. See **tayari-config-and-flags** for the full var catalog.
 
 ---
 
 ## 5. Known traps (read before your first build)
 
-**(a) Profile gate — the #1 gotcha.** All 9 compose services declare `profiles: ["dev", "prod"]`.
-A bare `docker compose up -d` starts **ZERO** services. You MUST pass a profile:
+**(a) Profile gate — the #1 gotcha.** Every root compose service declares
+`profiles: ["dev", "prod"]` (or similar). A bare `docker compose up -d` starts **ZERO** of them.
+You MUST pass a profile:
 ```bash
 docker compose --profile dev up -d --build
 # or: COMPOSE_PROFILES=dev docker compose up -d --build
 ```
-Docs that say bare `docker compose up -d` (DEPLOYMENT.md, README, IMPLEMENTATION_SUMMARY.md) are wrong
-for this file. Operational detail lives in **tayari-run-and-operate**.
+The `include:`d Supabase services (`db`, `kong`, `auth`, `rest`, `realtime`, `storage`, `meta`,
+`studio`, `supavisor`) have **no `profiles:` of their own** and always come up regardless of
+which profile you pick — go-backend/python-ai need a real database either way.
+`IMPLEMENTATION_SUMMARY.md` (historical, dated 2026-06-20) says bare `docker compose up -d` — it's
+wrong for this file today, treat it as a snapshot of an earlier state, not current guidance.
+Operational detail lives in **tayari-run-and-operate**.
 
 **(b) Frontend image installs via Bun with npm fallback.** `Dockerfile.frontend` copies
 `package.json` + `bun.lockb`, then runs `npm install -g bun && bun install || npm install` and
@@ -211,7 +241,7 @@ port). `VITE_*` vars are baked at **build** time — pass them as Docker build a
 
 1. **Clone** the repo; `cd` to the root.
 2. **Install/verify toolchains** (only what you'll use locally): Go 1.24+, Python 3.11, Node 22, Bun ≥1.3.14, Docker + Compose v2 (§1).
-3. **`cp .env.example .env`**; set `JWT_SECRET` (required) and any LLM keys you want. Fix the stale Supabase defaults if they get in your way (§4).
+3. **`cp .env.example .env && cp supabase-local/.env.example supabase-local/.env`**; set any LLM keys you want. `JWT_SECRET`/`POSTGRES_PASSWORD` default to matching placeholders in both files already — only change them if you also change both (§4).
 4. **Build each service to catch errors early** (optional but recommended):
    - Go: `cd backend/go && go build ./...`
    - Python: `cd backend/python`, create venv, install system libs (§2) + `pip install -r requirements.txt`, then `python -m py_compile app/**/*.py`.
@@ -224,14 +254,18 @@ port). `VITE_*` vars are baked at **build** time — pass them as Docker build a
 ---
 
 ## Provenance and maintenance
-- **Verified 2026-07-08** (Go build re-confirmed exit 0; `.env` git status re-confirmed 2026-07-09) against:
-  `docker-compose.yml`, `Dockerfile.frontend`, `backend/python/Dockerfile`, `backend/python/Dockerfile.worker`,
-  `backend/go/Dockerfile`, `backend/go/go.mod`, `backend/python/requirements.txt`, `package.json`,
-  `.env.example`, `.gitignore`, `vite.config.ts`, root `CLAUDE.md`, `backend/python/CLAUDE.md`.
+- **Verified 2026-07-31** against: `docker-compose.yml` (incl. `include:` of
+  `supabase-local/docker-compose.yml`), `Dockerfile.frontend`, `backend/python/Dockerfile`,
+  `backend/python/Dockerfile.worker`, `backend/go/Dockerfile`, `backend/go/go.mod`,
+  `backend/python/requirements.txt`, `package.json`, `.env.example`, `supabase-local/.env.example`,
+  `.gitignore`, `vite.config.ts`, root `CLAUDE.md`, `backend/python/CLAUDE.md`. 2026-07-31 session
+  removed the standalone `postgres` service and replaced it with the self-hosted Supabase stack —
+  see `lessons.md`'s "Migrating Off Bare Postgres" entry for the three traps hit doing this.
 - **Re-verify when:** any Dockerfile base image or `go.mod`/`toolchain` version changes; a service's
-  host port changes in `docker-compose.yml`; profiles are added/removed; `requirements.txt` or
-  `package.json` gain/lose a native-dep package (e.g. WeasyPrint, Playwright/Crawl4AI); or `.env`
-  git-tracking status changes. The port table here is authoritative — if it and any other doc
-  disagree, `docker-compose.yml` wins and the other doc is stale.
+  host port changes in `docker-compose.yml` or `supabase-local/docker-compose.yml`; profiles are
+  added/removed; `requirements.txt` or `package.json` gain/lose a native-dep package (e.g.
+  WeasyPrint, Playwright/Crawl4AI); or `.env` git-tracking status changes. The port table here is
+  authoritative — if it and any other doc disagree, `docker-compose.yml` wins and the other doc is
+  stale.
 - No oversell: this skill covers building and environment setup only. It makes no claim that
   `go test`/CI is green (it is not — see the validation/debugging skills).

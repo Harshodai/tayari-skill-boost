@@ -13,22 +13,29 @@ import (
 )
 
 // routesExtensionExtra registers Chrome extension helper endpoints.
+// All handlers read contextKeyUser from the request context, so this must
+// run behind authMiddleware — without it every handler 401s regardless of
+// the caller's credentials, since the user is never populated.
 func (s *Server) routesExtensionExtra(r chi.Router) {
-	r.Post("/api/extension/capture", s.handleExtensionCapture)
-	r.Post("/api/extension/quick-ats", s.handleExtensionQuickATS)
-	r.Get("/api/extension/autofill", s.handleExtensionAutofill)
-	// v1 aliases
-	r.Post("/api/v1/extension/capture", s.handleExtensionCapture)
-	r.Post("/api/v1/extension/quick-ats", s.handleExtensionQuickATS)
-	r.Get("/api/v1/extension/autofill", s.handleExtensionAutofill)
+	r.Group(func(r chi.Router) {
+		r.Use(s.authMiddleware)
 
-	// Stats endpoint — extension dashboard summary
-	r.Get("/api/v1/stats", s.handleDashboardStats)
-	r.Get("/api/stats", s.handleDashboardStats)
+		r.Post("/api/extension/capture", s.handleExtensionCapture)
+		r.Post("/api/extension/quick-ats", s.handleExtensionQuickATS)
+		r.Get("/api/extension/autofill", s.handleExtensionAutofill)
+		// v1 aliases
+		r.Post("/api/v1/extension/capture", s.handleExtensionCapture)
+		r.Post("/api/v1/extension/quick-ats", s.handleExtensionQuickATS)
+		r.Get("/api/v1/extension/autofill", s.handleExtensionAutofill)
 
-	// Autopilot applications — extension "add to pipeline" flow
-	r.Post("/api/v1/autopilot/applications", s.handleCreateApplication)
-	r.Post("/api/autopilot/applications", s.handleCreateApplication)
+		// Stats endpoint — extension dashboard summary
+		r.Get("/api/v1/stats", s.handleDashboardStats)
+		r.Get("/api/stats", s.handleDashboardStats)
+
+		// Autopilot applications — extension "add to pipeline" flow
+		r.Post("/api/v1/autopilot/applications", s.handleCreateApplication)
+		r.Post("/api/autopilot/applications", s.handleCreateApplication)
+	})
 }
 
 // -------------------------------------------------------------------

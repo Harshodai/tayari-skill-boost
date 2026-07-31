@@ -59,19 +59,33 @@ jobs:
       - name: LLM Engine Sanity Check
         run: |
           # Verify LLM is either configured (real provider) or known-unconfigured.
-          # Fails if the code logic has regressed to returning mock data.
+          # Fails if the code logic has regressed to returning fabricated mock data
+          # instead of raising LLMNotConfiguredError.
           python - << 'PYEOF'
+          import asyncio
           import sys
           sys.path.insert(0, 'backend/python')
-          from app.services.llm_service import build_provider, MockProvider
-          p = build_provider()
-          label = p.active_engine_label()
-          if isinstance(p, MockProvider):
-              print(f"WARNING: LLM provider is unconfigured (MockProvider). Set LLM_PROVIDER env in prod.")
-              # In CI with no LLM keys this is expected — just warn, don't fail.
-              # In prod the Docker health-check ensures ACTIVE_ENGINE != 'unconfigured'.
-          else:
-              print(f"OK: LLM provider = {label}")
+          from app.services.llm_service import build_provider, MockProvider, LLMNotConfiguredError
+
+          async def main():
+              p = build_provider()
+              if isinstance(p, MockProvider):
+                  try:
+                      await p.complete("sanity check", "sanity check")
+                  except LLMNotConfiguredError:
+                      print("WARNING: LLM provider is unconfigured (MockProvider). Set LLM_PROVIDER env in prod.")
+                      # In CI with no LLM keys this is expected — just warn, don't fail.
+                      # In prod the Docker health-check ensures ACTIVE_ENGINE != 'unconfigured'.
+                      return
+                  except Exception as exc:
+                      print(f"FAIL: MockProvider.complete() raised {type(exc).__name__} instead of LLMNotConfiguredError: {exc}")
+                      sys.exit(1)
+                  print("FAIL: MockProvider.complete() returned normally instead of raising LLMNotConfiguredError — regression risk of fabricated AI data.")
+                  sys.exit(1)
+              else:
+                  print(f"OK: LLM provider = {p.active_engine_label()}")
+
+          asyncio.run(main())
           PYEOF
 
       - name: PyCompile & Ruff (Python AI & Integrations)
@@ -160,17 +174,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create .env
+      - name: Create .env files
         run: |
+          # Root and supabase-local/ are two separate Compose projects merged
+          # via `include:` — each resolves ${VAR} against its own env file.
+          # POSTGRES_PASSWORD and JWT_SECRET must be identical across both
+          # (see CLAUDE.md) or every login silently looks like an invalid
+          # token instead of an obviously-wrong-secret error.
           cat > .env << 'EOF'
+          COMPOSE_PROFILES=dev
           POSTGRES_PASSWORD=tayari_test_2026
-          JWT_SECRET=test-jwt-secret-for-ci-only-change-me
-          ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICJyb2xlIjogImFub24iLAogICAiaXNzIjogInN1cGFiYXNlLWRlbW8iLAogICAiaWF0IjogMTY0MTc2OTIwMCwKICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE
-          SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICJyb2xlIjogInNlcnZpY2Vfcm9sZSIsCiAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICJpYXQiOiAxNjQxNzY5MjAwLAogICJleHAiOiAxNzk5NTM1NjAwCn0.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q
+          JWT_SECRET=test-jwt-secret-for-ci-only-change-me-32ch
+          USE_SUPABASE=true
+          VITE_USE_SELF_HOSTED=false
+          VITE_SUPABASE_URL=http://localhost:8000
+          VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICJyb2xlIjogImFub24iLAogICAiaXNzIjogInN1cGFiYXNlLWRlbW8iLAogICAiaWF0IjogMTY0MTc2OTIwMCwKICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE
+          SUPABASE_URL=http://kong:8000
+          SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICJyb2xlIjogImFub24iLAogICAiaXNzIjogInN1cGFiYXNlLWRlbW8iLAogICAiaWF0IjogMTY0MTc2OTIwMCwKICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE
+          FLOWER_USER=ci
+          FLOWER_PASSWORD=ci-flower-password
           EOF
 
+          # Base off the real .env.example so every other required var (Kong
+          # ports, mailer paths, pooler config, ...) gets a working default —
+          # only override the secrets that must match root's .env above.
+          cp supabase-local/.env.example supabase-local/.env
+          sed -i \
+            -e 's#^POSTGRES_PASSWORD=.*#POSTGRES_PASSWORD=tayari_test_2026#' \
+            -e 's#^JWT_SECRET=.*#JWT_SECRET=test-jwt-secret-for-ci-only-change-me-32ch#' \
+            supabase-local/.env
+
       - name: Start full stack
-        run: docker compose up -d --wait
+        run: docker compose --profile dev up -d --wait
         timeout-minutes: 10
 
       - name: Health check – Go backend
@@ -183,11 +218,18 @@ jobs:
 
       - name: Health check – Supabase Kong
         run: |
-          curl -sSf --retry 10 --retry-delay 5 http://localhost:8008/health || exit 1
+          # Kong has no bare /health route in this stack's declarative
+          # config — it 401s unauthenticated requests to any real route.
+          # That 401 (not a connection failure) is the "Kong is up and
+          # routing" signal, so don't use `curl -f`, which treats any
+          # non-2xx as failure.
+          curl -sS --retry 10 --retry-delay 5 -o /dev/null -w '%{http_code}\n' http://localhost:8000/ | grep -qE '^(200|401|404)$'
 
       - name: Health check – Supabase Studio
         run: |
-          curl -sSf --retry 10 --retry-delay 5 http://localhost:3005 || exit 1
+          # Studio redirects (307) its root path — same non-2xx-but-alive
+          # situation as Kong above.
+          curl -sS --retry 10 --retry-delay 5 -o /dev/null -w '%{http_code}\n' http://localhost:3001/ | grep -qE '^(200|307)$'
 
       - name: Logs on failure
         if: failure()

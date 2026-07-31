@@ -140,6 +140,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(session);
           setUser(session?.user ?? null);
           setIsLoading(false);
+          // api/index.ts's apiFetch reads the Go-backend auth token from this
+          // exact localStorage key, not from the Supabase client's own
+          // session storage -- without this, every apiFetch call in Supabase
+          // mode goes out with no Authorization header and 401s.
+          if (session?.access_token) {
+            localStorage.setItem('auth_token', session.access_token);
+          } else {
+            localStorage.removeItem('auth_token');
+          }
           syncTokenToExtension(session?.access_token ?? null);
         }
       );
@@ -148,6 +157,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         setIsLoading(false);
+        if (session?.access_token) {
+          localStorage.setItem('auth_token', session.access_token);
+        } else {
+          localStorage.removeItem('auth_token');
+        }
         syncTokenToExtension(session?.access_token ?? null);
       });
 

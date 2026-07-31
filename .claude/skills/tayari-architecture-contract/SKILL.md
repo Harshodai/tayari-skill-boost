@@ -7,7 +7,7 @@ description: >-
   which layer new code belongs in, or when you need to understand why the system is shaped
   this way. Owns the request-flow map, the invariants (service separation, route parity,
   the never-crash LLM abstraction, the guardrails gate, dual auth, the reflexion loop), and
-  the honest weak-points list. Facts verified 2026-07-08.
+  the honest weak-points list. Facts verified 2026-07-31.
 ---
 
 # Tayari Architecture Contract
@@ -43,12 +43,18 @@ Four first-class services plus async infra:
   Python AI engine (FastAPI)  backend/python/  — LLM, NLP, ATS, Hermes scraping
         │  enqueue heavy work
         ▼
-  Redis  ──►  Celery worker  ──►  Postgres        (Flower observes the queue)
+  Redis  ──►  Celery worker  ──►  Postgres (Supabase)  (Flower observes the queue)
   Ollama (optional local LLM)  ◄── engine + worker call the LLM provider layer
+
+  Self-hosted Supabase (supabase-local/, include:d into the same compose project):
+  Kong (gateway) ──► Auth (GoTrue) / PostgREST / Realtime / Storage ──► db (Postgres)
+  Frontend calls Auth directly via the Supabase JS client for register/login
+  (bypasses the Go gateway) when USE_SUPABASE=true/VITE_USE_SELF_HOSTED=false (default)
 ```
 
 Host ports (see `tayari-build-and-env` for the full table): frontend `8083`, Go `8085`,
-Python `8002`, Postgres `5433`, Redis `6380`, Flower `5555`, Ollama `11435`.
+Python `8002`, Redis `6380`, Flower `5555`, Ollama `11435`, Supabase Kong `8000`, Supabase
+Studio `3001`, Supabase Postgres `54329`.
 
 **Why a Go gateway in front of a Python brain?** The gateway owns latency-sensitive,
 security-sensitive concerns (JWT auth, CORS allowlist, rate limiting, tenant resolution,
@@ -64,7 +70,11 @@ Each: the rule, why, how it's enforced, what breaks if violated.
 
 ### 2.1 Service separation
 - **Rule.** Go = routing/auth/CRUD/DB only. Python = ALL AI/NLP/scraping/Celery. Frontend
-  calls the Go gateway only — never the Python engine directly.
+  calls the Go gateway only for everything business-logic/AI — never the Python engine
+  directly. **Exception (deliberate, not a violation):** when `USE_SUPABASE=true` (default),
+  the frontend calls Supabase Auth (`supabase.auth.*`, via Kong) directly for
+  register/login/session — Go never issues tokens in this mode, it only verifies them
+  (`internal/auth/supabase.go`). Every other call still goes through Go.
 - **Why.** Keeps AI deps out of the auth path; single audited front door; independent scaling.
 - **Enforced by.** `.agents/AGENTS.md` (review discipline — not compiler-enforced).
 - **Breaks if violated.** LLM logic in Go bloats the gateway and couples auth to AI failures;
@@ -99,9 +109,13 @@ Each: the rule, why, how it's enforced, what breaks if violated.
 
 ### 2.5 Dual auth must stay consistent
 - **Rule.** Go `USE_SUPABASE` and frontend `VITE_USE_SELF_HOSTED` select the same auth world
-  (self-hosted JWT vs Supabase). `JWT_SECRET` is required (Go fatals without it).
+  (self-hosted JWT vs Supabase — Supabase is the default as of 2026-07-31). `JWT_SECRET` is
+  required either way (Go fatals without it), and in Supabase mode it must also exactly match
+  `supabase-local/.env`'s `JWT_SECRET` (GoTrue signs with that one, Go verifies with this one —
+  two separate env files, two separate values unless set to match by hand).
 - **Why.** The platform is self-hostable; the two halves must agree or login breaks.
-- **Breaks if violated.** Tokens issued by one side are rejected by the other. Config:
+- **Breaks if violated.** Tokens issued by one side are rejected by the other, or (JWT_SECRET
+  mismatch case) every login silently looks like an invalid token with no obvious cause. Config:
   `tayari-config-and-flags`.
 
 ### 2.6 The reflexion loop is the flagship mechanism
@@ -125,10 +139,10 @@ The honest section. None of these are secret; all are load-bearing risks.
 | **W1** | `llm_complete` swallows all errors → mock text | A broken LLM path looks healthy; results can be fiction | `tayari-quality-signal-campaign`, detect via `tayari-diagnostics-and-tooling` |
 | **W2** | Quality gate = structural heuristic ATS (~7/10, gameable by grammar-word overlap) + TF-IDF (no synonyms) | "ATS score 85" is not a real Greenhouse/Workday score | `resume-ats-llm-reference` |
 | **W3** | Truthfulness guardrail skipped when `original_text` absent | Fabrication can pass through the standalone guardrails endpoint | §2.4 |
-| **W4** | `tenantMiddleware` couples EVERY route to a DB query (`s.DB.Conn`) | Any DB-less server (e.g. tests with `Conn: nil`) panics; source of the 16 red Go tests | `tayari-failure-archaeology` |
+| **W4 (RESOLVED 2026-07-31)** | ~~`tenantMiddleware` couples EVERY route to a DB query (`s.DB.Conn`)~~ — now guards `s.DB == nil \|\| s.DB.Conn == nil` before querying | Was: any DB-less server (e.g. tests with `Conn: nil`) panicked, source of 16 red Go tests. Now: `go test ./...` passes clean; remaining Go gap is test **coverage** (14%), not correctness | `tayari-failure-archaeology`, `tayari-validation-and-qa` |
 | **W5** | `tier` param ("fast"/"smart") is a near no-op — both resolve to the same provider | Callers that expect a cheaper/faster tier don't get one | `tayari-config-and-flags` |
-| **W6** | Docs drift from reality (ports, `docker compose` profiles, corrupted README) | Newcomers curl wrong ports / start zero services | `tayari-build-and-env`, `tayari-docs-and-writing` |
-| **W7** | CI is partly aspirational (references nonexistent Supabase services; profile-less compose) | "CI exists" ≠ "CI green" | `tayari-validation-and-qa` |
+| **W6** | Docs drift from reality (ports, `docker compose` profiles) — the 2026-07-31 Supabase migration touched almost every port/command in the repo at once, docs updated same-day but re-verify before trusting an untouched corner | Newcomers curl wrong ports / start zero services | `tayari-build-and-env`, `tayari-docs-and-writing` |
+| **W7 (RESOLVED 2026-07-31)** | ~~CI is partly aspirational (references nonexistent Supabase services; profile-less compose)~~ — CI's `docker-compose` job now passes `--profile dev`, creates a real `supabase-local/.env`, and health-checks Kong/Studio at their actual ports with response codes that account for Kong having no bare `/health` route | Was: "CI exists" ≠ "CI green". Now: the docker-compose job's assumptions match the real stack — still verify actual GitHub Actions runs, "config looks right" isn't "confirmed green" | `tayari-validation-and-qa`, `tayari-failure-archaeology` Entry 2 |
 
 ---
 
@@ -159,7 +173,7 @@ The honest section. None of these are secret; all are load-bearing risks.
 
 ## Provenance and maintenance
 
-Facts verified against the repo on **2026-07-08**. Re-verify:
+Facts verified against the repo on **2026-07-31**. Re-verify:
 
 ```bash
 grep -n 'Service Separation\|never call the Python\|ALWAYS be used for AI' .agents/AGENTS.md

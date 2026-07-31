@@ -25,7 +25,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - 3001:3000
+      - ${SUPABASE_STUDIO_PORT:-3001}:3000
     environment:
       HOSTNAME: "::"
       STUDIO_PG_META_URL: http://meta:8080
@@ -244,8 +244,33 @@ services:
       - ./volumes/db/_supabase.sql:/docker-entrypoint-initdb.d/migrations/97-_supabase.sql:Z
       - ./volumes/db/logs.sql:/docker-entrypoint-initdb.d/migrations/99-logs.sql:Z
       - ./volumes/db/pooler.sql:/docker-entrypoint-initdb.d/migrations/99-pooler.sql:Z
-      # Custom init for Tayari tables
-      - ./volumes/db/init:/docker-entrypoint-initdb.d/init-scripts/tayari:Z
+      # Custom Tayari schema. migrate.sh globs migrations/*.sql non-recursively
+      # (see /docker-entrypoint-initdb.d/migrate.sh in the image) -- a
+      # subdirectory mount here is silently invisible to it, so each file is
+      # mounted individually, same as the realtime/webhooks/roles/jwt lines
+      # above. "zz-" makes these sort after every baked-in migration
+      # (dbmate-style timestamp prefixes, e.g. 20250417190610_*) so
+      # auth.users/storage schemas and the anon/authenticated/service_role
+      # roles already exist before our tables' FKs and grants run.
+      - ./volumes/db/init/00-init-schema.sql:/docker-entrypoint-initdb.d/migrations/zz-00-init-schema.sql:Z
+      - ./volumes/db/init/01-mvp-additions.sql:/docker-entrypoint-initdb.d/migrations/zz-01-mvp-additions.sql:Z
+      - ./volumes/db/init/02-20250120_week3_4_review_queue.sql:/docker-entrypoint-initdb.d/migrations/zz-02-20250120_week3_4_review_queue.sql:Z
+      - ./volumes/db/init/03-20260620_hermes_agents.sql:/docker-entrypoint-initdb.d/migrations/zz-03-20260620_hermes_agents.sql:Z
+      - ./volumes/db/init/04-20260625_archive_integration.sql:/docker-entrypoint-initdb.d/migrations/zz-04-20260625_archive_integration.sql:Z
+      - ./volumes/db/init/05-20260625_career_intelligence.sql:/docker-entrypoint-initdb.d/migrations/zz-05-20260625_career_intelligence.sql:Z
+      - ./volumes/db/init/06-20260625_voice_interview.sql:/docker-entrypoint-initdb.d/migrations/zz-06-20260625_voice_interview.sql:Z
+      - ./volumes/db/init/07-20260626_api_keys.sql:/docker-entrypoint-initdb.d/migrations/zz-07-20260626_api_keys.sql:Z
+      - ./volumes/db/init/08-20260626_multi_tenant.sql:/docker-entrypoint-initdb.d/migrations/zz-08-20260626_multi_tenant.sql:Z
+      - ./volumes/db/init/09-20260626_password_reset.sql:/docker-entrypoint-initdb.d/migrations/zz-09-20260626_password_reset.sql:Z
+      - ./volumes/db/init/10-20260626_predictive_analytics.sql:/docker-entrypoint-initdb.d/migrations/zz-10-20260626_predictive_analytics.sql:Z
+      - ./volumes/db/init/11-20260627_agent_space_integration.sql:/docker-entrypoint-initdb.d/migrations/zz-11-20260627_agent_space_integration.sql:Z
+      - ./volumes/db/init/12-20260628_agentspace_events_and_tasks.sql:/docker-entrypoint-initdb.d/migrations/zz-12-20260628_agentspace_events_and_tasks.sql:Z
+      - ./volumes/db/init/13-20260629_full_career_ops_command_center.sql:/docker-entrypoint-initdb.d/migrations/zz-13-20260629_full_career_ops_command_center.sql:Z
+      - ./volumes/db/init/14-20260630_communications_response_tracking.sql:/docker-entrypoint-initdb.d/migrations/zz-14-20260630_communications_response_tracking.sql:Z
+      - ./volumes/db/init/15-20260701_add_resume_graph_table.sql:/docker-entrypoint-initdb.d/migrations/zz-15-20260701_add_resume_graph_table.sql:Z
+      - ./volumes/db/init/16-20260731_social_privacy_preferences.sql:/docker-entrypoint-initdb.d/migrations/zz-16-20260731_social_privacy_preferences.sql:Z
+      - ./volumes/db/init/17-seed-tenants.sql:/docker-entrypoint-initdb.d/migrations/zz-17-seed-tenants.sql:Z
+      - ./volumes/db/init/18-20260731_self_hosted_rls_hardening.sql:/docker-entrypoint-initdb.d/migrations/zz-18-20260731_self_hosted_rls_hardening.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:
@@ -261,7 +286,7 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - 54322:5432
+      - ${SUPABASE_DB_PORT:-54329}:5432
     environment:
       POSTGRES_HOST: /var/run/postgresql
       PGPORT: ${POSTGRES_PORT}

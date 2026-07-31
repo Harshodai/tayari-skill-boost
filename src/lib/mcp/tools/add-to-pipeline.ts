@@ -18,12 +18,22 @@ export default defineTool({
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ title, company, url, location, description, stage }, ctx: ToolContext) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    const resp = await fetch(`${API()}/api/v1/extension/capture`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
-      body: JSON.stringify({ title, company, url, location, description, stage, add_to_board: true }),
-    });
-    const data = await resp.json();
+    let resp: Response;
+    try {
+      resp = await fetch(`${API()}/api/v1/extension/capture`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
+        body: JSON.stringify({ title, company, url, location, description, stage, add_to_board: true }),
+      });
+    } catch (err) {
+      return { content: [{ type: "text", text: `Network error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+    let data;
+    try {
+      data = await resp.json();
+    } catch (err) {
+      return { content: [{ type: "text", text: `Invalid response from server: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
     if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
     return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
   },

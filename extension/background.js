@@ -12,7 +12,7 @@ const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 async function getConfig() {
   return new Promise((resolve) => {
     chrome.storage.sync.get([STORAGE_KEY], (result) => {
-      resolve(result[STORAGE_KEY] || { apiUrl: 'http://localhost:8080/api', token: null });
+      resolve(result[STORAGE_KEY] || { apiUrl: 'http://localhost:8085/api', token: null });
     });
   });
 }
@@ -273,7 +273,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
       case 'open_tayari': {
         const config = await getConfig();
-        const url = `http://localhost:5173${request.path || ''}`;
+        const url = `http://localhost:8083${request.path || ''}`;
         chrome.tabs.create({ url });
         sendResponse({ success: true });
         break;
@@ -355,7 +355,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
     console.log('Tayari Extension installed');
     // Open onboarding page
-    chrome.tabs.create({ url: 'http://localhost:5173/extension-onboarding' });
+    chrome.tabs.create({ url: 'http://localhost:8083/extension-onboarding' });
   } else if (details.reason === 'update') {
     console.log('Tayari Extension updated from', details.previousVersion, 'to 2.0.0');
     // Invalidate caches on update

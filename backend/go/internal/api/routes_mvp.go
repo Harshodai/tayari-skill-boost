@@ -311,6 +311,9 @@ func (s *Server) handleAutopilotStart(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusUnauthorized, "User not found in context")
 		return
 	}
+	if !s.requireFeature(w, r, "autopilot") {
+		return
+	}
 	// Check for concurrent active runs
 	var activeCount int
 	if err := s.DB.Conn.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM autopilot_runs WHERE user_id=$1 AND status IN ('queued', 'running')", user.ID).Scan(&activeCount); err == nil && activeCount > 0 {
@@ -923,6 +926,9 @@ func (s *Server) handleDeepATS(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(contextKeyUser).(*models.User)
 	if !ok || user == nil {
 		s.respondError(w, http.StatusUnauthorized, "User not found in context")
+		return
+	}
+	if !s.requireFeature(w, r, "deep_ats") {
 		return
 	}
 	idStr := chi.URLParam(r, "id")
@@ -1711,6 +1717,9 @@ func (s *Server) handleLinkedInAnalyze(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusUnauthorized, "User not found in context")
 		return
 	}
+	if !s.requireFeature(w, r, "linkedin_analyze") {
+		return
+	}
 
 	var req struct {
 		ProfileText string `json:"profile_text"`
@@ -1824,6 +1833,9 @@ func (s *Server) handleATSDetect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTruthCheck(w http.ResponseWriter, r *http.Request) {
+	if !s.requireFeature(w, r, "truth_check") {
+		return
+	}
 	var body map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
@@ -1837,6 +1849,9 @@ func (s *Server) handleTruthCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRecruiterLookup(w http.ResponseWriter, r *http.Request) {
+	if !s.requireFeature(w, r, "recruiter_lookup") {
+		return
+	}
 	var body map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
@@ -1850,6 +1865,9 @@ func (s *Server) handleRecruiterLookup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleOfferCalculate(w http.ResponseWriter, r *http.Request) {
+	if !s.requireFeature(w, r, "offer_calculate") {
+		return
+	}
 	var body map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
@@ -1863,6 +1881,9 @@ func (s *Server) handleOfferCalculate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInterviewCopilot(w http.ResponseWriter, r *http.Request) {
+	if !s.requireFeature(w, r, "interview_copilot") {
+		return
+	}
 	var body map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
@@ -1880,6 +1901,9 @@ func (s *Server) handleAnalyticsPerformance(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) handleAgentReachDoctor(w http.ResponseWriter, r *http.Request) {
+	if !s.requireFeature(w, r, "agent_reach") {
+		return
+	}
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
 		"total_channels": 15,
 		"active_channels": 15,
@@ -1894,12 +1918,18 @@ func (s *Server) handleAgentReachDoctor(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleAgentReachCookies(w http.ResponseWriter, r *http.Request) {
+	if !s.requireFeature(w, r, "agent_reach") {
+		return
+	}
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
 		"browsers": map[string]bool{"chrome": true, "firefox": true},
 	})
 }
 
 func (s *Server) handleAgentReachExtract(w http.ResponseWriter, r *http.Request) {
+	if !s.requireFeature(w, r, "agent_reach") {
+		return
+	}
 	var body map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
@@ -1932,11 +1962,7 @@ func (s *Server) handleAddApplicationNote(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleParseApplicationEmail(w http.ResponseWriter, r *http.Request) {
-	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"company":   "Tech Corp",
-		"job_title": "Senior Software Engineer",
-		"stage":     "Interview",
-	})
+	s.respondError(w, http.StatusNotImplemented, "Application email parsing is not implemented")
 }
 
 // -------------------------------------------------------------------
@@ -2026,8 +2052,14 @@ func (s *Server) routesMVP(r chi.Router) {
 		r.Post("/api/candidate-answer-bank/match", s.handleCandidateBankMatch)
 
 		// ---- ATS Detect / Truth Check / Recruiter Lookup / Offer ----------
-		// (these duplicate what RegisterOneStopRoutes already wires but Go
-		//  routes are deduplicated by chi — the first match wins, so no harm)
+		// These are the sole registration for these five method+patterns —
+		// RegisterOneStopRoutes (routes_one_stop.go) used to also register
+		// them via the generic handleOneStopProxy, but chi does NOT dedupe
+		// duplicate patterns; it silently makes the LAST registration win
+		// (registrations here run after RegisterOneStopRoutes in s.routes()),
+		// which was quietly shadowing the billing-gated handlers below with
+		// an unbilled proxy pass-through. The duplicate registrations were
+		// removed from routes_one_stop.go to make these the single owner.
 		r.Post("/api/v1/ats/detect", s.handleATSDetect)
 		r.Post("/api/ats/detect", s.handleATSDetect)
 		r.Post("/api/v1/guardrails/truth-check", s.handleTruthCheck)

@@ -5,7 +5,14 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  // supabase/functions/**: Deno edge functions, a different runtime/style
+  // than the browser src/ tree this config targets. supabase/functions/mcp/
+  // index.ts specifically is also a generated bundle ("Bundled from
+  // src/lib/mcp/index.ts by @lovable.dev/mcp-js" — see its header comment)
+  // with no local regeneration script in this repo; lint it as source and
+  // it fails wholesale on bundler-output patterns (var, etc.) that aren't
+  // real issues in the hand-written src/ code this config exists to check.
+  { ignores: ["dist", "supabase/functions/**"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

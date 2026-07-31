@@ -3,11 +3,11 @@
 // supabase function: mcp
 // Bundled from src/lib/mcp/index.ts by @lovable.dev/mcp-js.
 // src/lib/mcp/index.ts
-import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.1";
 
 // src/lib/mcp/tools/get-profile.ts
 import { createClient } from "npm:@supabase/supabase-js@^2.90.1";
-import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.1";
 function sb(ctx) {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
     global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
@@ -35,7 +35,7 @@ var get_profile_default = defineTool({
 
 // src/lib/mcp/tools/search-jobs.ts
 import { createClient as createClient2 } from "npm:@supabase/supabase-js@^2.90.1";
-import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z } from "npm:zod@^4.4.3";
 function sb2(ctx) {
   return createClient2(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
@@ -68,7 +68,7 @@ var search_jobs_default = defineTool2({
 
 // src/lib/mcp/tools/list-applications.ts
 import { createClient as createClient3 } from "npm:@supabase/supabase-js@^2.90.1";
-import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z2 } from "npm:zod@^4.4.3";
 function sb3(ctx) {
   return createClient3(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
@@ -102,7 +102,7 @@ var list_applications_default = defineTool3({
 
 // src/lib/mcp/tools/save-job.ts
 import { createClient as createClient4 } from "npm:@supabase/supabase-js@^2.90.1";
-import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z3 } from "npm:zod@^4.4.3";
 function sb4(ctx) {
   return createClient4(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
@@ -144,20 +144,361 @@ var save_job_default = defineTool4({
   }
 });
 
+// src/lib/mcp/tools/optimize-resume.ts
+import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z4 } from "npm:zod@^4.4.3";
+var API = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+var optimize_resume_default = defineTool5({
+  name: "optimize_resume",
+  title: "Optimize resume",
+  description: "Tailor the user's resume to a specific job description using AI. Returns the optimized resume text and a list of changes made.",
+  inputSchema: {
+    resume_id: z4.number().int().describe("ID of the resume to optimize"),
+    job_description: z4.string().min(20).describe("The target job description text")
+  },
+  annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
+  handler: async ({ resume_id, job_description }, ctx) => {
+    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    const OPTIMIZE_TIMEOUT_MS = 6e4;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), OPTIMIZE_TIMEOUT_MS);
+    let resp;
+    try {
+      resp = await fetch(`${API()}/api/v1/resumes/${resume_id}/optimize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
+        body: JSON.stringify({ job_description }),
+        signal: controller.signal
+      });
+    } catch (err) {
+      const isTimeout = err instanceof Error && err.name === "AbortError";
+      return {
+        content: [{ type: "text", text: isTimeout ? "Request timed out" : `Network error: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true
+      };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    let data;
+    try {
+      data = await resp.json();
+    } catch (err) {
+      return { content: [{ type: "text", text: `Invalid response from server: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
+    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+  }
+});
+
+// src/lib/mcp/tools/get-ats-score.ts
+import { defineTool as defineTool6 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z5 } from "npm:zod@^4.4.3";
+var API2 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+var get_ats_score_default = defineTool6({
+  name: "get_ats_score",
+  title: "Get ATS score",
+  description: "Score a resume against a job description. Returns overall_score, match_score, missing_skills, and recommendations.",
+  inputSchema: {
+    resume_text: z5.string().min(10).describe("Resume text to analyze"),
+    job_description: z5.string().min(20).describe("Job description to score against")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ resume_text, job_description }, ctx) => {
+    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    const resp = await fetch(`${API2()}/api/v1/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
+      body: JSON.stringify({ resume_text, job_description })
+    });
+    const data = await resp.json();
+    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
+    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+  }
+});
+
+// src/lib/mcp/tools/generate-cover-letter.ts
+import { defineTool as defineTool7 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z6 } from "npm:zod@^4.4.3";
+var API3 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+var generate_cover_letter_default = defineTool7({
+  name: "generate_cover_letter",
+  title: "Generate cover letter",
+  description: "Generate a tailored cover letter for a job application based on the user's resume.",
+  inputSchema: {
+    resume_id: z6.number().int().describe("Resume ID to base the cover letter on"),
+    job_description: z6.string().min(20).describe("Target job description"),
+    company_name: z6.string().optional().describe("Company name for personalization"),
+    tone: z6.enum(["professional", "friendly", "confident"]).optional()
+  },
+  annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
+  handler: async ({ resume_id, job_description, company_name, tone }, ctx) => {
+    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    let resp;
+    try {
+      resp = await fetch(`${API3()}/api/v1/cover-letter/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
+        body: JSON.stringify({ resume_id, job_description, company_name, tone })
+      });
+    } catch (err) {
+      return { content: [{ type: "text", text: `Network error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+    let data;
+    try {
+      data = await resp.json();
+    } catch (err) {
+      return { content: [{ type: "text", text: `Invalid response from server: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
+    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+  }
+});
+
+// src/lib/mcp/tools/get-pipeline.ts
+import { createClient as createClient5 } from "npm:@supabase/supabase-js@^2.90.1";
+import { defineTool as defineTool8 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z7 } from "npm:zod@^4.4.3";
+function sb5(ctx) {
+  return createClient5(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
+    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+}
+var get_pipeline_default = defineTool8({
+  name: "get_pipeline",
+  title: "Get application pipeline",
+  description: "List all job applications in the user's pipeline, optionally filtered by stage.",
+  inputSchema: {
+    stage: z7.enum(["saved", "applied", "screening", "interview", "offer", "rejected", "accepted"]).optional(),
+    limit: z7.number().int().min(1).max(100).optional()
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ stage, limit }, ctx) => {
+    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_PUBLISHABLE_KEY) {
+      return { content: [{ type: "text", text: "Server misconfigured: SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY not set" }], isError: true };
+    }
+    let q = sb5(ctx).from("applications").select("application_id,title,company,stage,status,created_at,updated_at").order("updated_at", { ascending: false }).limit(limit ?? 50);
+    if (stage) q = q.eq("stage", stage);
+    const { data, error } = await q;
+    if (error) return { content: [{ type: "text", text: error.message }], isError: true };
+    return { content: [{ type: "text", text: JSON.stringify(data ?? []) }], structuredContent: { applications: data ?? [] } };
+  }
+});
+
+// src/lib/mcp/tools/add-to-pipeline.ts
+import { defineTool as defineTool9 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z8 } from "npm:zod@^4.4.3";
+var API4 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+var add_to_pipeline_default = defineTool9({
+  name: "add_to_pipeline",
+  title: "Add job to pipeline",
+  description: "Add a job to the user's application pipeline (kanban board).",
+  inputSchema: {
+    title: z8.string().describe("Job title"),
+    company: z8.string().describe("Company name"),
+    url: z8.string().url().optional().describe("Job listing URL"),
+    location: z8.string().optional(),
+    description: z8.string().optional().describe("Job description text"),
+    stage: z8.enum(["saved", "applied", "screening"]).optional().default("saved")
+  },
+  annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
+  handler: async ({ title, company, url, location, description, stage }, ctx) => {
+    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    let resp;
+    try {
+      resp = await fetch(`${API4()}/api/v1/extension/capture`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
+        body: JSON.stringify({ title, company, url, location, description, stage, add_to_board: true })
+      });
+    } catch (err) {
+      return { content: [{ type: "text", text: `Network error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+    let data;
+    try {
+      data = await resp.json();
+    } catch (err) {
+      return { content: [{ type: "text", text: `Invalid response from server: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
+    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+  }
+});
+
+// src/lib/mcp/tools/get-interview-questions.ts
+import { defineTool as defineTool10 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z9 } from "npm:zod@^4.4.3";
+var API5 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+var get_interview_questions_default = defineTool10({
+  name: "get_interview_questions",
+  title: "Get interview questions",
+  description: "Generate likely interview questions for a role and company, with guidance on how to answer each one.",
+  inputSchema: {
+    resume_id: z9.number().int().describe("Resume ID to tailor questions to"),
+    job_description: z9.string().min(20).describe("Target job description"),
+    company: z9.string().optional().describe("Company name for company-specific questions")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ resume_id, job_description, company }, ctx) => {
+    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    const resp = await fetch(`${API5()}/api/v1/interview/prep`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
+      body: JSON.stringify({ resume_id, job_description, company })
+    });
+    const data = await resp.json();
+    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
+    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+  }
+});
+
+// src/lib/mcp/tools/get-skill-gaps.ts
+import { defineTool as defineTool11 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z10 } from "npm:zod@^4.4.3";
+var API6 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+var get_skill_gaps_default = defineTool11({
+  name: "get_skill_gaps",
+  title: "Get skill gaps",
+  description: "Analyze skill gaps between the user's resume and a target role or job description. Returns matched skills, missing skills, and a learning path.",
+  inputSchema: {
+    resume_id: z10.number().int().optional().describe("Resume ID (uses latest if omitted)"),
+    job_description_text: z10.string().optional().describe("Job description text"),
+    target_role: z10.string().optional().describe("Target role e.g. 'Staff Engineer'")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async (args, ctx) => {
+    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    const resp = await fetch(`${API6()}/api/v1/career-intelligence/skills-gap`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
+      body: JSON.stringify(args)
+    });
+    const data = await resp.json();
+    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
+    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+  }
+});
+
+// src/lib/mcp/tools/get-market-salary.ts
+import { defineTool as defineTool12 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z11 } from "npm:zod@^4.4.3";
+var API7 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+var get_market_salary_default = defineTool12({
+  name: "get_market_salary",
+  title: "Get market salary",
+  description: "Get salary benchmarks for a role in a given location. Returns p25, median, p75, and total compensation breakdown.",
+  inputSchema: {
+    target_role: z11.string().describe("Job title/role e.g. 'Senior Software Engineer'"),
+    location: z11.string().optional().default("US").describe("Location e.g. 'San Francisco, CA' or country code")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
+  handler: async ({ target_role, location }, ctx) => {
+    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    const resp = await fetch(`${API7()}/api/v1/career-intelligence/salary-benchmark`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
+      body: JSON.stringify({ target_role, location })
+    });
+    const data = await resp.json();
+    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
+    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+  }
+});
+
+// src/lib/mcp/tools/check-company.ts
+import { defineTool as defineTool13 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z12 } from "npm:zod@^4.4.3";
+var API8 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+var check_company_default = defineTool13({
+  name: "check_company",
+  title: "Check company",
+  description: "Look up company information including culture signals, review patterns, ATS used, and known hiring contacts.",
+  inputSchema: {
+    company_name: z12.string().describe("Company name to look up"),
+    job_url: z12.string().url().optional().describe("Optional job posting URL for more context")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
+  handler: async ({ company_name, job_url }, ctx) => {
+    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    const resp = await fetch(`${API8()}/api/v1/agent-reach/doctor`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
+      body: JSON.stringify({ company: company_name, url: job_url })
+    });
+    const data = await resp.json();
+    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
+    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+  }
+});
+
+// src/lib/mcp/tools/report-outcome.ts
+import { defineTool as defineTool14 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z13 } from "npm:zod@^4.4.3";
+var API9 = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+var report_outcome_default = defineTool14({
+  name: "report_outcome",
+  title: "Report application outcome",
+  description: "Record the real-world outcome of a job application (recruiter replied, got interview, received offer, etc.). Used to improve autopilot accuracy.",
+  inputSchema: {
+    application_id: z13.string().uuid().describe("Application UUID"),
+    recruiter_reply: z13.boolean().optional(),
+    phone_screen: z13.boolean().optional(),
+    technical_interview: z13.boolean().optional(),
+    final_interview: z13.boolean().optional(),
+    offer_received: z13.boolean().optional(),
+    offer_accepted: z13.boolean().optional(),
+    salary_offered: z13.number().optional().describe("Offered salary in USD"),
+    notes: z13.string().optional()
+  },
+  annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false },
+  handler: async ({ application_id, ...rest }, ctx) => {
+    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    const resp = await fetch(`${API9()}/api/v1/applications/${application_id}/outcome`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.getToken()}` },
+      body: JSON.stringify(rest)
+    });
+    const data = await resp.json();
+    if (!resp.ok) return { content: [{ type: "text", text: data.error ?? "Failed" }], isError: true };
+    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+  }
+});
+
 // src/lib/mcp/index.ts
-var projectRef = "snvhgwconuidoymwdeae";
+var projectRef = "";
 var mcp_default = defineMcp({
   name: "tayari-mcp",
   title: "Tayari",
-  version: "0.1.0",
-  instructions: "Tayari is an AI job-prep platform. Use these tools to read the signed-in user's profile, search their saved jobs, list Interview Board applications by stage, and save new jobs to their board.",
+  version: "0.2.0",
+  instructions: "Tayari is an AI job-prep and application-automation platform. Tools cover the full funnel: profile, saved jobs, pipeline management, resume optimization, ATS scoring, cover letter generation, interview prep, skill gap analysis, salary benchmarks, company intelligence, and outcome reporting.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated"
   }),
-  tools: [get_profile_default, search_jobs_default, list_applications_default, save_job_default]
+  tools: [
+    // Read profile & pipeline
+    get_profile_default,
+    get_pipeline_default,
+    list_applications_default,
+    // Job management
+    search_jobs_default,
+    save_job_default,
+    add_to_pipeline_default,
+    // AI-powered tools
+    optimize_resume_default,
+    get_ats_score_default,
+    generate_cover_letter_default,
+    get_interview_questions_default,
+    get_skill_gaps_default,
+    // Market intelligence
+    get_market_salary_default,
+    check_company_default,
+    // Outcome loop (M2)
+    report_outcome_default
+  ]
 });
 
 // lovable-mcp-supabase-entry.ts
-import { createSupabaseHandler } from "npm:@lovable.dev/mcp-js@0.20.0/stacks/supabase";
+import { createSupabaseHandler } from "npm:@lovable.dev/mcp-js@0.20.1/stacks/supabase";
 Deno.serve(createSupabaseHandler(mcp_default, { functionName: "mcp" }));
