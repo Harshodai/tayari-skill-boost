@@ -10,6 +10,7 @@ import (
 	"tayari-backend/internal/billing"
 	"tayari-backend/internal/config"
 	"tayari-backend/internal/database"
+	"tayari-backend/internal/models"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -101,6 +102,9 @@ func (s *Server) routes() {
 	s.registerCoreRoutes(s.Router)
 	s.RegisterOneStopRoutes(s.Router)
 	s.RegisterBillingRoutes(s.Router, s.Billing)
+	s.RegisterMemoryRoutes(s.Router) // conversations + preferences + feedback (was dead)
+	s.routesMVP(s.Router)            // all 24 previously unregistered MVP handlers
+	s.routesSocial(s.Router)         // connections, shared Qs, outcome funnel (Phase 4.2)
 	s.routesJobWatches(s.Router)
 	s.routesCareerOps(s.Router)
 	s.routesCareerIntelligence(s.Router)
@@ -111,4 +115,24 @@ func (s *Server) routes() {
 	s.routesTenant(s.Router)
 	s.routesPush(s.Router)
 	s.routesVoice(s.Router)
+}
+
+// requireFeature checks billing entitlement for the given feature name.
+// Returns false and writes a 402 response if the user's plan doesn't cover it.
+// When BILLING_ENABLED=false (self-hosted), always returns true.
+func (s *Server) requireFeature(w http.ResponseWriter, r *http.Request, feature string) bool {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return false
+	}
+	allowed, reason := s.Billing.CanUseFeature(user.ID.String(), feature)
+	if !allowed {
+		s.respondJSON(w, http.StatusPaymentRequired, map[string]string{
+			"error":   reason,
+			"upgrade": "/pricing",
+		})
+		return false
+	}
+	return true
 }

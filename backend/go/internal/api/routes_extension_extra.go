@@ -21,6 +21,14 @@ func (s *Server) routesExtensionExtra(r chi.Router) {
 	r.Post("/api/v1/extension/capture", s.handleExtensionCapture)
 	r.Post("/api/v1/extension/quick-ats", s.handleExtensionQuickATS)
 	r.Get("/api/v1/extension/autofill", s.handleExtensionAutofill)
+
+	// Stats endpoint — extension dashboard summary
+	r.Get("/api/v1/stats", s.handleDashboardStats)
+	r.Get("/api/stats", s.handleDashboardStats)
+
+	// Autopilot applications — extension "add to pipeline" flow
+	r.Post("/api/v1/autopilot/applications", s.handleCreateApplication)
+	r.Post("/api/autopilot/applications", s.handleCreateApplication)
 }
 
 // -------------------------------------------------------------------

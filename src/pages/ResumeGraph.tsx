@@ -12,10 +12,8 @@ const ResumeGraph = () => {
   const handleDownload = async () => {
     if (!runId) return;
     try {
-      const response = await fetch(`/v1/resume-graph/${runId}/export`);
-      if (!response.ok) throw new Error('Download failed');
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const blob = await apiFetch(`/v1/resume-graph/${runId}/export`, { asBlob: true });
+      const url = URL.createObjectURL(blob as Blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `resume-graph-${runId}.json`;
@@ -29,8 +27,7 @@ const ResumeGraph = () => {
   const handleDelete = async () => {
     if (!runId) return;
     try {
-      const response = await fetch(`/v1/resume-graph/${runId}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Delete failed');
+      await apiFetch(`/v1/resume-graph/${runId}`, { method: 'DELETE' });
       setData(null);
       toast({ title: 'Graph deleted', description: 'Resume graph has been removed.' });
     } catch (err) {

@@ -250,10 +250,8 @@ func (a *SupabaseAuth) generateToken(user *models.User) (string, error) {
 	claims := jwt.MapClaims{
 		"sub":  user.ID.String(),
 		"role": user.Role,
+		"iss":  "tayari-backend",
 		"exp":  time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
-		"iss":  "supabase-demo",                           // Mimic Supabase issuer or "tayari-backend" if verified elsewhere
-		// Note: Supabase usually checks for 'iss' if configured, but default config often lenient.
-		// Safe to use standard value or "supabase-demo" found in config.
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(a.Config.JWTSecret))

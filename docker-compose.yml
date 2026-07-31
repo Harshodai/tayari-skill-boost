@@ -111,19 +111,26 @@ services:
     build:
       context: ./backend/python
       dockerfile: Dockerfile.worker
+    # WARNING: Never expose port 5555 publicly in production.
+    # Flower is dev-only — use 'docker compose --profile dev up' to start it.
     command: ["celery", "-A", "app.celery_app:celery_app", "flower", "--port=5555", "--url-prefix=flower"]
     environment:
-      - FLOWER_UNAUTHENTICATED_API=true
+      # Disable unauthenticated API — require basic auth credentials.
+      # Set FLOWER_USER and FLOWER_PASSWORD in .env (never commit them).
+      - FLOWER_UNAUTHENTICATED_API=false
+      - FLOWER_BASIC_AUTH=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-changeme}
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgres://${POSTGRES_USER:-tayari}:${POSTGRES_PASSWORD:-tayari_dev}@postgres:5432/${POSTGRES_DB:-tayari}?sslmode=disable
     ports:
-      - "5555:5555"
+      # Bind to localhost only — do not expose on 0.0.0.0 in production.
+      - "127.0.0.1:5555:5555"
     depends_on:
       celery-worker:
         condition: service_started
       redis:
         condition: service_healthy
     restart: unless-stopped
+    profiles: ["dev"]  # dev ONLY — removed 'prod' to prevent accidental exposure
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5555/flower\")' || exit 0"]
       interval: 15s

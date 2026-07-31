@@ -67,6 +67,10 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Post("/api/v1/applications/{id}/notes", s.handleAddApplicationNote)
 		r.Post("/api/v1/applications/parse-email", s.handleParseApplicationEmail)
 
+		// GDPR: account lifecycle
+		r.Delete("/api/v1/account", s.handleDeleteAccount)
+		r.Get("/api/v1/account/export", s.handleExportAccount)
+
 		r.Post("/api/v1/resumes", s.handleCreateResume)
 		r.Post("/api/v1/resumes/upload", s.handleUploadResumeMultipart)
 		r.Get("/api/v1/resumes", s.handleListResumes)

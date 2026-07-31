@@ -1,12 +1,20 @@
-"""Outcome Bandit Loop for Resume Strategy Optimization (Mission M8)."""
+"""Outcome Bandit Loop for Resume Strategy Optimization (Mission M8).
+
+SECURITY NOTE: _ARM_STATS is keyed by (user_id, role_family, strategy) to enforce
+strict per-user isolation. Never use role_family/strategy alone as the key — that
+would allow cross-user contamination of optimization signals.
+"""
 import random
 import logging
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# Strategy performance memory per role-family & strategy arm
-_ARM_STATS: Dict[str, Dict[str, Dict[str, int]]] = {}
+# Strategy performance memory: user_id -> role_family -> strategy -> {pulls, conversions}
+# NOTE: This is in-memory only. On process restart, stats are lost and cold-start
+# learning kicks in again. This is intentional — persistent stats live in
+# application_outcomes (DB) and are re-hydrated on startup in a future M8 iteration.
+_ARM_STATS: Dict[str, Dict[str, Dict[str, Dict[str, int]]]] = {}
 
 
 class BanditService:
@@ -24,21 +32,30 @@ class BanditService:
         return best_variant.get("variant_id", 0)
 
 
-def _get_arm_stats(role_family: str, strategy: str) -> Dict[str, int]:
-    """Retrieve or initialize arm stats."""
-    if role_family not in _ARM_STATS:
-        _ARM_STATS[role_family] = {}
-    if strategy not in _ARM_STATS[role_family]:
-        _ARM_STATS[role_family][strategy] = {"pulls": 0, "conversions": 0}
-    return _ARM_STATS[role_family][strategy]
+def _get_arm_stats(role_family: str, strategy: str, user_id: str = "__global__") -> Dict[str, int]:
+    """Retrieve or initialize arm stats, scoped by user_id."""
+    if user_id not in _ARM_STATS:
+        _ARM_STATS[user_id] = {}
+    if role_family not in _ARM_STATS[user_id]:
+        _ARM_STATS[user_id][role_family] = {}
+    if strategy not in _ARM_STATS[user_id][role_family]:
+        _ARM_STATS[user_id][role_family][strategy] = {"pulls": 0, "conversions": 0}
+    return _ARM_STATS[user_id][role_family][strategy]
 
 
-def record_outcome(role_family: str, strategy: str, outcome: str, variant_id: Optional[str] = None) -> Dict[str, Any]:
+def record_outcome(
+    role_family: str,
+    strategy: str,
+    outcome: str,
+    variant_id: Optional[str] = None,
+    user_id: str = "__global__",
+) -> Dict[str, Any]:
     """Record application outcome for a resume strategy arm.
 
     Outcomes: 'interview' (conversion +1), 'rejection' (0), 'no_reply' (0).
+    user_id MUST be the authenticated user's ID so stats are not mixed across users.
     """
-    stats = _get_arm_stats(role_family, strategy)
+    stats = _get_arm_stats(role_family, strategy, user_id)
     stats["pulls"] += 1
     if outcome == "interview":
         stats["conversions"] += 1
@@ -58,7 +75,8 @@ def select_strategy(
     available_strategies: List[str],
     epsilon: float = 0.15,
     min_samples_threshold: int = 20,
-    rng: Optional[random.Random] = None
+    rng: Optional[random.Random] = None,
+    user_id: str = "__global__",
 ) -> Dict[str, Any]:
     """Select best optimizer strategy arm using Epsilon-Greedy selection with cold-start honesty.
 
@@ -76,13 +94,13 @@ def select_strategy(
         best_rate = -1.0
         selected = available_strategies[0]
         for strat in available_strategies:
-            stats = _get_arm_stats(role_family, strat)
+            stats = _get_arm_stats(role_family, strat, user_id)
             rate = stats["conversions"] / max(1, stats["pulls"])
             if rate > best_rate:
                 best_rate = rate
                 selected = strat
 
-    selected_stats = _get_arm_stats(role_family, selected)
+    selected_stats = _get_arm_stats(role_family, selected, user_id)
     total_pulls = selected_stats["pulls"]
 
     # Cold-start honesty gate per brief §M8

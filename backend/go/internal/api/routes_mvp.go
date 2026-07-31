@@ -1933,10 +1933,118 @@ func (s *Server) handleAddApplicationNote(w http.ResponseWriter, r *http.Request
 
 func (s *Server) handleParseApplicationEmail(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"company": "Tech Corp",
+		"company":   "Tech Corp",
 		"job_title": "Senior Software Engineer",
-		"stage": "Interview",
+		"stage":     "Interview",
 	})
 }
 
+// -------------------------------------------------------------------
+// routesMVP registers all handlers that were previously dead code.
+// Called from router.go s.routes(). Both /api/v1/ and /api/ trees for
+// full route parity (CLAUDE.md invariant).
+// -------------------------------------------------------------------
 
+func (s *Server) routesMVP(r chi.Router) {
+	r.Group(func(r chi.Router) {
+		r.Use(s.authMiddleware)
+
+		// ---- Job Search ---------------------------------------------------
+		r.Post("/api/v1/jobs/search", s.handleJobSearch)
+		r.Post("/api/jobs/search", s.handleJobSearch)
+		r.Post("/api/v1/jobs/agent-search", s.handleAgentSearch)
+		r.Post("/api/jobs/agent-search", s.handleAgentSearch)
+		r.Get("/api/v1/jobs/search", s.handleJobSearchGET)
+		r.Get("/api/jobs/search", s.handleJobSearchGET)
+		r.Post("/api/v1/jobs/save", s.handleSaveJob)
+		r.Post("/api/jobs/save", s.handleSaveJob)
+		r.Get("/api/v1/jobs/saved", s.handleListSavedJobs)
+		r.Get("/api/jobs/saved", s.handleListSavedJobs)
+		r.Delete("/api/v1/jobs/saved/{id}", s.handleDeleteSavedJob)
+		r.Delete("/api/jobs/saved/{id}", s.handleDeleteSavedJob)
+
+		// ---- Autopilot ----------------------------------------------------
+		r.Post("/api/v1/autopilot/start", s.handleAutopilotStart)
+		r.Post("/api/autopilot/start", s.handleAutopilotStart)
+		r.Get("/api/v1/autopilot/runs", s.handleListAutopilotRuns)
+		r.Get("/api/autopilot/runs", s.handleListAutopilotRuns)
+		r.Get("/api/v1/autopilot/runs/{id}", s.handleGetAutopilotRun)
+		r.Get("/api/autopilot/runs/{id}", s.handleGetAutopilotRun)
+
+		// ---- Autopilot Schedules ------------------------------------------
+		r.Post("/api/v1/autopilot/schedules", s.handleCreateSchedule)
+		r.Post("/api/autopilot/schedules", s.handleCreateSchedule)
+		r.Get("/api/v1/autopilot/schedules", s.handleListSchedules)
+		r.Get("/api/autopilot/schedules", s.handleListSchedules)
+		r.Put("/api/v1/autopilot/schedules/{id}", s.handleUpdateSchedule)
+		r.Put("/api/autopilot/schedules/{id}", s.handleUpdateSchedule)
+		r.Delete("/api/v1/autopilot/schedules/{id}", s.handleDeleteSchedule)
+		r.Delete("/api/autopilot/schedules/{id}", s.handleDeleteSchedule)
+
+		// ---- Resume Deep ATS & Knowledge Graph ----------------------------
+		r.Post("/api/v1/resumes/{id}/ats-deep", s.handleDeepATS)
+		r.Post("/api/resumes/{id}/ats-deep", s.handleDeepATS)
+		r.Post("/api/v1/resumes/{id}/knowledge-graph", s.handleResumeKnowledgeGraph)
+		r.Post("/api/resumes/{id}/knowledge-graph", s.handleResumeKnowledgeGraph)
+
+		// ---- LinkedIn -----------------------------------------------------
+		r.Post("/api/v1/linkedin/analyze", s.handleLinkedInAnalyze)
+		r.Post("/api/linkedin/analyze", s.handleLinkedInAnalyze)
+
+		// ---- Cover Letter -------------------------------------------------
+		r.Post("/api/v1/cover-letter/generate", s.handleCoverLetterGenerate)
+		r.Post("/api/cover-letter/generate", s.handleCoverLetterGenerate)
+
+		// ---- Communication ------------------------------------------------
+		r.Post("/api/v1/communication/generate", s.handleCommunicationGenerate)
+		r.Post("/api/communication/generate", s.handleCommunicationGenerate)
+		r.Post("/api/v1/communication/response", s.handleCommunicationResponse)
+		r.Post("/api/communication/response", s.handleCommunicationResponse)
+		r.Get("/api/v1/communication/stats", s.handleCommunicationStats)
+		r.Get("/api/communication/stats", s.handleCommunicationStats)
+		r.Get("/api/v1/communication/suggestions", s.handleCommunicationSuggestions)
+		r.Get("/api/communication/suggestions", s.handleCommunicationSuggestions)
+
+		// ---- Interview Prep -----------------------------------------------
+		r.Post("/api/v1/interview/prep", s.handleInterviewPrep)
+		r.Post("/api/interview/prep", s.handleInterviewPrep)
+
+		// ---- Profile Import -----------------------------------------------
+		r.Post("/api/v1/profile/import-pdf", s.handleImportProfilePDF)
+		r.Post("/api/profile/import-pdf", s.handleImportProfilePDF)
+
+		// ---- Dashboard Stats ----------------------------------------------
+		r.Get("/api/v1/dashboard/stats", s.handleDashboardStats)
+		r.Get("/api/dashboard/stats", s.handleDashboardStats)
+
+		// ---- Streaming Optimize -------------------------------------------
+		r.Post("/api/v1/resumes/{id}/optimize-stream", s.handleOptimizeResumeStream)
+		r.Post("/api/resumes/{id}/optimize-stream", s.handleOptimizeResumeStream)
+
+		// ---- Candidate Answer Bank ----------------------------------------
+		r.Post("/api/v1/candidate-answer-bank/match", s.handleCandidateBankMatch)
+		r.Post("/api/candidate-answer-bank/match", s.handleCandidateBankMatch)
+
+		// ---- ATS Detect / Truth Check / Recruiter Lookup / Offer ----------
+		// (these duplicate what RegisterOneStopRoutes already wires but Go
+		//  routes are deduplicated by chi — the first match wins, so no harm)
+		r.Post("/api/v1/ats/detect", s.handleATSDetect)
+		r.Post("/api/ats/detect", s.handleATSDetect)
+		r.Post("/api/v1/guardrails/truth-check", s.handleTruthCheck)
+		r.Post("/api/guardrails/truth-check", s.handleTruthCheck)
+		r.Post("/api/v1/recruiter/lookup", s.handleRecruiterLookup)
+		r.Post("/api/recruiter/lookup", s.handleRecruiterLookup)
+		r.Post("/api/v1/offer/calculate", s.handleOfferCalculate)
+		r.Post("/api/offer/calculate", s.handleOfferCalculate)
+		r.Post("/api/v1/interview/copilot", s.handleInterviewCopilot)
+		r.Post("/api/interview/copilot", s.handleInterviewCopilot)
+
+		// ---- Agent Reach --------------------------------------------------
+		r.Post("/api/v1/agent-reach/doctor", s.handleAgentReachDoctor)
+		r.Post("/api/agent-reach/doctor", s.handleAgentReachDoctor)
+		r.Get("/api/v1/agent-reach/cookies", s.handleAgentReachCookies)
+		r.Get("/api/agent-reach/cookies", s.handleAgentReachCookies)
+		r.Post("/api/v1/agent-reach/extract", s.handleAgentReachExtract)
+		r.Post("/api/agent-reach/extract", s.handleAgentReachExtract)
+	})
+}

@@ -16,8 +16,10 @@ func (s *Server) routesTenant(r chi.Router) {
 	// Note: public branding routes (/api/v1/tenants/branding) are registered in the
 	// public route group in routes() to avoid CORS preflight auth failures.
 
-	// Advisor routes (require auth and advisor/admin role)
+	// Advisor routes — require authentication AND advisor/admin role
+	// (role verified inside checkAdvisorRole; auth middleware enforces token presence)
 	r.Group(func(sub chi.Router) {
+		sub.Use(s.authMiddleware)
 		sub.Get("/api/v1/advisor/cohorts", s.handleListAdvisorCohorts)
 		sub.Post("/api/v1/advisor/cohorts", s.handleCreateAdvisorCohort)
 		sub.Get("/api/v1/advisor/students", s.handleListAdvisorStudents)

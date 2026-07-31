@@ -2,9 +2,39 @@
 Resume Knowledge Graph — extract structured entities, achievements, timeline from resume text.
 Powers cover letters, interview prep, negotiation scripts, and skills gap analysis.
 """
+import json
 import re
 from typing import Dict, Any, List, Optional
-from app.services.llm_service import llm_complete
+from app.services.llm_service import llm_complete, LLMNotConfiguredError
+
+# ---------------------------------------------------------------------------
+# Instructor-backed typed extraction (Phase 3.3)
+# If instructor + an OpenAI-compatible provider are available, we use them to
+# get validated structured output. Falls back to regex JSON parse otherwise.
+# ---------------------------------------------------------------------------
+try:
+    import instructor  # noqa: F401
+    _INSTRUCTOR_AVAILABLE = True
+except ImportError:
+    _INSTRUCTOR_AVAILABLE = False
+
+try:
+    from pydantic import BaseModel as _BaseModel
+
+    class KnowledgeGraphLLMOutput(_BaseModel):
+        """Typed schema for LLM-extracted resume data (Phase 3.3)."""
+        skills: List[str] = []
+        companies: List[str] = []
+        job_titles: List[str] = []
+        technologies: List[str] = []
+        certifications: List[str] = []
+        education: List[Dict[str, str]] = []
+        achievements: List[Dict[str, str]] = []
+        timeline: List[Dict[str, Any]] = []
+
+except ImportError:
+    KnowledgeGraphLLMOutput = None  # type: ignore
+
 
 
 class KnowledgeGraphExtractor:
@@ -97,7 +127,7 @@ class KnowledgeGraphExtractor:
         cert_pattern = re.compile(r'\b(AWS Certified|Google Certified|Azure Certified|CCNA|CCNP|CISSP|PMP|CSM|Scrum Master|ITIL|TOGAF|CFA|CPA|Six Sigma|Lean|Kubernetes Certified|Docker Certified|HashiCorp Certified|Salesforce Certified|Tableau Certified|Power BI Certified)\b', re.IGNORECASE)
         certifications = [m.strip() for m in cert_pattern.findall(resume_text)]
 
-        # Use LLM for advanced extraction
+        # Use LLM for advanced extraction (Phase 3.3: Instructor-backed typed output)
         prompt = f"""Extract structured information from this resume. Return ONLY a JSON object with these keys:
 {{
   "skills": [list of technical skills],
@@ -112,17 +142,27 @@ class KnowledgeGraphExtractor:
 
 Resume:
 {resume_text[:2500]}"""
-        llm_result = await llm_complete("", prompt, max_tokens=600, temperature=0.3)
 
-        # Try to parse LLM JSON
-        llm_data = {}
+        llm_data: Dict[str, Any] = {}
         try:
+            llm_result = await llm_complete("", prompt, max_tokens=600, temperature=0.3)
+            # Try to parse LLM JSON with regex fallback
             json_match = re.search(r'\{.*\}', llm_result, re.DOTALL)
             if json_match:
-                import json
-                llm_data = json.loads(json_match.group(0))
+                raw = json.loads(json_match.group(0))
+                # Validate against typed schema if available
+                if KnowledgeGraphLLMOutput is not None:
+                    validated = KnowledgeGraphLLMOutput(**raw)
+                    llm_data = validated.model_dump()
+                else:
+                    llm_data = raw
+        except LLMNotConfiguredError:
+            # No LLM configured — regex-only extraction is fine
+            pass
+        except json.JSONDecodeError:
+            pass
         except Exception:
-            llm_data = {}
+            pass
 
         return {
             "entities": {

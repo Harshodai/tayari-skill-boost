@@ -121,6 +121,74 @@ func (b *BillingService) GetEntitlement(userID string) *Entitlement {
 	return &copyEnt
 }
 
+// Feature tier constants
+const (
+	TierFree       = "free"
+	TierPro        = "pro"
+	TierEnterprise = "enterprise"
+	TierSelfHosted = "pro_self_hosted" // self-hosters get full pro
+)
+
+// FEATURE_LIMITS maps feature names to the minimum plan required.
+// "" means available on all plans including free.
+var FEATURE_LIMITS = map[string]string{
+	// Free tier features
+	"resume_optimize":    TierFree,
+	"ats_score":          TierFree,
+	"cover_letter":       TierFree,
+	"job_search":         TierFree,
+	"save_job":           TierFree,
+	"knowledge_graph":    TierFree,
+	"dashboard_stats":    TierFree,
+	// Pro-only features
+	"interview_copilot":  TierPro,
+	"voice_coach":        TierPro,
+	"deep_ats":           TierPro,
+	"agent_reach":        TierPro,
+	"autopilot":          TierPro,
+	"recruiter_lookup":   TierPro,
+	"offer_calculate":    TierPro,
+	"linkedin_analyze":   TierPro,
+	"truth_check":        TierPro,
+	// Enterprise-only features
+	"multi_tenant_admin": TierEnterprise,
+	"custom_branding":    TierEnterprise,
+}
+
+// planRank returns a numeric rank for comparison.
+func planRank(plan string) int {
+	switch plan {
+	case TierFree:
+		return 0
+	case TierPro, TierSelfHosted:
+		return 1
+	case TierEnterprise:
+		return 2
+	}
+	return 0
+}
+
+// CanUseFeature returns true if the user's current entitlement grants
+// access to the named feature. feature must be a key in FEATURE_LIMITS.
+// Returns (true, "") if allowed, (false, reason) if denied.
+func (b *BillingService) CanUseFeature(userID, feature string) (bool, string) {
+	if !IsBillingEnabled() {
+		return true, "" // self-hosted: unrestricted
+	}
+	requiredPlan, known := FEATURE_LIMITS[feature]
+	if !known {
+		return true, "" // unknown feature: allow by default (fail open)
+	}
+	ent := b.GetEntitlement(userID)
+	if !ent.IsActive {
+		return false, "subscription_inactive"
+	}
+	if planRank(ent.Plan) < planRank(requiredPlan) {
+		return false, "plan_upgrade_required: feature '" + feature + "' requires " + requiredPlan + " plan"
+	}
+	return true, ""
+}
+
 // Helper types for SQL Null values
 type sqlNullString struct {
 	String string

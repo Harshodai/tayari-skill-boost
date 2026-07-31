@@ -311,15 +311,11 @@ func (s *Server) handleGetSalaryBenchmark(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleGetTrendingSkills(w http.ResponseWriter, r *http.Request) {
-	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"trending_skills": []map[string]interface{}{
-			{"name": "Python & LLM Fine-Tuning", "growth": "+45%", "category": "AI/ML"},
-			{"name": "Go Microservices & Chi", "growth": "+38%", "category": "Backend"},
-			{"name": "TypeScript & React Server Components", "growth": "+32%", "category": "Frontend"},
-			{"name": "Docker & Cloud Native Security", "growth": "+29%", "category": "DevOps"},
-			{"name": "PostgreSQL & Vector Embeddings", "growth": "+27%", "category": "Data"},
-		},
-		"market_demand": "High",
-		"updated_at": "2026-07-24",
-	})
+	result, err := s.AI.PostJSON("/api/v1/career-intelligence/trending-skills", nil)
+	if err != nil {
+		log.Printf("handleGetTrendingSkills: AI call failed: %v", err)
+		s.respondError(w, http.StatusBadGateway, "ai_service_unavailable")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
 }

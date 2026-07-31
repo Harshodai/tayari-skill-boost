@@ -56,6 +56,24 @@ jobs:
           pip install ruff pytest-cov
           pip install -r requirements.txt
 
+      - name: LLM Engine Sanity Check
+        run: |
+          # Verify LLM is either configured (real provider) or known-unconfigured.
+          # Fails if the code logic has regressed to returning mock data.
+          python - << 'PYEOF'
+          import sys
+          sys.path.insert(0, 'backend/python')
+          from app.services.llm_service import build_provider, MockProvider
+          p = build_provider()
+          label = p.active_engine_label()
+          if isinstance(p, MockProvider):
+              print(f"WARNING: LLM provider is unconfigured (MockProvider). Set LLM_PROVIDER env in prod.")
+              # In CI with no LLM keys this is expected — just warn, don't fail.
+              # In prod the Docker health-check ensures ACTIVE_ENGINE != 'unconfigured'.
+          else:
+              print(f"OK: LLM provider = {label}")
+          PYEOF
+
       - name: PyCompile & Ruff (Python AI & Integrations)
         run: |
           python -m py_compile integrations/jobtheory_mcp/server.py

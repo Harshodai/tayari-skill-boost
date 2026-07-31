@@ -1,18 +1,18 @@
 # Tayari Skill Boost
 
-**The chain, not the suite.** The only job-search platform that runs the whole chain — resume to interview — as one observable pipeline you can watch execute, with guardrails that keep every application on the authentic side of the AI-vs-recruiter arms race. Self-hostable with a local LLM for zero marginal cost and zero data leaves-your-machine.
+**End-to-end job-search pipeline.** Resume optimization, ATS scoring, cover letter generation, interview prep, and offer negotiation — wired together as one observable pipeline with a self-hosted LLM option for full data privacy.
 
-Tayari Skill Boost is a scalable, event-driven career operations platform. Microservices architecture: unstructured resume processing, async job-scraping pipelines, ATS parsing, and LLM-powered optimization.
+Tayari Skill Boost is an event-driven career operations platform. Microservices architecture: resume processing, async job-scraping pipelines, ATS parsing, LLM-powered optimization, and a social outcome-sharing graph.
 
-## Five differentiators no competitor ships
+## Key differentiators
 
-1. **Reflective resume optimization** (`app/services/optimizer.py`) — iterates optimization against its own scoring gate before emitting, not a single GPT pass. Competitors do one-shot GPT → template.
-2. **Tiered Hermes multi-board scraping** (`app/services/hermes/`) — Tier A keyless ATS JSON (Greenhouse/Lever/Ashby/Workday) → Tier B Firecrawl+SerpApi → Tier C Apify → Tier D Crawl4AI+Playwright, with per-provider circuit breakers. Works with **zero API keys**; upgrades gracefully.
+1. **Reflective resume optimization** (`app/services/optimizer.py`) — iterates optimization against its own scoring gate before emitting, not a single GPT pass.
+2. **Tiered Hermes multi-board scraping** (`app/services/hermes/`) — Tier A keyless ATS JSON (Greenhouse/Lever/Ashby/Workday) → Tier B Firecrawl+SerpApi → Tier C Apify → Tier D Crawl4AI+Playwright, with per-provider circuit breakers. Works with zero API keys; upgrades gracefully.
 3. **Hybrid ranking (reciprocal rank fusion)** — three independent rankers fused via RRF, lexical + semantic, instead of a single black-box score.
-4. **Knowledge graph extraction** (`app/services/knowledge_graph.py`) — auto-extracts achievements, skills, and timeline; surfaces skill gaps and links them to a career roadmap. Enterprise HR charges $50K–750K/yr for this; Tayari ships it self-hosted.
-5. **One-Stop Jobseeker AI Command Suite** — integrated 8-tool career suite: Typst ATS Exporter, 15-Min Company Radar Sentinel, WebSockets Real-Time Voice Interview Coach, Salary & Counter-Offer Negotiation Copilot, Skill Gap Radar & Free Learning Resource Engine, AI Interactive Portfolio Generator, Recruiter Cold Outreach Copilot, and Application Funnel Conversion Analytics.
+4. **Knowledge graph extraction** (`app/services/knowledge_graph.py`) — auto-extracts achievements, skills, and timeline; surfaces skill gaps and links them to a career roadmap.
+5. **One-Stop career suite** — 8 integrated AI tools: Typst ATS Exporter, Company Radar Sentinel, WebSockets Real-Time Voice Interview Coach, Salary Negotiation Copilot, Skill Gap Radar, AI Portfolio Generator, Recruiter Outreach Copilot, and Application Funnel Analytics.
 
-Plus: pipeline **guardrails** (`app/guardrails/` — keyword-stuffing detector, PII redaction, truthfulness gate, `PipelineGate`) that run **before** every application is submitted, and a **durable Celery/Redis autopilot** with run state queryable in Postgres and monitorable in Flower.
+Plus: pipeline **guardrails** (`app/guardrails/` — keyword-stuffing detector, PII redaction, truthfulness gate, `PipelineGate`) that run before every application is submitted, and a **durable Celery/Redis autopilot** with run state queryable in Postgres.
 
 ---
 

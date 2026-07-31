@@ -226,17 +226,48 @@ class InterviewPrepResponse(BaseModel):
     skills_tested: Optional[List[str]] = None
 
 
+
+class SkillEntity(BaseModel):
+    """A canonical skill extracted from the resume."""
+    model_config = ConfigDict(extra='allow')
+    name: str
+    canonical: Optional[str] = None  # ESCO canonical label (populated when taxonomy loaded)
+    years_experience: Optional[int] = None
+    proficiency: Optional[str] = None  # beginner | intermediate | advanced | expert
+    category: Optional[str] = None    # e.g. Programming Language, Framework, Tool
+
+
+class Achievement(BaseModel):
+    """A quantified achievement extracted from the resume."""
+    model_config = ConfigDict(extra='allow')
+    text: str
+    impact_metric: Optional[str] = None  # e.g. "reduced latency by 45%"
+    category: Optional[str] = None       # e.g. performance, scale, revenue
+
+
+class TimelineEvent(BaseModel):
+    """A work history event from the resume."""
+    model_config = ConfigDict(extra='allow')
+    company: str
+    title: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    description: Optional[str] = None
+
+
 class KnowledgeGraphRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     resume_text: str
 
 
 class KnowledgeGraphResponse(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-    entities: Dict[str, Any] = Field(default_factory=dict)
-    achievements: List[Dict[str, Any]] = Field(default_factory=list)
-    timeline: List[Dict[str, Any]] = Field(default_factory=list)
+    model_config = ConfigDict(extra='allow')
+    skills: List[SkillEntity] = Field(default_factory=list)
+    achievements: List[Achievement] = Field(default_factory=list)
+    timeline: List[TimelineEvent] = Field(default_factory=list)
     llm_enhanced: bool = False
+    # Legacy field kept for backward compat — will be removed in next breaking version
+    entities: Optional[Dict[str, Any]] = None
 
 
 class ProfileImportResponse(BaseModel):

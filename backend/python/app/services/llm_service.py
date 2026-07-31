@@ -4,7 +4,7 @@ Design: SOLID-principled provider hierarchy.
   - Interface (LLMProvider): Single Responsibility — one method, complete().
   - Concrete providers: OpenAI-compatible, Ollama, OpenRouter, NVIDIA NIM, Hermes, Mock.
   - Factory (build_provider): Open/Closed — add providers without touching routing logic.
-  - llm_complete() and llm_json(): stable public API, never crash.
+  - llm_complete() and llm_json(): stable public API, propagate LLMNotConfiguredError upward.
 
 Provider selection (priority order):
   1. tier == 'hermes'     → HermesProvider  (if HERMES_AGENT_URL set)
@@ -12,7 +12,7 @@ Provider selection (priority order):
   3. LLM_PROVIDER=nvidia_nim → NVIDIANIMProvider  (NVIDIA_NIM_API_KEY required)
   4. LLM_PROVIDER=ollama  → OllamaProvider        (LLM_BASE_URL ending in /v1 or 11434)
   5. LLM_BASE_URL set     → OpenAICompatibleProvider (generic)
-  6. fallback             → MockProvider           (never crashes)
+  6. No config            → raises LLMNotConfiguredError (never returns fabricated data)
 
 Environment variables:
   LLM_PROVIDER        = openrouter | nvidia_nim | ollama | openai | (empty → auto-detect)
@@ -41,6 +41,18 @@ import httpx
 from app.services.hermes import config as hermes_config
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Exceptions
+# ---------------------------------------------------------------------------
+
+class LLMNotConfiguredError(RuntimeError):
+    """Raised when no LLM provider is configured or the provider call fails.
+
+    Callers (FastAPI route handlers) should catch this and return HTTP 503
+    so users see an honest error rather than fabricated data.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -278,23 +290,29 @@ class HermesProvider(LLMProvider):
                 resp.raise_for_status()
             return resp.json()["choices"][0]["message"]["content"]
         except Exception as exc:  # noqa: BLE001
-            logger.warning("hermes completion failed (%s); falling back to mock", exc)
-            return _mock_text()
+            logger.warning("hermes completion failed (%s)", exc)
+            raise LLMNotConfiguredError(
+                f"Hermes provider failed: {exc}"
+            ) from exc
 
     def active_engine_label(self) -> str:
         return f"hermes-{hermes_config.HERMES_MODEL}"
 
 
 class MockProvider(LLMProvider):
-    """Graceful no-op when no LLM is configured. Never crashes."""
+    """Used only when no LLM is configured. Always raises LLMNotConfiguredError
+    so callers never receive fabricated AI data."""
 
     async def complete(self, system_message: str, user_message: str,
                        max_tokens: int = 800, temperature: float = 0.3) -> str:
-        logger.warning("No LLM configured — returning mock response.")
-        return _mock_text(system_message, user_message)
+        logger.warning("No LLM configured — raising LLMNotConfiguredError.")
+        raise LLMNotConfiguredError(
+            "No LLM provider is configured. Set LLM_PROVIDER and the matching "
+            "API key or base URL. See .env.example for options."
+        )
 
     def active_engine_label(self) -> str:
-        return "mock-fallback"
+        return "unconfigured"
 
 
 # ---------------------------------------------------------------------------
@@ -376,16 +394,38 @@ async def llm_complete(
     session_id: Optional[str] = None,  # noqa: F841 — kept for backward compat
     max_tokens: int = 800,
     temperature: float = 0.3,
+    # Privacy ledger context (optional — callers can pass these without breaking existing usage)
+    _user_id: Optional[str] = None,
+    _resource: Optional[str] = None,
 ) -> str:
-    """Single-shot completion. tier: 'fast'/'smart' (same provider), 'hermes'."""
+    """Single-shot completion. tier: 'fast'/'smart' (same provider), 'hermes'.
+
+    Raises:
+        LLMNotConfiguredError: when the provider is not configured or the
+            remote call fails permanently. Callers must catch this and
+            return an appropriate HTTP error (503).
+    """
+    import asyncio
     provider = build_provider(tier if tier == "hermes" else "default")
-    try:
-        result = await provider.complete(system_message, user_message,
-                                         max_tokens=max_tokens, temperature=temperature)
-        return result if result else _mock_text(system_message, user_message)
-    except Exception as exc:
-        logger.error("LLM completion error: %s", exc)
-        return _mock_text(system_message, user_message)
+    result = await provider.complete(system_message, user_message,
+                                     max_tokens=max_tokens, temperature=temperature)
+    if not result:
+        raise LLMNotConfiguredError("LLM provider returned an empty response.")
+
+    # Privacy ledger — fire-and-forget, non-blocking
+    if _user_id:
+        try:
+            from app.services.privacy_ledger import ledger  # avoid circular at import time
+            asyncio.create_task(ledger.record(
+                user_id=_user_id,
+                action="llm_inference",
+                resource=_resource or "llm_complete",
+                detail={"provider": provider.active_engine_label(), "tier": tier, "max_tokens": max_tokens},
+            ))
+        except Exception:
+            pass  # ledger failure must never affect the LLM response
+
+    return result
 
 
 def _mock_text(system_message: str = "", user_message: str = "") -> str:
