@@ -48,8 +48,9 @@ def test_graph_visualizer():
 async def test_agent_squad_orchestrator():
     orchestrator = AgentSquadOrchestrator()
     res = await orchestrator.execute_squad_workflow("CV text", "JD text", "Acme", "Dev")
-    assert res["status"] == "COMPLETED"
-    assert "Scout" in res["agents_executed"]
+    assert res["status"] == "pending"
+    assert res["agents_executed"] == []
+    assert res["outputs"] == {}
 
 
 def test_domain_rules_engine():

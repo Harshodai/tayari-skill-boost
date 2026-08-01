@@ -30,29 +30,25 @@ class AgentSquadOrchestrator:
         company: str = "",
         role: str = ""
     ) -> Dict[str, Any]:
-        """Run collaborative multi-agent execution pipeline."""
+        """Run collaborative multi-agent execution pipeline.
+
+        Scout/Builder/Reviewer/Memory agents and consensus evaluation are not
+        wired yet (app/a2a/agents/ ships only ats/optimizer/truth_gate/
+        interview_coach/job_search agents), so no outputs are produced and the
+        run is reported as pending rather than fabricating results.
+        """
         logger.info("Executing Squad Workflow '%s' for %s at %s", self.squad_name, role, company)
 
-        # 1. Scout Agent: Scrapes and extracts key requirements
-        scout_output = {"target_company": company, "target_role": role, "parsed_length": len(jd_text)}
-
-        # 2. Builder Agent: Drafts initial tailored assets
-        builder_output = {"status": "drafted", "bullets_generated": 3}
-
-        # 3. Reviewer Agent: Scores ATS parseability & fit
-        reviewer_output = {"ats_score": 88, "status": "APPROVED"}
-
-        # 4. Memory Agent: Updates graph facts
-        memory_output = {"graph_updated": True, "facts_stored": 5}
-
+        # ponytail: no fabricated ATS scores/bullets/graph updates — the agents
+        # and AgentConsensusProtocol are not wired, so report an explicit
+        # pending status (models.Task.status "pending" literal) instead.
         return {
             "squad_name": self.squad_name,
-            "status": "COMPLETED",
-            "agents_executed": self.agents,
-            "outputs": {
-                "scout": scout_output,
-                "builder": builder_output,
-                "reviewer": reviewer_output,
-                "memory": memory_output
-            }
+            "status": "pending",
+            "agents_executed": [],
+            "message": (
+                "Scout/Builder/Reviewer/Memory agents not wired yet; "
+                "resume_text and jd_text received, execution pending"
+            ),
+            "outputs": {},
         }
