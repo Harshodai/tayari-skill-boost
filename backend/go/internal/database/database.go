@@ -31,7 +31,24 @@ func NewDB(dsn string) (*DB, error) {
 	}
 
 	log.Println("Connected to PostgreSQL successfully")
-	return &DB{Conn: db}, nil
+	dbInst := &DB{Conn: db}
+	if err := dbInst.RunMigrations(ctx); err != nil {
+		return nil, fmt.Errorf("failed to run database migrations: %w", err)
+	}
+	return dbInst, nil
+}
+
+// RunMigrations executes one-time database schema migrations during deployment.
+func (db *DB) RunMigrations(ctx context.Context) error {
+	migrations := []string{
+		"UPDATE applications SET stage = status WHERE stage IS NULL",
+	}
+	for _, m := range migrations {
+		if _, err := db.Conn.ExecContext(ctx, m); err != nil {
+			return fmt.Errorf("migration failed (%s): %w", m, err)
+		}
+	}
+	return nil
 }
 
 // Close closes the database connection

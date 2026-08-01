@@ -40,8 +40,8 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusBadRequest, "Password is required")
 		return
 	}
-	if len(req.Password) < 8 {
-		s.respondError(w, http.StatusBadRequest, "Password must be at least 8 characters")
+	if err := auth.ValidatePassword(req.Password); err != nil {
+		s.respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

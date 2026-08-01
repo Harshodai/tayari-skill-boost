@@ -1,7 +1,7 @@
 """
 Shared Pydantic models for the Python AI Engine.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -306,4 +306,116 @@ class RecruiterLookupRequest(BaseModel):
     hiring_manager_name: Optional[str] = None
     user_name: Optional[str] = "Candidate"
     user_skills: Optional[List[str]] = Field(default_factory=list)
+
+
+# --- Zero-Regex Structured Output Schemas ---
+
+class OptimizedResumePayloadSchema(BaseModel):
+    """Pydantic model for reflective resume optimizer output."""
+    changes: List[str] = Field(default_factory=list)
+    keywords_added: List[str] = Field(default_factory=list)
+    estimated_score: int = Field(default=80, ge=0, le=100)
+    optimized_text: str = Field(..., min_length=200, description="The fully optimized resume text")
+
+
+class STARAnswerSchema(BaseModel):
+    """Pydantic model for STAR interview response breakdown."""
+    situation: str = Field(..., description="Situation context")
+    task: str = Field(..., description="Task to accomplish")
+    action: str = Field(..., description="Action taken")
+    result: str = Field(..., description="Measurable result achieved")
+
+
+class BehavioralInterviewQuestionSchema(BaseModel):
+    """Pydantic model for a behavioral interview question."""
+    question: str
+    category: str = "behavioral"
+    why_asked: Optional[str] = None
+    how_to_answer: Optional[str] = None
+    star_suggested: Optional[STARAnswerSchema] = None
+
+
+class TechnicalInterviewQuestionSchema(BaseModel):
+    """Pydantic model for a technical / system design interview question."""
+    question: str
+    category: str = "technical"
+    skill: Optional[str] = "general"
+    suggested_answer: Optional[str] = None
+    requirements: Optional[str] = None
+    suggested_approach: Optional[str] = None
+
+
+class BehavioralPrepOutputSchema(BaseModel):
+    question: str
+    star_suggested: STARAnswerSchema
+
+
+class TechnicalPrepOutputSchema(BaseModel):
+    questions: List[TechnicalInterviewQuestionSchema] = Field(default_factory=list)
+
+
+class SystemDesignPrepOutputSchema(BaseModel):
+    questions: List[TechnicalInterviewQuestionSchema] = Field(default_factory=list)
+
+
+class InterviewPrepOutputSchema(BaseModel):
+    """Pydantic model for full interview prep output."""
+    company: Optional[str] = None
+    role: Optional[str] = None
+    commonly_asked: List[InterviewQuestion] = Field(default_factory=list)
+    recent_topics: List[str] = Field(default_factory=list)
+    red_flags_to_avoid: List[str] = Field(default_factory=list)
+    preparation_focus: List[str] = Field(default_factory=list)
+    source_note: Optional[str] = "AI-generated structured prep"
+
+
+class TruthGateCheckOutputSchema(BaseModel):
+    """Pydantic model for guardrail truth-check output."""
+    is_truthful: bool
+    keyword_stuffing_detected: bool
+    risk_score: int = Field(..., ge=0, le=100)
+    flags: List[str] = Field(default_factory=list)
+
+
+class SkillGapRadarOutputSchema(BaseModel):
+    """Pydantic model for skill gap analysis."""
+    target_role: str
+    matched_skills: List[str] = Field(default_factory=list)
+    missing_skills: List[str] = Field(default_factory=list)
+    recommended_resources: List[str] = Field(default_factory=list)
+
+
+class CoverLetterInput(BaseModel):
+    resume_text: str = Field(..., description="Candidate's resume text")
+    job_description: str = Field(..., description="Target job description")
+    company_name: str = Field(..., description="Target company name")
+    job_title: str = Field(..., description="Target job title")
+    tone: Literal["formal", "conversational", "confident"] = Field("formal", description="Tone of cover letter")
+    personal_notes: str = Field("", description="Optional personal notes or context (e.g. referral, event)")
+
+
+class CommunicationInput(BaseModel):
+    comm_type: Literal["follow-up", "thank-you", "negotiation", "status-check"] = Field(..., description="Communication type")
+    resume_text: str = Field("", description="Candidate resume text")
+    job_title: str = Field(..., description="Target job title")
+    company_name: str = Field(..., description="Target company name")
+    recipient_name: Optional[str] = Field(None, description="Recipient recruiter/manager name")
+    discussion_points: Optional[List[str]] = Field(None, description="Key discussion points for thank-you note")
+    offer_details: Optional[Dict[str, Any]] = Field(None, description="Offer details for negotiation")
+    days_since: int = Field(3, description="Days elapsed since application/interview")
+
+
+class InterviewPrepInput(BaseModel):
+    resume_text: str = Field("", description="Candidate's resume text")
+    job_title: str = Field(..., description="Target job title")
+    company_name: Optional[str] = Field(None, description="Optional target company name")
+    interview_type: Literal["behavioral", "technical", "system-design"] = Field(
+        "behavioral", description="Type: 'behavioral', 'technical', or 'system-design'"
+    )
+
+
+class KnowledgeGraphInput(BaseModel):
+    resume_text: str = Field(..., description="Resume text to extract knowledge graph from")
+
+
 

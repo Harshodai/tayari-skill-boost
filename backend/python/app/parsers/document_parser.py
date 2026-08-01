@@ -15,6 +15,18 @@ except ImportError:
     PDFPLUMBER_AVAILABLE = False
 
 try:
+    import pypdf
+    PYPDF_AVAILABLE = True
+except ImportError:
+    PYPDF_AVAILABLE = False
+
+try:
+    import PyPDF2
+    PYPDF2_AVAILABLE = True
+except ImportError:
+    PYPDF2_AVAILABLE = False
+
+try:
     from docx import Document as DocxDocument
     DOCX_AVAILABLE = True
 except ImportError:
@@ -55,13 +67,11 @@ class ResumeParser:
     @staticmethod
     def parse_file(file_bytes: bytes, file_type: str) -> ParsedResume:
         file137 = file_type.lower()
-        if file137 in ("pdf", "application/pdf"):
+        if file137 in ("pdf", "application/pdf") or file137.endswith(".pdf"):
             return ResumeParser._parse_pdf(file_bytes)
-        if file137 in ("docx", "application/docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"):
+        if file137 in ("docx", "application/docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document") or file137.endswith(".docx"):
             return ResumeParser._parse_docx(file_bytes)
-        if file137 in ("txt", "text/plain"):
-            return ResumeParser._parse_txt(file_bytes)
-        return ResumeParser._extract_from_text("")
+        return ResumeParser._parse_txt(file_bytes)
 
     @staticmethod
     def parse_text(text: str) -> ParsedResume:
@@ -69,19 +79,42 @@ class ResumeParser:
 
     @staticmethod
     def _parse_pdf(file_bytes: bytes) -> ParsedResume:
-        if not PDFPLUMBER_AVAILABLE:
-            raise ImportError("pdfplumber not installed")
-        try:
-            text_parts = []
-            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-                for page in pdf.pages:
+        text_parts = []
+        if PDFPLUMBER_AVAILABLE:
+            try:
+                with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+                    for page in pdf.pages:
+                        t = page.extract_text()
+                        if t:
+                            text_parts.append(t)
+            except Exception as exc:
+                logger.warning("pdfplumber parse failed, trying fallbacks: %s", exc)
+
+        if not text_parts and PYPDF_AVAILABLE:
+            try:
+                reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+                for page in reader.pages:
                     t = page.extract_text()
                     if t:
                         text_parts.append(t)
+            except Exception as exc:
+                logger.warning("pypdf parse failed, trying PyPDF2: %s", exc)
+
+        if not text_parts and PYPDF2_AVAILABLE:
+            try:
+                reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+                for page in reader.pages:
+                    t = page.extract_text()
+                    if t:
+                        text_parts.append(t)
+            except Exception as exc:
+                logger.warning("PyPDF2 parse failed: %s", exc)
+
+        if text_parts:
             full_text = "\n".join(text_parts)
             return ResumeParser._extract_from_text(full_text)
-        except Exception as exc:
-            raise RuntimeError(f"PDF parsing failed: {exc}") from exc
+        
+        raise RuntimeError("PDF parsing failed: no valid text extracted with available PDF parsers")
 
     @staticmethod
     def _parse_docx(file_bytes: bytes) -> ParsedResume:

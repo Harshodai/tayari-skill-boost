@@ -91,7 +91,6 @@ async def execute_one_shot_pipeline(req: OneShotRequest) -> OneShotResult:
     intel_res = find_recruiter_intel(
         company_name=req.company_name or "Target Enterprise",
         job_title=req.job_title,
-        job_description=req.job_description
     )
 
     # Stage 6: Interview Kit Generation

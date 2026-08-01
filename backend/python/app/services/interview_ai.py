@@ -1,10 +1,17 @@
 """
 Interview AI — resume-aware mock interview generator with STAR coaching.
+Uses Pydantic structured output models exclusively (zero regexes).
 """
 import re
 import random
 from typing import Dict, Any, List, Optional
-from app.services.llm_service import llm_complete
+
+from app.services.llm_service import llm_json
+from app.schemas import (
+    BehavioralPrepOutputSchema,
+    TechnicalPrepOutputSchema,
+    SystemDesignPrepOutputSchema,
+)
 
 
 class InterviewPrepGenerator:
@@ -77,40 +84,18 @@ class InterviewPrepGenerator:
 
         questions = []
         for i, bullet in enumerate(bullets[:5]):
-            prompt = f"""Given this resume bullet: "{bullet}"
-
-Generate ONE behavioral interview question that probes this specific achievement. The question should be natural and specific.
-
-Also provide a suggested STAR answer outline:
-- Situation: 1 sentence context
-- Task: 1 sentence goal
-- Action: 2-3 sentences what you did
-- Result: 1 sentence with metric
-
-Return in this exact format:
-QUESTION: [question text]
-SITUATION: [situation]
-TASK: [task]
-ACTION: [action]
-RESULT: [result]"""
-            raw = await llm_complete("", prompt, max_tokens=400, temperature=0.7)
-
-            q_match = re.search(r'QUESTION:\s*(.+?)(?=\nSITUATION:|$)', raw, re.DOTALL)
-            s_match = re.search(r'SITUATION:\s*(.+?)(?=\nTASK:|$)', raw, re.DOTALL)
-            t_match = re.search(r'TASK:\s*(.+?)(?=\nACTION:|$)', raw, re.DOTALL)
-            a_match = re.search(r'ACTION:\s*(.+?)(?=\nRESULT:|$)', raw, re.DOTALL)
-            r_match = re.search(r'RESULT:\s*(.+?)(?=\n|$)', raw, re.DOTALL)
-
+            prompt = f'Given this resume bullet: "{bullet}"\nGenerate one behavioral question probing this achievement and a STAR answer outline.'
+            res = await llm_json(
+                system_message="You are an expert interview coach.",
+                user_message=prompt,
+                response_model=BehavioralPrepOutputSchema,
+                tier="fast",
+            )
             questions.append({
-                "question": (q_match.group(1).strip() if q_match else f"Tell me about: {bullet[:80]}"),
+                "question": res.question,
                 "category": "behavioral",
                 "source_bullet": bullet,
-                "star_suggested": {
-                    "situation": (s_match.group(1).strip() if s_match else "Describe the context where this happened."),
-                    "task": (t_match.group(1).strip() if t_match else "What was your goal or responsibility?"),
-                    "action": (a_match.group(1).strip() if a_match else "What specific steps did you take?"),
-                    "result": (r_match.group(1).strip() if r_match else "What was the outcome with metrics?"),
-                },
+                "star_suggested": res.star_suggested.model_dump(),
             })
 
         company_specific = None
@@ -137,33 +122,19 @@ RESULT: [result]"""
             skills = ["general programming"]
 
         jd_context = f"\nJob Description:\n{job_description[:1000]}" if job_description else ""
+        prompt = (
+            f"Candidate skills: {', '.join(skills)}\nJob Title: {job_title}{jd_context}\n"
+            "Generate 5 technical interview questions for this role."
+        )
 
-        prompt = f"""Given the candidate's skills: {', '.join(skills)}
-Job Title: {job_title}
-{jd_context}
+        res = await llm_json(
+            system_message="You are a technical interviewer.",
+            user_message=prompt,
+            response_model=TechnicalPrepOutputSchema,
+            tier="fast",
+        )
 
-Generate 5 technical interview questions appropriate for this role. Each question should:
-1. Be specific to one of the skills listed.
-2. Be at an intermediate-to-advanced level.
-3. Include a brief suggested answer or key points to cover.
-
-Return in this format:
-Q1: [question]
-A1: [suggested answer/key points]
-Q2: ..."""
-        raw = await llm_complete("", prompt, max_tokens=800, temperature=0.7)
-
-        questions = []
-        q_matches = re.findall(r'Q\d+:\s*(.+?)(?=\nA\d+:|$)', raw, re.DOTALL)
-        a_matches = re.findall(r'A\d+:\s*(.+?)(?=\nQ\d+:|$)', raw, re.DOTALL)
-
-        for i in range(min(len(q_matches), len(a_matches), 5)):
-            questions.append({
-                "question": q_matches[i].strip().replace("\n", " "),
-                "category": "technical",
-                "skill": skills[i % len(skills)] if skills else "general",
-                "suggested_answer": a_matches[i].strip().replace("\n", " "),
-            })
+        questions = [q.model_dump() for q in res.questions]
 
         return {
             "questions": questions,
@@ -174,34 +145,16 @@ Q2: ..."""
     @staticmethod
     async def _system_design(job_title: str, job_description: Optional[str] = None) -> Dict[str, Any]:
         jd_context = f"\nJob Description:\n{job_description[:1000]}" if job_description else ""
+        prompt = f"Job Title: {job_title}{jd_context}\nGenerate 3 system design interview questions with requirements and suggested approach."
 
-        prompt = f"""Job Title: {job_title}
-{jd_context}
+        res = await llm_json(
+            system_message="You are a principal software architect.",
+            user_message=prompt,
+            response_model=SystemDesignPrepOutputSchema,
+            tier="fast",
+        )
 
-Generate 3 system design interview questions appropriate for this role. For each question, provide:
-1. The problem statement
-2. Key requirements (functional and non-functional)
-3. Suggested high-level approach
-
-Return in this format:
-Q1: [question]
-REQ1: [requirements]
-APPROACH1: [approach]
-Q2: ..."""
-        raw = await llm_complete("", prompt, max_tokens=700, temperature=0.7)
-
-        questions = []
-        q_matches = re.findall(r'Q\d+:\s*(.+?)(?=\nREQ\d+:|$)', raw, re.DOTALL)
-        req_matches = re.findall(r'REQ\d+:\s*(.+?)(?=\nAPPROACH\d+:|$)', raw, re.DOTALL)
-        app_matches = re.findall(r'APPROACH\d+:\s*(.+?)(?=\nQ\d+:|$)', raw, re.DOTALL)
-
-        for i in range(min(len(q_matches), len(req_matches), len(app_matches), 3)):
-            questions.append({
-                "question": q_matches[i].strip().replace("\n", " "),
-                "category": "system-design",
-                "requirements": req_matches[i].strip().replace("\n", " "),
-                "suggested_approach": app_matches[i].strip().replace("\n", " "),
-            })
+        questions = [q.model_dump() for q in res.questions]
 
         return {
             "questions": questions,

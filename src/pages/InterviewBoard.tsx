@@ -39,7 +39,14 @@ import {
   FileText,
   User,
   LogOut,
-  Info
+  Info,
+  TrendingUp,
+  XCircle,
+  CheckCircle2,
+  BookOpen,
+  ChevronRight,
+  Trophy,
+  HeartCrack
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -47,6 +54,7 @@ import {
   listApplications,
   createApplication,
   updateApplication,
+
   deleteApplication,
   addApplicationNote,
   deleteApplicationNote,
@@ -62,12 +70,12 @@ import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 
 const COLUMNS = [
-  { id: "saved", label: "Saved", color: "bg-muted" },
-  { id: "applied", label: "Applied", color: "bg-primary/10" },
-  { id: "phone_screen", label: "Phone Screen", color: "bg-secondary/10" },
-  { id: "interview", label: "Interview", color: "bg-warning/10" },
-  { id: "offer", label: "Offer", color: "bg-success/10" },
-  { id: "rejected", label: "Rejected", color: "bg-destructive/10" },
+  { id: "saved", label: "Saved", dotColor: "bg-slate-400 shadow-slate-400/50", headerBg: "bg-slate-500/10 border-slate-500/20", badgeBg: "bg-slate-500/15 text-slate-300" },
+  { id: "applied", label: "Applied", dotColor: "bg-blue-400 shadow-blue-400/50", headerBg: "bg-blue-500/10 border-blue-500/20", badgeBg: "bg-blue-500/15 text-blue-300" },
+  { id: "phone_screen", label: "Phone Screen", dotColor: "bg-amber-400 shadow-amber-400/50", headerBg: "bg-amber-500/10 border-amber-500/20", badgeBg: "bg-amber-500/15 text-amber-300" },
+  { id: "interview", label: "Interview", dotColor: "bg-indigo-400 shadow-indigo-400/50", headerBg: "bg-indigo-500/10 border-indigo-500/20", badgeBg: "bg-indigo-500/15 text-indigo-300" },
+  { id: "offer", label: "Offer", dotColor: "bg-emerald-400 shadow-emerald-400/50", headerBg: "bg-emerald-500/10 border-emerald-500/20", badgeBg: "bg-emerald-500/15 text-emerald-300" },
+  { id: "rejected", label: "Rejected", dotColor: "bg-rose-400 shadow-rose-400/50", headerBg: "bg-rose-500/10 border-rose-500/20", badgeBg: "bg-rose-500/15 text-rose-300" },
 ];
 
 const InterviewBoard = () => {
@@ -102,6 +110,21 @@ const InterviewBoard = () => {
   const [isUploadingVoice, setIsUploadingVoice] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+
+  // Retrospective modal state (for Offer / Rejected moves)
+  const [retroOpen, setRetroOpen] = useState(false);
+  const [retroApp, setRetroApp] = useState<any>(null);
+  const [retroTargetStage, setRetroTargetStage] = useState<string>("");
+  const [retroText, setRetroText] = useState("");
+  const [retroTab, setRetroTab] = useState<"text" | "voice">("text");
+  const [retroRecording, setRetroRecording] = useState(false);
+  const [retroAudioUrl, setRetroAudioUrl] = useState<string | null>(null);
+  const [retroAudioBlob, setRetroAudioBlob] = useState<Blob | null>(null);
+  const retroMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const retroAudioChunksRef = useRef<Blob[]>([]);
+  const retroIdempotencyKeyRef = useRef<string | null>(null);
+  const retroVoiceUploadedRef = useRef<boolean>(false);
+  const [isSavingRetro, setIsSavingRetro] = useState(false);
 
   // Gmail status state
   const { data: gmailStatus, refetch: refetchGmailStatus } = useQuery({
@@ -176,15 +199,121 @@ const InterviewBoard = () => {
   };
 
   const move = (app: any, direction: "left" | "right") => {
-    const idx = COLUMNS.findIndex((c) => c.id === app.stage);
+    const currentStage = effectiveStatus(app);
+    const idx = COLUMNS.findIndex((c) => c.id === currentStage);
     const nextIdx = direction === "left" ? idx - 1 : idx + 1;
     if (nextIdx < 0 || nextIdx >= COLUMNS.length) return;
     const nextStatus = COLUMNS[nextIdx].id;
+    // Intercept moves to Offer or Rejected — show retrospective first
+    if (nextStatus === "offer" || nextStatus === "rejected") {
+      setRetroApp(app);
+      setRetroTargetStage(nextStatus);
+      setRetroText("");
+      if (retroAudioUrl) { try { URL.revokeObjectURL(retroAudioUrl); } catch {} }
+      setRetroAudioUrl(null);
+      setRetroAudioBlob(null);
+      setRetroTab("text");
+      retroIdempotencyKeyRef.current = crypto.randomUUID();
+      retroVoiceUploadedRef.current = false;
+      setRetroOpen(true);
+      return;
+    }
     setOptimisticApps((prev) => ({ ...prev, [app.id]: nextStatus }));
     updateMutation.mutate({ id: app.id, status: nextStatus });
   };
 
-  const effectiveStatus = (app: any) => optimisticApps[app.id] || app.stage;
+  // Retrospective recording helpers
+  const startRetroRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      retroMediaRecorderRef.current = recorder;
+      retroAudioChunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) retroAudioChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(retroAudioChunksRef.current, { type: "audio/webm" });
+        setRetroAudioBlob(blob);
+        setRetroAudioUrl(URL.createObjectURL(blob));
+      };
+      recorder.start();
+      setRetroRecording(true);
+      setRetroAudioUrl(null);
+      setRetroAudioBlob(null);
+    } catch {
+      toast.error("Microphone access denied.");
+    }
+  };
+
+  const stopRetroRecording = () => {
+    if (retroMediaRecorderRef.current && retroRecording) {
+      retroMediaRecorderRef.current.stop();
+      retroMediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+      setRetroRecording(false);
+    }
+  };
+
+  const handleRetroSubmit = async (skip = false) => {
+    if (!retroApp) return;
+    setIsSavingRetro(true);
+    const idempotencyKey = retroIdempotencyKeyRef.current || crypto.randomUUID();
+    retroIdempotencyKeyRef.current = idempotencyKey;
+
+    try {
+      // Build retrospective content
+      const retroTitle = retroApp.title || retroApp.job?.title || "Untitled Role";
+      const retroCompany = retroApp.company || retroApp.job?.company || "Unknown Company";
+      const outcome = retroTargetStage === "offer" ? "🎉 OFFER RECEIVED" : "❌ REJECTED";
+      const noteLines = [
+        `=== RETROSPECTIVE — ${outcome} ===`,
+        `Role: ${retroTitle} @ ${retroCompany}`,
+        `Date: ${new Date().toLocaleDateString()}`,
+      ];
+      if (!skip) {
+        if (retroText.trim()) noteLines.push(`\nReflection:\n${retroText.trim()}`);
+        if (retroAudioBlob && !retroVoiceUploadedRef.current) {
+          try {
+            await uploadApplicationVoice(retroApp.id, retroAudioBlob);
+            retroVoiceUploadedRef.current = true;
+            noteLines.push("\n[Voice reflection recorded — see Voice Notes tab for transcript]");
+          } catch {
+            toast.error("Failed to upload voice note.");
+            setIsSavingRetro(false);
+            return;
+          }
+        } else if (retroVoiceUploadedRef.current) {
+          noteLines.push("\n[Voice reflection recorded — see Voice Notes tab for transcript]");
+        }
+      } else {
+        noteLines.push("\n(Retrospective skipped)");
+      }
+
+      // Persist note and stage transition atomically using idempotency key
+      setOptimisticApps((prev) => ({ ...prev, [retroApp.id]: retroTargetStage }));
+      await Promise.all([
+        addApplicationNote(retroApp.id, noteLines.join("\n")),
+        updateMutation.mutateAsync({ id: retroApp.id, status: retroTargetStage }),
+      ]);
+    } catch {
+      toast.error("Failed to save retrospective. Please try again.");
+      setIsSavingRetro(false);
+      return;
+    }
+
+    retroIdempotencyKeyRef.current = null;
+    retroVoiceUploadedRef.current = false;
+    setIsSavingRetro(false);
+    setRetroOpen(false);
+    setRetroApp(null);
+    setRetroText("");
+    if (retroAudioUrl) { try { URL.revokeObjectURL(retroAudioUrl); } catch {} }
+    setRetroAudioUrl(null);
+    setRetroAudioBlob(null);
+
+    const emoji = retroTargetStage === "offer" ? "🎉" : "💪";
+    toast.success(`${emoji} Retrospective saved! Your reflection will help you grow.`);
+  };
+
+  const effectiveStatus = (app: any) => optimisticApps[app.id] || app.stage || app.status;
   const appsByColumn = (status: string) => applications.filter((a) => effectiveStatus(a) === status);
 
   // Email Paste handlers
@@ -465,7 +594,7 @@ const InterviewBoard = () => {
                     onChange={(e) => setEmailText(e.target.value)}
                     className="font-sans bg-background/50 text-sm focus-visible:ring-primary/20"
                   />
-                  
+
                   {parsedEmailData && (
                     <Card className="bg-primary/5 border-primary/10 mt-3">
                       <CardHeader className="p-3 pb-0">
@@ -579,11 +708,11 @@ const InterviewBoard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             {COLUMNS.map((col) => (
               <div key={col.id} className="flex flex-col">
-                <div className={`p-3 rounded-t-lg ${col.color} border-x border-t border-border flex items-center justify-between`}>
+                <div className={`p-3 rounded-t-xl ${col.headerBg} border-x border-t flex items-center justify-between`}>
                   <Skeleton className="h-4 w-20" />
                   <Skeleton className="h-5 w-6" />
                 </div>
-                <div className="flex-1 bg-card border-x border-b border-border rounded-b-lg p-2 space-y-3 min-h-[200px]">
+                <div className="flex-1 bg-card/20 border-x border-b border-border/60 rounded-b-xl p-2 space-y-3 min-h-[200px]">
                   <Card className="p-3 space-y-2">
                     <Skeleton className="h-4 w-3/4" />
                     <Skeleton className="h-3 w-1/2" />
@@ -597,23 +726,25 @@ const InterviewBoard = () => {
             {COLUMNS.map((col) => (
               <div key={col.id} className="flex flex-col min-w-[200px] flex-1">
                 {/* Column header */}
-                <div className={`p-3.5 rounded-t-xl ${col.color} border-x border-t border-border/60 flex items-center justify-between`}>
-                  <span className="text-xs font-bold uppercase tracking-wider text-foreground/80">{col.label}</span>
-                  <Badge variant="outline" className="text-[10px] bg-background/50 font-bold">
+                <div className={`p-3.5 rounded-t-xl ${col.headerBg} border flex items-center justify-between backdrop-blur-md shadow-xs`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${col.dotColor} shadow-xs`} />
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-foreground/90">{col.label}</span>
+                  </div>
+                  <Badge variant="outline" className={`text-[10px] font-black border-0 px-2 py-0.5 rounded-full ${col.badgeBg}`}>
                     {appsByColumn(col.id).length}
                   </Badge>
                 </div>
 
                 {/* Cards feed */}
-                <div className="flex-1 bg-card/20 border-x border-b border-border/60 rounded-b-xl p-2.5 space-y-3 min-h-[350px]">
+                <div className="flex-1 bg-card/20 border-x border-b border-border/60 rounded-b-xl p-2.5 space-y-3 min-h-[350px] transition-colors">
                   {appsByColumn(col.id).map((app) => {
                     const isMoving = !!optimisticApps[app.id];
                     return (
-                      <Card 
-                        key={app.id} 
-                        className={`group cursor-pointer border-border/60 hover:border-primary/20 bg-card/60 backdrop-blur-sm transition-all hover:shadow-sm ${
-                          isMoving ? "opacity-60" : ""
-                        }`}
+                      <Card
+                        key={app.id}
+                        className={`group relative cursor-pointer border-border/60 hover:border-primary/40 bg-card/70 backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${isMoving ? "opacity-60" : ""
+                          }`}
                         onClick={() => {
                           setSelectedApp(app);
                           setDetailOpen(true);
@@ -626,10 +757,10 @@ const InterviewBoard = () => {
                             </div>
                             <div className="flex-1 min-w-0">
                               <h4 className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
-                                {app.title || "Untitled Role"}
+                                {app.title || app.job?.title || "Untitled Role"}
                               </h4>
                               <p className="text-xs text-muted-foreground truncate">
-                                {app.company || "Unknown"}
+                                {app.company || app.job?.company || "Unknown"}
                               </p>
                               {app.location && (
                                 <p className="text-[10px] text-muted-foreground/80 flex items-center gap-1 mt-0.5">
@@ -824,9 +955,9 @@ const InterviewBoard = () => {
                             )}
 
                             {audioUrl && !isRecording && (
-                              <Button 
-                                onClick={handleUploadVoiceNote} 
-                                disabled={isUploadingVoice} 
+                              <Button
+                                onClick={handleUploadVoiceNote}
+                                disabled={isUploadingVoice}
                                 className="bg-success-600 hover:bg-success-700 text-white"
                               >
                                 {isUploadingVoice ? (
@@ -895,8 +1026,8 @@ const InterviewBoard = () => {
                             <h4 className="text-sm font-bold text-foreground">Interview Questions Intel</h4>
                             <p className="text-xs text-muted-foreground">Retrieve commonly asked questions, preparation foci, and potential warning flags.</p>
                           </div>
-                          <Button 
-                            onClick={handleGenerateInterviewQuestions} 
+                          <Button
+                            onClick={handleGenerateInterviewQuestions}
                             disabled={isGeneratingIQ}
                             size="sm"
                             className="bg-gradient-to-r from-violet-600 to-primary text-white"
@@ -1002,6 +1133,231 @@ const InterviewBoard = () => {
                     </TabsContent>
                   </div>
                 </Tabs>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* ============================================================
+            RETROSPECTIVE MODAL — Offer / Rejected
+        ============================================================ */}
+        <Dialog open={retroOpen} onOpenChange={(open) => {
+          if (!open && !isSavingRetro) {
+            if (retroMediaRecorderRef.current && retroRecording) {
+              try {
+                retroMediaRecorderRef.current.onstop = null;
+                retroMediaRecorderRef.current.stop();
+                retroMediaRecorderRef.current.stream?.getTracks().forEach((t) => t.stop());
+              } catch {}
+            }
+            if (retroAudioUrl) {
+              try { URL.revokeObjectURL(retroAudioUrl); } catch {}
+            }
+            setRetroRecording(false);
+            setRetroAudioUrl(null);
+            setRetroAudioBlob(null);
+            setRetroOpen(false);
+          }
+        }}>
+          <DialogContent className="max-w-2xl p-0 overflow-hidden border-0 shadow-2xl">
+            {retroApp && (
+              <>
+                {/* Emotional header */}
+                <div className={`relative p-8 pb-6 overflow-hidden ${retroTargetStage === "offer"
+                  ? "bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-900"
+                  : "bg-gradient-to-br from-rose-950 via-rose-900 to-red-900"
+                  }`}>
+                  {/* Decorative circles */}
+                  <div className={`absolute -top-12 -right-12 w-48 h-48 rounded-full opacity-10 ${retroTargetStage === "offer" ? "bg-emerald-400" : "bg-rose-400"
+                    }`} />
+                  <div className={`absolute -bottom-8 -left-8 w-32 h-32 rounded-full opacity-10 ${retroTargetStage === "offer" ? "bg-teal-400" : "bg-red-400"
+                    }`} />
+
+                  <div className="relative z-10 flex items-start gap-4">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${retroTargetStage === "offer"
+                      ? "bg-emerald-500/30 border border-emerald-400/30"
+                      : "bg-rose-500/30 border border-rose-400/30"
+                      }`}>
+                      {retroTargetStage === "offer"
+                        ? <Trophy className="w-7 h-7 text-emerald-300" />
+                        : <HeartCrack className="w-7 h-7 text-rose-300" />}
+                    </div>
+                    <div className="flex-1">
+                      <div className={`text-xs font-bold uppercase tracking-widest mb-1 ${retroTargetStage === "offer" ? "text-emerald-400" : "text-rose-400"
+                        }`}>
+                        {retroTargetStage === "offer" ? "Congratulations 🎉" : "Stay resilient 💪"}
+                      </div>
+                      <h2 className="text-xl font-extrabold text-white leading-tight">
+                        {retroTargetStage === "offer" ? "You got an offer!" : "Application not selected"}
+                      </h2>
+                      <p className="text-sm text-white/70 mt-1.5">
+                        {retroApp.title || retroApp.job?.title || "Untitled Role"} <span className="text-white/40 mx-1">at</span> {retroApp.company || retroApp.job?.company || "Unknown Company"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className={`relative z-10 mt-5 text-sm leading-relaxed ${retroTargetStage === "offer" ? "text-emerald-100/80" : "text-rose-100/80"
+                    }`}>
+                    {retroTargetStage === "offer"
+                      ? "Take a moment to capture what worked — your winning strategies, the questions they loved, and how you stood out. Future-you will thank you."
+                      : "Every rejection is a data point. Capture what happened, where you felt unprepared, and what you'd do differently. This is your growth engine."}
+                  </p>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-5 bg-background">
+                  {/* Prompt chips */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reflection prompts</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(retroTargetStage === "offer"
+                        ? [
+                          "What set me apart?",
+                          "Which round went best?",
+                          "What prep helped most?",
+                          "Key skills they valued",
+                        ]
+                        : [
+                          "Where did I stumble?",
+                          "Questions I wasn't ready for",
+                          "What I'd prepare differently",
+                          "Fit issues?",
+                          "Technical gaps to close",
+                        ]
+                      ).map((chip) => (
+                        <button
+                          key={chip}
+                          type="button"
+                          onClick={() => setRetroText((t) => t ? `${t}\n• ${chip}: ` : `• ${chip}: `)}
+                          className="text-[11px] px-2.5 py-1 rounded-full border border-border/60 bg-muted/40 hover:bg-muted/80 text-foreground/70 hover:text-foreground transition-colors cursor-pointer font-medium"
+                        >
+                          + {chip}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Input tabs */}
+                  <Tabs value={retroTab} onValueChange={(v) => setRetroTab(v as "text" | "voice")}>
+                    <TabsList className="w-full h-9 bg-muted/40">
+                      <TabsTrigger value="text" className="flex-1 text-xs">
+                        <FileText className="w-3.5 h-3.5 mr-1.5" /> Write
+                      </TabsTrigger>
+                      <TabsTrigger value="voice" className="flex-1 text-xs">
+                        <Mic className="w-3.5 h-3.5 mr-1.5" /> Record
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="text" className="mt-3">
+                      <Textarea
+                        placeholder={retroTargetStage === "offer"
+                          ? "What went well? What was your winning strategy? Any standout moments in the interview?"
+                          : "What happened? Where did it fall short? What would you prep differently next time?"
+                        }
+                        rows={6}
+                        value={retroText}
+                        onChange={(e) => setRetroText(e.target.value)}
+                        className="resize-none bg-muted/20 focus-visible:ring-primary/20 text-sm leading-relaxed"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1.5">
+                        {retroText.length > 0 ? `${retroText.length} chars written` : "Start typing your reflection..."}
+                      </p>
+                    </TabsContent>
+
+                    <TabsContent value="voice" className="mt-3">
+                      <div className="flex flex-col items-center justify-center p-6 border rounded-xl bg-muted/20 border-dashed gap-4">
+                        {retroRecording && (
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 bg-destructive rounded-full animate-ping" />
+                              <span className="text-xs font-semibold text-destructive animate-pulse">Recording voice reflection...</span>
+                            </div>
+                            {/* Animated Audio Equalizer Bars */}
+                            <div className="flex items-end gap-1 h-8 px-4">
+                              <div className="w-1.5 bg-destructive rounded-full h-4 animate-bounce [animation-delay:0.1s]" />
+                              <div className="w-1.5 bg-destructive rounded-full h-7 animate-bounce [animation-delay:0.2s]" />
+                              <div className="w-1.5 bg-destructive rounded-full h-5 animate-bounce [animation-delay:0.3s]" />
+                              <div className="w-1.5 bg-destructive rounded-full h-8 animate-bounce [animation-delay:0.15s]" />
+                              <div className="w-1.5 bg-destructive rounded-full h-3 animate-bounce [animation-delay:0.25s]" />
+                              <div className="w-1.5 bg-destructive rounded-full h-6 animate-bounce [animation-delay:0.35s]" />
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex gap-3">
+                          {!retroRecording ? (
+                            <Button onClick={startRetroRecording} size="sm" className="bg-primary text-white">
+                              <Mic className="w-4 h-4 mr-2" /> Start Recording
+                            </Button>
+                          ) : (
+                            <Button onClick={stopRetroRecording} size="sm" variant="destructive">
+                              <MicOff className="w-4 h-4 mr-2" /> Stop
+                            </Button>
+                          )}
+                        </div>
+                        {retroAudioUrl && !retroRecording && (
+                          <>
+                            <audio src={retroAudioUrl} controls className="w-full h-8 mt-1" />
+                            <p className="text-[10px] text-muted-foreground">Voice note recorded. It will be transcribed and saved.</p>
+                          </>
+                        )}
+                        {!retroAudioUrl && !retroRecording && (
+                          <p className="text-xs text-muted-foreground">Speak your reflection aloud — it will be AI-transcribed and attached to this application.</p>
+                        )}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+
+                  {/* Self-assessment quick rating */}
+                  <div className="border border-border/40 rounded-xl p-4 bg-muted/10 space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Quick self-assessment areas to note</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { icon: Brain, label: "Technical preparation" },
+                        { icon: MessageSquare, label: "Communication style" },
+                        { icon: Target, label: "Role/company fit" },
+                        { icon: BookOpen, label: "Research depth" },
+                      ].map(({ icon: Icon, label }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => setRetroText((t) => t ? `${t}\n• ${label}: ` : `• ${label}: `)}
+                          className="flex items-center gap-2 text-left text-xs px-3 py-2 rounded-lg border border-border/40 bg-background/50 hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Icon className="w-3.5 h-3.5 shrink-0" />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Footer actions */}
+                  <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-foreground text-xs"
+                      onClick={() => handleRetroSubmit(true)}
+                      disabled={isSavingRetro}
+                    >
+                      Skip for now
+                    </Button>
+                    <Button
+                      size="sm"
+                      className={retroTargetStage === "offer"
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        : "bg-rose-700 hover:bg-rose-800 text-white"
+                      }
+                      onClick={() => handleRetroSubmit(false)}
+                      disabled={isSavingRetro || (retroText.trim() === "" && !retroAudioBlob)}
+                    >
+                      {isSavingRetro ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+                      ) : (
+                        <><ChevronRight className="w-4 h-4 mr-1" /> Save Reflection & Move Card</>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </>
             )}
           </DialogContent>

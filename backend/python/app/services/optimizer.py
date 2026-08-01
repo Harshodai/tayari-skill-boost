@@ -231,17 +231,19 @@ async def _humanize_pass(optimized_text: str) -> str:
     return optimized_text  # Fall back to pre-humanization text
 
 
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
+from app.schemas import OptimizedResumePayloadSchema
+from app.services.llm_service import llm_json
+
 
 def _parse_marked_output(raw: str):
+    """Fallback legacy parser kept for backward compatibility."""
     meta_part = raw.split("<<<META>>>")[-1].split("<<<RESUME>>>")[0]
     resume_part = raw.split("<<<RESUME>>>")[-1].split("<<<END>>>")[0].strip()
     meta = extract_json(meta_part)
     if not resume_part or len(resume_part) < 200:
         raise ValueError("Optimized resume too short")
     return resume_part, meta
+
 
 
 def _gap_feedback(heuristic: dict) -> str:
@@ -446,10 +448,30 @@ async def optimize_with_reflection(
         "- Strengthen bullets with action verbs and quantified impact\n"
         "- For bullets missing metrics, add realistic ranges like '~20-30% [ESTIMATE]'\n"
         "- Integrate relevant keywords naturally — no keyword stuffing\n"
-        "- Vary action verbs across bullets\n\n" + OUTPUT_FORMAT
+        "- Vary action verbs across bullets\n"
     )
-    raw = await llm_complete(OPTIMIZE_SYSTEM, user_msg, tier="smart", max_tokens=4000)
-    optimized, meta = _parse_marked_output(raw)
+    try:
+        res_obj: OptimizedResumePayloadSchema = await llm_json(
+            OPTIMIZE_SYSTEM,
+            user_msg,
+            response_model=OptimizedResumePayloadSchema,
+            tier="smart",
+            max_tokens=4000,
+        )
+        optimized = res_obj.optimized_text
+        meta = {
+            "changes": res_obj.changes,
+            "keywords_added": res_obj.keywords_added,
+            "estimated_score": res_obj.estimated_score,
+        }
+    except Exception as exc:
+        logger.warning("Primary optimization LLM call failed: %s. Falling back to input resume.", exc)
+        optimized = resume_text
+        meta = {
+            "changes": ["Fallback: Optimization LLM call encountered error"],
+            "keywords_added": [],
+            "estimated_score": heuristic_before["score"],
+        }
     heuristic = heuristic_ats_score(optimized, jd)
     alignment_report = validate_master_alignment(optimized, resume_text)
     passes = 1
@@ -471,11 +493,22 @@ async def optimize_with_reflection(
             f"You previously optimized this resume:\n{optimized[:9000]}{context}\n\n"
             f"An ATS scan of YOUR version found these concrete gaps:\n{feedback}\n\n"
             "Produce an improved version that fixes every gap above while staying "
-            "100% truthful. Keep everything that already works.\n\n" + OUTPUT_FORMAT
+            "100% truthful. Keep everything that already works."
         )
         try:
-            raw2 = await llm_complete(OPTIMIZE_SYSTEM, refine_msg, tier="smart", max_tokens=4000)
-            optimized2, meta2 = _parse_marked_output(raw2)
+            res_obj2: OptimizedResumePayloadSchema = await llm_json(
+                OPTIMIZE_SYSTEM,
+                refine_msg,
+                response_model=OptimizedResumePayloadSchema,
+                tier="smart",
+                max_tokens=4000,
+            )
+            optimized2 = res_obj2.optimized_text
+            meta2 = {
+                "changes": res_obj2.changes,
+                "keywords_added": res_obj2.keywords_added,
+                "estimated_score": res_obj2.estimated_score,
+            }
             heuristic2 = heuristic_ats_score(optimized2, jd)
             alignment_report2 = validate_master_alignment(optimized2, resume_text)
             passes = 2

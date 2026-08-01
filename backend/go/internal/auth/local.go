@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"tayari-backend/internal/concurrency"
 	"tayari-backend/internal/config"
@@ -31,13 +32,25 @@ func NewLocalAuth(db *database.DB, cfg *config.Config, worker *concurrency.Audit
 	return &LocalAuth{DB: db, Config: cfg, Worker: worker}
 }
 
+// ValidatePassword enforces 12-72 characters (rune count) and bcrypt's 72-byte limit.
+func ValidatePassword(password string) error {
+	runes := utf8.RuneCountInString(password)
+	if runes < 12 || runes > 72 {
+		return fmt.Errorf("password must be 12-72 characters")
+	}
+	if len(password) > 72 {
+		return fmt.Errorf("password exceeds maximum length of 72 bytes")
+	}
+	return nil
+}
+
 func (a *LocalAuth) Register(ctx context.Context, email, password string) (*models.User, error) {
 	if !validateEmail(email) {
 		return nil, fmt.Errorf("invalid email")
 	}
-	// ponytail: bcrypt errors on >72 bytes; 8 is the min. No upper-complexity rules — add when policy demands.
-	if len(password) < 8 || len(password) > 72 {
-		return nil, fmt.Errorf("password must be 8-72 characters")
+	// ponytail: bcrypt errors on >72 bytes; 12 is the min policy requirement.
+	if err := ValidatePassword(password); err != nil {
+		return nil, err
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {

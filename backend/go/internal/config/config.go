@@ -80,6 +80,22 @@ func getEnvRequired(key string) string {
 	if !exists || value == "" {
 		log.Fatalf("FATAL: Required environment variable %s is not set", key)
 	}
+	if key == "JWT_SECRET" {
+		insecureDefaults := map[string]bool{
+			"super-secret-key": true,
+			"secret":           true,
+			"change-me":        true,
+			"your-jwt-secret":  true,
+		}
+		if insecureDefaults[strings.ToLower(strings.TrimSpace(value))] {
+			appEnv := strings.ToLower(os.Getenv("APP_ENV"))
+			if appEnv == "production" || appEnv == "staging" || appEnv == "prod" {
+				log.Fatalf("FATAL: Insecure default JWT_SECRET detected in %s environment. Change JWT_SECRET immediately.", appEnv)
+			} else {
+				log.Printf("SECURITY WARNING: Using insecure default JWT_SECRET in %s mode. Do not use in production!", appEnv)
+			}
+		}
+	}
 	return value
 }
 

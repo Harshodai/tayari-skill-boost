@@ -66,12 +66,19 @@ from app.services.linkedin_analyzer import score_linkedin_profile
 logger = logging.getLogger(__name__)
 
 
+from app.a2a.agents import register_all_a2a_agents
+from app.api.a2a_routes import router as a2a_router
+
+
 # ---------------------------------------------------------------------------
 # Lifespan — start/stop the Auto-Pilot scheduler as a background task
 # ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start the recurring Auto-Pilot scheduler on startup, cancel on shutdown."""
+    register_all_a2a_agents()
+    logger.info("Registered all A2A agents")
+
     from app.services.scheduler import (
         scheduler_loop,
         _load_profile_for_user,
@@ -106,6 +113,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.include_router(a2a_router)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -156,8 +164,12 @@ strategic_analyzer = StrategicAnalyzer()
 
 from app.routes import health, ats
 from app.routes.ats import AnalyzeRequest
+from app.api.ai_routes import router as ai_router
+
 app.include_router(health.router)
 app.include_router(ats.router)
+app.include_router(ai_router)
+
 
 
 

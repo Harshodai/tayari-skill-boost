@@ -34,7 +34,8 @@ import os
 import re
 import uuid
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Type, TypeVar, Any, Dict, List
+from pydantic import BaseModel, ValidationError
 
 import httpx
 
@@ -524,6 +525,9 @@ def _mock_text(system_message: str = "", user_message: str = "") -> str:
 # JSON utilities
 # ---------------------------------------------------------------------------
 
+T = TypeVar("T", bound=BaseModel)
+
+
 def extract_json(text: str):
     """Robustly extract a JSON object/array from an LLM response."""
     text = text.strip()
@@ -546,17 +550,82 @@ def extract_json(text: str):
     raise ValueError("LLM returned unparseable JSON")
 
 
-async def llm_json(system_message: str, user_message: str,
-                   tier: str = "fast",
-                   _user_id: Optional[str] = None,
-                   _resource: Optional[str] = None) -> dict | list:
-    """Complete and parse response as JSON. Adds JSON instruction to system prompt."""
-    sys2 = (system_message +
-            "\n\nIMPORTANT: Respond with ONLY a single valid JSON value. "
-            "No markdown fences, no commentary, no preface.")
-    raw = await llm_complete(sys2, user_message, tier=tier, max_tokens=1200,
-                             _user_id=_user_id, _resource=_resource)
-    return extract_json(raw)
+async def llm_json(
+    system_message: str,
+    user_message: str,
+    response_model: Optional[Type[T]] = None,
+    tier: str = "fast",
+    max_tokens: int = 1500,
+    max_retries: int = 2,
+    _user_id: Optional[str] = None,
+    _resource: Optional[str] = None,
+) -> T | dict | list:
+    """Complete and parse LLM response into a Pydantic model T or JSON dict/list.
+
+    Enforces Pydantic model validation (model_validate_json) with an automated
+    self-correcting retry loop if parsing or schema validation fails.
+    """
+    schema_instruction = ""
+    if response_model is not None:
+        json_schema = json.dumps(response_model.model_json_schema(), indent=2)
+        schema_instruction = (
+            f"\n\nSTRICT JSON OUTPUT REQUIREMENT:\n"
+            f"You MUST return a single JSON object strictly matching this Pydantic schema:\n"
+            f"```json\n{json_schema}\n```\n"
+            f"Do not include any prose, commentary, or markdown formatting outside the JSON."
+        )
+
+    sys_prompt = system_message + schema_instruction + (
+        "\n\nIMPORTANT: Respond with ONLY a single valid raw JSON string. No markdown fences, no preface."
+    )
+
+    current_user_msg = user_message
+
+    for attempt in range(max_retries + 1):
+        raw_text = await llm_complete(
+            sys_prompt,
+            current_user_msg,
+            tier=tier,
+            max_tokens=max_tokens,
+            _user_id=_user_id,
+            _resource=_resource,
+        )
+
+        clean_text = raw_text.strip()
+        if clean_text.startswith("```"):
+            lines = clean_text.splitlines()
+            if len(lines) >= 2 and lines[0].startswith("```"):
+                clean_text = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
+
+        if response_model is not None:
+            try:
+                return response_model.model_validate_json(clean_text)
+            except (ValidationError, ValueError, json.JSONDecodeError) as exc:
+                logger.warning(
+                    "Pydantic validation failed for %s (attempt %d/%d): %s",
+                    response_model.__name__, attempt + 1, max_retries + 1, exc
+                )
+                if attempt == max_retries:
+                    raise ValueError(f"LLM output failed Pydantic validation after {max_retries + 1} attempts: {exc}") from exc
+                current_user_msg = (
+                    f"{user_message}\n\n"
+                    f"[SYSTEM CORRECTION]: Your previous JSON response failed validation for schema {response_model.__name__}.\n"
+                    f"Validation error details:\n{exc}\n"
+                    f"Please regenerate your response strictly adhering to the JSON schema."
+                )
+        else:
+            try:
+                return json.loads(clean_text)
+            except json.JSONDecodeError as exc:
+                if attempt == max_retries:
+                    return extract_json(clean_text)
+                current_user_msg = (
+                    f"{user_message}\n\n"
+                    f"[SYSTEM CORRECTION]: Your previous response was invalid JSON and could not be parsed.\n"
+                    f"JSON error details: {exc}\n"
+                    f"Please regenerate your response strictly formatted as valid JSON."
+                )
+
 
 
 # ---------------------------------------------------------------------------

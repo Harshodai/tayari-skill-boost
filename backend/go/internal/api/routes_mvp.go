@@ -516,8 +516,17 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 	if req.Status == "" {
 		req.Status = "saved"
 	}
+	if req.Job == nil {
+		req.Job = map[string]interface{}{}
+	}
 	appID := uuid.New().String()
-	query := `INSERT INTO applications (application_id, user_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, submission_mode, apply_url, resume_variant_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW()) RETURNING id`
+	if _, err := s.DB.Conn.ExecContext(r.Context(), "INSERT INTO auth.users (id, email) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", user.ID, user.Email); err != nil {
+		log.Printf("handleCreateApplication: auth.users insert error: %v", err)
+	}
+	if _, err := s.DB.Conn.ExecContext(r.Context(), "INSERT INTO profiles (id, email) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", user.ID, user.Email); err != nil {
+		log.Printf("handleCreateApplication: profiles insert error: %v", err)
+	}
+	query := `INSERT INTO applications (application_id, user_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, stage, submission_mode, apply_url, resume_variant_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, NOW(), NOW()) RETURNING id`
 	var id int
 	err := s.DB.Conn.QueryRowContext(r.Context(), query, appID, user.ID, models.JSONMap(req.Job), req.TailoredResumeText, req.CoverLetter, models.JSONMap(req.Changes), models.StringSlice(req.KeywordsAdded), req.ATSScoreBefore, req.ATSScoreAfter, req.IsDreamCompany, req.Status, req.SubmissionMode, req.ApplyURL, req.ResumeVariantID).Scan(&id)
 	if err != nil {
@@ -543,11 +552,12 @@ func (s *Server) handleListApplications(w http.ResponseWriter, r *http.Request) 
 	statusFilter := r.URL.Query().Get("status")
 	var query string
 	var args []interface{}
+	selectFields := `id, application_id, run_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, submission_mode, apply_url, created_at, updated_at, COALESCE(title, ''), COALESCE(company, ''), COALESCE(location, ''), stage`
 	if statusFilter != "" {
-		query = `SELECT id, application_id, run_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, submission_mode, apply_url, created_at, updated_at FROM applications WHERE user_id=$1 AND status=$2 ORDER BY created_at DESC`
+		query = fmt.Sprintf(`SELECT %s FROM applications WHERE user_id=$1 AND (status=$2 OR stage=$2) ORDER BY created_at DESC`, selectFields)
 		args = []interface{}{user.ID, statusFilter}
 	} else {
-		query = `SELECT id, application_id, run_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, submission_mode, apply_url, created_at, updated_at FROM applications WHERE user_id=$1 ORDER BY created_at DESC`
+		query = fmt.Sprintf(`SELECT %s FROM applications WHERE user_id=$1 ORDER BY created_at DESC`, selectFields)
 		args = []interface{}{user.ID}
 	}
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, args...)
@@ -561,14 +571,39 @@ func (s *Server) handleListApplications(w http.ResponseWriter, r *http.Request) 
 	for rows.Next() {
 		var a models.Application
 		var runID sql.NullString
-		if err := rows.Scan(&a.ID, &a.ApplicationID, &runID, &a.Job, &a.TailoredResumeText, &a.CoverLetter, &a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter, &a.IsDreamCompany, &a.Status, &a.SubmissionMode, &a.ApplyURL, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		var colTitle, colCompany, colLocation string
+		var colStage sql.NullString
+		if err := rows.Scan(&a.ID, &a.ApplicationID, &runID, &a.Job, &a.TailoredResumeText, &a.CoverLetter, &a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter, &a.IsDreamCompany, &a.Status, &a.SubmissionMode, &a.ApplyURL, &a.CreatedAt, &a.UpdatedAt, &colTitle, &colCompany, &colLocation, &colStage); err != nil {
 			continue
 		}
 		if runID.Valid {
 			a.RunID = runID.String
 		}
+		title := colTitle
+		company := colCompany
+		location := colLocation
+		if title == "" && a.Job != nil {
+			if t, ok := a.Job["title"].(string); ok {
+				title = t
+			}
+		}
+		if company == "" && a.Job != nil {
+			if c, ok := a.Job["company"].(string); ok {
+				company = c
+			}
+		}
+		if location == "" && a.Job != nil {
+			if l, ok := a.Job["location"].(string); ok {
+				location = l
+			}
+		}
+		stage := a.Status
+		if colStage.Valid && colStage.String != "" {
+			stage = colStage.String
+		}
 		apps = append(apps, map[string]interface{}{
 			"id": a.ID, "application_id": a.ApplicationID, "run_id": a.RunID, "job": a.Job,
+			"title": title, "company": company, "location": location, "stage": stage,
 			"tailored_resume_text": a.TailoredResumeText, "cover_letter": a.CoverLetter,
 			"changes": a.Changes, "keywords_added": a.KeywordsAdded,
 			"ats_score_before": a.ATSScoreBefore, "ats_score_after": a.ATSScoreAfter,
@@ -589,7 +624,7 @@ func (s *Server) handleGetApplication(w http.ResponseWriter, r *http.Request) {
 	appIDStr := chi.URLParam(r, "id")
 	var a models.Application
 	var runID sql.NullString
-	query := `SELECT id, application_id, run_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, submission_mode, apply_url, created_at, updated_at FROM applications WHERE application_id=$1 AND user_id=$2`
+	query := `SELECT id, application_id, run_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, submission_mode, apply_url, created_at, updated_at FROM applications WHERE (application_id::text=$1 OR id::text=$1) AND user_id=$2`
 	err := s.DB.Conn.QueryRowContext(r.Context(), query, appIDStr, user.ID).Scan(&a.ID, &a.ApplicationID, &runID, &a.Job, &a.TailoredResumeText, &a.CoverLetter, &a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter, &a.IsDreamCompany, &a.Status, &a.SubmissionMode, &a.ApplyURL, &a.CreatedAt, &a.UpdatedAt)
 	if err != nil {
 		s.respondError(w, http.StatusNotFound, "Application not found")
@@ -608,6 +643,17 @@ func (s *Server) handleUpdateApplication(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	appIDStr := chi.URLParam(r, "id")
+	if appIDStr == "" {
+		s.respondError(w, http.StatusBadRequest, "Application ID is required")
+		return
+	}
+	_, errInt := strconv.Atoi(appIDStr)
+	_, errUUID := uuid.Parse(appIDStr)
+	if errInt != nil && errUUID != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid application ID format")
+		return
+	}
+
 	var req struct {
 		Status string `json:"status"`
 	}
@@ -620,18 +666,26 @@ func (s *Server) handleUpdateApplication(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// 1. Fetch current status and resume_variant_id
+	tx, err := s.DB.Conn.BeginTx(r.Context(), nil)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Failed to start transaction")
+		return
+	}
+	defer tx.Rollback()
+
+	// 1. Fetch current status and resume_variant_id with FOR UPDATE lock
 	var currentStatus string
+	var currentStage sql.NullString
 	var variantID sql.NullInt64
-	checkQuery := `SELECT status, resume_variant_id FROM applications WHERE application_id = $1 AND user_id = $2`
-	err := s.DB.Conn.QueryRowContext(r.Context(), checkQuery, appIDStr, user.ID).Scan(&currentStatus, &variantID)
+	checkQuery := `SELECT status, stage, resume_variant_id FROM applications WHERE (application_id::text = $1 OR id::text = $1) AND user_id = $2 FOR UPDATE`
+	err = tx.QueryRowContext(r.Context(), checkQuery, appIDStr, user.ID).Scan(&currentStatus, &currentStage, &variantID)
 	if err != nil {
 		s.respondError(w, http.StatusNotFound, "Application not found")
 		return
 	}
 
-	// 2. Perform the update
-	res, err := s.DB.Conn.ExecContext(r.Context(), "UPDATE applications SET status=$1, updated_at=NOW() WHERE application_id=$2 AND user_id=$3", req.Status, appIDStr, user.ID)
+	// 2. Perform the update through transaction
+	res, err := tx.ExecContext(r.Context(), "UPDATE applications SET status=$1, stage=$1, updated_at=NOW() WHERE (application_id::text=$2 OR id::text=$2) AND user_id=$3", req.Status, appIDStr, user.ID)
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, "Failed to update application")
 		return
@@ -641,19 +695,26 @@ func (s *Server) handleUpdateApplication(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// 3. Increment pulls and conversions based on status transitions
+	// 3. Increment pulls and conversions within transaction
 	if variantID.Valid && variantID.Int64 > 0 {
 		vID := int(variantID.Int64)
-		// If transitioning to applied, record a pull
 		if currentStatus != "applied" && req.Status == "applied" {
-			s.incrementBanditPull(r.Context(), vID)
+			if _, err := tx.ExecContext(r.Context(), `UPDATE public.ab_testing_bandit SET pulls = pulls + 1 WHERE variant_id = $1`, vID); err != nil {
+				log.Printf("incrementBanditPull failed: %v", err)
+			}
 		}
-		// If transitioning to interview/offer for the first time, record a conversion
 		isOldConversion := currentStatus == "interview" || currentStatus == "offer"
 		isNewConversion := req.Status == "interview" || req.Status == "offer"
 		if !isOldConversion && isNewConversion {
-			s.incrementBanditConversion(r.Context(), vID)
+			if _, err := tx.ExecContext(r.Context(), `UPDATE public.ab_testing_bandit SET conversions = conversions + 1 WHERE variant_id = $1`, vID); err != nil {
+				log.Printf("incrementBanditConversion failed: %v", err)
+			}
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Failed to commit update transaction")
+		return
 	}
 
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{"application_id": appIDStr, "status": req.Status})
@@ -1778,6 +1839,10 @@ func (s *Server) handleOptimizeResumeStream(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	httpReq.Header.Set("Content-Type", bodyWriter.FormDataContentType())
+	if user, ok := r.Context().Value(contextKeyUser).(*models.User); ok && user != nil {
+		httpReq.Header.Set("X-User-ID", user.ID.String())
+		httpReq.Header.Set("X-Tenant-ID", user.ID.String())
+	}
 
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -471,10 +472,16 @@ func (s *Server) handleCreateApplicationKanban(w http.ResponseWriter, r *http.Re
 		req.Stage = "saved"
 	}
 	id := uuid.New()
+	if _, err := s.DB.Conn.ExecContext(r.Context(), "INSERT INTO auth.users (id, email) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", user.ID, user.Email); err != nil {
+		log.Printf("handleCreateApplicationKanban: auth.users insert error: %v", err)
+	}
+	if _, err := s.DB.Conn.ExecContext(r.Context(), "INSERT INTO profiles (id, email) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", user.ID, user.Email); err != nil {
+		log.Printf("handleCreateApplicationKanban: profiles insert error: %v", err)
+	}
 	_, err := s.DB.Conn.ExecContext(r.Context(), `
 		INSERT INTO applications
 		(application_id, user_id, title, company, location, job_url, stage, status, notes, job, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,'{}',NOW(),NOW())`,
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,'{}'::jsonb,NOW(),NOW())`,
 		id, user.ID, req.Title, req.Company, req.Location, req.URL, req.Stage, req.Notes)
 	if err != nil {
 		log.Printf("handleCreateApplicationKanban: insert failed: %v", err)
@@ -494,6 +501,17 @@ func (s *Server) handleUpdateApplicationKanban(w http.ResponseWriter, r *http.Re
 		return
 	}
 	appID := chi.URLParam(r, "id")
+	if appID == "" {
+		s.respondError(w, http.StatusBadRequest, "Application ID is required")
+		return
+	}
+	_, errInt := strconv.Atoi(appID)
+	_, errUUID := uuid.Parse(appID)
+	if errInt != nil && errUUID != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid application ID format")
+		return
+	}
+
 	var req map[string]interface{}
 	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
@@ -508,7 +526,7 @@ func (s *Server) handleUpdateApplicationKanban(w http.ResponseWriter, r *http.Re
 		  status   = COALESCE($5, status),
 		  notes    = COALESCE($6, notes),
 		  updated_at = NOW()
-		WHERE application_id=$1::uuid AND user_id=$2`,
+		WHERE (application_id::text=$1 OR id::text=$1) AND user_id=$2`,
 		appID, user.ID,
 		nullStr(req, "title"), nullStr(req, "company"),
 		nullStr(req, "stage"), nullStr(req, "notes"),

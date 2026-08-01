@@ -21,7 +21,7 @@ const CONFIG = {
     // Career roadmap visual planning tool
     careerRoadmap: [true, true],
     // Interactive interview preparation module
-    interviewPrep: [false, false],
+    interviewPrep: [true, true],
     // Job search interface and autopilot integration
     jobSearch: [true, true],
     // Blog content section
@@ -37,7 +37,7 @@ const CONFIG = {
     // Communication hub for messaging templates
     communicationHub: [true, true],
     // AI-powered interview coaching
-    interviewAI: [false, false],
+    interviewAI: [true, true],
     // Voice interview coach with live metrics
     voiceCoach: [false, false],
     // Salary negotiation copilot with H1B benchmarks

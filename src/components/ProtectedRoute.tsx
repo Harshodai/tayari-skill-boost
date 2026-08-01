@@ -19,7 +19,6 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!user) {
-    // Redirect to auth with return URL
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 

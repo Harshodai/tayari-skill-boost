@@ -60,8 +60,10 @@ const moreItems = (): Item[] => [
 
 const linkClass = (active: boolean) =>
   cn(
-    "flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
-    active ? "bg-primary/10 text-primary font-medium" : "text-foreground/80 hover:bg-muted/60 hover:text-foreground"
+    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+    active
+      ? "bg-primary/15 text-primary border border-primary/25 shadow-xs font-semibold"
+      : "text-foreground/75 hover:bg-muted/70 hover:text-foreground hover:translate-x-0.5"
   );
 
 export function AppSidebar() {

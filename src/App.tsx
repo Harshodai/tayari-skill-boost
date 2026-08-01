@@ -118,12 +118,12 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
-                  <Route path="/resume-graph" element={<ResumeGraph />} />
+              <Route path="/resume-graph" element={<ResumeGraph />} />
+              <Route path="/interview" element={<ProtectedRoute><InterviewBoard /></ProtectedRoute>} />
+              <Route path="/interview/kanban" element={<ProtectedRoute><InterviewBoard /></ProtectedRoute>} />
+              <Route path="/applications" element={<ProtectedRoute><InterviewBoard /></ProtectedRoute>} />
 
               {/* Conditionally Rendered Routes */}
-              {features.interviewPrep && (
-                <Route path="/interview" element={<InterviewBoard />} />
-              )}
               {features.careerRoadmap && (
                 <Route path="/roadmap" element={<CareerRoadmap />} />
               )}
@@ -156,9 +156,6 @@ const App = () => (
               )}
 
               {/* Redirects for disabled routes in Production */}
-              {!features.interviewPrep && (
-                <Route path="/interview" element={<Navigate to="/resume" replace />} />
-              )}
               {!features.careerRoadmap && (
                 <Route path="/roadmap" element={<Navigate to="/resume" replace />} />
               )}
@@ -187,7 +184,7 @@ const App = () => (
                 path="/pipeline"
                 element={
                   <ProtectedRoute>
-                    <Pipeline />
+                    <InterviewBoard />
                   </ProtectedRoute>
                 }
               />
