@@ -35,7 +35,15 @@ class AdvancedAIRefiner:
         thinking_trace = f"Analyzed requirement '{job_requirement}' against bullet '{raw_bullet}'."
 
         # 2. Propose
-        proposal = f"Engineered distributed solution using {job_requirement} to optimize performance."
+        # ponytail: fold raw_bullet into the proposal (lower-cased, de-punctuated)
+        # so identical job_requirements still yield bullet-tailored output; the
+        # audit below still flags any unverified keyword the bullet carries.
+        bullet_source = raw_bullet.strip().rstrip(".,;:")
+        if bullet_source:
+            bullet_source = bullet_source[0].lower() + bullet_source[1:]
+            proposal = f"Engineered distributed solution using {job_requirement} to optimize performance, extending prior work: {bullet_source}."
+        else:
+            proposal = f"Engineered distributed solution using {job_requirement} to optimize performance."
 
         # 3. Audit
         audit = OntologyGuard.validate_claim(proposal, verified_candidate_facts, companies)
@@ -45,7 +53,13 @@ class AdvancedAIRefiner:
             refined_bullet = proposal
             refinement_notes = "Claim verified against knowledge graph; no adjustments required."
         else:
-            refined_bullet = f"Architected high-throughput services with verified experience in {', '.join(verified_candidate_facts[:2])} to address {job_requirement}."
+            if verified_candidate_facts:
+                refined_bullet = f"Architected high-throughput services with verified experience in {', '.join(verified_candidate_facts[:2])} to address {job_requirement}."
+            else:
+                # ponytail: no verified facts => drop the "verified experience in"
+                # clause instead of emitting an empty claim; stays grammatical
+                # and asserts no unsupported experience.
+                refined_bullet = f"Architected high-throughput services to address {job_requirement}."
             refinement_notes = f"Refined proposal to remove unverified terms: {audit['unverified_mentions']}."
 
 
