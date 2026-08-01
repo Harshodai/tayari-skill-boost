@@ -598,11 +598,14 @@ def evaluate_5d_fit(
     else:
         candidate_terms = resume_terms
 
-    matched = [kw for kw in keywords if kw.lower() in candidate_terms]
-    missing = [kw for kw in keywords if kw.lower() not in candidate_terms]
+    # ponytail: required vocabulary = JD keywords minus STOPWORDS, so prose words
+    # ("and", "with", "need") can't count as required skills or inflate the denominator.
+    required = [kw for kw in keywords if kw.lower() not in STOPWORDS]
+    matched = [kw for kw in required if kw.lower() in candidate_terms]
+    missing = [kw for kw in required if kw.lower() not in candidate_terms]
 
     # 1. Technical Fit (0-100): same vocabulary for denominator and matched count.
-    tech_score = int((len(matched) / max(len(keywords), 1)) * 100)
+    tech_score = int((len(matched) / max(len(required), 1)) * 100)
 
     # 2. Experience Level Fit (0-100)
     seniority_terms = ["senior", "lead", "principal", "staff", "manager", "director"]
@@ -672,9 +675,6 @@ def evaluate_5d_fit(
 
     return {
         "overall_fit_score": overall_fit,
-        # ponytail: fit_score alias — hybrid_job_search_engine reads it and was silently
-        # falling back to its 80.0 default because the key never existed.
-        "fit_score": overall_fit,
         "dimensions": {
             name: {"score": score, "status": dimension_status[name]}
             for name, score in dimension_scores.items()

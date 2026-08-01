@@ -68,6 +68,16 @@ def test_resume_text_fallback_when_no_candidate_skills():
     assert res["missing_skills"] == ["SQL"]
 
 
+def test_prose_words_in_jd_do_not_depress_technical_fit():
+    res = evaluate_5d_fit(
+        resume_text="I know Python SQL and Docker.",
+        jd_text="Python and SQL with Docker",
+        candidate_skills=["Python", "SQL", "Docker"],
+    )
+    assert res["dimensions"]["technical_fit"]["score"] == 100
+    assert res["missing_skills"] == []
+
+
 # --- Finding B: compensation/logistics only when candidate constraints supplied ---
 
 def test_comp_and_logistics_not_evaluated_by_default():
@@ -88,7 +98,6 @@ def test_overall_fit_renormalizes_without_comp_logistics_weights():
     )
     expected = int(round((tech * 0.4 + exp * 0.2 + culture * 0.15) / 0.75))
     assert res["overall_fit_score"] == expected
-    assert res["fit_score"] == res["overall_fit_score"]
 
 
 def test_compensation_scored_against_jd_range():
@@ -151,7 +160,6 @@ def test_all_five_dimensions_evaluated_uses_full_weights():
 def test_score_range_invariants(resume, jd, skills):
     res = evaluate_5d_fit(resume_text=resume, jd_text=jd, candidate_skills=skills)
     assert 0 <= res["overall_fit_score"] <= 100
-    assert res["fit_score"] == res["overall_fit_score"]
     assert set(res["dimensions"]) == {"technical_fit", "experience_fit", "culture_fit", "compensation_fit", "logistics_fit"}
     radar_by_dimension = {entry["dimension"]: entry["score"] for entry in res["radar_metrics"]}
     assert radar_by_dimension["Technical Skills"] == res["dimensions"]["technical_fit"]["score"]

@@ -63,7 +63,7 @@ class HybridJobSearchEngine:
                 candidate_skills=skills
             )
 
-            ats_fit_score = ats_res.get("fit_score", 80.0)
+            ats_fit_score = ats_res.get("overall_fit_score", 80.0)
 
             # Calculate composite hybrid score
             combined_score = round(
