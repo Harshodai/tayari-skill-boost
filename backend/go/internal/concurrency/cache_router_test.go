@@ -22,3 +22,25 @@ func TestCacheRouter(t *testing.T) {
 		t.Errorf("Expected key1 to be expired and not found")
 	}
 }
+
+func TestCacheRouterGetDeletesExpiredEntry(t *testing.T) {
+	cache := NewCacheRouter()
+	cache.Set("expired", "val", 50*time.Millisecond)
+	cache.Set("valid", "val", time.Minute)
+
+	time.Sleep(70 * time.Millisecond)
+
+	if _, found := cache.Get("expired"); found {
+		t.Errorf("Expected expired key to return a miss")
+	}
+	if len(cache.items) != 1 {
+		t.Errorf("Expected expired entry to be lazily deleted, got %d items", len(cache.items))
+	}
+
+	if _, found := cache.Get("valid"); !found {
+		t.Errorf("Expected valid key to remain readable")
+	}
+	if len(cache.items) != 1 {
+		t.Errorf("Expected valid entry to be kept, got %d items", len(cache.items))
+	}
+}

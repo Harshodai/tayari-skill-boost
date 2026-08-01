@@ -37,14 +37,20 @@ func (c *CacheRouter) Set(key string, value interface{}, ttl time.Duration) {
 // Get retrieves a value if non-expired.
 func (c *CacheRouter) Get(key string) (interface{}, bool) {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-
 	item, found := c.items[key]
+	c.mu.RUnlock()
+
 	if !found {
 		return nil, false
 	}
 
 	if time.Now().After(item.expiration) {
+		// ponytail: re-check under the write lock so a concurrent Set isn't clobbered
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if item, found = c.items[key]; found && time.Now().After(item.expiration) {
+			delete(c.items, key)
+		}
 		return nil, false
 	}
 
