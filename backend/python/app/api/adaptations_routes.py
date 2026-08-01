@@ -75,7 +75,13 @@ class SquadRunRequest(BaseModel):
 @adaptations_router.post("/profile-expand")
 async def profile_expand_endpoint(req: ProfileExpandRequest):
     """Run public GitHub profile expansion to discover implicit skills."""
-    return await ProfileExpander.expand_from_github(req.github_username)
+    if not req.github_username.strip():
+        raise HTTPException(status_code=400, detail="github_username is required")
+    result = await ProfileExpander.expand_from_github(req.github_username)
+    if result.get("status") != "success":
+        # ponytail: non-success status (e.g. GitHub fetch failure) is an upstream error -> 502
+        raise HTTPException(status_code=502, detail=result.get("message", "GitHub profile expansion failed"))
+    return result
 
 
 @adaptations_router.post("/followup-check")
@@ -97,7 +103,17 @@ def followup_check_endpoint(req: FollowupCheckRequest):
 def codegraph_index_endpoint(req: CodeGraphIndexRequest):
     """Parse codebase AST, build symbol graph, and calculate impact radius."""
     engine = CodeGraphEngine()
-    idx_res = engine.index_source_code(req.filename, req.code_content)
+    try:
+        idx_res = engine.index_source_code(req.filename, req.code_content)
+    except ValueError as exc:
+        # ponytail: invalid source input surfaces as a client error, not a 500
+        raise HTTPException(status_code=400, detail=f"Invalid source code: {exc}") from exc
+    if idx_res.get("status") != "success":
+        message = idx_res.get("message", "Failed to index source code")
+        if "networkx" in message:
+            # ponytail: missing dependency is server unavailability, not a client error
+            raise HTTPException(status_code=503, detail="Code indexing unavailable: networkx module not installed")
+        raise HTTPException(status_code=400, detail=message)
     impact = None
     if req.target_symbol:
         impact = engine.get_impact_radius(req.target_symbol)
@@ -117,7 +133,7 @@ def graph_visualizer_endpoint():
     if nx is None:
         return {"nodes": [], "edges": [], "total_nodes": 0, "total_edges": 0}
     G = nx.DiGraph()
-    G.add_node("Candidate", type="person", name="Harshodai")
+    G.add_node("Candidate", type="person", name="Sample Candidate")
 
     G.add_node("skill:python", type="skill", name="Python")
     G.add_node("skill:go", type="skill", name="Go")
@@ -131,14 +147,20 @@ def graph_visualizer_endpoint():
 @adaptations_router.post("/negotiation-script")
 def negotiation_script_endpoint(req: NegotiationRequest):
     """Benchmark salary and generate counter-offer email script."""
-    bench = NegotiationEngine.benchmark_salary(req.role)
-    script = NegotiationEngine.generate_counter_offer_script(
-        company=req.company,
-        role=req.role,
-        offered_salary=req.offered_salary,
-        target_salary=req.target_salary,
-        candidate_name=req.candidate_name
-    )
+    if req.offered_salary <= 0 or req.target_salary <= 0:
+        raise HTTPException(status_code=400, detail="offered_salary and target_salary must be positive")
+    try:
+        bench = NegotiationEngine.benchmark_salary(req.role)
+        script = NegotiationEngine.generate_counter_offer_script(
+            company=req.company,
+            role=req.role,
+            offered_salary=req.offered_salary,
+            target_salary=req.target_salary,
+            candidate_name=req.candidate_name
+        )
+    except ValueError as exc:
+        # ponytail: salary math is int-only at the boundary; ValueError guards future service validation
+        raise HTTPException(status_code=400, detail=f"Invalid negotiation inputs: {exc}") from exc
     return {"benchmark": bench, "negotiation_script": script}
 
 
