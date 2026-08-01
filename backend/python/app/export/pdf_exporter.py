@@ -11,7 +11,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 try:
     from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
-except (ImportError, OSError, Exception):
+except (ImportError, OSError):
     WEASYPRINT_AVAILABLE = False
 
 
