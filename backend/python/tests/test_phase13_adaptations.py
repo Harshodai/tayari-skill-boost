@@ -37,3 +37,16 @@ def test_agent_consensus_protocol():
     res_fail = AgentConsensusProtocol.evaluate_consensus(0.5, 0.4, 0.3)
     assert res_fail["is_approved"] is False
     assert res_fail["decision"] == "REJECTED_REVISION_REQUIRED"
+
+
+def test_agent_consensus_accepts_boundary_scores():
+    for score in (0.0, 0.5, 1.0):
+        res = AgentConsensusProtocol.evaluate_consensus(score, score, score)
+        assert res["weighted_consensus_score"] == score
+        assert res["is_approved"] == (score >= 0.75)
+
+
+def test_agent_consensus_rejects_invalid_scores():
+    for score in (1.1, -0.01, float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError):
+            AgentConsensusProtocol.evaluate_consensus(score, 0.5, 0.5)

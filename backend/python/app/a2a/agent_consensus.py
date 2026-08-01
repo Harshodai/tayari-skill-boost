@@ -8,6 +8,7 @@ to approve tailored resume bullets and cover letters before export.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,18 @@ class AgentConsensusProtocol:
     ) -> Dict[str, Any]:
         """Compute weighted consensus score across multi-agent squad."""
         w = AgentConsensusProtocol.AGENT_WEIGHTS
+
+        # ponytail: ValueError over error-dict — no a2a error convention exists,
+        # and only the squad/tests call this, so fail loud on bad input.
+        for label, score in (
+            ("scout", scout_score),
+            ("builder", builder_score),
+            ("reviewer", reviewer_score),
+        ):
+            if not math.isfinite(score) or not 0.0 <= score <= 1.0:
+                raise ValueError(
+                    f"{label}_score must be finite and within [0.0, 1.0], got {score}"
+                )
 
         weighted_score = round(
             (scout_score * w["Scout"]) +
