@@ -68,7 +68,10 @@ const CONFIG = {
     candidateAnswerBank: [true, true],
     // Agent-Reach Content & Social Extractor
     agentReach: [true, true],
+    // Architectural Adaptations Master Gateway
+    adaptationsPortal: [true, true],
   },
+
 
   // Navigation Links
   // { label, href, feature (matches key above or null) }

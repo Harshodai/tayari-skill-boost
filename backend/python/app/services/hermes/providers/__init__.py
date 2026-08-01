@@ -13,6 +13,7 @@ from app.services.hermes.providers.firecrawl import firecrawl
 from app.services.hermes.providers.apify import apify
 from app.services.hermes.providers.serp_google_jobs import serp
 from app.services.hermes.providers.crawl4ai import crawl4ai
+from app.services.hermes.providers.playwright_local import playwright_local
 
 # Order matters for the router's generic-search fallback: keyless ATS first.
 ALL_PROVIDERS: list = [
@@ -20,6 +21,7 @@ ALL_PROVIDERS: list = [
     lever,
     ashby,
     workday,
+    playwright_local,
     serp,
     firecrawl,
     apify,
@@ -31,6 +33,7 @@ __all__ = [
     "lever",
     "ashby",
     "workday",
+    "playwright_local",
     "firecrawl",
     "apify",
     "serp",

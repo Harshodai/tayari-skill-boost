@@ -165,10 +165,13 @@ strategic_analyzer = StrategicAnalyzer()
 from app.routes import health, ats
 from app.routes.ats import AnalyzeRequest
 from app.api.ai_routes import router as ai_router
+from app.api.adaptations_routes import adaptations_router
 
 app.include_router(health.router)
 app.include_router(ats.router)
 app.include_router(ai_router)
+app.include_router(adaptations_router)
+
 
 
 

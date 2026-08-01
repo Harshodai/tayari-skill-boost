@@ -214,6 +214,7 @@ Resume:
             "achievements": achievements,
             "timeline": timeline + llm_data.get("timeline", []),
             "llm_enhanced": bool(llm_data),
+            "graph_json": KnowledgeGraphExtractor.build_networkx_graph_dict(skills, companies, titles, llm_data.get("technologies", [])),
         }
         # Validate against the typed schema so a shape regression here fails
         # loudly at the source instead of surfacing as a confusing downstream
@@ -221,3 +222,34 @@ Resume:
         from app.schemas import KnowledgeGraphResponse
         KnowledgeGraphResponse(**result)
         return result
+
+    @staticmethod
+    def build_networkx_graph_dict(skills: List[str], companies: List[str], titles: List[str], technologies: List[str]) -> Dict[str, Any]:
+        """Build NetworkX DiGraph representation of Candidate Knowledge Graph."""
+        import networkx as nx
+        G = nx.DiGraph()
+
+        # Add Root Candidate Node
+        G.add_node("Candidate", type="person", label="Candidate Profile")
+
+        # Add Skill Nodes & Edges
+        for s in skills:
+            node_id = f"skill:{s}"
+            G.add_node(node_id, type="skill", name=s)
+            G.add_edge("Candidate", node_id, relationship="HAS_SKILL")
+
+        # Add Company Nodes & Edges
+        for c in companies:
+            node_id = f"company:{c}"
+            G.add_node(node_id, type="company", name=c)
+            G.add_edge("Candidate", node_id, relationship="WORKED_AT")
+
+        # Add Job Title Nodes & Edges
+        for t in titles:
+            node_id = f"role:{t}"
+            G.add_node(node_id, type="role", name=t)
+            G.add_edge("Candidate", node_id, relationship="HELD_TITLE")
+
+        # Return serialized node-link data structure
+        return nx.node_link_data(G)
+

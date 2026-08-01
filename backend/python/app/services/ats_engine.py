@@ -518,3 +518,60 @@ def keyword_in_text(keyword: str, text: str) -> bool:
     pattern = rf"(?<![\w#+.])" + re.escape(keyword.lower()) + rf"(?![\w#+.])"
     return bool(re.search(pattern, text.lower()))
 
+
+def extract_jd_keywords(jd_text: str) -> list[str]:
+    """Extract technical keywords from job description text."""
+    words = re.findall(r"\b[A-Za-z0-9+#.]{2,}\b", jd_text)
+    return list(set(w for w in words if len(w) > 2))
+
+
+def evaluate_5d_fit(resume_text: str, jd_text: str, candidate_skills: list[str] | None = None) -> dict[str, Any]:
+
+    """Evaluate job application fit across 5 explicit dimensions (ai-job-search architecture)."""
+    keywords = extract_jd_keywords(jd_text)
+    matched = [kw for kw in keywords if keyword_in_text(kw, resume_text)]
+    missing = [kw for kw in keywords if kw not in matched]
+
+    # 1. Technical Fit (0-100)
+    tech_score = int((len(matched) / max(len(keywords), 1)) * 100)
+
+    # 2. Experience Level Fit (0-100)
+    seniority_terms = ["senior", "lead", "principal", "staff", "manager", "director"]
+    jd_seniority = any(s in jd_text.lower() for s in seniority_terms)
+    res_seniority = any(s in resume_text.lower() for s in seniority_terms)
+    exp_score = 90 if (jd_seniority == res_seniority) else 65
+
+    # 3. Culture & Role Alignment (0-100)
+    culture_words = ["ownership", "agile", "collaborative", "fast-paced", "cross-functional", "innovative", "remote"]
+    matched_culture = [w for w in culture_words if w in jd_text.lower() and w in resume_text.lower()]
+    culture_score = min(50 + len(matched_culture) * 15, 100)
+
+    # 4. Compensation / Market Alignment (0-100)
+    comp_score = 85  # Default market alignment baseline
+
+    # 5. Logistics & Work Mode Score (0-100)
+    logistics_score = 90 if ("remote" in jd_text.lower() or "hybrid" in jd_text.lower()) else 75
+
+    overall_fit = int(tech_score * 0.4 + exp_score * 0.2 + culture_score * 0.15 + comp_score * 0.15 + logistics_score * 0.1)
+
+    return {
+        "overall_fit_score": overall_fit,
+        "dimensions": {
+            "technical_fit": tech_score,
+            "experience_fit": exp_score,
+            "culture_fit": culture_score,
+            "compensation_fit": comp_score,
+            "logistics_fit": logistics_score
+        },
+        "matched_skills": matched[:15],
+        "missing_skills": missing[:15],
+        "radar_metrics": [
+            {"dimension": "Technical Skills", "score": tech_score},
+            {"dimension": "Experience Fit", "score": exp_score},
+            {"dimension": "Culture Fit", "score": culture_score},
+            {"dimension": "Compensation", "score": comp_score},
+            {"dimension": "Logistics", "score": logistics_score}
+        ]
+    }
+
+

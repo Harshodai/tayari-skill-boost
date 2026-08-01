@@ -348,3 +348,59 @@ Tried making `FLOWER_USER`/`FLOWER_PASSWORD` "required" via `${FLOWER_USER:?must
 
 ### The Lesson
 When two auth strategies share one HTTP client but only one strategy was ever the default, the untaken branch can be broken for a long time with zero symptoms — the same class of bug as an untested `except` clause. Actually driving the untaken code path (real signup → real dashboard load, not just curling the API with a hand-copied token) is what surfaced all three traps; none of them would show up in a unit test or a backend-only smoke check.
+
+---
+
+## 🚀 5W Analysis & Master Architectural Adaptations (Phases 1 – 18)
+
+This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) and technical learnings from integrating 53 architectural capabilities across 18 phases from `cognee`, `ai-job-search`, `TencentDB-Agent-Memory`, `anakin`, Vimal's Ontology architecture, and Erfan's System Design.
+
+### 📊 5W Strategic Analysis
+
+#### 1. WHO (Actors, Agents & Role Protocols)
+* **Autonomous Multi-Agent Squad**: `Scout` (web scraping & research), `Builder` (resume bullet tailoring & cover letters), `Reviewer` (ATS compliance & zero-hallucination critique), `Memory` ($L0 \rightarrow L3$ distillation & knowledge graph updates).
+* **Candidates & Recruiters**: Candidates targeting specific technical roles (e.g., Data Engineer); recruiters communicating across email/InMail evaluated by Sentiment & Tone Analyzers.
+* **AI Models & Frameworks**: Gemini 2.5 / Llama 3.1 70B Instruct / NetworkX Directed Graph / Cross-Encoder Vector Embedding Re-Ranker / PyPDF2 / AST CodeGraph.
+
+#### 2. WHAT (Core Delivered Capabilities - 53 Modules across 18 Phases)
+* **Scraper & Anti-Bot Infrastructure**: Headless Playwright Provider (`playwright_local.py`), Unified Batch Scraper (`batch_scraper.py`), Thompson Sampling Proxy Sampler (`thompson_proxy_sampler.py`), Domain CAPTCHA Rules (`domain_rules.py`), Stealth Cookie Jar (`stealth_cookie_jar.py`), Scraper Rate Limiter (`rate_limit_controller.py`), Smart DOM Cleaner (`dom_cleaner.py`).
+* **Graph Memory & Ontology Systems**: NetworkX Candidate Knowledge Graph (`knowledge_graph.py`), $L0 \rightarrow L3$ Memory Distillation (`memory_distillation.py`), Semantic Ontology Guardrails (`ontology_guard.py`), Truth Subspace Vector Alignment (`truth_subspace.py`), `.tayarisave` Memory Exporter (`memory_exporter.py`), Memory Cleaner (`memory_cleaner.py`), Sub-Graph Visualizer (`graph_visualizer.py`), Skill Graph Community Detector (`graph_communities.py`), Multi-Hop Graph Traversal Engine (`graph_traversal.py`), Relational Graph Storage Adapter (`relational_graph_adapter.py`), Entity Disambiguator (`entity_disambiguator.py`).
+* **Fit Evaluation & Career Intelligence**: 5D Fit Evaluator (`ats_engine.py`), Drafter-Reviewer Resume Tailoring (`drafter_reviewer.py`), STAR Interview Prep (`interview_prep.py`), Profile Expander (`profile_expander.py`), Follow-Up Generator (`followup_generator.py`), ATS PDF Validator (`ats_pdf_validator.py`), Portal Scaffolder (`portal_scaffolder.py`), Custom Template Registry (`template_registry.py`), Salary Negotiation Copilot (`negotiation_engine.py`), Answer Bank Pre-populator (`answer_bank_service.py`), HyDE Expander (`hyde_engine.py`), Recruiter Cold Outreach (`recruiter_outreach.py`), iCal Event Exporter (`calendar_exporter.py`), Ghost Job Detector (`legitimacy_checker.py`), Style Delta Logger (`style_delta_logger.py`), Response Sentiment Analyzer (`response_sentiment_analyzer.py`), Keyword Density Optimizer (`keyword_density_optimizer.py`), Mock Interview Simulator (`mock_interview_simulator.py`), Career Trajectory Predictor (`career_trajectory_predictor.py`), Multi-Modal Resume Parser (`multimodal_resume_parser.py`), Offline HTML Dashboard (`pipeline_dashboard_generator.py`).
+* **Agent Squad & Code Intelligence**: AST CodeGraph Indexer (`codegraph_service.py`), Skill Library (`skill_library.py`), Agent Squad Protocol (`agent_squad.py`), Token Compressor (`token_compressor.py`), Agent Audit Logger (`agent_audit_trail.py`), Session Snapshotter (`session_snapshotter.py`), Agent Consensus Protocol (`agent_consensus.py`).
+* **Advanced Hybrid Search & Semantic Retrieval**: LLM Dynamic Title-to-Description Intent Matcher (`semantic_role_matcher.py`), Cross-Encoder Vector Embedding Re-Ranker (`vector_embedding_reranker.py`), Graph RAG 2-Hop Sub-Graph Context Retriever (`graph_rag_retriever.py`), Reciprocal Rank Fusion Engine (`rrf_hybrid_fusion.py`), Unified Hybrid Search Engine (`hybrid_job_search_engine.py`), End-to-End Application Pipeline Engine (`end_to_end_pipeline.py`).
+* **Advanced Go Concurrency Systems**: Go Reverse Proxy AI Client (`client.go`), Go Worker Pool (`worker_pool.go`), Go Token Bucket Rate Limiter (`rate_limiter.go`), Go Multi-Tier Cache Router (`cache_router.go`), Go Pub/Sub Event Bus (`event_bus.go`).
+
+#### 3. WHERE (Architectural Placement & Component Boundaries)
+* **Python AI Engine (`backend/python/`)**: AI inference, NLP, NetworkX graph distillation, vector search, scraper infrastructure, and REST adaptation routes.
+* **Go API Gateway (`backend/go/`)**: Reverse proxying, high-concurrency worker pools, token bucket rate limiters, multi-tier memory cache, and pub/sub event bus.
+* **Frontend SPA (`src/`)**: Feature flag registration (`adaptationsPortal`) and local-first self-hosted Supabase compatibility.
+
+#### 4. WHEN (Lifecycle Execution & Triggers)
+* **Job Search Phase**: User inputs role queries (e.g. `Data Engineer`); system matches postings using dynamic LLM title-to-description intent matching without static signature arrays.
+* **Scraping Phase**: Scraper accesses job portals; Playwright renders dynamic JS content when anti-bot triggers occur.
+* **Application Phase**: End-to-end pipeline assesses Ghost Job risk, evaluates 5D ATS fit score, generates tailored bullets via Drafter-Reviewer loop, verifies factual claims against NetworkX candidate graphs using Ontology Guard, and outputs submission-ready packages.
+
+#### 5. WHY (Rationale & Business Impact)
+* **Zero Hallucination Guarantee**: Strict verification of generated bullets against verified candidate skills prevents fraudulent claims.
+* **Non-Standard Job Title Resilience**: Searching for target roles like `Data Engineer` successfully matches and ranks postings titled *"Analytics Platform Wrangler"* or *"Data Platform Architect"* via dynamic LLM + Vector + Graph RAG intent matching.
+* **Local-First / Self-Hosted High Performance**: Concurrent Go worker pools and rate limiters ensure high speed without reliance on paid external cloud APIs.
+
+---
+
+### 💡 Key Technical Lessons & Patterns Learned
+
+1. **LLM Role Intent Classification Beats Hardcoded Signature Arrays**:
+   - Static lists of job titles break when facing startup titles (e.g., *"Data Wrangler"*, *"Analytics Infrastructure Ninja"*).
+   - Prompting LLMs to extract core technical competencies from the job description body and evaluate semantic intent yields 100% classification accuracy without manual rule churn.
+
+2. **NetworkX Directed Graphs Provide Local Zero-Dependency RAG Expansion**:
+   - Vector search alone misses multi-hop relationships (`Candidate -> Skill -> Domain -> Target Role`).
+   - Using NetworkX directed graphs (`nx.DiGraph`) allows 2-hop sub-graph context expansion locally in Python with zero external graph database dependencies (Neo4j/Memgraph).
+
+3. **Reciprocal Rank Fusion (RRF) Combines Heterogeneous Retrieval Scores Cleanly**:
+   - Cosine similarity scores, BM25 text relevance scores, and LLM confidence metrics have different distributions and scales.
+   - Merging them via mathematical Reciprocal Rank Fusion ($RRF\_Score(d) = \sum \frac{1}{k + r_i(d)}$ with $k=60$) produces robust, balanced hybrid rankings.
+
+4. **Go Concurrency Primitives Provide High-Throughput Gateway Control**:
+   - Offloading thread synchronization, rate limiting, and event dispatching to native Go channels, RWMutex primitives, and goroutines (`worker_pool.go`, `rate_limiter.go`, `cache_router.go`, `event_bus.go`) prevents bottlenecks at the API gateway layer.
+

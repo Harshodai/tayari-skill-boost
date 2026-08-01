@@ -107,3 +107,13 @@ async def parse_document(resume_file: UploadFile = File(...)):
     ext = _validate_upload(resume_file, data)
     parsed = ResumeParser.parse_file(data, ext)
     return {"text": parsed.raw_text or ""}
+
+
+@router.post("/api/v1/ats/evaluate-5d")
+async def ats_evaluate_5d(payload: AnalyzeRequest):
+    """Evaluate 5-dimension fit (Technical, Experience, Culture, Compensation, Logistics)."""
+    from app.services.ats_engine import evaluate_5d_fit
+    if not payload.resume_text or not payload.job_description:
+        raise HTTPException(status_code=400, detail="Provide resume_text and job_description")
+    return evaluate_5d_fit(payload.resume_text, payload.job_description)
+

@@ -69,3 +69,7 @@ Desktop.ini
 
 # Database dumps produced by scripts/backup.sh — real user data, never commit
 backups/
+
+# Cloned reference repositories
+external_repos/
+
