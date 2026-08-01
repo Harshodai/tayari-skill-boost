@@ -519,20 +519,89 @@ def keyword_in_text(keyword: str, text: str) -> bool:
     return bool(re.search(pattern, text.lower()))
 
 
+_TERM_PATTERN = r"(?<![\w#+.])[A-Za-z0-9+#.]{3,}(?![\w#+.])"
+# ponytail: lookaround term boundaries (same special-char rules as keyword_in_text)
+# keep C++ / .NET / C# intact; \b-word-boundary regexes silently strip them.
+# The "." in the term class can swallow a sentence-final period ("Docker."), so both
+# helpers rstrip(".") — interior dots (node.js, .NET) survive, trailing ones don't.
+# Terms of exactly 2 chars ("go", "ai", "C#") stay dropped from the vocabulary, matching the pre-audit filter.
+
+# ponytail: best-effort salary parse — only $ or k-suffixed numbers count, so prose
+# figures ("5+ years") don't pollute the bounds; whole-word $ ranges are out of scope.
+_SALARY_RE = re.compile(r"\$\s*([\d,]+)(\s*k|K)?|([\d,]+)\s*[kK]")
+
+_WORK_MODE_ALIASES = {
+    "remote": ("remote",),
+    "hybrid": ("hybrid",),
+    "onsite": ("onsite", "on-site", "in-office", "in office", "in-person", "in person", "office"),
+}
+
+
 def extract_jd_keywords(jd_text: str) -> list[str]:
-    """Extract technical keywords from job description text."""
-    words = re.findall(r"\b[A-Za-z0-9+#.]{2,}\b", jd_text)
-    return list(set(w for w in words if len(w) > 2))
+    """Extract technical keywords from job description text (special-char aware, first-seen order)."""
+    seen: set[str] = set()
+    keywords: list[str] = []
+    for word in re.findall(_TERM_PATTERN, jd_text):
+        word = word.rstrip(".")
+        key = word.lower()
+        if len(key) > 2 and key not in seen:
+            seen.add(key)
+            keywords.append(word)
+    return keywords
 
 
-def evaluate_5d_fit(resume_text: str, jd_text: str, candidate_skills: list[str] | None = None) -> dict[str, Any]:
+def _term_set(text: str) -> set[str]:
+    """Lowercased term set of text, using the same boundaries as extract_jd_keywords."""
+    return {word.rstrip(".").lower() for word in re.findall(_TERM_PATTERN, text) if len(word.rstrip(".")) > 2}
 
-    """Evaluate job application fit across 5 explicit dimensions (ai-job-search architecture)."""
+
+def _jd_compensation_bounds(jd_text: str) -> tuple[float | None, float | None]:
+    """Best-effort (low, high) salary bounds from $ / k-suffixed numbers in job description text."""
+    values: list[float] = []
+    for match in _SALARY_RE.finditer(jd_text):
+        number = match.group(1) or match.group(3)
+        value = float(number.replace(",", ""))
+        if match.group(2) or match.group(3):
+            value *= 1000.0
+        values.append(value)
+    if not values:
+        return (None, None)
+    return (values[0], values[1] if len(values) > 1 else None)
+
+
+def _jd_work_modes(jd_text: str) -> set[str]:
+    """Work modes explicitly mentioned in job description text."""
+    low = jd_text.lower()
+    return {mode for mode, aliases in _WORK_MODE_ALIASES.items() if any(alias in low for alias in aliases)}
+
+
+def evaluate_5d_fit(
+    resume_text: str,
+    jd_text: str,
+    candidate_skills: list[str] | None = None,
+    candidate_compensation: float | int | None = None,
+    candidate_work_mode: str | None = None,
+) -> dict[str, Any]:
+    """Evaluate job application fit across 5 explicit dimensions (ai-job-search architecture).
+
+    Compensation/logistics are scored only when the candidate constraint is supplied;
+    otherwise they are marked not_evaluated and excluded from overall_fit weighting.
+    """
+    resume_terms = _term_set(resume_text)
     keywords = extract_jd_keywords(jd_text)
-    matched = [kw for kw in keywords if keyword_in_text(kw, resume_text)]
-    missing = [kw for kw in keywords if kw not in matched]
 
-    # 1. Technical Fit (0-100)
+    # Candidate skill vocabulary: explicit skills when provided, else the terms the
+    # resume text itself demonstrates (set-based, so no per-keyword regex scan).
+    if candidate_skills is not None:
+        candidate_terms = {s.strip().lower() for s in candidate_skills}
+        candidate_terms = {s for s in candidate_terms if len(s) > 2}
+    else:
+        candidate_terms = resume_terms
+
+    matched = [kw for kw in keywords if kw.lower() in candidate_terms]
+    missing = [kw for kw in keywords if kw.lower() not in candidate_terms]
+
+    # 1. Technical Fit (0-100): same vocabulary for denominator and matched count.
     tech_score = int((len(matched) / max(len(keywords), 1)) * 100)
 
     # 2. Experience Level Fit (0-100)
@@ -546,32 +615,79 @@ def evaluate_5d_fit(resume_text: str, jd_text: str, candidate_skills: list[str] 
     matched_culture = [w for w in culture_words if w in jd_text.lower() and w in resume_text.lower()]
     culture_score = min(50 + len(matched_culture) * 15, 100)
 
-    # 4. Compensation / Market Alignment (0-100)
-    comp_score = 85  # Default market alignment baseline
+    # 4. Compensation / Market Alignment (0-100): candidate constraint vs JD range.
+    compensation_evaluated = candidate_compensation is not None
+    if compensation_evaluated:
+        jd_low, _ = _jd_compensation_bounds(jd_text)
+        if not jd_low:
+            comp_score = 50  # ponytail: JD states no salary — neutral midpoint, nothing fabricated
+        else:
+            comp_score = 100 if candidate_compensation >= jd_low else int((candidate_compensation / jd_low) * 100)
+    else:
+        comp_score = 0
 
-    # 5. Logistics & Work Mode Score (0-100)
-    logistics_score = 90 if ("remote" in jd_text.lower() or "hybrid" in jd_text.lower()) else 75
+    # 5. Logistics & Work Mode Score (0-100): candidate mode vs JD work-mode mentions.
+    logistics_evaluated = candidate_work_mode is not None
+    if logistics_evaluated:
+        mode = candidate_work_mode.strip().lower()
+        normalized_mode = "onsite" if mode in _WORK_MODE_ALIASES["onsite"] else mode
+        jd_modes = _jd_work_modes(jd_text)
+        if normalized_mode in jd_modes:
+            logistics_score = 100
+        elif jd_modes:
+            logistics_score = 40
+        else:
+            logistics_score = 50  # ponytail: JD states no work mode — neutral midpoint, nothing fabricated
+    else:
+        logistics_score = 0
 
-    overall_fit = int(tech_score * 0.4 + exp_score * 0.2 + culture_score * 0.15 + comp_score * 0.15 + logistics_score * 0.1)
+    dimension_scores = {
+        "technical_fit": tech_score,
+        "experience_fit": exp_score,
+        "culture_fit": culture_score,
+        "compensation_fit": comp_score,
+        "logistics_fit": logistics_score,
+    }
+    dimension_status = {
+        "technical_fit": "evaluated",
+        "experience_fit": "evaluated",
+        "culture_fit": "evaluated",
+        "compensation_fit": "evaluated" if compensation_evaluated else "not_evaluated",
+        "logistics_fit": "evaluated" if logistics_evaluated else "not_evaluated",
+    }
+
+    weighted = [
+        ("technical_fit", tech_score, 0.4),
+        ("experience_fit", exp_score, 0.2),
+        ("culture_fit", culture_score, 0.15),
+    ]
+    if compensation_evaluated:
+        weighted.append(("compensation_fit", comp_score, 0.15))
+    if logistics_evaluated:
+        weighted.append(("logistics_fit", logistics_score, 0.1))
+    weight_sum = sum(weight for _, _, weight in weighted)
+    # ponytail: re-normalize over evaluated dimensions only; round() (not int()) so
+    # float weight sums (~1.0000000000000002) can't truncate an exact score by 1.
+    overall_fit = int(round(sum(score * weight for _, score, weight in weighted) / weight_sum)) if weight_sum else 0
 
     return {
         "overall_fit_score": overall_fit,
+        # ponytail: fit_score alias — hybrid_job_search_engine reads it and was silently
+        # falling back to its 80.0 default because the key never existed.
+        "fit_score": overall_fit,
         "dimensions": {
-            "technical_fit": tech_score,
-            "experience_fit": exp_score,
-            "culture_fit": culture_score,
-            "compensation_fit": comp_score,
-            "logistics_fit": logistics_score
+            name: {"score": score, "status": dimension_status[name]}
+            for name, score in dimension_scores.items()
         },
         "matched_skills": matched[:15],
         "missing_skills": missing[:15],
         "radar_metrics": [
-            {"dimension": "Technical Skills", "score": tech_score},
-            {"dimension": "Experience Fit", "score": exp_score},
-            {"dimension": "Culture Fit", "score": culture_score},
-            {"dimension": "Compensation", "score": comp_score},
-            {"dimension": "Logistics", "score": logistics_score}
-        ]
+            {"dimension": "Technical Skills", "score": tech_score, "status": dimension_status["technical_fit"]},
+            {"dimension": "Experience Fit", "score": exp_score, "status": dimension_status["experience_fit"]},
+            {"dimension": "Culture Fit", "score": culture_score, "status": dimension_status["culture_fit"]},
+            {"dimension": "Compensation", "score": comp_score, "status": dimension_status["compensation_fit"]},
+            {"dimension": "Logistics", "score": logistics_score, "status": dimension_status["logistics_fit"]},
+        ],
     }
 
 

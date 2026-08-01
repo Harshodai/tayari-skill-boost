@@ -20,6 +20,9 @@ ats_scorer = ATSScorer()
 # ponytail: env-tunable upload cap; magic bytes cover the two accepted formats.
 # Upgrade path: add mime whitelist + per-extension size knobs if new formats arrive.
 _MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
+# ponytail: bounds the evaluate-5d regex/set workload (resume + JD combined); 413, not
+# silent truncation, so callers know their payload was rejected whole.
+MAX_REQUEST_TEXT_CHARS = int(os.getenv("MAX_REQUEST_TEXT_CHARS", str(100_000)))
 _ALLOWED_EXT = ("pdf", "docx")
 _MAGIC = {
     "pdf": (b"%PDF",),
@@ -115,5 +118,7 @@ async def ats_evaluate_5d(payload: AnalyzeRequest):
     from app.services.ats_engine import evaluate_5d_fit
     if not payload.resume_text or not payload.job_description:
         raise HTTPException(status_code=400, detail="Provide resume_text and job_description")
+    if len(payload.resume_text) + len(payload.job_description) > MAX_REQUEST_TEXT_CHARS:
+        raise HTTPException(status_code=413, detail="Request text exceeds size limit")
     return evaluate_5d_fit(payload.resume_text, payload.job_description)
 
