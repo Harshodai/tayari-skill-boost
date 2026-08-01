@@ -44,6 +44,11 @@ func (eb *EventBus) Publish(topic string, data interface{}) {
 		h := handler
 		go func() {
 			defer wg.Done()
+			// ponytail: a panicking subscriber handler must not terminate the
+			// process or affect other subscribers; the panic is deliberately
+			// swallowed. wg.Done() still runs (defers are LIFO, recover first),
+			// so Publish keeps its synchronous wait-for-all semantics.
+			defer func() { _ = recover() }()
 			h(data)
 		}()
 	}
