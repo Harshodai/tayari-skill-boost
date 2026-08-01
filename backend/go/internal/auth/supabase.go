@@ -24,14 +24,21 @@ type SupabaseAuth struct {
 	DB     *database.DB
 }
 
-// Token claims GoTrue issues in the self-hosted stack (supabase-local/):
-// iss = GOTRUE_SITE_URL + "/auth/v1" and aud = GOTRUE_JWT_AUD. If you change
-// either in supabase-local/.env / supabase-local/docker-compose.yml, update
-// these to match or every verified request fails with ErrInvalidToken.
-const (
-	supabaseJWTIssuer   = "http://localhost:3000/auth/v1" // supabase-local/.env SITE_URL + /auth/v1
-	supabaseJWTAudience = "authenticated"                  // GOTRUE_JWT_AUD in supabase-local/docker-compose.yml
-)
+// aud claim GoTrue issues in the self-hosted stack: GOTRUE_JWT_AUD in
+// supabase-local/docker-compose.yml. If you change it there, update this to
+// match or every verified request fails with ErrInvalidToken.
+//
+// There is deliberately no iss check: gotrue v2.185.0 (supabase-local's
+// pinned image) never sets an iss claim on access tokens it issues — verified
+// live against a real signup token, and confirmed by the binary itself: its
+// only "issuer"-related strings are for external OIDC providers (Azure,
+// Apple), not its own token minting. An iss==supabaseJWTIssuer check here
+// previously rejected every real login with ErrInvalidToken. Go's own
+// generateToken() (self-hosted-JWT mode) is already blocked from producing
+// tokens at all when UseSupabase=true (see its early return below), so there
+// is no live "tayari-backend"-issued token in circulation for an iss check
+// to catch — the aud check plus that mint-side guard is the real boundary.
+const supabaseJWTAudience = "authenticated"
 
 func NewSupabaseAuth(cfg *config.Config, db *database.DB) *SupabaseAuth {
 	return &SupabaseAuth{Config: cfg, DB: db}
@@ -66,12 +73,8 @@ func (a *SupabaseAuth) VerifyToken(tokenString string) (*models.User, error) {
 		return nil, ErrInvalidToken
 	}
 
-	// Verify the issuer/audience GoTrue actually issues. This rejects tokens
-	// minted by this gateway's own generateToken() (iss "tayari-backend"),
-	// which must never be accepted in Supabase mode.
-	if iss, ok := claims["iss"].(string); !ok || iss != supabaseJWTIssuer {
-		return nil, ErrInvalidToken
-	}
+	// Verify the audience GoTrue actually issues (see the const doc comment
+	// above for why there is no iss check).
 	if aud, ok := claims["aud"].(string); !ok || aud != supabaseJWTAudience {
 		return nil, ErrInvalidToken
 	}
@@ -277,10 +280,11 @@ func (a *SupabaseAuth) provisionSocialUser(ctx context.Context, gothUser goth.Us
 }
 
 func (a *SupabaseAuth) generateToken(user *models.User) (string, error) {
-	// Go never mints tokens in Supabase mode: tokens signed here would carry
-	// iss "tayari-backend", which VerifyToken now rejects (iss/aud must match
-	// GoTrue's), and GoTrue would not recognize them for refresh/revocation
-	// either. Social auth goes through the frontend SDK in this mode.
+	// Go never mints tokens in Supabase mode: this early return is what
+	// actually keeps self-hosted-mode tokens out of circulation while
+	// UseSupabase is true (see VerifyToken's aud check above for the other
+	// half). GoTrue also wouldn't recognize a Go-minted token for
+	// refresh/revocation. Social auth goes through the frontend SDK instead.
 	if a.Config.UseSupabase {
 		return "", fmt.Errorf("operation not supported in Supabase mode: use the frontend SDK (supabase.auth.signInWithOAuth)")
 	}

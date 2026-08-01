@@ -108,7 +108,7 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "celery -A app.celery_app:celery_app inspect ping"]
       interval: 15s
-      timeout: 5s
+      timeout: 12s
       retries: 3
     profiles: ["dev", "prod"]
 
@@ -152,9 +152,12 @@ services:
     restart: unless-stopped
     profiles: ["dev"]  # dev ONLY — removed 'prod' to prevent accidental exposure
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5555/flower\")'"]
+      # Flower requires basic auth (FLOWER_UNAUTHENTICATED_API=false) and is
+      # served under /flower/ (trailing slash — --url-prefix=flower without
+      # it 404s), so a bare unauthenticated request can never succeed.
+      test: ["CMD-SHELL", "python -c \"import os, base64, urllib.request; req = urllib.request.Request('http://localhost:5555/flower/'); req.add_header('Authorization', 'Basic ' + base64.b64encode((os.environ['FLOWER_USER'] + ':' + os.environ['FLOWER_PASSWORD']).encode()).decode()); urllib.request.urlopen(req, timeout=5)\""]
       interval: 15s
-      timeout: 5s
+      timeout: 10s
       retries: 3
 
   go-backend:

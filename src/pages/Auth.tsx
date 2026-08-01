@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { PasswordStrengthMeter } from "@/components/auth";
 import { isPasswordValid } from "@/lib/password-validator";
-import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/api";
 import { loginSchema, signupSchema } from "@/lib/schemas";
 import { checkRateLimit, recordFailedAttempt } from "@/lib/rate-limiter";
 import { FadeIn } from "@/components/ui/motion";
@@ -59,12 +59,6 @@ const Auth = () => {
       return;
     }
 
-    const USE_SELF_HOSTED = import.meta.env.VITE_USE_SELF_HOSTED === 'true';
-    if (USE_SELF_HOSTED) {
-      setBreachResult({ breached: false });
-      return;
-    }
-
     setIsCheckingBreach(true);
     try {
       // Hash password locally so plaintext never reaches the server (k-Anonymity)
@@ -76,17 +70,18 @@ const Auth = () => {
       const hashPrefix = hash.substring(0, 5);
       const hashSuffix = hash.substring(5);
 
-      const response = await supabase.functions.invoke("check-breached-password", {
-        body: { hashPrefix, hashSuffix },
-      });
+      // Go backend, not a Supabase Edge Function: this feature has no
+      // Cloud/self-hosted split (see routes_security.go) and works in both
+      // auth modes the same way.
+      const data = await apiFetch<{ breached: boolean; count?: number; error?: string }>(
+        "/v1/security/check-breached-password",
+        { method: "POST", body: JSON.stringify({ hashPrefix, hashSuffix }) }
+      );
 
-      if (response.data && typeof response.data.breached === "boolean") {
-        setBreachResult({
-          breached: response.data.breached,
-          count: response.data.count,
-        });
+      if (typeof data.breached === "boolean") {
+        setBreachResult({ breached: data.breached, count: data.count });
       } else {
-        console.warn("Breach check failed:", response.data?.error);
+        console.warn("Breach check failed:", data.error);
         setBreachResult(null);
       }
     } catch (error) {

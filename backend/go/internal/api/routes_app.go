@@ -39,6 +39,7 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 
 		s.routesPublic(r)
 		s.routesGmail(r)
+		s.routesSecurity(r)
 
 		// Public legacy aliases
 		r.Get("/api/health", s.handleHealth)
