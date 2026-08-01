@@ -38,3 +38,42 @@ def test_session_snapshotter():
     assert restored is not None
     assert restored["session_id"] == "s1"
     assert restored["agent_states"]["builder"] == "ready"
+
+
+def test_session_snapshot_survives_new_instance(tmp_path):
+    storage_dir = str(tmp_path)
+    SessionSnapshotter(storage_dir).create_snapshot("s1", {"builder": "ready"}, ["step 1"])
+
+    restored = SessionSnapshotter(storage_dir).restore_snapshot("s1")
+
+    assert restored is not None
+    assert restored["session_id"] == "s1"
+    assert restored["agent_states"] == {"builder": "ready"}
+    assert restored["scratchpad"] == ["step 1"]
+
+
+def test_session_snapshot_isolated_from_caller_mutation(tmp_path):
+    snapshotter = SessionSnapshotter(str(tmp_path))
+    agent_states = {"builder": "ready"}
+    scratchpad = ["step 1"]
+    snapshotter.create_snapshot("s1", agent_states, scratchpad)
+
+    agent_states["builder"] = "mutated"
+    scratchpad.append("step 2")
+
+    restored = snapshotter.restore_snapshot("s1")
+    assert restored["agent_states"] == {"builder": "ready"}
+    assert restored["scratchpad"] == ["step 1"]
+
+
+def test_session_snapshot_isolated_from_restore_mutation(tmp_path):
+    snapshotter = SessionSnapshotter(str(tmp_path))
+    snapshotter.create_snapshot("s1", {"builder": "ready"}, ["step 1"])
+
+    restored = snapshotter.restore_snapshot("s1")
+    restored["agent_states"]["builder"] = "mutated"
+    restored["scratchpad"].append("step 2")
+
+    again = snapshotter.restore_snapshot("s1")
+    assert again["agent_states"] == {"builder": "ready"}
+    assert again["scratchpad"] == ["step 1"]
