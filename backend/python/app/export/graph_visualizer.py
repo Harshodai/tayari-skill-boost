@@ -25,6 +25,7 @@ class GraphVisualizer:
         "skill": "#4ade80",
         "company": "#f43f5e",
         "role": "#a855f7",
+        "technology": "#facc15",
         "file": "#f59e0b",
         "function": "#06b6d4"
     }

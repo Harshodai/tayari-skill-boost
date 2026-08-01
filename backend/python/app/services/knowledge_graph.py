@@ -250,6 +250,12 @@ Resume:
             G.add_node(node_id, type="role", name=t)
             G.add_edge("Candidate", node_id, relationship="HELD_TITLE")
 
+        # Add Technology Nodes & Edges
+        for t in technologies:
+            node_id = f"technology:{t}"
+            G.add_node(node_id, type="technology", name=t)
+            G.add_edge("Candidate", node_id, relationship="KNOWS_TECHNOLOGY")
+
         # Return serialized node-link data structure
         return nx.node_link_data(G)
 
