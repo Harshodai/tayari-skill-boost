@@ -19,9 +19,10 @@ class HyDEEngine:
     @staticmethod
     def generate_hypothetical_profile(jd_text: str, role_title: str) -> Dict[str, Any]:
         """Generate a hypothetical ideal candidate profile based on JD text."""
-        keywords = set(re.findall(r"\b[A-Za-z]{3,}\b", jd_text.lower()))
         tech_vocab = {"python", "go", "java", "kubernetes", "aws", "docker", "react", "sql", "ci/cd", "microservices"}
-        matched_tech = sorted(list(keywords & tech_vocab))
+        # ponytail: keyword-set intersection dropped "go" (2 letters) and "ci/cd" (slash) — match raw text instead
+        jd_norm = jd_text.casefold()
+        matched_tech = sorted(t for t in tech_vocab if re.search(rf"\b{re.escape(t)}\b", jd_norm))
 
         hypothetical_summary = (
             f"Ideal candidate for {role_title} with 5+ years experience building production software. "

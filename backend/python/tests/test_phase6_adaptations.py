@@ -30,6 +30,25 @@ def test_hyde_engine():
     assert match["hyde_match_score"] >= 50
 
 
+def test_hyde_engine_matches_tech_in_raw_text():
+    jd = "Senior Go engineer for CI/CD pipelines with Kubernetes."
+    profile = HyDEEngine.generate_hypothetical_profile(jd, "Go Engineer")
+    reqs = profile["extracted_tech_requirements"]
+    assert "go" in reqs
+    assert "ci/cd" in reqs
+    assert reqs == sorted(reqs)
+
+
+def test_hyde_engine_omits_absent_tech():
+    jd = "Looking for a React developer."
+    profile = HyDEEngine.generate_hypothetical_profile(jd, "React Developer")
+    reqs = profile["extracted_tech_requirements"]
+    assert "react" in reqs
+    assert "go" not in reqs
+    assert "ci/cd" not in reqs
+    assert reqs == sorted(reqs)
+
+
 def test_memory_cleaner():
     assert MemoryCleaner.normalize_skill("python3") == "python"
     assert MemoryCleaner.normalize_skill("k8s") == "kubernetes"
