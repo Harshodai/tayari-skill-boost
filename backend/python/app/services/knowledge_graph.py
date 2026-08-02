@@ -5,7 +5,7 @@ Powers cover letters, interview prep, negotiation scripts, and skills gap analys
 import json
 import re
 from typing import Dict, Any, List, Optional
-from app.services.llm_service import llm_complete, LLMNotConfiguredError
+from app.services.llm_service import LLMNotConfiguredError
 
 # ---------------------------------------------------------------------------
 # Instructor-backed typed extraction (Phase 3.3)
@@ -130,44 +130,65 @@ class KnowledgeGraphExtractor:
         cert_pattern = re.compile(r'\b(AWS Certified|Google Certified|Azure Certified|CCNA|CCNP|CISSP|PMP|CSM|Scrum Master|ITIL|TOGAF|CFA|CPA|Six Sigma|Lean|Kubernetes Certified|Docker Certified|HashiCorp Certified|Salesforce Certified|Tableau Certified|Power BI Certified)\b', re.IGNORECASE)
         certifications = [m.strip() for m in cert_pattern.findall(resume_text)]
 
-        # Use LLM for advanced extraction (Phase 3.3: Instructor-backed typed output)
-        prompt = f"""Extract structured information from this resume. Return ONLY a JSON object with these keys:
-{{
+        # Use LLM for advanced extraction (Phase 3.3: Instructor-backed typed output).
+        # ponytail: chunked via long_context (spec 2026-08-02) — the resume is
+        # extracted per section in parallel instead of head-slicing at [:2500];
+        # per-chunk dicts are unioned here (FactUnionMerger).
+        extract_template = """Extract structured information from this resume. Return ONLY a JSON object with these keys:
+{
   "skills": [list of technical skills],
   "companies": [list of companies worked at],
   "job_titles": [list of job titles],
   "technologies": [list of technologies/frameworks/tools],
   "certifications": [list of certifications],
-  "education": [{{"degree": "...", "field": "...", "institution": "..."}}],
-  "achievements": [{{"metric": "...", "action": "...", "context": "..."}}],
-  "timeline": [{{"company": "...", "title": "...", "duration_months": 0}}]
-}}
+  "education": [{"degree": "...", "field": "...", "institution": "..."}],
+  "achievements": [{"metric": "...", "action": "...", "context": "..."}],
+  "timeline": [{"company": "...", "title": "...", "duration_months": 0}]
+}
 
 Resume:
-{resume_text[:2500]}"""
+{LONG_TEXT}"""
 
         llm_data: Dict[str, Any] = {}
         try:
-            llm_result = await llm_complete("", prompt, max_tokens=600, temperature=0.3)
-            # Try to parse LLM JSON with regex fallback
-            json_match = re.search(r'\{.*\}', llm_result, re.DOTALL)
-            if json_match:
-                raw = json.loads(json_match.group(0))
-                # Validate against typed schema if available
-                if KnowledgeGraphLLMOutput is not None:
-                    validated = KnowledgeGraphLLMOutput(**raw)
-                    # exclude_defaults so an empty/near-empty LLM response
-                    # (every field left at its [] default) dumps to {} —
-                    # otherwise `bool(llm_data)` below would be True purely
-                    # because model_dump() always emits every field key,
-                    # falsely marking llm_enhanced=True for a no-op response.
-                    llm_data = validated.model_dump(exclude_defaults=True)
-                else:
-                    llm_data = raw
+            from app.llm.long_context import LongContextClient  # lazy: no import cycle
+            results = await LongContextClient().map_only(
+                resume_text,
+                extract_template,
+                kind="resume",
+                max_tokens=600,
+                temperature=0.3,
+            )
+            for r in results:
+                if not r.ok:
+                    continue
+                try:
+                    # Try to parse chunk JSON with regex fallback
+                    json_match = re.search(r'\{.*\}', r.text, re.DOTALL)
+                    if not json_match:
+                        continue
+                    raw = json.loads(json_match.group(0))
+                    # Validate against typed schema if available
+                    if KnowledgeGraphLLMOutput is not None:
+                        validated = KnowledgeGraphLLMOutput(**raw)
+                        # exclude_defaults so an empty/near-empty LLM response
+                        # (every field left at its [] default) dumps to {} —
+                        # otherwise `bool(llm_data)` below would be True purely
+                        # because model_dump() always emits every field key,
+                        # falsely marking llm_enhanced=True for a no-op response.
+                        chunk_data = validated.model_dump(exclude_defaults=True)
+                    else:
+                        chunk_data = raw
+                except (json.JSONDecodeError, Exception):  # noqa: BLE001 - bad chunk
+                    continue
+                # FactUnionMerger: extend list fields in chunk order
+                for key, value in chunk_data.items():
+                    if isinstance(value, list):
+                        llm_data.setdefault(key, []).extend(value)
+                    elif key not in llm_data:
+                        llm_data[key] = value
         except LLMNotConfiguredError:
             # No LLM configured — regex-only extraction is fine
-            pass
-        except json.JSONDecodeError:
             pass
         except Exception:
             pass
