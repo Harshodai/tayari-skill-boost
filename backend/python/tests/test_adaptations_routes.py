@@ -2,11 +2,47 @@
 
 import pytest
 from fastapi.testclient import TestClient
+import httpx
 from app.main import app
 from app.services.profile_expander import ProfileExpander
 from app.services.codegraph_service import CodeGraphEngine
 
 client = TestClient(app)
+
+
+class FakeResponse:
+    def __init__(self, status_code: int, payload=None, invalid_json: bool = False):
+        self.status_code = status_code
+        self._payload = payload
+        self._invalid_json = invalid_json
+
+    def json(self):
+        if self._invalid_json:
+            raise ValueError("malformed JSON")
+        return self._payload
+
+
+class FakeAsyncClient:
+    def __init__(self, response=None, exc=None, **kwargs):
+        self._response = response
+        self._exc = exc
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        return False
+
+    async def get(self, url, headers=None):
+        if self._exc is not None:
+            raise self._exc
+        return self._response
+
+
+def _patch_http_client(monkeypatch, response=None, exc=None):
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda **kwargs: FakeAsyncClient(response=response, exc=exc)
+    )
 
 
 def test_profile_expand_endpoint():
@@ -23,6 +59,45 @@ def test_profile_expand_translates_service_failure(monkeypatch):
     res = client.post("/api/v1/adaptations/profile-expand", json={"github_username": "octocat"})
     assert res.status_code == 502
     assert res.json()["detail"] == "GitHub API fetch failed"
+
+
+@pytest.mark.asyncio
+async def test_expand_from_github_reports_error_on_non_200(monkeypatch):
+    _patch_http_client(monkeypatch, response=FakeResponse(status_code=404, payload={"message": "Not Found"}))
+    result = await ProfileExpander.expand_from_github("octocat")
+    assert result["status"] == "error"
+    assert "404" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_expand_from_github_reports_error_on_transport_failure(monkeypatch):
+    _patch_http_client(monkeypatch, exc=httpx.ConnectError("connection refused"))
+    result = await ProfileExpander.expand_from_github("octocat")
+    assert result["status"] == "error"
+    assert "Failed to expand GitHub profile" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_expand_from_github_reports_error_on_malformed_json(monkeypatch):
+    _patch_http_client(monkeypatch, response=FakeResponse(status_code=200, invalid_json=True))
+    result = await ProfileExpander.expand_from_github("octocat")
+    assert result["status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_expand_from_github_succeeds_with_empty_skills_on_empty_repo_list(monkeypatch):
+    _patch_http_client(monkeypatch, response=FakeResponse(status_code=200, payload=[]))
+    result = await ProfileExpander.expand_from_github("octocat")
+    assert result["status"] == "success"
+    assert result["discovered_skills"] == []
+    assert result["total_repos_analyzed"] == 0
+
+
+def test_profile_expand_reaches_502_with_real_service_on_fetch_failure(monkeypatch):
+    _patch_http_client(monkeypatch, response=FakeResponse(status_code=404, payload={"message": "Not Found"}))
+    res = client.post("/api/v1/adaptations/profile-expand", json={"github_username": "octocat"})
+    assert res.status_code == 502
+    assert "404" in res.json()["detail"]
 
 
 def test_followup_check_endpoint():

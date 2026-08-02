@@ -31,33 +31,42 @@ class ProfileExpander:
         discovered_topics: set[str] = set()
         discovered_projects: List[Dict[str, str]] = []
 
+        # ponytail: narrow except to httpx.HTTPError (transport/timeout) only — programming bugs
+        # in the extraction below must propagate, not be masked as a fetch failure
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.get(url, headers={"User-Agent": "TayariSkillBoost/1.0"})
-                if response.status_code == 200:
-                    repos = response.json()
-                    for repo in repos:
-                        if isinstance(repo, dict):
-                            lang = repo.get("language")
-                            if lang:
-                                discovered_languages.add(lang.lower())
-
-                            topics = repo.get("topics") or []
-                            for topic in topics:
-                                discovered_topics.add(str(topic).lower())
-
-                            discovered_projects.append({
-                                "name": repo.get("name", ""),
-                                "description": repo.get("description", "") or "",
-                                "language": lang or "N/A",
-                                "stars": str(repo.get("stargazers_count", 0)),
-                                "url": repo.get("html_url", "")
-                            })
-                else:
-                    logger.warning("GitHub API returned status code %d for %s", response.status_code, github_username)
-
-        except Exception as exc:
+        except httpx.HTTPError as exc:
             logger.error("Failed to expand GitHub profile for %s: %s", github_username, exc)
+            return {"status": "error", "message": f"Failed to expand GitHub profile: {exc}"}
+
+        if response.status_code != 200:
+            logger.warning("GitHub API returned status code %d for %s", response.status_code, github_username)
+            return {"status": "error", "message": f"GitHub API returned status {response.status_code}"}
+
+        try:
+            repos = response.json()
+        except ValueError as exc:
+            logger.error("Failed to parse GitHub API response for %s: %s", github_username, exc)
+            return {"status": "error", "message": f"Failed to expand GitHub profile: {exc}"}
+
+        for repo in repos:
+            if isinstance(repo, dict):
+                lang = repo.get("language")
+                if lang:
+                    discovered_languages.add(lang.lower())
+
+                topics = repo.get("topics") or []
+                for topic in topics:
+                    discovered_topics.add(str(topic).lower())
+
+                discovered_projects.append({
+                    "name": repo.get("name", ""),
+                    "description": repo.get("description", "") or "",
+                    "language": lang or "N/A",
+                    "stars": str(repo.get("stargazers_count", 0)),
+                    "url": repo.get("html_url", "")
+                })
 
         all_skills = sorted(list(discovered_languages | discovered_topics))
 
