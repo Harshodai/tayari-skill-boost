@@ -73,9 +73,13 @@ class LayeredMemoryEngine:
     def get_l3_persona(self) -> Dict[str, Any]:
         """Retrieve L3 candidate persona model."""
         user_node = f"user:{self.user_id}"
-        skills = [n.replace("skill:", "") for n in self.graph.neighbors(user_node) if n.startswith("skill:")]
-        companies = [n.replace("company:", "") for n in self.graph.neighbors(user_node) if n.startswith("company:")]
-        titles = [n.replace("title:", "") for n in self.graph.neighbors(user_node) if n.startswith("title:")]
+        # ponytail: neighbors() raises for missing nodes; keep empty persona.
+        if user_node not in self.graph:
+            skills, companies, titles = [], [], []
+        else:
+            skills = [n.replace("skill:", "") for n in self.graph.neighbors(user_node) if n.startswith("skill:")]
+            companies = [n.replace("company:", "") for n in self.graph.neighbors(user_node) if n.startswith("company:")]
+            titles = [n.replace("title:", "") for n in self.graph.neighbors(user_node) if n.startswith("title:")]
 
         l2_node = f"l2_context:{self.user_id}"
         goal_data = self.graph.nodes.get(l2_node, {})
