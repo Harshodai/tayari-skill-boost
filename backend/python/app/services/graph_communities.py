@@ -8,6 +8,7 @@ Clusters candidate NetworkX knowledge graph skills into distinct domain categori
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
@@ -31,14 +32,18 @@ class GraphCommunitiesEngine:
 
         for skill in skills:
             s_clean = skill.lower().strip()
-            placed = False
-            for cat, keywords in GraphCommunitiesEngine.CATEGORIES.items():
-                if any(kw in s_clean for kw in keywords):
-                    clusters[cat].append(skill)
-                    placed = True
-                    break
-            if not placed:
+            # ponytail: whole-token match; longest keyword wins, ties keep first category
+            matches = [
+                (cat, kw)
+                for cat, keywords in GraphCommunitiesEngine.CATEGORIES.items()
+                for kw in keywords
+                if re.search(rf"\b{re.escape(kw)}\b", s_clean)
+            ]
+            if not matches:
                 clusters["Other Skills"].append(skill)
+            else:
+                cat, _ = max(matches, key=lambda m: len(m[1]))
+                clusters[cat].append(skill)
 
         # Remove empty clusters
         return {k: v for k, v in clusters.items() if v}
