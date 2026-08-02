@@ -32,6 +32,10 @@ _STAGE_OK = "ok"
 _STAGE_FAILED = "failed"
 
 
+def _failure_cover_letter(company_name: str, target_role: str) -> str:
+    return f"Dear Hiring Team at {company_name},\n\nI am writing to express my strong enthusiasm for the {target_role} position."
+
+
 class EndToEndPipelineEngine:
     """Autonomous end-to-end job application processing engine."""
 
@@ -89,11 +93,19 @@ class EndToEndPipelineEngine:
                     target_role=target_role,
                 )
             )
-            cover_letter = draft.get("tailored_cover_letter", "")
-            tailored_bullets = draft.get("tailored_resume_bullets", [])
+            if draft.get("draft_source") == "fallback":
+                # ponytail: a fallback draft is fabricated content grounded in
+                # nothing; treat the stage as failed rather than marking it
+                # verified — an empty bullet list blocks downstream.
+                logger.warning("Drafter-Reviewer produced a fallback draft; rejecting fabricated content")
+                cover_letter = _failure_cover_letter(company_name, target_role)
+                tailored_bullets = []
+            else:
+                cover_letter = draft.get("tailored_cover_letter", "")
+                tailored_bullets = draft.get("tailored_resume_bullets", [])
         except Exception as exc:
             logger.warning("Drafter-Reviewer stage failed: %s", exc)
-            cover_letter = f"Dear Hiring Team at {company_name},\n\nI am writing to express my strong enthusiasm for the {target_role} position."
+            cover_letter = _failure_cover_letter(company_name, target_role)
 
         # 5. Ontology Guard Factual Verification
         verified_bullets: List[Dict[str, Any]] = []
@@ -110,7 +122,9 @@ class EndToEndPipelineEngine:
             })
 
         # Guardrail-gated submission readiness: ready only when every guardrail passes.
-        if ghost_check.get("is_ghost_job_risk") is True:
+        # ponytail: the ghost stage fails closed — a crashed or failed legitimacy
+        # check (status != ok) cannot clear the posting, same as role mismatch.
+        if ghost_check.get("status") != _STAGE_OK or ghost_check.get("is_ghost_job_risk") is True:
             pipeline_status = "BLOCKED_HIGH_GHOST_JOB_RISK"
         elif role_match.get("is_semantically_matched") is not True:
             pipeline_status = "BLOCKED_ROLE_MISMATCH"

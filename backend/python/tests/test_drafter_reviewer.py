@@ -55,6 +55,7 @@ async def test_review_loop_reaches_threshold_and_revises_draft(monkeypatch):
     assert result["tailored_cover_letter"] == "Dear Hiring Manager, I delivered quantified impact."
     assert result["tailored_resume_bullets"] == ["Led initiatives increasing revenue by 20%."]
     assert result["ats_parseable"] is True
+    assert result["draft_source"] == "llm"
     assert len(calls) == 4
     assert "Add quantified impact." in calls[2]  # feedback fed into the revision prompt
 
@@ -105,6 +106,7 @@ async def test_fallback_when_llm_not_configured(monkeypatch):
     assert result["reviewer_score"] == 88
     assert result["reviewer_feedback"] == "Strong match with clear alignment to job requirements."
     assert result["iterations_run"] == 1
+    assert result["draft_source"] == "fallback"
     assert "Dear Hiring Manager at Acme" in result["tailored_cover_letter"]
 
 

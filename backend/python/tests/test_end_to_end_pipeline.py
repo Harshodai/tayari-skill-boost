@@ -6,6 +6,30 @@ from app.services import end_to_end_pipeline
 from app.services.end_to_end_pipeline import EndToEndPipelineEngine
 
 
+def _fake_llm_draft():
+    """Async drafter stub returning a real, skill-grounded draft (draft_source llm)."""
+    async def fake_drafter(resume_text, jd_text, target_company="", target_role="", max_iterations=2):
+        return {
+            "tailored_cover_letter": f"Dear Hiring Manager at {target_company}, I am a strong fit for the {target_role} role.",
+            "tailored_resume_bullets": ["Engineered enterprise solutions using Python."],
+            "reviewer_score": 92,
+            "reviewer_feedback": "Excellent alignment.",
+            "iterations_run": 1,
+            "ats_parseable": True,
+            "draft_source": "llm",
+        }
+
+    return fake_drafter
+
+
+def _stub_llm_drafter(monkeypatch):
+    monkeypatch.setattr(
+        end_to_end_pipeline.DrafterReviewerEngine,
+        "generate_tailored_application",
+        _fake_llm_draft(),
+    )
+
+
 def _run_pipeline(**overrides):
     return EndToEndPipelineEngine.process_job_application(
         target_role=overrides.get("target_role", "Data Engineer"),
@@ -60,6 +84,7 @@ def test_pipeline_blocks_role_mismatch(monkeypatch):
 
 
 def test_pipeline_blocks_unverified_claims(monkeypatch):
+    _stub_llm_drafter(monkeypatch)
     monkeypatch.setattr(
         end_to_end_pipeline.OntologyGuard,
         "validate_claim",
@@ -74,10 +99,13 @@ def test_pipeline_blocks_unverified_claims(monkeypatch):
     res = _run_pipeline()
 
     assert res["pipeline_status"] == "BLOCKED_UNVERIFIED_CLAIMS"
+    assert len(res["factually_verified_bullets"]) > 0
     assert all(not b["is_factually_verified"] for b in res["factually_verified_bullets"])
 
 
 def test_pipeline_stage_failure_isolation(monkeypatch):
+    _stub_llm_drafter(monkeypatch)
+
     def boom(*args, **kwargs):
         raise RuntimeError("5d fit exploded")
 
@@ -93,6 +121,7 @@ def test_pipeline_stage_failure_isolation(monkeypatch):
 
 
 def test_pipeline_safe_key_retrieval_missing_is_valid(monkeypatch):
+    _stub_llm_drafter(monkeypatch)
     monkeypatch.setattr(
         end_to_end_pipeline.OntologyGuard,
         "validate_claim",
@@ -107,3 +136,19 @@ def test_pipeline_safe_key_retrieval_missing_is_valid(monkeypatch):
 
     assert len(res["factually_verified_bullets"]) > 0
     assert all(b["is_factually_verified"] is False for b in res["factually_verified_bullets"])
+
+
+def test_pipeline_fails_closed_when_ghost_stage_crashes(monkeypatch):
+    def boom(*args, **kwargs):
+        raise RuntimeError("ghost checker exploded")
+
+    monkeypatch.setattr(
+        end_to_end_pipeline.LegitimacyChecker,
+        "evaluate_posting_legitimacy",
+        boom,
+    )
+
+    res = _run_pipeline()
+
+    assert res["ghost_job_risk"]["status"] == "failed"
+    assert res["pipeline_status"] == "BLOCKED_HIGH_GHOST_JOB_RISK"

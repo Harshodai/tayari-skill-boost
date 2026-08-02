@@ -137,11 +137,15 @@ Format output as JSON:
 }}"""
 
         current_draft = {"cover_letter": "Dear Hiring Manager,\n\nI am excited to apply...", "tailored_bullets": []}
+        # ponytail: mark fabricated fallback content so downstream consumers can
+        # reject it — an LLMNotConfiguredError draft is grounded in nothing.
+        draft_source = "llm"
         try:
             raw_draft = await llm_complete("", draft_prompt, max_tokens=1000, temperature=0.4)
             current_draft = _parse_draft_json(raw_draft) or current_draft
         except Exception as exc:
             logger.warning("Drafter agent fallback: %s", exc)
+            draft_source = "fallback"
             current_draft = {
                 "cover_letter": f"Dear Hiring Manager at {target_company or 'your company'},\n\nI am writing to express my strong interest in the {target_role or 'role'}. With my background, I am confident in my ability to deliver immediate impact.",
                 "tailored_bullets": ["Led technical initiatives delivering high reliability.", "Architected scalable solutions using modern technologies."]
@@ -190,5 +194,6 @@ Format output as JSON:
             "reviewer_score": reviewer_score,
             "reviewer_feedback": reviewer_feedback,
             "iterations_run": iterations_run,
-            "ats_parseable": True
+            "ats_parseable": True,
+            "draft_source": draft_source
         }
