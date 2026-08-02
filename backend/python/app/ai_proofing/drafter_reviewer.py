@@ -12,9 +12,36 @@ import json
 import logging
 import re
 from typing import Any, Dict, Optional, Tuple
+from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LLMCallable, LongContextClient
 from app.services.llm_service import llm_complete
 
 logger = logging.getLogger(__name__)
+
+
+class _ModuleLLM:
+    """Adapter binding the client to THIS module's llm_complete global.
+
+    ponytail: tests stub the module-global (monkeypatch.setattr(drafter_reviewer,
+    "llm_complete", ...)) — the adapter resolves it at call time so the existing
+    deterministic test harness keeps working unchanged.
+    """
+
+    async def complete(
+        self,
+        system_message: str,
+        user_message: str,
+        *,
+        tier: str = "fast",
+        max_tokens: int = 800,
+        temperature: float = 0.3,
+    ) -> str:
+        return await llm_complete(
+            system_message, user_message, tier=tier, max_tokens=max_tokens, temperature=temperature
+        )
+
+
+def _engine_llm() -> LongContextClient:
+    return LongContextClient(llm=_ModuleLLM())
 
 _QUALITY_THRESHOLD = 85
 
@@ -67,13 +94,14 @@ def _parse_draft_json(raw_text: str) -> Optional[Dict[str, Any]]:
     return parsed
 
 
-def _build_review_prompt(current_draft: Dict[str, Any], jd_text: str) -> str:
+def _build_review_prompt(current_draft: Dict[str, Any], jd_condensed: str) -> str:
     # ponytail: a plain-text contract ("SCORE: <0-100> REVIEW: <text>") parses
     # reliably with regex; JSON output from small self-hosted models mangles.
+    # jd_condensed: JD pre-condensed via long_context (spec 2026-08-02).
     return f"""You are a strict ATS resume reviewer. Critique this tailored application draft against the job description. Focus on generic AI buzzwords, formatting issues, ATS parseability, and alignment with required skills.
 
 Target Job Description:
-{jd_text[:2000]}
+{jd_condensed}
 
 Candidate Draft:
 {json.dumps(current_draft)}
@@ -83,15 +111,17 @@ SCORE: <integer 0-100>
 REVIEW: <specific, actionable feedback>"""
 
 
-def _build_revision_prompt(current_draft: Dict[str, Any], resume_text: str, jd_text: str, feedback: str) -> str:
-    """Prompt the Drafter agent to revise the draft addressing the reviewer's feedback."""
+def _build_revision_template(current_draft: Dict[str, Any], jd_condensed: str, feedback: str) -> str:
+    """Template with a {LONG_TEXT} slot for the candidate resume (chunked reduce)."""
+    # ponytail: resume reaches the LLM via chunked map-reduce (spec 2026-08-02)
+    # instead of head-slicing at [:2000]; jd_condensed comes from condense().
     return f"""You are an elite career strategist. Revise this tailored application draft to address the reviewer's feedback. Strict Rules: Use ONLY facts, metrics, and experiences present in the Candidate Resume. Do NOT invent claims.
 
 Candidate Resume:
-{resume_text[:2000]}
+{LONG_TEXT_PLACEHOLDER}
 
 Target Job Description:
-{jd_text[:2000]}
+{jd_condensed}
 
 Current Draft:
 {json.dumps(current_draft)}
@@ -120,15 +150,21 @@ class DrafterReviewerEngine:
         """Run the Drafter-Reviewer loop to produce tailored CV content and cover letter."""
         logger.info("Starting Drafter-Reviewer loop for role: %s at %s", target_role, target_company)
 
+        # ponytail: chunked via long_context (spec 2026-08-02) — the JD condenses
+        # once and feeds every stage instead of head-slicing at [:2000] per call.
+        jd_condensed = await _engine_llm().condense(jd_text, kind="jd") if jd_text else ""
+
         # Step 1: Draft initial content (Agent A - Drafter)
-        draft_prompt = f"""You are an elite career strategist. Draft a tailored cover letter and 3 key resume bullet points for this candidate.
+        # ponytail: the resume slot is {LONG_TEXT} — map_reduce fills it with the
+        # full resume (chunked when over budget) instead of [:2000].
+        draft_template = f"""You are an elite career strategist. Draft a tailored cover letter and 3 key resume bullet points for this candidate.
 Strict Rules: Use ONLY facts, metrics, and experiences present in the Candidate Resume. Do NOT invent claims.
 
 Candidate Resume:
-{resume_text[:2000]}
+{LONG_TEXT_PLACEHOLDER}
 
 Target Job Description:
-{jd_text[:2000]}
+{jd_condensed}
 
 Format output as JSON:
 {{
@@ -141,7 +177,9 @@ Format output as JSON:
         # reject it — an LLMNotConfiguredError draft is grounded in nothing.
         draft_source = "llm"
         try:
-            raw_draft = await llm_complete("", draft_prompt, max_tokens=1000, temperature=0.4)
+            raw_draft = await _engine_llm().map_reduce(
+                resume_text, draft_template, kind="resume", max_tokens=1000, temperature=0.4
+            )
             current_draft = _parse_draft_json(raw_draft) or current_draft
         except Exception as exc:
             logger.warning("Drafter agent fallback: %s", exc)
@@ -159,7 +197,7 @@ Format output as JSON:
         for iteration in range(max_iterations):
             try:
                 review_text = await llm_complete(
-                    "", _build_review_prompt(current_draft, jd_text), max_tokens=800, temperature=0.3
+                    "", _build_review_prompt(current_draft, jd_condensed), max_tokens=800, temperature=0.3
                 )
             except Exception as exc:
                 logger.warning("Reviewer agent fallback: %s", exc)
@@ -175,9 +213,12 @@ Format output as JSON:
             if reviewer_score > _QUALITY_THRESHOLD or iteration + 1 == max_iterations:
                 break
             try:
-                revised_text = await llm_complete(
-                    "", _build_revision_prompt(current_draft, resume_text, jd_text, reviewer_feedback),
-                    max_tokens=1000, temperature=0.4
+                revised_text = await _engine_llm().map_reduce(
+                    resume_text,
+                    _build_revision_template(current_draft, jd_condensed, reviewer_feedback),
+                    kind="resume",
+                    max_tokens=1000,
+                    temperature=0.4,
                 )
             except Exception as exc:
                 logger.warning("Revision agent fallback (keeping previous draft): %s", exc)
