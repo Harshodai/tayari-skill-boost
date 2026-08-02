@@ -12,6 +12,7 @@ import logging
 import re
 from datetime import datetime, timezone
 
+from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LongContextClient
 from app.services.job_providers import search_jobs
 from app.services.llm_service import llm_complete, extract_json, active_engine
 from app.services.skill_taxonomy import taxonomy_overlap
@@ -74,10 +75,19 @@ async def derive_query(profile: dict | None, resume_text: str | None) -> str:
         return profile["headline"]
     if resume_text:
         try:
-            raw = await llm_complete(
-                "You extract the single most likely job search query (a job title, "
-                "2-4 words) from a resume. Respond with ONLY the query text.",
-                resume_text[:2000], tier="fast")
+            # ponytail: chunked via long_context (spec 2026-08-02) — the full
+            # resume feeds the extraction through map_reduce (first non-empty
+            # chunk answer) instead of a [:2000] head-slice.
+            raw = await LongContextClient().map_reduce(
+                resume_text,
+                LONG_TEXT_PLACEHOLDER,
+                kind="resume",
+                system=(
+                    "You extract the single most likely job search query (a job title, "
+                    "2-4 words) from a resume. Respond with ONLY the query text."
+                ),
+                tier="fast",
+            )
             return raw.strip().strip('"')[:60]
         except Exception as exc:
             logger.warning("Query derivation failed: %s", exc)

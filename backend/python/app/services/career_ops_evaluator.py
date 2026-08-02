@@ -1,7 +1,54 @@
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional, Type
+
+from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LongContextClient
 from app.services.llm_service import llm_json, llm_complete
 from app.services.legitimacy_checker import check_job_legitimacy
+
+logger = logging.getLogger(__name__)
+
+
+class _ModuleLLM:
+    """Adapter binding the client to THIS module's llm globals.
+
+    ponytail: tests stub the module globals (monkeypatch.setattr(career_ops_evaluator,
+    "llm_json"/"llm_complete", ...)) — the adapter resolves them at call time so
+    the existing deterministic test harness keeps working unchanged.
+    """
+
+    async def complete(
+        self,
+        system_message: str,
+        user_message: str,
+        *,
+        tier: str = "fast",
+        max_tokens: int = 800,
+        temperature: float = 0.3,
+    ) -> str:
+        return await llm_complete(
+            system_message, user_message, tier=tier, max_tokens=max_tokens, temperature=temperature
+        )
+
+    async def json_complete(
+        self,
+        system_message: str,
+        user_message: str,
+        *,
+        response_model: Optional[Type[Any]] = None,
+        tier: str = "fast",
+        max_tokens: int = 1500,
+    ) -> Any:
+        return await llm_json(
+            system_message,
+            user_message,
+            response_model=response_model,
+            tier=tier,
+            max_tokens=max_tokens,
+        )
+
+
+def _engine_llm() -> LongContextClient:
+    return LongContextClient(llm=_ModuleLLM())
 
 logger = logging.getLogger(__name__)
 
@@ -85,21 +132,29 @@ async def evaluate_job_candidate(
     description: str
 ) -> dict:
     """Run the full Career-Ops A-G evaluation pipeline."""
+    # ponytail: chunked via long_context (spec 2026-08-02) — resume reaches the
+    # LLM in full through the {LONG_TEXT} slot, JD condenses, instead of
+    # [:4000] head-slices.
+    jd_condensed = (
+        await _engine_llm().condense(description, kind="jd") if description.strip() else ""
+    )
     prompt = f"""
     Candidate's Resume Text:
-    {resume_text[:4000]}
+    {LONG_TEXT_PLACEHOLDER}
     
     Job Listing Info:
     Title: {title}
     Company: {company}
     Location: {location}
     Description:
-    {description[:4000]}
+    {jd_condensed}
     """
     
     try:
         # Run Blocks A-F via LLM
-        eval_data = await llm_json(EVALUATOR_SYSTEM_PROMPT, prompt, tier="smart")
+        eval_data = await _engine_llm().map_reduce_json(
+            resume_text, prompt, kind="resume", system=EVALUATOR_SYSTEM_PROMPT, tier="smart"
+        )
     except Exception as exc:
         logger.error("Failed Blocks A-F Career-Ops evaluation: %s", exc)
         eval_data = {}
@@ -125,11 +180,13 @@ async def evaluate_job_candidate(
         - Highlight gaps (if any) honestly.
         
         Resume:
-        {resume_text[:2000]}
+        {LONG_TEXT_PLACEHOLDER}
         
         Job: {title} at {company}
         """
-        cover_letter = await llm_complete("", cover_prompt, max_tokens=600, temperature=0.6, tier="fast")
+        cover_letter = await _engine_llm().map_reduce(
+            resume_text, cover_prompt, kind="resume", max_tokens=600, temperature=0.6, tier="fast"
+        )
         eval_data["cover_letter_draft"] = cover_letter.strip()
     except Exception as exc:
         logger.error("Failed to generate cover letter draft: %s", exc)
