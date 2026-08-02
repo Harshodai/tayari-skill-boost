@@ -20,6 +20,26 @@ def test_ats_pdf_validator_invalid():
     res = ATSPDFValidator.validate_pdf_bytes(b"Not a PDF file")
     assert res["is_parseable"] is False
     assert res["score"] == 0
+    assert res["text_stream_objects_found"] == 0
+    assert isinstance(res["recommendation"], str) and res["recommendation"]
+
+
+def test_ats_pdf_validator_empty():
+    res = ATSPDFValidator.validate_pdf_bytes(b"")
+    assert res["is_parseable"] is False
+    assert res["score"] == 0
+    assert res["issues"] == ["Invalid or empty PDF file"]
+    assert res["text_stream_objects_found"] == 0
+    assert isinstance(res["recommendation"], str) and res["recommendation"]
+
+
+def test_ats_pdf_validator_missing_header():
+    res = ATSPDFValidator.validate_pdf_bytes(b"JPEG binary data here")
+    assert res["is_parseable"] is False
+    assert res["score"] == 0
+    assert res["issues"] == ["File missing %PDF magic header"]
+    assert res["text_stream_objects_found"] == 0
+    assert isinstance(res["recommendation"], str) and res["recommendation"]
 
 
 def test_truth_subspace_engine():

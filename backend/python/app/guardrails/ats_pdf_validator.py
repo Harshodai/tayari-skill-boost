@@ -20,11 +20,23 @@ class ATSPDFValidator:
     def validate_pdf_bytes(pdf_bytes: bytes) -> Dict[str, Any]:
         """Inspect raw PDF bytes for text parseability and ATS risks."""
         if not pdf_bytes or len(pdf_bytes) < 10:
-            return {"is_parseable": False, "score": 0, "issues": ["Invalid or empty PDF file"]}
+            return {
+                "is_parseable": False,
+                "score": 0,
+                "issues": ["Invalid or empty PDF file"],
+                "text_stream_objects_found": 0,
+                "recommendation": "Upload a valid PDF file",
+            }
 
         # Check for standard PDF header
         if not pdf_bytes.startswith(b"%PDF"):
-            return {"is_parseable": False, "score": 0, "issues": ["File missing %PDF magic header"]}
+            return {
+                "is_parseable": False,
+                "score": 0,
+                "issues": ["File missing %PDF magic header"],
+                "text_stream_objects_found": 0,
+                "recommendation": "Re-export the document as a PDF",
+            }
 
         issues: List[str] = []
         parseable_text_len = 0
