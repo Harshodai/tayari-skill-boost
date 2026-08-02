@@ -36,7 +36,10 @@ class HybridJobSearchEngine:
         candidate_graph: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Search and rank job postings using hybrid vector, graph RAG, and LLM intent matching."""
-        skills = candidate_skills or ["Python", "SQL", "Airflow", "Docker"]
+        # ponytail: missing/empty skills rejected — never score with fabricated vocabulary
+        if not candidate_skills:
+            raise ValueError("candidate_skills must be a non-empty list")
+        skills = candidate_skills
         results: List[Dict[str, Any]] = []
 
         for posting in job_postings:
@@ -63,7 +66,15 @@ class HybridJobSearchEngine:
                 candidate_skills=skills
             )
 
-            ats_fit_score = ats_res.get("overall_fit_score", 80.0)
+            if "overall_fit_score" not in ats_res:
+                # ponytail: missing fit result must not fabricate a plausible score (was 80.0)
+                logger.warning(
+                    "evaluate_5d_fit returned no overall_fit_score for posting %r; contributing 0.0",
+                    posting_id
+                )
+                ats_fit_score = 0.0
+            else:
+                ats_fit_score = ats_res["overall_fit_score"]
 
             # Calculate composite hybrid score
             combined_score = round(

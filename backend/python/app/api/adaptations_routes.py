@@ -194,11 +194,15 @@ class HybridJobSearchRequest(BaseModel):
 def hybrid_job_search_endpoint(req: HybridJobSearchRequest):
     """Search and rank job postings using hybrid vector, graph RAG, and LLM intent matching."""
     from app.scoring.hybrid_job_search_engine import HybridJobSearchEngine
-    return HybridJobSearchEngine.search_and_rank_postings(
-        query_role=req.query_role,
-        job_postings=req.job_postings,
-        candidate_skills=req.candidate_skills
-    )
+    try:
+        return HybridJobSearchEngine.search_and_rank_postings(
+            query_role=req.query_role,
+            job_postings=req.job_postings,
+            candidate_skills=req.candidate_skills
+        )
+    except ValueError as exc:
+        # ponytail: empty skills surface as a client error, not a 500
+        raise HTTPException(status_code=400, detail=f"Invalid hybrid job search inputs: {exc}") from exc
 
 
 class EndToEndPipelineRequest(BaseModel):
