@@ -3,7 +3,8 @@ Cover Letter Generator — resume-aware, culture-matched, short format.
 """
 import re
 from typing import Dict, Any, List, Optional
-from app.services.llm_service import llm_complete
+
+from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LongContextClient
 
 
 class CoverLetterGenerator:
@@ -19,6 +20,15 @@ class CoverLetterGenerator:
         # between a generic AI letter and one a hiring manager can't detect.
         notes_block = f"\nCandidate's personal notes (use 1-2 of these, in the user's voice — do NOT invent beyond them):\n{personal_notes[:500]}\n" if personal_notes.strip() else ""
 
+        jd_condensed = (
+            await LongContextClient().condense(job_description, kind="jd")
+            if job_description.strip()
+            else ""
+        )
+
+        # ponytail: chunked via long_context (spec 2026-08-02) — the resume
+        # reaches the LLM in full through the {LONG_TEXT} slot, the JD arrives
+        # condensed, instead of [:2000]/[:3000] head-slices.
         prompt = f"""You are an expert career coach writing a cover letter.
 
 Job Title: {job_title}
@@ -26,10 +36,10 @@ Company: {company_name}
 Tone: {tone_desc}
 
 Job Description:
-{job_description[:2000]}
+{jd_condensed}
 
 Candidate Resume:
-{resume_text[:3000]}{notes_block}
+{LONG_TEXT_PLACEHOLDER}{notes_block}
 
 Instructions:
 - Write a 3-paragraph cover letter under 300 words.
@@ -42,7 +52,13 @@ Instructions:
 
 Return ONLY the cover letter text."""
 
-        cover_letter = await llm_complete("", prompt, max_tokens=800, temperature=0.7)
+        cover_letter = await LongContextClient().map_reduce(
+            resume_text,
+            prompt,
+            kind="resume",
+            max_tokens=800,
+            temperature=0.7,
+        )
 
         # Extract bullet references (sentences with metrics)
         bullet_refs = []

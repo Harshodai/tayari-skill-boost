@@ -39,9 +39,9 @@ from app.services.db import (
     load_agent_run as _db_load_agent_run,
     update_agent_run as _db_update_agent_run,
 )
+from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LongContextClient
 from app.services.job_agent import smart_search
 from app.services.job_providers import search_jobs
-from app.services.llm_service import llm_complete
 from app.services.optimizer import optimize_with_reflection
 from app.services.job_application_automation import apply_job
 from app.guardrails.gate import PipelineGate
@@ -213,14 +213,25 @@ def _is_dream_company(company: str, dream_companies: list) -> bool:
 
 
 async def _cover_letter(resume_text: str, job: dict, candidate_name: str) -> str:
+    # ponytail: chunked via long_context (spec 2026-08-02) — resume in full via
+    # map_reduce, JD condensed, instead of [:5000]/[:2500] head-slices.
+    jd_condensed = (
+        await LongContextClient().condense(job.get("description", ""), kind="jd")
+        if job.get("description")
+        else ""
+    )
     user_msg = (
         f"CANDIDATE NAME: {candidate_name}\n"
-        f"RESUME:\n{resume_text[:5000]}\n\n"
+        f"RESUME:\n{LONG_TEXT_PLACEHOLDER}\n\n"
         f"JOB: {job['title']} at {job['company']}\n"
-        f"JOB DESCRIPTION:\n{job.get('description', '')[:2500]}\n\n"
+        f"JOB DESCRIPTION:\n{jd_condensed}\n\n"
         "Write the cover letter now."
     )
-    return (await llm_complete(LETTER_SYSTEM, user_msg, tier="fast")).strip()
+    return (
+        await LongContextClient().map_reduce(
+            resume_text, user_msg, kind="resume", system=LETTER_SYSTEM, tier="fast"
+        )
+    ).strip()
 
 
 async def run_autopilot(
