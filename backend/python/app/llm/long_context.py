@@ -317,9 +317,10 @@ class LongContextClient:
         async def _one(chunk: Chunk) -> ChunkResult:
             async with self._semaphore:
                 try:
-                    prompt = extract_template.format(
-                        **{LONG_TEXT_PLACEHOLDER.strip("{}"): chunk.text}
-                    )
+                    # ponytail: replace() not .format() — templates routinely
+                    # embed literal JSON braces (extraction schemas) that
+                    # str.format would choke on.
+                    prompt = extract_template.replace(LONG_TEXT_PLACEHOLDER, chunk.text)
                     out = await self._llm.complete(
                         system,
                         prompt,
@@ -358,7 +359,7 @@ class LongContextClient:
         if len(text) <= self._budget(kind):
             return await self._llm.complete(
                 system,
-                template.format(**{LONG_TEXT_PLACEHOLDER.strip("{}"): text}),
+                template.replace(LONG_TEXT_PLACEHOLDER, text),
                 tier=tier,
                 max_tokens=max_tokens,
                 temperature=temperature,
@@ -366,7 +367,7 @@ class LongContextClient:
         facts = await self.condense(text, kind=kind)
         return await self._llm.complete(
             system,
-            template.format(**{LONG_TEXT_PLACEHOLDER.strip("{}"): facts}),
+            template.replace(LONG_TEXT_PLACEHOLDER, facts),
             tier=tier,
             max_tokens=max_tokens,
             temperature=temperature,
@@ -392,7 +393,7 @@ class LongContextClient:
         if len(text) <= self._budget(kind):
             return await json_fn.json_complete(
                 system,
-                template.format(**{LONG_TEXT_PLACEHOLDER.strip("{}"): text}),
+                template.replace(LONG_TEXT_PLACEHOLDER, text),
                 response_model=response_model,
                 tier=tier,
                 max_tokens=max_tokens,
@@ -400,7 +401,7 @@ class LongContextClient:
         facts = await self.condense(text, kind=kind)
         return await json_fn.json_complete(
             system,
-            template.format(**{LONG_TEXT_PLACEHOLDER.strip("{}"): facts}),
+            template.replace(LONG_TEXT_PLACEHOLDER, facts),
             response_model=response_model,
             tier=tier,
             max_tokens=max_tokens,
