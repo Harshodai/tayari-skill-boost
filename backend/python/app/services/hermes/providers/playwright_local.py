@@ -61,41 +61,44 @@ class PlaywrightLocalProvider:
                     headless=True,
                     args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
                 )
-                context = await browser.new_context(
-                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, Gecko) Chrome/122.0.0.0 Safari/537.36",
-                    viewport={"width": 1280, "height": 800}
-                )
-                page = await context.new_page()
+                # ponytail: browser is bound now, so closing it is guaranteed —
+                # finally runs before the outer except returns, even on scrape failure
+                try:
+                    context = await browser.new_context(
+                        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, Gecko) Chrome/122.0.0.0 Safari/537.36",
+                        viewport={"width": 1280, "height": 800}
+                    )
+                    page = await context.new_page()
 
-                logger.info("Playwright local provider navigating to: %s", url)
-                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                await page.wait_for_timeout(2000)
+                    logger.info("Playwright local provider navigating to: %s", url)
+                    await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    await page.wait_for_timeout(2000)
 
-                # Extract title
-                title = await page.title()
+                    # Extract title
+                    title = await page.title()
 
-                # Extract main content text
-                text_content = await page.evaluate("""
-                    () => {
-                        const clone = document.body.cloneNode(true);
-                        const toRemove = clone.querySelectorAll('script, style, nav, footer, header, iframe, svg, button');
-                        toRemove.forEach(el => el.remove());
-                        return clone.innerText || clone.textContent || '';
-                    }
-                """)
+                    # Extract main content text
+                    text_content = await page.evaluate("""
+                        () => {
+                            const clone = document.body.cloneNode(true);
+                            const toRemove = clone.querySelectorAll('script, style, nav, footer, header, iframe, svg, button');
+                            toRemove.forEach(el => el.remove());
+                            return clone.innerText || clone.textContent || '';
+                        }
+                    """)
 
-                await browser.close()
+                    clean_text = self._clean_markdown(text_content)
 
-                clean_text = self._clean_markdown(text_content)
-
-                return [{
-                    "title": title or "Job Posting",
-                    "company": board.get("company", "Unknown"),
-                    "location": location or board.get("location", "Remote / Unspecified"),
-                    "url": url,
-                    "description": clean_text,
-                    "source": "playwright_local"
-                }]
+                    return [{
+                        "title": title or "Job Posting",
+                        "company": board.get("company", "Unknown"),
+                        "location": location or board.get("location", "Remote / Unspecified"),
+                        "url": url,
+                        "description": clean_text,
+                        "source": "playwright_local"
+                    }]
+                finally:
+                    await browser.close()
 
         except Exception as exc:
             logger.error("Playwright local scraping failed for %s: %s", url, exc)
