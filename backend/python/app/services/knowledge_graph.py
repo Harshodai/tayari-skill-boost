@@ -257,5 +257,5 @@ Resume:
             G.add_edge("Candidate", node_id, relationship="KNOWS_TECHNOLOGY")
 
         # Return serialized node-link data structure
-        return nx.node_link_data(G)
+        return nx.node_link_data(G, edges="links")
 

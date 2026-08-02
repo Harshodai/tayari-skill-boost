@@ -73,3 +73,10 @@ backups/
 # Cloned reference repositories
 external_repos/
 
+# Hyperresearch & AI Tooling
+.claude/
+.hyperresearch/
+hyperresearch_vault/
+*.vault
+
+
