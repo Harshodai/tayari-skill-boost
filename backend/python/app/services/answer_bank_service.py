@@ -32,7 +32,8 @@ class AnswerBank:
         for k, v in AnswerBank.DEFAULT_ANSWERS.items():
             if k in key_clean or key_clean in k:
                 return v
-        return default or "Yes"
+        # ponytail: never fabricate "Yes" — return caller's default, they decide
+        return default
 
 
 class SponsorshipChecker:

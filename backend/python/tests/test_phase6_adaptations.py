@@ -12,6 +12,16 @@ def test_answer_bank():
     assert "Authorized" in ans
 
 
+def test_answer_bank_unmatched_returns_provided_default():
+    assert AnswerBank.get_answer("unknown_question") == ""
+    assert AnswerBank.get_answer("unknown_question", default="Custom") == "Custom"
+
+
+def test_answer_bank_matched_key_ignores_default():
+    ans = AnswerBank.get_answer("requires_sponsorship", default="Custom")
+    assert ans == "No"
+
+
 def test_sponsorship_checker():
     res1 = SponsorshipChecker.check_sponsorship_policy("Must be US Citizen, no sponsorship offered.")
     assert res1["policy"] == "NO_SPONSORSHIP"
