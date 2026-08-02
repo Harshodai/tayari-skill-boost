@@ -4,6 +4,8 @@ import re
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 
+from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LongContextClient
+
 logger = logging.getLogger(__name__)
 
 LEGITIMACY_SYSTEM_PROMPT = """
@@ -107,17 +109,24 @@ def compute_posting_health(job: Dict[str, Any]) -> Dict[str, Any]:
 
 async def check_job_legitimacy(title: str, company: str, location: str, description: str) -> dict:
     """Analyze the legitimacy and active status of a job posting."""
-    from app.services.llm_service import llm_json
+    # ponytail: chunked via long_context (spec 2026-08-02) — full description
+    # through map_reduce_json (first non-empty chunk parse), instead of
+    # [:4000] head-slice.
+    jd_condensed = (
+        await LongContextClient().condense(description, kind="jd") if description.strip() else ""
+    )
     prompt = f"""
     Evaluate this job listing:
     Title: {title}
     Company: {company}
     Location: {location}
-    Description: {description[:4000]}
+    Description: {jd_condensed}
     """
     
     try:
-        res = await llm_json(LEGITIMACY_SYSTEM_PROMPT, prompt, tier="fast")
+        res = await LongContextClient().map_reduce_json(
+            description, prompt, kind="jd", system=LEGITIMACY_SYSTEM_PROMPT, tier="fast"
+        )
         if isinstance(res, dict) and "legitimacy_tier" in res:
             return res
     except Exception as exc:
