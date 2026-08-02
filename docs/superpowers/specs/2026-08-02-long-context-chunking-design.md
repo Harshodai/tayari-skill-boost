@@ -1,6 +1,6 @@
 # Long-Context Chunking + Parallel Map-Reduce — Design
 
-Date: 2026-08-02. Status: awaiting user review.
+Date: 2026-08-02. Status: implemented 2026-08-02
 
 ## Problem
 
