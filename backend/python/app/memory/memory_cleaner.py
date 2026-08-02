@@ -46,6 +46,14 @@ class MemoryCleaner:
             name = node.get("name") or node.get("id") or ""
             canonical = MemoryCleaner.normalize_skill(name)
 
+            if not name:
+                # ponytail: nameless nodes never merge — the empty canonical key
+                # is shared, so each one keeps a distinct identity instead
+                node_copy = dict(node)
+                node_copy["canonical_name"] = canonical
+                deduped_nodes.append(node_copy)
+                continue
+
             if canonical in seen_canonical:
                 merged_count += 1
             else:
