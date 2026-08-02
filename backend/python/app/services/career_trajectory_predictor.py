@@ -30,7 +30,9 @@ class CareerTrajectoryPredictor:
         title_clean = current_title.strip()
         idx = 1  # Default to Software Engineer
 
-        for i, s in enumerate(CareerTrajectoryPredictor.SENIORITY_HIERARCHY):
+        # iterate highest -> lowest so compound titles match their most senior level
+        for i in range(len(CareerTrajectoryPredictor.SENIORITY_HIERARCHY) - 1, -1, -1):
+            s = CareerTrajectoryPredictor.SENIORITY_HIERARCHY[i]
             if s.lower() in title_clean.lower():
                 idx = i
                 break
@@ -38,7 +40,8 @@ class CareerTrajectoryPredictor:
         next_idx = min(idx + 1, len(CareerTrajectoryPredictor.SENIORITY_HIERARCHY) - 1)
         next_title = CareerTrajectoryPredictor.SENIORITY_HIERARCHY[next_idx]
 
-        readiness_score = round(min((years_experience / 5.0) * 100, 95.0), 1)
+        # clamp scaled years to [0, 95] before rounding
+        readiness_score = round(min(max((years_experience / 5.0) * 100, 0.0), 95.0), 1)
 
         return {
             "current_title": current_title,

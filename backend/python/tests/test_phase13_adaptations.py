@@ -29,6 +29,21 @@ def test_career_trajectory_predictor():
     assert res["promotion_readiness_score"] >= 80.0
 
 
+def test_career_trajectory_negative_years_clamped_to_zero():
+    res = CareerTrajectoryPredictor.predict_next_milestone("Software Engineer", -3.0)
+    assert res["promotion_readiness_score"] == 0.0
+
+
+def test_career_trajectory_readiness_cap_preserved():
+    res = CareerTrajectoryPredictor.predict_next_milestone("Software Engineer", 10.0)
+    assert res["promotion_readiness_score"] == 95.0
+
+
+def test_career_trajectory_compound_title_uses_most_senior_match():
+    res = CareerTrajectoryPredictor.predict_next_milestone("Senior Staff Engineer", 8.0)
+    assert res["predicted_next_title"].startswith("Principal")
+
+
 def test_agent_consensus_protocol():
     res_pass = AgentConsensusProtocol.evaluate_consensus(0.9, 0.85, 0.95)
     assert res_pass["is_approved"] is True
