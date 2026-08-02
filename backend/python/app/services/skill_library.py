@@ -46,7 +46,7 @@ class SkillLibrary:
         """Retrieve a registered skill by name."""
         return self._skills.get(name)
 
-    def list_skills() -> List[Dict[str, Any]]:
+    def list_skills(self) -> List[Dict[str, Any]]:
         """List all active skills in the library."""
         return list(self._skills.values())
 

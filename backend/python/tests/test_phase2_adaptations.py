@@ -64,6 +64,29 @@ def test_skill_library():
     assert matched["name"] == "interview_prep"
 
 
+def test_skill_library_list_skills():
+    empty = SkillLibrary()
+    assert empty.list_skills() == []
+
+    library = SkillLibrary()
+    library.register_skill(
+        name="interview_prep",
+        description="STAR interview prep",
+        trigger_conditions=["interview", "prep"],
+        execution_steps=["step 1", "step 2"]
+    )
+    library.register_skill(
+        name="resume_review",
+        description="ATS resume review",
+        trigger_conditions=["resume", "ats"],
+        execution_steps=["step 1", "step 2"]
+    )
+    skills = library.list_skills()
+    assert len(skills) == 2
+    assert {s["name"] for s in skills} == {"interview_prep", "resume_review"}
+
+
+
 def test_thompson_proxy_sampler():
     sampler = ThompsonProxySampler(["http://proxy1.com", "http://proxy2.com"])
     chosen = sampler.select_proxy("example.com")
