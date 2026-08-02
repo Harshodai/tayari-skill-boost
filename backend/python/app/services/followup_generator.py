@@ -20,6 +20,22 @@ class FollowupGenerator:
 
     QUIET_DAYS_THRESHOLD = 10
     MAX_FOLLOWUPS_ALLOWED = 2
+    TERMINAL_STATUSES = ("rejected", "offer_accepted", "offer_declined", "withdrawn")
+
+    @staticmethod
+    def _parse_timestamp(value: Any) -> datetime:
+        """Parse a follow-up timestamp: aware datetime preserved, naive assumed UTC."""
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                # ponytail: naive datetime assumed UTC, matching string parsing below
+                return value.replace(tzinfo=timezone.utc)
+            return value
+        if isinstance(value, str):
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        raise TypeError(f"expected datetime or ISO-8601 string, got {type(value).__name__}")
 
     @staticmethod
     def inspect_applications(applications: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -28,20 +44,26 @@ class FollowupGenerator:
         now = datetime.now(timezone.utc)
 
         for app in applications:
-            status = app.get("status", "submitted").lower()
-            if status in ["rejected", "offer_accepted", "offer_declined", "withdrawn"]:
+            status = (app.get("status") or "submitted").lower()
+            if status in FollowupGenerator.TERMINAL_STATUSES:
                 continue
 
-            last_updated_str = app.get("last_updated_at") or app.get("submitted_at")
-            if not last_updated_str:
+            last_updated_value = app.get("last_updated_at") or app.get("submitted_at")
+            if not last_updated_value:
                 continue
 
             try:
-                # Parse ISO date string
-                last_updated = datetime.fromisoformat(last_updated_str.replace("Z", "+00:00"))
+                last_updated = FollowupGenerator._parse_timestamp(last_updated_value)
                 days_quiet = (now - last_updated).days
-            except Exception:
-                days_quiet = 11  # Fallback if unparseable
+            except (TypeError, ValueError) as exc:
+                # ponytail: unparseable timestamp skips the app; the 11-day fallback would silently misclassify it as stale
+                logger.warning(
+                    "Skipping application %s: unparseable timestamp %r: %s",
+                    app.get("id") or app.get("company"),
+                    last_updated_value,
+                    exc,
+                )
+                continue
 
             followup_count = app.get("followup_count", 0)
 
@@ -58,7 +80,7 @@ class FollowupGenerator:
         return stale_apps
 
     @staticmethod
-    def draft_followup_message(company: str, role: str, candidate_name: str = "Candidate", followup_number: int = 1) -> Dict[str, Any]:
+    def draft_followup_message(company: str, role: str, candidate_name: str, followup_number: int = 1) -> Dict[str, Any]:
         """Draft a polite, concise follow-up email."""
         if followup_number == 1:
             subject = f"Following up: {role} Application at {company} - {candidate_name}"

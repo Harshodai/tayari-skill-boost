@@ -106,6 +106,14 @@ def test_followup_check_endpoint():
     assert res.status_code == 200
     data = res.json()
     assert data["stale_applications_count"] == 1
+    assert "Candidate" in data["drafts"][0]["subject"]
+
+
+def test_followup_check_endpoint_uses_provided_candidate_name():
+    apps = [{"company": "Acme", "role": "Dev", "status": "submitted", "last_updated_at": "2026-01-01T00:00:00Z"}]
+    res = client.post("/api/v1/adaptations/followup-check", json={"applications": apps, "candidate_name": "Harshodai"})
+    assert res.status_code == 200
+    assert "Harshodai" in res.json()["drafts"][0]["subject"]
 
 
 def test_codegraph_index_endpoint():

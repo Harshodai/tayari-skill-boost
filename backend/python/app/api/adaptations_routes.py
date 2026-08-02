@@ -43,6 +43,7 @@ class ProfileExpandRequest(BaseModel):
 
 class FollowupCheckRequest(BaseModel):
     applications: List[Dict[str, Any]] = Field(default_factory=list)
+    candidate_name: str = "Candidate"
 
 
 class CodeGraphIndexRequest(BaseModel):
@@ -93,6 +94,7 @@ def followup_check_endpoint(req: FollowupCheckRequest):
         draft = FollowupGenerator.draft_followup_message(
             company=app["company"],
             role=app["role"],
+            candidate_name=req.candidate_name,
             followup_number=app["followup_count"] + 1
         )
         drafts.append(draft)
