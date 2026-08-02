@@ -6,6 +6,7 @@ import re
 import random
 from typing import Dict, Any, List, Optional
 
+from app.llm.long_context import LongContextClient
 from app.services.llm_service import llm_json
 from app.schemas import (
     BehavioralPrepOutputSchema,
@@ -121,7 +122,14 @@ class InterviewPrepGenerator:
         if not skills:
             skills = ["general programming"]
 
-        jd_context = f"\nJob Description:\n{job_description[:1000]}" if job_description else ""
+        # ponytail: chunked via long_context (spec 2026-08-02) — condense the
+        # JD instead of head-slicing at [:1000]; fast path passes short JDs
+        # through byte-identical with zero LLM calls.
+        jd_context = (
+            f"\nJob Description:\n{await LongContextClient().condense(job_description, kind='jd')}"
+            if job_description
+            else ""
+        )
         prompt = (
             f"Candidate skills: {', '.join(skills)}\nJob Title: {job_title}{jd_context}\n"
             "Generate 5 technical interview questions for this role."
@@ -144,7 +152,13 @@ class InterviewPrepGenerator:
 
     @staticmethod
     async def _system_design(job_title: str, job_description: Optional[str] = None) -> Dict[str, Any]:
-        jd_context = f"\nJob Description:\n{job_description[:1000]}" if job_description else ""
+        # ponytail: chunked via long_context (spec 2026-08-02) — same condense
+        # treatment as _technical instead of [:1000].
+        jd_context = (
+            f"\nJob Description:\n{await LongContextClient().condense(job_description, kind='jd')}"
+            if job_description
+            else ""
+        )
         prompt = f"Job Title: {job_title}{jd_context}\nGenerate 3 system design interview questions with requirements and suggested approach."
 
         res = await llm_json(

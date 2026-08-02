@@ -14,9 +14,36 @@ import logging
 import re
 from typing import Any, Dict, Optional
 
+from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LLMCallable, LongContextClient
 from app.services.llm_service import llm_complete
 
 logger = logging.getLogger(__name__)
+
+
+class _ModuleLLM:
+    """Adapter binding the client to THIS module's llm_complete global.
+
+    ponytail: tests stub the module-global (monkeypatch.setattr(interview_prep,
+    "llm_complete", ...)) — the adapter resolves it at call time so the existing
+    deterministic test harness keeps working unchanged.
+    """
+
+    async def complete(
+        self,
+        system_message: str,
+        user_message: str,
+        *,
+        tier: str = "fast",
+        max_tokens: int = 800,
+        temperature: float = 0.3,
+    ) -> str:
+        return await llm_complete(
+            system_message, user_message, tier=tier, max_tokens=max_tokens, temperature=temperature
+        )
+
+
+def _engine_llm() -> LongContextClient:
+    return LongContextClient(llm=_ModuleLLM())
 
 _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
 
@@ -57,16 +84,19 @@ def _parse_prep_json(raw_text: str) -> Optional[Dict[str, Any]]:
 
 
 def _build_prep_prompt(
-    resume_text: str, jd_text: str, company_name: str, interview_stage: str
+    jd_condensed: str, company_name: str, interview_stage: str
 ) -> str:
+    # ponytail: the resume slot is {LONG_TEXT} — filled via chunked map-reduce
+    # (spec 2026-08-02) instead of head-slicing at [:2000]; jd_condensed comes
+    # from condense().
     return f"""You are an elite interview coach. Build a behavioral interview prep pack for this candidate against the target role.
 Strict Rules: Use ONLY facts, metrics, and experiences present in the Candidate Resume. Do NOT invent metrics or achievements.
 
 Candidate Resume:
-{resume_text[:2000]}
+{LONG_TEXT_PLACEHOLDER}
 
 Target Job Description:
-{jd_text[:2000]}
+{jd_condensed}
 
 Target company: {company_name or "unspecified"}
 Interview stage: {interview_stage}
@@ -106,9 +136,15 @@ class InterviewPrepEngine:
             company=company, stage=interview_stage
         )
         try:
-            raw = await llm_complete(
-                "",
-                _build_prep_prompt(resume_text, jd_text, company_name, interview_stage),
+            # ponytail: chunked via long_context (spec 2026-08-02) — resume
+            # reaches the LLM in full, JD condenses, instead of [:2000] slices.
+            jd_condensed = (
+                await _engine_llm().condense(jd_text, kind="jd") if jd_text else ""
+            )
+            raw = await _engine_llm().map_reduce(
+                resume_text,
+                _build_prep_prompt(jd_condensed, company_name, interview_stage),
+                kind="resume",
                 max_tokens=1000,
                 temperature=0.4,
             )
