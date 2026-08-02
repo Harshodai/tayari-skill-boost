@@ -41,8 +41,12 @@ New module: `backend/python/app/llm/long_context.py`. No changes to
     — chunk, then map phase; ordered by chunk index.
   - `async map_reduce(text, task_prompt, kind, **llm_kwargs) -> str`
     — map phase + single reduce call with concatenated facts.
-  - `run_sync(...)` — `asyncio.run` wrapper for sync callers (threadpool-safe;
-    pattern proven by end_to_end_pipeline).
+  - `async map_reduce_json(text, task_prompt, response_model, ...) -> BaseModel`
+    — same, with the reduce call going through `llm_json` (Pydantic-typed
+    contracts: optimizer, career_ops eval, legitimacy).
+  - `async condense(text, kind) -> str` — map phase only, facts joined in
+    order (no reduce call); used for secondary long inputs (JD context).
+  - No sync wrapper: every call site is already async (verified).
 - **`Merger` (Strategy)** — `FactUnionMerger` (analysis tasks: union of
   facts/nodes client-side) and `CondenseAndGenerate` (generation tasks:
   map-reduce). Encapsulates the merge rule so task-specific behavior is
@@ -71,28 +75,42 @@ New module: `backend/python/app/llm/long_context.py`. No changes to
 
 ### Call-site rollout
 
-Map-reduce (generation):
-- `optimizer.py` — initial optimize, reflexion pass-2, humanize, `jd[:6000]`
-- `drafter_reviewer.py` — draft/review/revise (5 sites)
-- `interview_prep.py` — STAR stories (2 sites)
-- `cover_letter.py` — draft + notes (2 sites)
-- `automation_engine.py` — cover letter (2 sites)
-- `job_agent.py` — profile summary, tailoring, refine (~4 sites)
-- `career_ops_evaluator.py` — cover letter (1)
-- `interview_ai.py` — (2 sites)
+Map-reduce (generation) — verified inventory (2026-08-02):
+- `optimizer.py` — initial optimize (`resume[:9000]`+`jd[:6000]`, llm_json),
+  reflexion pass-2 (same shapes), humanize (`optimized[:8000]`, llm_complete);
+  jd handled by `condense` in both llm_json sites.
+- `drafter_reviewer.py` — draft (`resume[:2000]`+`jd[:2000]`), review
+  (`jd[:2000]` in `_build_review_prompt`), revise (`resume[:2000]`+`jd[:2000]`
+  in `_build_revision_prompt`).
+- `interview_prep.py` — `_build_prep_prompt` (`resume[:2000]`+`jd[:2000]`).
+- `cover_letter.py` — generate (`jd[:2000]`+`resume[:3000]`; `notes[:500]` legit).
+- `automation_engine.py` — `_cover_letter` (`resume[:5000]`+`jd[:2500]`, tier fast).
+- `job_agent.py` — `derive_query` (`resume[:2000]`, tier fast). NOT in scope:
+  `_candidate_summary`/`_candidate_text` slices feed embeddings/taxonomy
+  ranking, not LLM context; `_refine_query_with_memory` slices nothing.
+- `career_ops_evaluator.py` — eval (`resume[:4000]`+`description[:4000]`,
+  llm_json), cover letter (`resume[:2000]`, llm_complete).
+- `interview_ai.py` — `_technical` + `_system_design` (`jd[:1000]` each).
 
-Map-only (analysis):
-- `knowledge_graph.py:151` (resume node extraction)
-- `strategic_analyzer.py` (2)
-- `legitimacy_checker.py` (1)
-- `career_ops_evaluator.py` eval (1)
-- `embedding_storage.py` — chunk + embed each (standard RAG; store per-chunk)
-- `memory_composer.py` — verify whether composed context feeds LLM
+Map-only / analysis:
+- `knowledge_graph.py:151` — `resume_text[:2500]` (llm_complete; in-site
+  fact union). Line 101 `line[:200]` is LOCAL extraction — legit, stays.
+- `strategic_analyzer.py` — `resume[:4000]`+`jd[:4000]` via its OWN httpx call
+  (not `llm_complete`) — wired through the client with a custom `LLMCallable`.
+- `legitimacy_checker.py` — `description[:4000]` (llm_json; fallback dict on
+  error preserved).
 
-Untouched: `communication.py`, `outreach_copilot.py`, `negotiation_copilot.py`,
-`followup_tracker.py`, `pattern_analyzer.py`, `agent_router.py`,
-`linkedin_analyzer.py`, `live_interview_copilot.py`, `voice_stream.py` (no
-input slicing today) + all display/DB/log truncations.
+Explicitly untouched (verified, with reason):
+- `embedding_storage.py` `text[:2000]` — chunk-per-row would change the
+  `(user_id, content_type, content_id)` unique key → DB migration; tracked as
+  follow-up, NOT part of this sweep.
+- `memory_composer.py` `_truncate_to_budget` — priority-tier char budget
+  (working > procedural > episodic > semantic) is the module's design, not a
+  lossy head-slice of a source doc. Stays.
+- `communication.py`, `outreach_copilot.py`, `negotiation_copilot.py`,
+  `followup_tracker.py`, `pattern_analyzer.py`, `agent_router.py`,
+  `linkedin_analyzer.py`, `live_interview_copilot.py`, `voice_stream.py` (no
+  input slicing today) + all display/DB/log truncations.
 
 Each call site keeps its system prompt, `tier`, `max_tokens`, `temperature`,
 and post-processing; only the input source switches from `text[:N]` to the
