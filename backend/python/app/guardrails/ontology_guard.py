@@ -21,6 +21,11 @@ class OntologyGuard:
         "HAS_SKILL", "WORKED_AT", "HELD_ROLE", "ACHIEVED_METRIC", "EARNED_CERT"
     }
 
+    # ponytail: small by design — every extra verb widens the prose
+    # false-positive surface ("the team worked by the deadline"), so only
+    # unambiguous employment verbs open a company slot.
+    WORK_VERBS = {"worked", "employed", "interned", "hired"}
+
     @staticmethod
     def validate_claim(claim_text: str, verified_skills: List[str], verified_companies: List[str]) -> Dict[str, Any]:
         """Check if claim mentions unverified skills or companies."""
@@ -36,22 +41,49 @@ class OntologyGuard:
                 if clean_word not in verified_skills_lower:
                     unverified_mentions.append(clean_word)
 
-        # Detect company mentions in claim: the token right after "at"
-        # (e.g. "worked at Acme Corp") is the company-name slot, so ordinary
-        # prose words like "engineered" are never misread as companies.
+        # Detect company mentions in claim: a company-name slot is the token
+        # right after (a) a work verb + preposition ("worked for Microsoft",
+        # "employed by Acme", "interned at Google") or (b) a bare "at" whose
+        # next token is capitalized, matches a verified company, or contains
+        # one — so prose like "at scale" never opens a slot.
         words = claim_lower.split()
+        tokens_orig = claim_text.split()
         for i, word in enumerate(words):
-            if word == "at" and i + 1 < len(words):
-                clean_company = words[i + 1].strip(".,();:")
-                # ponytail: no len>3 gate here — short company names (IBM, SAP)
-                # are legitimate mentions, and only the token after "at" is
-                # inspected, so the noise surface is one word.
-                verified = any(
-                    company in clean_company or clean_company in company
-                    for company in verified_companies_lower
+            if i + 1 >= len(words):
+                break
+            prev = words[i - 1] if i > 0 else ""
+            work_context = word in ("for", "with", "by", "at") and prev in OntologyGuard.WORK_VERBS
+            if word == "at" and not work_context:
+                # bare "at": slot only when the next token looks like a
+                # company (capitalized or verified-ish), not ordinary prose.
+                next_orig = tokens_orig[i + 1].strip(".,();:")
+                next_clean = words[i + 1].strip(".,();:")
+                bare_at_ok = (
+                    (bool(next_orig) and next_orig[0].isupper())
+                    or any(company in next_clean for company in verified_companies_lower)
+                    or any(next_clean in company for company in verified_companies_lower)
                 )
-                if not verified:
-                    unverified_mentions.append(clean_company)
+                if not bare_at_ok:
+                    continue
+            elif not work_context:
+                continue
+            clean_company = words[i + 1].strip(".,();:")
+            if not clean_company:
+                continue
+            # ponytail: verified skills outrank companies — "adept at Python"
+            # is a skill mention, never a company mention.
+            if clean_company in verified_skills_lower:
+                continue
+            # ponytail: one-way containment — a mention is verified only when
+            # it is contained in a verified company ("target" ⊂ "target corp");
+            # a verified company inside the mention ("google" ⊂ "googleplex")
+            # does NOT verify it.
+            verified = any(
+                clean_company in company
+                for company in verified_companies_lower
+            )
+            if not verified:
+                unverified_mentions.append(clean_company)
 
         is_valid = len(unverified_mentions) == 0
 
