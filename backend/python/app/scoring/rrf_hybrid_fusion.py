@@ -30,8 +30,14 @@ class RRFHybridFusion:
 
         for rank_list in ranking_lists:
             for rank_idx, item in enumerate(rank_list, start=1):
-                item_id = str(item.get(id_key) or item.get("title") or rank_idx)
-                item_map[item_id] = item
+                # ponytail: key presence, not truthiness — ids 0 and "" are usable
+                if id_key in item:
+                    item_id = str(item[id_key])
+                elif "title" in item:
+                    item_id = str(item["title"])
+                else:
+                    continue  # no usable identifier — skip, never rank_idx fallback
+                item_map.setdefault(item_id, item)  # first payload wins
 
                 score_increment = 1.0 / (RRFHybridFusion.K_CONSTANT + rank_idx)
                 rrf_scores[item_id] = rrf_scores.get(item_id, 0.0) + score_increment
