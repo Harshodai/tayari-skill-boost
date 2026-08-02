@@ -24,7 +24,7 @@ class ResponseSentimentAnalyzer:
             r"congratulations.*offer"
         ],
         "INTERVIEW_INVITE": [
-            r"schedule\0a\s+interview",
+            r"schedule\s+(?:a|an)\s+interview",
             r"schedule\s+a\s+call",
             r"invitation\s+to\s+interview",
             r"availability\s+for\s+a\s+chat",
@@ -34,6 +34,7 @@ class ResponseSentimentAnalyzer:
             r"regret\s+to\s+inform",
             r"decided\s+to\s+pursue\s+other",
             r"unfortunatly",
+            r"unfortunately",
             r"not\s+moving\s+forward",
             r"position\s+has\s+been\s+filled"
         ],
