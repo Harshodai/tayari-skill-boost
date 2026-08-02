@@ -6,6 +6,7 @@ import type {
   CreateResumeRequest,
   CreateJDRequest,
   AnalyzeRequest,
+  ImportedJobDescription,
 } from "./types";
 
 export async function createResume(payload: CreateResumeRequest): Promise<Resume> {
@@ -54,6 +55,13 @@ export async function analyzeResume(payload: AnalyzeRequest): Promise<Record<str
   return apiFetch<Record<string, any>>("/v1/analyze", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function importJobDescription(url: string): Promise<ImportedJobDescription> {
+  return apiFetch<ImportedJobDescription>("/v1/job-descriptions/import", {
+    method: "POST",
+    body: JSON.stringify({ url }),
   });
 }
 

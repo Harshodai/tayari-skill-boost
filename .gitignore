@@ -48,6 +48,7 @@ dist-ssr
 # Python
 __pycache__/
 *.py[cod]
+cover_letter_*.txt
 *$py.class
 *.manifest
 .mypy_cache/

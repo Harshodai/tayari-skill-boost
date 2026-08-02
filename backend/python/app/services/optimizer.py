@@ -459,6 +459,8 @@ async def optimize_with_reflection(
         "- Integrate relevant keywords naturally — no keyword stuffing\n"
         "- Vary action verbs across bullets\n"
     )
+    # Pre-compute heuristic score for fallback
+    heuristic_before = heuristic_ats_score(resume_text, jd)
     try:
         res_obj: OptimizedResumePayloadSchema = await LongContextClient().map_reduce_json(
             resume_text,
@@ -622,3 +624,61 @@ async def optimize_with_reflection(
 
     result["guardrails"] = g_result
     return result
+
+
+async def scrape_jd_url(url: str) -> str | None:
+    """Scrape Job Description text from URL via Playwright fallback renderer.
+    Returns the scraped text on success, None on failure."""
+    try:
+        from app.agent.browser_operator import BrowserOperator
+        browser = BrowserOperator()
+        res = await browser.navigate(url)
+        if res.get("success") and res.get("text"):
+            return res["text"]
+    except Exception as e:
+        logger.warning(f"Playwright JD scrape warning for {url}: {e}")
+    return None
+
+
+async def optimize_resume_with_options(
+    resume_text: str = "",
+    file_bytes: bytes = None,
+    filename: str = "",
+    jd_text: str = "",
+    jd_url: str = "",
+    custom_instructions: str = ""
+) -> dict:
+    """Reflective Resume Optimizer supporting file upload parsing, raw text input,
+    dynamic JD URL scraping via Playwright fallback renderer, and custom prompt injection."""
+    parsed_resume_text = ""
+    if file_bytes and filename:
+        try:
+            parsed = ResumeParser().parse(file_bytes, filename)
+            if parsed:
+                parsed_resume_text = parsed
+            else:
+                logger.warning(f"Resume file upload parse returned empty result for {filename}")
+        except Exception as e:
+            logger.error(f"Resume file upload parse error for {filename}: {e}")
+            raise ValueError(f"Failed to parse resume file: {e}")
+
+    # Use explicitly provided resume_text, or parsed resume, but never fabricated fallback
+    if resume_text:
+        effective_resume_text = resume_text
+    elif parsed_resume_text:
+        effective_resume_text = parsed_resume_text
+    else:
+        raise ValueError("No resume content provided. Supply resume_text or a valid resume file.")
+
+    if jd_url and not jd_text:
+        scraped_jd = await scrape_jd_url(jd_url)
+        if scraped_jd is None:
+            raise ValueError(f"Failed to scrape job description from URL: {jd_url}")
+        jd_text = scraped_jd
+
+    effective_jd = jd_text or ""
+    if custom_instructions:
+        effective_jd = f"{effective_jd}\n\n[USER CUSTOM INSTRUCTIONS]: {custom_instructions}"
+
+    return await optimize_with_reflection(resume_text=effective_resume_text, job_description=effective_jd)
+

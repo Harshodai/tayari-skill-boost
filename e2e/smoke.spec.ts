@@ -3,15 +3,27 @@ import { test, expect } from '@playwright/test';
 const FRONTEND_URL = 'http://127.0.0.1:8083';
 const API_URL = 'http://127.0.0.1:8085/api';
 
-const TEST_EMAIL = 'e2e-test-suite-2026@example.com';
-const TEST_PASS = 'TayariSuperSecretPassword2026!';
+const TEST_PASS = process.env.E2E_TEST_PASSWORD;
+if (!TEST_PASS) {
+  throw new Error('E2E_TEST_PASSWORD environment variable is required');
+}
+const TEST_EMAIL = `e2e-test-suite-${Date.now()}@example.com`;
 
 test.describe('Tayari Skill Boost — End to End Smoke', () => {
 
   test.beforeAll(async ({ request }) => {
-    await request.post(`${API_URL}/auth/register`, {
+    const res = await request.post(`${API_URL}/auth/register`, {
       data: { email: TEST_EMAIL, password: TEST_PASS },
     });
+    if (res.status() === 409) {
+      // Account exists, verify credentials by logging in
+      const loginRes = await request.post(`${API_URL}/auth/login`, {
+        data: { email: TEST_EMAIL, password: TEST_PASS },
+      });
+      expect(loginRes.status()).toBe(200);
+    } else {
+      expect(res.status()).toBe(200);
+    }
   });
 
   test('1. Homepage loads successfully', async ({ page }) => {

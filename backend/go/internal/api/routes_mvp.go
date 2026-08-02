@@ -2144,5 +2144,28 @@ func (s *Server) routesMVP(r chi.Router) {
 		r.Get("/api/agent-reach/cookies", s.handleAgentReachCookies)
 		r.Post("/api/v1/agent-reach/extract", s.handleAgentReachExtract)
 		r.Post("/api/agent-reach/extract", s.handleAgentReachExtract)
+
+		// ---- Privacy Ledger & User Data Lifecycle --------------------------
+		r.Get("/api/v1/privacy/check", s.handleOneStopProxyGET("/api/v1/privacy/check"))
+		r.Get("/api/privacy/check", s.handleOneStopProxyGET("/api/v1/privacy/check"))
+		r.Post("/api/v1/privacy/check", s.handleOneStopProxy("/api/v1/privacy/check"))
+		r.Post("/api/privacy/check", s.handleOneStopProxy("/api/v1/privacy/check"))
+
+		r.Get("/api/v1/privacy/ledger", s.handleOneStopProxyGET("/api/v1/privacy/ledger"))
+		r.Get("/api/privacy/ledger", s.handleOneStopProxyGET("/api/v1/privacy/ledger"))
+		r.Post("/api/v1/privacy/ledger", s.handleOneStopProxy("/api/v1/privacy/ledger"))
+		r.Post("/api/privacy/ledger", s.handleOneStopProxy("/api/v1/privacy/ledger"))
+
+		r.Post("/api/v1/privacy/clear-ledger", s.handleOneStopProxy("/api/v1/privacy/clear-ledger"))
+		r.Post("/api/privacy/clear-ledger", s.handleOneStopProxy("/api/v1/privacy/clear-ledger"))
+
+		r.Get("/api/v1/user/export-data", s.handleExportAccount)
+		r.Get("/api/user/export-data", s.handleExportAccount)
+		r.Delete("/api/v1/user/account", s.handleDeleteAccount)
+		r.Delete("/api/user/account", s.handleDeleteAccount)
+		r.Post("/api/v1/user/account/delete", s.handleDeleteAccount)
+		r.Post("/api/user/account/delete", s.handleDeleteAccount)
 	})
 }
+
+

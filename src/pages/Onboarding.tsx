@@ -1,307 +1,238 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Upload,
-  Linkedin,
+  Briefcase,
   ArrowRight,
   ArrowLeft,
   Target,
-  Briefcase,
-  TrendingUp,
-  Compass,
   Sparkles,
-  X,
-  Check,
+  CheckCircle2,
+  GitBranch,
+  Layers,
+  ArrowRightLeft
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
-type Goal = "find_job" | "get_promoted" | "switch_careers" | "exploring";
-
-const GOALS: { id: Goal; title: string; desc: string; icon: React.ElementType }[] = [
-  { id: "find_job", title: "Find a new job", desc: "Search, apply, and interview-prep at scale", icon: Briefcase },
-  { id: "get_promoted", title: "Get promoted", desc: "Grow into the next role at your company", icon: TrendingUp },
-  { id: "switch_careers", title: "Switch careers", desc: "Bridge your skills into a new field", icon: Target },
-  { id: "exploring", title: "Just exploring", desc: "Build a profile and see what's possible", icon: Compass },
-];
-
-const ROLE_SUGGESTIONS = [
-  "Software Engineer",
-  "Senior Software Engineer",
-  "Product Manager",
-  "Senior Product Manager",
-  "Data Scientist",
-  "Data Engineer",
-  "Designer",
-  "UX Designer",
-  "Engineering Manager",
-  "DevOps Engineer",
-  "Marketing Manager",
-  "Frontend Engineer",
-];
+type TransitionType = "same_domain" | "cross_domain";
 
 export default function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
-  const [file, setFile] = useState<File | null>(null);
-  const [linkedin, setLinkedin] = useState("");
-  const [goal, setGoal] = useState<Goal | null>(null);
-  const [roles, setRoles] = useState<string[]>([]);
-  const [roleInput, setRoleInput] = useState("");
-
-  const filteredSuggestions = ROLE_SUGGESTIONS.filter(
-    (r) => !roles.includes(r) && r.toLowerCase().includes(roleInput.toLowerCase())
-  ).slice(0, 6);
-
-  const addRole = (r: string) => {
-    const trimmed = r.trim();
-    if (!trimmed || roles.includes(trimmed) || roles.length >= 3) return;
-    setRoles([...roles, trimmed]);
-    setRoleInput("");
-  };
-
-  const finish = () => {
-    try {
-      localStorage.setItem(
-        "tayari_onboarding",
-        JSON.stringify({ goal, roles, hasResume: !!file || !!linkedin, completedAt: Date.now() })
-      );
-    } catch {
-      // localStorage may be unavailable (private mode, storage quota); onboarding
-      // is best-effort and re-offered next time.
-    }
-    navigate("/dashboard");
-  };
-
-  const canNext =
-    (step === 1 && (file || linkedin || true)) || // step 1 always skippable
-    (step === 2 && !!goal) ||
-    (step === 3 && roles.length > 0);
+  const [transitionType, setTransitionType] = useState<TransitionType>("same_domain");
+  const [currentTitle, setCurrentTitle] = useState("Senior Software Engineer");
+  const [targetLevel, setTargetLevel] = useState("Staff Architect");
+  const [currentIndustry, setCurrentIndustry] = useState("Fintech");
+  const [targetIndustry, setTargetIndustry] = useState("AI / Machine Learning");
+  const [transferableSkills, setTransferableSkills] = useState<string[]>([
+    "Distributed Systems",
+    "High-Throughput APIs",
+    "SQL / PostgreSQL Performance",
+    "System Resilience & Reliability"
+  ]);
 
   return (
-    <Layout showFooter={false}>
-      <div className="container mx-auto px-4 py-10 max-w-2xl">
-        {/* Stepper */}
-        <div className="flex items-center justify-between mb-10">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className="flex items-center flex-1 last:flex-none">
-              <div
-                className={cn(
-                  "w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold border transition-colors",
-                  step >= s
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-card text-muted-foreground border-border"
-                )}
-              >
-                {step > s ? <Check className="w-4 h-4" /> : s}
-              </div>
-              {s < 3 && (
-                <div
-                  className={cn(
-                    "h-px flex-1 mx-2 transition-colors",
-                    step > s ? "bg-primary" : "bg-border"
-                  )}
-                />
-              )}
+    <Layout>
+      <div className="max-w-4xl mx-auto px-6 py-12 space-y-8 text-slate-100 font-sans">
+        {/* Wizard Progress */}
+        <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-600 rounded-lg text-white font-bold">1</div>
+            <div>
+              <h1 className="text-xl font-bold">Branching Onboarding Wizard</h1>
+              <p className="text-xs text-slate-400">Configure your personal agentic career operations strategy</p>
             </div>
-          ))}
+          </div>
+          <Badge className="bg-indigo-950 text-indigo-300 border-indigo-800">
+            Step {step} of 3
+          </Badge>
         </div>
 
-        <Card className="border-border/60">
-          <CardContent className="p-8">
-            {step === 1 && (
-              <div>
-                <h1 className="text-2xl font-bold mb-1">Bring in your resume</h1>
-                <p className="text-muted-foreground text-sm mb-6">
-                  We'll parse it once and use it everywhere — search, optimizer, interview prep.
-                </p>
+        {/* Step 1: Branch Selector */}
+        {step === 1 && (
+          <Card className="bg-slate-900 border-slate-800 text-slate-100 p-6 space-y-6">
+            <CardHeader className="p-0 space-y-2">
+              <CardTitle className="text-2xl font-bold flex items-center gap-2">
+                <GitBranch className="w-6 h-6 text-indigo-400" /> Select Your Career Transition Track
+              </CardTitle>
+              <CardDescription className="text-slate-400">
+                Choose the transition path that matches your current goal to customize agent algorithms.
+              </CardDescription>
+            </CardHeader>
 
-                <label
-                  className={cn(
-                    "block rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors",
-                    file ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-accent/30"
-                  )}
-                >
-                  <input
-                    type="file"
-                    accept=".pdf,.docx,.doc"
-                    className="hidden"
-                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                  />
-                  <Upload className="w-7 h-7 mx-auto mb-3 text-primary" />
-                  <p className="font-medium">
-                    {file ? file.name : "Drop your resume here"}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+              {/* Branch 1: Same Domain */}
+              <div
+                onClick={() => setTransitionType("same_domain")}
+                className={`p-6 rounded-xl border cursor-pointer transition flex flex-col justify-between space-y-4 ${
+                  transitionType === "same_domain"
+                    ? "bg-indigo-950/40 border-indigo-500 shadow-lg shadow-indigo-950/50"
+                    : "bg-slate-950 border-slate-800 hover:border-slate-700"
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <Briefcase className="w-8 h-8 text-indigo-400" />
+                    {transitionType === "same_domain" && <CheckCircle2 className="w-5 h-5 text-indigo-400" />}
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-100">Job Change (Same Domain)</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Optimize for title promotion or senior level advancement in your existing functional domain.
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">PDF or DOCX, up to 10MB</p>
-                </label>
-
-                <div className="flex items-center gap-3 my-6">
-                  <div className="flex-1 h-px bg-border" />
-                  <span className="text-xs text-muted-foreground">or</span>
-                  <div className="flex-1 h-px bg-border" />
                 </div>
+                <Badge className="w-max bg-indigo-950 text-indigo-300">Level Advancement</Badge>
+              </div>
 
-                <div className="relative">
-                  <Linkedin className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="linkedin.com/in/yourname"
-                    value={linkedin}
-                    onChange={(e) => setLinkedin(e.target.value)}
-                    className="pl-9"
-                  />
+              {/* Branch 2: Cross-Domain */}
+              <div
+                onClick={() => setTransitionType("cross_domain")}
+                className={`p-6 rounded-xl border cursor-pointer transition flex flex-col justify-between space-y-4 ${
+                  transitionType === "cross_domain"
+                    ? "bg-purple-950/40 border-purple-500 shadow-lg shadow-purple-950/50"
+                    : "bg-slate-950 border-slate-800 hover:border-slate-700"
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <ArrowRightLeft className="w-8 h-8 text-purple-400" />
+                    {transitionType === "cross_domain" && <CheckCircle2 className="w-5 h-5 text-purple-400" />}
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-100">Domain Change (Cross-Industry)</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Pivot to a new industry or domain using transferable technical competencies and skill-gap translation.
+                  </p>
+                </div>
+                <Badge className="w-max bg-purple-950 text-purple-300">Skill-Gap Translation</Badge>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <Button onClick={() => setStep(2)} className="bg-indigo-600 hover:bg-indigo-500 font-semibold px-6">
+                Next: Role Configuration <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* Step 2: Track Customization */}
+        {step === 2 && (
+          <Card className="bg-slate-900 border-slate-800 text-slate-100 p-6 space-y-6">
+            <CardHeader className="p-0 space-y-2">
+              <CardTitle className="text-2xl font-bold flex items-center gap-2">
+                {transitionType === "same_domain" ? (
+                  <>
+                    <Briefcase className="w-6 h-6 text-indigo-400" /> Current Title Alignment & Target Level
+                  </>
+                ) : (
+                  <>
+                    <Layers className="w-6 h-6 text-purple-400" /> Skill-Gap Translation & Transferable Competencies
+                  </>
+                )}
+              </CardTitle>
+              <CardDescription className="text-slate-400">
+                {transitionType === "same_domain"
+                  ? "Define your current baseline and target level for maximum ATS match scoring."
+                  : "Translate your transferable competencies across industry boundaries."}
+              </CardDescription>
+            </CardHeader>
+
+            {transitionType === "same_domain" ? (
+              <div className="space-y-4 pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-slate-300">Current Title Baseline</label>
+                    <Input
+                      value={currentTitle}
+                      onChange={(e) => setCurrentTitle(e.target.value)}
+                      className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-slate-300">Target Level Advancement</label>
+                    <Input
+                      value={targetLevel}
+                      onChange={(e) => setTargetLevel(e.target.value)}
+                      className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
+                    />
+                  </div>
                 </div>
               </div>
-            )}
-
-            {step === 2 && (
-              <div>
-                <h1 className="text-2xl font-bold mb-1">What's your goal?</h1>
-                <p className="text-muted-foreground text-sm mb-6">
-                  We'll tailor your workspace around it.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {GOALS.map((g) => {
-                    const Icon = g.icon;
-                    const selected = goal === g.id;
-                    return (
-                      <button
-                        key={g.id}
-                        onClick={() => setGoal(g.id)}
-                        className={cn(
-                          "text-left p-4 rounded-lg border-2 transition-all",
-                          selected
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/40"
-                        )}
-                      >
-                        <Icon
-                          className={cn(
-                            "w-5 h-5 mb-3",
-                            selected ? "text-primary" : "text-muted-foreground"
-                          )}
-                        />
-                        <p className="font-semibold text-sm">{g.title}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{g.desc}</p>
-                      </button>
-                    );
-                  })}
+            ) : (
+              <div className="space-y-4 pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-slate-300">Current Industry</label>
+                    <Input
+                      value={currentIndustry}
+                      onChange={(e) => setCurrentIndustry(e.target.value)}
+                      className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-slate-300">Target New Industry</label>
+                    <Input
+                      value={targetIndustry}
+                      onChange={(e) => setTargetIndustry(e.target.value)}
+                      className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
 
-            {step === 3 && (
-              <div>
-                <h1 className="text-2xl font-bold mb-1">Pick up to 3 target roles</h1>
-                <p className="text-muted-foreground text-sm mb-6">
-                  Seeds your Smart Search and Roadmap right away.
-                </p>
-
-                {roles.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {roles.map((r) => (
-                      <Badge
-                        key={r}
-                        variant="secondary"
-                        className="pl-3 pr-1.5 py-1.5 gap-1 text-sm"
-                      >
-                        {r}
-                        <button
-                          onClick={() => setRoles(roles.filter((x) => x !== r))}
-                          className="ml-1 hover:bg-muted rounded p-0.5"
-                          aria-label={`Remove ${r}`}
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-
-                <Input
-                  placeholder={roles.length >= 3 ? "Maximum 3 roles" : "e.g. Senior Product Manager"}
-                  value={roleInput}
-                  onChange={(e) => setRoleInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addRole(roleInput)}
-                  disabled={roles.length >= 3}
-                />
-
-                {roleInput && filteredSuggestions.length > 0 && roles.length < 3 && (
-                  <div className="mt-2 rounded-md border border-border bg-popover shadow-md max-h-48 overflow-y-auto">
-                    {filteredSuggestions.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => addRole(s)}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {!roleInput && roles.length < 3 && (
-                  <div className="mt-4">
-                    <p className="text-xs text-muted-foreground mb-2">Popular:</p>
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-300">Transferable Technical Competencies Preview</label>
+                  <div className="p-4 bg-slate-950 rounded-lg border border-slate-800 space-y-2">
                     <div className="flex flex-wrap gap-2">
-                      {ROLE_SUGGESTIONS.slice(0, 6).map((r) => (
-                        <button
-                          key={r}
-                          onClick={() => addRole(r)}
-                          className="text-xs px-3 py-1.5 rounded-full border border-border hover:border-primary/50 hover:bg-accent transition-colors"
-                        >
-                          + {r}
-                        </button>
+                      {transferableSkills.map((sk, i) => (
+                        <Badge key={i} className="bg-purple-950 text-purple-300 border border-purple-800">
+                          {sk}
+                        </Badge>
                       ))}
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             )}
 
-            <div className="flex items-center justify-between mt-8 pt-6 border-t border-border/60">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => (step === 1 ? finish() : setStep(step - 1))}
-              >
-                {step === 1 ? (
-                  "Skip for now"
-                ) : (
-                  <>
-                    <ArrowLeft className="w-4 h-4 mr-1" /> Back
-                  </>
-                )}
+            <div className="flex justify-between pt-4">
+              <Button onClick={() => setStep(1)} variant="outline" className="border-slate-800 text-slate-300">
+                <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
-              <div className="flex items-center gap-2">
-                {step > 1 && (
-                  <Button variant="ghost" size="sm" onClick={finish}>
-                    Skip
-                  </Button>
-                )}
-                {step < 3 ? (
-                  <Button
-                    onClick={() => setStep(step + 1)}
-                    disabled={!canNext}
-                  >
-                    Continue <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                ) : (
-                  <Button onClick={finish} variant="glow">
-                    <Sparkles className="w-4 h-4 mr-2" /> Enter Tayari
-                  </Button>
-                )}
-              </div>
+              <Button onClick={() => setStep(3)} className="bg-indigo-600 hover:bg-indigo-500 font-semibold px-6">
+                Next: Review & Launch <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
             </div>
-          </CardContent>
-        </Card>
+          </Card>
+        )}
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          Step {step} of 3 · You can change everything later in Profile.
-        </p>
+        {/* Step 3: Complete & Launch */}
+        {step === 3 && (
+          <Card className="bg-slate-900 border-slate-800 text-slate-100 p-6 space-y-6 text-center">
+            <div className="p-4 bg-indigo-950/50 w-max mx-auto rounded-full text-indigo-400">
+              <Sparkles className="w-10 h-10" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold">Onboarding Configuration Complete</h2>
+              <p className="text-slate-400 text-sm max-w-md mx-auto">
+                Your agentic career operations pipeline is configured for{" "}
+                <span className="text-indigo-400 font-bold">
+                  {transitionType === "same_domain" ? "Same Domain Level Advancement" : "Cross-Industry Domain Pivot"}
+                </span>.
+              </p>
+            </div>
+
+            <div className="flex justify-center gap-4 pt-4">
+              <Button onClick={() => setStep(2)} variant="outline" className="border-slate-800 text-slate-300">
+                <ArrowLeft className="w-4 h-4 mr-2" /> Back
+              </Button>
+              <Button onClick={() => navigate("/dashboard")} className="bg-emerald-600 hover:bg-emerald-500 font-bold px-8">
+                Launch Career Dashboard <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
+            </div>
+          </Card>
+        )}
       </div>
     </Layout>
   );

@@ -351,6 +351,114 @@ When two auth strategies share one HTTP client but only one strategy was ever th
 
 ---
 
+## 🔧 51-Issue Remediation Sprint — Cross-Layer Hardening Lessons
+
+This section documents the systematic fix of 51 issues across Go, Python, TypeScript/React, SQL, and test files in a single pass. Each issue was verified against current code, fixed minimally, and validated. All work performed on **2026-08-02**.
+
+### 1. Go Gateway — Error Handling & Auth Consistency
+
+| Date | Root Cause | Fix | Lesson |
+|---|---|---|---|
+| 2026-08-02 | `handleImportJobDescription` swallowed upstream error body and status, returning generic 502 | Inspect `result["error"]` and HTTP status; propagate 4xx detail upstream, map 5xx/transport/nil to 502 | **Never swallow upstream error bodies** — the import service returns actionable messages (e.g., "URL not publicly routable") that the client needs |
+| 2026-08-02 | `user.ID` (UUID) vs `user.ID.String()` (text) used inconsistently in queries against `resumes.user_id` (UUID) and `job_descriptions.user_id` (text) | Confirmed column types; unified both queries to use `.String()` for text columns | **Schema drift happens** — always verify column types when binding owner IDs; don't assume consistency |
+| 2026-08-02 | Test HTTP handlers used `t.Fatalf` which terminates the handler goroutine, not the test | Changed to `t.Errorf` + early `return` so failures report safely without killing the fake server | **`t.Fatalf` in HTTP handler closures terminates the handler, not the test** — use `t.Errorf` + early return |
+
+### 2. Python AI Engine — Auth, Charset, JWT, Scraping, Fallbacks
+
+| Date | Root Cause | Fix | Lesson |
+|---|---|---|---|
+| 2026-08-02 | `import_job_description` lacked auth and rate limiting despite being an outbound-fetch endpoint | Added `get_current_user` dependency + `limiter.limit("30/minute")` | **Outbound-fetch endpoints need auth + rate limiting** — they're SSRF vectors and cost money |
+| 2026-08-02 | `_extract_imported_job_description` hardcoded UTF-8 decode, ignoring `charset` parameter | Parse `charset` from `Content-Type`; `HTTPException(422)` on missing/invalid/undecodable | **HTTP bodies aren't always UTF-8** — respect `charset` or reject explicitly |
+| 2026-08-02 | `JWT_SECRET` had literal fallback `"tayari-super-secret-jwt-key-2026"` in `main.py` | Removed fallback; added startup check raising `RuntimeError` if neither `JWT_SECRET` nor `SUPABASE_JWT_SECRET` set | **Silent fallback secrets are security holes** — fail fast at startup, not at first auth request |
+| 2026-08-02 | `scrape_jd_url` returned fabricated sentence "Job Description content scraped from {url}" on failure | Return `None`; caller raises `ValueError` to stop pipeline | **Never fabricate data on failure** — downstream logic treats it as real content |
+| 2026-08-02 | `ResumeParser().parse()` fell back to "Candidate Professional Profile Resume" on parse failure/empty | Raise `ValueError` on parse failure/empty; no default resume text | **Fabricated fallback resumes pollute the optimizer** — surface the error, don't mask it |
+| 2026-08-02 | `heuristic_before` referenced in `except` block but only defined in `try` block | Pre-compute `heuristic_before = heuristic_ats_score(resume_text, jd)` before try block | **Variables used in except blocks must exist before try** — compute fallbacks upfront |
+| 2026-08-02 | `optimize_resume_with_options` called async `optimize_with_reflection` without `await` | Added `await` to return actual result dict instead of coroutine | **Async functions return coroutines** — missing `await` is a silent bug returning a promise, not a result |
+
+### 3. Frontend — Accessibility, State, Real APIs
+
+| Date | Root Cause | Fix | Lesson |
+|---|---|---|---|
+| 2026-08-02 | Onboarding form state (currentTitle, targetLevel, etc.) was only local placeholder, discarded on navigation | POST to `/api/v1/profile/onboarding` before navigation | **Placeholder state is not saved data** — persist through API before route change |
+| 2026-08-02 | Step indicator circle hardcoded "1" instead of reading `step` state | Use `step` state variable in JSX | **DRY: if state exists, use it** — don't duplicate in JSX |
+| 2026-08-02 | Track selector cards were clickable `<div>`s without keyboard/screen-reader semantics | Added `role="radio"`, `tabIndex`, `onKeyDown` for Enter/Space, `aria-checked` | **Clickable divs ≠ accessible controls** — need radio semantics, focus management, keyboard activation |
+| 2026-08-02 | URL input had only placeholder, no associated `<Label>` | Added `<Label htmlFor="job-post-url" className="sr-only">` + `id` on Input | **Placeholder is not a label** — screen readers need explicit association |
+| 2026-08-02 | `ApprovalDrawer` set `actionStatus` and removed item before API call; no rollback on failure | Await API, then update state; on error, show toast and preserve item | **Optimistic UI without rollback is broken UX** — await the write, handle failure |
+| 2026-08-02 | Field label underscore replacement used `.replace('_', ' ')` (first match only) | Changed to `.replace(/_/g, ' ')` (global regex) | **String replace defaults to first match** — use global regex for all |
+| 2026-08-02 | `editableFields` initialized once from `selectedApproval`, not updated when selection changed | `useEffect` syncing from `selectedApproval`; include in approval payload | **Derived state needs effects** — initial state isn't enough when selection changes |
+| 2026-08-02 | `GmailConnectModal` used simulated timeout instead of real OAuth; missing dialog accessibility | Real `/auth/gmail/authorize` call; validate email first; Radix Dialog with proper semantics | **Simulated auth flows hide real integration bugs** — wire the real endpoint, add proper dialog accessibility |
+| 2026-08-02 | `TayariComputerControlRoom` rendered hardcoded "live" data instead of subscribing to SSE | Subscribe to SSE `/api/v1/autopilot/stream/{runId}`; preview badge when disconnected | **Hardcoded "live" data is misleading** — either connect to real stream or label as preview |
+| 2026-08-02 | Read-only URL input in control room lacked accessible name and label | Added `id`, `aria-label`, `readOnly`, associated `<label>` | **Read-only fields still need labels** — users need to know what they're viewing |
+| 2026-08-02 | `/pricing` nav link rendered unconditionally; `App.tsx` redirect missing for pricing | Conditional render via `features.pricing`; redirect in `App.tsx` | **Nav and routes must share the same flag** — inconsistent gating = 404s |
+| 2026-08-02 | Billing toggle was visual-only; missing `role="switch"` and `aria-checked` | Added `role="switch"`, `aria-checked`, `aria-label` | **Visual toggles ≠ semantic switches** — AT needs `role="switch"` and `aria-checked` |
+| 2026-08-02 | Omnisave search input/button lacked accessible names; button didn't reflect loading state | `sr-only` label + `id`/`aria-label`; dynamic button `aria-label` for loading | **Loading state changes button meaning** — update accessible name, not just visual |
+| 2026-08-02 | `handleAskRAG` used hardcoded answer/citations instead of calling backend | Call `/v1/knowledge-hub/query`; populate from response; error handling | **Hardcoded responses in components = untested integration** — wire the real API |
+
+### 4. Database — Composite Unique Constraint
+
+| Date | Root Cause | Fix | Lesson |
+|---|---|---|---|
+| 2026-08-02 | `idempotency_hash` had global `UNIQUE`, preventing different users from saving same source | Drop column `UNIQUE`; add `UNIQUE(user_id, idempotency_hash)` | **Per-user deduplication ≠ global deduplication** — composite keys allow cross-user sharing |
+
+### 5. SSE Handler — Real State Polling
+
+| Date | Root Cause | Fix | Lesson |
+|---|---|---|---|
+| 2026-08-02 | SSE emitted hardcoded timer-driven steps instead of actual run state | Poll `public.autopilot_runs.current_stage`; emit on change; keepalive frames; absolute deadline | **SSE must reflect actual backend state** — timers drift, state doesn't |
+| 2026-08-02 | No authorization check that run belongs to authenticated user | Load run, verify `candidate_id == user.id` before streaming | **SSE streams need authorization per-resource** — not just auth header |
+| 2026-08-02 | Handler set manual `Access-Control-Allow-Origin`, overriding middleware | Remove; rely on `cors.Handler` | **Middleware owns CORS** — handler overrides break credentialed EventSource |
+
+### 6. Validation Middleware — Body Limits & Field Names
+
+| Date | Root Cause | Fix | Lesson |
+|---|---|---|---|
+| 2026-08-02 | `io.ReadAll` read unbounded request body into memory | `io.LimitReader(r.Body, 1<<20)` (1MB); 413 on overflow | **Always bound request body reads** — unbounded = OOM vector |
+| 2026-08-02 | Validation errors used Go struct field names (e.g., `CandidateID`) not JSON keys (`candidateId`) | Register `validator.SetTagNameFunc` to derive JSON names (strip `omitempty`) | **API errors must match request keys** — `candidateId` not `CandidateID` |
+
+### 7. Python Agent — DNS Rebinding & Header Scope
+
+| Date | Root Cause | Fix | Lesson |
+|---|---|---|---|
+| 2026-08-02 | `_resolve_and_validate_url` computed `pinned_ip` but didn't enforce it for navigation | Replace hostname in URL with validated IP; preserve `Host` header for virtual hosting | **DNS rebinding defense requires IP pinning at dial time** — validation alone is insufficient |
+| 2026-08-02 | `BrowserOperator.set_extra_http_headers` applied headers context-wide across navigations | Use `page.goto(url, headers={})` per-request; remove silent `try/except` | **Global headers leak across navigations** — scope to the request, surface errors |
+
+### 8. Autopilot Graph — Real Services, Persistence, Failure Handling
+
+| Date | Root Cause | Fix | Lesson |
+|---|---|---|---|
+| 2026-08-02 | Five stages (tailor_resume, generate_cover_letter, prepare_auto_apply, gather_recruiter_intel, compile_interview_kit) returned hardcoded mock outputs | Call real services (`optimizer`, `CoverLetterGenerator`, etc.); add `simulated: true` if gated | **Hardcoded stage outputs = fake pipeline** — wire real services or explicitly mark simulated |
+| 2026-08-02 | Checkpoints accumulated in `self.checkpoints` dict, lost on restart | Persist via `public.autopilot_runs.state_payload` per documented PostgresSaver | **In-memory checkpoints don't survive restarts** — use the documented PostgresSaver table |
+| 2026-08-02 | `execute_run` had no failure handling; node exceptions bubbled up silently | Catch exceptions, set `stage: "FAILED"`, log error, persist, return failed state | **Silent success on node failure hides broken runs** — explicit failure state enables retry/debug |
+
+### 9. Omnisave — UUIDs, User Isolation
+
+| Date | Root Cause | Fix | Lesson |
+|---|---|---|---|
+| 2026-08-02 | Sequential `len()`-based IDs for sources/chunks race under concurrent writes | `uuid.uuid4()` for sources + chunks | **Sequential IDs race in concurrent writes** — UUIDs are collision-resistant |
+| 2026-08-02 | In-memory dedup/insert didn't serialize; race between check and insert | Atomic DB insert with `ON CONFLICT (user_id, idempotency_hash) DO NOTHING` | **Race conditions need DB constraints** — app-level checks don't serialize |
+| 2026-08-02 | `query_knowledge_rag` didn't filter by `user_id`; cross-user leakage | Filter `source_chunks` and `saved_sources` by `user_id` before `top_k` | **Multi-tenant RAG must filter by tenant** — cross-user leakage is a security bug |
+
+### 10. Sandbox Executor — Lifecycle, Field Mapping, No Fabrication, Redaction
+
+| Date | Root Cause | Fix | Lesson |
+|---|---|---|---|
+| 2026-08-02 | `execute_form_auto_fill` navigated without validating URL first | Call `_resolve_and_validate_url` before `browser.navigate` | **Reuse the SSRF validator** — don't duplicate or skip |
+| 2026-08-02 | Missing `__aenter__`/`__aexit__`/`close`; browser not closed on all paths | Implement delegating to `self.browser`; call in `finally` | **Resource cleanup needs context manager protocol** — matches `GeneralistAgentEngine` |
+| 2026-08-02 | Generic `textbox`/`searchbox` matched "Company name" → personal name field | Role→field map with specific tokens (`email`, `phone`, `company`) before generic `name` | **Label-based field matching needs specificity ordering** — "Company name" ≠ personal name |
+| 2026-08-02 | Fabricated "Simulated Submit Button Click" action claimed success without real operation | Call `browser.fill` per field; track `any_real_action`; `simulated: true` flag | **Reporting fake actions as success = false confidence** — only real ops count |
+| 2026-08-02 | `SENSITIVE_PATTERNS` over-redacted broad uppercase tokens (`POSTGRES`, `REQ12345`) | Narrow `[A-Z0-9]{8,9}` → `[A-Z]{1,2}[0-9]{6,7}`; apply to all string values; recurse into lists | **Secret patterns need precision** — broad uppercase matching catches false positives; key-based guards miss values in unexpected keys |
+
+### 11. Tests — Assertions & Isolation
+
+| Date | Root Cause | Fix | Lesson |
+|---|---|---|---|
+| 2026-08-02 | `warning_alert` test only checked key presence, not expected value | Assert exact value (`False`) and `action` (`needs_review`) | **Presence checks miss logic bugs** — assert the expected outcome |
+| 2026-08-02 | `query_knowledge_rag` test didn't pass `user_id` to both ingest and query | Explicit `user_id` to both; assert citation includes ingested source | **Multi-tenant tests must isolate by tenant** — shared state = false positives |
+| 2026-08-02 | E2E test used hardcoded `TEST_PASS` fallback credential | Read from `E2E_TEST_PASSWORD` env; generate unique email per run (`timestamp@`) | **Hardcoded credentials in tests = rotation nightmares** — use CI secrets + per-run isolation |
+| 2026-08-02 | Registration `beforeAll` didn't assert status; 409 path didn't verify credentials | Assert 200 or 409; on 409, verify login succeeds | **Silent registration failures poison subsequent tests** — fail fast on setup |
+
+---
+
 ## 🚀 5W Analysis & Master Architectural Adaptations (Phases 1 – 18)
 
 This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) and technical learnings from integrating 57 architectural capabilities across 18 phases from `cognee`, `ai-job-search`, `TencentDB-Agent-Memory`, `anakin`, Vimal's Ontology architecture, and Erfan's System Design.

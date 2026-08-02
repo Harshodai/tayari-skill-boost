@@ -59,6 +59,10 @@ except ImportError:
 _pool: Any = None  # asyncpg pool, lazily initialized
 _pool_lock = asyncio.Lock()  # serializes concurrent lazy-init callers onto one pool
 
+# In-memory ledger buffer for fallback when DB pool is not active
+_in_memory_logs: list[dict[str, Any]] = []
+_MAX_IN_MEMORY_LOGS = 100
+
 
 async def _get_pool() -> Any:
     """Lazily initialize asyncpg connection pool from DATABASE_URL.
@@ -118,13 +122,23 @@ async def record(
         )
         return
     created_at = datetime.now(timezone.utc)
+    entry = {
+        "id": str(uuid_lib.uuid4()),
+        "user_id": user_id,
+        "action": action,
+        "resource": resource or "",
+        "detail": detail or {},
+        "created_at": created_at.isoformat(),
+    }
+    _in_memory_logs.insert(0, entry)
+    if len(_in_memory_logs) > _MAX_IN_MEMORY_LOGS:
+        _in_memory_logs.pop()
 
     pool = await _get_pool()
     if pool is None:
-        # Ledger unavailable \u2014 degrade gracefully, log at debug level
         logger.debug(
-            "[PrivacyLedger] No DB pool (detail omitted for brevity) \u2014 "
-            "action=%s user=%s resource=%s", action, user_id, resource
+            "[PrivacyLedger] Recorded in-memory log entry \u2014 action=%s user=%s resource=%s",
+            action, user_id, resource
         )
         return
 
@@ -137,17 +151,20 @@ async def record(
         async with pool.acquire() as conn:
             await conn.execute(sql, uuid_lib.UUID(user_id), action, resource, detail_json, created_at)
     except Exception as exc:
-        logger.warning("[PrivacyLedger] Failed to write ledger entry: %s", exc)
+        logger.warning("[PrivacyLedger] Failed to write DB ledger entry: %s", exc)
 
 
 async def query_user_log(user_id: str, limit: int = 50) -> list:
     """
     Fetch the most recent ledger entries for a user.
-    Used by the Privacy Readiness panel (/api/v1/privacy/log).
+    Used by the Privacy Readiness panel (/api/v1/privacy/ledger).
     """
+    in_mem_filtered = [item for item in _in_memory_logs if item.get("user_id") == user_id][:limit]
+
     pool = await _get_pool()
     if pool is None:
-        return []
+        return in_mem_filtered
+
     sql = """
         SELECT id, action, resource, detail, created_at
         FROM public.privacy_audit_log
@@ -158,9 +175,9 @@ async def query_user_log(user_id: str, limit: int = 50) -> list:
     try:
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, uuid_lib.UUID(user_id), limit)
-        return [
+        db_logs = [
             {
-                "id": row["id"],
+                "id": str(row["id"]),
                 "action": row["action"],
                 "resource": row["resource"],
                 "detail": row["detail"],
@@ -168,9 +185,23 @@ async def query_user_log(user_id: str, limit: int = 50) -> list:
             }
             for row in rows
         ]
+        return db_logs if db_logs else in_mem_filtered
     except Exception as exc:
-        logger.warning("[PrivacyLedger] Failed to query ledger: %s", exc)
-        return []
+        logger.warning("[PrivacyLedger] Failed to query DB ledger, returning in-memory: %s", exc)
+        return in_mem_filtered
+
+
+async def clear_user_log(user_id: str) -> None:
+    """Clear ledger entries for a user."""
+    global _in_memory_logs
+    _in_memory_logs = [item for item in _in_memory_logs if item.get("user_id") and item.get("user_id") != user_id]
+    pool = await _get_pool()
+    if pool is not None:
+        try:
+            async with pool.acquire() as conn:
+                await conn.execute("DELETE FROM public.privacy_audit_log WHERE user_id = $1", uuid_lib.UUID(user_id))
+        except Exception as exc:
+            logger.warning("[PrivacyLedger] Failed to clear DB ledger: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -184,6 +215,9 @@ class _Ledger:
 
     async def query_user_log(self, user_id: str, limit: int = 50) -> list:
         return await query_user_log(user_id, limit)
+
+    async def clear_user_log(self, user_id: str) -> None:
+        await clear_user_log(user_id)
 
 
 ledger = _Ledger()

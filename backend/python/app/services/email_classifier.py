@@ -135,7 +135,7 @@ def match_email_to_application(
             "reason": "No matching application or stage identified."
         }
 
-    # Strict confidence threshold check per spec: >= 0.8
+    warning_alert = combined_confidence < 0.8
     action = "auto_move" if (combined_confidence >= 0.8 and auto_move_consent) else "needs_review"
 
     return {
@@ -146,11 +146,13 @@ def match_email_to_application(
         "current_stage": best_app.get("stage"),
         "new_stage": stage,
         "confidence": combined_confidence,
+        "warning_alert": warning_alert,
         "action": action,
         "audit_trail": {
             "trigger": "email_classifier",
             "auto_move_consent": auto_move_consent,
             "confidence": combined_confidence,
+            "warning_alert": warning_alert,
             "reason": f"Matched company '{best_app.get('company')}' with stage '{stage}'"
         }
     }

@@ -31,3 +31,12 @@ This file dictates specific constraints, rules, and architectural guidelines tha
 
 1.  **Env Variables**: Ensure that new frontend environment variables (prefixed with `VITE_`) are properly documented in `.env.example` and are accounted for during the Docker build phase, as Vite statically replaces them.
 2.  **Zero-Downtime Awareness**: Do not introduce blocking loops in the Go or Python services. Offload heavy processing to Celery workers.
+
+## 📚 Lessons Learned & Code Reviews
+
+All AI agents must strictly adhere to the continuous learnings, code review standards, and production-readiness rules documented in [lessons.md](lessons.md):
+- **No Hardcoded Static Fallbacks**: Never hardcode dummy user text or mock payloads in React components; always fetch dynamically from `AuthContext` and `getProfile()`.
+- **Mandatory `apiFetch` Usage**: Never call `fetch('/api/v1/...')` directly in React components; always use `apiFetch('/v1/...')` from `@/api` to respect `VITE_API_URL` and `VITE_USE_SELF_HOSTED`.
+- **Explicit Error Banners**: Non-2xx backend errors must be rendered in styled UI alert banners (`AlertCircle`).
+- **Async Lock Hygiene**: Use lazy per-event-loop lock getters (`_get_repl_lock()`) to prevent event loop binding errors during pytest runs.
+

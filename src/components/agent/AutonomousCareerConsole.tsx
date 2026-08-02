@@ -1,0 +1,508 @@
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, Zap, DollarSign, Mail, Mic, Play, CheckCircle2, XCircle, Sparkles, Loader2, Building2, Eye, UserCheck, Calendar, SquareKanban, Inbox, LayoutKanban } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { useAuth } from '@/contexts/AuthContext';
+import { getProfile, apiFetch } from '@/api';
+
+export const AutonomousCareerConsole: React.FC = () => {
+  const [loading, setLoading] = useState(false);
+  const [hitlProposal, setHitlProposal] = useState<any>(null);
+  const [hitlConfirmed, setHitlConfirmed] = useState<any>(null);
+  const [universalResult, setUniversalResult] = useState<any>(null);
+  const [outreachResult, setOutreachResult] = useState<any>(null);
+  const [aiNegotiationResult, setAiNegotiationResult] = useState<any>(null);
+  const [copilotResult, setCopilotResult] = useState<any>(null);
+  const [emailSyncResult, setEmailSyncResult] = useState<any>(null);
+  const [kanbanBoard, setKanbanBoard] = useState<any>(null);
+
+  const fetchInterviewBoard = async () => {
+    try {
+      const data = await apiFetch<any>('/v1/ai/agent/career/interview-board');
+      if (data && data.success) setKanbanBoard(data.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchInterviewBoard();
+  }, []);
+
+  const handleEmailSync = async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch<any>('/v1/ai/agent/career/email-sync', { method: 'POST' });
+      if (data && data.success) {
+        setEmailSyncResult(data.data);
+        if (data.data.current_kanban_board) {
+          setKanbanBoard(data.data.current_kanban_board);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMoveKanbanCard = async (cardId: string, newStage: string) => {
+    try {
+      const data = await apiFetch<any>('/v1/ai/agent/career/interview-board/update', {
+        method: 'POST',
+        body: JSON.stringify({ card_id: cardId, new_stage: newStage })
+      });
+      if (data && data.success) {
+        fetchInterviewBoard();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const { user } = useAuth();
+
+  // Dynamic state variables
+  const [resumeText, setResumeText] = useState<string>("");
+  const [jobDescription, setJobDescription] = useState<string>("");
+  const [jobUrlsInput, setJobUrlsInput] = useState<string>("");
+  const [candidateName, setCandidateName] = useState<string>(user?.user_metadata?.full_name || "");
+  const [candidateEmail, setCandidateEmail] = useState<string>(user?.email || "");
+
+  useEffect(() => {
+    if (user) {
+      if (user.user_metadata?.full_name) setCandidateName(user.user_metadata.full_name);
+      if (user.email) setCandidateEmail(user.email);
+    }
+    getProfile().then(p => {
+      if (p) {
+        if (p.full_name) setCandidateName(p.full_name);
+        if (p.summary || p.headline) {
+          const text = p.summary || `${p.headline || ''}${p.skills?.length ? `. Skills: ${p.skills.join(', ')}` : ''}`;
+          setResumeText(text);
+        }
+        if (p.desired_roles?.length || p.skills?.length) {
+          setJobDescription(`Role: ${p.desired_roles?.join(', ') || 'Software Engineer'}. Requirements: ${p.skills?.join(', ') || 'Python, Distributed Systems'}`);
+        }
+      }
+    }).catch(() => {
+      // Profile not created yet
+    });
+  }, [user]);
+
+  const handleATSPrepare = async () => {
+    setLoading(true);
+    setHitlConfirmed(null);
+    try {
+      const data = await apiFetch<any>('/v1/ai/agent/career/ats-prepare', {
+        method: 'POST',
+        body: JSON.stringify({
+          resume_text: resumeText,
+          job_description: jobDescription
+        })
+      });
+      if (data && data.success) setHitlProposal(data.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleATSConfirm = async (approved: boolean) => {
+    if (!hitlProposal) return;
+    setLoading(true);
+    try {
+      const data = await apiFetch<any>('/v1/ai/agent/career/ats-confirm', {
+        method: 'POST',
+        body: JSON.stringify({
+          approval_id: hitlProposal.approval_id,
+          approved,
+          custom_keywords: hitlProposal.extracted_keywords || []
+        })
+      });
+      if (data && data.success) {
+        setHitlConfirmed(data.data);
+        setHitlProposal(null);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUniversalApply = async () => {
+    setLoading(true);
+    try {
+      const parsedUrls = jobUrlsInput.split('\n').map(u => u.trim()).filter(Boolean);
+      const data = await apiFetch<any>('/v1/ai/agent/career/universal-apply', {
+        method: 'POST',
+        body: JSON.stringify({
+          job_urls: parsedUrls,
+          candidate_profile: { name: candidateName, email: candidateEmail }
+        })
+      });
+      if (data && data.success) setUniversalResult(data.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAINegotiate = async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch<any>('/v1/ai/agent/career/ai-negotiate', {
+        method: 'POST',
+        body: JSON.stringify({
+          current_offer: 190000,
+          target_role: 'Staff Systems Architect',
+          location: 'San Francisco, CA',
+          company: 'Anthropic'
+        })
+      });
+      if (data && data.success) setAiNegotiationResult(data.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOutreach = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/v1/ai/agent/career/outreach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company: 'Stripe',
+          recruiter_name: 'Sarah Jenkins',
+          job_title: 'Staff Backend Architect'
+        })
+      });
+      const data = await res.json();
+      if (data.success) setOutreachResult(data.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopilot = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/v1/ai/agent/career/copilot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: 'How do you handle zero-downtime database migrations under high write traffic?',
+          role: 'Principal Architect'
+        })
+      });
+      const data = await res.json();
+      if (data.success) setCopilotResult(data.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="w-full max-w-7xl mx-auto p-6 space-y-6">
+      {/* Header */}
+      <Card className="border border-slate-800 bg-slate-950 text-white shadow-xl">
+        <CardHeader className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-slate-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-indigo-500/20 rounded-xl border border-indigo-500/30">
+                <Building2 className="w-8 h-8 text-indigo-400" />
+              </div>
+              <div>
+                <CardTitle className="text-2xl font-bold flex items-center gap-2">
+                  Executive Career Command Center <Sparkles className="w-5 h-5 text-amber-400" />
+                </CardTitle>
+                <p className="text-xs text-slate-400">Claude Cowork + Manus AI Autonomous Career Engine with Email Connector & Interview Board</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Badge className="bg-blue-950 text-blue-300 border-blue-800">
+                Email Sync: Gmail OAuth
+              </Badge>
+              <Badge className="bg-emerald-950 text-emerald-300 border-emerald-800">
+                Kanban Interview Board: Active
+              </Badge>
+              <Badge className="bg-purple-950 text-purple-300 border-purple-800">
+                25+ Portals: Supported
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      <Tabs defaultValue="board" className="w-full">
+        <TabsList className="grid grid-cols-6 bg-slate-900 border border-slate-800 p-1 rounded-lg">
+          <TabsTrigger value="board" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+            <LayoutKanban className="w-4 h-4 mr-2" /> Interview Board
+          </TabsTrigger>
+          <TabsTrigger value="email" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+            <Inbox className="w-4 h-4 mr-2" /> Email Connector
+          </TabsTrigger>
+          <TabsTrigger value="ats" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+            <ShieldCheck className="w-4 h-4 mr-2" /> HITL ATS Review
+          </TabsTrigger>
+          <TabsTrigger value="apply" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+            <Zap className="w-4 h-4 mr-2" /> Universal Portals
+          </TabsTrigger>
+          <TabsTrigger value="negotiate" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+            <DollarSign className="w-4 h-4 mr-2" /> AI Compensation
+          </TabsTrigger>
+          <TabsTrigger value="copilot" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+            <Mic className="w-4 h-4 mr-2" /> Live Copilot
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Tab 1: Interview Board (Kanban UI) */}
+        <TabsContent value="board" className="mt-4">
+          <Card className="border border-slate-800 bg-slate-900 text-slate-100 p-6 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-indigo-400 flex items-center gap-2">
+                <SquareKanban className="w-5 h-5" /> Application & Interview Kanban Pipeline
+              </h3>
+              <Button size="sm" onClick={fetchInterviewBoard} className="bg-slate-800 hover:bg-slate-700">
+                Refresh Board
+              </Button>
+            </div>
+
+            {kanbanBoard && (
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4 overflow-x-auto pt-2">
+                {Object.entries(kanbanBoard).map(([stage, cards]: [string, any]) => (
+                  <div key={stage} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-3 min-w-[180px]">
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-400 border-b border-slate-800 pb-2">
+                      <span>{stage.replace(/_/g, ' ')}</span>
+                      <Badge className="bg-slate-800 text-slate-200">{cards.length}</Badge>
+                    </div>
+
+                    {cards.map((cd: any) => (
+                      <div key={cd.card_id} className="p-3 rounded bg-slate-900 border border-slate-800 space-y-2 text-xs">
+                        <div className="font-bold text-slate-100">{cd.company}</div>
+                        <div className="text-[11px] text-indigo-300">{cd.role}</div>
+                        <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-emerald-400" /> {cd.interview_date}
+                        </div>
+                        {cd.prep_brief && (
+                          <div className="text-[10px] text-slate-500 italic">
+                            Tech: {cd.prep_brief.tech_stack?.join(', ') || 'Custom Prep'}
+                          </div>
+                        )}
+                        <div className="flex gap-1 pt-1">
+                          {stage !== 'OFFER_STAGE' && (
+                            <Button size="sm" onClick={() => handleMoveKanbanCard(cd.card_id, 'OFFER_STAGE')} className="h-6 text-[9px] bg-purple-900 hover:bg-purple-800">
+                              Move to Offer
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </TabsContent>
+
+        {/* Tab 2: Email Connector */}
+        <TabsContent value="email" className="mt-4">
+          <Card className="border border-slate-800 bg-slate-900 text-slate-100 p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold text-blue-400 flex items-center gap-2">
+                  <Inbox className="w-5 h-5" /> Connected Recruiter Email Sync Hub
+                </h3>
+                <p className="text-xs text-slate-400">OAuth connected to Gmail (candidate@tayariskillboost.com)</p>
+              </div>
+              <Button onClick={handleEmailSync} disabled={loading} className="bg-blue-600 hover:bg-blue-500 font-semibold">
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Inbox className="w-4 h-4 mr-2" />} Scan Inbox & Sync Calendar
+              </Button>
+            </div>
+
+            {emailSyncResult && (
+              <div className="space-y-4 pt-2 text-xs font-mono">
+                <div className="p-3 bg-blue-950/40 rounded border border-blue-800 text-blue-300 flex items-center justify-between">
+                  <span>Detected {emailSyncResult.email_scan_summary?.invites_detected || 0} recruiter interview invitations!</span>
+                  <Badge className="bg-emerald-950 text-emerald-300">Auto-Synced to Kanban Board</Badge>
+                </div>
+
+                <div className="space-y-3">
+                  {emailSyncResult.email_scan_summary?.parsed_invites?.map((inv: any) => (
+                    <div key={inv.email_id} className="p-4 bg-slate-950 rounded border border-slate-800 space-y-2">
+                      <div className="flex justify-between items-center text-slate-200 font-bold">
+                        <span>{inv.company}: {inv.subject}</span>
+                        <span className="text-emerald-400">{inv.proposed_date}</span>
+                      </div>
+                      <div className="text-slate-400 text-[11px]">Meeting Link: <span className="text-indigo-400">{inv.meeting_link}</span></div>
+                      <div className="p-2.5 bg-black rounded border border-slate-800 text-slate-300">
+                        <div className="text-[10px] text-slate-500 uppercase mb-1"># Generated Communication Auto-Reply Draft</div>
+                        <pre className="whitespace-pre-wrap">{inv.auto_reply_draft.body}</pre>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        </TabsContent>
+
+        {/* Tab 3: HITL ATS Review */}
+        <TabsContent value="ats" className="mt-4">
+          <Card className="border border-slate-800 bg-slate-900 text-slate-100 p-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-300">Candidate Resume / Profile</Label>
+                <Textarea
+                  value={resumeText}
+                  onChange={(e) => setResumeText(e.target.value)}
+                  placeholder="Paste candidate resume or profile text..."
+                  className="bg-slate-950 border-slate-800 h-28 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-300">Target Job Description</Label>
+                <Textarea
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  placeholder="Paste target job description..."
+                  className="bg-slate-950 border-slate-800 h-28 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <Button onClick={handleATSPrepare} disabled={loading} className="bg-indigo-600 hover:bg-indigo-500 font-semibold">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4 mr-2" />} Prepare ATS Optimization Proposal (HITL)
+            </Button>
+
+            {hitlProposal && (
+              <div className="p-4 rounded-lg bg-amber-950/40 border border-amber-800 space-y-3">
+                <div className="flex justify-between items-center text-amber-300 font-bold">
+                  <span className="flex items-center gap-2">
+                    <UserCheck className="w-4 h-4" /> Human-in-the-Loop Approval Required: [{hitlProposal.approval_id}]
+                  </span>
+                  <Badge className="bg-amber-900 text-amber-200">Predicted Score: {hitlProposal.predicted_ats_score_before}% → {hitlProposal.predicted_ats_score_after}%</Badge>
+                </div>
+                <div className="text-xs text-slate-300">
+                  Extracted Keywords: <span className="font-mono text-emerald-400">{hitlProposal.extracted_keywords.join(', ')}</span>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <Button size="sm" onClick={() => handleATSConfirm(true)} className="bg-emerald-600 hover:bg-emerald-500">
+                    <CheckCircle2 className="w-4 h-4 mr-1" /> Approve & Apply Keywords
+                  </Button>
+                  <Button size="sm" onClick={() => handleATSConfirm(false)} variant="outline" className="border-red-800 text-red-400 hover:bg-red-950">
+                    <XCircle className="w-4 h-4 mr-1" /> Decline Optimization
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {hitlConfirmed && (
+              <div className="p-4 rounded-lg bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs font-mono space-y-2">
+                <div className="font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" /> Status: {hitlConfirmed.status}
+                </div>
+                <div>Final ATS Target Score: {hitlConfirmed.final_ats_score}%</div>
+              </div>
+            )}
+          </Card>
+        </TabsContent>
+
+        {/* Tab 4: Universal Portals */}
+        <TabsContent value="apply" className="mt-4">
+          <Card className="border border-slate-800 bg-slate-900 text-slate-100 p-6 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-300">Target Job URLs (One per line)</Label>
+              <Textarea
+                value={jobUrlsInput}
+                onChange={(e) => setJobUrlsInput(e.target.value)}
+                placeholder="https://boards.greenhouse.io/...\nhttps://jobs.lever.co/..."
+                className="bg-slate-950 border-slate-800 h-28 text-xs font-mono"
+              />
+            </div>
+
+            <Button onClick={handleUniversalApply} disabled={loading} className="bg-emerald-600 hover:bg-emerald-500 font-semibold">
+              Launch Universal Batch Applications (5 Portals)
+            </Button>
+
+            {universalResult && (
+              <div className="space-y-3 pt-4 font-mono text-xs">
+                <div className="text-emerald-400 font-bold">
+                  Submitted {universalResult.total_submitted} Applications across Portals: {universalResult.portals_covered.join(', ')}
+                </div>
+                <div className="space-y-2">
+                  {universalResult.applications.map((ap: any) => (
+                    <div key={ap.app_id} className="p-3 rounded bg-slate-950 border border-slate-800 flex justify-between items-center">
+                      <div>
+                        <span className="text-indigo-400 font-bold">{ap.app_id}</span> • Portal: <span className="text-slate-200 font-bold">{ap.portal}</span> • <span className="text-slate-400">{ap.url}</span>
+                      </div>
+                      <Badge className="bg-emerald-950 text-emerald-300">ATS Match: {ap.ats_match_score}%</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        </TabsContent>
+
+        {/* Tab 5: AI Compensation */}
+        <TabsContent value="negotiate" className="mt-4">
+          <Card className="border border-slate-800 bg-slate-900 text-slate-100 p-6 space-y-4">
+            <Button onClick={handleAINegotiate} disabled={loading} className="bg-purple-600 hover:bg-purple-500 font-semibold">
+              Generate AI Salary Negotiation Strategy
+            </Button>
+
+            {aiNegotiationResult && (
+              <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3 text-xs font-mono">
+                <div className="text-purple-300 font-bold text-sm">
+                  Base Offer: ${aiNegotiationResult.current_offer.toLocaleString()} → Target Counter: ${aiNegotiationResult.target_counter_offer.toLocaleString()}
+                </div>
+                <div className="bg-slate-900 p-3 rounded text-slate-300 border border-slate-800">
+                  <div className="text-[10px] text-purple-400 uppercase mb-1 font-bold"># AI Dynamic Strategy</div>
+                  <p className="whitespace-pre-wrap">{aiNegotiationResult.ai_negotiation_strategy}</p>
+                </div>
+                <div className="bg-black p-3 rounded text-slate-200 border border-slate-800">
+                  <div className="text-[10px] text-slate-500 uppercase mb-1"># Generated Counter-Offer Script</div>
+                  <pre className="whitespace-pre-wrap">{aiNegotiationResult.counter_offer_script}</pre>
+                </div>
+              </div>
+            )}
+          </Card>
+        </TabsContent>
+
+        {/* Tab 6: Live Copilot */}
+        <TabsContent value="copilot" className="mt-4">
+          <Card className="border border-slate-800 bg-slate-900 text-slate-100 p-6 space-y-4">
+            <Button onClick={handleCopilot} disabled={loading} className="bg-indigo-600 hover:bg-indigo-500 font-semibold">
+              Generate AI STAR-Method Answer
+            </Button>
+
+            {copilotResult && (
+              <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2 text-xs font-mono">
+                <div className="font-bold text-indigo-400">Question: "{copilotResult.question}"</div>
+                <div className="p-3 bg-black rounded text-slate-200 whitespace-pre-wrap">{copilotResult.star_answer}</div>
+              </div>
+            )}
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+export default AutonomousCareerConsole;

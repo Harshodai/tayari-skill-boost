@@ -75,6 +75,9 @@ const OneShotPipeline = lazy(() => import('./pages/OneShotPipeline'));
 const TypstResumeStudio = lazy(() => import('./pages/TypstResumeStudio'));
 const CandidateAnswerBank = lazy(() => import('./pages/CandidateAnswerBank'));
 const AgentReachHub = lazy(() => import('./pages/AgentReachHub'));
+const LandingPage = lazy(() => import('./pages/Landing'));
+const Omnisave = lazy(() => import('./pages/Omnisave'));
+const TayariComputerControlRoom = lazy(() => import('./components/TayariComputerControlRoom'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 const queryClient = new QueryClient();
@@ -104,6 +107,9 @@ const App = () => (
               <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Index />} />
+              <Route path="/landing" element={<LandingPage />} />
+              <Route path="/omnisave" element={<Omnisave />} />
+              <Route path="/control-room" element={<ProtectedRoute><TayariComputerControlRoom /></ProtectedRoute>} />
               {features.oneShotPipeline && (
                 <Route path="/one-shot" element={<OneShotPipeline />} />
               )}
@@ -167,6 +173,9 @@ const App = () => (
               )}
               {!features.oneShotPipeline && (
                 <Route path="/one-shot" element={<Navigate to="/" replace />} />
+              )}
+              {!features.pricing && (
+                <Route path="/pricing" element={<Navigate to="/" replace />} />
               )}
 
               <Route path="/about" element={<About />} />

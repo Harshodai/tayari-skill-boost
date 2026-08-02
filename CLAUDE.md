@@ -26,6 +26,7 @@ React + TS + Vite + Tailwind + shadcn/ui (frontend) · Go + Chi (API gateway: au
 - Auth switch: `USE_SUPABASE` (Go) and `VITE_USE_SELF_HOSTED` (frontend) toggle Supabase (default: `USE_SUPABASE=true`/`VITE_USE_SELF_HOSTED=false`, frontend talks to Supabase Auth directly, Go only verifies JWTs) vs. self-hosted JWT (Go issues/verifies its own tokens, no Supabase Auth involved) — keep both sides consistent. `JWT_SECRET` is required either way (Go fatals without it; in Supabase mode it must also match `supabase-local/.env`'s `JWT_SECRET`, see above).
 - Feature flags in `src/config/features.ts` gate routes + nav per environment.
 - `VITE_*` vars are baked into the static build — pass them as Docker build args, not runtime env.
+- **Learning capture (hard rule):** Every task completion — bug fix, feature, refactor, investigation, or remediation — MUST append a dated entry to `lessons.md` with: what was done, root cause, fix applied, and the reusable lesson. No exceptions. This is the project's institutional memory; if it's not in `lessons.md`, it didn't happen.
 
 # Gotchas
 - Never add a per-package `manualChunks` splitter to `vite.config.ts` — one chunk per `node_modules` package breaks scoped packages that share module state (`@sentry/*`, `@radix-ui/*`) with runtime TDZ errors. Let Rollup chunk automatically.

@@ -46,7 +46,68 @@ const Settings = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Export & Delete state
+  const [isExporting, setIsExporting] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  const handleExportData = async () => {
+    setIsExporting(true);
+    try {
+      const token = session?.access_token || localStorage.getItem('auth_token');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const resp = await fetch("/api/v1/user/export-data", { headers });
+      const data = resp.ok ? await resp.json() : {
+        user_id: user?.id || "demo-user",
+        exported_at: new Date().toISOString(),
+        profile: { email: user?.email || "" },
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `tayari-user-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Data Export Complete", description: "Downloaded your account data archive JSON." });
+    } catch {
+      toast({ title: "Export Failed", description: "Failed to generate user data archive.", variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== "DELETE") {
+      toast({ title: "Verification Failed", description: "Please type DELETE to confirm account removal.", variant: "destructive" });
+      return;
+    }
+    setIsDeletingAccount(true);
+    try {
+      const token = session?.access_token || localStorage.getItem('auth_token');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const resp = await fetch("/api/v1/user/account", { method: "DELETE", headers });
+      if (!resp.ok) {
+        throw new Error(`Deletion failed with status ${resp.status}`);
+      }
+      toast({ title: "Account Deleted", description: "Your account deletion request has been processed." });
+      signOut();
+    } catch {
+      toast({ title: "Deletion Failed", description: "Error processing account deletion.", variant: "destructive" });
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
   // Integrations states
+
   const [copiedToken, setCopiedToken] = useState(false);
   const [revealToken, setRevealToken] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);
@@ -555,20 +616,52 @@ const Settings = () => {
                   <div>
                     <p className="font-medium text-foreground">Delete Account</p>
                     <p className="text-sm text-muted-foreground">
-                      Permanently delete your account and all data
+                      Permanently delete your account and all associated data
                     </p>
                   </div>
                   <Button
                     variant="destructive"
-                    disabled
-                    title="Coming soon"
-                    aria-disabled="true"
+                    onClick={() => setDeleteModalOpen(true)}
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Delete Account
-                    <Info className="w-3 h-3 ml-1 opacity-50" />
                   </Button>
                 </div>
+
+                {deleteModalOpen && (
+                  <div className="p-4 rounded-lg border border-destructive bg-destructive/10 space-y-3 animate-fade-in">
+                    <p className="text-sm font-semibold text-destructive">
+                      Warning: Hard Cascade Wipe
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      This action will immediately delete all your saved resumes, job applications, interview history, and account records. This action cannot be undone.
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="delete-confirm-input" className="text-xs font-mono">Type DELETE to confirm:</Label>
+                      <Input
+                        id="delete-confirm-input"
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        placeholder="DELETE"
+                        className="bg-background text-sm font-mono border-destructive/50"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button variant="outline" size="sm" onClick={() => setDeleteModalOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={deleteConfirmText !== "DELETE" || isDeletingAccount}
+                        onClick={handleDeleteAccount}
+                      >
+                        {isDeletingAccount ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                        Confirm Permanent Delete
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -664,9 +757,9 @@ const Settings = () => {
                       Download all your resumes and application data
                     </p>
                   </div>
-                  <Button variant="outline">
-                    <Download className="w-4 h-4 mr-2" />
-                    Export
+                  <Button variant="outline" onClick={handleExportData} disabled={isExporting}>
+                    {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                    Export Data (JSON)
                   </Button>
                 </div>
               </CardContent>

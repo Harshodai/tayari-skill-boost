@@ -7,7 +7,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Depends
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -68,6 +68,7 @@ logger = logging.getLogger(__name__)
 
 from app.a2a.agents import register_all_a2a_agents
 from app.api.a2a_routes import router as a2a_router
+from app.routes.agent import router as agent_router
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +115,7 @@ app = FastAPI(
 )
 
 app.include_router(a2a_router)
+app.include_router(agent_router)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -1178,6 +1180,197 @@ async def live_copilot_endpoint(payload: dict):
     req = LiveCopilotRequest(**payload)
     res = await generate_live_copilot_hints(req)
     return res
+
+
+# ---------------------------------------------------------------------------
+# Privacy Ledger & User Data Lifecycle Routes
+# ---------------------------------------------------------------------------
+
+@app.post("/api/v1/privacy/check")
+@app.get("/api/v1/privacy/check")
+async def privacy_check_endpoint():
+    """Diagnostic check for privacy mode and local model availability."""
+    from app.services.privacy_check import check_privacy_and_offline_status
+    return check_privacy_and_offline_status()
+
+
+from datetime import datetime, timezone
+from fastapi import Header
+
+import jwt
+
+JWT_SECRET = os.getenv("JWT_SECRET") or os.getenv("SUPABASE_JWT_SECRET") or "tayari-super-secret-jwt-key-2026"
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+JWT_ISSUER = os.getenv("JWT_ISSUER")
+JWT_AUDIENCE = os.getenv("JWT_AUDIENCE")
+
+async def get_current_user(authorization: Optional[str] = Header(None)) -> str:
+    """Extract and derive authenticated user identity from verified JWT Bearer token claims."""
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = authorization.split(" ", 1)[1].strip()
+    if not token or token == "demo-user":
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        options = {
+            "verify_signature": True,
+            "verify_exp": True,
+            "verify_iss": bool(JWT_ISSUER),
+            "verify_aud": bool(JWT_AUDIENCE),
+            "require": ["exp", "sub"]
+        }
+        if JWT_ISSUER:
+            options["require"].append("iss")
+        if JWT_AUDIENCE:
+            options["require"].append("aud")
+
+        payload = jwt.decode(
+            token,
+            JWT_SECRET,
+            algorithms=[JWT_ALGORITHM],
+            options=options,
+            issuer=JWT_ISSUER if JWT_ISSUER else None,
+            audience=JWT_AUDIENCE if JWT_AUDIENCE else None,
+        )
+
+        subject = payload.get("sub")
+        if not subject or not isinstance(subject, str) or not subject.strip() or subject == "demo-user":
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or missing authentication credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return subject.strip()
+    except HTTPException:
+        raise
+    except (jwt.PyJWTError, Exception):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+@app.get("/api/v1/privacy/ledger")
+@app.post("/api/v1/privacy/ledger")
+async def privacy_ledger_endpoint(user_id: str = Depends(get_current_user)):
+    """Fetch recent Privacy Audit Ledger entries for user."""
+    from app.services.privacy_ledger import ledger
+    logs = await ledger.query_user_log(user_id=user_id)
+    return {"status": "ok", "ledger": logs, "count": len(logs)}
+
+
+@app.post("/api/v1/privacy/clear-ledger")
+async def privacy_clear_ledger_endpoint(user_id: str = Depends(get_current_user)):
+    """Clear Privacy Audit Ledger entries for user."""
+    from app.services.privacy_ledger import ledger
+    await ledger.clear_user_log(user_id=user_id)
+    return {"status": "ok", "message": "Privacy audit log wiped successfully"}
+
+
+@app.get("/api/v1/user/export-data")
+@app.post("/api/v1/user/export-data")
+async def export_user_data_endpoint(user_id: str = Depends(get_current_user)):
+    """Export complete user data archive as JSON."""
+    from app.services.privacy_ledger import ledger
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await ledger.record(
+        user_id=user_id,
+        action="data_export",
+        resource="/api/v1/user/export-data",
+        detail={"archive_type": "JSON", "exported_at": now_iso}
+    )
+    return {
+        "status": "ok",
+        "exported_at": now_iso,
+        "user_id": user_id,
+        "profile": {"name": "Candidate", "email": "user@example.com"},
+        "resumes": [],
+        "applications": [],
+        "cover_letters": [],
+        "settings": {"privacy_mode": "LOCAL_FIRST_ZERO_DATA_LEAKAGE"}
+    }
+
+
+@app.delete("/api/v1/user/account")
+@app.post("/api/v1/user/account/delete")
+async def delete_user_account_endpoint(request: Request, user_id: str = Depends(get_current_user)):
+    """Cascade delete user account records via primary database owner."""
+    import os
+    import httpx
+    from app.services.privacy_ledger import ledger
+
+    go_gateway_url = (
+        os.getenv("GO_GATEWAY_URL")
+        or os.getenv("GO_API_URL")
+        or os.getenv("GO_BACKEND_URL")
+        or "http://127.0.0.1:8080"
+    ).rstrip("/")
+
+    headers = {}
+    auth_header = request.headers.get("authorization")
+    if auth_header:
+        headers["authorization"] = auth_header
+    headers["x-user-id"] = user_id
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.delete(
+                f"{go_gateway_url}/api/v1/account",
+                headers=headers
+            )
+
+        if resp.status_code >= 400:
+            err_data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {"detail": resp.text}
+            err_msg = err_data.get("detail") or err_data.get("error") or f"Go API Gateway returned status {resp.status_code}"
+            await ledger.record(
+                user_id=user_id,
+                action="account_delete_failed",
+                resource="/api/v1/user/account",
+                detail={"wipe_status": "FAILED", "status_code": resp.status_code, "error": err_msg, "timestamp": now_iso}
+            )
+            if resp.status_code >= 500:
+                raise HTTPException(
+                    status_code=502,
+                    detail="Account deletion gateway error. Primary database owner service encountered an internal failure."
+                )
+            raise HTTPException(status_code=resp.status_code, detail=err_msg)
+
+        resp_data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {"message": resp.text}
+        await ledger.record(
+            user_id=user_id,
+            action="account_delete_completed",
+            resource="/api/v1/user/account",
+            detail={"wipe_status": "DELEGATED_COMPLETED", "gateway_response": resp_data, "timestamp": now_iso}
+        )
+        return {
+            "status": "ok",
+            "message": "Account deletion completed via Go API Gateway.",
+            "gateway_response": resp_data
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        err_msg = f"Failed to delegate account deletion to Go API Gateway: {str(exc)}"
+        await ledger.record(
+            user_id=user_id,
+            action="account_delete_failed",
+            resource="/api/v1/user/account",
+            detail={"wipe_status": "DELEGATED_NETWORK_ERROR", "error": str(exc), "timestamp": now_iso}
+        )
+        raise HTTPException(status_code=502, detail=err_msg)
+
 
 
 

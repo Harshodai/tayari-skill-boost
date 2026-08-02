@@ -161,3 +161,19 @@ export async function executeOneShotPipeline(payload: OneShotExecuteRequest): Pr
     body: JSON.stringify(payload),
   });
 }
+
+export interface ApprovalUpdateRequest {
+  status: "approved" | "rejected";
+  reviewer_comment?: string;
+  form_fields?: Record<string, string>;
+}
+
+export async function updateApproval(
+  approvalId: string,
+  payload: ApprovalUpdateRequest
+): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`/v1/approvals/${approvalId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}

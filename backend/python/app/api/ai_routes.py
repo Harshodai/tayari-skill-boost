@@ -2,9 +2,16 @@
 AI Engine core API routes for strategic analysis, optimizer, exports, cover letters, and copilot.
 """
 import asyncio
+import http.client
+import ipaddress
 import json
 import logging
-from typing import Optional, List, Dict, Any
+import re
+import socket
+import ssl
+from html.parser import HTMLParser
+from typing import Optional, List, Dict, Any, Union
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse, Response
@@ -47,6 +54,204 @@ strategic_analyzer = StrategicAnalyzer()
 class AnalyzeRequest(BaseModel):
     resume_text: Optional[str] = None
     job_description: Optional[str] = None
+
+
+class JobDescriptionImportRequest(BaseModel):
+    url: str
+
+
+MAX_IMPORTED_JOB_DESCRIPTION_BYTES = 1_000_000
+JOB_DESCRIPTION_IMPORT_TIMEOUT_SECONDS = 5
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """TLS connection that dials a validated IP but verifies the URL hostname."""
+
+    def __init__(self, connect_host: str, port: int, server_hostname: str, timeout: int) -> None:
+        super().__init__(connect_host, port=port, timeout=timeout, context=ssl.create_default_context())
+        self._server_hostname = server_hostname
+
+    def connect(self) -> None:
+        self.sock = self._create_connection((self.host, self.port), self.timeout, self.source_address)
+        self.sock = self._context.wrap_socket(self.sock, server_hostname=self._server_hostname)
+
+
+class _ReadableTextExtractor(HTMLParser):
+    """Small deterministic HTML-to-text extractor for public job posts."""
+
+    _IGNORED_TAGS = {"script", "style", "noscript", "template", "svg", "canvas"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.title: Optional[str] = None
+        self._text: List[str] = []
+        self._ignored_depth = 0
+        self._in_title = False
+        self._title_parts: List[str] = []
+
+    def handle_starttag(self, tag: str, attrs: List[tuple[str, Optional[str]]]) -> None:
+        tag = tag.lower()
+        if tag in self._IGNORED_TAGS:
+            self._ignored_depth += 1
+        elif tag == "title" and self._ignored_depth == 0:
+            self._in_title = True
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if tag in self._IGNORED_TAGS and self._ignored_depth:
+            self._ignored_depth -= 1
+        elif tag == "title":
+            self._in_title = False
+
+    def handle_data(self, data: str) -> None:
+        if self._ignored_depth:
+            return
+        if self._in_title:
+            self._title_parts.append(data)
+        self._text.append(data)
+
+    def extracted(self) -> tuple[Optional[str], str]:
+        normalize = lambda value: re.sub(r"\s+", " ", value).strip()
+        title = normalize(" ".join(self._title_parts)) or None
+        return title, normalize(" ".join(self._text))
+
+
+def _is_unsafe_ip(address: Union[ipaddress.IPv4Address, ipaddress.IPv6Address]) -> bool:
+    return (
+        address.is_loopback
+        or address.is_private
+        or address.is_link_local
+        or address.is_multicast
+        or address.is_unspecified
+        or address.is_reserved
+        or not address.is_global
+    )
+
+
+def _resolve_public_addresses(hostname: str, port: int) -> List[str]:
+    try:
+        resolved = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise HTTPException(status_code=502, detail="Unable to resolve URL host") from exc
+    addresses = sorted({item[4][0] for item in resolved})
+    if not addresses:
+        raise HTTPException(status_code=502, detail="Unable to resolve URL host")
+    for raw_address in addresses:
+        try:
+            address = ipaddress.ip_address(raw_address)
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="URL host resolved to an invalid address") from exc
+        if _is_unsafe_ip(address):
+            raise HTTPException(status_code=400, detail="URL host is not publicly routable")
+    return addresses
+
+
+def _validate_public_url(value: str) -> str:
+    url = value.strip()
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise HTTPException(status_code=400, detail="URL must use http or https and include a hostname")
+    if parsed.username is not None or parsed.password is not None:
+        raise HTTPException(status_code=400, detail="URL credentials are not allowed")
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="URL port is invalid") from exc
+    if port is not None and not 0 < port < 65536:
+        raise HTTPException(status_code=400, detail="URL port is invalid")
+
+    try:
+        literal_ip = ipaddress.ip_address(parsed.hostname)
+    except ValueError:
+        literal_ip = None
+    if literal_ip is not None:
+        if _is_unsafe_ip(literal_ip):
+            raise HTTPException(status_code=400, detail="URL host is not publicly routable")
+        return url
+
+    _resolve_public_addresses(parsed.hostname, port or (443 if parsed.scheme == "https" else 80))
+    return url
+
+
+def _extract_imported_job_description(content_type: str, body: bytes) -> tuple[Optional[str], str]:
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    try:
+        text = body.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=422, detail="Job post content must be UTF-8 text") from exc
+
+    if media_type == "text/plain":
+        job_description = re.sub(r"\s+", " ", text).strip()
+        title = None
+    elif media_type in {"text/html", "application/xhtml+xml"}:
+        parser = _ReadableTextExtractor()
+        parser.feed(text)
+        parser.close()
+        title, job_description = parser.extracted()
+    else:
+        raise HTTPException(status_code=415, detail="Job post URL returned an unsupported content type")
+
+    if len(re.sub(r"\s+", "", job_description)) < 50:
+        raise HTTPException(status_code=422, detail="The page did not contain a useful job description")
+    return title, job_description
+
+
+def _fetch_public_job_description(url: str) -> tuple[Optional[str], str]:
+    parsed = urlsplit(url)
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    addresses = _resolve_public_addresses(parsed.hostname or "", port)
+    request_target = parsed.path or "/"
+    if parsed.query:
+        request_target = f"{request_target}?{parsed.query}"
+    host_header = parsed.hostname or ""
+    if parsed.port and parsed.port not in {80, 443}:
+        host_header = f"{host_header}:{parsed.port}"
+    headers = {
+        "Accept": "text/html, text/plain",
+        "Host": host_header,
+        "User-Agent": "TayariJobDescriptionImporter/1.0",
+    }
+
+    last_error: Optional[Exception] = None
+    for address in addresses:
+        connection: Union[http.client.HTTPConnection, _PinnedHTTPSConnection]
+        if parsed.scheme == "https":
+            connection = _PinnedHTTPSConnection(address, port, parsed.hostname or "", JOB_DESCRIPTION_IMPORT_TIMEOUT_SECONDS)
+        else:
+            connection = http.client.HTTPConnection(address, port, timeout=JOB_DESCRIPTION_IMPORT_TIMEOUT_SECONDS)
+        try:
+            connection.request("GET", request_target, headers=headers)
+            response = connection.getresponse()
+            if 300 <= response.status < 400:
+                raise HTTPException(status_code=400, detail="Redirects are not allowed for job-post imports")
+            if response.status < 200 or response.status >= 300:
+                raise HTTPException(status_code=502, detail="Unable to fetch the job post")
+            content_type = response.getheader("Content-Type", "")
+            if not content_type:
+                raise HTTPException(status_code=415, detail="Job post URL did not provide a supported text content type")
+            content_length = response.getheader("Content-Length")
+            if content_length and content_length.isdigit() and int(content_length) > MAX_IMPORTED_JOB_DESCRIPTION_BYTES:
+                raise HTTPException(status_code=413, detail="Job post content exceeds the import size limit")
+            body = response.read(MAX_IMPORTED_JOB_DESCRIPTION_BYTES + 1)
+            if len(body) > MAX_IMPORTED_JOB_DESCRIPTION_BYTES:
+                raise HTTPException(status_code=413, detail="Job post content exceeds the import size limit")
+            return _extract_imported_job_description(content_type, body)
+        except HTTPException:
+            raise
+        except (OSError, TimeoutError, ssl.SSLError, http.client.HTTPException) as exc:
+            last_error = exc
+        finally:
+            connection.close()
+
+    raise HTTPException(status_code=502, detail="Unable to fetch the job post") from last_error
+
+
+@router.post("/api/v1/job-descriptions/import")
+async def import_job_description(payload: JobDescriptionImportRequest):
+    """Retrieve a public, readable job post after strict SSRF validation."""
+    safe_url = _validate_public_url(payload.url)
+    title, job_description = await asyncio.to_thread(_fetch_public_job_description, safe_url)
+    return {"url": safe_url, "title": title, "job_description": job_description}
 
 
 class StrategicInjectRequest(BaseModel):

@@ -1,5 +1,15 @@
 import { apiFetch } from "./client";
 
+function stableHash(input: string): string {
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return "SRC-" + Math.abs(hash).toString(36).padStart(6, "0");
+}
+
 export async function generateCoverLetter(payload: {
   resume_text: string;
   job_title: string;
@@ -145,3 +155,69 @@ export async function matchCandidateBank(questionText: string, customQa?: Record
     body: JSON.stringify({ question_text: questionText, custom_qa: customQa || {} }),
   });
 }
+
+export interface SavedArticleItem {
+  id: string;
+  title: string;
+  author: string;
+  platform: 'substack' | 'medium' | 'linkedin' | 'custom_url';
+  category: string;
+  summary: string[];
+  url: string;
+  saved_at: string;
+}
+
+export async function fetchSavedArticles(): Promise<{ success: boolean; sources: SavedArticleItem[] }> {
+  return apiFetch<{ success: boolean; sources: any[] }>("/v1/saves", {
+    method: "GET",
+  }).then(res => {
+    const formatted = (res.sources || []).map((s: any) => ({
+      id: s.id || stableHash(s.canonical_url || s.title || "unknown"),
+      title: s.title || "Saved Source",
+      author: s.author || "Unknown",
+      platform: (s.source_platform || "custom_url") as any,
+      category: s.primary_category || "General",
+      summary: s.summary_bullets || [s.raw_content || ""],
+      url: s.canonical_url || "#",
+      saved_at: s.saved_at || "Recently",
+    }));
+    return { success: true, sources: formatted };
+  });
+}
+
+export async function syncSavedPosts(platforms?: string[], url?: string): Promise<{ success: boolean; count: number; sources: SavedArticleItem[] }> {
+  return apiFetch<{ success: boolean; count: number; sources: any[] }>("/v1/saves/sync", {
+    method: "POST",
+    body: JSON.stringify({ platforms: platforms || ["substack", "medium", "linkedin"], url: url?.trim() }),
+  }).then(res => {
+    const formatted = (res.sources || []).map((s: any) => ({
+      id: s.id || stableHash(s.canonical_url || s.title || "unknown"),
+      title: s.title || "Saved Source",
+      author: s.author || "Unknown",
+      platform: (s.source_platform || "custom_url") as any,
+      category: s.primary_category || "General",
+      summary: s.summary_bullets || [s.raw_content || ""],
+      url: s.canonical_url || "#",
+      saved_at: s.saved_at || "Just now",
+    }));
+    return { success: true, count: res.count || formatted.length, sources: formatted };
+  });
+}
+
+export interface KnowledgeHubQueryResponse {
+  answer: string;
+  citations: Array<{
+    tag: string;
+    title: string;
+    author: string;
+    url: string;
+  }>;
+}
+
+export async function queryKnowledgeHub(query: string): Promise<KnowledgeHubQueryResponse> {
+  return apiFetch<KnowledgeHubQueryResponse>("/v1/knowledge-hub/query", {
+    method: "POST",
+    body: JSON.stringify({ query }),
+  });
+}
+

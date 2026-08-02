@@ -44,6 +44,11 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 		r.Post("/api/v1/privacy/check", s.handleOneStopProxy("/api/v1/privacy/check"))
 		r.Post("/api/privacy/check", s.handleOneStopProxy("/api/v1/privacy/check"))
 
+		r.Get("/api/v1/saves", s.handleOneStopProxyGET("/api/v1/saves"))
+		r.Get("/api/saves", s.handleOneStopProxyGET("/api/v1/saves"))
+		r.Post("/api/v1/saves/sync", s.handleOneStopProxy("/api/v1/saves/sync"))
+		r.Post("/api/saves/sync", s.handleOneStopProxy("/api/v1/saves/sync"))
+
 		r.Post("/api/v1/one-shot/execute", s.handleOneStopProxy("/api/v1/one-shot/execute"))
 		r.Post("/api/one-shot/execute", s.handleOneStopProxy("/api/v1/one-shot/execute"))
 
@@ -103,7 +108,7 @@ func (s *Server) handleTypstExport(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleOneStopProxyGET(endpoint string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		headers := s.getXUserHeaders(r)
-		result, err := s.AI.PostJSONWithHeaders(endpoint, nil, headers)
+		result, err := s.AI.GetJSONWithHeaders(endpoint, headers)
 		if err != nil {
 			log.Printf("[OneStopProxyGET] AI service error for %s: %v", endpoint, err)
 			w.Header().Set("Content-Type", "application/json")

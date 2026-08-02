@@ -54,8 +54,17 @@ export interface CreateJDRequest {
 }
 
 export interface AnalyzeRequest {
-  resume_id: string | number;
-  jd_id: string | number;
+  resume_id?: string | number;
+  jd_id?: string | number;
+  resume_text?: string;
+  job_description?: string;
+  custom_instructions?: string;
+}
+
+export interface ImportedJobDescription {
+  url: string;
+  title?: string;
+  job_description: string;
 }
 
 export interface APIError {

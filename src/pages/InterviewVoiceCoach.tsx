@@ -33,24 +33,67 @@ export function InterviewVoiceCoach() {
   const [analysis, setAnalysis] = useState<VoiceAnalysis | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const recognitionRef = useRef<any>(null);
+
   useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
     };
   }, []);
 
+  const transcriptRef = useRef<string>("");
+
   const startRecording = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error("Speech Recognition Not Supported", {
+        description: "Your browser does not support SpeechRecognition. Please use Chrome or Edge.",
+      });
+      return;
+    }
+
     setIsRecording(true);
     setTimerSeconds(0);
     setTranscript("");
+    transcriptRef.current = "";
     setAnalysis(null);
 
     timerRef.current = setInterval(() => {
       setTimerSeconds((prev) => prev + 1);
     }, 1000);
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+
+      recognition.onresult = (event: any) => {
+        let current = "";
+        for (let i = 0; i < event.results.length; ++i) {
+          current += event.results[i][0].transcript;
+        }
+        if (current) {
+          setTranscript(current);
+          transcriptRef.current = current;
+        }
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+    } catch (err) {
+      toast.error("Failed to start microphone", {
+        description: "Please check microphone permissions.",
+      });
+    }
 
     toast.info("Voice Recording Active", {
       description: "Speak clearly into your microphone to record your response.",
@@ -60,9 +103,15 @@ export function InterviewVoiceCoach() {
   const stopRecording = async () => {
     setIsRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+    }
 
+    const currentText = transcriptRef.current || transcript;
     const sampleTranscript =
-      transcript.trim() ||
+      currentText.trim() ||
       "In my previous position at Stripe, um, I was tasked with refactoring the payment webhooks infrastructure. Like, basically we were experiencing latency bottlenecks during peak event spikes. So I implemented a Redis queue buffer, which reduced end-to-end processing time by 45% and handled over 10 million daily webhooks.";
 
     setTranscript(sampleTranscript);

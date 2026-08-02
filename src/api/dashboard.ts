@@ -274,6 +274,7 @@ export async function deleteSave(id: string): Promise<void> {
 export interface GmailStatusResponse {
   enabled: boolean;
   connected: boolean;
+  email?: string;
   message?: string;
 }
 

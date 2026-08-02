@@ -102,6 +102,7 @@ func (s *Server) routes() {
 	s.registerCoreRoutes(s.Router)
 	s.RegisterOneStopRoutes(s.Router)
 	s.RegisterBillingRoutes(s.Router, s.Billing)
+	s.RegisterSSERoutes(s.Router)
 	s.RegisterMemoryRoutes(s.Router) // conversations + preferences + feedback (was dead)
 	s.routesMVP(s.Router)            // all 24 previously unregistered MVP handlers
 	s.routesSocial(s.Router)         // connections, shared Qs, outcome funnel (Phase 4.2)

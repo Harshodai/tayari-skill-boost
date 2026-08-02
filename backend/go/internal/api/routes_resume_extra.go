@@ -1,9 +1,11 @@
 package api
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"tayari-backend/internal/models"
 
@@ -23,45 +25,101 @@ func (s *Server) handleAnalyzeText(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve ResumeText from DB if resume_id is provided
+	req.ResumeText = strings.TrimSpace(req.ResumeText)
+	req.JobDescription = strings.TrimSpace(req.JobDescription)
+	user, authenticated := r.Context().Value(contextKeyUser).(*models.User)
+
+	// Resolve source records only for authenticated callers and only from records
+	// owned by that caller. Public text analysis must provide text directly.
 	if req.ResumeText == "" && req.ResumeID != nil {
-		var resID int
-		switch v := req.ResumeID.(type) {
-		case float64:
-			resID = int(v)
-		case string:
-			resID, _ = strconv.Atoi(v)
+		if !authenticated || user == nil {
+			s.respondError(w, http.StatusBadRequest, "resume_text is required for unauthenticated requests")
+			return
 		}
-		if resID > 0 {
-			_ = s.DB.Conn.QueryRowContext(r.Context(), "SELECT original_text FROM resumes WHERE id=$1", resID).Scan(&req.ResumeText)
+		resID := parsePositiveID(req.ResumeID)
+		if resID == 0 || s.DB == nil || s.DB.Conn == nil || s.DB.Conn.QueryRowContext(r.Context(), "SELECT original_text FROM resumes WHERE id=$1 AND user_id=$2", resID, user.ID).Scan(&req.ResumeText) != nil {
+			s.respondError(w, http.StatusBadRequest, "resume text is missing or the selected resume was not found")
+			return
 		}
+		req.ResumeText = strings.TrimSpace(req.ResumeText)
 	}
 
-	// Resolve JobDescription from DB if jd_id is provided
 	if req.JobDescription == "" && req.JDID != nil {
-		var jdID int
-		switch v := req.JDID.(type) {
-		case float64:
-			jdID = int(v)
-		case string:
-			jdID, _ = strconv.Atoi(v)
+		if !authenticated || user == nil {
+			s.respondError(w, http.StatusBadRequest, "job_description is required for unauthenticated requests")
+			return
 		}
-		if jdID > 0 {
-			_ = s.DB.Conn.QueryRowContext(r.Context(), "SELECT text FROM job_descriptions WHERE id=$1", jdID).Scan(&req.JobDescription)
+		jdID := parsePositiveID(req.JDID)
+		if jdID == 0 || s.DB == nil || s.DB.Conn == nil || s.DB.Conn.QueryRowContext(r.Context(), "SELECT text FROM job_descriptions WHERE id=$1 AND user_id=$2", jdID, user.ID.String()).Scan(&req.JobDescription) != nil {
+			s.respondError(w, http.StatusBadRequest, "job description is missing or the selected job description was not found")
+			return
 		}
+		req.JobDescription = strings.TrimSpace(req.JobDescription)
 	}
 
 	if req.ResumeText == "" {
-		req.ResumeText = "Senior Backend Software Engineer with experience in Go, Python, PostgreSQL, and Microservices."
+		s.respondError(w, http.StatusBadRequest, "resume_text is required or a valid owned resume_id must be provided")
+		return
 	}
 	if req.JobDescription == "" {
-		req.JobDescription = "Senior Backend Systems Engineer position requiring Go, Python, and cloud infrastructure experience."
+		s.respondError(w, http.StatusBadRequest, "job_description is required or a valid owned jd_id must be provided")
+		return
 	}
 
 	result, err := s.AI.PostJSON("/api/v1/resumes/analyze-text", req)
 	if err != nil || result == nil {
 		log.Printf("handleAnalyzeText: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "ai_service_unavailable")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+func parsePositiveID(value interface{}) int {
+	var id int
+	switch v := value.(type) {
+	case float64:
+		if v == float64(int(v)) {
+			id = int(v)
+		}
+	case string:
+		id, _ = strconv.Atoi(v)
+	}
+	if id < 1 {
+		return 0
+	}
+	return id
+}
+
+// handleImportJobDescription forwards a public job-post URL to the Python
+// service, which performs the security-sensitive validation and retrieval.
+func (s *Server) handleImportJobDescription(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		URL string `json:"url"`
+	}
+	if err := DecodeAndValidate(r, &req); err != nil || strings.TrimSpace(req.URL) == "" {
+		s.respondError(w, http.StatusBadRequest, "url is required")
+		return
+	}
+
+	result, err := s.AI.PostJSON("/api/v1/job-descriptions/import", map[string]string{"url": strings.TrimSpace(req.URL)})
+	if err != nil {
+		errMsg := err.Error()
+		status := http.StatusBadGateway
+		if strings.HasPrefix(errMsg, "AI service returned ") {
+			var upstreamStatus int
+			_, _ = fmt.Sscanf(errMsg, "AI service returned %d:", &upstreamStatus)
+			if upstreamStatus >= 400 && upstreamStatus < 500 {
+				status = upstreamStatus
+			}
+		}
+		log.Printf("handleImportJobDescription: AI call failed: %v", err)
+		s.respondError(w, status, errMsg)
+		return
+	}
+	if result == nil {
+		log.Printf("handleImportJobDescription: AI call returned nil result")
+		s.respondError(w, http.StatusBadGateway, "job description import failed")
 		return
 	}
 	s.respondJSON(w, http.StatusOK, result)

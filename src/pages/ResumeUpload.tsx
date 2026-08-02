@@ -33,7 +33,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { extractTextFromFile } from "@/lib/resume-parser";
 import { toast } from "sonner";
 import { resumeUploadSchema } from "@/lib/schemas";
-import { USE_SELF_HOSTED, createResume, createJD, analyzeResume, uploadResumeMultipart } from "@/api";
+import { USE_SELF_HOSTED, createResume, createJD, analyzeResume, importJobDescription, uploadResumeMultipart } from "@/api";
+import { Input } from "@/components/ui/input";
 import type { ResumeAnalysisResult } from "@/types/resume";
 import { ResumeFilePreview } from "@/components/resume/ResumeFilePreview";
 
@@ -106,6 +107,8 @@ const ResumeUpload = () => {
   const [resumeText, setResumeText] = useState<string>("");
   const [parsingError, setParsingError] = useState<string | null>(null);
   const [jobDescription, setJobDescription] = useState("");
+  const [jobPostUrl, setJobPostUrl] = useState("");
+  const [isImportingJobDescription, setIsImportingJobDescription] = useState(false);
   const [customInstructions, setCustomInstructions] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisStep, setAnalysisStep] = useState(0);
@@ -190,6 +193,7 @@ const ResumeUpload = () => {
         const result = await analyzeResume({
           resume_id: resumeId,
           jd_id: newJD.id,
+          custom_instructions: customInstructions,
         });
 
         setAnalysisStep(4);
@@ -284,6 +288,30 @@ const ResumeUpload = () => {
       setJobDescription(text);
     } catch (err) {
       console.error("Failed to paste from clipboard");
+    }
+  };
+
+  const handleImportJobDescription = async () => {
+    const url = jobPostUrl.trim();
+    if (!url) {
+      const message = "Enter a public job-post URL to import its description.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    setIsImportingJobDescription(true);
+    setError(null);
+    try {
+      const imported = await importJobDescription(url);
+      setJobDescription(imported.job_description);
+      toast.success("Job description imported.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to import the job description.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsImportingJobDescription(false);
     }
   };
 
@@ -446,7 +474,33 @@ const ResumeUpload = () => {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+<CardContent>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Label htmlFor="job-post-url" className="sr-only">
+                    Job Post URL (optional)
+                  </Label>
+                  <Input
+                    id="job-post-url"
+                    type="url"
+                    placeholder="Optional public job-post URL"
+                    value={jobPostUrl}
+                    onChange={(e) => setJobPostUrl(e.target.value)}
+                    disabled={isImportingJobDescription}
+                  />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleImportJobDescription}
+                  disabled={isImportingJobDescription}
+                  className="sm:shrink-0"
+                >
+                  {isImportingJobDescription ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Clipboard className="w-4 h-4 mr-2" />}
+                  Import URL
+                </Button>
+              </div>
+              <p className="text-muted-foreground text-xs mt-2 mb-4">
+                Imports readable text from a public page. Login, CAPTCHA, robots, and job-board access controls cannot be bypassed.
+              </p>
               <Textarea
                 placeholder="Paste the job description here...
 
