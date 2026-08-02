@@ -35,3 +35,28 @@ def test_token_compressor():
     res = TokenCompressor.compress_text(long_text, max_chars=1000)
     assert res["is_compressed"] is True
     assert "[... Context Compressed ...]" in res["compressed_text"]
+    assert res["compressed_length"] <= 1000
+
+
+def test_token_compressor_preserves_head_and_tail_within_budget():
+    long_text = "H" * 1200 + "M" * 600 + "T" * 1200
+    res = TokenCompressor.compress_text(long_text, max_chars=2000)
+    assert res["compressed_length"] <= 2000
+    assert res["compressed_text"].startswith("H")
+    assert res["compressed_text"].endswith("T")
+    assert "M" not in res["compressed_text"]
+
+
+def test_token_compressor_budget_guard_small_max_chars():
+    long_text = "A" * 3000
+    res = TokenCompressor.compress_text(long_text, max_chars=30)
+    assert res["compressed_length"] <= 30
+    assert res["compressed_text"] == long_text[:30]
+
+
+def test_token_compressor_short_text_unchanged():
+    short_text = "B" * 10
+    res = TokenCompressor.compress_text(short_text, max_chars=2000)
+    assert res["is_compressed"] is False
+    assert res["compressed_text"] == short_text
+    assert res["compressed_length"] == 10
