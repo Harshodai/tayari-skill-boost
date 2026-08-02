@@ -152,3 +152,27 @@ def test_pipeline_fails_closed_when_ghost_stage_crashes(monkeypatch):
 
     assert res["ghost_job_risk"]["status"] == "failed"
     assert res["pipeline_status"] == "BLOCKED_HIGH_GHOST_JOB_RISK"
+
+
+def test_pipeline_rejects_draft_missing_draft_source_marker(monkeypatch):
+    async def markerless_drafter(resume_text, jd_text, target_company="", target_role="", max_iterations=2):
+        return {
+            "tailored_cover_letter": f"Dear Hiring Manager at {target_company}, I am a strong fit for the {target_role} role.",
+            "tailored_resume_bullets": ["Led technical initiatives delivering high reliability."],
+            "reviewer_score": 92,
+            "reviewer_feedback": "Excellent alignment.",
+            "iterations_run": 1,
+            "ats_parseable": True,
+        }
+
+    monkeypatch.setattr(
+        end_to_end_pipeline.DrafterReviewerEngine,
+        "generate_tailored_application",
+        markerless_drafter,
+    )
+
+    res = _run_pipeline()
+
+    assert res["tailored_cover_letter"] != ""
+    assert res["factually_verified_bullets"] == []
+    assert res["pipeline_status"] == "BLOCKED_UNVERIFIED_CLAIMS"

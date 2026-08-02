@@ -93,10 +93,12 @@ class EndToEndPipelineEngine:
                     target_role=target_role,
                 )
             )
-            if draft.get("draft_source") == "fallback":
-                # ponytail: a fallback draft is fabricated content grounded in
-                # nothing; treat the stage as failed rather than marking it
-                # verified — an empty bullet list blocks downstream.
+            if draft.get("draft_source") != "llm":
+                # ponytail: defensive allowlist — only an explicit "llm"
+                # marker is accepted. A fallback draft OR a missing/None
+                # draft_source is fabricated content grounded in nothing;
+                # treat the stage as failed rather than marking it verified —
+                # an empty bullet list blocks downstream.
                 logger.warning("Drafter-Reviewer produced a fallback draft; rejecting fabricated content")
                 cover_letter = _failure_cover_letter(company_name, target_role)
                 tailored_bullets = []
