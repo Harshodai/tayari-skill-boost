@@ -24,7 +24,7 @@ from app.services.ats_engine import (
     TECH_SKILL_WHITELIST,
     STOPWORDS,
 )
-from app.services.llm_service import llm_complete, extract_json
+from app.services.llm_service import extract_json
 from app.guardrails import PipelineGate
 from app.telemetry import stage_complete, stage_fail
 from app.parsers.document_parser import ResumeParser
@@ -217,9 +217,13 @@ def _analyze_star_scores(resume_text: str) -> list[dict]:
 async def _humanize_pass(optimized_text: str) -> str:
     """Phase 4: Run a humanization pass to remove AI-sounding prose."""
     try:
-        result = await llm_complete(
-            HUMANIZE_SYSTEM,
-            f"Please humanize this resume:\n\n{optimized_text[:8000]}",
+        # ponytail: chunked via long_context (spec 2026-08-02) — full resume
+        # reaches the LLM instead of head-slicing at [:8000].
+        result = await LongContextClient().map_reduce(
+            optimized_text,
+            f"Please humanize this resume:\n\n{LONG_TEXT_PLACEHOLDER}",
+            kind="resume",
+            system=HUMANIZE_SYSTEM,
             tier="smart",
             max_tokens=3000,
             temperature=0.4,
@@ -232,7 +236,7 @@ async def _humanize_pass(optimized_text: str) -> str:
 
 
 from app.schemas import OptimizedResumePayloadSchema
-from app.services.llm_service import llm_json
+from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LongContextClient
 
 
 def _parse_marked_output(raw: str):
@@ -418,7 +422,10 @@ async def optimize_with_reflection(
     jd = (job_description or "").strip() or None
     context = ""
     if jd:
-        context += f"\n\nTARGET JOB DESCRIPTION:\n{jd[:6000]}"
+        # ponytail: chunked via long_context (spec 2026-08-02) — JD condenses
+        # in parallel instead of head-slicing at [:6000]; short JDs hit the
+        # fast path and pass through byte-identical.
+        context += f"\n\nTARGET JOB DESCRIPTION:\n{await LongContextClient().condense(jd, kind='jd')}"
     if target_role:
         context += f"\n\nTARGET ROLE: {target_role[:120]}"
     if job_label:
@@ -440,8 +447,10 @@ async def optimize_with_reflection(
     semantic_before = semantic_similarity_score(resume_text, jd) if jd else None
 
     # ---- Phase 3/LLM: GENERATE + STAR rewrite ---------------------------
-    user_msg = (
-        f"RESUME:\n{resume_text[:9000]}{context}\n\n"
+    # ponytail: chunked via long_context (spec 2026-08-02) — resume reaches the
+    # LLM in full (map-reduce) instead of head-slicing at [:9000].
+    user_template = (
+        f"RESUME:\n{LONG_TEXT_PLACEHOLDER}{context}\n\n"
         "Rewrite this resume to maximize its ATS score and recruiter appeal"
         + (" for the target job" if (jd or target_role or job_label) else "") + ". Rules:\n"
         "- Keep ALL facts truthful (same employers, titles, dates)\n"
@@ -451,9 +460,11 @@ async def optimize_with_reflection(
         "- Vary action verbs across bullets\n"
     )
     try:
-        res_obj: OptimizedResumePayloadSchema = await llm_json(
-            OPTIMIZE_SYSTEM,
-            user_msg,
+        res_obj: OptimizedResumePayloadSchema = await LongContextClient().map_reduce_json(
+            resume_text,
+            user_template,
+            kind="resume",
+            system=OPTIMIZE_SYSTEM,
             response_model=OptimizedResumePayloadSchema,
             tier="smart",
             max_tokens=4000,
@@ -489,16 +500,20 @@ async def optimize_with_reflection(
 
         logger.info("Reflexion pass triggered (score %s < %s, aligned: %s)",
                     heuristic["score"], SCORE_TARGET, alignment_report["is_aligned"])
-        refine_msg = (
-            f"You previously optimized this resume:\n{optimized[:9000]}{context}\n\n"
+        # ponytail: chunked via long_context (spec 2026-08-02) — reflexion
+        # pass sees the full prior output instead of [:9000].
+        refine_template = (
+            f"You previously optimized this resume:\n{LONG_TEXT_PLACEHOLDER}{context}\n\n"
             f"An ATS scan of YOUR version found these concrete gaps:\n{feedback}\n\n"
             "Produce an improved version that fixes every gap above while staying "
             "100% truthful. Keep everything that already works."
         )
         try:
-            res_obj2: OptimizedResumePayloadSchema = await llm_json(
-                OPTIMIZE_SYSTEM,
-                refine_msg,
+            res_obj2: OptimizedResumePayloadSchema = await LongContextClient().map_reduce_json(
+                optimized,
+                refine_template,
+                kind="resume",
+                system=OPTIMIZE_SYSTEM,
                 response_model=OptimizedResumePayloadSchema,
                 tier="smart",
                 max_tokens=4000,
