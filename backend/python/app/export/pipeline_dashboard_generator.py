@@ -7,6 +7,7 @@ showing application conversion funnels, stage breakdowns, and response rate metr
 
 from __future__ import annotations
 
+import html
 import logging
 from typing import Any, Dict, List
 
@@ -76,10 +77,10 @@ class PipelineDashboardGenerator:
         <tbody>
 """
         for app in applications:
-            company = app.get("company", "N/A")
-            role = app.get("role", "N/A")
-            status = app.get("status", "submitted")
-            date = app.get("last_updated_at", "N/A")
+            company = html.escape(app.get("company", "N/A"))
+            role = html.escape(app.get("role", "N/A"))
+            status = html.escape(app.get("status", "submitted"))
+            date = html.escape(app.get("last_updated_at", "N/A"))
             html_content += f"""
             <tr>
                 <td><strong>{company}</strong></td>
