@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+MATCH_RATIO_THRESHOLD = 0.5
 
 
 class RoleMatchResultSchema(BaseModel):
@@ -24,6 +27,14 @@ class RoleMatchResultSchema(BaseModel):
     is_semantically_matched: bool = Field(...)
     matched_concepts: List[str] = Field(default_factory=list)
     source: str = Field("SCHEMA_BASED_EXTRACTION")
+
+
+def _unwrap_markdown_fence(text: str) -> str:
+    """Strip a Markdown ```json ... ``` wrapper from an LLM response, if present."""
+    match = re.search(r"```(?:json)?[ \t]*\n?(.*?)```", text, re.DOTALL | re.IGNORECASE)
+    if match is not None:
+        return match.group(1).strip()
+    return text.strip()
 
 
 class SemanticRoleMatcher:
@@ -51,12 +62,15 @@ Determine if the job description semantically represents a {target_role} role. R
 {{"canonical_role": "<canonical role>", "is_semantically_matched": true/false, "matched_concepts": ["concept1", "concept2"], "confidence_score": 0.0-1.0}}"""
             try:
                 response = llm_client.complete(prompt)
-                parsed = json.loads(response)
+                parsed = json.loads(_unwrap_markdown_fence(response))
+                # ponytail: confidence must be numeric and clamped to 0.0-1.0 before scaling to a percentage
+                confidence = float(parsed.get("confidence_score", 0.9))
+                confidence = min(max(confidence, 0.0), 1.0)
                 result = RoleMatchResultSchema(
                     target_role_query=target_role,
                     actual_job_title=job_title,
                     canonical_role_classification=parsed.get("canonical_role", target_role),
-                    semantic_match_score=round(float(parsed.get("confidence_score", 0.9)) * 100, 2),
+                    semantic_match_score=round(confidence * 100, 2),
                     is_semantically_matched=bool(parsed.get("is_semantically_matched", True)),
                     matched_concepts=parsed.get("matched_concepts", []),
                     source="LLM_DYNAMIC"
@@ -70,8 +84,16 @@ Determine if the job description semantically represents a {target_role} role. R
         target_tokens = {w for w in target_clean.translate(str.maketrans("", "", "!@#$%^&*()_+-=[]{}|;:'\",.<>/?\\")).split() if len(w) >= 3}
 
         matched_terms = list(target_tokens.intersection(desc_tokens))
-        is_matched = (len(matched_terms) > 0) or (target_clean in desc_clean) or (target_clean in title_clean)
-        similarity_score = 90.0 if is_matched else 40.0
+        if len(target_tokens) == 0:
+            # ponytail: degenerate target (e.g. "R&D") tokenizes to nothing — fall back to substring checks only
+            is_matched = (target_clean in desc_clean) or (target_clean in title_clean)
+            ratio = 1.0 if is_matched else 0.0
+        else:
+            ratio = len(matched_terms) / len(target_tokens)
+            # ponytail: a single matching term must not be sufficient — need a strict majority of target terms
+            is_matched = ratio > MATCH_RATIO_THRESHOLD
+        # ponytail: score scales with token ratio (40 baseline) capped at 95 — honest partial credit
+        similarity_score = round(min(95.0, 40.0 + ratio * 100), 2)
 
         result = RoleMatchResultSchema(
             target_role_query=target_role,

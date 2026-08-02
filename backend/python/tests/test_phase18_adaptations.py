@@ -8,7 +8,7 @@ def test_end_to_end_pipeline_engine():
     res = EndToEndPipelineEngine.process_job_application(
         target_role="Data Engineer",
         job_title="Analytics Platform Wrangler",
-        job_description="Building Data Engineering ETL pipelines with PySpark, Airflow, and Snowflake in Python and SQL.",
+        job_description="Hiring a Data Engineer to build ETL pipelines with PySpark, Airflow, and Snowflake in Python and SQL.",
         candidate_skills=["Python", "SQL", "Airflow", "PySpark"],
         verified_candidate_facts=["Python", "SQL", "Airflow", "PySpark"],
         company_name="Acme Corp"
