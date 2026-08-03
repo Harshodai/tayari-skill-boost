@@ -12,7 +12,7 @@
   "mcp": {
     "server": {
       "name": "tayari-mcp",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "title": "Tayari"
     },
     "tools": [
@@ -33,9 +33,9 @@
         "outputSchema": null
       },
       {
-        "name": "search_saved_jobs",
-        "title": "Search saved jobs",
-        "description": "Search the signed-in user's saved jobs by title, company, or keyword.",
+        "name": "get_pipeline",
+        "title": "Get application pipeline",
+        "description": "List all job applications in the user's pipeline, optionally filtered by stage.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -45,21 +45,24 @@
           "$schema": "http://json-schema.org/draft-07/schema#",
           "type": "object",
           "properties": {
-            "query": {
+            "stage": {
               "type": "string",
-              "minLength": 1,
-              "description": "Text to match against title/company/description"
+              "enum": [
+                "saved",
+                "applied",
+                "screening",
+                "interview",
+                "offer",
+                "rejected",
+                "accepted"
+              ]
             },
             "limit": {
-              "description": "Max rows (default 20)",
               "type": "integer",
               "minimum": 1,
-              "maximum": 50
+              "maximum": 100
             }
-          },
-          "required": [
-            "query"
-          ]
+          }
         },
         "outputSchema": null
       },
@@ -94,6 +97,37 @@
               "maximum": 100
             }
           }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "search_saved_jobs",
+        "title": "Search saved jobs",
+        "description": "Search the signed-in user's saved jobs by title, company, or keyword.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Text to match against title/company/description"
+            },
+            "limit": {
+              "description": "Max rows (default 20)",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          "required": [
+            "query"
+          ]
         },
         "outputSchema": null
       },
@@ -143,6 +177,339 @@
           "required": [
             "title",
             "company"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "add_to_pipeline",
+        "title": "Add job to pipeline",
+        "description": "Add a job to the user's application pipeline (kanban board).",
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Job title"
+            },
+            "company": {
+              "type": "string",
+              "description": "Company name"
+            },
+            "url": {
+              "description": "Job listing URL",
+              "type": "string",
+              "format": "uri"
+            },
+            "location": {
+              "type": "string"
+            },
+            "description": {
+              "description": "Job description text",
+              "type": "string"
+            },
+            "stage": {
+              "default": "saved",
+              "type": "string",
+              "enum": [
+                "saved",
+                "applied",
+                "screening"
+              ]
+            }
+          },
+          "required": [
+            "title",
+            "company"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "optimize_resume",
+        "title": "Optimize resume",
+        "description": "Tailor the user's resume to a specific job description using AI. Returns the optimized resume text and a list of changes made.",
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "resume_id": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "ID of the resume to optimize"
+            },
+            "job_description": {
+              "type": "string",
+              "minLength": 20,
+              "description": "The target job description text"
+            }
+          },
+          "required": [
+            "resume_id",
+            "job_description"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_ats_score",
+        "title": "Get ATS score",
+        "description": "Score a resume against a job description. Returns overall_score, match_score, missing_skills, and recommendations.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "resume_text": {
+              "type": "string",
+              "minLength": 10,
+              "description": "Resume text to analyze"
+            },
+            "job_description": {
+              "type": "string",
+              "minLength": 20,
+              "description": "Job description to score against"
+            }
+          },
+          "required": [
+            "resume_text",
+            "job_description"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "generate_cover_letter",
+        "title": "Generate cover letter",
+        "description": "Generate a tailored cover letter for a job application based on the user's resume.",
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "resume_id": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Resume ID to base the cover letter on"
+            },
+            "job_description": {
+              "type": "string",
+              "minLength": 20,
+              "description": "Target job description"
+            },
+            "company_name": {
+              "description": "Company name for personalization",
+              "type": "string"
+            },
+            "tone": {
+              "type": "string",
+              "enum": [
+                "professional",
+                "friendly",
+                "confident"
+              ]
+            }
+          },
+          "required": [
+            "resume_id",
+            "job_description"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_interview_questions",
+        "title": "Get interview questions",
+        "description": "Generate likely interview questions for a role and company, with guidance on how to answer each one.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "resume_id": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Resume ID to tailor questions to"
+            },
+            "job_description": {
+              "type": "string",
+              "minLength": 20,
+              "description": "Target job description"
+            },
+            "company": {
+              "description": "Company name for company-specific questions",
+              "type": "string"
+            }
+          },
+          "required": [
+            "resume_id",
+            "job_description"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_skill_gaps",
+        "title": "Get skill gaps",
+        "description": "Analyze skill gaps between the user's resume and a target role or job description. Returns matched skills, missing skills, and a learning path.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "resume_id": {
+              "description": "Resume ID (uses latest if omitted)",
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "job_description_text": {
+              "description": "Job description text",
+              "type": "string"
+            },
+            "target_role": {
+              "description": "Target role e.g. 'Staff Engineer'",
+              "type": "string"
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_market_salary",
+        "title": "Get market salary",
+        "description": "Get salary benchmarks for a role in a given location. Returns p25, median, p75, and total compensation breakdown.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "target_role": {
+              "type": "string",
+              "description": "Job title/role e.g. 'Senior Software Engineer'"
+            },
+            "location": {
+              "default": "US",
+              "description": "Location e.g. 'San Francisco, CA' or country code",
+              "type": "string"
+            }
+          },
+          "required": [
+            "target_role"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "check_company",
+        "title": "Check company",
+        "description": "Look up company information including culture signals, review patterns, ATS used, and known hiring contacts.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "company_name": {
+              "type": "string",
+              "description": "Company name to look up"
+            },
+            "job_url": {
+              "description": "Optional job posting URL for more context",
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "required": [
+            "company_name"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "report_outcome",
+        "title": "Report application outcome",
+        "description": "Record the real-world outcome of a job application (recruiter replied, got interview, received offer, etc.). Used to improve autopilot accuracy.",
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "application_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Application UUID"
+            },
+            "recruiter_reply": {
+              "type": "boolean"
+            },
+            "phone_screen": {
+              "type": "boolean"
+            },
+            "technical_interview": {
+              "type": "boolean"
+            },
+            "final_interview": {
+              "type": "boolean"
+            },
+            "offer_received": {
+              "type": "boolean"
+            },
+            "offer_accepted": {
+              "type": "boolean"
+            },
+            "salary_offered": {
+              "description": "Offered salary in USD",
+              "type": "number"
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "application_id"
           ]
         },
         "outputSchema": null
