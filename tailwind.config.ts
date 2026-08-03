@@ -135,6 +135,37 @@ export default {
         "shimmer": "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%)",
       },
       keyframes: {
+        "tay-bob": {
+          "0%, 100%": { transform: "translateY(0) rotate(0deg)" },
+          "50%": { transform: "translateY(-4px) rotate(-1.5deg)" },
+        },
+        "tay-breathe": {
+          "0%, 100%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.03)" },
+        },
+        "tay-hop": {
+          "0%, 100%": { transform: "translateY(0) scale(1)" },
+          "35%": { transform: "translateY(-12px) scale(1.05)" },
+          "70%": { transform: "translateY(0) scale(0.96)" },
+        },
+        "tay-tilt": {
+          "0%, 100%": { transform: "rotate(-3deg)" },
+          "50%": { transform: "rotate(3deg)" },
+        },
+        "tay-wave": {
+          "0%, 100%": { transform: "rotate(-14deg)" },
+          "50%": { transform: "rotate(18deg)" },
+        },
+        "tay-pulse": {
+          "0%, 100%": { opacity: "0.45", transform: "scale(0.9)" },
+          "50%": { opacity: "1", transform: "scale(1.15)" },
+        },
+        "tay-float": {
+          "0%": { opacity: "0", transform: "translateY(4px)" },
+          "40%": { opacity: "1" },
+          "100%": { opacity: "0", transform: "translateY(-8px)" },
+        },
+
         "accordion-down": {
           from: { height: "0" },
           to: { height: "var(--radix-accordion-content-height)" },
