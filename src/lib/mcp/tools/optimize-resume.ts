@@ -19,7 +19,7 @@ export default defineTool({
         body: { job_description },
         timeoutMs: REQUEST_TIMEOUT_MS,
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }

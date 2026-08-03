@@ -17,7 +17,7 @@ export default defineTool({
       const data = await callApi(ctx, "/api/v1/career-intelligence/salary-benchmark", {
         body: { target_role, location },
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }
