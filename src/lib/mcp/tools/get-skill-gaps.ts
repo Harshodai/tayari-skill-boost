@@ -28,7 +28,7 @@ export default defineTool({
           target_role: args.target_role,
         },
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }

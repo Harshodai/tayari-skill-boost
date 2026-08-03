@@ -131,10 +131,11 @@ export const settings = {
 } as const;
 
 export const getNavLinks = () => {
+  const featureMap = features as unknown as Record<string, boolean | undefined>;
   return CONFIG.links.filter(link => {
     if (!link.feature) return true;
-    // @ts-expect-error — CONFIG.links may reference a feature key this build's
-    // feature set doesn't define; unknown features are disabled.
-    return features[link.feature];
+    // CONFIG.links may reference a feature key this build's feature set
+    // doesn't define; unknown features are disabled.
+    return featureMap[link.feature] ?? false;
   }).map(l => ({ label: l.label, href: l.href }));
 };

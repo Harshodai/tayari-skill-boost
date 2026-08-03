@@ -17,7 +17,7 @@ export default defineTool({
       const data = await callApi(ctx, "/api/v1/analyze", {
         body: { resume_text, job_description },
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }
