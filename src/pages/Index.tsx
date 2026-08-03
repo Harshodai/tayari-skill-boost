@@ -7,6 +7,7 @@ import {
   SocialProofSection,
   CTASection,
 } from "@/components/landing";
+import { TayariPet } from "@/components/pet";
 import { features, settings } from "@/config/features";
 
 const Index = () => {
