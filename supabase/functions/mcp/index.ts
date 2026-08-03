@@ -209,7 +209,7 @@ var optimize_resume_default = defineTool5({
         body: { job_description },
         timeoutMs: REQUEST_TIMEOUT_MS
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }
@@ -234,7 +234,7 @@ var get_ats_score_default = defineTool6({
       const data = await callApi(ctx, "/api/v1/analyze", {
         body: { resume_text, job_description }
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }
@@ -261,7 +261,7 @@ var generate_cover_letter_default = defineTool7({
       const data = await callApi(ctx, "/api/v1/cover-letter/generate", {
         body: { resume_id, job_description, company_name, tone }
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }
@@ -322,7 +322,7 @@ var add_to_pipeline_default = defineTool9({
       const data = await callApi(ctx, "/api/v1/extension/capture", {
         body: { title, company, url, location, description, stage, add_to_board: true }
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }
@@ -348,7 +348,7 @@ var get_interview_questions_default = defineTool10({
       const data = await callApi(ctx, "/api/v1/interview/prep", {
         body: { resume_id, job_description, company }
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }
@@ -381,7 +381,7 @@ var get_skill_gaps_default = defineTool11({
           target_role: args.target_role
         }
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }
@@ -406,7 +406,7 @@ var get_market_salary_default = defineTool12({
       const data = await callApi(ctx, "/api/v1/career-intelligence/salary-benchmark", {
         body: { target_role, location }
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }
@@ -431,7 +431,7 @@ var check_company_default = defineTool13({
       const data = await callApi(ctx, "/api/v1/agent-reach/doctor", {
         body: { company: company_name, url: job_url }
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }
@@ -466,7 +466,7 @@ var report_outcome_default = defineTool14({
       const data = await callApi(ctx, `/api/v1/applications/${application_id}/outcome`, {
         body: rest
       });
-      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { data } };
     } catch (err) {
       return toolError(err instanceof Error ? err.message : String(err));
     }

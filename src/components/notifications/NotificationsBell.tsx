@@ -25,7 +25,7 @@ export function NotificationsBell() {
       }));
   }, [runs]);
 
-  const unread = items.filter((i) => i.status === "completed" || i.status === "done").length;
+  const unread = items.filter((i) => i.status === "done").length;
 
   return (
     <DropdownMenu>
@@ -58,7 +58,7 @@ export function NotificationsBell() {
                   <span
                     className={cn(
                       "rounded-full px-1.5 py-0.5 text-[10px] capitalize",
-                      it.status === "completed" || it.status === "done"
+                      it.status === "done"
                         ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                         : it.status === "failed"
                         ? "bg-destructive/15 text-destructive"
