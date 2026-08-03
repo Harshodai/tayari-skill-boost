@@ -25,6 +25,8 @@ const Index = () => {
       <SocialProofSection />
 
       <CTASection />
+
+      <TayariPet />
     </Layout>
   );
 };
