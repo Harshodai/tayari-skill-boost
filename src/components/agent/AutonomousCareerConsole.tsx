@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfile, apiFetch } from '@/api';
+import { useToast } from '@/hooks/use-toast';
 
 export const AutonomousCareerConsole: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -66,6 +67,7 @@ export const AutonomousCareerConsole: React.FC = () => {
   };
 
   const { user } = useAuth();
+  const { toast } = useToast();
 
   // Dynamic state variables
   const [resumeText, setResumeText] = useState<string>("");
@@ -73,6 +75,20 @@ export const AutonomousCareerConsole: React.FC = () => {
   const [jobUrlsInput, setJobUrlsInput] = useState<string>("");
   const [candidateName, setCandidateName] = useState<string>(user?.user_metadata?.full_name || "");
   const [candidateEmail, setCandidateEmail] = useState<string>(user?.email || "");
+  const [outreachError, setOutreachError] = useState<string | null>(null);
+  const [copilotError, setCopilotError] = useState<string | null>(null);
+
+  const [negotiationOffer, setNegotiationOffer] = useState<string>("");
+  const [negotiationRole, setNegotiationRole] = useState<string>("");
+  const [negotiationLocation, setNegotiationLocation] = useState<string>("");
+  const [negotiationCompany, setNegotiationCompany] = useState<string>("");
+
+  const [outreachCompany, setOutreachCompany] = useState<string>("");
+  const [outreachRecruiter, setOutreachRecruiter] = useState<string>("");
+  const [outreachJobTitle, setOutreachJobTitle] = useState<string>("");
+
+  const [copilotQuestion, setCopilotQuestion] = useState<string>("");
+  const [copilotRole, setCopilotRole] = useState<string>("");
 
   useEffect(() => {
     if (user) {
@@ -157,15 +173,24 @@ export const AutonomousCareerConsole: React.FC = () => {
   };
 
   const handleAINegotiate = async () => {
+    const offer = parseInt(negotiationOffer, 10);
+    if (!negotiationRole || !offer || offer <= 0) {
+      toast({
+        title: 'Missing negotiation details',
+        description: 'Enter a target role and a positive base offer.',
+        variant: 'destructive'
+      });
+      return;
+    }
     setLoading(true);
     try {
       const data = await apiFetch<any>('/v1/ai/agent/career/ai-negotiate', {
         method: 'POST',
         body: JSON.stringify({
-          current_offer: 190000,
-          target_role: 'Staff Systems Architect',
-          location: 'San Francisco, CA',
-          company: 'Anthropic'
+          current_offer: offer,
+          target_role: negotiationRole,
+          location: negotiationLocation,
+          company: negotiationCompany
         })
       });
       if (data && data.success) setAiNegotiationResult(data.data);
@@ -177,41 +202,75 @@ export const AutonomousCareerConsole: React.FC = () => {
   };
 
   const handleOutreach = async () => {
+    if (!outreachCompany || !outreachRecruiter || !outreachJobTitle) {
+      toast({
+        title: 'Missing outreach details',
+        description: 'Enter the company, recruiter name, and job title.',
+        variant: 'destructive'
+      });
+      return;
+    }
     setLoading(true);
+    setOutreachError(null);
     try {
       const res = await fetch('/api/v1/ai/agent/career/outreach', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          company: 'Stripe',
-          recruiter_name: 'Sarah Jenkins',
-          job_title: 'Staff Backend Architect'
+          company: outreachCompany,
+          recruiter_name: outreachRecruiter,
+          job_title: outreachJobTitle
         })
       });
       const data = await res.json();
-      if (data.success) setOutreachResult(data.data);
+      if (data.success) {
+        setOutreachResult(data.data);
+      } else {
+        const message = data.error || 'Outreach request failed';
+        setOutreachError(message);
+        toast({ title: 'Outreach failed', description: message, variant: 'destructive' });
+      }
     } catch (e) {
-      console.error(e);
+      const message = e instanceof Error ? e.message : 'Outreach request failed';
+      setOutreachError(message);
+      toast({ title: 'Outreach failed', description: message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
 
   const handleCopilot = async () => {
+    if (!copilotQuestion || !copilotRole) {
+      toast({
+        title: 'Missing copilot details',
+        description: 'Enter the interview question and target role.',
+        variant: 'destructive'
+      });
+      return;
+    }
     setLoading(true);
+    setCopilotError(null);
     try {
       const res = await fetch('/api/v1/ai/agent/career/copilot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          question: 'How do you handle zero-downtime database migrations under high write traffic?',
-          role: 'Principal Architect'
+          question: copilotQuestion,
+          role: copilotRole
         })
       });
       const data = await res.json();
-      if (data.success) setCopilotResult(data.data);
+      if (data.success) {
+        setCopilotResult(data.data);
+      } else {
+        const message = data.error || 'Copilot request failed';
+        setCopilotError(message);
+        toast({ title: 'Copilot failed', description: message, variant: 'destructive' });
+      }
     } catch (e) {
-      console.error(e);
+      const message = e instanceof Error ? e.message : 'Copilot request failed';
+      setCopilotError(message);
+      toast({ title: 'Copilot failed', description: message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -285,36 +344,39 @@ export const AutonomousCareerConsole: React.FC = () => {
 
             {kanbanBoard && (
               <div className="grid grid-cols-1 md:grid-cols-6 gap-4 overflow-x-auto pt-2">
-                {Object.entries(kanbanBoard).map(([stage, cards]: [string, any]) => (
-                  <div key={stage} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-3 min-w-[180px]">
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-400 border-b border-slate-800 pb-2">
-                      <span>{stage.replace(/_/g, ' ')}</span>
-                      <Badge className="bg-slate-800 text-slate-200">{cards.length}</Badge>
-                    </div>
-
-                    {cards.map((cd: any) => (
-                      <div key={cd.card_id} className="p-3 rounded bg-slate-900 border border-slate-800 space-y-2 text-xs">
-                        <div className="font-bold text-slate-100">{cd.company}</div>
-                        <div className="text-[11px] text-indigo-300">{cd.role}</div>
-                        <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                          <Calendar className="w-3 h-3 text-emerald-400" /> {cd.interview_date}
-                        </div>
-                        {cd.prep_brief && (
-                          <div className="text-[10px] text-slate-500 italic">
-                            Tech: {cd.prep_brief.tech_stack?.join(', ') || 'Custom Prep'}
-                          </div>
-                        )}
-                        <div className="flex gap-1 pt-1">
-                          {stage !== 'OFFER_STAGE' && (
-                            <Button size="sm" onClick={() => handleMoveKanbanCard(cd.card_id, 'OFFER_STAGE')} className="h-6 text-[9px] bg-purple-900 hover:bg-purple-800">
-                              Move to Offer
-                            </Button>
-                          )}
-                        </div>
+                {Object.entries(kanbanBoard).map(([stage, cards]: [string, any]) => {
+                  const stageCards = Array.isArray(cards) ? cards : [];
+                  return (
+                    <div key={stage} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-3 min-w-[180px]">
+                      <div className="flex justify-between items-center text-xs font-bold text-slate-400 border-b border-slate-800 pb-2">
+                        <span>{stage.replace(/_/g, ' ')}</span>
+                        <Badge className="bg-slate-800 text-slate-200">{stageCards.length}</Badge>
                       </div>
-                    ))}
-                  </div>
-                ))}
+
+                      {stageCards.map((cd: any) => (
+                        <div key={cd.card_id} className="p-3 rounded bg-slate-900 border border-slate-800 space-y-2 text-xs">
+                          <div className="font-bold text-slate-100">{cd.company}</div>
+                          <div className="text-[11px] text-indigo-300">{cd.role}</div>
+                          <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-emerald-400" /> {cd.interview_date}
+                          </div>
+                          {cd.prep_brief && (
+                            <div className="text-[10px] text-slate-500 italic">
+                              Tech: {cd.prep_brief.tech_stack?.join(', ') || 'Custom Prep'}
+                            </div>
+                          )}
+                          <div className="flex gap-1 pt-1">
+                            {stage !== 'OFFER_STAGE' && (
+                              <Button size="sm" onClick={() => handleMoveKanbanCard(cd.card_id, 'OFFER_STAGE')} className="h-6 text-[9px] bg-purple-900 hover:bg-purple-800">
+                                Move to Offer
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -328,7 +390,7 @@ export const AutonomousCareerConsole: React.FC = () => {
                 <h3 className="text-lg font-bold text-blue-400 flex items-center gap-2">
                   <Inbox className="w-5 h-5" /> Connected Recruiter Email Sync Hub
                 </h3>
-                <p className="text-xs text-slate-400">OAuth connected to Gmail (candidate@tayariskillboost.com)</p>
+                <p className="text-xs text-slate-400">OAuth connected to Gmail ({candidateEmail || 'your account'})</p>
               </div>
               <Button onClick={handleEmailSync} disabled={loading} className="bg-blue-600 hover:bg-blue-500 font-semibold">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Inbox className="w-4 h-4 mr-2" />} Scan Inbox & Sync Calendar
@@ -399,7 +461,7 @@ export const AutonomousCareerConsole: React.FC = () => {
                   <Badge className="bg-amber-900 text-amber-200">Predicted Score: {hitlProposal.predicted_ats_score_before}% → {hitlProposal.predicted_ats_score_after}%</Badge>
                 </div>
                 <div className="text-xs text-slate-300">
-                  Extracted Keywords: <span className="font-mono text-emerald-400">{hitlProposal.extracted_keywords.join(', ')}</span>
+                  Extracted Keywords: <span className="font-mono text-emerald-400">{(hitlProposal.extracted_keywords || []).join(', ')}</span>
                 </div>
                 <div className="flex gap-3 pt-2">
                   <Button size="sm" onClick={() => handleATSConfirm(true)} className="bg-emerald-600 hover:bg-emerald-500">
@@ -431,7 +493,7 @@ export const AutonomousCareerConsole: React.FC = () => {
               <Textarea
                 value={jobUrlsInput}
                 onChange={(e) => setJobUrlsInput(e.target.value)}
-                placeholder="https://boards.greenhouse.io/...\nhttps://jobs.lever.co/..."
+                placeholder={`https://boards.greenhouse.io/...\nhttps://jobs.lever.co/...`}
                 className="bg-slate-950 border-slate-800 h-28 text-xs font-mono"
               />
             </div>
@@ -463,14 +525,63 @@ export const AutonomousCareerConsole: React.FC = () => {
         {/* Tab 5: AI Compensation */}
         <TabsContent value="negotiate" className="mt-4">
           <Card className="border border-slate-800 bg-slate-900 text-slate-100 p-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-300">Current Base Offer ($)</Label>
+                <Input
+                  type="number"
+                  value={negotiationOffer}
+                  onChange={(e) => setNegotiationOffer(e.target.value)}
+                  placeholder="e.g. 190000"
+                  className="bg-slate-950 border-slate-800 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-300">Target Role</Label>
+                <Input
+                  value={negotiationRole}
+                  onChange={(e) => setNegotiationRole(e.target.value)}
+                  placeholder="e.g. Staff Systems Architect"
+                  className="bg-slate-950 border-slate-800 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-300">Location</Label>
+                <Input
+                  value={negotiationLocation}
+                  onChange={(e) => setNegotiationLocation(e.target.value)}
+                  placeholder="e.g. San Francisco, CA"
+                  className="bg-slate-950 border-slate-800 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-300">Company</Label>
+                <Input
+                  value={negotiationCompany}
+                  onChange={(e) => setNegotiationCompany(e.target.value)}
+                  placeholder="e.g. Anthropic"
+                  className="bg-slate-950 border-slate-800 text-xs font-mono"
+                />
+              </div>
+            </div>
+
             <Button onClick={handleAINegotiate} disabled={loading} className="bg-purple-600 hover:bg-purple-500 font-semibold">
-              Generate AI Salary Negotiation Strategy
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4 mr-2" />} Generate AI Salary Negotiation Strategy
             </Button>
 
-            {aiNegotiationResult && (
+            {outreachError && (
+              <div className="p-3 rounded-lg bg-red-950/40 border border-red-800 text-red-300 text-xs font-mono mb-3">
+                <span className="font-bold">Error:</span> {outreachError}
+              </div>
+            )}
+
+            {aiNegotiationResult && aiNegotiationResult.llm_available !== false && (
               <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3 text-xs font-mono">
-                <div className="text-purple-300 font-bold text-sm">
-                  Base Offer: ${aiNegotiationResult.current_offer.toLocaleString()} → Target Counter: ${aiNegotiationResult.target_counter_offer.toLocaleString()}
+                <div className="flex items-center justify-between">
+                  <div className="text-purple-300 font-bold text-sm">
+                    Base Offer: ${aiNegotiationResult.current_offer?.toLocaleString?.()} → Target Counter: ${aiNegotiationResult.target_counter_offer?.toLocaleString?.()}
+                  </div>
+                  <Badge className="bg-amber-950 text-amber-300 border-amber-800">Sample output — not from a live model</Badge>
                 </div>
                 <div className="bg-slate-900 p-3 rounded text-slate-300 border border-slate-800">
                   <div className="text-[10px] text-purple-400 uppercase mb-1 font-bold"># AI Dynamic Strategy</div>
@@ -488,13 +599,41 @@ export const AutonomousCareerConsole: React.FC = () => {
         {/* Tab 6: Live Copilot */}
         <TabsContent value="copilot" className="mt-4">
           <Card className="border border-slate-800 bg-slate-900 text-slate-100 p-6 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-300">Target Role</Label>
+              <Input
+                value={copilotRole}
+                onChange={(e) => setCopilotRole(e.target.value)}
+                placeholder="e.g. Principal Architect"
+                className="bg-slate-950 border-slate-800 text-xs font-mono"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-300">Interview Question</Label>
+              <Textarea
+                value={copilotQuestion}
+                onChange={(e) => setCopilotQuestion(e.target.value)}
+                placeholder="e.g. How do you handle zero-downtime database migrations under high write traffic?"
+                className="bg-slate-950 border-slate-800 h-28 text-xs font-mono"
+              />
+            </div>
+
             <Button onClick={handleCopilot} disabled={loading} className="bg-indigo-600 hover:bg-indigo-500 font-semibold">
-              Generate AI STAR-Method Answer
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4 mr-2" />} Generate AI STAR-Method Answer
             </Button>
+
+            {copilotError && (
+              <div className="p-3 rounded-lg bg-red-950/40 border border-red-800 text-red-300 text-xs font-mono mb-3">
+                <span className="font-bold">Error:</span> {copilotError}
+              </div>
+            )}
 
             {copilotResult && (
               <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2 text-xs font-mono">
-                <div className="font-bold text-indigo-400">Question: "{copilotResult.question}"</div>
+                <div className="flex items-center justify-between">
+                  <div className="font-bold text-indigo-400">Question: "{copilotResult.question}"</div>
+                  <Badge className="bg-amber-950 text-amber-300 border-amber-800">Sample output — not from a live model</Badge>
+                </div>
                 <div className="p-3 bg-black rounded text-slate-200 whitespace-pre-wrap">{copilotResult.star_answer}</div>
               </div>
             )}

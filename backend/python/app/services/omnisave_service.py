@@ -1,10 +1,21 @@
+import asyncio
 import hashlib
-import re
 import logging
+import re
+import uuid as uuid_lib
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
+from app.services.autopilot_graph import _untrusted
+from app.services.db import get_pool
+from app.services.llm_service import llm_complete
+
 logger = logging.getLogger(__name__)
+
+# ponytail: exact insufficiency response the RAG prompt instructs the LLM to
+# emit when the snippets do not answer the query. It is the ONLY answer accepted
+# without citations; anything else must cite at least one recognized source.
+_INSUFFICIENT_ANSWER_RESPONSE = "The indexed knowledge does not contain enough information to answer this question."
 
 class OmnisaveService:
     """
@@ -12,11 +23,110 @@ class OmnisaveService:
     Connectors for Substack RSS, Medium reading feeds, and LinkedIn saved items.
     Chunks body text into 512-token segments, computes vector embeddings,
     and constructs RAG prompts with mandatory inline citations ([Source 1], [Source 2]).
+
+    Persistence: sources and chunks are written to Postgres
+    (public.saved_sources / public.source_chunks) whenever the DB pool is
+    available. Writes are best-effort and never block the request.
     """
 
     def __init__(self):
         self.saved_sources: List[Dict[str, Any]] = []
         self.source_chunks: List[Dict[str, Any]] = []
+
+    async def _persist_source_db(self, source_obj: Dict[str, Any], chunks: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Best-effort write of a source + its chunks to Postgres.
+
+        Returns an outcome dict when a DB pool is available:
+        ``{"inserted": True, "source": source_obj, "chunks_created": len(chunks)}``
+        on a successful insert, or ``{"inserted": False, "source": <canonical row>,
+        "chunks_created": 0}`` when ``ON CONFLICT DO NOTHING`` lost the race and
+        the canonical source was resolved by (user_id, idempotency_hash).
+        Returns ``None`` when no DB is configured or the write fails.
+        """
+        try:
+            pool = await get_pool()
+            if pool is None:
+                return None
+            user_uuid = uuid_lib.UUID(source_obj["user_id"])
+        except (ValueError, TypeError, KeyError):
+            return None
+        try:
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    inserted = await conn.fetchrow(
+                        """
+                        INSERT INTO public.saved_sources
+                            (id, user_id, idempotency_hash, source_platform, canonical_url,
+                             title, author, raw_content, clean_markdown, primary_category,
+                             secondary_tags, summary_bullets)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                        ON CONFLICT (user_id, idempotency_hash) DO NOTHING
+                        RETURNING id
+                        """,
+                        uuid_lib.UUID(source_obj["id"]),
+                        user_uuid,
+                        source_obj["idempotency_hash"],
+                        source_obj["source_platform"],
+                        source_obj["canonical_url"],
+                        source_obj["title"],
+                        source_obj["author"],
+                        source_obj["raw_content"],
+                        source_obj["clean_markdown"],
+                        source_obj["primary_category"],
+                        None,
+                        source_obj.get("summary_bullets") or [],
+                    )
+                    # ponytail: ON CONFLICT DO NOTHING with no RETURNING row means a
+                    # concurrent insert won. Resolve the canonical row by
+                    # (user_id, idempotency_hash) and skip chunk writes so the
+                    # provisional source is discarded, not duplicated.
+                    if inserted is None:
+                        canonical = await conn.fetchrow(
+                            """
+                            SELECT id, user_id, idempotency_hash, source_platform, canonical_url,
+                                   title, author, raw_content, clean_markdown, primary_category,
+                                   secondary_tags, summary_bullets, created_at
+                            FROM public.saved_sources
+                            WHERE user_id = $1 AND idempotency_hash = $2
+                            """,
+                            user_uuid,
+                            source_obj["idempotency_hash"],
+                        )
+                        if canonical is None:
+                            return None
+                        canonical_source = {
+                            "id": str(canonical["id"]),
+                            "user_id": str(canonical["user_id"]),
+                            "idempotency_hash": canonical["idempotency_hash"],
+                            "source_platform": canonical["source_platform"],
+                            "canonical_url": canonical["canonical_url"],
+                            "title": canonical["title"],
+                            "author": canonical["author"],
+                            "raw_content": canonical["raw_content"],
+                            "clean_markdown": canonical["clean_markdown"],
+                            "primary_category": canonical["primary_category"],
+                            "summary_bullets": canonical["summary_bullets"] or [],
+                            "saved_at": canonical["created_at"].isoformat() if canonical["created_at"] else None,
+                        }
+                        return {"inserted": False, "source": canonical_source, "chunks_created": 0}
+                    for chunk in chunks:
+                        await conn.execute(
+                            """
+                            INSERT INTO public.source_chunks
+                                (id, source_id, user_id, chunk_index, chunk_content, embedding)
+                            VALUES ($1, $2, $3, $4, $5, NULL)
+                            ON CONFLICT DO NOTHING
+                            """,
+                            uuid_lib.UUID(chunk["id"]),
+                            uuid_lib.UUID(source_obj["id"]),
+                            user_uuid,
+                            chunk["chunk_index"],
+                            chunk["chunk_content"],
+                        )
+                    return {"inserted": True, "source": source_obj, "chunks_created": len(chunks)}
+        except Exception as exc:
+            logger.error("[Omnisave] Failed to persist source to DB: %s", exc)
+            return None
 
     def compute_idempotency_hash(self, url: str, content: str) -> str:
         """Compute unique SHA-256 hash for source deduplication."""
@@ -34,19 +144,82 @@ class OmnisaveService:
             chunks.append(segment)
         return chunks
 
-    async def ingest_source(self, platform: str, url: str, title: str, author: str, raw_content: str, category: str = "Career Strategy", user_id: str = "demo-user", summary_bullets: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def _find_existing_source_db(self, user_id: str, idempotency_hash: str) -> Optional[Dict[str, Any]]:
+        """Look up a persisted source matching (user_id, idempotency_hash). None when DB unavailable or not found."""
+        try:
+            pool = await get_pool()
+            if pool is None:
+                return None
+            user_uuid = uuid_lib.UUID(user_id)
+        except (ValueError, TypeError):
+            return None
+        try:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT id, user_id, idempotency_hash, source_platform, canonical_url,
+                           title, author, raw_content, clean_markdown, primary_category,
+                           secondary_tags, summary_bullets, created_at
+                    FROM public.saved_sources
+                    WHERE user_id = $1 AND idempotency_hash = $2
+                    """,
+                    user_uuid,
+                    idempotency_hash,
+                )
+            if row is None:
+                return None
+            return {
+                "id": str(row["id"]),
+                "user_id": str(row["user_id"]),
+                "idempotency_hash": row["idempotency_hash"],
+                "source_platform": row["source_platform"],
+                "canonical_url": row["canonical_url"],
+                "title": row["title"],
+                "author": row["author"],
+                "raw_content": row["raw_content"],
+                "clean_markdown": row["clean_markdown"],
+                "primary_category": row["primary_category"],
+                "summary_bullets": row["summary_bullets"] or [],
+                "saved_at": row["created_at"].isoformat() if row["created_at"] else None,
+            }
+        except Exception as exc:
+            logger.warning("[Omnisave] Failed to look up existing source in DB: %s", exc)
+            return None
+
+    async def ingest_source(self, platform: str, url: str, title: str, author: str, raw_content: str, user_id: str, category: str = "Career Strategy", summary_bullets: Optional[List[str]] = None) -> Dict[str, Any]:
         """Ingest source from Substack, Medium, LinkedIn, or custom URL."""
         if platform not in ("substack", "medium", "linkedin", "custom_url"):
             platform = "custom_url"
 
         idempotency_hash = self.compute_idempotency_hash(url, raw_content)
-        
-        # Check deduplication
+
+        # ponytail: DB is the source of truth for dedup — an already-persisted
+        # (user_id, idempotency_hash) row short-circuits to an idempotent success
+        # instead of generating a fresh source_id.
+        existing = await self._find_existing_source_db(user_id, idempotency_hash)
+        if existing is not None:
+            if not any(s.get("id") == existing["id"] for s in self.saved_sources):
+                self.saved_sources.append(existing)
+                chunks = await self._load_source_chunks_db(existing["id"], user_id)
+                for chk in chunks:
+                    if not any(c.get("id") == chk["id"] for c in self.source_chunks):
+                        self.source_chunks.append(chk)
+            return {
+                "success": True,
+                "source_id": existing["id"],
+                "chunks_created": 0,
+                "source": existing,
+                "message": "Source already ingested.",
+            }
+
+        # ponytail: in-memory dedup scoped to (user_id, idempotency_hash) is
+        # supplemental only — it guards against duplicates within this process
+        # when the DB is unavailable.
         for source in self.saved_sources:
-            if source.get("idempotency_hash") == idempotency_hash:
+            if source.get("user_id") == user_id and source.get("idempotency_hash") == idempotency_hash:
                 return {"success": True, "source": source, "message": "Source already ingested."}
 
-        source_id = f"SRC-{len(self.saved_sources) + 1:04d}"
+        source_id = str(uuid_lib.uuid4())
         source_obj = {
             "id": source_id,
             "user_id": user_id,
@@ -68,16 +241,40 @@ class OmnisaveService:
 
         # Compute chunks
         segments = self.chunk_text(raw_content)
+        chunk_objs = []
         for idx, seg in enumerate(segments):
             chunk_obj = {
-                "id": f"CHUNK-{len(self.source_chunks) + 1:04d}",
+                "id": str(uuid_lib.uuid4()),
                 "source_id": source_id,
                 "user_id": user_id,
                 "chunk_index": idx,
                 "chunk_content": seg,
-                "embedding": [0.01] * 1536  # Mock text-embedding-3-small vector
+                "embedding": None,
             }
             self.source_chunks.append(chunk_obj)
+            chunk_objs.append(chunk_obj)
+
+        outcome = await self._persist_source_db(source_obj, chunk_objs)
+        if outcome is not None and not outcome["inserted"]:
+            # ponytail: the insert lost an ON CONFLICT race — discard the
+            # provisional source/chunk state and return the canonical row so the
+            # caller does not see a fabricated or duplicate ingest.
+            self.saved_sources = [s for s in self.saved_sources if s.get("id") != source_id]
+            self.source_chunks = [c for c in self.source_chunks if c.get("source_id") != source_id]
+            canonical = outcome["source"]
+            if not any(s.get("id") == canonical["id"] for s in self.saved_sources):
+                self.saved_sources.append(canonical)
+            chunks = await self._load_source_chunks_db(canonical["id"], user_id)
+            for chk in chunks:
+                if not any(c.get("id") == chk["id"] for c in self.source_chunks):
+                    self.source_chunks.append(chk)
+            return {
+                "success": True,
+                "source_id": canonical["id"],
+                "chunks_created": 0,
+                "source": canonical,
+                "message": "Source already ingested.",
+            }
 
         return {
             "success": True,
@@ -92,9 +289,13 @@ class OmnisaveService:
         to extract dynamic article title, author, and content without hardcoding.
         """
         try:
-            from app.services.sandbox_executor import TayariComputerSandboxExecutor
+            from app.services.sandbox_executor import TayariComputerSandboxExecutor, _resolve_and_validate_url
+            url_info = _resolve_and_validate_url(target_url)
+            if not url_info:
+                logger.warning("[Omnisave] Rejected unsafe extraction URL: %s", target_url)
+                return None
             async with TayariComputerSandboxExecutor() as executor:
-                res = await executor.browser.navigate(target_url)
+                res = await executor.browser.navigate(url_info["target_url"], headers=url_info["headers"])
                 if res.get("success") and executor.browser.page:
                     title = await executor.browser.page.title() or f"{platform.title()} Saved Item"
                     content_eval = await executor.browser.page.evaluate("""() => {
@@ -112,18 +313,18 @@ class OmnisaveService:
                     }""")
                     if content_eval and content_eval.get("body"):
                         return {
-                            "url": target_url,
+                            "url": url_info["original_url"],
                             "title": content_eval.get("title") or title,
                             "author": content_eval.get("author") or f"{platform.title()} Author",
                             "category": "Career Strategy",
                             "content": content_eval.get("body"),
-                            "summary": content_eval.get("bullets") or [f"Extracted dynamic content from {target_url}"]
+                            "summary": content_eval.get("bullets") or [f"Extracted dynamic content from {url_info['original_url']}"]
                         }
         except Exception as exc:
             logger.warning("Tayari Computer sandbox extraction error for %s: %s", target_url, exc)
         return None
 
-    async def sync_agent_reach_posts(self, user_id: str = "demo-user", platforms: Optional[List[str]] = None, target_urls: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def sync_agent_reach_posts(self, user_id: str, platforms: Optional[List[str]] = None, target_urls: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Use Agent Reach & Tayari Computer Sandbox extraction engine to fetch saved/bookmarked posts
         from Substack, Medium, and LinkedIn dynamically, and ingest them into vector memory.
@@ -150,16 +351,15 @@ class OmnisaveService:
                 if matching_urls:
                     platform_url_map[plat_key] = matching_urls[0]
 
-        # Step 3: Only use fabricated fallback when neither positional nor matching user URL exists
         for platform in target_platforms:
             plat_key = platform.lower()
-            if plat_key not in platform_url_map:
-                platform_url_map[plat_key] = f"https://{plat_key}.com"
+            url = platform_url_map.get(plat_key)
+            if not url:
+                # ponytail: never fabricate platform URLs to drive the browser at;
+                # skip platforms without a user-supplied URL.
+                logger.info("[Omnisave] No user-provided URL for platform %s; skipping", plat_key)
+                continue
 
-        for platform in target_platforms:
-            plat_key = platform.lower()
-            url = platform_url_map[plat_key]
-            
             extracted = await self.extract_via_tayari_computer(plat_key, url)
             if extracted:
                 res = await self.ingest_source(
@@ -193,15 +393,103 @@ class OmnisaveService:
             "sources": user_sources
         }
 
-    def get_user_saved_sources(self, user_id: str = "demo-user") -> List[Dict[str, Any]]:
-        """Return saved sources for the requested user."""
-        return [s for s in self.saved_sources if s.get("user_id") in (user_id, "demo-user")]
+    def get_user_saved_sources(self, user_id: str) -> List[Dict[str, Any]]:
+        """Return saved sources for the requested user only."""
+        return [s for s in self.saved_sources if s.get("user_id") == user_id]
 
-    async def query_knowledge_rag(self, query: str, user_id: str = "demo-user", top_k: int = 3) -> Dict[str, Any]:
+    async def _load_source_chunks_db(self, source_id: str, user_id: str) -> List[Dict[str, Any]]:
+        """Load a specific source's chunks from Postgres for in-memory rehydration."""
+        try:
+            pool = await get_pool()
+            if pool is None:
+                return []
+            user_uuid = uuid_lib.UUID(user_id)
+            src_uuid = uuid_lib.UUID(source_id)
+        except (ValueError, TypeError):
+            return []
+        try:
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT c.id AS chunk_id, c.source_id, c.user_id, c.chunk_index, c.chunk_content,
+                           s.title, s.author, s.canonical_url
+                    FROM public.source_chunks c
+                    JOIN public.saved_sources s ON s.id = c.source_id
+                    WHERE c.user_id = $1 AND c.source_id = $2
+                    ORDER BY c.chunk_index ASC
+                    """,
+                    user_uuid,
+                    src_uuid,
+                )
+            return [
+                {
+                    "id": str(row["chunk_id"]),
+                    "source_id": str(row["source_id"]),
+                    # ponytail: rehydrated chunks must carry the user_id so the
+                    # in-memory RAG fallback (which filters by user_id) can find
+                    # them and no other user's chunks enter the context.
+                    "user_id": str(row["user_id"]),
+                    "chunk_index": row.get("chunk_index", 0),
+                    "chunk_content": row["chunk_content"],
+                    "title": row["title"],
+                    "author": row["author"],
+                    "canonical_url": row["canonical_url"],
+                }
+                for row in rows
+            ]
+        except Exception as exc:
+            logger.warning("[Omnisave] Failed to load source chunks from DB: %s", exc)
+            return []
+
+    async def _load_user_chunks_db(self, user_id: str, top_k: int) -> List[Dict[str, Any]]:
+        """Read the user's most recent chunks from Postgres as a fallback."""
+        pool = await get_pool()
+        if pool is None:
+            return []
+        try:
+            user_uuid = uuid_lib.UUID(user_id)
+        except (ValueError, TypeError):
+            return []
+        try:
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT c.id AS chunk_id, c.source_id, c.chunk_index, c.chunk_content,
+                           s.title, s.author, s.canonical_url
+                    FROM public.source_chunks c
+                    JOIN public.saved_sources s ON s.id = c.source_id
+                    WHERE c.user_id = $1
+                    ORDER BY c.created_at DESC
+                    LIMIT $2
+                    """,
+                    user_uuid,
+                    top_k,
+                )
+            return [
+                {
+                    "id": str(row["chunk_id"]),
+                    "source_id": str(row["source_id"]),
+                    "chunk_index": row.get("chunk_index", 0),
+                    "chunk_content": row["chunk_content"],
+                    "title": row["title"],
+                    "author": row["author"],
+                    "canonical_url": row["canonical_url"],
+                }
+                for row in rows
+            ]
+        except Exception as exc:
+            logger.warning("[Omnisave] Failed to load chunks from DB: %s", exc)
+            return []
+
+    async def query_knowledge_rag(self, query: str, user_id: str, top_k: int = 3) -> Dict[str, Any]:
         """
         Build RAG response with inline citations referencing indexed chunks ([Source 1], [Source 2]).
         """
-        matched_chunks = self.source_chunks[:top_k]
+        # ponytail: read from DB first for user-filtered persistence; fall back to
+        # the in-memory store scoped to this user.
+        matched_chunks = await self._load_user_chunks_db(user_id, top_k)
+        if not matched_chunks:
+            matched_chunks = [c for c in self.source_chunks if c.get("user_id") == user_id][:top_k]
         if not matched_chunks:
             return {
                 "query": query,
@@ -213,7 +501,10 @@ class OmnisaveService:
         sources_reference = []
         rag_context_snippets = []
         for i, chk in enumerate(matched_chunks, 1):
-            src_info = next((s for s in self.saved_sources if s["id"] == chk.get("source_id")), {"title": "Saved Article", "author": "Unknown", "canonical_url": "#"})
+            if chk.get("title"):
+                src_info = chk
+            else:
+                src_info = next((s for s in self.saved_sources if s["id"] == chk.get("source_id")), {"title": "Saved Article", "author": "Unknown", "canonical_url": "#"})
             citation_tag = f"[Source {i}]"
             sources_reference.append({
                 "citation": citation_tag,
@@ -224,7 +515,31 @@ class OmnisaveService:
             rag_context_snippets.append(f"{citation_tag} ({src_info.get('title')}): {chk['chunk_content']}")
 
         context_str = "\n\n".join(rag_context_snippets)
-        answer = f"Based on indexed knowledge [Source 1], {context_str[:250]}..."
+        prompt = (
+            "Answer the user's question using only the indexed knowledge snippets below. "
+            "Cite the exact sources you rely on using their citation tags ([Source 1], [Source 2], ...) "
+            "at the point of use. If the snippets do not contain enough to answer, say so honestly.\n\n"
+            "Question:\n" + _untrusted(query) + "\n\nIndexed knowledge:\n" + _untrusted(context_str)
+        )
+        answer = await asyncio.wait_for(
+            llm_complete(
+                system_message=(
+                    "You are a knowledge-base assistant grounded strictly in the provided "
+                    "indexed snippets. Never fabricate facts outside the snippets; cite "
+                    "sources with their [Source N] tags."
+                ),
+                user_message=prompt,
+            ),
+            timeout=15.0,
+        )
+
+        # ponytail: only accept an answer that cites tags which actually exist in
+        # sources_reference, or honestly reports insufficiency. Hallucinated
+        # [Source N] tags are rejected so fabricated citations never reach callers.
+        valid_answer = self._answer_is_grounded(answer, sources_reference)
+        if not valid_answer:
+            logger.warning("[Omnisave] RAG answer was not properly grounded; returning insufficiency response")
+            answer = _INSUFFICIENT_ANSWER_RESPONSE
 
         return {
             "query": query,
@@ -232,6 +547,33 @@ class OmnisaveService:
             "citations": sources_reference,
             "context_snippets": rag_context_snippets
         }
+
+    @staticmethod
+    def _answer_is_grounded(answer: str, sources_reference: List[Dict[str, Any]]) -> bool:
+        """Return True when the answer is valid:
+        - the exact insufficiency response with no citations, or
+        - a substantive answer that cites at least one [Source N] tag present in
+          sources_reference, and cites no unknown tags.
+
+        A substantive answer that merely mentions an insufficiency marker (e.g.
+        "not enough") without being the fixed response is still required to cite
+        its sources.
+        """
+        if not answer or not isinstance(answer, str):
+            return False
+        stripped = answer.strip()
+        if stripped == _INSUFFICIENT_ANSWER_RESPONSE:
+            return True
+
+        valid_tags = {src["citation"] for src in sources_reference}
+        cited = re.findall(r"\[Source\s+(\d+)\]", answer, re.IGNORECASE)
+        if not cited:
+            return False
+        for match in re.finditer(r"\[Source\s+(\d+)\]", answer, re.IGNORECASE):
+            tag = f"[Source {match.group(1)}]"
+            if tag not in valid_tags:
+                return False
+        return True
 
 
 # Global singleton instance for in-memory service consistency

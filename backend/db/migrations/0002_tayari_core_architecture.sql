@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS public.agent_action_approvals (
 CREATE TABLE IF NOT EXISTS public.saved_sources (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
-    idempotency_hash VARCHAR(64) UNIQUE NOT NULL,
+    idempotency_hash VARCHAR(64) NOT NULL,
     source_platform VARCHAR(32) NOT NULL CHECK (source_platform IN ('substack', 'medium', 'linkedin', 'custom_url')),
     canonical_url TEXT NOT NULL,
     title TEXT NOT NULL,
@@ -63,6 +63,16 @@ CREATE TABLE IF NOT EXISTS public.saved_sources (
     saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ponytail: remove prior single-column unique artifacts (name may differ across
+-- legacy installs) so the composite (user_id, idempotency_hash) index can own
+-- uniqueness. This preserves compatibility with omnisave_service._persist_source_db's
+-- ON CONFLICT (user_id, idempotency_hash) target.
+ALTER TABLE public.saved_sources
+    DROP CONSTRAINT IF EXISTS uq_saved_sources_user_hash,
+    DROP CONSTRAINT IF EXISTS saved_sources_idempotency_hash_key;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_saved_sources_user_hash ON public.saved_sources (user_id, idempotency_hash);
 
 CREATE TABLE IF NOT EXISTS public.source_chunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

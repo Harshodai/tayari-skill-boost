@@ -4,6 +4,7 @@ from app.services.autopilot_graph import AutopilotGraphEngine
 from app.services.sandbox_executor import TayariComputerSandboxExecutor
 from app.services.omnisave_service import OmnisaveService
 from app.services.email_classifier import match_email_to_application
+from app.services.llm_service import is_llm_configured
 
 @pytest.mark.asyncio
 async def test_autopilot_graph_execution():
@@ -46,6 +47,13 @@ async def test_omnisave_rag_engine():
     )
     assert ingest_res["success"] is True
     source_id = ingest_res["source_id"]
+
+    # ponytail: RAG answers come from the configured LLM provider and raise
+    # LLMNotConfiguredError when none is set — no fabricated fallback text.
+    # Skip the LLM portion when no real provider is configured; the ingest
+    # assertions above still run.
+    if not is_llm_configured():
+        pytest.skip("No real LLM provider configured; skipping RAG answer assertions")
 
     rag_res = await omnisave.query_knowledge_rag("system architecture", user_id=test_user_id)
     assert "answer" in rag_res

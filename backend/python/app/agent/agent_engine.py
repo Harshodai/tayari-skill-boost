@@ -1,4 +1,5 @@
 import os
+import ast
 import urllib.parse
 import socket
 import ipaddress
@@ -42,7 +43,8 @@ def _resolve_and_validate_url(url: str) -> Optional[Dict[str, Any]]:
 
         pinned_ip = ip_list[0][4][0]
         parsed = urllib.parse.urlparse(url)
-        target_url = parsed._replace(netloc=f"{pinned_ip}:{port}").geturl()
+        pinned_netloc = f"[{pinned_ip}]:{port}" if ":" in pinned_ip else f"{pinned_ip}:{port}"
+        target_url = parsed._replace(netloc=pinned_netloc).geturl()
         return {
             "original_url": url,
             "original_hostname": hostname,
@@ -91,8 +93,73 @@ class GeneralistAgentEngine:
         await self.close()
 
     def _is_within_workspace(self, target_path: str) -> bool:
-        resolved = os.path.abspath(target_path)
-        return resolved == self.workspace_path or resolved.startswith(self.workspace_path + os.sep)
+        root = os.path.realpath(self.workspace_path)
+        resolved = os.path.realpath(target_path)
+        return resolved == root or resolved.startswith(root + os.sep)
+
+    @staticmethod
+    def _is_safe_code(code: str) -> bool:
+        """Allow-list static guard for code passed to the CodeAct REPL.
+
+        Enforces the CodeActREPL trust contract: only a conservative subset of
+        Python is permitted. Obvious escapes (imports of os/sys/subprocess,
+        calls to eval/exec/open/__import__, network access) are rejected.
+        This is a coarse static guard that complements the subprocess sandbox; it
+        is intentionally conservative and may reject benign advanced constructs.
+        """
+        if not isinstance(code, str) or not code.strip():
+            return False
+
+        disallowed_imports = frozenset({
+            "os", "sys", "subprocess", "socket", "importlib", "ctypes",
+            "builtins", "__builtin__", "_thread", "threading", "multiprocessing",
+            "urllib", "http", "requests", "pickle", "marshal", "compileall",
+            "code", "codeop", "shlex", "pty", "platform", "site", "pkgutil",
+        })
+        disallowed_builtins = frozenset({
+            "eval", "exec", "compile", "open", "input", "__import__",
+            "exit", "quit", "getattr", "setattr", "delattr",
+        })
+        disallowed_names = disallowed_imports | disallowed_builtins
+
+        # AST check: reject any node type that is not obviously safe.
+        safe_nodes = frozenset({
+            ast.Expression, ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.Compare,
+            ast.IfExp, ast.Constant, ast.Name, ast.Load, ast.Store, ast.Del,
+            ast.List, ast.Tuple, ast.Set, ast.Dict, ast.Subscript, ast.Index,
+            ast.Slice, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp,
+            ast.comprehension, ast.Call, ast.Attribute, ast.keyword,
+            ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Expr, ast.Pass,
+            ast.If, ast.For, ast.While, ast.Break, ast.Continue,
+            ast.Try, ast.ExceptHandler, ast.Raise, ast.Assert,
+            ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.Return,
+            ast.arguments, ast.arg, ast.Module, ast.JoinedStr, ast.FormattedValue,
+            ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow,
+            ast.LShift, ast.RShift, ast.BitOr, ast.BitXor, ast.BitAnd,
+            ast.MatMult, ast.USub, ast.UAdd, ast.Not, ast.Invert,
+            ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.Is, ast.IsNot,
+            ast.In, ast.NotIn, ast.And, ast.Or, ast.NamedExpr,
+        })
+        try:
+            tree = ast.parse(code, mode="exec")
+        except SyntaxError:
+            return False
+
+        for node in ast.walk(tree):
+            if type(node) not in safe_nodes:
+                return False
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id in disallowed_builtins:
+                    return False
+            # Reject any load of a disallowed NAME. String literals are
+            # ast.Constant nodes, so a filename like 'open.py' or 'os' embedded
+            # in a code snippet is never matched here — only genuine name
+            # references are. This replaces the old raw code.split() token scan,
+            # which false-rejected string contents.
+            if isinstance(node, ast.Name) and node.id in disallowed_names:
+                if isinstance(node.ctx, ast.Load):
+                    return False
+        return True
 
     def _register_default_mcp_tools(self):
         """Register core system tools via MCP standards."""
@@ -106,12 +173,54 @@ class GeneralistAgentEngine:
                 return f.read()
 
         def write_file_tool(file_path: str, content: str) -> str:
-            full_path = os.path.abspath(os.path.join(self.workspace_path, file_path))
-            if not self._is_within_workspace(full_path):
-                return f"Error: Path '{file_path}' resolves outside workspace boundary."
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            with open(full_path, "w", encoding="utf-8") as f:
-                f.write(content)
+            # Descriptor-based traversal: open the trusted workspace directory,
+            # then walk each path component with dir_fd + O_NOFOLLOW so a symlink
+            # planted anywhere in the chain (or swapped in concurrently) cannot
+            # redirect the write outside the workspace. No realpath/makedirs.
+            try:
+                full_path = os.path.abspath(os.path.join(self.workspace_path, file_path))
+                rel = os.path.relpath(full_path, self.workspace_path)
+                if rel.startswith("..") or os.path.isabs(rel):
+                    return f"Error: Path '{file_path}' resolves outside workspace boundary."
+                parts = [p for p in rel.split(os.sep) if p not in ("", ".")]
+                if not parts:
+                    return f"Error: Path '{file_path}' is not a file."
+
+                dir_fd = os.open(self.workspace_path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+                opened = [dir_fd]
+                try:
+                    for part in parts[:-1]:
+                        try:
+                            dir_fd = os.open(part, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW, dir_fd=dir_fd)
+                        except FileNotFoundError:
+                            # create the missing intermediate directory relative to
+                            # the verified parent descriptor, then descend into it
+                            os.mkdir(part, 0o755, dir_fd=dir_fd)
+                            dir_fd = os.open(part, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW, dir_fd=dir_fd)
+                        opened.append(dir_fd)
+                    fd = os.open(parts[-1], os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o644, dir_fd=dir_fd)
+                    opened.append(fd)
+                    try:
+                        f = os.fdopen(fd, "w", encoding="utf-8")
+                    except Exception:
+                        # ponytail: ownership never transferred — close fd here so
+                        # the finally cleanup does not double-close a reused fd.
+                        os.close(fd)
+                        opened.remove(fd)
+                        raise
+                    # ponytail: fdopen now owns the descriptor; drop it from opened
+                    # so the finally cleanup does not close it a second time.
+                    opened.remove(fd)
+                    with f:
+                        f.write(content)
+                finally:
+                    for fdx in opened:
+                        try:
+                            os.close(fdx)
+                        except OSError:
+                            pass
+            except Exception as exc:
+                return f"Error: Failed to write file '{file_path}': {exc}"
             return f"Successfully written {len(content)} characters to '{file_path}'."
 
         def list_dir_tool(dir_path: str = ".") -> List[str]:
@@ -145,7 +254,11 @@ class GeneralistAgentEngine:
             info = _resolve_and_validate_url(url)
             if not info:
                 return {"success": False, "error": f"Rejected URL '{url}': unsafe scheme or non-public address."}
-            return await self.browser.navigate(info["target_url"], headers=info["headers"])
+            # Navigate to the pinned-IP target URL (never the original hostname,
+            # which a DNS-rebinding attacker could re-point at a private address)
+            # while carrying the original hostname in the Host header so SNI and
+            # virtual-host routing still work over TLS.
+            return await self.browser.navigate(info["target_url"], headers=info["headers"], validate_redirects=True)
 
         self.mcp.register_tool(
             name="navigate_web",
@@ -157,7 +270,12 @@ class GeneralistAgentEngine:
     async def execute_task(self, goal: str, max_steps: int = 10) -> Dict[str, Any]:
         """
         Execute high-level goal using Subagent Swarm, CodeAct REPL, Self-Reflection Engine, and Memory.
+
+        # ponytail: add safe-execution boundary and error handling so a single
+        # bad step or reflection failure cannot crash the whole task.
         """
+        if not isinstance(max_steps, int) or max_steps < 1:
+            raise ValueError("max_steps must be a positive integer")
         self.session_history.append({"role": "user", "content": goal})
         self.memory.store_knowledge("current_goal", goal)
 
@@ -170,13 +288,26 @@ class GeneralistAgentEngine:
         ]
 
         # Step 1: Subagent Swarm Delegation
-        subagent_tasks = [
-            {"agent_type": "researcher", "task": f"Analyze workspace requirements for '{goal}'"},
-            {"agent_type": "coder", "task": f"Prepare CodeAct execution script for '{goal}'"},
-            {"agent_type": "verifier", "task": "Establish validation criteria"}
-        ]
-        swarm_results = await self.orchestrator.delegate_parallel(subagent_tasks)
-        
+        try:
+            subagent_tasks = [
+                {"agent_type": "researcher", "task": f"Analyze workspace requirements for '{goal}'"},
+                {"agent_type": "coder", "task": f"Prepare CodeAct execution script for '{goal}'"},
+                {"agent_type": "verifier", "task": "Establish validation criteria"}
+            ]
+            swarm_results = await self.orchestrator.delegate_parallel(subagent_tasks)
+        except Exception as exc:
+            # ponytail: catch delegation failure so the engine returns a structured
+            # result instead of bubbling an unhandled exception to callers.
+            return {
+                "status": "failed",
+                "goal": goal,
+                "total_steps": len(steps_log),
+                "plan": plan,
+                "steps": steps_log,
+                "error": f"Subagent delegation failed: {exc}",
+                "memory_summary": self.memory.get_summary(),
+            }
+
         step_1 = {
             "step": 1,
             "action": "Subagent Swarm Delegation",
@@ -188,17 +319,57 @@ class GeneralistAgentEngine:
         self.memory.record_episode(1, "Subagent Swarm Delegation", None, swarm_results, True)
 
         # Step 2: CodeAct REPL Execution with Reflection Fallback
-        code_to_run = f"# Generalist Agent CodeAct Action\nimport os\nfiles = os.listdir({repr(self.workspace_path)})[:5]\nprint('Workspace files:', files)"
-        repl_result = await self.repl.execute(code_to_run)
+        try:
+            files_list = os.listdir(self.workspace_path)[:5]
+        except OSError as exc:
+            repl_result = {
+                "success": False,
+                "error": f"Workspace inspection failed: {exc}",
+            }
+            code_to_run = ""
+        else:
+            code_to_run = f"files = {files_list!r}\nprint('Workspace files:', files)"
 
-        # Apply Reflection Engine if failure occurs
-        if not repl_result["success"]:
-            reflection_res = self.reflection.analyze_failure(code_to_run, repl_result["error"])
-            self.memory.record_reflection(2, repl_result["error"], reflection_res["hypothesis"], reflection_res["patched_code"])
-            # Retry with patched code
-            repl_result = await self.repl.execute(reflection_res["patched_code"])
-            repl_result["reflected"] = True
-            repl_result["diagnosis"] = reflection_res["diagnosis"]
+        # ponytail: enforce the CodeActREPL trust contract. The hard-coded
+        # introspection code above is known-safe; any future dynamic code path
+        # must pass _is_safe_code before self.repl.execute.
+        if not code_to_run:
+            repl_result = {
+                "success": False,
+                "error": "Workspace inspection failed; CodeAct execution skipped.",
+            }
+        elif not self._is_safe_code(code_to_run):
+            repl_result = {"success": False, "error": "Execution rejected: initial code violates the safe-execution policy."}
+        else:
+            try:
+                repl_result = await self.repl.execute(code_to_run)
+
+                # Apply Reflection Engine if failure occurs
+                if not repl_result["success"]:
+                    reflection_res = self.reflection.analyze_failure(code_to_run, repl_result["error"])
+                    self.memory.record_reflection(2, repl_result["error"], reflection_res["hypothesis"], reflection_res["patched_code"])
+                    patched_code = reflection_res["patched_code"]
+                    # ponytail: reflected code must also pass the safe-code
+                    # boundary before the retry reaches the REPL.
+                    if not self._is_safe_code(patched_code):
+                        repl_result = {
+                            "success": False,
+                            "error": "Execution rejected: reflected code violates the safe-execution policy.",
+                            "reflected": True,
+                            "diagnosis": "Reflected patch failed the safe-execution policy.",
+                        }
+                    else:
+                        # Retry with patched code
+                        repl_result = await self.repl.execute(patched_code)
+                        repl_result["reflected"] = True
+                        repl_result["diagnosis"] = reflection_res["diagnosis"]
+            except Exception as exc:
+                # ponytail: record the REPL/reflection failure and continue with a
+                # well-formed result so callers always receive a predictable shape.
+                repl_result = {
+                    "success": False,
+                    "error": f"CodeAct execution failed: {exc}",
+                }
 
         step_2 = {
             "step": 2,
@@ -209,12 +380,20 @@ class GeneralistAgentEngine:
             "plan": plan
         }
         steps_log.append(step_2)
-        self.memory.record_episode(2, "CodeAct REPL Execution", code_to_run, repl_result, repl_result["success"])
+        self.memory.record_episode(2, "CodeAct REPL Execution", code_to_run, repl_result, repl_result.get("success", False))
 
         # Step 3: MCP Tool Call & Spatial Vision Check
-        mcp_res = await self.mcp.call_tool("list_dir", {"dir_path": "."})
-        coord_sample = self.computer_use.calculate_center_coordinates((100, 100, 500, 400))
-        
+        step_3_succeeded = True
+        try:
+            mcp_res = await self.mcp.call_tool("list_dir", {"dir_path": "."})
+            coord_sample = self.computer_use.calculate_center_coordinates((100, 100, 500, 400))
+        except Exception as exc:
+            # ponytail: tolerate failures from optional vision/MCP tooling so a
+            # sandbox-restricted environment does not abort the whole task.
+            mcp_res = {"error": f"MCP/vision step failed: {exc}"}
+            coord_sample = None
+            step_3_succeeded = False
+
         step_3 = {
             "step": 3,
             "action": "MCP Tool & Spatial Vision Inspection",
@@ -224,9 +403,10 @@ class GeneralistAgentEngine:
             "plan": plan
         }
         steps_log.append(step_3)
-        self.memory.record_episode(3, "MCP & Computer Use", None, mcp_res, True)
+        self.memory.record_episode(3, "MCP & Computer Use", None, mcp_res, step_3_succeeded)
 
         # Final Summary
+        steps_log = steps_log[:max_steps]
         return {
             "status": "completed",
             "goal": goal,

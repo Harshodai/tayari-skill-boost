@@ -405,6 +405,7 @@ async def optimize_with_reflection(
     job_description: str | None = None,
     target_role: str | None = None,
     job_label: str | None = None,
+    custom_instructions: str | None = None,
 ) -> dict:
     """
     Full cv-tailor 5-phase optimization pipeline with reflexion loop.
@@ -430,6 +431,11 @@ async def optimize_with_reflection(
         context += f"\n\nTARGET ROLE: {target_role[:120]}"
     if job_label:
         context += f"\n\nTARGET JOB: {job_label[:160]}"
+    # ponytail: custom_instructions are prompt guidance ONLY — they must never
+    # be appended to job_description, or ATS/keyword/semantic scoring would
+    # score against user instructions instead of the real job posting.
+    if custom_instructions:
+        context += f"\n\nUSER CUSTOM INSTRUCTIONS:\n{custom_instructions}"
 
     # --- Phase 1: Baseline -----------------------------------------------
     baseline = _baseline_parse(resume_text)
@@ -629,12 +635,24 @@ async def optimize_with_reflection(
 async def scrape_jd_url(url: str) -> str | None:
     """Scrape Job Description text from URL via Playwright fallback renderer.
     Returns the scraped text on success, None on failure."""
+    from app.services.sandbox_executor import _resolve_and_validate_url
+    # ponytail: never point the headless browser at a private or non-public
+    # destination, even when the caller provided the URL.
+    url_info = _resolve_and_validate_url(url)
+    if not url_info:
+        logger.warning("Rejected JD scrape of unsafe URL: %s", url)
+        return None
     try:
         from app.agent.browser_operator import BrowserOperator
         browser = BrowserOperator()
-        res = await browser.navigate(url)
-        if res.get("success") and res.get("text"):
-            return res["text"]
+        try:
+            # ponytail: pass the original validated URL to navigate() so HTTPS
+            # keeps hostname-based TLS SNI and certificate validation.
+            res = await browser.navigate(url_info["original_url"], headers=url_info["headers"])
+            if res.get("success") and res.get("content_preview"):
+                return res["content_preview"]
+        finally:
+            await browser.close()
     except Exception as e:
         logger.warning(f"Playwright JD scrape warning for {url}: {e}")
     return None
@@ -676,9 +694,11 @@ async def optimize_resume_with_options(
             raise ValueError(f"Failed to scrape job description from URL: {jd_url}")
         jd_text = scraped_jd
 
-    effective_jd = jd_text or ""
-    if custom_instructions:
-        effective_jd = f"{effective_jd}\n\n[USER CUSTOM INSTRUCTIONS]: {custom_instructions}"
-
-    return await optimize_with_reflection(resume_text=effective_resume_text, job_description=effective_jd)
+    # ponytail: custom instructions travel as their own param, never mixed into
+    # job_description — scoring must stay clean of user prompt text.
+    return await optimize_with_reflection(
+        resume_text=effective_resume_text,
+        job_description=jd_text or None,
+        custom_instructions=custom_instructions or None,
+    )
 

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Mic, MicOff, Volume2, Play, RefreshCw, Award, Zap, AlertTriangle, CheckCircle, Radio } from "lucide-react";
 import { toast } from "sonner";
+import { apiFetch } from "@/api";
 
 interface VoiceAnalysis {
   transcript: string;
@@ -110,14 +111,44 @@ export function InterviewVoiceCoach() {
     }
 
     const currentText = transcriptRef.current || transcript;
-    const sampleTranscript =
-      currentText.trim() ||
-      "In my previous position at Stripe, um, I was tasked with refactoring the payment webhooks infrastructure. Like, basically we were experiencing latency bottlenecks during peak event spikes. So I implemented a Redis queue buffer, which reduced end-to-end processing time by 45% and handled over 10 million daily webhooks.";
+    const sampleTranscript = currentText.trim();
+
+    if (!sampleTranscript) {
+      // ponytail: no fabricated fallback transcript — keep analysis empty and
+      // surface an actionable retry path when no speech was captured.
+      setAnalysis(null);
+      toast.error("No Speech Captured", {
+        description: "We didn't hear your answer. Please check your microphone and try again.",
+        action: { label: "Retry", onClick: () => startRecording() },
+      });
+      return;
+    }
 
     setTranscript(sampleTranscript);
     setIsAnalyzing(true);
 
     try {
+      const health = await apiFetch<{
+        model_status?: string;
+        active_engine?: string;
+      }>("/v1/health").catch(() => null);
+
+      const modelUnconfigured =
+        health?.model_status === "llm_not_configured" ||
+        health?.active_engine === "mock" ||
+        health?.active_engine === "mock-fallback";
+
+      if (modelUnconfigured) {
+        // ponytail: never show synthetic STAR/score output when no real LLM is
+        // configured — surface the missing-config error path instead.
+        setAnalysis(null);
+        toast.error("AI Coach Not Configured", {
+          description: "A live LLM must be configured before voice analysis can run.",
+          action: { label: "Configure", onClick: () => window.open("/settings", "_blank") },
+        });
+        return;
+      }
+
       const resp = await fetch("/api/v1/interview/voice-feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -133,40 +164,21 @@ export function InterviewVoiceCoach() {
         setAnalysis(data);
         toast.success("Voice Analysis Complete");
       } else {
-        setAnalysis({
-          transcript: sampleTranscript,
-          word_count: 52,
-          duration_seconds: Math.max(timerSeconds, 25),
-          wpm: 125,
-          wpm_status: "OPTIMAL",
-          filler_word_count: 2,
-          filler_words_found: { um: 1, basically: 1 },
-          star_breakdown: { situation: 20, task: 15, action: 45, result: 20 },
-          overall_score: 88,
-          interviewer_followup: "What was the biggest edge case you encountered while building the Redis queue buffer?",
-          coaching_tips: [
-            "Great pace! Keep your target cadence around 120-140 WPM.",
-            "Try to reduce 'um' and 'basically' filler words with silent pauses.",
-            "Solid STAR structure with clear quantified impact (45% latency reduction).",
-          ],
+        // ponytail: never populate synthetic scores or coaching text when the
+        // API fails; keep the transcript and show a retryable error instead.
+        setAnalysis(null);
+        toast.error("Voice Analysis Failed", {
+          description: "Unable to analyze your response. Please check your connection and try again.",
+          action: { label: "Retry", onClick: () => stopRecording() },
         });
       }
     } catch {
-      setAnalysis({
-        transcript: sampleTranscript,
-        word_count: 52,
-        duration_seconds: Math.max(timerSeconds, 25),
-        wpm: 125,
-        wpm_status: "OPTIMAL",
-        filler_word_count: 2,
-        filler_words_found: { um: 1, basically: 1 },
-        star_breakdown: { situation: 20, task: 15, action: 45, result: 20 },
-        overall_score: 88,
-        interviewer_followup: "What was the biggest technical trade-off you evaluated during this architecture change?",
-        coaching_tips: [
-          "Maintain clear vocal pace.",
-          "Pause silently instead of using filler words.",
-        ],
+      // ponytail: thrown/network failures also clear stale analysis and surface
+      // a retryable error rather than fabricated feedback.
+      setAnalysis(null);
+      toast.error("Voice Analysis Failed", {
+        description: "Unable to reach the coaching service. Please check your connection and try again.",
+        action: { label: "Retry", onClick: () => stopRecording() },
       });
     } finally {
       setIsAnalyzing(false);

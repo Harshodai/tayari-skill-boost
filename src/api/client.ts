@@ -50,6 +50,26 @@ export type ApiFetchOptions = RequestInit & {
   asBlob?: boolean;
 };
 
+import { PrivacyLedgerEntry } from "./types";
+
+export async function fetchPrivacyLedger(): Promise<{ ledger: PrivacyLedgerEntry[] }> {
+  return apiFetch<{ ledger: PrivacyLedgerEntry[] }>("/v1/privacy/ledger");
+}
+
+export async function clearPrivacyLedger(): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>("/v1/privacy/clear-ledger", {
+    method: "POST",
+  });
+}
+
+export async function exportUserData(): Promise<Blob> {
+  return apiFetch<Blob>("/v1/user/export-data", { asBlob: true });
+}
+
+export async function deleteUserAccount(): Promise<void> {
+  return apiFetch<void>("/v1/user/account", { method: "DELETE" });
+}
+
 export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}

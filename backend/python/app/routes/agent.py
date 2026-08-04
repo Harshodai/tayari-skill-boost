@@ -1,17 +1,30 @@
+import hashlib
 import logging
 import os
 import urllib.parse
+from collections import OrderedDict
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, List
 
 from app.agent.agent_engine import GeneralistAgentEngine, _is_safe_url
 from app.agent.job_seeker_agent import JobSeekerAgentEngine
 from app.agent.autonomous_career_engine import AutonomousCareerEngine
+from app.auth.dependencies import get_current_user
+from app.services.llm_service import LLMNotConfiguredError
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/ai/agent", tags=["agent"])
+
+AGENT_WORKSPACE_BASE = os.getenv("AGENT_WORKSPACE_DIR", "/tmp/tayari-agent-workspace")
+
+
+# ponytail: create the shared agent workspace base with restrictive permissions
+# so agent run directories are not readable by other system users.
+os.makedirs(AGENT_WORKSPACE_BASE, mode=0o700, exist_ok=True)
+os.chmod(AGENT_WORKSPACE_BASE, 0o700)
 
 class AgentRunRequest(BaseModel):
     goal: str
@@ -48,7 +61,9 @@ class ATSConfirmRequest(BaseModel):
     custom_keywords: Optional[List[str]] = None
 
 class UniversalApplyRequest(BaseModel):
-    job_urls: List[str]
+    # ponytail: enforce a non-empty, bounded URL list so the universal apply flow
+    # can never run with zero targets or exceed the engine's batch limit.
+    job_urls: List[str] = Field(min_length=1, max_length=10)
     candidate_profile: Optional[Dict[str, Any]] = None
 
 class AINegotiateRequest(BaseModel):
@@ -74,18 +89,67 @@ class UpdateKanbanRequest(BaseModel):
     new_stage: str
 
 agent_instance = GeneralistAgentEngine()
-job_seeker_engine = JobSeekerAgentEngine()
-career_engine = AutonomousCareerEngine()
+
+# ponytail: bounded LRU caches for per-user engine instances. Engines hold
+# in-memory state (HITL approvals, interview board), so keep them alive, but
+# cap total resident instances to prevent unbounded memory growth.
+_MAX_ENGINES_PER_KIND = 128
+_career_engines: "OrderedDict[str, AutonomousCareerEngine]" = OrderedDict()
+_job_seeker_engines: "OrderedDict[str, JobSeekerAgentEngine]" = OrderedDict()
+
+
+def _get_or_create_engine(cache: "OrderedDict[str, Any]", user_id: str, factory) -> Any:
+    """Refresh recency on hit; create + evict LRU when inserting beyond limit."""
+    if user_id in cache:
+        cache.move_to_end(user_id)
+        return cache[user_id]
+
+    engine = factory()
+    cache[user_id] = engine
+    if len(cache) > _MAX_ENGINES_PER_KIND:
+        # ponytail: popitem(last=False) evicts the least-recently-used entry.
+        cache.popitem(last=False)
+    return engine
+
+
+def _career_engine_for(user_id: str) -> AutonomousCareerEngine:
+    """Per-user career engine so HITL approvals and the interview board stay scoped to one user."""
+    return _get_or_create_engine(
+        _career_engines,
+        user_id,
+        lambda: AutonomousCareerEngine(workspace_path=AGENT_WORKSPACE_BASE),
+    )
+
+
+def _job_seeker_engine_for(user_id: str) -> JobSeekerAgentEngine:
+    """Per-user job-seeker engine; state is scoped to the authenticated user."""
+    return _get_or_create_engine(
+        _job_seeker_engines,
+        user_id,
+        lambda: JobSeekerAgentEngine(workspace_path=AGENT_WORKSPACE_BASE),
+    )
+
+
+def _clear_engine_for(user_id: str) -> None:
+    """Remove both per-user engine cache entries explicitly."""
+    _career_engines.pop(user_id, None)
+    _job_seeker_engines.pop(user_id, None)
 
 def _validate_job_url(url: str):
     if not _is_safe_url(url):
         raise HTTPException(status_code=400, detail=f"Invalid or unsafe URL '{url}'. Private, loopback, or non-HTTP(S) destinations are forbidden.")
 
 @router.post("/run")
-async def run_agent_task(req: AgentRunRequest) -> Dict[str, Any]:
+async def run_agent_task(req: AgentRunRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        workspace_dir = os.path.abspath("./workspace")
-        os.makedirs(workspace_dir, exist_ok=True)
+        # ponytail: run every agent task inside the secured workspace base that was
+        # created with 0o700 at module init, so per-task dirs inherit that policy.
+        # The JWT subject is untrusted input, so derive a filesystem-safe component
+        # from it instead of joining it verbatim (it could contain separators or "..").
+        safe_comp = hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:32]
+        workspace_dir = os.path.join(AGENT_WORKSPACE_BASE, safe_comp)
+        os.makedirs(workspace_dir, exist_ok=True, mode=0o700)
+        os.chmod(workspace_dir, 0o700)
         async with GeneralistAgentEngine(workspace_path=workspace_dir) as engine:
             result = await engine.execute_task(goal=req.goal, max_steps=req.max_steps or 10)
             return {"success": True, "data": result}
@@ -94,7 +158,7 @@ async def run_agent_task(req: AgentRunRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="Agent execution failed.")
 
 @router.get("/tools")
-async def list_agent_tools() -> Dict[str, Any]:
+async def list_agent_tools(user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     return {
         "success": True,
         "mcp_tools": agent_instance.mcp.list_tools(),
@@ -104,39 +168,39 @@ async def list_agent_tools() -> Dict[str, Any]:
 # --- Job Seeker Endpoints ---
 
 @router.post("/job-seeker/search")
-async def job_seeker_search(req: JobSearchRequest) -> Dict[str, Any]:
+async def job_seeker_search(req: JobSearchRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = await job_seeker_engine.search_and_filter_jobs(req.query, req.location or "Remote")
+        res = await _job_seeker_engine_for(user_id).search_and_filter_jobs(req.query, req.location or "Remote")
         return {"success": True, "data": res}
     except Exception as e:
         logger.exception("Job seeker search error")
         raise HTTPException(status_code=500, detail="Job search failed.")
 
 @router.post("/job-seeker/tailor")
-async def job_seeker_tailor(req: JobTailorRequest) -> Dict[str, Any]:
+async def job_seeker_tailor(req: JobTailorRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = await job_seeker_engine.tailor_resume_and_cover_letter(req.job_title, req.company, req.job_description)
+        res = await _job_seeker_engine_for(user_id).tailor_resume_and_cover_letter(req.job_title, req.company, req.job_description)
         return {"success": True, "data": res}
     except Exception as e:
         logger.exception("Job seeker tailor error")
         raise HTTPException(status_code=500, detail="Resume tailoring failed.")
 
 @router.post("/job-seeker/autofill")
-async def job_seeker_autofill(req: JobAutofillRequest) -> Dict[str, Any]:
+async def job_seeker_autofill(req: JobAutofillRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     if not _is_safe_url(req.form_url):
         raise HTTPException(status_code=400, detail=f"Invalid or unsafe URL '{req.form_url}'. Private, loopback, or non-HTTP(S) destinations are forbidden.")
     try:
         profile = req.user_profile or {"name": "Candidate", "email": "user@example.com"}
-        res = await job_seeker_engine.auto_fill_application_form(req.form_url, profile)
+        res = await _job_seeker_engine_for(user_id).auto_fill_application_form(req.form_url, profile)
         return {"success": True, "data": res}
     except Exception as e:
         logger.exception("Job seeker autofill error")
         raise HTTPException(status_code=500, detail="Application auto-fill failed.")
 
 @router.post("/job-seeker/interview-prep")
-async def job_seeker_interview_prep(req: JobInterviewPrepRequest) -> Dict[str, Any]:
+async def job_seeker_interview_prep(req: JobInterviewPrepRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = await job_seeker_engine.generate_interview_prep_brief(req.company)
+        res = await _job_seeker_engine_for(user_id).generate_interview_prep_brief(req.company)
         return {"success": True, "data": res}
     except Exception as e:
         logger.exception("Job seeker interview prep error")
@@ -145,58 +209,58 @@ async def job_seeker_interview_prep(req: JobInterviewPrepRequest) -> Dict[str, A
 # --- Executive Career Engine Endpoints ---
 
 @router.post("/career/email-sync")
-async def sync_emails() -> Dict[str, Any]:
+async def sync_emails(user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = await career_engine.scan_and_sync_email_invites()
+        res = await _career_engine_for(user_id).scan_and_sync_email_invites()
         return {"success": True, "data": res}
     except Exception as e:
         logger.exception("Email sync error")
         raise HTTPException(status_code=500, detail="Email sync failed.")
 
 @router.get("/career/interview-board")
-async def get_interview_board() -> Dict[str, Any]:
+async def get_interview_board(user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = career_engine.interview_board.get_kanban_board()
+        res = _career_engine_for(user_id).interview_board.get_kanban_board()
         return {"success": True, "data": res}
     except Exception as e:
         logger.exception("Get interview board error")
         raise HTTPException(status_code=500, detail="Failed to fetch interview board.")
 
 @router.post("/career/interview-board/update")
-async def update_interview_card(req: UpdateKanbanRequest) -> Dict[str, Any]:
+async def update_interview_card(req: UpdateKanbanRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = career_engine.interview_board.update_card_stage(req.card_id, req.new_stage)
+        res = _career_engine_for(user_id).interview_board.update_card_stage(req.card_id, req.new_stage)
         return {"success": True, "data": res}
     except Exception as e:
         logger.exception("Update interview card error")
         raise HTTPException(status_code=500, detail="Failed to update interview stage.")
 
 @router.post("/career/ats-prepare")
-async def ats_prepare(req: ATSPrepareRequest) -> Dict[str, Any]:
+async def ats_prepare(req: ATSPrepareRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = await career_engine.prepare_ats_keyword_optimization_hitl(req.resume_text, req.job_description)
+        res = await _career_engine_for(user_id).prepare_ats_keyword_optimization_hitl(req.resume_text, req.job_description)
         return {"success": True, "data": res}
     except Exception as e:
         logger.exception("ATS prepare error")
         raise HTTPException(status_code=500, detail="ATS preparation failed.")
 
 @router.post("/career/ats-confirm")
-async def ats_confirm(req: ATSConfirmRequest) -> Dict[str, Any]:
+async def ats_confirm(req: ATSConfirmRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = await career_engine.confirm_ats_keyword_optimization_hitl(req.approval_id, req.approved, req.custom_keywords)
+        res = await _career_engine_for(user_id).confirm_ats_keyword_optimization_hitl(req.approval_id, req.approved, req.custom_keywords)
         return {"success": True, "data": res}
     except Exception as e:
         logger.exception("ATS confirm error")
         raise HTTPException(status_code=500, detail="ATS confirmation failed.")
 
 @router.post("/career/universal-apply")
-async def universal_apply(req: UniversalApplyRequest) -> Dict[str, Any]:
+async def universal_apply(req: UniversalApplyRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
         if not req.candidate_profile:
             raise HTTPException(status_code=400, detail="Missing candidate_profile in request.")
         for url in req.job_urls:
             _validate_job_url(url)
-        res = await career_engine.universal_batch_auto_apply(req.job_urls, req.candidate_profile)
+        res = await _career_engine_for(user_id).universal_batch_auto_apply(req.job_urls, req.candidate_profile)
         return {"success": True, "data": res}
     except HTTPException:
         raise
@@ -205,28 +269,37 @@ async def universal_apply(req: UniversalApplyRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="Batch auto-apply failed.")
 
 @router.post("/career/ai-negotiate")
-async def ai_negotiate(req: AINegotiateRequest) -> Dict[str, Any]:
+async def ai_negotiate(req: AINegotiateRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = await career_engine.generate_ai_salary_negotiation(req.current_offer, req.target_role, req.location, req.company)
+        res = await _career_engine_for(user_id).generate_ai_salary_negotiation(req.current_offer, req.target_role, req.location, req.company)
         return {"success": True, "data": res}
+    except LLMNotConfiguredError as exc:
+        logger.error("AI negotiate: LLM not configured/available: %s", exc)
+        return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
     except Exception as e:
         logger.exception("AI negotiate error")
         raise HTTPException(status_code=500, detail="Salary negotiation analysis failed.")
 
 @router.post("/career/outreach")
-async def outreach(req: OutreachRequest) -> Dict[str, Any]:
+async def outreach(req: OutreachRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = await career_engine.generate_recruiter_cold_outreach(req.company, req.recruiter_name, req.job_title)
+        res = await _career_engine_for(user_id).generate_recruiter_cold_outreach(req.company, req.recruiter_name, req.job_title)
         return {"success": True, "data": res}
+    except LLMNotConfiguredError as exc:
+        logger.error("Recruiter outreach: LLM not configured/available: %s", exc)
+        return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
     except Exception as e:
         logger.exception("Recruiter outreach error")
         raise HTTPException(status_code=500, detail="Recruiter outreach generation failed.")
 
 @router.post("/career/copilot")
-async def copilot(req: CopilotRequest) -> Dict[str, Any]:
+async def copilot(req: CopilotRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = await career_engine.generate_interview_copilot_response(req.question, req.role)
+        res = await _career_engine_for(user_id).generate_interview_copilot_response(req.question, req.role)
         return {"success": True, "data": res}
+    except LLMNotConfiguredError as exc:
+        logger.error("Copilot response: LLM not configured/available: %s", exc)
+        raise HTTPException(status_code=503, detail="ai_service_unavailable") from exc
     except Exception as e:
         logger.exception("Copilot response error")
         raise HTTPException(status_code=500, detail="Copilot response generation failed.")

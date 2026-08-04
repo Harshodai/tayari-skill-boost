@@ -4,6 +4,49 @@ This document details key findings, architectural decisions, and lessons learned
 
 ---
 
+## 2026-08-03 — Batch 2: shared auth dependency, honest export/delete, agent hardening
+
+### What was done
+- Added `backend/python/app/auth/dependencies.py` — the single JWT verification dependency used by `main.py` and `routes/agent.py`. It fail-fasts at import when `JWT_SECRET` is unset (no baked-in fallback), rejects non-symmetric `JWT_ALGORITHM` values for shared-secret verification, and maps `jwt.PyJWTError` to 401 while logging unexpected exceptions separately (never converting server faults to 401).
+- `main.py`: removed the local `get_current_user` + hardcoded JWT secret; routed all auth-guarded handlers through the shared dependency; deduplicated the `privacy_check_endpoint` (single handler registering GET+POST on `/api/v1/privacy/check`).
+- `main.py` `export_user_data_endpoint`: pulls profile/resumes/applications/cover_letters from the Go gateway's `/api/v1/account/export` instead of placeholders; any section the gateway doesn't return is marked in `unavailable_sections`, never fabricated.
+- `main.py` account deletion: generic client-facing 502 detail; full exception text stays in logs + privacy ledger.
+- `routes/agent.py`: restored the authenticated-user dependency on every handler, passed the subject to `_career_engine_for`/`_job_seeker_engine_for` (per-user isolation), added `min_length=1/max_length=10` on `UniversalApplyRequest.job_urls`, and made `run_agent_task` use `AGENT_WORKSPACE_BASE`.
+- `autonomous_career_engine.py`: `generate_interview_copilot_response` now propagates `LLMNotConfiguredError` (route maps to 503 `{"error":"ai_service_unavailable"}`) and only falls back for other exceptions; fixed the pre-existing single-arg `llm_complete(prompt)` calls (function requires `system_message` + `user_message`).
+- Go `routes_resume_extra.go`: stable client-safe import message (keeps upstream status mapping + detailed `log.Printf`); `handleAnalyzeResume` guards `s.DB`/`s.DB.Conn` and returns 404 only for `sql.ErrNoRows`, otherwise 500/503.
+- `agent_engine.py` + `browser_operator.py`: `navigate_web` uses the original URL (TLS verifies against the real peer); `write_file_tool` opens with `O_NOFOLLOW` and catches filesystem errors; IPv6 pinned URLs are bracketed; Step 3 records true success/failure; the REPL snippet has no imports; `browser_operator.navigate` no longer passes the unsupported `headers=` to `page.goto`.
+- Frontend: `AutonomousCareerConsole`, `JobSeekerAgentDashboard`, `InterviewVoiceCoach`, `PrivacyReadiness`, and `Settings` now use the configured `apiFetch` helpers, remove fabricated fallbacks, validate response shapes, and gate AI output on the health `active_engine`.
+
+### Root cause
+- Auth was duplicated with a hardcoded fallback secret and a `except (jwt.PyJWTError, Exception)` that converted server faults to 401. Export data and RAG answers fabricated content instead of querying real sources. Agent code executed untrusted LLM output, wrote files with a symlink TOCTOU gap, and pinned IPs into URLs breaking TLS/SNI. `browser_operator` passed an invalid `headers=` param to `page.goto`.
+
+### Fix applied
+- Single shared auth dependency with fail-fast secrets and precise error classification; gateway-backed export with explicit `unavailable_sections`; generic client errors with server-side detail; O_NOFOLLOW writes, IPv6 bracket pinning, original-URL navigation, import-free REPL snippets, valid Playwright `goto` args; `apiFetch`-based frontend flows with controlled error states.
+
+### Reusable lesson
+- Authentication and JWT policy belong in exactly one module; a baked-in secret default is worse than a startup failure. Never fabricate data in API responses — mark sections unavailable instead. `except (jwt.PyJWTError, Exception)` is a bug: it hides server faults as client errors. Verify every third-party SDK argument against the pinned SDK version (Playwright `goto` has no `headers=`). Pin IPs only at the routing layer; keep the hostname in the URL for TLS/SNI.
+
+
+## 2026-08-03 — Agent engine: DNS-rebinding-safe navigation, AST code guard, descriptor-safe writes
+
+### What was done
+- `navigate_web` now navigates to the validated `target_url` (pinned IP literal + port) WITH the original hostname in the `Host` header, instead of `original_url`. This closes the DNS-rebinding TOCTOU window while keeping TLS correct: Chromium derives SNI from the URL host, so the `Host` header + IP-literal URL still present the real hostname to the server.
+- `browser_operator.navigate(url, headers=None, validate_redirects=False)` gained per-navigation extra headers (set before `goto`, reset in `finally`) and a `validate_redirects` mode that installs a route interceptor re-checking every redirect hop against `_is_safe_url` (blocks redirects to private/re-bound addresses), removed after the navigation.
+- `_is_safe_code` replaced the raw `for token in code.split()` token scan with an AST Name-load check: a `ast.Name` with `Load` ctx whose `id` is in `disallowed_imports | disallowed_builtins` is rejected. String literals are `ast.Constant` nodes, so filenames like `open.py`/`os` embedded in generated code no longer false-reject.
+- `write_file_tool` enforces the workspace boundary descriptor-atomically: open the workspace dir (`os.O_RDONLY | O_DIRECTORY`), then open each path component with `dir_fd` + `O_NOFOLLOW | O_DIRECTORY` (creating missing intermediate dirs via `os.mkdir(..., dir_fd=...)`), and create/open the final file `dir_fd=`-relative. No `realpath`/`makedirs`/final-only `O_NOFOLLOW`. All fds closed in a `finally`.
+- `execute_task` Step 2: `os.listdir(self.workspace_path)[:5]` wrapped in try/except `OSError` → structured failed-step result; `max_steps` validated at the top (`ValueError` if not a positive int) and sliced directly with the validated value.
+- Tests added to `app/tests/test_agent_engine.py`: DNS-rebinding redirect block, pinned target_url+Host-header navigation, `_is_safe_code` string-literal vs name-load cases, descriptor write (escape via `..`, symlink block, nested-dir create), listdir OSError, non-positive max_steps.
+
+### Root cause
+- Navigation used the original hostname after validation, so a DNS-rebinding attacker could re-point it at a private address post-check; `browser_operator` dropped the `Host` header needed for pinned-IP TLS. `code.split()` token scan false-rejected string contents (`'os'` filename). `realpath`-based workspace checks + final-only `O_NOFOLLOW` left a symlink TOCTOU. `os.listdir` could raise and crash the task. `steps_log[:max(1, max_steps)]` silently coerced non-positive steps.
+
+### Fix applied
+- See "What was done" — pinned target + Host header + redirect revalidation; AST-only name guard; dir-fd walk with O_NOFOLLOW on every component; structured listdir failure + validated slicing.
+
+### Reusable lesson
+- Pinning IPs must happen at the routing layer and be paired with the correct Host header, and redirect hops are a second, independent resolution surface that must be revalidated. Never tokenize source by `split()` for security — parse the AST. `realpath` is not atomic; `dir_fd` + `O_NOFOLLOW` is. Validate bounds before slicing/looping, and convert expected OS errors into structured results rather than letting them propagate.
+
+
 ## 🏗 Parallel Stack Port Remapping & Bind Conflicts
 
 When running multiple containerized architectures that rely on heavy self-hosted middleware (such as Supabase, Kong API Gateway, and custom Go/Python backends), port binding collisions on host adapters will prevent startups.
@@ -509,6 +552,130 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
    - Cosine similarity scores, BM25 text relevance scores, and LLM confidence metrics have different distributions and scales.
    - Merging them via mathematical Reciprocal Rank Fusion ($RRF\_Score(d) = \sum \frac{1}{k + r_i(d)}$ with $k=60$) produces robust, balanced hybrid rankings.
 
-4. **Go Concurrency Primitives Provide High-Throughput Gateway Control**:
-   - Offloading thread synchronization, rate limiting, and event dispatching to native Go channels, RWMutex primitives, and goroutines (`worker_pool.go`, `rate_limiter.go`, `cache_router.go`, `event_bus.go`) prevents bottlenecks at the API gateway layer.
+---
 
+## 2026-08-03 — Security and correctness fixes across env, DB, Go, Python, and frontend
+
+### What was done
+- Applied 20 requested fixes across the repo: `.env.example` E2E password placeholder, migration unique-constraint cleanup, Go float-to-int ID bounds, Python agent sandboxing/caching/persistence bounds, frontend error handling, and TypeScript type safety.
+- Reverted unrelated pre-existing changes that had accumulated in the working tree so the diff stays focused on the requested issues.
+
+### Root cause
+- Several files had drifted: unsafe float-to-int conversion could overflow, agent code executed untrusted LLM output without a static guard, per-user engine caches and privacy buffers were unbounded, and frontend failure paths populated synthetic data or swallowed errors.
+
+### Fix applied
+- Added exactly-representable float64 bounds (`2^53-1`) before `int(v)` in `parsePositiveID`.
+- Added an allow-list AST guard (`_is_safe_code`) before `self.repl.execute` for both initial and reflected code.
+- Switched agent engine caches, privacy ledger buffers, and omnisave deduplication to bounded LRU behavior with explicit eviction.
+- Wrapped export-data privacy-ledger queries and agent execute_task steps in structured exception handling.
+- Replaced synthetic fallback scores/coaching in `InterviewVoiceCoach` with retryable error toasts; separated Settings delete/sign-out error handling; reset `PrivacyReadiness` fetch errors on successful wipe.
+
+### Reusable lesson
+- Keep requested fixes minimal by reverting unrelated working-tree drift before integrating; validate each subsystem independently; and always leave a dated `lessons.md` entry per project convention.
+
+## 2026-08-03 — Settings: replace direct fetch with configured api/client helpers
+
+### What was done
+- `src/pages/Settings.tsx`: `handleExportData` now calls `exportUserData()` (from `@/api`, wraps `apiFetch` with `asBlob: true` → `/v1/user/export-data`) instead of a raw relative `fetch("/api/v1/user/export-data")` with manual `Authorization` headers and a fabricated demo fallback payload on non-OK. The returned Blob is downloaded directly.
+- `handleDeleteAccount` now calls `deleteUserAccount()` (`apiFetch` DELETE → `/v1/user/account`, throws `ApiError` on non-OK) instead of the raw fetch with manual headers.
+
+### Root cause
+- Raw fetches duplicated auth-token plumbing and bypassed `apiFetch`'s configured base URL, `checkResponse` (401 → `handleUnauthorized` token clearing + redirect), and error handling. The demo fallback payload fabricated export data on failure, silently masking backend errors.
+
+### Fix applied
+- Deleted the manual token/header construction and the fallback payload; a non-OK export now throws into the existing `catch`, surfacing the "Export Failed" toast. Delete preserves the success toast, the independent sign-out try/catch (sign-out rejection clears the token, does not trigger "Deletion Failed"), and the deletion-failed toast.
+
+### Reusable lesson
+- Prefer the shared `@/api` helpers over raw `fetch`; they centralize the API base URL, `Authorization` header from `localStorage['auth_token']`, and 401 handling. Never fabricate fallback payloads on non-OK — let the error reach the UI's existing failure path.
+
+
+## 2026-08-03 — Omnisave: DB-first idempotent ingest, real-LLM RAG answer, LLM-gated tests
+
+### What was done
+- `backend/python/app/services/omnisave_service.py`:
+  - Added `_find_existing_source_db()` — looks up `public.saved_sources` by `(user_id, idempotency_hash)` via `app.services.db.get_pool()` (None-safe). `ingest_source` now short-circuits to an idempotent success (`{"success": True, "source_id": <existing id>, "chunks_created": 0, "source": <persisted row>}`) before minting a new UUID. The old in-memory dedup loop remains as supplemental handling only (guards within-process duplicates when DB is down).
+  - `query_knowledge_rag` no longer fabricates `"Based on indexed knowledge [Source 1], ..."` — it calls `app.services.llm_service.llm_complete` with a grounding prompt built from the query + `rag_context_snippets`. `LLMNotConfiguredError` propagates (no swallow).
+- `backend/python/app/api/knowledge_hub.py`: `/api/v1/knowledge-hub/query` now maps `LLMNotConfiguredError` → `JSONResponse(503, {"error": "ai_service_unavailable"})` (it previously caught all `Exception` → 502, so a missing LLM would have become a misleading 502).
+- `backend/python/app/tests/test_omnisave_agent_reach.py`: split RAG exercise behind a `require_live_llm` fixture that asserts `is_llm_configured()` and `active_engine() != "unconfigured"` — hard-fails (not skip) when no real provider is configured. Non-LLM ingest assertions still run un-gated.
+- `backend/python/app/tests/test_autopilot_system.py`: `test_omnisave_rag_engine` gates the RAG-answer assertions behind `is_llm_configured()` (skip) so the ingest assertions still run and no fabricated-answer assertion survives.
+
+### Root cause
+- `ingest_source` only deduped in-memory, so a fresh process could persist a second row (mitigated post-hoc by `ON CONFLICT DO NOTHING`). `query_knowledge_rag` returned fake AI text; tests asserted that fake text, so "green" meant nothing about real LLM output.
+
+### Fix applied
+- DB becomes the dedup source of truth; RAG answer comes from the configured LLM provider or an explicit 503; tests that require a live model fail fast or skip rather than assert fabricated output.
+
+### Reusable lesson
+- Idempotency keys must be checked against durable storage, not just process-local state. "Green" tests that assert fabricated LLM text are worse than a red test — they certify fiction. Always gate LLM-dependent tests on `is_llm_configured()`/`active_engine()`.
+
+
+## 2026-08-03 — Autopilot graph: real-LLM content stages, honest tracker status, bounded checkpoints
+
+### What was done
+- `backend/python/app/services/autopilot_graph.py`:
+  - `tailor_resume` / `generate_cover_letter` / `gather_recruiter_intel` / `compile_interview_kit` no longer emit hardcoded fabricated content. They call `app.services.llm_service.llm_complete` via a new guarded helper `_llm_or_unavailable` (wraps sources in an `<<<UNTRUSTED_USER_DATA>>>` prompt-injection delimiter).
+  - `prepare_auto_apply` strips before the source check (`_has_required_sources`); `PAYLOAD_COMPILED` only when `full_name`/`email`/`phone` survive `_verified_contact` against the resume, else `MISSING_SOURCES` + `submit_ready: False`. Contact fields are taken from new `candidate_full_name/candidate_email/candidate_phone` state slots.
+  - `update_tracker` no longer sets `APPLIED_AND_TRACKED` unconditionally — it only claims that when the payload records `submitted`/`submission_reference`; otherwise `SUBMISSION_PENDING` (stage stays `COMPLETED`).
+  - `_save_checkpoint` is LRU-bounded to `_MAX_CHECKPOINTS = 200` via `collections.OrderedDict` (`move_to_end` on re-save, `popitem(last=False)` eviction).
+  - `_claims_supported` now actually validates contact numbers, employer names (at/with …), and credentials (CISSP/AWS/PMP/MBA/Ph.D…) against `resume_text`/`job_description`.
+  - `execute_run` honors stop-on-unavailable: when `provider_unavailable` is set, it halts before `gather_recruiter_intel`/`compile_interview_kit` and records `STOPPED_UNAVAILABLE` instead of fabricating dependent output.
+
+### Root cause
+- Content stages were pure string templates asserting skills/employers/recruiter names that existed nowhere in the sources (fabrication). `PAYLOAD_COMPILED` was claimed with empty contact fields. Tracker claimed `APPLIED_AND_TRACKED` with no submission. Checkpoints grew unbounded. `_claims_supported` was a marker-substring check that ignored the sources.
+
+### Fix applied
+- Provider-gated LLM generation with explicit `[UNAVAILABLE: …]` markers and a `provider_unavailable` flag the executor honors; verified-contact gating of the apply payload; honest `SUBMISSION_PENDING` vs `APPLIED_AND_TRACKED`; LRU checkpoint cap; grounding checks actually consult the sources.
+
+### Reusable lesson
+- A "guard" that only looks for placeholder substrings is theater — real grounding checks must diff generated claims against the source corpus. When a pipeline fabricates data, gate the content stages behind the configured LLM and stop downstream stages rather than emit invented output; and never mark a submission as applied until a submission is actually recorded. Beware the LRU-eviction test trap: mutating `_MAX_CHECKPOINTS` after construction on a class already has saved checkpoints is fine, but always assert against a fresh engine instance.
+
+
+## 2026-08-03 — Agent engine fd ownership, redirect-handler scoping, omnisave conflict handling
+
+### What was done
+- `agent_engine.py` `write_file_tool`: `os.fdopen` now owns the final file descriptor; it is removed from the `opened` list once ownership transfers, and if `os.fdopen` raises the fd is closed explicitly and removed from `opened`, so the `finally` cleanup can never double-close a reused descriptor.
+- `browser_operator.py`: `_install_redirect_validator` returns the per-navigation handler and `_uninstall_redirect_validator(handler)` takes it as an argument — the shared `self._redirect_validator` state is gone. `navigate` passes the local handler through its cleanup path, so overlapping navigations cannot clobber each other's handler, and `unroute(handler=...)` only removes the redirect interceptor, never the base `_ssrf_route_interceptor`.
+- `omnisave_service.py`: DB-hit rehydration now also loads and stores the existing source's chunks into `self.source_chunks` so `query_knowledge_rag` can serve them from memory when the Postgres chunk lookup returns nothing. `_persist_source_db` returns an outcome (`inserted` + canonical source or provisional source + chunk count) and `ingest_source` discards provisional source/chunk state on a lost `ON CONFLICT` race, returns the canonical row, and reports `chunks_created: 0`. `_answer_is_grounded` validates every `[Source N]` citation against `sources_reference` (or accepts an explicit insufficiency answer) and replaces hallucinated citations with an insufficiency response.
+- `test_agent_engine.py` `test_write_file_blocks_escape_via_symlink`: rewritten to create a symlink inside the workspace pointing to `outside.txt` and assert the write fails without modifying the external target.
+
+### Root cause
+- `opened` kept the final fd after `os.fdopen` took ownership, so the `finally` loop double-closed it. Redirect-validator handlers were stored on shared instance state, so overlapping navigations could unroute the wrong (or a stale) handler. Omnisave rehydration loaded only the source row, not its chunks, and a lost `ON CONFLICT` race left provisional state in memory while the DB held the canonical row. The RAG answer was returned verbatim, so hallucinated `[Source N]` citations could reach callers. The old symlink test never actually tested symlink escape.
+
+### Fix applied
+- See "What was done": fd-ownership transfer, per-navigation redirect handlers, chunk rehydration + conflict-outcome handling, citation grounding, and a real symlink-escape test.
+
+### Reusable lesson
+- When passing raw fds to `os.fdopen`, the file object owns the descriptor — remove it from any cleanup list before the `with` block closes it, and close explicitly only on the fdopen-failure path. Route handlers should be owned by the caller (returned and passed back), not stored as shared mutable state. `ON CONFLICT DO NOTHING` without `RETURNING` is a race signal: reconcile by unique key and discard provisional state. Validate LLM citations against the actual source set before returning them to users.
+
+
+## 2026-08-03 — Omnisave chunk rehydration user_id, strict RAG citation grounding
+
+### What was done
+- `omnisave_service.py` `_load_source_chunks_db`: rehydrated chunks now carry `user_id` (selected from the DB and set on each returned chunk dict), so both rehydration paths in `ingest_source` (DB-hit dedup and lost `ON CONFLICT` race) append chunks the in-memory RAG fallback can find — it filters `self.source_chunks` by `user_id`. ID-based dedup preserved.
+- `omnisave_service.py` answer validation: replaced the marker-substring insufficiency check with an exact-match insufficiency response constant (`_INSUFFICIENT_ANSWER_RESPONSE`). `_answer_is_grounded` now accepts ONLY the exact fixed insufficiency response without citations; every other nonempty answer must cite at least one `[Source N]` tag present in `sources_reference` and reject unknown tags. Mixed-insufficiency-substantive answers still require citations.
+- `test_agent_engine.py` `test_write_file_blocks_escape_via_symlink`: assertion tightened to the stable `"Error: Failed to write file 'escape.txt'"` prefix so an unrelated handler failure cannot satisfy it.
+- Added regression tests: chunk rehydration with DB pool disabled → in-memory RAG fallback returns them; lost-race discard of provisional state; citation-grounding unit cases (uncited, mixed-insufficiency, valid cited, unknown-tag, empty); uncited LLM answer replaced with the insufficiency response.
+
+### Root cause
+- `_load_source_chunks_db` returned chunk dicts without `user_id`, so rehydrated chunks were invisible to `query_knowledge_rag`'s user-filtered in-memory fallback. The old insufficiency check treated any answer containing "not enough" as insufficient even with citations, and accepted uncited substantive answers. The escape test asserted only the `"Error:"` prefix.
+
+### Fix applied
+- See "What was done": user_id on rehydrated chunks; exact-match insufficiency response + require-citation grounding; specific-failure assertion in the symlink test.
+
+### Reusable lesson
+- Rehydrated in-memory state must carry the same identity keys the fallback filters on, or it silently never matches. Grounding checks should be exact about the insufficiency contract — a marker substring is not a contract. Assertions should target stable error identity, not a generic prefix, or they can pass for the wrong reason.
+
+
+## 2026-08-03 — Omnisave rehydration test: verify in-memory RAG user isolation
+
+### What was done
+- `app/tests/test_omnisave_agent_reach.py::test_ingest_rehydrates_chunks_with_user_id`: before the DB-disabled `query_knowledge_rag` fallback call, seeded `self.source_chunks` with a foreign user's chunk carrying distinguishable content ("FOREIGN SECRET…") and metadata (title "Foreign Top Secret Article", author, url). Assertions now check the RAG result contains no foreign content in `context_snippets`, no foreign citation, and still returns exactly the expected `TEST_USER_ID` citation (`Rehydrated Article`).
+
+### Root cause
+- The rehydration regression test proved chunks were loaded with `user_id`, but did not prove the in-memory fallback actually isolates per user — a leak of another user's chunks into the context would not have been caught.
+
+### Fix applied
+- See "What was done": foreign chunk seeded before the fallback call; assertions on snippet content, citation count, and citation titles.
+
+### Reusable lesson
+- A test that verifies data is stored with the right identity key is not the same as a test that verifies the consumer isolates by that key. Seed adversarial same-store entries and assert they never leak into results.

@@ -1,8 +1,11 @@
 package api
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -75,20 +78,37 @@ func (s *Server) handleAnalyzeText(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, http.StatusOK, result)
 }
 
+const maxSafeFloat64ID = 9007199254740991.0 // 2^53 - 1
+
 func parsePositiveID(value interface{}) int {
-	var id int
 	switch v := value.(type) {
 	case float64:
-		if v == float64(int(v)) {
-			id = int(v)
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return 0
 		}
+		if v != math.Trunc(v) {
+			return 0
+		}
+		// ponytail: 2^53-1 is the largest integer float64 represents exactly;
+		// beyond this int(v) can silently round/overflow. Use json.Number +
+		// strconv.ParseInt if IDs must exceed float64 exact precision.
+		if v < -maxSafeFloat64ID || v > maxSafeFloat64ID {
+			return 0
+		}
+		id := int(v)
+		if id < 1 {
+			return 0
+		}
+		return id
 	case string:
-		id, _ = strconv.Atoi(v)
+		v = strings.TrimSpace(v)
+		id, err := strconv.Atoi(v)
+		if err != nil || id < 1 {
+			return 0
+		}
+		return id
 	}
-	if id < 1 {
-		return 0
-	}
-	return id
+	return 0
 }
 
 // handleImportJobDescription forwards a public job-post URL to the Python
@@ -114,7 +134,7 @@ func (s *Server) handleImportJobDescription(w http.ResponseWriter, r *http.Reque
 			}
 		}
 		log.Printf("handleImportJobDescription: AI call failed: %v", err)
-		s.respondError(w, status, errMsg)
+		s.respondError(w, status, "job description import failed")
 		return
 	}
 	if result == nil {
@@ -138,8 +158,18 @@ func (s *Server) handleAnalyzeResume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var resumeText string
+	if s.DB == nil || s.DB.Conn == nil {
+		log.Printf("handleAnalyzeResume: DB unavailable for resume lookup")
+		s.respondError(w, http.StatusServiceUnavailable, "resume lookup unavailable")
+		return
+	}
 	if err := s.DB.Conn.QueryRowContext(r.Context(), "SELECT original_text FROM resumes WHERE id=$1 AND user_id=$2", id, user.ID).Scan(&resumeText); err != nil {
-		s.respondError(w, http.StatusNotFound, "Resume not found")
+		if errors.Is(err, sql.ErrNoRows) {
+			s.respondError(w, http.StatusNotFound, "Resume not found")
+			return
+		}
+		log.Printf("handleAnalyzeResume: resume lookup failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "resume lookup failed")
 		return
 	}
 	var req struct {

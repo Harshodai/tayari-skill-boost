@@ -7,26 +7,13 @@ import { ShieldCheck, Lock, Server, Cpu, CheckCircle2, RefreshCw, Trash2, Eye } 
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/layout";
-
-interface LedgerEntry {
-  id: string;
-  action: string;
-  resource: string;
-  detail: {
-    is_local?: boolean;
-    provider?: string;
-    pii_redacted?: string[];
-    tokens_used?: number;
-    archive_type?: string;
-    mode?: string;
-  };
-  created_at: string;
-}
+import { fetchPrivacyLedger, clearPrivacyLedger } from "@/api/client";
+import type { PrivacyLedgerEntry } from "@/api/types";
 
 export function PrivacyReadiness() {
   const [loading, setLoading] = useState(false);
   const [ledgerLoading, setLedgerLoading] = useState(false);
-  const [ledgerLogs, setLedgerLogs] = useState<LedgerEntry[]>([]);
+  const [ledgerLogs, setLedgerLogs] = useState<PrivacyLedgerEntry[]>([]);
   const [status, setStatus] = useState<any>({
     privacy_mode: "LOCAL_FIRST_ZERO_DATA_LEAKAGE",
     self_hosted: true,
@@ -59,31 +46,10 @@ export function PrivacyReadiness() {
     setLedgerLoading(true);
     setFetchError(null);
     try {
-      const resp = await fetch("/api/v1/privacy/ledger");
-      if (resp.ok) {
-        const data = await resp.json();
-        setLedgerLogs(data.ledger || []);
-      } else {
-        setFetchError("Unable to fetch live audit ledger.");
-        setLedgerLogs([
-          {
-            id: "1",
-            action: "llm_inference",
-            resource: "/api/v1/resume/optimize",
-            detail: { is_local: true, provider: "ollama/llama3", pii_redacted: ["email", "phone"] },
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: "2",
-            action: "cover_letter_generate",
-            resource: "/api/v1/cover-letter/generate",
-            detail: { is_local: false, provider: "openrouter/gpt-4o-mini", pii_redacted: ["full_name", "location"] },
-            created_at: new Date(Date.now() - 3600000).toISOString(),
-          },
-        ]);
-      }
+      const data = await fetchPrivacyLedger();
+      setLedgerLogs(data.ledger || []);
     } catch {
-      setFetchError("Network error loading privacy ledger.");
+      setFetchError("Unable to fetch live audit ledger.");
       setLedgerLogs([]);
     } finally {
       setLedgerLoading(false);
@@ -92,13 +58,12 @@ export function PrivacyReadiness() {
 
   const handleClearLedger = async () => {
     try {
-      const resp = await fetch("/api/v1/privacy/clear-ledger", { method: "POST" });
-      if (resp.ok) {
-        toast.success("Privacy Ledger Log Wiped");
-        setLedgerLogs([]);
-      } else {
-        toast.error("Failed to clear ledger: " + resp.statusText);
-      }
+      // ponytail: clear prior fetch error before wipe so a stale failure isn't
+      // displayed after the ledger is successfully wiped.
+      setFetchError(null);
+      await clearPrivacyLedger();
+      toast.success("Privacy Ledger Log Wiped");
+      setLedgerLogs([]);
     } catch {
       toast.error("Failed to clear ledger");
     }
@@ -199,7 +164,11 @@ export function PrivacyReadiness() {
             </div>
           </CardHeader>
           <CardContent>
-            {ledgerLogs.length === 0 ? (
+            {fetchError ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                {fetchError}
+              </div>
+            ) : ledgerLogs.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-sm border border-dashed rounded-lg">
                 <ShieldCheck className="h-8 w-8 text-emerald-500 mx-auto mb-2 opacity-80" />
                 No outgoing request entries in current session. All processing remained 100% on-device.

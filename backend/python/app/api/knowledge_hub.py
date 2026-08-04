@@ -5,11 +5,13 @@ Persistence is handled by the Go backend; this service is stateless.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 
-from app.services.llm_service import summarize_saved_post
+from app.auth.dependencies import get_current_user
+from app.services.llm_service import LLMNotConfiguredError, summarize_saved_post
 from app.services.omnisave_service import get_omnisave_service
 
 
@@ -32,120 +34,16 @@ class SaveSyncRequest(BaseModel):
 
 
 @router.get("/saves")
-async def get_saved_sources(authorization: Optional[str] = Header(None)):
+async def get_saved_sources(user_id: str = Depends(get_current_user)):
     """Fetch saved sources from Omnisave AI vector knowledge base. Requires valid Bearer token."""
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Missing or invalid Authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    token = authorization.split(" ", 1)[1].strip()
-    if not token:
-        raise HTTPException(
-            status_code=401,
-            detail="Missing or invalid Authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    import jwt
-    import os
-    JWT_SECRET = os.getenv("JWT_SECRET") or os.getenv("SUPABASE_JWT_SECRET")
-    if not JWT_SECRET:
-        raise HTTPException(
-            status_code=500,
-            detail="JWT_SECRET or SUPABASE_JWT_SECRET not configured"
-        )
-    JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-
-    try:
-        decoded = jwt.decode(
-            token,
-            JWT_SECRET,
-            algorithms=[JWT_ALGORITHM],
-            options={"verify_signature": True, "verify_exp": True}
-        )
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=401,
-            detail="Token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except jwt.InvalidTokenError:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user_id = decoded.get("sub")
-    if not user_id or not isinstance(user_id, str) or not user_id.strip():
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token: missing or empty subject",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
     service = get_omnisave_service()
     sources = service.get_user_saved_sources(user_id=user_id)
     return {"success": True, "sources": sources}
 
 
 @router.post("/saves/sync")
-async def sync_agent_reach_saves(payload: Optional[SaveSyncRequest] = None, authorization: Optional[str] = Header(None)):
+async def sync_agent_reach_saves(user_id: str = Depends(get_current_user), payload: Optional[SaveSyncRequest] = None):
     """Trigger Agent Reach & Hermes extraction engine to sync saved posts. Requires valid Bearer token."""
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Missing or invalid Authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    token = authorization.split(" ", 1)[1].strip()
-    if not token:
-        raise HTTPException(
-            status_code=401,
-            detail="Missing or invalid Authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    import jwt
-    import os
-    JWT_SECRET = os.getenv("JWT_SECRET") or os.getenv("SUPABASE_JWT_SECRET")
-    if not JWT_SECRET:
-        raise HTTPException(
-            status_code=500,
-            detail="JWT_SECRET or SUPABASE_JWT_SECRET not configured"
-        )
-    JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-
-    try:
-        decoded = jwt.decode(
-            token,
-            JWT_SECRET,
-            algorithms=[JWT_ALGORITHM],
-            options={"verify_signature": True, "verify_exp": True}
-        )
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=401,
-            detail="Token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except jwt.InvalidTokenError:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user_id = decoded.get("sub")
-    if not user_id or not isinstance(user_id, str) or not user_id.strip():
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token: missing or empty subject",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
     service = get_omnisave_service()
     platforms = payload.platforms if payload and payload.platforms else ["substack", "medium", "linkedin"]
     result = await service.sync_agent_reach_posts(user_id=user_id, platforms=platforms)
@@ -171,61 +69,9 @@ async def analyze_saved_post(payload: SaveAnalyzeRequest):
 @router.post("/knowledge-hub/query")
 async def query_knowledge_hub(
     payload: KnowledgeQueryRequest,
-    authorization: Optional[str] = Header(None)
+    user_id: str = Depends(get_current_user),
 ):
     """Query the Omnisave knowledge base using RAG. Requires valid Bearer token."""
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Missing or invalid Authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    token = authorization.split(" ", 1)[1].strip()
-    if not token:
-        raise HTTPException(
-            status_code=401,
-            detail="Missing or invalid Authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    import jwt
-    import os
-    JWT_SECRET = os.getenv("JWT_SECRET") or os.getenv("SUPABASE_JWT_SECRET")
-    if not JWT_SECRET:
-        raise HTTPException(
-            status_code=500,
-            detail="JWT_SECRET or SUPABASE_JWT_SECRET not configured"
-        )
-    JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-
-    try:
-        decoded = jwt.decode(
-            token,
-            JWT_SECRET,
-            algorithms=[JWT_ALGORITHM],
-            options={"verify_signature": True, "verify_exp": True}
-        )
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=401,
-            detail="Token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except jwt.InvalidTokenError:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user_id = decoded.get("sub")
-    if not user_id or not isinstance(user_id, str) or not user_id.strip():
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token: missing or empty subject",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
     try:
         omnisave = get_omnisave_service()
         result = await omnisave.query_knowledge_rag(
@@ -247,6 +93,8 @@ async def query_knowledge_hub(
             "answer": result.get("answer", ""),
             "citations": citations,
         }
+    except LLMNotConfiguredError as exc:
+        return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
     except Exception as exc:  # noqa: BLE001
         import logging
         logging.getLogger(__name__).error("Knowledge query failed", exc_info=exc)

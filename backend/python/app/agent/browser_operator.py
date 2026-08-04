@@ -53,15 +53,46 @@ class BrowserOperator:
             await self.close()
             return False
 
-    async def navigate(self, url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        """Navigate to target URL and retrieve simplified page text & metadata."""
+    async def navigate(self, url: str, headers: Optional[Dict[str, str]] = None, validate_redirects: bool = False) -> Dict[str, Any]:
+        """Navigate to target URL and retrieve simplified page text & metadata.
+
+        When ``headers`` is provided, its entries are applied as extra HTTP
+        headers for this navigation only (the context is reset afterward so they
+        cannot leak to later origins). When ``validate_redirects`` is true, every
+        redirect destination is re-checked against the SSRF URL guard and the
+        navigation is aborted if any hop targets a private or non-public host.
+        """
         if not self.page:
             init_ok = await self.initialize()
             if not init_ok or not self.page:
                 return {"success": False, "error": "Browser engine not initialized (Playwright missing or restricted)."}
 
+        # ponytail: context.set_extra_http_headers persists for the lifetime of
+        # the context and leaks across later origins/subresources. Apply headers
+        # only around the navigation and reset them immediately after.
+        extra_headers: Dict[str, str] = {}
+        if self.context:
+            await self.context.set_extra_http_headers({})
+            if headers:
+                extra_headers = {
+                    k: v for k, v in headers.items()
+                    if k.lower() not in ("referer", "cookie", "authorization")
+                }
+
         try:
-            response = await self.page.goto(url, wait_until="networkidle", timeout=20000, headers=headers or {})
+            if extra_headers and self.context:
+                await self.context.set_extra_http_headers(extra_headers)
+
+            if validate_redirects:
+                redirect_validator = await self._install_redirect_validator()
+            else:
+                redirect_validator = None
+
+            referer = (headers or {}).get("Referer")
+            goto_kwargs: Dict[str, Any] = {"wait_until": "networkidle", "timeout": 20000}
+            if referer:
+                goto_kwargs["referer"] = referer
+            response = await self.page.goto(url, **goto_kwargs)
             title = await self.page.title()
             content = await self.page.evaluate("() => document.body.innerText.slice(0, 3000)")
             return {
@@ -73,6 +104,45 @@ class BrowserOperator:
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
+        finally:
+            if extra_headers and self.context:
+                await self.context.set_extra_http_headers({})
+            if validate_redirects and redirect_validator is not None:
+                await self._uninstall_redirect_validator(redirect_validator)
+
+    async def _install_redirect_validator(self):
+        """Route-intercept so every redirect hop is re-checked by the SSRF guard.
+
+        The initial navigation lands on a pinned, validated IP, but the server
+        may redirect to another host (or even back to a hostname that now
+        resolves to a private address). Each hop must pass the same public-IP
+        validation as the original URL before it is allowed to proceed.
+
+        Returns the installed handler so the caller owns it: unregistering
+        removes only this handler, never the base ``_ssrf_route_interceptor``
+        that was installed at context init.
+        """
+        if not self.context:
+            return None
+
+        async def _redirect_interceptor(route, request):
+            from app.agent.agent_engine import _is_safe_url
+            if not _is_safe_url(request.url):
+                logger.warning(f"SSRF Redirect Interceptor blocked unsafe redirect: {request.url}")
+                await route.abort("blockedbyclient")
+                return
+            await route.continue_()
+
+        await self.context.route("**/*", _redirect_interceptor)
+        return _redirect_interceptor
+
+    async def _uninstall_redirect_validator(self, handler):
+        """Remove the redirect interceptor, restoring the default SSRF guard."""
+        if self.context:
+            try:
+                await self.context.unroute("**/*", handler=handler)
+            except Exception:
+                pass
 
     async def click(self, selector: str) -> Dict[str, Any]:
         """Click element by selector or text content."""

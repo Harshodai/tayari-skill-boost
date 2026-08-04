@@ -38,6 +38,7 @@ import json
 import logging
 import os
 import uuid as uuid_lib
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -59,9 +60,24 @@ except ImportError:
 _pool: Any = None  # asyncpg pool, lazily initialized
 _pool_lock = asyncio.Lock()  # serializes concurrent lazy-init callers onto one pool
 
-# In-memory ledger buffer for fallback when DB pool is not active
-_in_memory_logs: list[dict[str, Any]] = []
-_MAX_IN_MEMORY_LOGS = 100
+# Per-user in-memory ledger buffer for fallback when DB pool is not active.
+_in_memory_logs: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+_MAX_IN_MEMORY_LOGS_PER_USER = 100
+_MAX_TRACKED_USERS = 10_000  # ponytail: cap users, not entries, to keep memory bounded
+
+
+def _touch_user(user_id: str) -> list[dict[str, Any]]:
+    """Return (and refresh) a user's in-memory buffer."""
+    # ponytail: move-to-end recency + eviction on a user key keeps
+    # per-user isolation intact and bounds total tracked users.
+    if user_id in _in_memory_logs:
+        _in_memory_logs.move_to_end(user_id)
+        return _in_memory_logs[user_id]
+    if len(_in_memory_logs) >= _MAX_TRACKED_USERS:
+        _in_memory_logs.popitem(last=False)
+    _in_memory_logs[user_id] = []
+    _in_memory_logs.move_to_end(user_id)
+    return _in_memory_logs[user_id]
 
 
 async def _get_pool() -> Any:
@@ -130,9 +146,10 @@ async def record(
         "detail": detail or {},
         "created_at": created_at.isoformat(),
     }
-    _in_memory_logs.insert(0, entry)
-    if len(_in_memory_logs) > _MAX_IN_MEMORY_LOGS:
-        _in_memory_logs.pop()
+    user_buffer = _touch_user(user_id)
+    user_buffer.insert(0, entry)
+    if len(user_buffer) > _MAX_IN_MEMORY_LOGS_PER_USER:
+        user_buffer.pop()
 
     pool = await _get_pool()
     if pool is None:
@@ -159,7 +176,9 @@ async def query_user_log(user_id: str, limit: int = 50) -> list:
     Fetch the most recent ledger entries for a user.
     Used by the Privacy Readiness panel (/api/v1/privacy/ledger).
     """
-    in_mem_filtered = [item for item in _in_memory_logs if item.get("user_id") == user_id][:limit]
+    # ponytail: reading is not a recency-updating operation; privacy panel
+    # scans should not promote a user to newest in the LRU cache.
+    in_mem_filtered = list(_in_memory_logs.get(user_id, []))[:limit]
 
     pool = await _get_pool()
     if pool is None:
@@ -192,16 +211,17 @@ async def query_user_log(user_id: str, limit: int = 50) -> list:
 
 
 async def clear_user_log(user_id: str) -> None:
-    """Clear ledger entries for a user."""
-    global _in_memory_logs
-    _in_memory_logs = [item for item in _in_memory_logs if item.get("user_id") and item.get("user_id") != user_id]
+    """Clear ledger entries for a user.
+
+    Unlike record()/query_user_log(), DB failures here are NOT swallowed:
+    the caller (privacy clear endpoint) must surface a 500 rather than report
+    a successful wipe that never happened.
+    """
     pool = await _get_pool()
     if pool is not None:
-        try:
-            async with pool.acquire() as conn:
-                await conn.execute("DELETE FROM public.privacy_audit_log WHERE user_id = $1", uuid_lib.UUID(user_id))
-        except Exception as exc:
-            logger.warning("[PrivacyLedger] Failed to clear DB ledger: %s", exc)
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM public.privacy_audit_log WHERE user_id = $1", uuid_lib.UUID(user_id))
+    _in_memory_logs.pop(user_id, None)  # ponytail: only evict the buffer after DB delete succeeds
 
 
 # ---------------------------------------------------------------------------

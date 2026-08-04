@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 from app.agent.agent_engine import GeneralistAgentEngine
 from app.agent.email_connector import EmailConnector
 from app.agent.interview_board import InterviewBoardEngine
-from app.services.llm_service import llm_complete
+from app.services.llm_service import llm_complete, LLMNotConfiguredError
 
 PORTAL_DOMAIN_MAP = {
     "greenhouse.io": "Greenhouse",
@@ -185,14 +185,18 @@ Analyze the following offer details:
 
 Provide a compensation strategy and counter-offer recommendation."""
 
+        llm_available = True
         try:
-            ai_analysis = await asyncio.wait_for(llm_complete(prompt), timeout=10.0)
-        except Exception:
-            counter = int(current_offer * 1.20)
-            ai_analysis = f"AI Analysis Recommendation: Counter offer at ${counter:,} (+20%) based on 90th percentile benchmarks for {target_role} in {location}."
+            ai_analysis = await asyncio.wait_for(llm_complete("", prompt), timeout=10.0)
+        except LLMNotConfiguredError:
+            # ponytail: do not fabricate negotiation output when no LLM is configured;
+            # gate derived outputs on llm_available so the API can surface 503.
+            llm_available = False
+            ai_analysis = None
 
-        target_counter = int(current_offer * 1.20)
-        script = f"""Dear Hiring Team at {company},
+        if llm_available:
+            target_counter = int(current_offer * 1.20)
+            script = f"""Dear Hiring Team at {company},
 
 Thank you for extending the offer for the {target_role} position. I am very excited about the team and vision at {company}.
 
@@ -202,6 +206,9 @@ If we can align on this target, I am prepared to accept and sign immediately.
 
 Best regards,
 Candidate"""
+        else:
+            target_counter = None
+            script = None
 
         return {
             "company": company,
@@ -209,6 +216,7 @@ Candidate"""
             "current_offer": current_offer,
             "target_counter_offer": target_counter,
             "ai_negotiation_strategy": ai_analysis,
+            "llm_available": llm_available,
             "counter_offer_script": script
         }
 
@@ -229,7 +237,11 @@ Candidate"""
         """
         prompt = f"Provide a concise STAR-method answer for the interview question: '{question}' for a candidate applying to role: '{role}'."
         try:
-            star_answer = await asyncio.wait_for(llm_complete(prompt), timeout=10.0)
+            star_answer = await asyncio.wait_for(llm_complete("", prompt), timeout=10.0)
+        except LLMNotConfiguredError:
+            # ponytail: propagate unavailability unchanged so the route can map it
+            # to HTTP 503; never fabricate a STAR answer when no LLM is configured.
+            raise
         except Exception:
             star_answer = f"**Situation**: In my recent engineering projects...\n**Task**: Address key challenges for {role}.\n**Action**: Implemented robust architecture and automated testing.\n**Result**: Improved reliability and team velocity."
 

@@ -3,6 +3,7 @@ import { Search, FileText, Send, BookOpen, CheckCircle2, Sparkles, Loader2, Brie
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +18,8 @@ export const JobSeekerAgentDashboard: React.FC = () => {
   const [tailorResult, setTailorResult] = useState<any>(null);
   const [autofillResult, setAutofillResult] = useState<any>(null);
   const [interviewBrief, setInterviewBrief] = useState<any>(null);
+  const [tailorError, setTailorError] = useState<string | null>(null);
+  const [autofillError, setAutofillError] = useState<string | null>(null);
 
   const [targetCompany, setTargetCompany] = useState('');
   const [jobDescription, setJobDescription] = useState('');
@@ -32,10 +35,6 @@ export const JobSeekerAgentDashboard: React.FC = () => {
     getProfile().then(p => {
       if (p) {
         if (p.full_name) setCandidateName(p.full_name);
-        if (p.summary || p.headline) {
-          const text = p.summary || `${p.headline || ''}${p.skills?.length ? `. Skills: ${p.skills.join(', ')}` : ''}`;
-          setJobDescription(text);
-        }
       }
     }).catch(() => {
       // Profile not created yet
@@ -68,9 +67,17 @@ export const JobSeekerAgentDashboard: React.FC = () => {
           job_description: jobDescription
         })
       });
-      if (data && data.success) setTailorResult(data.data);
+      if (data && data.success) {
+        const repl = data.data?.codeact_repl_output;
+        if (repl && typeof repl === 'object' && (typeof repl.stdout === 'string' || typeof repl.error === 'string')) {
+          setTailorResult(data.data);
+        } else {
+          setTailorError('Tailoring response was missing expected output fields.');
+        }
+      }
     } catch (e) {
       console.error(e);
+      setTailorError('Tailoring request failed.');
     } finally {
       setLoading(false);
     }
@@ -86,9 +93,16 @@ export const JobSeekerAgentDashboard: React.FC = () => {
           user_profile: { name: candidateName, email: candidateEmail }
         })
       });
-      if (data && data.success) setAutofillResult(data.data);
+      if (data && data.success) {
+        if (typeof data.data?.status === 'string') {
+          setAutofillResult(data.data);
+        } else {
+          setAutofillError('Auto-fill response was missing the expected status field.');
+        }
+      }
     } catch (e) {
       console.error(e);
+      setAutofillError('Auto-fill request failed.');
     } finally {
       setLoading(false);
     }
@@ -180,7 +194,7 @@ export const JobSeekerAgentDashboard: React.FC = () => {
               <div className="space-y-3 pt-4">
                 <h4 className="text-sm font-semibold text-emerald-400">Found {searchResults.total_found} Targeted Positions:</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {searchResults.jobs.map((jb: any) => (
+                  {(Array.isArray(searchResults.jobs) ? searchResults.jobs : []).map((jb: any) => (
                     <div key={jb.id} className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-100">{jb.title}</span>
@@ -208,22 +222,36 @@ export const JobSeekerAgentDashboard: React.FC = () => {
         {/* Tab 2: CodeAct Tailoring */}
         <TabsContent value="tailor" className="mt-4">
           <Card className="border border-slate-800 bg-slate-900 text-slate-100 p-6 space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="job-description" className="text-sm font-semibold text-slate-300">Job Description</label>
+              <Textarea
+                id="job-description"
+                value={jobDescription}
+                onChange={(e) => setJobDescription(e.target.value)}
+                placeholder="Paste the target job description here..."
+                className="bg-slate-950 border-slate-800 text-slate-100"
+              />
+            </div>
             <Button onClick={() => handleTailor(targetCompany)} disabled={loading} className="bg-purple-600 hover:bg-purple-500">
               Run CodeAct Resume Tailoring
             </Button>
 
-            {tailorResult && (
+            {tailorResult ? (
               <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-purple-400">Customized Application Package</span>
                   <Badge className="bg-purple-950 text-purple-300">Score: {tailorResult.ats_match_score}%</Badge>
                 </div>
                 <div className="bg-black p-3 rounded font-mono text-xs text-emerald-300">
-                  <pre className="whitespace-pre-wrap">{tailorResult.codeact_repl_output.stdout || tailorResult.codeact_repl_output.error}</pre>
+                  <pre className="whitespace-pre-wrap">{tailorResult.codeact_repl_output?.stdout || tailorResult.codeact_repl_output?.error || 'No output captured.'}</pre>
                 </div>
                 <div className="text-xs text-slate-400">Saved cover letter file: {tailorResult.cover_letter_file}</div>
               </div>
-            )}
+            ) : tailorError ? (
+              <div className="p-4 rounded-lg bg-slate-950 border border-red-800 text-red-300 text-sm">
+                {tailorError}
+              </div>
+            ) : null}
           </Card>
         </TabsContent>
 
@@ -234,21 +262,25 @@ export const JobSeekerAgentDashboard: React.FC = () => {
               Trigger Computer Use Auto-Fill
             </Button>
 
-            {autofillResult && (
+            {autofillResult ? (
               <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3 font-mono text-xs">
                 <div className="flex items-center justify-between text-emerald-400 font-bold">
                   <span>Application Status: {autofillResult.status.toUpperCase()}</span>
                   <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                 </div>
                 <div className="space-y-1 text-slate-300">
-                  {autofillResult.actions_taken.map((act: string, idx: number) => (
+                  {(Array.isArray(autofillResult.actions_taken) ? autofillResult.actions_taken : []).map((act: string, idx: number) => (
                     <div key={idx} className="flex items-center gap-2">
                       <span className="text-indigo-400">✓</span> {act}
                     </div>
                   ))}
                 </div>
               </div>
-            )}
+            ) : autofillError ? (
+              <div className="p-4 rounded-lg bg-slate-950 border border-red-800 text-red-300 text-sm">
+                {autofillError}
+              </div>
+            ) : null}
           </Card>
         </TabsContent>
 
@@ -265,7 +297,7 @@ export const JobSeekerAgentDashboard: React.FC = () => {
                 <div className="space-y-2 text-xs text-slate-300">
                   <div className="font-semibold text-slate-200">Key Talking Points:</div>
                   <ul className="list-disc pl-5 space-y-1">
-                    {interviewBrief.key_talking_points.map((tp: string, idx: number) => (
+                    {(Array.isArray(interviewBrief.key_talking_points) ? interviewBrief.key_talking_points : []).map((tp: string, idx: number) => (
                       <li key={idx}>{tp}</li>
                     ))}
                   </ul>

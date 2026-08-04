@@ -33,6 +33,7 @@ import {
   ExternalLink
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { exportUserData, deleteUserAccount } from "@/api";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { profileSchema, changePasswordSchema } from "@/lib/schemas";
@@ -55,17 +56,7 @@ const Settings = () => {
   const handleExportData = async () => {
     setIsExporting(true);
     try {
-      const token = session?.access_token || localStorage.getItem('auth_token');
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const resp = await fetch("/api/v1/user/export-data", { headers });
-      const data = resp.ok ? await resp.json() : {
-        user_id: user?.id || "demo-user",
-        exported_at: new Date().toISOString(),
-        profile: { email: user?.email || "" },
-      };
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const blob = await exportUserData();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -89,16 +80,16 @@ const Settings = () => {
     }
     setIsDeletingAccount(true);
     try {
-      const token = session?.access_token || localStorage.getItem('auth_token');
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const resp = await fetch("/api/v1/user/account", { method: "DELETE", headers });
-      if (!resp.ok) {
-        throw new Error(`Deletion failed with status ${resp.status}`);
-      }
+      await deleteUserAccount();
       toast({ title: "Account Deleted", description: "Your account deletion request has been processed." });
-      signOut();
+
+      // ponytail: sign-out is independent of deletion success. A rejection here
+      // must not overwrite the "Account Deleted" toast with "Deletion Failed".
+      try {
+        await signOut();
+      } catch {
+        localStorage.removeItem('auth_token');
+      }
     } catch {
       toast({ title: "Deletion Failed", description: "Error processing account deletion.", variant: "destructive" });
     } finally {

@@ -981,6 +981,7 @@ async def analytics_funnel_endpoint(payload: FunnelAnalyticsRequest):
 
 
 @app.post("/api/v1/privacy/check")
+@app.get("/api/v1/privacy/check")
 @app.post("/api/privacy/check")
 async def privacy_check_endpoint():
     """Verify local AI engine status and zero data leakage privacy audit."""
@@ -1186,78 +1187,10 @@ async def live_copilot_endpoint(payload: dict):
 # Privacy Ledger & User Data Lifecycle Routes
 # ---------------------------------------------------------------------------
 
-@app.post("/api/v1/privacy/check")
-@app.get("/api/v1/privacy/check")
-async def privacy_check_endpoint():
-    """Diagnostic check for privacy mode and local model availability."""
-    from app.services.privacy_check import check_privacy_and_offline_status
-    return check_privacy_and_offline_status()
+from app.auth.dependencies import get_current_user  # noqa: E402
 
 
 from datetime import datetime, timezone
-from fastapi import Header
-
-import jwt
-
-JWT_SECRET = os.getenv("JWT_SECRET") or os.getenv("SUPABASE_JWT_SECRET") or "tayari-super-secret-jwt-key-2026"
-JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-JWT_ISSUER = os.getenv("JWT_ISSUER")
-JWT_AUDIENCE = os.getenv("JWT_AUDIENCE")
-
-async def get_current_user(authorization: Optional[str] = Header(None)) -> str:
-    """Extract and derive authenticated user identity from verified JWT Bearer token claims."""
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or missing authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    token = authorization.split(" ", 1)[1].strip()
-    if not token or token == "demo-user":
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or missing authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    try:
-        options = {
-            "verify_signature": True,
-            "verify_exp": True,
-            "verify_iss": bool(JWT_ISSUER),
-            "verify_aud": bool(JWT_AUDIENCE),
-            "require": ["exp", "sub"]
-        }
-        if JWT_ISSUER:
-            options["require"].append("iss")
-        if JWT_AUDIENCE:
-            options["require"].append("aud")
-
-        payload = jwt.decode(
-            token,
-            JWT_SECRET,
-            algorithms=[JWT_ALGORITHM],
-            options=options,
-            issuer=JWT_ISSUER if JWT_ISSUER else None,
-            audience=JWT_AUDIENCE if JWT_AUDIENCE else None,
-        )
-
-        subject = payload.get("sub")
-        if not subject or not isinstance(subject, str) or not subject.strip() or subject == "demo-user":
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid or missing authentication credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        return subject.strip()
-    except HTTPException:
-        raise
-    except (jwt.PyJWTError, Exception):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or missing authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
 
 
 @app.get("/api/v1/privacy/ledger")
@@ -1279,26 +1212,119 @@ async def privacy_clear_ledger_endpoint(user_id: str = Depends(get_current_user)
 
 @app.get("/api/v1/user/export-data")
 @app.post("/api/v1/user/export-data")
-async def export_user_data_endpoint(user_id: str = Depends(get_current_user)):
+async def export_user_data_endpoint(request: Request, user_id: str = Depends(get_current_user)):
     """Export complete user data archive as JSON."""
     from app.services.privacy_ledger import ledger
     now_iso = datetime.now(timezone.utc).isoformat()
+
+    go_gateway_url = (
+        os.getenv("GO_GATEWAY_URL")
+        or os.getenv("GO_API_URL")
+        or os.getenv("GO_BACKEND_URL")
+        or "http://127.0.0.1:8080"
+    ).rstrip("/")
+
+    archive = {
+        "status": "ok",
+        "exported_at": now_iso,
+        "user_id": user_id,
+        "profile": None,
+        "resumes": [],
+        "applications": [],
+        "cover_letters": [],
+        "settings": {"privacy_mode": "LOCAL_FIRST_ZERO_DATA_LEAKAGE"},
+        "privacy_ledger": None,
+        "unavailable_sections": [],
+    }
+
+    auth_header = request.headers.get("authorization")
+    gateway_headers = {"x-user-id": user_id}
+    if auth_header:
+        gateway_headers["authorization"] = auth_header
+
+    # ponytail: the Go gateway owns all persisted user data (profiles, resumes,
+    # applications, cover letters). Query it once and map the response onto the
+    # archive; any section the gateway does not return is marked unavailable
+    # rather than fabricated.
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(f"{go_gateway_url}/api/v1/account/export", headers=gateway_headers)
+        if resp.status_code >= 400:
+            raise httpx.HTTPStatusError(
+                f"Go gateway export returned status {resp.status_code}",
+                request=resp.request,
+                response=resp,
+            )
+        data = resp.json()
+    except Exception as exc:
+        logger.error("export-data: gateway query failed: %s", exc)
+        gateway_failed = True
+        for section in ("profile", "resumes", "applications", "cover_letters"):
+            archive[section] = [] if section != "profile" else None
+            archive["unavailable_sections"].append(section)
+        data = {}
+    else:
+        gateway_failed = False
+
+    def mark_unavailable(section: str) -> None:
+        if section not in archive["unavailable_sections"]:
+            archive["unavailable_sections"].append(section)
+
+    if gateway_failed:
+        # ponytail: the gateway already marked every section unavailable above;
+        # skip the per-section checks so no section is appended twice.
+        pass
+    else:
+        profile = data.get("profile") if isinstance(data, dict) else None
+        if profile:
+            archive["profile"] = profile
+        else:
+            mark_unavailable("profile")
+
+        resumes = data.get("resumes") if isinstance(data, dict) else None
+        if isinstance(resumes, list):
+            archive["resumes"] = resumes
+        else:
+            mark_unavailable("resumes")
+
+        applications = data.get("applications") if isinstance(data, dict) else None
+        if isinstance(applications, list):
+            archive["applications"] = applications
+        else:
+            mark_unavailable("applications")
+
+        cover_letters = []
+        if isinstance(applications, list):
+            for application_item in applications:
+                if not isinstance(application_item, dict):
+                    continue
+                cl = application_item.get("cover_letter")
+                if isinstance(cl, str) and cl.strip():
+                    cover_letters.append({"application_id": application_item.get("id"), "cover_letter": cl})
+        if not cover_letters:
+            cover_letters = data.get("cover_letters", []) if isinstance(data, dict) and isinstance(data.get("cover_letters"), list) else []
+        archive["cover_letters"] = cover_letters
+        if not cover_letters:
+            mark_unavailable("cover_letters")
+
+    # ponytail: wrap the privacy-ledger query in the same exception-handling
+    # pattern used for other export sources so a ledger failure does not
+    # abort the whole export and the user sees which section is unavailable.
+    try:
+        archive["privacy_ledger"] = await ledger.query_user_log(user_id=user_id, limit=500)
+    except Exception as exc:
+        logger.error("export-data: privacy ledger query failed: %s", exc)
+        archive["privacy_ledger"] = None
+        archive["unavailable_sections"].append("privacy_ledger")
+
     await ledger.record(
         user_id=user_id,
         action="data_export",
         resource="/api/v1/user/export-data",
         detail={"archive_type": "JSON", "exported_at": now_iso}
     )
-    return {
-        "status": "ok",
-        "exported_at": now_iso,
-        "user_id": user_id,
-        "profile": {"name": "Candidate", "email": "user@example.com"},
-        "resumes": [],
-        "applications": [],
-        "cover_letters": [],
-        "settings": {"privacy_mode": "LOCAL_FIRST_ZERO_DATA_LEAKAGE"}
-    }
+    return archive
 
 
 @app.delete("/api/v1/user/account")
@@ -1362,14 +1388,22 @@ async def delete_user_account_endpoint(request: Request, user_id: str = Depends(
     except HTTPException:
         raise
     except Exception as exc:
-        err_msg = f"Failed to delegate account deletion to Go API Gateway: {str(exc)}"
-        await ledger.record(
-            user_id=user_id,
-            action="account_delete_failed",
-            resource="/api/v1/user/account",
-            detail={"wipe_status": "DELEGATED_NETWORK_ERROR", "error": str(exc), "timestamp": now_iso}
-        )
-        raise HTTPException(status_code=502, detail=err_msg)
+        # ponytail: full detail stays server-side via logger/ledger; the client
+        # gets a generic 502 so gateway internals never leak in the response.
+        logger.error("account deletion gateway error: %s", exc)
+        try:
+            await ledger.record(
+                user_id=user_id,
+                action="account_delete_failed",
+                resource="/api/v1/user/account",
+                detail={"wipe_status": "DELEGATED_NETWORK_ERROR", "error": str(exc), "timestamp": now_iso}
+            )
+        except Exception as ledger_exc:
+            logger.error("account delete ledger record failed: %s", ledger_exc)
+        raise HTTPException(
+            status_code=502,
+            detail="Account deletion gateway error. Primary database owner service encountered an internal failure.",
+        ) from exc
 
 
 

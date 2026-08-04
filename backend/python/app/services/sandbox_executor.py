@@ -38,8 +38,13 @@ def _resolve_and_validate_url(url: str) -> Optional[Dict[str, Any]]:
                 return None
 
         pinned_ip = ip_list[0][4][0]
-        parsed = urllib.parse.urlparse(url)
-        target_url = parsed._replace(netloc=f"{pinned_ip}:{port}").geturl()
+        # ponytail: reuse the already-parsed URL (validated above) instead of
+        # re-parsing; IPv6 literals must be bracketed in a netloc, IPv4 must not.
+        if ":" in pinned_ip:
+            netloc = f"[{pinned_ip}]:{port}"
+        else:
+            netloc = f"{pinned_ip}:{port}"
+        target_url = parsed._replace(netloc=netloc).geturl()
         return {
             "original_url": url,
             "original_hostname": hostname,
@@ -55,7 +60,9 @@ def _resolve_and_validate_url(url: str) -> Optional[Dict[str, Any]]:
 # Narrowed: [A-Z0-9]{8,9} -> [A-Z]{1,2}[0-9]{6,7} to avoid broad uppercase tokens like POSTGRES/REQ12345
 SENSITIVE_PATTERNS = [
     (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "[REDACTED_SSN]"),
-    (re.compile(r"\b\d{9}\b"), "[REDACTED_TIN]"),
+    # ponytail: a bare 9-digit run matches arbitrary IDs/phone extensions, so a
+    # TIN/EIN is redacted only when an identifier label precedes the number.
+    (re.compile(r"(?i)(\b(?:tin|ein|tax(?:\s+id)?|taxpayer\s+identification|employer\s+identification)\b[:\s\-]{0,2})(\d{9})"), r"\1[REDACTED_TIN]"),
     (re.compile(r"\b[A-Z]{1,2}[0-9]{6,7}\b"), "[REDACTED_PASSPORT]"),
 ]
 
@@ -121,7 +128,8 @@ class TayariComputerSandboxExecutor:
 
         nav_res = await self.browser.navigate(url_info["target_url"], headers=url_info["headers"])
         if not nav_res.get("success"):
-            await self.close()
+            # ponytail: __aexit__ owns cleanup — the context manager contract
+            # guarantees close() runs exactly once after the call completes.
             return {
                 "success": False,
                 "error": f"Failed to navigate to form URL: {nav_res.get('error')}",
@@ -150,6 +158,10 @@ class TayariComputerSandboxExecutor:
                 ("email", "email"),
                 ("name", "name"),
             ],
+            "combobox": [
+                ("email", "email"),
+                ("name", "name"),
+            ],
         }
 
         actions = []
@@ -166,19 +178,21 @@ class TayariComputerSandboxExecutor:
                         # Only fill if the profile has this key
                         if profile_key in clean_profile and clean_profile[profile_key]:
                             val = clean_profile[profile_key]
+                            selector = self._selector_for_node(input_node)
                             if self.browser.page:
                                 try:
-                                    # Attempt actual fill operation
-                                    fill_res = await self.browser.fill(input_node.get("name", ""), val)
+                                    # ponytail: fill() takes a CSS selector, never the
+                                    # accessibility display name; only act when we derived one.
+                                    fill_res = await self.browser.fill(selector, val) if selector else {"success": False, "error": "no selector derivable"}
                                     if fill_res.get("success"):
-                                        actions.append(f"Filled {role} '{input_node.get('name')}' with '{val}'")
+                                        actions.append(f"Filled {role} '{input_node.get('name')}'")
                                         any_real_action = True
                                     else:
-                                        actions.append(f"Simulated fill {role} '{input_node.get('name')}' with '{val}' (fill failed: {fill_res.get('error')})")
+                                        actions.append(f"Simulated fill {role} '{input_node.get('name')}' (fill failed: {fill_res.get('error')})")
                                 except Exception as e:
-                                    actions.append(f"Simulated fill {role} '{input_node.get('name')}' with '{val}' (error: {e})")
+                                    actions.append(f"Simulated fill {role} '{input_node.get('name')}' (error: {e})")
                             else:
-                                actions.append(f"Simulated fill {role} '{input_node.get('name')}' with '{val}' (no page)")
+                                actions.append(f"Simulated fill {role} '{input_node.get('name')}' (no page)")
                         # Skip field if profile key is absent or empty
                         break  # Use first matching token (specific before generic)
 
@@ -190,7 +204,7 @@ class TayariComputerSandboxExecutor:
             ]
             # Do NOT claim "Simulated Submit Button Click" unless it actually occurred
 
-        await self.close()
+        # ponytail: __aexit__ owns cleanup — do not double-close here.
         return {
             "success": any_real_action,
             "form_url": form_url,
@@ -201,17 +215,42 @@ class TayariComputerSandboxExecutor:
             "simulated": not any_real_action,
         }
 
+    def _selector_for_node(self, node: Dict[str, Any]) -> Optional[str]:
+        """Derive a CSS selector for a snapshot node (fill() takes a selector, not a label).
+
+        Matches on aria-label first (case-insensitive substring). Returns None for
+        supported roles that carry no name so we don't target an unrelated field.
+        """
+        role = node.get("role", "")
+        name = node.get("name", "").strip()
+        if role == "textbox":
+            base = "input:not([type='hidden'])"
+        elif role == "searchbox":
+            base = "input[type='search']"
+        elif role == "combobox":
+            base = "input[role='combobox'], select"
+        else:
+            return None
+        if not name:
+            # ponytail: no aria-label to match on; broad role-only selectors risk the wrong field.
+            return None
+        escaped = name.replace("\\", "\\\\").replace('"', '\\"')
+        if role == "combobox":
+            # ponytail: aria-label must be applied to each comma-separated selector independently.
+            return ", ".join(f'{sel}[aria-label*="{escaped}" i]' for sel in base.split(","))
+        return f'{base}[aria-label*="{escaped}" i]'
+
     def _extract_input_roles(self, node: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Recursively extract form input nodes from Accessibility Snapshot tree."""
         results = []
         role = node.get("role")
-        if role in ("textbox", "combobox", "button", "checkbox", "radio"):
+        if role in ("textbox", "searchbox", "combobox", "button", "checkbox", "radio"):
             results.append({
                 "role": role,
                 "name": node.get("name", "")
             })
-        
+
         for child in node.get("children", []):
             results.extend(self._extract_input_roles(child))
-            
+
         return results

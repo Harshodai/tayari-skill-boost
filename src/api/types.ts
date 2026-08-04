@@ -71,6 +71,25 @@ export interface APIError {
   error: string;
 }
 
+// ponytail: shared ledger-detail shape so PrivacyReadiness/Settings can render
+// ledger entries with a precise, compatible detail type instead of Record<string, unknown>.
+export interface PrivacyLedgerDetail {
+  is_local?: boolean;
+  provider?: string;
+  pii_redacted?: string[];
+  tokens_used?: number;
+  archive_type?: string;
+  mode?: string;
+}
+
+export interface PrivacyLedgerEntry {
+  id: string;
+  action: string;
+  resource: string;
+  detail?: PrivacyLedgerDetail;
+  created_at: string;
+}
+
 // --- MVP: Profile, Job Search, Saved Jobs, Autopilot, Applications ---
 
 export interface Profile {
