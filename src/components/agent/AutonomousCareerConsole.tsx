@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Zap, DollarSign, Mail, Mic, Play, CheckCircle2, XCircle, Sparkles, Loader2, Building2, Eye, UserCheck, Calendar, SquareKanban, Inbox, LayoutKanban } from 'lucide-react';
+import { ShieldCheck, Zap, DollarSign, Mail, Mic, Play, CheckCircle2, XCircle, Sparkles, Loader2, Building2, Eye, UserCheck, Calendar, SquareKanban, Inbox } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -252,7 +252,7 @@ export const AutonomousCareerConsole: React.FC = () => {
       <Tabs defaultValue="board" className="w-full">
         <TabsList className="grid grid-cols-6 bg-slate-900 border border-slate-800 p-1 rounded-lg">
           <TabsTrigger value="board" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
-            <LayoutKanban className="w-4 h-4 mr-2" /> Interview Board
+            <SquareKanban className="w-4 h-4 mr-2" /> Interview Board
           </TabsTrigger>
           <TabsTrigger value="email" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
             <Inbox className="w-4 h-4 mr-2" /> Email Connector
