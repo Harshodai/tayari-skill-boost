@@ -123,10 +123,14 @@ class GeneralistAgentEngine:
         disallowed_names = disallowed_imports | disallowed_builtins
 
         # AST check: reject any node type that is not obviously safe.
+        # ponytail: ast.Index is a deprecated compatibility alias that only
+        # existed to wrap subscript slices before Python 3.9 flattened them into
+        # ast.Slice/ast.Tuple directly; on Python 3.11+ (the supported runtime)
+        # it never appears in a parsed tree, so it is excluded from safe_nodes.
         safe_nodes = frozenset({
             ast.Expression, ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.Compare,
             ast.IfExp, ast.Constant, ast.Name, ast.Load, ast.Store, ast.Del,
-            ast.List, ast.Tuple, ast.Set, ast.Dict, ast.Subscript, ast.Index,
+            ast.List, ast.Tuple, ast.Set, ast.Dict, ast.Subscript,
             ast.Slice, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp,
             ast.comprehension, ast.Call, ast.Attribute, ast.keyword,
             ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Expr, ast.Pass,
@@ -159,6 +163,12 @@ class GeneralistAgentEngine:
             if isinstance(node, ast.Name) and node.id in disallowed_names:
                 if isinstance(node.ctx, ast.Load):
                     return False
+            # ponytail: private/dunder attribute access is the classic way to
+            # reach internal machinery (e.g. os._wrap_close, func.__globals__,
+            # object.__class__.__subclasses__). Reject any attribute whose name
+            # begins with an underscore so a guard bypass can never hide there.
+            if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
+                return False
         return True
 
     def _register_default_mcp_tools(self):

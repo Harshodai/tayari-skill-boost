@@ -1302,10 +1302,22 @@ async def export_user_data_endpoint(request: Request, user_id: str = Depends(get
                 cl = application_item.get("cover_letter")
                 if isinstance(cl, str) and cl.strip():
                     cover_letters.append({"application_id": application_item.get("id"), "cover_letter": cl})
-        if not cover_letters:
-            cover_letters = data.get("cover_letters", []) if isinstance(data, dict) and isinstance(data.get("cover_letters"), list) else []
+        if not cover_letters and isinstance(data, dict) and "cover_letters" in data:
+            # ponytail: the gateway explicitly returned a cover_letters section —
+            # even an empty list means the section exists, so only fall back to
+            # the raw extraction when the key is absent entirely. Marking the
+            # section unavailable when the gateway provided an (empty) list would
+            # misreport present-but-empty data as missing.
+            raw_cover_letters = data.get("cover_letters")
+            if isinstance(raw_cover_letters, list):
+                cover_letters = raw_cover_letters
         archive["cover_letters"] = cover_letters
-        if not cover_letters:
+        # ponytail: mark the section unavailable only when the gateway truly
+        # omitted it (absent, or present but not a list). A present empty list
+        # means the section exists and simply has no entries — reporting it as
+        # unavailable would misrepresent present-but-empty data as missing.
+        gateway_cover_letters = data.get("cover_letters") if isinstance(data, dict) else None
+        if not cover_letters and not isinstance(gateway_cover_letters, list):
             mark_unavailable("cover_letters")
 
     # ponytail: wrap the privacy-ledger query in the same exception-handling
@@ -1318,12 +1330,18 @@ async def export_user_data_endpoint(request: Request, user_id: str = Depends(get
         archive["privacy_ledger"] = None
         archive["unavailable_sections"].append("privacy_ledger")
 
-    await ledger.record(
-        user_id=user_id,
-        action="data_export",
-        resource="/api/v1/user/export-data",
-        detail={"archive_type": "JSON", "exported_at": now_iso}
-    )
+    # ponytail: the export archive is already assembled; a ledger write failure
+    # must not abort the export. Log it and return the archive untouched, the
+    # same non-blocking pattern used for the privacy-ledger query above.
+    try:
+        await ledger.record(
+            user_id=user_id,
+            action="data_export",
+            resource="/api/v1/user/export-data",
+            detail={"archive_type": "JSON", "exported_at": now_iso}
+        )
+    except Exception as exc:
+        logger.error("export-data: privacy ledger record failed: %s", exc)
     return archive
 
 

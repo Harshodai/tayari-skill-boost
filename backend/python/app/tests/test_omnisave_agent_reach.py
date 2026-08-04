@@ -3,7 +3,9 @@ from unittest import mock
 from app.services.omnisave_service import OmnisaveService, _INSUFFICIENT_ANSWER_RESPONSE
 from app.services.llm_service import active_engine, is_llm_configured
 
-TEST_USER_ID = "test-agent-reach-user"
+# ponytail: a valid UUID so DB-backed lookups (uuid_lib.UUID(user_id)) work in
+# this module. The same identity is shared with test_autopilot_system.py.
+TEST_USER_ID = "00000000-0000-0000-0000-0000000000aa"
 
 
 @pytest.fixture
@@ -118,15 +120,34 @@ async def test_ingest_rehydrates_chunks_with_user_id(tmp_path):
     assert chunks[0]["id"] == "chunk-1"
     assert chunks[0]["user_id"] == TEST_USER_ID
 
-    # ponytail: seed a foreign user's chunk with distinguishable content and
-    # metadata so the in-memory RAG fallback must prove per-user isolation —
-    # the foreign chunk must never leak into the context or citations.
+    # ponytail: seed a foreign user's saved source AND chunk with
+    # distinguishable metadata and content that contains the queried term
+    # ("orchestration"), so the in-memory RAG fallback must prove per-user
+    # isolation — the foreign chunk must never leak into the context or
+    # citations. Without the matching saved source the foreign chunk would be
+    # excluded for missing-source reasons; without the matching term it would
+    # be excluded for relevance reasons. Both are present, so only the
+    # user_id filter can keep it out.
+    omnisave.saved_sources.append({
+        "id": "foreign-src-1",
+        "user_id": "other-user",
+        "idempotency_hash": "hash-foreign",
+        "source_platform": "linkedin",
+        "canonical_url": "https://foreign.example.com/secret",
+        "title": "Foreign Top Secret Article",
+        "author": "Foreign Author",
+        "raw_content": "FOREIGN SECRET orchestration about a rival company's hiring plan.",
+        "clean_markdown": "# Foreign Top Secret Article",
+        "primary_category": "Career Strategy",
+        "summary_bullets": [],
+        "saved_at": "2026-08-03T00:00:00+00:00",
+    })
     omnisave.source_chunks.append({
         "id": "foreign-chunk-1",
         "source_id": "foreign-src-1",
         "user_id": "other-user",
         "chunk_index": 0,
-        "chunk_content": "FOREIGN SECRET about a rival company's hiring plan.",
+        "chunk_content": "FOREIGN SECRET orchestration about a rival company's hiring plan.",
         "title": "Foreign Top Secret Article",
         "author": "Foreign Author",
         "canonical_url": "https://foreign.example.com/secret",
@@ -137,7 +158,7 @@ async def test_ingest_rehydrates_chunks_with_user_id(tmp_path):
     async def fake_llm(system_message, user_message, **kw):
         return "The answer is grounded in [Source 1]."
 
-    with mock.patch("app.services.omnisave_service.OmnisaveService._load_user_chunks_db", new=mock.AsyncMock(return_value=[])), \
+    with mock.patch("app.services.omnisave_service.get_pool", new=mock.AsyncMock(return_value=None)), \
          mock.patch("app.services.omnisave_service.llm_complete", new=fake_llm):
         rag = await omnisave.query_knowledge_rag("orchestration", user_id=TEST_USER_ID)
     assert rag["context_snippets"]

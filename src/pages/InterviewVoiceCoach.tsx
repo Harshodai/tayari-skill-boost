@@ -133,7 +133,13 @@ export function InterviewVoiceCoach() {
         active_engine?: string;
       }>("/v1/health").catch(() => null);
 
+      // ponytail: a null health payload (endpoint unreachable or not
+      // returning the expected shape) means we cannot verify a live LLM is
+      // configured — treat that as not-configured so the error path below
+      // applies to both explicit misconfiguration and unavailable health.
       const modelUnconfigured =
+        !health ||
+        typeof health !== "object" ||
         health?.model_status === "llm_not_configured" ||
         health?.active_engine === "mock" ||
         health?.active_engine === "mock-fallback";

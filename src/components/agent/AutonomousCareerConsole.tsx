@@ -77,6 +77,7 @@ export const AutonomousCareerConsole: React.FC = () => {
   const [candidateEmail, setCandidateEmail] = useState<string>(user?.email || "");
   const [outreachError, setOutreachError] = useState<string | null>(null);
   const [copilotError, setCopilotError] = useState<string | null>(null);
+  const [negotiationError, setNegotiationError] = useState<string | null>(null);
 
   const [negotiationOffer, setNegotiationOffer] = useState<string>("");
   const [negotiationRole, setNegotiationRole] = useState<string>("");
@@ -183,6 +184,8 @@ export const AutonomousCareerConsole: React.FC = () => {
       return;
     }
     setLoading(true);
+    setNegotiationError(null);
+    setAiNegotiationResult(null);
     try {
       const data = await apiFetch<any>('/v1/ai/agent/career/ai-negotiate', {
         method: 'POST',
@@ -195,7 +198,9 @@ export const AutonomousCareerConsole: React.FC = () => {
       });
       if (data && data.success) setAiNegotiationResult(data.data);
     } catch (e) {
-      console.error(e);
+      const message = e instanceof Error ? e.message : 'Negotiation request failed';
+      setNegotiationError(message);
+      toast({ title: 'Negotiation failed', description: message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -250,6 +255,7 @@ export const AutonomousCareerConsole: React.FC = () => {
     }
     setLoading(true);
     setCopilotError(null);
+    setCopilotResult(null);
     try {
       const res = await fetch('/api/v1/ai/agent/career/copilot', {
         method: 'POST',
@@ -569,9 +575,9 @@ export const AutonomousCareerConsole: React.FC = () => {
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4 mr-2" />} Generate AI Salary Negotiation Strategy
             </Button>
 
-            {outreachError && (
+            {negotiationError && (
               <div className="p-3 rounded-lg bg-red-950/40 border border-red-800 text-red-300 text-xs font-mono mb-3">
-                <span className="font-bold">Error:</span> {outreachError}
+                <span className="font-bold">Error:</span> {negotiationError}
               </div>
             )}
 

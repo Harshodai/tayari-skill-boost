@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import os
+import stat
 import urllib.parse
 from collections import OrderedDict
 from fastapi import APIRouter, HTTPException, Depends
@@ -21,10 +22,38 @@ router = APIRouter(prefix="/api/v1/ai/agent", tags=["agent"])
 AGENT_WORKSPACE_BASE = os.getenv("AGENT_WORKSPACE_DIR", "/tmp/tayari-agent-workspace")
 
 
-# ponytail: create the shared agent workspace base with restrictive permissions
-# so agent run directories are not readable by other system users.
-os.makedirs(AGENT_WORKSPACE_BASE, mode=0o700, exist_ok=True)
-os.chmod(AGENT_WORKSPACE_BASE, 0o700)
+def _ensure_workspace_base() -> None:
+    """Prepare AGENT_WORKSPACE_BASE with restrictive permissions.
+
+    Startup validation: the base must be a real directory owned by the current
+    user and must not be a symlink (a link could redirect per-run workspaces to
+    an attacker-chosen path). An existing invalid base raises PermissionError —
+    failing fast is safer than silently running with a writable or foreign-owned
+    directory. A missing base is created with 0o700.
+    """
+    if not os.path.exists(AGENT_WORKSPACE_BASE):
+        os.makedirs(AGENT_WORKSPACE_BASE, mode=0o700, exist_ok=True)
+        return
+
+    st = os.lstat(AGENT_WORKSPACE_BASE)
+    if stat.S_ISLNK(st.st_mode):
+        raise PermissionError(f"AGENT_WORKSPACE_DIR {AGENT_WORKSPACE_BASE!r} must not be a symlink")
+    if not stat.S_ISDIR(st.st_mode):
+        raise PermissionError(f"AGENT_WORKSPACE_DIR {AGENT_WORKSPACE_BASE!r} is not a directory")
+    if st.st_uid != os.getuid():
+        raise PermissionError(f"AGENT_WORKSPACE_DIR {AGENT_WORKSPACE_BASE!r} must be owned by the current user")
+    os.chmod(AGENT_WORKSPACE_BASE, 0o700)
+
+
+# ponytail: validate the shared agent workspace base at import time so agent run
+# directories are not readable by other system users and a symlinked or
+# foreign-owned base cannot redirect runs elsewhere. An invalid base is a
+# startup validation failure: log it clearly instead of letting a raw
+# PermissionError escape at import and fail the whole app ambiguously.
+try:
+    _ensure_workspace_base()
+except PermissionError as exc:
+    logger.error("Startup validation failure: agent workspace base is invalid: %s", exc)
 
 class AgentRunRequest(BaseModel):
     goal: str
@@ -112,12 +141,27 @@ def _get_or_create_engine(cache: "OrderedDict[str, Any]", user_id: str, factory)
     return engine
 
 
+def _workspace_for(user_id: str) -> str:
+    """Derive the per-user workspace directory inside AGENT_WORKSPACE_BASE.
+
+    Mirrors run_agent_task's derivation: the JWT subject is untrusted input, so
+    a filesystem-safe component is hashed from it instead of joined verbatim
+    (it could contain separators or ".."). Creates the directory with
+    restrictive permissions and returns its path.
+    """
+    safe_comp = hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:32]
+    workspace_dir = os.path.join(AGENT_WORKSPACE_BASE, safe_comp)
+    os.makedirs(workspace_dir, exist_ok=True, mode=0o700)
+    os.chmod(workspace_dir, 0o700)
+    return workspace_dir
+
+
 def _career_engine_for(user_id: str) -> AutonomousCareerEngine:
     """Per-user career engine so HITL approvals and the interview board stay scoped to one user."""
     return _get_or_create_engine(
         _career_engines,
         user_id,
-        lambda: AutonomousCareerEngine(workspace_path=AGENT_WORKSPACE_BASE),
+        lambda: AutonomousCareerEngine(workspace_path=_workspace_for(user_id)),
     )
 
 
@@ -126,7 +170,7 @@ def _job_seeker_engine_for(user_id: str) -> JobSeekerAgentEngine:
     return _get_or_create_engine(
         _job_seeker_engines,
         user_id,
-        lambda: JobSeekerAgentEngine(workspace_path=AGENT_WORKSPACE_BASE),
+        lambda: JobSeekerAgentEngine(workspace_path=_workspace_for(user_id)),
     )
 
 
@@ -143,13 +187,11 @@ def _validate_job_url(url: str):
 async def run_agent_task(req: AgentRunRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
         # ponytail: run every agent task inside the secured workspace base that was
-        # created with 0o700 at module init, so per-task dirs inherit that policy.
-        # The JWT subject is untrusted input, so derive a filesystem-safe component
-        # from it instead of joining it verbatim (it could contain separators or "..").
-        safe_comp = hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:32]
-        workspace_dir = os.path.join(AGENT_WORKSPACE_BASE, safe_comp)
-        os.makedirs(workspace_dir, exist_ok=True, mode=0o700)
-        os.chmod(workspace_dir, 0o700)
+        # validated with 0o700 at module init, so per-task dirs inherit that policy.
+        # The JWT subject is untrusted input, so a filesystem-safe component is
+        # derived from it instead of joining it verbatim (it could contain
+        # separators or "..").
+        workspace_dir = _workspace_for(user_id)
         async with GeneralistAgentEngine(workspace_path=workspace_dir) as engine:
             result = await engine.execute_task(goal=req.goal, max_steps=req.max_steps or 10)
             return {"success": True, "data": result}

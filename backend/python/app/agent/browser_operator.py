@@ -126,9 +126,19 @@ class BrowserOperator:
             return None
 
         async def _redirect_interceptor(route, request):
-            from app.agent.agent_engine import _is_safe_url
-            if not _is_safe_url(request.url):
-                logger.warning(f"SSRF Redirect Interceptor blocked unsafe redirect: {request.url}")
+            # ponytail: fail closed — any error resolving or validating a
+            # redirect destination aborts the route rather than continuing
+            # unvalidated, mirroring _ssrf_route_interceptor. Every redirect is
+            # either continued (validated public) or aborted; never left
+            # unresolved.
+            try:
+                from app.agent.agent_engine import _is_safe_url
+                if not _is_safe_url(request.url):
+                    logger.warning(f"SSRF Redirect Interceptor blocked unsafe redirect: {request.url}")
+                    await route.abort("blockedbyclient")
+                    return
+            except Exception as exc:
+                logger.warning(f"SSRF Redirect Interceptor error: {exc}")
                 await route.abort("blockedbyclient")
                 return
             await route.continue_()

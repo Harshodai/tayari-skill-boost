@@ -63,6 +63,12 @@ class AutopilotState(TypedDict):
     tracker_status: Optional[str]
     error_log: Optional[str]
     provider_unavailable: Optional[bool]
+    # ponytail: candidate contact fields written by execute_run and read by
+    # prepare_auto_apply; declared here so the checkpoint contract covers both
+    # the writers and the readers.
+    candidate_full_name: Optional[str]
+    candidate_email: Optional[str]
+    candidate_phone: Optional[str]
 
 class AutopilotGraphEngine:
     """
@@ -98,20 +104,28 @@ class AutopilotGraphEngine:
 
     @staticmethod
     def _verified_contact(value: Any, resume_text: str) -> str:
-        # ponytail: only accept string contact values literally present in the resume;
-        # anything else becomes empty to stop fabricated details from reaching ATS forms.
+        # ponytail: only accept string contact values whose stripped text appears
+        # literally in the resume; anything else becomes empty to stop fabricated
+        # details from reaching ATS forms. Digit comparison is only a fallback for
+        # digit-containing values (e.g. a phone with formatting differences) and
+        # still requires a realistic minimum digit count, so a stray digit or a
+        # short number like "9" cannot pass.
         if not isinstance(value, str):
             return ""
         stripped = value.strip()
         if not stripped:
             return ""
+        if stripped.lower() in resume_text.lower():
+            return stripped
         if any(ch.isdigit() for ch in stripped):
             digits = "".join(ch for ch in stripped if ch.isdigit())
             resume_digits = "".join(ch for ch in resume_text if ch.isdigit())
-            if digits and digits in resume_digits:
+            # ponytail: digit comparison only as a fallback, and only for values
+            # that look like a contact number — a realistic phone has at least 7
+            # digits. Short numbers (zip codes, "9", extensions) cannot pass.
+            if len(digits) >= 7 and digits in resume_digits:
                 return stripped
-            return ""
-        return stripped if stripped.lower() in resume_text.lower() else ""
+        return ""
 
     @staticmethod
     def _has_required_sources(state: AutopilotState) -> bool:
@@ -265,6 +279,19 @@ class AutopilotGraphEngine:
                     "submit_ready": False
                 }
             else:
+                # ponytail: submit-ready additionally requires both generated
+                # documents to be present and usable. An [UNAVAILABLE: ...]
+                # marker means the provider was unconfigured or a stage failed
+                # its fact-check — submitting a payload that references missing
+                # documents would fabricate a completed application.
+                tailored_resume = state.get("tailored_resume")
+                cover_letter = state.get("cover_letter")
+                docs_available = bool(
+                    tailored_resume
+                    and cover_letter
+                    and not tailored_resume.startswith("[UNAVAILABLE:")
+                    and not cover_letter.startswith("[UNAVAILABLE:")
+                )
                 state["auto_apply_payload"] = {
                     "candidate_id": state["candidate_id"],
                     "job_id": state["job_id"],
@@ -275,16 +302,27 @@ class AutopilotGraphEngine:
                         "headline": ""
                     },
                     "status": "PAYLOAD_COMPILED",
-                    "submit_ready": True
+                    "submit_ready": docs_available
                 }
         self._save_checkpoint(state)
         return state
+
+    # ponytail: one shared empty shape so recruiter_intel always exposes the
+    # same keys — including company_insights — regardless of which fallback
+    # branch produced it (missing sources, provider unavailable, or failed
+    # parse/validation). Callers never have to guess which keys exist.
+    _EMPTY_RECRUITER_INTEL = {
+        "target_company": "",
+        "recruiter_name": "",
+        "outreach_strategy": "",
+        "company_insights": [],
+    }
 
     async def gather_recruiter_intel(self, state: AutopilotState) -> AutopilotState:
         """Stage 4: Research recruiter intelligence & company insights."""
         state["stage"] = "RECRUITER_INTEL_GATHERED"
         if not self._has_required_sources(state):
-            state["recruiter_intel"] = {"target_company": "", "recruiter_name": "", "outreach_strategy": ""}
+            state["recruiter_intel"] = dict(self._EMPTY_RECRUITER_INTEL)
         else:
             intel = await self._llm_or_unavailable(
                 state,
@@ -298,7 +336,7 @@ class AutopilotGraphEngine:
                 max_tokens=400,
             )
             if intel.startswith("[UNAVAILABLE:"):
-                state["recruiter_intel"] = {"target_company": "", "recruiter_name": "", "outreach_strategy": ""}
+                state["recruiter_intel"] = dict(self._EMPTY_RECRUITER_INTEL)
             else:
                 parsed = _parse_json_object(intel)
                 # Validate the grounded fields against the sources rather than the
@@ -317,7 +355,7 @@ class AutopilotGraphEngine:
                         "company_insights": parsed.get("company_insights", []),
                     }
                 else:
-                    state["recruiter_intel"] = {"target_company": "", "recruiter_name": "", "outreach_strategy": ""}
+                    state["recruiter_intel"] = dict(self._EMPTY_RECRUITER_INTEL)
         self._save_checkpoint(state)
         return state
 

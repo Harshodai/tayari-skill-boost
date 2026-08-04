@@ -21,8 +21,14 @@ class OmnisaveService:
     """
     Omnisave AI Hybrid RAG Engine.
     Connectors for Substack RSS, Medium reading feeds, and LinkedIn saved items.
-    Chunks body text into 512-token segments, computes vector embeddings,
-    and constructs RAG prompts with mandatory inline citations ([Source 1], [Source 2]).
+    Chunks body text into 512-token segments and constructs RAG prompts with
+    mandatory inline citations ([Source 1], [Source 2]).
+
+    Retrieval is recency-based, not vector-based: DB-backed queries read the
+    user's most recent chunks (``ORDER BY created_at DESC LIMIT top_k``) rather
+    than embedding/semantic matching, and the in-memory fallback serves the
+    newest chunks scoped to the requesting user. Returned chunks are ordered by
+    recency, not by relevance.
 
     Persistence: sources and chunks are written to Postgres
     (public.saved_sources / public.source_chunks) whenever the DB pool is
@@ -48,7 +54,11 @@ class OmnisaveService:
             if pool is None:
                 return None
             user_uuid = uuid_lib.UUID(source_obj["user_id"])
-        except (ValueError, TypeError, KeyError):
+        except (ValueError, TypeError, KeyError) as exc:
+            # ponytail: an invalid JWT subject is a distinct failure mode from an
+            # unconfigured database — surface it so invalid-subject ingests are
+            # distinguishable in logs instead of looking like a DB absence.
+            logger.warning("[Omnisave] Invalid user_id %r; cannot persist to DB: %s", source_obj.get("user_id"), exc)
             return None
         try:
             async with pool.acquire() as conn:
@@ -151,7 +161,8 @@ class OmnisaveService:
             if pool is None:
                 return None
             user_uuid = uuid_lib.UUID(user_id)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as exc:
+            logger.warning("[Omnisave] Invalid user_id %r; cannot look up existing source: %s", user_id, exc)
             return None
         try:
             async with pool.acquire() as conn:
@@ -405,7 +416,8 @@ class OmnisaveService:
                 return []
             user_uuid = uuid_lib.UUID(user_id)
             src_uuid = uuid_lib.UUID(source_id)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as exc:
+            logger.warning("[Omnisave] Invalid user_id/source_id (%r/%r); cannot load source chunks: %s", user_id, source_id, exc)
             return []
         try:
             async with pool.acquire() as conn:
@@ -442,13 +454,19 @@ class OmnisaveService:
             return []
 
     async def _load_user_chunks_db(self, user_id: str, top_k: int) -> List[Dict[str, Any]]:
-        """Read the user's most recent chunks from Postgres as a fallback."""
-        pool = await get_pool()
-        if pool is None:
-            return []
+        """Read the user's most recent chunks from Postgres as a fallback.
+
+        Best-effort: a connection or DSN error (including get_pool raising)
+        falls through to the method's empty-list fallback rather than
+        propagating through query_knowledge_rag.
+        """
         try:
+            pool = await get_pool()
+            if pool is None:
+                return []
             user_uuid = uuid_lib.UUID(user_id)
-        except (ValueError, TypeError):
+        except Exception as exc:  # noqa: BLE001 — best-effort fallback
+            logger.warning("[Omnisave] Failed to load chunks for user %r: %s", user_id, exc)
             return []
         try:
             async with pool.acquire() as conn:
@@ -484,6 +502,10 @@ class OmnisaveService:
     async def query_knowledge_rag(self, query: str, user_id: str, top_k: int = 3) -> Dict[str, Any]:
         """
         Build RAG response with inline citations referencing indexed chunks ([Source 1], [Source 2]).
+
+        Retrieval is recency-based: the user's most recently created chunks are
+        loaded (up to ``top_k``) and passed to the LLM as context. Chunks are
+        not relevance-ranked or semantically matched against the query.
         """
         # ponytail: read from DB first for user-filtered persistence; fall back to
         # the in-memory store scoped to this user.

@@ -474,7 +474,24 @@ var report_outcome_default = defineTool14({
 });
 
 // src/lib/mcp/index.ts
-var projectRef = ("" ? "" : String(process.env.SUPABASE_URL ?? "").replace(/^https?:\/\//, "").replace(/\.supabase\.co.*$/, "")) || "";
+// ponytail: parse SUPABASE_URL and validate its hostname against the expected
+// *.supabase.co domain before extracting the project ref. Missing, malformed,
+// or unexpected-hostname values leave projectRef empty rather than emitting a
+// garbage issuer.
+function projectRefFromSupabaseUrl() {
+  var raw = String(process.env.SUPABASE_URL ?? "");
+  if (!raw) return "";
+  var parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return "";
+  }
+  var host = parsed.hostname.toLowerCase();
+  if (host === "supabase.co" || !host.endsWith(".supabase.co")) return "";
+  return parsed.hostname.replace(/\.supabase\.co$/, "");
+}
+var projectRef = ("" ? "" : projectRefFromSupabaseUrl()) || "";
 var mcp_default = defineMcp({
   name: "tayari-mcp",
   title: "Tayari",

@@ -68,9 +68,63 @@ CREATE TABLE IF NOT EXISTS public.saved_sources (
 -- legacy installs) so the composite (user_id, idempotency_hash) index can own
 -- uniqueness. This preserves compatibility with omnisave_service._persist_source_db's
 -- ON CONFLICT (user_id, idempotency_hash) target.
-ALTER TABLE public.saved_sources
-    DROP CONSTRAINT IF EXISTS uq_saved_sources_user_hash,
-    DROP CONSTRAINT IF EXISTS saved_sources_idempotency_hash_key;
+-- Indexes are inspected by their key columns (user_id, idempotency_hash), not
+-- by index/constraint name, so a standalone or differently named legacy unique
+-- index on idempotency_hash is removed too; only the composite stays.
+DO $$
+DECLARE
+    idx_name TEXT;
+    con_name TEXT;
+    col_count INT;
+    has_hash_col BOOLEAN;
+BEGIN
+    FOR idx_name IN
+        SELECT i.relname
+        FROM pg_catalog.pg_index ix
+        JOIN pg_catalog.pg_class i ON i.oid = ix.indexrelid
+        JOIN pg_catalog.pg_class t ON t.oid = ix.indrelid
+        JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace
+        WHERE n.nspname = 'public'
+          AND t.relname = 'saved_sources'
+          AND ix.indisunique
+    LOOP
+        SELECT count(*)
+          INTO col_count
+          FROM pg_catalog.pg_attribute a
+          JOIN pg_catalog.pg_class i2 ON i2.oid = a.attrelid
+          WHERE i2.relname = idx_name;
+
+        SELECT EXISTS (
+            SELECT 1
+            FROM pg_catalog.pg_attribute a
+            JOIN pg_catalog.pg_class i3 ON i3.oid = a.attrelid
+            WHERE i3.relname = idx_name AND a.attname = 'idempotency_hash'
+        ) INTO has_hash_col;
+
+        -- Drop only unique single-column indexes on idempotency_hash (the
+        -- legacy artifacts). The composite (user_id, idempotency_hash) index is
+        -- two columns, so it is never matched here.
+        IF col_count = 1 AND has_hash_col THEN
+            -- A constraint-backed index cannot be dropped directly; drop the
+            -- owning constraint, which removes its index. Standalone indexes
+            -- are dropped by name.
+            SELECT c.conname
+              INTO con_name
+              FROM pg_catalog.pg_constraint c
+             WHERE c.conindid = (SELECT ix4.indexrelid
+                                   FROM pg_catalog.pg_index ix4
+                                   JOIN pg_catalog.pg_class i4 ON i4.oid = ix4.indexrelid
+                                  WHERE i4.relname = idx_name
+                                  LIMIT 1);
+            IF con_name IS NOT NULL THEN
+                EXECUTE format('ALTER TABLE public.saved_sources DROP CONSTRAINT %I', con_name);
+            ELSE
+                EXECUTE format('DROP INDEX %I.%I', 'public', idx_name);
+            END IF;
+        END IF;
+    END LOOP;
+END;
+$$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_saved_sources_user_hash ON public.saved_sources (user_id, idempotency_hash);
 

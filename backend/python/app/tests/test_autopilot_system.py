@@ -36,7 +36,9 @@ def test_tayari_computer_sandbox_redaction():
 @pytest.mark.asyncio
 async def test_omnisave_rag_engine():
     omnisave = OmnisaveService()
-    test_user_id = "test-user-123"
+    # ponytail: same valid-UUID test identity as test_omnisave_agent_reach.py so
+    # the shared test subject is consistent across both modules.
+    test_user_id = "00000000-0000-0000-0000-0000000000aa"
     ingest_res = await omnisave.ingest_source(
         platform="substack",
         url="https://substack.com/@test",

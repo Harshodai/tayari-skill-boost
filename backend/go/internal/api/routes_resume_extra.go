@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -166,6 +167,16 @@ func (s *Server) handleAnalyzeResume(w http.ResponseWriter, r *http.Request) {
 	if err := s.DB.Conn.QueryRowContext(r.Context(), "SELECT original_text FROM resumes WHERE id=$1 AND user_id=$2", id, user.ID).Scan(&resumeText); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			s.respondError(w, http.StatusNotFound, "Resume not found")
+			return
+		}
+		// ponytail: runtime connection failures (the driver's connection is done,
+		// the pool is exhausted, the server is unreachable) and request-context
+		// timeouts are service-unavailable conditions, not server bugs — the
+		// upstream database or network is temporarily down. Keep unexpected
+		// lookup errors on 500.
+		if errors.Is(err, sql.ErrConnDone) || errors.Is(err, context.DeadlineExceeded) {
+			log.Printf("handleAnalyzeResume: resume lookup unavailable: %v", err)
+			s.respondError(w, http.StatusServiceUnavailable, "resume lookup unavailable")
 			return
 		}
 		log.Printf("handleAnalyzeResume: resume lookup failed: %v", err)

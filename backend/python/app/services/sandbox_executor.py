@@ -62,7 +62,11 @@ SENSITIVE_PATTERNS = [
     (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "[REDACTED_SSN]"),
     # ponytail: a bare 9-digit run matches arbitrary IDs/phone extensions, so a
     # TIN/EIN is redacted only when an identifier label precedes the number.
-    (re.compile(r"(?i)(\b(?:tin|ein|tax(?:\s+id)?|taxpayer\s+identification|employer\s+identification)\b[:\s\-]{0,2})(\d{9})"), r"\1[REDACTED_TIN]"),
+    # The number allows an optional separator between the first two and the
+    # remaining seven digits (e.g. "12-3456789" or "12 3456789"); the label's
+    # separator class deliberately excludes hyphens so the separator within the
+    # identifier is captured by the number pattern instead.
+    (re.compile(r"(?i)(\b(?:tin|ein|tax(?:\s+id)?|taxpayer\s+identification|employer\s+identification)\b[\s:\-]{0,2})(\d{2}[-\s]?\d{7})"), r"\1[REDACTED_TIN]"),
     (re.compile(r"\b[A-Z]{1,2}[0-9]{6,7}\b"), "[REDACTED_PASSPORT]"),
 ]
 

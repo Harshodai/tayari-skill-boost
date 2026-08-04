@@ -646,9 +646,21 @@ async def scrape_jd_url(url: str) -> str | None:
         from app.agent.browser_operator import BrowserOperator
         browser = BrowserOperator()
         try:
-            # ponytail: pass the original validated URL to navigate() so HTTPS
-            # keeps hostname-based TLS SNI and certificate validation.
-            res = await browser.navigate(url_info["original_url"], headers=url_info["headers"])
+            # ponytail: navigate the pinned target URL (never the original
+            # hostname, which a DNS-rebinding attacker could re-point at a
+            # private address) while carrying the original hostname in the Host
+            # header. validate_redirects=True re-checks every redirect hop
+            # against the same SSRF guard, matching agent_engine.navigate_web
+            # and sandbox_executor.execute_form_auto_fill. Context-level SSRF
+            # protection is already applied by the caller.
+            res = await browser.navigate(url_info["target_url"], headers=url_info["headers"], validate_redirects=True)
+            # ponytail: content_preview is truncated to 3000 characters by the
+            # browser operator, which would starve keyword/scoring stages of the
+            # full JD. Pull the complete document text explicitly.
+            if res.get("success") and browser.page:
+                full_content = await browser.page.evaluate("() => document.body.innerText")
+                if full_content and full_content.strip():
+                    return full_content
             if res.get("success") and res.get("content_preview"):
                 return res["content_preview"]
         finally:

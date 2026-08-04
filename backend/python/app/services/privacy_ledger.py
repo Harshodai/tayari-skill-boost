@@ -167,6 +167,11 @@ async def record(
     try:
         async with pool.acquire() as conn:
             await conn.execute(sql, uuid_lib.UUID(user_id), action, resource, detail_json, created_at)
+        # ponytail: the entry persisted — drop it from the buffer so the buffer
+        # holds only entries whose database writes failed or remain pending.
+        # query_user_log merges pending entries with DB rows, so a successful
+        # write here must not leave a duplicate in results.
+        user_buffer.pop(0)
     except Exception as exc:
         logger.warning("[PrivacyLedger] Failed to write DB ledger entry: %s", exc)
 
@@ -178,11 +183,14 @@ async def query_user_log(user_id: str, limit: int = 50) -> list:
     """
     # ponytail: reading is not a recency-updating operation; privacy panel
     # scans should not promote a user to newest in the LRU cache.
-    in_mem_filtered = list(_in_memory_logs.get(user_id, []))[:limit]
+    # The buffer holds only entries whose DB writes failed or remain pending,
+    # so pending entries must be merged with the fetched rows rather than
+    # replacing them (replacing would drop persisted entries).
+    in_mem_filtered = list(_in_memory_logs.get(user_id, []))
 
     pool = await _get_pool()
     if pool is None:
-        return in_mem_filtered
+        return in_mem_filtered[:limit]
 
     sql = """
         SELECT id, action, resource, detail, created_at
@@ -204,10 +212,13 @@ async def query_user_log(user_id: str, limit: int = 50) -> list:
             }
             for row in rows
         ]
-        return db_logs if db_logs else in_mem_filtered
+        db_ids = {log["id"] for log in db_logs}
+        merged = db_logs + [entry for entry in in_mem_filtered if entry["id"] not in db_ids]
+        merged.sort(key=lambda e: e["created_at"], reverse=True)
+        return merged[:limit]
     except Exception as exc:
         logger.warning("[PrivacyLedger] Failed to query DB ledger, returning in-memory: %s", exc)
-        return in_mem_filtered
+        return in_mem_filtered[:limit]
 
 
 async def clear_user_log(user_id: str) -> None:
@@ -218,9 +229,22 @@ async def clear_user_log(user_id: str) -> None:
     a successful wipe that never happened.
     """
     pool = await _get_pool()
-    if pool is not None:
-        async with pool.acquire() as conn:
-            await conn.execute("DELETE FROM public.privacy_audit_log WHERE user_id = $1", uuid_lib.UUID(user_id))
+    # ponytail: a configured DATABASE_URL with no available pool is an error —
+    # deleting only the in-memory buffer would report a wiped ledger while the
+    # persisted rows survive. Raise so the caller surfaces a 500 instead of a
+    # false success. The in-memory clear path is used only when no database is
+    # configured at all (pool is None because DATABASE_URL is unset/asyncpg
+    # missing), which means nothing was ever persisted.
+    if pool is None:
+        if os.getenv("DATABASE_URL"):
+            raise RuntimeError(
+                "DATABASE_URL is configured but the asyncpg pool is unavailable; "
+                "cannot confirm ledger wipe for user"
+            )
+        _in_memory_logs.pop(user_id, None)
+        return
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM public.privacy_audit_log WHERE user_id = $1", uuid_lib.UUID(user_id))
     _in_memory_logs.pop(user_id, None)  # ponytail: only evict the buffer after DB delete succeeds
 
 

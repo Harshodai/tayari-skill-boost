@@ -20,13 +20,30 @@ import reportOutcomeTool from "./tools/report-outcome";
 // deployed edge function gets a valid issuer even when the build-time ref
 // was empty (the historical bundle shipped `projectRef = ""` → issuer
 // "https://.supabase.co/auth/v1", which no OAuth server ever answers to).
+//
+// ponytail: the SUPABASE_URL fallback is parsed and its hostname validated
+// against the expected *.supabase.co domain before the project ref is
+// extracted. A missing, malformed, or unexpected-hostname value leaves
+// projectRef empty rather than emitting a garbage issuer.
+function projectRefFromSupabaseUrl(): string {
+  const raw = String(process.env.SUPABASE_URL ?? "");
+  if (!raw) return "";
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return "";
+  }
+  const host = parsed.hostname.toLowerCase();
+  if (host === "supabase.co" || !host.endsWith(".supabase.co")) return "";
+  return parsed.hostname.replace(/\.supabase\.co$/, "");
+}
+
 const projectRef =
   (import.meta.env.VITE_SUPABASE_PROJECT_ID &&
   import.meta.env.VITE_SUPABASE_PROJECT_ID !== "project-ref-unset"
     ? import.meta.env.VITE_SUPABASE_PROJECT_ID
-    : String(process.env.SUPABASE_URL ?? "")
-        .replace(/^https?:\/\//, "")
-        .replace(/\.supabase\.co.*$/, "")) || "";
+    : projectRefFromSupabaseUrl()) || "";
 
 export default defineMcp({
   name: "tayari-mcp",
