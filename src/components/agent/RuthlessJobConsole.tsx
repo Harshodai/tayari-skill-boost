@@ -412,7 +412,7 @@ export const RuthlessJobConsole: React.FC = () => {
               />
             </div>
             <Button onClick={handleCopilot} disabled={loading} className="bg-purple-600 hover:bg-purple-500 font-bold">
-              Generate Instant Copilot STAR Answer (<1.5s)
+              Generate Instant Copilot STAR Answer ({"<"}1.5s)
             </Button>
 
             {copilotResult && (
