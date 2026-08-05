@@ -23,6 +23,7 @@ const Onboarding = lazy(() => import('./pages/Onboarding'));
 const Auth = lazy(() => import('./pages/Auth'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Pipeline = lazy(() => import('./pages/Pipeline'));
+const PetInsights = lazy(() => import('./pages/PetInsights'));
 const Settings = lazy(() => import('./pages/Settings'));
 const ResumeUpload = lazy(() => import('./pages/ResumeUpload'));
 const ResumeResults = lazy(() => import('./pages/ResumeResults'));
@@ -194,6 +195,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <InterviewBoard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/companion-insights"
+                element={
+                  <ProtectedRoute>
+                    <PetInsights />
                   </ProtectedRoute>
                 }
               />

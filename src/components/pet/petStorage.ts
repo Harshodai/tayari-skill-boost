@@ -11,6 +11,9 @@ export const PET_STORAGE_KEY = "tayari_pet_state_v2";
 
 export type PetRenderer = "3d" | "ascii";
 
+/** Which screen corner Tay parks in. */
+export type PetPosition = "br" | "bl";
+
 export interface PetSkin {
   id: string;
   label: string;
@@ -50,6 +53,8 @@ export const PET_SKINS: PetSkin[] = [
 export interface PetPersistedState {
   dismissed: boolean;
   renderer: PetRenderer;
+  /** Corner of the viewport Tay sits in. */
+  position: PetPosition;
   /** Last mood the pet settled into — restored so it "wakes up" as it left. */
   mood: PetState;
   tipIndex: number;
@@ -70,6 +75,7 @@ export interface PetPersistedState {
 export const DEFAULT_PET_STATE: PetPersistedState = {
   dismissed: false,
   renderer: "3d",
+  position: "br",
   mood: "wave",
   tipIndex: 0,
   skinId: "signature",
@@ -133,12 +139,21 @@ export function usePetState() {
     });
   }, []);
 
+  /** Functional whole-state update — used when merging the server copy in. */
+  const replace = useCallback((fn: (current: PetPersistedState) => PetPersistedState) => {
+    setState((s) => {
+      const next = fn(s);
+      write(next);
+      return next;
+    });
+  }, []);
+
   const reset = useCallback(() => {
     write(DEFAULT_PET_STATE);
     setState({ ...DEFAULT_PET_STATE, visits: 1 });
   }, []);
 
-  return { state, patch, reset };
+  return { state, patch, replace, reset };
 }
 
 export function skinFor(id: string): PetSkin {
