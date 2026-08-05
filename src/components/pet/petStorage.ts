@@ -139,12 +139,21 @@ export function usePetState() {
     });
   }, []);
 
+  /** Functional whole-state update — used when merging the server copy in. */
+  const replace = useCallback((fn: (current: PetPersistedState) => PetPersistedState) => {
+    setState((s) => {
+      const next = fn(s);
+      write(next);
+      return next;
+    });
+  }, []);
+
   const reset = useCallback(() => {
     write(DEFAULT_PET_STATE);
     setState({ ...DEFAULT_PET_STATE, visits: 1 });
   }, []);
 
-  return { state, patch, reset };
+  return { state, patch, replace, reset };
 }
 
 export function skinFor(id: string): PetSkin {
