@@ -58,7 +58,7 @@ export async function fetchRemotePetState(userId: string): Promise<Partial<Synce
 export async function pushRemotePetState(userId: string, state: SyncedPetState): Promise<void> {
   await supabase
     .from("pet_preferences")
-    .upsert({ user_id: userId, state: state as unknown as Record<string, unknown> }, { onConflict: "user_id" });
+    .upsert([{ user_id: userId, state: state as unknown as Record<string, unknown> }], { onConflict: "user_id" });
 }
 
 /** Server copy wins for looks; progress takes the furthest of the two. */
@@ -94,14 +94,16 @@ export function trackPetEvent(
   if (!userId) return;
   void supabase
     .from("pet_events")
-    .insert({
-      user_id: userId,
-      event,
-      tab: fields.tab ?? null,
-      target: fields.target ?? null,
-      route: fields.route ?? (typeof window !== "undefined" ? window.location.pathname : null),
-      metadata: fields.metadata ?? {},
-    })
+    .insert([
+      {
+        user_id: userId,
+        event,
+        tab: fields.tab,
+        target: fields.target,
+        route: fields.route ?? (typeof window !== "undefined" ? window.location.pathname : undefined),
+        metadata: fields.metadata ?? {},
+      },
+    ])
     .then(undefined, () => undefined);
 }
 
