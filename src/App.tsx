@@ -70,6 +70,8 @@ const CompanyRadar = lazy(() => import('./pages/CompanyRadar'));
 const SkillGapRadar = lazy(() => import('./pages/SkillGapRadar'));
 const PortfolioGenerator = lazy(() => import('./pages/PortfolioGenerator'));
 const RecruiterOutreach = lazy(() => import('./pages/RecruiterOutreach'));
+const Networking = lazy(() => import('./pages/Networking'));
+
 const ApplicationAnalytics = lazy(() => import('./pages/ApplicationAnalytics'));
 const PrivacyReadiness = lazy(() => import('./pages/PrivacyReadiness'));
 const OneShotPipeline = lazy(() => import('./pages/OneShotPipeline'));
@@ -367,6 +369,15 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/networking"
+                element={
+                  <ProtectedRoute>
+                    <Networking />
+                  </ProtectedRoute>
+                }
+              />
+
               <Route
                 path="/analytics-funnel"
                 element={

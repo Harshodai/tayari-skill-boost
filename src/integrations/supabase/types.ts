@@ -14,6 +14,104 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_run_steps: {
+        Row: {
+          created_at: string
+          detail: string | null
+          id: string
+          idx: number
+          logs: string | null
+          name: string
+          run_id: string
+          screenshot_url: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          idx?: number
+          logs?: string | null
+          name: string
+          run_id: string
+          screenshot_url?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          idx?: number
+          logs?: string | null
+          name?: string
+          run_id?: string
+          screenshot_url?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_run_steps_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_runs: {
+        Row: {
+          company: string | null
+          created_at: string
+          current_step: string | null
+          id: string
+          job_title: string | null
+          job_url: string | null
+          mode: string
+          outcome: string | null
+          progress: number
+          status: string
+          submitted_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          current_step?: string | null
+          id?: string
+          job_title?: string | null
+          job_url?: string | null
+          mode?: string
+          outcome?: string | null
+          progress?: number
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          current_step?: string | null
+          id?: string
+          job_title?: string | null
+          job_url?: string | null
+          mode?: string
+          outcome?: string | null
+          progress?: number
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       auth_attempts: {
         Row: {
           attempt_count: number
@@ -104,6 +202,51 @@ export type Database = {
         }
         Relationships: []
       }
+      contacts: {
+        Row: {
+          company: string | null
+          created_at: string
+          email: string | null
+          id: string
+          linkedin_url: string | null
+          name: string
+          notes: string | null
+          relationship: string
+          source: string | null
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          linkedin_url?: string | null
+          name: string
+          notes?: string | null
+          relationship?: string
+          source?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          linkedin_url?: string | null
+          name?: string
+          notes?: string | null
+          relationship?: string
+          source?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       interview_sessions: {
         Row: {
           created_at: string
@@ -136,6 +279,56 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      outreach_messages: {
+        Row: {
+          body: string
+          channel: string
+          contact_id: string | null
+          created_at: string
+          id: string
+          kind: string
+          sent_at: string | null
+          status: string
+          subject: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          channel?: string
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          channel?: string
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pet_events: {
         Row: {
