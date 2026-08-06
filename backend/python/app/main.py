@@ -606,13 +606,22 @@ async def profile_import_text(payload: ProfileImportRequest):
 
 class GuardrailsCheckRequest(BaseModel):
     resume_text: str
+    original_text: Optional[str] = None
 
 
 @app.post("/api/v1/guardrails/check")
 async def guardrails_check(payload: GuardrailsCheckRequest):
-    """Run guardrails on provided resume text."""
+    """Run guardrails on provided resume text.
+
+    Without ``original_text`` the truthfulness guardrail cannot be verified, so
+    the response reports it as not passed / not verified rather than a clean
+    pass. Send the pre-optimization resume as ``original_text`` for a real check.
+    """
     gate = PipelineGate()
-    return gate.check(optimized_text=payload.resume_text)
+    return gate.check(
+        optimized_text=payload.resume_text,
+        original_text=payload.original_text,
+    )
 
 
 # ---------------------------------------------------------------------------

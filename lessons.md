@@ -709,3 +709,22 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 
 ### Reusable lesson
 - A test that verifies data is stored with the right identity key is not the same as a test that verifies the consumer isolates by that key. Seed adversarial same-store entries and assert they never leak into results.
+
+
+## 2026-08-06 — Guardrail truthfulness could report a pass it never performed; heuristic scorer invented a keyword match
+
+### What was done
+- `app/guardrails/gate.py` `PipelineGate`: when `original_text` is absent the truthfulness result is now `{"passed": False, "verified": False, ...}` instead of `{"passed": True, ...}`. Verified runs carry `"verified": True`. Added `require_truthfulness: bool = True` to `__init__` as the only opt-out, documented for surfaces that explicitly render "not verified" to the user.
+- `app/main.py` `/api/v1/guardrails/check`: `GuardrailsCheckRequest` gained an optional `original_text`, passed through to the gate, so the endpoint can perform a real truthfulness check instead of structurally never having one.
+- `app/services/predictive_scorer.py`: `keyword_score` is `None` when no job description is supplied (was a hardcoded `75`), and the overall score renormalizes over the remaining three components (`/0.60`) instead of absorbing a stand-in through a 40% weight. Removed the `min(max(keyword_score, 20), 100)` floor so a genuine zero overlap reports `0`, not `20`. Return dict gained `jd_provided` and `scoring_method: "heuristic"`; class docstring now states plainly that it is not a trained model and its output is not a callback probability.
+
+### Root cause
+- The gate treated "cannot verify" as "verified clean." Callers read `all_passed` as permission to auto-submit, and `/api/v1/guardrails/check` never sent an original, so that surface reported a truthfulness pass on 100% of requests without ever running the check. `automation_engine.py` and `optimizer.py` both do pass an original, so the exploitable path was the public endpoint — but the default made the safe behavior depend on every future caller remembering.
+- The scorer's no-JD branch existed to keep `overall_score` on a familiar scale, but it did so by feeding a fabricated value into the highest-weighted term rather than by changing the weighting.
+
+### Fix applied
+- See "What was done": unverifiable truthfulness fails closed and is labeled `verified: False`; the keyword component is dropped and the weights renormalized when there is no JD.
+
+### Reusable lesson
+- A guardrail that cannot run must fail closed, not default to pass. "Skipped" and "passed" are different states and need different fields — collapsing them into one boolean makes the absence of a check indistinguishable from a clean check at every call site downstream.
+- When a scoring component has no input, drop it and renormalize the weights. Substituting a placeholder keeps the number on scale by making it a different, unstated quantity — and the higher that component's weight, the more the placeholder dominates the result.

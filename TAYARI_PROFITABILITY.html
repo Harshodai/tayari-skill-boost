@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JobTayari — Profitability Fact-Check (July 2026)</title>
+<style>
+  :root{--paper:#f6f4ef;--ink:#1a1a1a;--muted:#6b6b63;--line:#d8d4c9;--red:#c0392b;--green:#1e7b4f;--amber:#b7791f;--navy:#1f3a5f;
+  --mono:'SF Mono','JetBrains Mono',Menlo,Consolas,monospace;--serif:Georgia,'Times New Roman',serif;--sans:-apple-system,'Helvetica Neue',Arial,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.55;font-size:15px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 28px 80px}
+  header{border-bottom:3px solid var(--ink);padding:36px 0 20px}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--red)}
+  h1{font-family:var(--serif);font-size:40px;line-height:1.12;margin:10px 0 8px;font-weight:700}
+  .sub{color:var(--muted);font-size:15px;max-width:800px}
+  .meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:14px;display:flex;gap:20px;flex-wrap:wrap}
+  nav{position:sticky;top:0;background:var(--paper);border-bottom:1px solid var(--line);z-index:50;display:flex;overflow-x:auto}
+  nav button{font-family:var(--mono);font-size:12px;background:none;border:none;border-bottom:3px solid transparent;padding:14px 15px;cursor:pointer;color:var(--muted);white-space:nowrap}
+  nav button.active{color:var(--ink);border-bottom-color:var(--red);font-weight:700}
+  nav button:hover{color:var(--ink)}
+  section.tab{display:none;padding-top:34px} section.tab.active{display:block}
+  h2{font-family:var(--serif);font-size:26px;margin:0 0 6px}
+  h3{font-family:var(--serif);font-size:18px;margin:28px 0 10px}
+  .lede{font-size:16px;color:#333;max-width:850px;margin-bottom:20px}
+  p{max-width:850px;margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);font-size:13px;margin:14px 0 22px}
+  th{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;text-align:left;background:var(--ink);color:#f6f4ef;padding:9px 12px}
+  td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}
+  tr:hover td{background:#faf8f2}
+  .pill{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 8px;border:1px solid currentColor;border-radius:2px;letter-spacing:.06em;text-transform:uppercase}
+  .r{color:var(--red)}.g{color:var(--green)}.a{color:var(--amber)}.n{color:var(--navy)}
+  .callout{border:1px solid var(--line);border-left:4px solid var(--amber);background:#fff;padding:14px 18px;margin:16px 0;max-width:890px;font-size:14px}
+  .callout.red{border-left-color:var(--red)}.callout.green{border-left-color:var(--green)}
+  code{font-family:var(--mono);font-size:12.5px;background:#eceade;padding:1px 5px;border-radius:2px}
+  blockquote{border-left:3px solid var(--red);padding:6px 0 6px 18px;margin:18px 0;font-family:var(--serif);font-size:17px;font-style:italic;color:#333;max-width:800px}
+  .big{font-family:var(--serif);font-size:34px;font-weight:700;line-height:1}
+  .big small{font-size:14px;color:var(--muted);font-weight:400;font-family:var(--sans)}
+  .grid{display:grid;gap:14px}.g3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+  .card{background:#fff;border:1px solid var(--line);border-top:3px solid var(--ink);padding:18px}
+  .card h4{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .card p{font-size:13px;color:#444;margin:8px 0 0}
+  .srcs{font-size:12px;color:var(--muted);border-top:1px solid var(--line);margin-top:36px;padding-top:14px}
+  .srcs a{color:var(--navy)}
+  .fine{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:6px}
+  @media(max-width:640px){h1{font-size:28px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Profitability Fact-Check · Unit Economics · Market Reality</div>
+  <h1>Yes, it can be profitable.<br>No, not the way you're imagining it.</h1>
+  <p class="sub">A bootstrapped competitor in this exact category does $3.2M ARR with zero funding. A VC-backed one burned $20.7M to reach ~$5M. Both facts matter, and they point in the same direction: this market pays — but only for distribution, not for architecture.</p>
+  <div class="meta"><span>DATE: 2026-07-25</span><span>MODEL: $19/mo · engineer wedge · closed SaaS</span><span>DATA: public revenue figures + SaaS benchmarks + first-principles model</span></div>
+</header>
+
+<nav id="nav">
+  <button data-t="verdict" class="active">Verdict</button>
+  <button data-t="proof">Market Proof</button>
+  <button data-t="model">Unit Economics</button>
+  <button data-t="churn">The Churn Trap</button>
+  <button data-t="paths">Four Paths</button>
+  <button data-t="brand">Brand Review</button>
+  <button data-t="honest">What I Can't Know</button>
+</nav>
+
+<!-- VERDICT -->
+<section class="tab active" id="verdict">
+  <h2>The verdict, in numbers</h2>
+  <div class="grid g3">
+    <div class="card"><h4>Category proof</h4><div class="big g">$3.2M <small>ARR</small></div><p>Rezi — bootstrapped, no outside funding, ~150K customers. A resume tool with a fraction of your feature depth. The market unambiguously pays.</p></div>
+    <div class="card"><h4>Your realistic base case</h4><div class="big a">$36K <small>ARR</small></div><p>~160 paying subs at steady state, assuming modest SEO + community traction. Meaningful side income. Not a company yet.</p></div>
+    <div class="card"><h4>Your bull case</h4><div class="big g">$266K <small>ARR</small></div><p>~1,170 subs if the free-scan funnel works at 25K visitors/mo. Solo-founder wealthy. Requires distribution you have never once demonstrated.</p></div>
+  </div>
+
+  <h3>Answering your actual question</h3>
+  <p><b>"Will this platform be profitable?"</b> — Profitability is nearly guaranteed <i>if</i> you get users, because your costs are almost zero: no team, no paid ads yet, and an LLM bill users can carry themselves (BYO-key or Ollama). Ten paying customers makes you profitable in the accounting sense. The real question isn't profit, it's <b>scale</b>: does this become $3K/mo, $30K/mo, or nothing? That's decided entirely by distribution, and today your distribution score is 5/100.</p>
+  <p><b>"Many tools do this — is there room?"</b> Yes, and the crowding is misleading. Rezi ($3.2M, bootstrapped) and Teal (~$5M on $20.7M raised) coexist while Jobscan charges $49.95 and Jobright just <i>raised</i> prices to $39.99. Prices rising in a crowded market means demand exceeds supply of good products. Sonara died, but from bad product-market fit, not saturation. The category kills the undifferentiated and the undistributed — you're differentiated and undistributed, so fix the second thing.</p>
+
+  <div class="callout red"><b>The one number that should scare you:</b> at 15% monthly churn — normal for job-search tools because <i>success removes the customer</i> — holding 500 subscribers means acquiring 75 <b>new paying customers every single month, forever</b>. Not 500 once. 75 per month, permanently. That treadmill, not your code, is the business. Everything in your repo is now a rounding error next to whether you can build a repeatable acquisition engine.</div>
+
+  <blockquote>You didn't build a product that can't make money. You built a product that can't be found — and then spent a month making it better instead of findable.</blockquote>
+</section>
+
+<!-- PROOF -->
+<section class="tab" id="proof">
+  <h2>Market proof — the receipts</h2>
+  <table>
+    <tr><th>Company</th><th>Public figures</th><th>What it proves for you</th></tr>
+    <tr><td><b>Rezi</b></td><td>$3.2M ARR (2024, up from $2.4M in 2023), <b>bootstrapped</b>, ~150K customers, ~30 staff. $29/mo or $149 lifetime.</td><td>The upside case. A solo-founder-origin product hit millions with a narrower feature set than yours. Their moat was distribution + SEO, not technology. This is your existence proof.</td></tr>
+    <tr><td><b>Teal</b></td><td>$20.7M raised across 4 rounds; ~$5M revenue estimate; ~$16M valuation estimate; $29/mo.</td><td>The cautionary case. Massive funding, huge team, only ~1.5× Rezi's revenue at ~$20M cost. <b>Money doesn't win this category.</b> A valuation below capital raised is a warning about how hard retention is here.</td></tr>
+    <tr><td><b>Jobscan</b></td><td>$49.95/mo, category owner of "ATS score" via years of SEO.</td><td>Willingness-to-pay is 2.6× your price. You are not too expensive at $19 — you may be <b>underpriced</b>, see Paths tab.</td></tr>
+    <tr><td><b>Jobright</b></td><td>$39.99/mo — recently <b>raised</b> from $29.99.</td><td>Rising prices in a "crowded" market = pricing power exists. Crowding is not saturation.</td></tr>
+    <tr><td><b>Sonara</b></td><td>Shut down Feb 2024.</td><td>Death by weak differentiation + auto-apply model that employers rejected. Your Review-Mode/guardrail design is the opposite bet. Learn, don't panic.</td></tr>
+  </table>
+  <div class="callout green"><b>Read the pattern:</b> the bootstrapped, distribution-obsessed, narrow-product company ($3.2M, ~30 people) beat the funded, broad-product company on capital efficiency by roughly 10×. You are structurally closer to Rezi than to Teal — except Rezi shipped narrow and marketed relentlessly, while you shipped 57 pages and marketed nothing. Copy their behavior, not their feature list.</div>
+</section>
+
+<!-- MODEL -->
+<section class="tab" id="model">
+  <h2>Unit economics — first-principles model</h2>
+  <p class="lede">Assumptions: $19/mo, ~$1.50/mo COGS per paying user (hosting + LLM with BYO-key/Ollama defaults), no paid acquisition yet, solo founder. Steady state = when new subscriptions equal churn.</p>
+  <table>
+    <tr><th>Scenario</th><th>Funnel</th><th>Avg life</th><th>LTV</th><th>Steady-state subs</th><th>MRR / ARR</th></tr>
+    <tr><td><b>Bear</b> — organic only, no funnel</td><td>2,000 visitors/mo → 80 signups → 3 paid</td><td>5.6 mo</td><td>$97</td><td>~18</td><td>$338 / <b>$4K</b></td></tr>
+    <tr><td><b>Base</b> — modest SEO + community</td><td>8,000 → 400 signups → 24 paid</td><td>6.7 mo</td><td>$117</td><td>~160</td><td>$3,040 / <b>$36K</b></td></tr>
+    <tr><td><b>Bull</b> — free-scan funnel works</td><td>25,000 → 1,750 signups → 140 paid</td><td>8.3 mo</td><td>$146</td><td>~1,167</td><td>$22,167 / <b>$266K</b></td></tr>
+  </table>
+  <p class="fine">Conversion assumptions: signup 4–7% of visitors, paid 4–8% of signups (freemium norms), churn 12–18%/mo.</p>
+
+  <h3>Break-even ladder — what each milestone actually requires</h3>
+  <table>
+    <tr><th>Goal</th><th>Paying subs needed</th><th>New paid/month to stand still (15% churn)</th></tr>
+    <tr><td>Profitable at all (covers hosting)</td><td>~10</td><td>~2</td></tr>
+    <tr><td>$2,000/mo — meaningful side income</td><td>105</td><td>16</td></tr>
+    <tr><td>$6,000/mo — approaching a salary</td><td>316</td><td>47</td></tr>
+    <tr><td>$12,500/mo — $150K/yr</td><td>658</td><td>99</td></tr>
+    <tr><td>Rezi's $3.2M ARR at your price</td><td>~14,000</td><td>~2,100</td></tr>
+  </table>
+  <div class="callout"><b>The honest read:</b> the first two rungs are genuinely achievable within 6–12 months <i>if</i> you launch and market consistently. The fourth rung requires a real acquisition machine. Rezi's rung requires a team. Nothing here is impossible; all of it is distribution work, and none of it is code you haven't already written.</div>
+
+  <h3>Cost structure — your actual advantage</h3>
+  <table>
+    <tr><th>Cost</th><th>Monthly at 200 subs</th><th>Note</th></tr>
+    <tr><td>Infrastructure (VPS/managed PG/Redis)</td><td>$50–150</td><td>Your Docker stack is heavy but cheap at this scale.</td></tr>
+    <tr><td>LLM inference</td><td>$0–300</td><td><b>The lever:</b> BYO-key or Ollama default pushes this to ~$0 and is on-brand. Competitors eat this cost; you don't have to.</td></tr>
+    <tr><td>Email/monitoring/domain/Stripe fees</td><td>$50 + ~3% of revenue</td><td>—</td></tr>
+    <tr><td>Your time</td><td>Unpaid</td><td>The real cost, and the reason 57 pages was expensive.</td></tr>
+  </table>
+  <p>Gross margin at $19 with BYO-key: <b>~90%+</b>. That's SaaS-grade and better than competitors who absorb inference costs. Your economics are sound; your funnel is empty.</p>
+</section>
+
+<!-- CHURN -->
+<section class="tab" id="churn">
+  <h2>The churn trap — the structural flaw in this entire category</h2>
+  <p class="lede">This is the thing nobody selling you a "job tool business plan" says out loud: <b>your product works, so your customer leaves.</b> Job search is an acute need, not a chronic one. Success is churn. Failure is also churn. Every subscriber is a departing subscriber.</p>
+  <table>
+    <tr><th>Churn/mo</th><th>Avg customer life</th><th>Gross LTV @ $19</th><th>Reality</th></tr>
+    <tr><td>20%</td><td>5.0 months</td><td>$95</td><td>Typical job-tool behavior — search ends, subscription ends.</td></tr>
+    <tr><td>14%</td><td>7.1 months</td><td>$136</td><td>Realistic with a strong tracker keeping people engaged post-hire.</td></tr>
+    <tr><td>10%</td><td>10 months</td><td>$190</td><td>Requires genuine post-hire value (see mitigations).</td></tr>
+  </table>
+  <p class="fine">Context: healthy prosumer SaaS runs 2–4% monthly churn; SaaS month-12 retention ~71%. Job tools are structurally 3–5× worse. Anyone quoting you generic SaaS benchmarks for this category is misleading you.</p>
+
+  <h3>Why this kills the "make it a big company" fantasy</h3>
+  <p>At 15% churn you replace your entire customer base every ~7 months. Growth requires acquisition to outrun a leaking bucket permanently. This is exactly why Teal needed $20.7M and still sits near $5M — <b>they're buying customers faster than they lose them, which is expensive forever.</b> It's also why Rezi's $149 lifetime deal is smarter than it looks: it converts a churning subscription into cash upfront, trading LTV ceiling for cash certainty.</p>
+
+  <h3>Mitigations that actually work in this category</h3>
+  <table>
+    <tr><th>Play</th><th>Effect</th><th>Fit for you</th></tr>
+    <tr><td><b>Lifetime / one-time tier</b> ($149–199)</td><td>Sidesteps churn entirely; cash now; proven by Rezi and JobSprout.</td><td><span class="pill g">Strong</span> Especially for engineers who hate subscriptions. Test at launch.</td></tr>
+    <tr><td><b>Annual-first pricing</b></td><td>Locks 12 months, kills monthly churn math. Your /pricing already leans annual.</td><td><span class="pill g">Strong</span> Keep — but show monthly honestly too (Ultimate Review, design P1).</td></tr>
+    <tr><td><b>Post-hire value</b>: keep the tracker, salary/negotiation data, "next role in 18 months" dormant mode at $5/mo</td><td>Converts churn into low-ARPU retention; re-activation later.</td><td><span class="pill a">Medium</span> Cheap to build (features exist), unproven demand.</td></tr>
+    <tr><td><b>B2B2C</b>: bootcamps, universities, outplacement firms</td><td>They have continuous cohorts — their churn is institutional, not individual. Solves the treadmill structurally.</td><td><span class="pill g">Strong</span> This is your Team tier's real justification. Test via waitlist before building.</td></tr>
+    <tr><td><b>API / self-host licensing</b></td><td>Business customers churn at 2–4%, not 15%. Higher ACV, sticky.</td><td><span class="pill a">Medium</span> Your GRILL called API monetization a hidden superpower; still true, still unbuilt.</td></tr>
+  </table>
+  <div class="callout green"><b>Strategic reframe:</b> the highest-value move available to you is not another consumer feature — it's finding one customer type that <i>doesn't</i> stop needing you when they get hired. Bootcamps, career centers, outplacement firms, and recruiters all qualify. One $500/mo institutional customer equals 26 consumer subscribers and doesn't churn when someone gets a job.</div>
+</section>
+
+<!-- PATHS -->
+<section class="tab" id="paths">
+  <h2>Four paths — pick one, honestly</h2>
+  <p class="lede">Brainstorming lens, judged on your real constraints: solo, no budget, no users, strong tech, weak distribution, closed-source.</p>
+  <table>
+    <tr><th>Path</th><th>Ceiling</th><th>Odds</th><th>What it demands of you</th></tr>
+    <tr><td><b>1 · Consumer SaaS grind</b> (current plan)<br>$19/mo, free-scan funnel, SEO + content</td><td>$30–250K ARR</td><td><span class="pill a">Medium</span></td><td>12+ months of consistent marketing you have never done. Feature work is DONE; this is a writing-and-posting job now. Most likely to stall from boredom, not failure.</td></tr>
+    <tr><td><b>2 · B2B2C institutions</b><br>Bootcamps, universities, outplacement — $300–2K/mo seats</td><td>$100–500K ARR</td><td><span class="pill g">Higher</span></td><td>Sales calls, not posts. 20 emails to bootcamp directors this week would tell you more than another quarter of building. Churn problem structurally solved. <b>Most underrated path given your assets.</b></td></tr>
+    <tr><td><b>3 · Engineer-niche premium</b><br>Reprice to $29–39, own "AI job search for software engineers"</td><td>$50–300K ARR</td><td><span class="pill a">Medium</span></td><td>Jobscan gets $49.95; you're leaving money on the table at $19 for a narrower, better-served audience. Fewer customers needed for every milestone — 316 subs at $19 becomes 155 at $39.</td></tr>
+    <tr><td><b>4 · Sell the tech / licensing</b><br>API, white-label, self-host licenses to HR-tech and coaches</td><td>Unbounded but lumpy</td><td><span class="pill r">Lower</span></td><td>Requires enterprise sales skills and a reference customer. Real optionality later; not a first move.</td></tr>
+  </table>
+  <div class="callout"><b>My recommendation, stated plainly:</b> run Path 1 and Path 2 <b>in parallel for 30 days</b> — they cost nothing together because Path 2 is email, not code. Ship the free-scan funnel and launch (Path 1), and in the same weeks send 20 institutional emails (Path 2). Whichever produces a paying customer first, that's your business. And raise the price to $29 the moment you have five paying users to test against — you can always discount; you can't easily raise on existing customers.</div>
+
+  <h3>The kill criteria — decide these now, while you're unemotional</h3>
+  <table>
+    <tr><th>Checkpoint</th><th>Kill / pivot if…</th></tr>
+    <tr><td>90 days post-launch</td><td>&lt;100 signups → the positioning or funnel is wrong. Iterate messaging, don't build.</td></tr>
+    <tr><td>6 months</td><td>&lt;20 paying → consumer path is failing. Go all-in on B2B2C or accept it as a portfolio piece.</td></tr>
+    <tr><td>12 months</td><td>&lt;$2K MRR and no institutional customer → the honest call is that this is a magnificent portfolio project and a hiring asset, not a company. That is <b>not</b> failure — it's a real outcome worth having.</td></tr>
+  </table>
+</section>
+
+<!-- BRAND -->
+<section class="tab" id="brand">
+  <h2>Brand review — does the story hold up commercially?</h2>
+  <p class="lede">Marketing brand-review lens applied to what a paying stranger encounters. Your brand promise is "the honest operator." Here's where the current product contradicts it — and contradictions cost conversions.</p>
+  <table>
+    <tr><th>Brand claim</th><th>Live evidence</th><th>Verdict</th></tr>
+    <tr><td>"The AI that won't let you lie"</td><td>Truth gate, stuffing detector, honest prepared-vs-applied statuses — all real in code.</td><td><span class="pill g">Earned</span> Strongest asset. Lead with it.</td></tr>
+    <tr><td>Same page sells STAR interview prep (cut) and a Team tier (never built)</td><td>/pricing, live.</td><td><span class="pill r">Fatal contradiction</span> An honesty brand caught selling vaporware loses the only thing it's selling. Fix before a single paid visitor.</td></tr>
+    <tr><td>"Your data, your machine" (privacy)</td><td>True in self-host; unverifiable now that the repo is closed.</td><td><span class="pill a">Weakened</span> Needs a published threat model or an open-sourced guardrails module to stay credible.</td></tr>
+    <tr><td>"$19/mo (billed annually)" with no monthly price shown</td><td>/pricing.</td><td><span class="pill a">Off-brand</span> Hidden-annual is a dark pattern. Honesty brands can't use conversion tricks.</td></tr>
+    <tr><td>7-day money-back guarantee, one-click cancel</td><td>Promised in copy; billing has no processor integrated.</td><td><span class="pill r">Unbacked promise</span> Remove the promise or ship the refund flow. Not optional once money moves.</td></tr>
+    <tr><td>"For software engineers" (footer)</td><td>Only place the wedge appears.</td><td><span class="pill a">Underused</span> Promote to the hero. Specificity converts; "for everyone" converts nobody.</td></tr>
+  </table>
+  <div class="callout red"><b>Commercial consequence:</b> every contradiction above is a refund request, a chargeback, or a bad review waiting to happen — and in a category where trust is the differentiator, one "they advertised features that don't exist" post outweighs ten happy users. Brand integrity here isn't ethics decoration; it's your conversion rate and your churn rate.</div>
+</section>
+
+<!-- HONEST -->
+<section class="tab" id="honest">
+  <h2>What I can't know — and what I refused to fake</h2>
+  <p class="lede">You asked me to use every skill including enterprise-search digest/search and synthesize-research. Two of those would have produced fiction, so I didn't run them. Here's the full disclosure.</p>
+  <table>
+    <tr><th>Requested</th><th>What I did</th><th>Why</th></tr>
+    <tr><td>enterprise-search:digest / :search</td><td><span class="pill r">Not run</span></td><td>They search <i>your connected work tools</i> (Slack, Notion, Asana, Jira). Yours require authorization in this session AND contain no JobTayari user data. Running them yields an empty digest dressed as insight.</td></tr>
+    <tr><td>synthesize-research</td><td><span class="pill r">Not run</span></td><td>It synthesizes user interviews, surveys, support tickets. You have zero users, therefore zero research. Synthesizing nothing produces confident nonsense — the exact failure mode of the report you first pasted me.</td></tr>
+    <tr><td>competitive-brief, brainstorm, brand-review</td><td><span class="pill g">Applied</span></td><td>Market Proof, Four Paths, and Brand Review tabs.</td></tr>
+    <tr><td>Financial modeling</td><td><span class="pill g">Computed</span></td><td>Ran an actual model, not vibes. Assumptions stated on the Unit Economics tab so you can change them and re-run.</td></tr>
+  </table>
+
+  <h3>Confidence ratings</h3>
+  <table>
+    <tr><th>Claim type</th><th>Confidence</th><th>Caveat</th></tr>
+    <tr><td>Competitor revenue figures (Rezi $3.2M, Teal $20.7M raised)</td><td><b>7/10</b></td><td>Third-party trackers (Latka/Tracxn/Crunchbase), not audited filings. Teal's "$5M revenue / 278 employees" figures look internally inconsistent — treat the revenue estimate as soft.</td></tr>
+    <tr><td>Churn 12–20%/mo for job-search tools</td><td><b>7/10</b></td><td>Reasoned from category mechanics (success = churn) + general SaaS benchmarks. No job-tool-specific published cohort data exists publicly.</td></tr>
+    <tr><td>Unit-economics model outputs</td><td><b>5/10</b></td><td>Arithmetic is exact; <b>inputs are estimates</b>. Your real conversion rates could be 2× or 0.3× these. The model's value is the shape and the treadmill math, not the exact ARR.</td></tr>
+    <tr><td>"Profitable if you get users" (cost structure)</td><td><b>9/10</b></td><td>Your costs are genuinely near-zero with BYO-key. This is the safest claim here.</td></tr>
+    <tr><td>"Distribution is the binding constraint"</td><td><b>9/10</b></td><td>Supported by Rezi-vs-Teal capital efficiency and by your own 5/100 distribution score.</td></tr>
+    <tr><td>Which path wins</td><td><b>4/10</b></td><td>Genuinely unknowable pre-launch. That's why the recommendation is to run two paths for 30 days and let evidence decide.</td></tr>
+  </table>
+
+  <div class="callout"><b>The fact-check you asked for, in one line:</b> your instinct that this has potential is <b>correct and supported by evidence</b> — a bootstrapped competitor proves $3M+ is reachable in this exact category. Your risk was never the market or the code. It's that this is the fifth strategy document and the zeroth customer conversation. Twenty emails to bootcamp directors and one launched free-scan page will teach you more in a week than every analysis I've written this session.</div>
+
+  <div class="srcs"><b>Sources:</b>
+    <a href="https://getlatka.com/companies/rezi#team">Latka — Rezi $3.2M ARR, bootstrapped</a> ·
+    <a href="https://tracxn.com/d/companies/teal/__2DKqrP7V66-l9-_sa9s2S0-7EBbtBWPDi1lVoI8b7Os">Tracxn — Teal funding $20.7M</a> ·
+    <a href="https://www.crunchbase.com/organization/teal-d505">Crunchbase — Teal</a> ·
+    <a href="https://outapply.com/blog/jobright-ai-pricing">Jobright pricing increase to $39.99</a> ·
+    <a href="https://resumeup.ai/jobscan-vs-teal">Jobscan $49.95 / Teal $29</a> ·
+    <a href="https://vantainsights.com/insights/saas-churn-rate">SaaS churn benchmarks 2026</a> ·
+    <a href="https://foundrycro.com/blog/ltv-cac-ratio-benchmarks-2026/">LTV:CAC benchmarks 2026</a> ·
+    <a href="https://www.digitalapplied.com/blog/customer-lifetime-value-benchmarks-2026-industry-data">CLV benchmarks 2026</a> ·
+    <a href="https://recurly.com/research/churn-rate-benchmarks/">Recurly churn benchmarks</a>
+  </div>
+</section>
+
+</div>
+<script>
+  const nav=document.getElementById('nav');
+  nav.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    nav.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('section.tab').forEach(s=>s.classList.remove('active'));
+    b.classList.add('active');document.getElementById(b.dataset.t).classList.add('active');window.scrollTo({top:0});});
+</script>
+</body>
+</html>
