@@ -368,6 +368,15 @@ const App = () => (
                 }
               />
               <Route
+                path="/networking"
+                element={
+                  <ProtectedRoute>
+                    <Networking />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
                 path="/analytics-funnel"
                 element={
                   <ProtectedRoute>
