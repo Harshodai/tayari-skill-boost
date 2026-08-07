@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getAuthRateLimit } from "@/api/auth";
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -7,17 +7,6 @@ export interface RateLimitResult {
   message: string | null;
 }
 
-// Edge Functions only exist on a real supabase.co project — neither the
-// old self-hosted-JWT mode nor the self-hosted Supabase Docker stack in
-// supabase-local/ deploys an edge-runtime service (deliberately excluded
-// there to save RAM). Checking VITE_USE_SELF_HOSTED alone used to miss the
-// "self-hosted Supabase, real GoTrue auth, but still no Edge Functions"
-// case, causing every login to fire a doomed request against Kong with no
-// upstream to answer it. Skip whenever we're not pointed at a cloud project.
-const USE_SELF_HOSTED =
-  import.meta.env.VITE_USE_SELF_HOSTED === "true" ||
-  !String(import.meta.env.VITE_SUPABASE_URL ?? "").includes(".supabase.co");
-
 const RATE_LIMIT_OPEN: RateLimitResult = {
   allowed: true,
   remainingAttempts: 5,
@@ -25,78 +14,44 @@ const RATE_LIMIT_OPEN: RateLimitResult = {
   message: null,
 };
 
+// ponytail: record_failure and reset are now server-side only — the Go audit
+// worker (worker.go:71-91) writes auth_attempts on every login outcome
+// (increment on failure, delete on success). The frontend no longer needs to
+// drive those actions; it only READS the lockout state before a login attempt.
+// Keeping these as local no-ops preserves the AuthContext call sites without
+// a risky refactor of the login flow.
+
 export async function checkRateLimit(email: string): Promise<RateLimitResult> {
-  if (USE_SELF_HOSTED) return RATE_LIMIT_OPEN;
   try {
-    const { data, error } = await supabase.functions.invoke('check-rate-limit', {
-      body: { email, action: 'check' },
-    });
-
-    if (error) {
-      // Fail open to avoid blocking legitimate users on system error
-      return RATE_LIMIT_OPEN;
+    const data = await getAuthRateLimit(email);
+    if (!data.allowed && data.blockedUntil) {
+      return {
+        allowed: false,
+        remainingAttempts: 0,
+        blockedUntil: new Date(data.blockedUntil),
+        message: "Too many login attempts. Please try again later.",
+      };
     }
-
     return {
-      allowed: data.allowed,
+      allowed: true,
       remainingAttempts: data.remainingAttempts,
-      blockedUntil: data.blockedUntil ? new Date(data.blockedUntil) : null,
-      message: data.allowed ? null : `Too many login attempts. Please try again later.`
+      blockedUntil: null,
+      message: null,
     };
   } catch {
+    // ponytail: fail open — never block a legit login because the rate-limit
+    // read failed. The Go audit worker still enforces lockouts server-side.
     return RATE_LIMIT_OPEN;
   }
 }
 
 export async function recordFailedAttempt(email: string): Promise<RateLimitResult> {
-  if (USE_SELF_HOSTED) return { allowed: true, remainingAttempts: 0, blockedUntil: null, message: 'Invalid credentials.' };
-  try {
-    const { data, error } = await supabase.functions.invoke('check-rate-limit', {
-      body: { email, action: 'record_failure' },
-    });
-
-    if (error) {
-      return {
-        allowed: true,
-        remainingAttempts: 0,
-        blockedUntil: null,
-        message: 'Invalid credentials.'
-      };
-    }
-
-    if (data.blockedUntil) {
-      return {
-        allowed: false,
-        remainingAttempts: 0,
-        blockedUntil: new Date(data.blockedUntil),
-        message: `Too many failed attempts. Account temporarily locked.`
-      };
-    }
-
-    return {
-      allowed: true,
-      remainingAttempts: data.remainingAttempts,
-      blockedUntil: null,
-      message: `Invalid credentials. ${data.remainingAttempts} attempts remaining.`
-    };
-  } catch {
-    return {
-      allowed: true,
-      remainingAttempts: 0,
-      blockedUntil: null,
-      message: 'Invalid credentials.'
-    };
-  }
+  // ponytail: no-op — Go audit worker records the failure on the actual login
+  // attempt. Returning a neutral "invalid credentials" result keeps the
+  // AuthContext call site shape unchanged.
+  return { allowed: true, remainingAttempts: 0, blockedUntil: null, message: "Invalid credentials." };
 }
 
 export async function resetRateLimit(email: string): Promise<void> {
-  if (USE_SELF_HOSTED) return;
-  try {
-    await supabase.functions.invoke('check-rate-limit', {
-      body: { email, action: 'reset' },
-    });
-  } catch {
-    // Silently ignore in self-hosted mode or if Supabase is unavailable
-  }
+  // ponytail: no-op — Go audit worker resets auth_attempts on successful login.
 }
-
