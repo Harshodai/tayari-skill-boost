@@ -861,3 +861,17 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 - chi prioritizes static segments over `{id}` params at the same position (already proven by `analyze-text` vs `{id}/optimize`), so a `resumes/generate-pdf` route is safe alongside `resumes/{id}/...` — no ordering trap.
 - The `ai.Client` composes `BaseURL + endpoint` verbatim: the upstream path IS whatever you pass to `PostJSON` (config `PythonAIURL` = httptest server URL in tests). Assert `r.URL.Path` for the full `/api/v1/...` path, not a stripped variant.
 - Go-side pre-validation of Python's size guards turns silent upstream 400s (which PostJSON surfaces as errors → 502) into clean client-facing 400s and avoids paying the forwarding round trip for obviously-invalid payloads.
+
+## 2026-08-07 — Restore version-docx download filename (review fix, commit 99e8e9d)
+
+### What was done
+- Reverted a stray, undocumented change in `backend/go/internal/api/routes_mvp.go` (`handleDownloadVersionDocx`, line 1770): Content-Disposition filename restored from `tayari-resume-%d.docx` back to `tayari-resume-version-%d.docx`, matching the other version-aware handlers' style. One line, nothing else.
+
+### Root cause
+- Commit c2c4a89 carried an unrelated one-line edit (regression of download-name specificity for the version-docx endpoint).
+
+### Fix applied
+- One-line revert to the fmt.Sprintf form: `w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"tayari-resume-version-%d.docx\"", id))`. Verified: `go test ./internal/api -run 'TestResumeGeneratePdf|TestRouteParity' -v` PASS (8/8), diff shows only that line.
+
+### Reusable lesson
+- When carrying a commit through a strict parity/review pipeline, re-read the FULL diff before merging — a single unrelated Content-Disposition edit can silently slip into a feature commit and regress download-name specificity.
