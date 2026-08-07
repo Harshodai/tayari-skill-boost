@@ -4,6 +4,25 @@ This document details key findings, architectural decisions, and lessons learned
 
 ---
 
+## 2026-08-07 — B1 loop-2 landed (analyze-resume edge fn → Go/Python only) + found a pre-existing score-0 bug
+
+### What was done
+- Completed B1 loop-2 (second third of the split-brain-backend blocker): deleted the `analyze-resume` Supabase edge function; the Go→Python path (`POST /v1/analyze` → Go `handleAnalyzeText` → Python `analyze_text_endpoint`) is now the ONLY path — the frontend cloud branch (`supabase.functions.invoke("analyze-resume")` + the `resume_analyses` insert) is gone from `ResumeUpload.tsx`.
+- **Found and fixed a pre-existing bug the edge fn was masking:** the UI normalizer (`normalizeGoAnalysis` in ResumeUpload.tsx) read a legacy shape (`raw.score`/`raw.breakdown`/`raw.keywords`) that Python stopped producing long ago (it returns `result.overall_score`/`section_scores`/`matched_keywords`/…). Every self-hosted analysis rendered **0%** with empty sections. Root-caused during plan writing: Python `analyze_resume` (llm_service.py) returns the new shape; Go forwards verbatim; the old normalizer never matched. Replaced with a pure lib module `src/lib/resumeAnalysis.ts` (`normalizeGoAnalysis` maps `section_scores.skills_match/experience_relevance/education_fit/formatting` → the 4 UI sections; `aiOptionsToFocusText` is a byte-identical port of the edge fn's `buildOptionsText`; `buildAnalyzePayload` combines custom instructions + focus text).
+- Executed via subagent-driven development (3 tasks, all TDD): `d7d1328` feat(lib), `8ec3286` fix(ui), `b2c16a3` chore(supabase). Per-task reviews all clean; final whole-branch review: ready to close, 5 minors all deferred (education-filter branch unpinned, overallScore unrounded, partial section_scores untested, per_ats-absence untested, ponytail comment now accurate).
+- Live-verified: `curl /v1/analyze` (real LLM, 34s) → HTTP 200, `result` carries `overall_score:35`, all 4 `section_scores`, `matched_keywords` — exactly the shape the new normalizer consumes. Route-parity tests green (no Go routes touched). All 3 services healthy post-rebuild.
+
+### Root cause
+- The split-brain: the edge fn (Lovable AI gateway, gemini-3-flash) was the DEFAULT path (`!USE_SELF_HOSTED`, and `VITE_USE_SELF_HOSTED` defaults false), so the Go/Python path was rarely exercised — and when it was, its response-shape drift was invisible because the UI was on the edge-fn contract. Two separate contracts (edge fn: `data.overallScore`; Python: `result.overall_score`) with a normalizer that matched neither new shape.
+
+### Fix applied
+- Deleted the edge fn + its only call site; moved the aiOptions steering into the frontend payload (focus-area text appended to `custom_instructions` — zero Python/Go changes); new lib normalizer pins the Python shape with discriminating tests; a static source-inspection test (`resumeUploadNoCloud.test.ts`) fails the build if anyone resurrects `functions.invoke("analyze-resume")` or the `USE_SELF_HOSTED` analysis branch.
+
+### Reusable lesson
+- When two backend paths serve one UI, the path nobody runs rots silently — and the normalizer drifts to match the *other* path. Deleting the dead path first, then auditing the survivor's response against the UI contract, surfaces shape bugs that tests can't. Port user-facing prompt controls (aiOptions) into the surviving path's payload rather than letting UI toggles die with an edge fn — the checkboxes are product surface, not implementation detail. A source-inspection test that greps for a banned call pattern (`functions.invoke`) is a cheap, import-leak-immune way to make a removal permanent.
+
+---
+
 ## 2026-08-07 — B1 loop-1 landed (check-rate-limit edge fn → Go endpoint) + lost-work restore + test-attribution rebase
 
 ### What was done

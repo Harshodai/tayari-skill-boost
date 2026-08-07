@@ -401,3 +401,11 @@ cd backend/go && go test ./internal/api -run TestRouteParity -v | grep -E "PASS|
 - `apply-agent`, `draft-outreach`, `mcp` edge fns: NOT part of B1's three-loop scope (they have Go/Python equivalents in different feature areas — future work, not blockers).
 - `handleListAnalysisHistory` returns hardcoded stub data (`routes_mvp.go:2014`) — pre-existing, unrelated to the split-brain fix; history persistence is a separate feature gap.
 - Python `analyze_text_endpoint` itself (no changes needed this loop — the parity gap was frontend-side).
+
+## Status: CLOSED (2026-08-07)
+
+All 3 tasks complete via subagent-driven development (see `.superpowers/sdd/progress.md`):
+- `d7d1328` feat(lib) → `8ec3286` fix(ui) → `b2c16a3` chore(supabase)
+- Per-task reviews: all spec ✅ / quality approved. Final whole-branch review: ready to close; 5 Minor findings all deferred (documented in ledger).
+- Live-verified: `/v1/analyze` returns the Python `result` contract (overall_score 35, 4 section_scores, matched_keywords) that `normalizeGoAnalysis` consumes; route-parity tests green; frontend/gateway/python all healthy post-rebuild.
+- Pre-existing bug found & fixed en route: old normalizer read a legacy shape → self-hosted analyses rendered 0%. New lib normalizer + focus-text port pins the real contract.
