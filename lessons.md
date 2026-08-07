@@ -843,3 +843,21 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 ### Reusable lesson
 - When mocking `llm_json`/`llm_complete` for a handler that imports them at module level, `monkeypatch.setattr("app.main.llm_json", ...)` works — but only if the handler references the module global. A local `from ... import` inside the handler body bypasses the mock silently; keep the import at module top.
 - Handlers that lazily import subprocess-running modules (typst exporter) are trivially testable: `monkeypatch.setattr` on the module attribute resolves at call time.
+
+## 2026-08-07 — Go resume generate-pdf proxy route (B1 loop-3, Task 2)
+
+### What was done
+- Added `handleGenerateResumePdf` to `backend/go/internal/api/routes_mvp.go` (after `handleExportResume`): unmarshals body into a struct (`resume_text`, `profile_data`, `analysis`, `applied_suggestions`, `job_description` *string, `template`), validates size guards BEFORE forwarding (resume_text ≤50k, job_description ≤20k, applied_suggestions ≤50 → 400 with Python's exact detail strings), forwards via `s.AI.PostJSON("/api/v1/resumes/generate-pdf", req)`, returns JSON passthrough `{"pdf_base64": ...}` (frontend decodes client-side). 502 BadGateway on AI failure, 500 on empty pdf_base64 (docx pattern).
+- Registered both parity routes in `routes_app.go`: `POST /api/v1/resumes/generate-pdf` (protected group, after `{id}/export`) and `POST /api/resumes/generate-pdf` (legacy aliases).
+- Added `backend/go/internal/api/routes_resume_pdf_test.go` (5 tests, TDD red→green: 405 before registration, then PASS): 200 passthrough + upstream path/method/body, alias route, 400 oversized resume_text (no upstream call), 400 oversized job_description (no upstream call), 502 on upstream 500. Full `go test ./...` green.
+
+### Root cause
+- N/A (new feature).
+
+### Fix applied
+- N/A.
+
+### Reusable lesson
+- chi prioritizes static segments over `{id}` params at the same position (already proven by `analyze-text` vs `{id}/optimize`), so a `resumes/generate-pdf` route is safe alongside `resumes/{id}/...` — no ordering trap.
+- The `ai.Client` composes `BaseURL + endpoint` verbatim: the upstream path IS whatever you pass to `PostJSON` (config `PythonAIURL` = httptest server URL in tests). Assert `r.URL.Path` for the full `/api/v1/...` path, not a stripped variant.
+- Go-side pre-validation of Python's size guards turns silent upstream 400s (which PostJSON surfaces as errors → 502) into clean client-facing 400s and avoids paying the forwarding round trip for obviously-invalid payloads.

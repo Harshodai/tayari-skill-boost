@@ -1767,9 +1767,48 @@ func (s *Server) handleDownloadVersionDocx(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"tayari-resume-version-%d.docx\"", id))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"tayari-resume-%d.docx\"", id))
 	w.WriteHeader(http.StatusOK)
 	w.Write(decoded)
+}
+
+func (s *Server) handleGenerateResumePdf(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ResumeText         string                 `json:"resume_text"`
+		ProfileData        map[string]interface{} `json:"profile_data"`
+		Analysis           map[string]interface{} `json:"analysis"`
+		AppliedSuggestions []string               `json:"applied_suggestions"`
+		JobDescription     *string                `json:"job_description"`
+		Template           string                 `json:"template"`
+	}
+	if err := DecodeAndValidate(r, &req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if len(req.ResumeText) > 50000 {
+		s.respondError(w, http.StatusBadRequest, "resume_text exceeds 50000 characters")
+		return
+	}
+	if req.JobDescription != nil && len(*req.JobDescription) > 20000 {
+		s.respondError(w, http.StatusBadRequest, "job_description exceeds 20000 characters")
+		return
+	}
+	if len(req.AppliedSuggestions) > 50 {
+		s.respondError(w, http.StatusBadRequest, "applied_suggestions exceeds 50 items")
+		return
+	}
+	result, err := s.AI.PostJSON("/api/v1/resumes/generate-pdf", req)
+	if err != nil {
+		log.Printf("handleGenerateResumePdf: generate failed: %v", err)
+		s.respondError(w, http.StatusBadGateway, "Failed to generate resume PDF")
+		return
+	}
+	pdf, _ := result["pdf_base64"].(string)
+	if pdf == "" {
+		s.respondError(w, http.StatusInternalServerError, "Resume PDF generation returned empty data")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) handleLinkedInAnalyze(w http.ResponseWriter, r *http.Request) {
