@@ -2078,6 +2078,19 @@ func (s *Server) routesMVP(r chi.Router) {
 		r.Post("/api/v1/resumes/{id}/knowledge-graph", s.handleResumeKnowledgeGraph)
 		r.Post("/api/resumes/{id}/knowledge-graph", s.handleResumeKnowledgeGraph)
 
+		// ---- Resume Graph (storage/viz) -----------------------------------
+		// Proxies to the Python router at backend/python/app/api/resume_graph.py
+		// (bare /v1/resume-graph/* paths). Both /api/v1 and /api trees keep
+		// full parity (CLAUDE.md invariant).
+		r.Get("/api/v1/resume-graph/{run_id}", s.handleGetResumeGraph)
+		r.Get("/api/resume-graph/{run_id}", s.handleGetResumeGraph)
+		r.Post("/api/v1/resume-graph", s.handlePostResumeGraph)
+		r.Post("/api/resume-graph", s.handlePostResumeGraph)
+		r.Delete("/api/v1/resume-graph/{run_id}", s.handleDeleteResumeGraph)
+		r.Delete("/api/resume-graph/{run_id}", s.handleDeleteResumeGraph)
+		r.Get("/api/v1/resume-graph/{run_id}/export", s.handleExportResumeGraph)
+		r.Get("/api/resume-graph/{run_id}/export", s.handleExportResumeGraph)
+
 		// ---- LinkedIn -----------------------------------------------------
 		r.Post("/api/v1/linkedin/analyze", s.handleLinkedInAnalyze)
 		r.Post("/api/linkedin/analyze", s.handleLinkedInAnalyze)

@@ -215,6 +215,51 @@ func (c *Client) DeleteJSONWithHeaders(endpoint string, headers map[string]strin
 	return result, nil
 }
 
+// GetBlob performs a GET and returns the raw response body plus headers,
+// for endpoints that stream files (e.g. resume-graph JSON export). Callers
+// are responsible for closing the returned body.
+func (c *Client) GetBlob(endpoint string, headers map[string]string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, c.BaseURL+endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+	return resp, nil
+}
+
+// DeleteNoContent performs a DELETE and succeeds on 200 or 204 (the statuses
+// used for resource deletion). Returns an error otherwise.
+func (c *Client) DeleteNoContent(endpoint string, headers map[string]string) error {
+	req, err := http.NewRequest(http.MethodDelete, c.BaseURL+endpoint, nil)
+	if err != nil {
+		return err
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+	return nil
+}
+
 func (c *Client) HealthCheck() error {
 	resp, err := c.client.Get(c.BaseURL + "/health")
 	if err != nil {
