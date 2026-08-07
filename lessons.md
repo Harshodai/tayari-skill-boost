@@ -827,3 +827,19 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 ### Reusable lesson
 - `bun:test`'s `mock.module` is process-global, not file-scoped — a `mock.module("@/api", …)` in one test file silently replaces the barrel for every later file in the same `bun run test` invocation. When testing a module that imports from a barrel that another test file mocks, mock the leaf submodule (`@/api/client`) in your own test so you control the contract, or your "passes alone, fails in suite" test will be a flake nobody trusts.
 - `mock.mockReset()` in bun also clears the default implementation; `mock.mockClear()` only clears call history. Use `mockClear` in `beforeEach` when you want to keep the default `mock(() => …)` impl and just add `mockResolvedValueOnce` per test.
+
+## 2026-08-07 — Python resume generate-pdf endpoint (LLM optimize → local Typst render)
+
+### What was done
+- Added `POST /api/v1/resumes/generate-pdf` (+ `/api/resumes/generate-pdf` alias) to `backend/python/app/main.py` (Task 1 of the generate-resume-pdf edge-fn removal plan, commit b4c261d): `GenerateResumePdfRequest` → `llm_json(..., response_model=OptimizedProfile)` (single self-correcting LLM call) → `_map_profile_keys` (UI parsedResume → exporter dict) → LLM overlay (non-empty values only) → `generate_typst_code` + `compile_typst_to_pdf` → `{"pdf_base64": ...}`. UI template map (`modern/professional/creative/minimal/tech/executive` → exporter names; unknown → `executive_slate`), size guards (resume_text ≤50k, job_description ≤20k, applied_suggestions ≤50 → 400), 503 `ai_service_unavailable` on `LLMNotConfiguredError`.
+- Added `backend/python/tests/test_resume_generate_pdf.py` (8 tests, TDD: wrote first, watched them fail on missing symbols, then implemented). Full suite 389 passed, 2 skipped; `py_compile` clean.
+
+### Root cause
+- N/A (new feature). Two notable discovery points: `app.main` import requires `JWT_SECRET` (existing suite convention — run pytest with it set); pydantic-typed FastAPI handlers called directly in tests receive the raw dict (no FastAPI coercion), so tests must pass `GenerateResumePdfRequest.model_validate({...})` — the existing `typst_compile_endpoint` direct-call pattern works only because that handler takes a plain dict.
+
+### Fix applied
+- N/A.
+
+### Reusable lesson
+- When mocking `llm_json`/`llm_complete` for a handler that imports them at module level, `monkeypatch.setattr("app.main.llm_json", ...)` works — but only if the handler references the module global. A local `from ... import` inside the handler body bypasses the mock silently; keep the import at module top.
+- Handlers that lazily import subprocess-running modules (typst exporter) are trivially testable: `monkeypatch.setattr` on the module attribute resolves at call time.
