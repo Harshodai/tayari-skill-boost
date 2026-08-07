@@ -73,3 +73,13 @@ Grep for `generate-resume-pdf` + `GenerateResumeResponse` references across repo
 
 ## Chain (expected)
 plan → feat(python) → feat(go) → fix(ui) → chore(supabase) → docs(close)
+
+## Status: CLOSED (2026-08-07)
+
+All 4 tasks complete via subagent-driven development (see `.superpowers/sdd/progress.md`):
+- Chain: 8e7dcda plan → b4c261d feat(python) → c2c4a89 feat(go) → 99e8e9d fix(go, stray Content-Disposition revert) → 92ada2b fix(ui) → 5846600 chore(delete) → 11735db fix(final-review findings)
+- Final whole-branch review: NOT ready → 1 Critical (camelCase↔snake_case analysis payload mismatch silently dropped the analysis signal) + 1 Important (null profile_data → 422→502) + 1 Minor (dead type). Fix wave resolved all; re-review: Ready to merge, no issues.
+- Live-verified: unauthed 401; authed 200, pdf_base64 decodes to %PDF- (executive + tech templates); parity green; all services healthy post-rebuild.
+- The consent gate was dead code (no UI call site ever passed acceptThirdPartyCompilation) — PDF download was already broken; this loop restored it.
+
+B1 blocker (3 edge fns → Go/Python) is now fully closed across loops 1-3.

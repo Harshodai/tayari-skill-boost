@@ -4,6 +4,30 @@ This document details key findings, architectural decisions, and lessons learned
 
 ---
 
+## 2026-08-07 — B1 loop-3 landed (generate-resume-pdf edge fn → Go/Python Typst-only) — B1 blocker closed
+
+### What was done
+- Deleted `supabase/functions/generate-resume-pdf/` (804 lines) — the last of the 3 edge fns. B1 (split-brain backend: Go/Python authoritative, edge fns removed) is now fully closed.
+- New pipeline: frontend `generateResumePdf` helper (typed payload builder `buildGenerateResumePdfPayload` in src/api/resumes.ts) → Go `POST /api/resumes/generate-pdf` + `/api/v1/resumes/generate-pdf` (parity) → Python `POST /api/v1/resumes/generate-pdf`: one `llm_json` call produces an `OptimizedProfile` dict (skeleton from `parsedResume`, LLM rewrites bullets/skills per applied suggestions + missing keywords), then `generate_typst_code` + `compile_typst_to_pdf` render locally (typst v0.15.1 in the container), returns `{"pdf_base64"}` (established base64-in-JSON binary pattern). UI template map: modern→modern_tech, professional→executive_slate, creative→creative_compact, minimal→minimalist_ats, tech→faang_single_page, executive→executive.
+- LaTeX surface removed from the UI (LaTeX tab, LaTeXSourceView.tsx, Download LaTeX button, `.tex` fallback, `GenerateResumeResponse`/`GenerateResumeRequest` types) — Typst-only means no LaTeX source exists. `profile_data` is Optional; when null the LLM builds the full profile from resume_text.
+- **The consent gate was already dead:** no UI call site ever passed `acceptThirdPartyCompilation`, so both modal buttons 451'd — PDF download has been broken in the UI since the gate shipped. The loop fixed it rather than merely replacing it.
+- Executed via subagent-driven development (4 tasks + final review + 1 fix wave): chain `8e7dcda` plan → `b4c261d` feat(python) → `c2c4a89` feat(go) → `99e8e9d` fix(go, stray revert) → `92ada2b` fix(ui) → `5846600` chore(delete) → `11735db` fix(final-review findings).
+- Live-verified: unauthed 401; authed 200 with `pdf_base64` decoding to `%PDF-` (48.6KB executive, 42.4KB tech); parity tests green; all services healthy.
+
+### Root causes
+- Split-brain again: the edge fn (Lovable AI gateway) was the only PDF path; its replacement contract had to match Python's `llm_json`/typst machinery — the real bug found at final review was a camelCase↔snake_case analysis-payload mismatch (frontend sent `overallScore`/`missingKeywords`, Python read `overall_score`/`missing_keywords`) that silently dropped the analysis signal into the LLM prompt ("Overall Score: N/A/100", no missing keywords) while Python tests enshrined the wrong contract with snake_case fixtures. Also: making `parsedResume` a hard dependency of the endpoint (edge fn ignored it) created a reachable 422→502 on a null path.
+
+### Fix applied
+- Final-review fix wave (one fixer, complete findings list): typed exported payload builder mapping analysis→snake_case with an exact-wire-body unit test (recurrence guard); `profile_data: Optional[dict]` with resume-text-fallback prompt branch + null-path test; dead `GenerateResumeRequest` type deleted.
+
+### Reusable lessons
+- **A "privacy consent gate" that no UI call site ever sets is not protection, it's a silently broken feature** — before building the replacement, check whether the gate's absence means the feature is already dead (it was: 451 every time).
+- **A test fixture can enshrine the wrong contract:** the Python tests built the payload with snake_case keys the frontend never sends, so the mismatch passed review until the final whole-branch review traced the wire end-to-end. Cross-service key casing is a first-class review item — verify the ACTUAL frontend runtime shape against the Python reader, not the test's version of it.
+- **When one backend path becomes the only path, previously-tolerated input shapes become hard dependencies:** the edge fn ignored `parsedResume`; the new endpoint treated it as required. Optional-with-fallback beats a new 422/502 path.
+- The final-review fix wave pattern worked: one fixer, full findings list, covering tests named in the dispatch, scoped re-review — cheaper than per-finding fixers.
+
+---
+
 ## 2026-08-07 — B1 loop-2 landed (analyze-resume edge fn → Go/Python only) + found a pre-existing score-0 bug
 
 ### What was done
