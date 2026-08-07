@@ -181,3 +181,29 @@ PARTIAL-STUB: B5, B6, B7, B8, B9, B10, B11, B12. ASPIRATIONAL: B13.
 
 ### Doc 5 — Job Theory (16 rows)
 VERIFIED-STILL-TRUE: D1, D2, D7, D8, D12, D14, D15. STALE: D3, D5, D9, D16. UNVERIFIABLE: D4, D10, D11. PARTIAL-STUB: D6, D13.
+
+---
+
+## Addendum 2026-08-07 — 6th doc: Commercial Viability & Profitability (8 rows)
+
+A sixth document, "Job Tayari: Ruthless Commercial Viability & Profitability Assessment" (Manus AI, 2026-07-05), was added after the initial audit. Verified via a 6th read-only subagent. 8 new claim rows (V1–V8), folded into the ranked backlog.
+
+| # | Claim | Verdict | Evidence | Sev |
+|---|---|---|---|---|
+| V1 | Moat 1 — Referral Premium: LinkedIn mutual-connection mapping + automated referral workflow | PARTIAL-STUB | `recruiter_intelligence.py:16,21,46,70,92` (email-pattern heuristics + static `referral_intro_template`, no graph traversal); `draft-outreach/index.ts:46` (drafts referral-ask, no automation, explicitly forbids LinkedIn scraping); `Networking.tsx:59,130,222`. Overlaps B5/B6 | High |
+| V2 | Moat 2 — Real-Time Interview Copilot (live audio transcription, WebSocket) | PARTIAL-STUB | `live_interview_copilot.py:1,33,37`; `main.py:1027,1077,1189` (3 endpoints, plain HTTP POST, no WebSocket/streaming); `routes_mvp.go:1949` (gate); `billing.go:156` (TierPro). **FROZEN** by founder per `TAYARI_RUTHLESS_BRIEF.html:581,637`. Overlaps B8 | High |
+| V3 | Moat 3 — "Verified Human" badge (truthful resume + AI technical screening) | STALE/UNVERIFIABLE | **Zero badge/trust-layer code** (grep `trust_badge\|verified_badge\|VerifiedBy\|pre_vetted\|screening` → 0 hits). Only `gate.py:34,47,52` (per-resume truthfulness, not per-candidate) + `ontology_guard.py:30,81,88` (per-claim validation). No candidate-level credential, no AI technical screening | Critical |
+| V4 | Pricing: Pro $39/mo, Agentic $99/mo, Enterprise/Recruiter API (Verified Talent pool) | STALE | `Pricing.tsx:86-141` — real tiers are **Free / Pro $19-mo (or $190-yr) / Team (waitlist, price "—")**. `billing.go:134-168` defines `TierFree/TierPro/TierEnterprise/TierSelfHosted` — **no "agentic" tier**, no recruiter API, no verified-talent entitlement. `Landing.tsx:145,169,191` shows $19/$49/$99 marketing cards but `Pricing.tsx` (real checkout) only sells Pro $19. Manus's $39/$99 structure does not exist | Critical |
+| V5 | Entitlement gating maps tiers → features (Agentic → referral subagents + interview coaching) | PARTIAL-STUB | `billing.go:146-168,213-229` (`FEATURE_LIMITS` + `CanUseFeature`); `routes_mvp.go:1781,1949` (`requireFeature` gates). Infrastructure works but maps to free/pro/enterprise only — no "agentic" tier, no "referral acquisition subagents" feature key. `interview_copilot` is `TierPro`, not a separate Agentic tier | Medium |
+| V6 | Kill "Auto-Apply" branding → rename to "Outcome Pilot" or "Referral Engine" | STALE/NOT-DONE | UI headline still **"AutoPilot"** (`AutoPilot.tsx:47`; `App.tsx:33,143`; `CommandPalette.tsx:77`; `Dashboard.tsx:101-103`; `JobSearch.tsx:274,276,280,718,720`). Sidebar/Header partially relabeled to **"Apply Assist"** (`AppSidebar.tsx:52`; `Header.tsx:191,435`) — a third name, not "Outcome Pilot" or "Referral Engine". Neither string appears in `src/` | Medium |
+| V7 | "Manus Sandbox / Glass Box UI" — AgentLiveView shows a live browser feed | STALE/PARTIAL-STUB | `AgentLiveView.tsx:46,116-138,140-162` — renders status badge + progress bar + HITL banner + ordered step list + scrolling text log + submit/cancel buttons. **No `<img>`/screenshot/video/WebSocket stream**. "Glass-Box" accurate only in the step-list+log sense, not the Manus live-browser sense. Overlaps C4 | Medium |
+| V8 | Financial model: LLM $2-5/user, browser infra $3-7/user, CAC $40-60, 60-70% gross margin | ASPIRATIONAL | §7 Financial Model — no codebase locus. No per-user cost-accounting or margin computation in code (`billing.go:270` `RecordUsage` counts request units, not $). Strategic claim, not verifiable from repo | Low |
+
+### Updated ranked-backlog impact
+
+The 6th doc elevates two items in the backlog:
+- **V3 (Critical, new):** "Verified Human" badge — zero code, aspirational. A genuine moat *if* built, but it requires a candidate-level trust layer that doesn't exist. **Do not market this until built** (per the tayari-external-positioning skill: claims vs evidence).
+- **V4 (Critical, new):** Pricing-tier mismatch — the $39/$99 "Agentic" tier structure in the doc doesn't exist in code (real: Free/Pro $19/Team-waitlist). Any pricing-page work must reconcile code↔doc↔marketing-copy (Landing.tsx $19/$49/$99 vs Pricing.tsx $19-only).
+- **V6 (Medium):** The "kill Auto-Apply branding" rename is half-done ("AutoPilot" → "Apply Assist" in sidebar, still "AutoPilot" elsewhere). Finish the rename to one consistent name, or revert — three names is worse than one.
+
+These are **strategic/product** items, not B1-backend items. They belong in a later brainstorm cycle (after the B1 loops), not in the current implementation plan.
