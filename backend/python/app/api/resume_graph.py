@@ -180,7 +180,7 @@ async def delete_resume_graph(run_id: str) -> Response:
     persisted = await load_graph(run_id) is not None
 
     if not had_in_memory and not persisted:
-        raise HTTPException(status_code=404, detail="Resume graph not found")
+        raise HTTPException(status_code=404, detail="Run not found")
 
     # Persist deletion to DB (best‑effort, no‑op if disabled).
     await delete_graph(run_id)

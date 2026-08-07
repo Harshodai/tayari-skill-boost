@@ -31,7 +31,6 @@ from app.parsers.document_parser import ResumeParser
 from app.extraction.entity_extractor import EntityExtractor, KeywordInjector
 from app.ai_proofing.detector import AIProofingDetector
 from app.llm.strategic_analyzer import StrategicAnalyzer
-from app.export.pdf_exporter import PDFExporter
 from app.export.json_exporter import JSONExporter
 from app.services import ats_engine, optimizer, job_agent, docx_builder, automation_engine
 from app.services.llm_service import LLMNotConfiguredError
@@ -320,21 +319,6 @@ async def export_json(payload: ExportRequest):
     except Exception as exc:
         logger.error("export/json failed: %s", exc)
         raise HTTPException(status_code=500, detail="JSON export failed") from exc
-
-
-@router.post("/api/v1/export/pdf")
-async def export_pdf(payload: ExportRequest):
-    """Export resume as PDF (ATS-safe)."""
-    try:
-        pdf_bytes = await asyncio.to_thread(PDFExporter.export, payload.resume_json)
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={"Content-Disposition": "attachment; filename=resume.pdf"},
-        )
-    except Exception as exc:
-        logger.error("export/pdf failed: %s", exc)
-        raise HTTPException(status_code=500, detail="PDF export failed") from exc
 
 
 @router.post("/api/v1/optimizer/optimize")

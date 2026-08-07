@@ -6,15 +6,6 @@ from app.services.llm_service import LLMNotConfiguredError
 client = TestClient(app)
 
 
-def test_export_pdf_returns_binary_stream(monkeypatch):
-    monkeypatch.setattr("app.export.pdf_exporter.PDFExporter.export", lambda data: b"%PDF-1.4 dummy pdf bytes")
-    resp = client.post("/api/v1/export/pdf", json={"resume_json": {"contact": {"name": "Test"}}})
-    assert resp.status_code == 200
-    assert resp.headers["content-type"] == "application/pdf"
-    assert "attachment; filename=resume.pdf" in resp.headers.get("content-disposition", "")
-    assert resp.content == b"%PDF-1.4 dummy pdf bytes"
-
-
 def test_strategic_analyze_503_on_llm_not_configured(monkeypatch):
     async def mock_fail(*args, **kwargs):
         raise LLMNotConfiguredError("No LLM configured")

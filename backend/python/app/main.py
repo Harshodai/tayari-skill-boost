@@ -34,7 +34,6 @@ from app.scoring.ats_scorer import ATSScorer
 from app.extraction.entity_extractor import EntityExtractor, KeywordInjector
 from app.ai_proofing.detector import AIProofingDetector
 from app.llm.strategic_analyzer import StrategicAnalyzer
-from app.export.pdf_exporter import PDFExporter
 from app.export.json_exporter import JSONExporter
 from app.services import ats_engine, optimizer, job_agent, docx_builder, automation_engine
 try:
@@ -245,17 +244,6 @@ async def export_json(payload: ExportRequest):
     except Exception as exc:
         logger.error("export/json failed: %s", exc)
         raise HTTPException(status_code=500, detail="JSON export failed") from exc
-
-
-@app.post("/api/v1/export/pdf")
-async def export_pdf(payload: ExportRequest):
-    """Export resume as PDF (ATS-safe)."""
-    try:
-        pdf_bytes = PDFExporter.export(payload.resume_json)
-        return {"size": len(pdf_bytes), "status": "generated"}
-    except ImportError as exc:
-        logger.error("export/pdf failed: %s", exc)
-        raise HTTPException(status_code=500, detail="PDF export failed") from exc
 
 
 # ---------------------------------------------------------------------------
