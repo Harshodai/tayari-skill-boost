@@ -940,3 +940,22 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 
 ### Open follow-ups (ledger)
 - Python `main.py:250`/`ai_routes.py:325` still expose POST `/api/v1/export/pdf` (old PDFExporter) — unreachable via Go gateway, no route to proxy; e2e scripts (`comprehensive_e2e.py:476`, `user_perspective_e2e.py:271`) tolerate 404; `IMPLEMENTATION_SUMMARY.md:13` now doc-drift.
+
+## 2026-08-07 — Failed-task restart: stale tests, dead /export/pdf routes, doc-drift
+
+### What was done
+- Fixed `src/config/features.test.ts` — asserted `interviewPrep === false` ("cut feature"), but the flag is `[true, true]` and rendered in Header.tsx:200/463 + Footer.tsx:12. Test was the lie; config was the intent.
+- Removed the dead duplicate `POST /api/v1/export/pdf` routes: `main.py` (~:250, returned a JSON stub — never a PDF) and `ai_routes.py` (~:325, returned real bytes). Neither is proxied by the Go gateway since B1; the product PDF path is `/api/v1/resumes/generate-pdf`. `PDFExporter` class itself STAYS — it is the binary-missing fallback inside `typst_exporter.py:321-325` (loop-3's Typst pipeline depends on it). Dropped the now-unused imports; deleted `test_export_pdf_returns_binary_stream`; converted the two e2e tolerant checks (accept 200/404/500/502) into a 404 invariant.
+- Fixed pre-existing `test_delete_resume_graph_not_found` failure: DELETE /v1/resume-graph 404 detail was "Resume graph not found" while the canonical message (hermes_routes.py:294, main.py:429, resume_graph.py:153) is "Run not found". Aligned the DELETE handler only — the GET handler keeps its own message because `test_resume_graph_endpoint.py::test_get_resume_graph_not_found` asserts it (two tests contradict; changing both messages to one canonical would have broken the other).
+- Updated `IMPLEMENTATION_SUMMARY.md:13` (claimed POST to /api/v1/export/pdf — now generate-pdf) and added `docs/adr/0003-b1-go-python-authoritative-backend.md` (the B1 decision previously existed only in the codebase-memory MCP store).
+
+### Root cause
+- Three flavors of rot after B1: (1) a test frozen against a pre-cut feature flag; (2) Python routes that duplicated each other, predated the gateway, and were unreachable but still advertised; (3) a 404-message inconsistency where the failing test was right and the handler was the deviant.
+
+### Fix applied
+- Commits `8592173` (test), `95a4459` (python), `39b64b5` (e2e), `dc2f355` (docs). Verification: py_compile gate passed; full Python suite **470 passed, 0 failed** (was 469+1 — the baseline itself had a fixable failure); frontend 150 pass / 14 fail = exactly the vendored-cognee baseline; build green; lint unchanged 51/1448.
+
+### Reusable lesson
+- When a test and a message string disagree, find the codebase's canonical message by counting all raise sites, and check BOTH directions' tests before editing either side — two tests can assert contradictory strings on the same conceptual error (GET vs DELETE here).
+- After deleting a route, grep the whole repo (including repo-root tests/, docs/, research/) for the old path — `export/pdf` had six refs classes: two route registrations, one unit test, two e2e scripts, one doc row.
+- A "dead" exporter may not be dead: `PDFExporter` is the fallback for the Typst binary — deleting the route is safe, deleting the class would silently break resilience.
