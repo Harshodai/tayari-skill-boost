@@ -271,9 +271,9 @@ def run():
             r = requests.post(f"{API_URL}/v1/export/pdf", json={
                 "resume_json": {"name": "Test"},
             }, headers=headers, timeout=30)
-            check("Export PDF", r.status_code in (200, 404, 500, 502), str(r.status_code))
+            check("Export PDF removed (generate-pdf replaced it)", r.status_code == 404, str(r.status_code))
         except Exception as e:
-            check("Export PDF", False, str(e))
+            check("Export PDF removed (generate-pdf replaced it)", False, str(e))
 
         # Knowledge graph (requires a resume ID)
         if rid:

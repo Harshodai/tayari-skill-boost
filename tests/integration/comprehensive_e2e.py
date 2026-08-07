@@ -474,9 +474,9 @@ def test_export():
 
     try:
         r = post("/v1/export/pdf", {"resume_json": {"name": "Test"}}, token=TOKEN, timeout=30)
-        check("POST /v1/export/pdf", r.status_code in (200, 404, 500, 502), str(r.status_code))
+        check("POST /v1/export/pdf removed (generate-pdf replaced it)", r.status_code == 404, str(r.status_code))
     except Exception as e:
-        check("POST /v1/export/pdf", False, str(e))
+        check("POST /v1/export/pdf removed (generate-pdf replaced it)", False, str(e))
 
 
 def test_guardrails():
