@@ -29,76 +29,13 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { extractTextFromFile } from "@/lib/resume-parser";
 import { toast } from "sonner";
 import { resumeUploadSchema } from "@/lib/schemas";
-import { USE_SELF_HOSTED, createResume, createJD, analyzeResume, importJobDescription, uploadResumeMultipart } from "@/api";
+import { createResume, createJD, analyzeResume, importJobDescription, uploadResumeMultipart } from "@/api";
+import { buildAnalyzePayload, normalizeGoAnalysis } from "@/lib/resumeAnalysis";
 import { Input } from "@/components/ui/input";
-import type { ResumeAnalysisResult } from "@/types/resume";
 import { ResumeFilePreview } from "@/components/resume/ResumeFilePreview";
-
-/**
- * Normalize the Go backend analysis response into the UI's ResumeAnalysisResult shape.
- */
-function normalizeGoAnalysis(raw: Record<string, any>): ResumeAnalysisResult {
-  const score = typeof raw.score === "number" ? raw.score : 0;
-  const breakdown = raw.breakdown || {};
-  const keywords = raw.keywords || {};
-  const recommendations: string[] = raw.recommendations || [];
-
-  const sections = [];
-  if (breakdown.keyword_match !== undefined) {
-    sections.push({
-      name: "Skills Match",
-      score: Math.round(breakdown.keyword_match),
-      suggestions: recommendations.filter((r: string) =>
-        r.toLowerCase().includes("keyword")
-      ),
-    });
-  }
-  if (breakdown.ngram_match !== undefined) {
-    sections.push({
-      name: "Experience Relevance",
-      score: Math.round(breakdown.ngram_match),
-      suggestions: recommendations.filter((r: string) =>
-        r.toLowerCase().includes("experience")
-      ),
-    });
-  }
-  if (breakdown.keyword_density !== undefined) {
-    sections.push({
-      name: "Education Fit",
-      score: Math.round(breakdown.keyword_density),
-      suggestions: recommendations.filter((r: string) =>
-        r.toLowerCase().includes("education")
-      ),
-    });
-  }
-  if (breakdown.formatting_compliance !== undefined) {
-    sections.push({
-      name: "Formatting",
-      score: Math.round(breakdown.formatting_compliance),
-      suggestions: recommendations.filter((r: string) =>
-        r.toLowerCase().includes("format")
-      ),
-    });
-  }
-
-  return {
-    overallScore: score,
-    sections,
-    matchedKeywords: keywords.found || [],
-    missingKeywords: keywords.missing || [],
-    summaryRecommendation:
-      recommendations.length > 0
-        ? recommendations.join(" ")
-        : "Analysis complete.",
-    // ponytail: pass-through when the upstream response carries per-ATS
-    // estimates (Python ats_engine path); undefined otherwise → UI falls back.
-    per_ats: raw.per_ats,
-  };
-}
 
 const ResumeUpload = () => {
   const navigate = useNavigate();
@@ -164,113 +101,51 @@ const ResumeUpload = () => {
     setAnalysisStep(0);
 
     try {
-      if (USE_SELF_HOSTED) {
-        // Phase 1: create/upload resume record
-        setAnalysisStep(1);
-        let newResume: any;
-        if (resumeFile) {
-          newResume = await uploadResumeMultipart(resumeFile);
-        } else {
-          const fileType = "txt";
-          newResume = await createResume({
-            title: "Pasted Resume",
-            original_text: resumeText,
-            file_type: fileType,
-          });
-        }
-        const resumeId = newResume.id || newResume.resume_id;
-
-        // Phase 2: create job description record
-        setAnalysisStep(2);
-        const newJD = await createJD({
-          title: jobDescription.slice(0, 60) || "Untitled JD",
-          company: "",
-          text: jobDescription,
-        });
-
-        // Phase 3: call analysis endpoint
-        setAnalysisStep(3);
-        const result = await analyzeResume({
-          resume_id: resumeId,
-          jd_id: newJD.id,
-          custom_instructions: customInstructions,
-        });
-
-        setAnalysisStep(4);
-        await new Promise((resolve) => setTimeout(resolve, 300));
-
-        // Normalize Go-backend response to UI shape
-        const normalized = normalizeGoAnalysis(result);
-
-        navigate("/resume/results", {
-          state: {
-            resumeId: resumeId,
-            analysisResults: normalized,
-            parsedResume: newResume.parsed_json,
-            resumeFileName: resumeFile?.name || "Resume",
-            resumeText: newResume.original_text || resumeText,
-            jobDescription,
-          },
-        });
+      // Phase 1: create/upload resume record
+      setAnalysisStep(1);
+      let newResume: any;
+      if (resumeFile) {
+        newResume = await uploadResumeMultipart(resumeFile);
       } else {
-        // Cloud mode: use Supabase edge function (existing logic)
-        setAnalysisStep(1);
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        if (!resumeText && resumeFile) {
-          throw new Error("Could not extract text from your resume. Please try a different file.");
-        }
-        setAnalysisStep(2);
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setAnalysisStep(3);
-
-        const { data, error: invokeError } = await supabase.functions.invoke<any>(
-          "analyze-resume",
-          {
-            body: {
-              resumeText,
-              jobDescription,
-              customInstructions,
-              aiOptions,
-            },
-          }
-        );
-
-        if (invokeError) {
-          throw new Error(invokeError.message || "Failed to analyze resume");
-        }
-        if (!data?.success) {
-          throw new Error(data?.error || "Analysis failed");
-        }
-
-        setAnalysisStep(4);
-        await new Promise((resolve) => setTimeout(resolve, 300));
-
-        if (user && data.data) {
-          try {
-            await supabase.from("resume_analyses").insert({
-              user_id: user.id,
-              resume_filename: resumeFile?.name || "Resume",
-              overall_score: data.data.overallScore,
-              analysis_data: data.data as any,
-              parsed_resume: data.parsedResume as any,
-              resume_text: resumeText,
-              job_description: jobDescription,
-            });
-          } catch (saveError) {
-            console.error("Failed to save analysis history:", saveError);
-          }
-        }
-
-        navigate("/resume/results", {
-          state: {
-            analysisResults: data.data,
-            parsedResume: data.parsedResume,
-            resumeFileName: resumeFile?.name || "Resume",
-            resumeText,
-            jobDescription,
-          },
+        const fileType = "txt";
+        newResume = await createResume({
+          title: "Pasted Resume",
+          original_text: resumeText,
+          file_type: fileType,
         });
       }
+      const resumeId = newResume.id || newResume.resume_id;
+
+      // Phase 2: create job description record
+      setAnalysisStep(2);
+      const newJD = await createJD({
+        title: jobDescription.slice(0, 60) || "Untitled JD",
+        company: "",
+        text: jobDescription,
+      });
+
+      // Phase 3: call analysis endpoint
+      setAnalysisStep(3);
+      const result = await analyzeResume(
+        buildAnalyzePayload(resumeId, newJD.id, customInstructions, aiOptions)
+      );
+
+      setAnalysisStep(4);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Normalize Go-backend response to UI shape
+      const normalized = normalizeGoAnalysis(result);
+
+      navigate("/resume/results", {
+        state: {
+          resumeId: resumeId,
+          analysisResults: normalized,
+          parsedResume: newResume.parsed_json,
+          resumeFileName: resumeFile?.name || "Resume",
+          resumeText: newResume.original_text || resumeText,
+          jobDescription,
+        },
+      });
     } catch (err) {
       console.error("Analysis error:", err);
       const message = err instanceof Error ? err.message : "Failed to analyze resume";
