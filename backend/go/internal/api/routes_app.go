@@ -26,6 +26,12 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.With(s.loginRateLimiter.Middleware).Post("/api/v1/auth/login", s.handleLogin)
 		r.With(s.loginRateLimiter.Middleware).Post("/api/auth/login", s.handleLogin)
 
+		// ---- Auth rate-limit read (replaces check-rate-limit edge fn) ----
+		// Unauthenticated pre-login read: caller checks lockout before login.
+		// Global IP rate limiter (publicRateLimiter above) caps abuse.
+		r.Get("/api/v1/auth/rate-limit", s.handleAuthRateLimit)
+		r.Get("/api/auth/rate-limit", s.handleAuthRateLimit)
+
 		r.Get("/api/v1/tenants/branding", s.handleGetTenantBranding)
 		r.Post("/api/v1/analytics/performance", s.handleAnalyticsPerformance)
 
