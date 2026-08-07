@@ -8,6 +8,7 @@ import type {
   AnalyzeRequest,
   ImportedJobDescription,
 } from "./types";
+import type { ParsedResume, ResumeAnalysisResult } from "../types/resume";
 
 export async function createResume(payload: CreateResumeRequest): Promise<Resume> {
   return apiFetch<Resume>("/v1/resumes", {
@@ -87,10 +88,18 @@ export async function deepATS(id: number | string, jobDescription?: string): Pro
   });
 }
 
+// ponytail: snake_case analysis matches the Python request contract exactly —
+// the UI's ResumeAnalysisResult is camelCase, so mapping happens here in one place.
+export interface GenerateResumePdfAnalysis {
+  overall_score: number;
+  missing_keywords: string[];
+  summary_recommendation: string;
+}
+
 export interface GenerateResumePdfPayload {
   resume_text: string;
-  profile_data: unknown;
-  analysis: unknown;
+  profile_data: ParsedResume | null;
+  analysis: GenerateResumePdfAnalysis;
   applied_suggestions: string[];
   job_description?: string;
   template: string;
@@ -98,6 +107,37 @@ export interface GenerateResumePdfPayload {
 
 export interface GenerateResumePdfResponse {
   pdf_base64: string;
+}
+
+export interface BuildGenerateResumePdfPayloadArgs {
+  resumeText: string;
+  profileData: ParsedResume | null;
+  analysis: ResumeAnalysisResult;
+  appliedSuggestions: string[];
+  jobDescription?: string;
+  template: string;
+}
+
+export function buildGenerateResumePdfPayload({
+  resumeText,
+  profileData,
+  analysis,
+  appliedSuggestions,
+  jobDescription,
+  template,
+}: BuildGenerateResumePdfPayloadArgs): GenerateResumePdfPayload {
+  return {
+    resume_text: resumeText,
+    profile_data: profileData,
+    analysis: {
+      overall_score: analysis.overallScore,
+      missing_keywords: analysis.missingKeywords,
+      summary_recommendation: analysis.summaryRecommendation,
+    },
+    applied_suggestions: appliedSuggestions,
+    job_description: jobDescription,
+    template,
+  };
 }
 
 export async function generateResumePdf(payload: GenerateResumePdfPayload): Promise<GenerateResumePdfResponse> {

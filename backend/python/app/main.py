@@ -831,7 +831,7 @@ async def export_typst_pdf_endpoint(payload: TypstExportRequest):
 
 class GenerateResumePdfRequest(BaseModel):
     resume_text: str
-    profile_data: dict
+    profile_data: Optional[dict] = None
     analysis: dict
     applied_suggestions: list[str] = []
     job_description: Optional[str] = None
@@ -932,8 +932,8 @@ def _map_profile_keys(profile_data: dict) -> dict:
 @app.post("/api/resumes/generate-pdf")
 async def generate_resume_pdf_endpoint(payload: GenerateResumePdfRequest):
     """LLM-optimize resume content, render it to a PDF via local Typst, return base64."""
-    if not payload.resume_text or not payload.profile_data or not payload.analysis:
-        raise HTTPException(status_code=400, detail="resume_text, profile_data, and analysis are required")
+    if not payload.resume_text or not payload.analysis:
+        raise HTTPException(status_code=400, detail="resume_text and analysis are required")
     if len(payload.resume_text) > 50_000:
         raise HTTPException(status_code=400, detail="resume_text exceeds 50000 characters")
     if payload.job_description and len(payload.job_description) > 20_000:
@@ -952,6 +952,12 @@ async def generate_resume_pdf_endpoint(payload: GenerateResumePdfRequest):
     user_prompt = f"Original Resume:\n{payload.resume_text}\n\n"
     if payload.job_description:
         user_prompt += f"Target Job Description:\n{payload.job_description}\n\n"
+    if not payload.profile_data:
+        user_prompt += (
+            "No parsed profile is available: construct the complete resume profile "
+            "(full_name, email, phone, linkedin, location, summary, skills, experience, education) "
+            "from the resume text alone.\n\n"
+        )
     user_prompt += (
         "Analysis Summary:\n"
         f"- Overall Score: {analysis.get('overall_score', 'N/A')}/100\n"
@@ -966,7 +972,9 @@ async def generate_resume_pdf_endpoint(payload: GenerateResumePdfRequest):
 
     try:
         optimized = await llm_json(system_prompt, user_prompt, response_model=OptimizedProfile)
-        profile = _map_profile_keys(payload.profile_data)
+        # ponytail: with no parsed profile the LLM output IS the profile (no
+        # skeleton to merge onto); with one, structured data wins over LLM output.
+        profile = _map_profile_keys(payload.profile_data) if payload.profile_data else {}
         for key, value in optimized.model_dump(exclude_none=True).items():
             if value:
                 profile[key] = value

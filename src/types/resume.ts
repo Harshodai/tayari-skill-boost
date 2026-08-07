@@ -77,16 +77,6 @@ export interface ProjectEntry {
   technologies: string[];
 }
 
-// Types for resume PDF generation
-export interface GenerateResumeRequest {
-  resumeText: string;
-  analysisResults: ResumeAnalysisResult;
-  appliedSuggestions: string[];
-  template: string;
-  jobDescription?: string;
-  parsedResume?: ParsedResume;
-}
-
 // Types for analysis history
 export interface ResumeAnalysisRecord {
   id: string;

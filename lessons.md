@@ -875,3 +875,23 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 
 ### Reusable lesson
 - When carrying a commit through a strict parity/review pipeline, re-read the FULL diff before merging — a single unrelated Content-Disposition edit can silently slip into a feature commit and regress download-name specificity.
+
+## 2026-08-07 — B1 loop-3 final-review fixes: snake_case generate-pdf payload + null profile_data
+
+### What was done
+- Fixed the analysis payload key mismatch in the generate-resume-pdf flow (removal of the edge fn → Go→Python Typst pipeline). `ResumePreviewModal.tsx` sent the UI's camelCase `ResumeAnalysisResult` as `analysis`, but Python reads snake_case (`overall_score`/`missing_keywords`/`summary_recommendation`) — the LLM prompt rendered "Overall Score: N/A/100" with no keywords, so analysis-guided optimization silently never happened. Added typed, exported builder `buildGenerateResumePdfPayload` in `src/api/resumes.ts` that maps the analysis to exactly the 3 snake_case keys; the modal now builds its payload through it. Added pure unit test `src/api/resumeGeneratePdfPayload.test.ts` (imports the api module directly — safe: `client.ts` has no react/dom imports at module scope).
+- Made `profile_data: Optional[dict] = None` in `GenerateResumePdfRequest` (main.py). Previously `profile_data: null` from the UI (genuinely optional, `ResumeTemplates.tsx` passes `parsedResume || null`) was a Pydantic 422 before the handler's 400 branch → Go surfaced 502 to the user. Now when `profile_data` is None/empty, the LLM prompt instructs constructing the full profile from `resume_text` alone (no skeleton to merge onto; the LLM output IS the profile). Added pytest `test_generate_pdf_null_profile_builds_from_resume_text`.
+- Deleted dead `GenerateResumeRequest` type (`src/types/resume.ts`) — zero consumers (grep-verified).
+
+### Root cause
+- Frontend analysis type is camelCase (`ResumeAnalysisResult`), Python request contract is snake_case, and nothing mapped between them — the earlier edge fn happened to have its own serialization, so the mismatch was introduced during the edge-fn removal.
+- `profile_data` was declared required (`dict`, no default) even though the flow legitimately runs without a parsed profile.
+
+### Fix applied
+- `buildGenerateResumePdfPayload({resumeText, profileData, analysis, appliedSuggestions, jobDescription, template})` in `src/api/resumes.ts`; `GenerateResumePdfPayload.profile_data` tightened to `ParsedResume | null` and `analysis` to `GenerateResumePdfAnalysis` (3 snake_case keys).
+- Python: `profile_data: Optional[dict] = None`; 400 check now requires only `resume_text` + `analysis`; prompt gains a "no parsed profile — construct the complete resume profile from the resume text alone" branch; merge becomes `_map_profile_keys(profile_data) if profile_data else {}` then overlay LLM output.
+- Verified: 17/17 bun tests (incl. 2 new), `bun run build` OK, lint at pre-existing baseline (51 err/1448 warn, none new), Python 9/9 (incl. 1 new), Go 7/7 (`TestResumeGeneratePdf|TestRouteParity`).
+
+### Reusable lesson
+- When a frontend passes an analysis/result object to a Go/Python endpoint, the serialization boundary is a contract: always funnel request-body construction through a single typed builder (one mapping location) rather than building bodies inline in components — the edge-fn removal was the third occurrence of a shape mismatch silently degrading AI output to "N/A".
+- Pydantic's 422 happens BEFORE your handler's validation branch: any field the UI can legitimately omit must be `Optional[...]` with a default, or the user-facing error is the proxy's generic 502 instead of your intended 400/fallback path.

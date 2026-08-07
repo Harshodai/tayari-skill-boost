@@ -135,6 +135,38 @@ async def test_generate_pdf_base64_round_trip(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_generate_pdf_null_profile_builds_from_resume_text(monkeypatch):
+    captured = {}
+
+    async def fake_llm_json(system_message, user_message, response_model=None, **kwargs):
+        captured["user_message"] = user_message
+        return response_model(
+            full_name="Jane Doe",
+            summary="Constructed from resume text.",
+            skills=["Python", "Go"],
+            experience=[
+                {
+                    "title": "Senior Engineer",
+                    "company": "Acme",
+                    "dates": "2020 \u2013 2024",
+                    "bullets": ["Reduced p99 latency by 40%"],
+                }
+            ],
+            education=[{"degree": "B.S.", "school": "State U", "year": "2018"}],
+        )
+
+    monkeypatch.setattr("app.main.llm_json", fake_llm_json)
+    monkeypatch.setattr("app.export.typst_exporter.compile_typst_to_pdf", lambda code: b"%PDF-fake")
+
+    result = await generate_resume_pdf_endpoint(_valid_request(profile_data=None))
+    assert set(result.keys()) == {"pdf_base64"}
+    decoded = base64.b64decode(result["pdf_base64"], validate=True)
+    assert decoded == b"%PDF-fake"
+    assert "Jane Doe\nSenior Engineer at Acme." in captured["user_message"]
+    assert "construct the complete resume profile" in captured["user_message"]
+
+
+@pytest.mark.asyncio
 async def test_generate_pdf_503_when_llm_unconfigured(monkeypatch):
     async def raise_unconfigured(*args, **kwargs):
         raise LLMNotConfiguredError("no LLM configured")

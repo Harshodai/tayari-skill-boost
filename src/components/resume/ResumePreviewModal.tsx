@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Eye, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ResumePreviewContent } from "./ResumePreviewContent";
-import { generateResumePdf } from "@/api";
+import { generateResumePdf, buildGenerateResumePdfPayload } from "@/api";
 import type { ParsedResume, ResumeAnalysisResult } from "@/types/resume";
 
 interface ResumePreviewModalProps {
@@ -42,14 +42,16 @@ export const ResumePreviewModal = ({
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
     try {
-      const data = await generateResumePdf({
-        resume_text: resumeText,
-        profile_data: parsedResume,
-        analysis: analysisResults,
-        applied_suggestions: appliedSuggestions,
-        job_description: jobDescription,
-        template,
-      });
+      const data = await generateResumePdf(
+        buildGenerateResumePdfPayload({
+          resumeText,
+          profileData: parsedResume,
+          analysis: analysisResults,
+          appliedSuggestions,
+          jobDescription,
+          template,
+        })
+      );
 
       const binaryString = atob(data.pdf_base64);
       const bytes = new Uint8Array(binaryString.length);
