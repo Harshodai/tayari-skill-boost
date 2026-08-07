@@ -87,6 +87,26 @@ export async function deepATS(id: number | string, jobDescription?: string): Pro
   });
 }
 
+export interface GenerateResumePdfPayload {
+  resume_text: string;
+  profile_data: unknown;
+  analysis: unknown;
+  applied_suggestions: string[];
+  job_description?: string;
+  template: string;
+}
+
+export interface GenerateResumePdfResponse {
+  pdf_base64: string;
+}
+
+export async function generateResumePdf(payload: GenerateResumePdfPayload): Promise<GenerateResumePdfResponse> {
+  return apiFetch<GenerateResumePdfResponse>("/v1/resumes/generate-pdf", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function exportResume(id: number | string): Promise<Blob> {
   const response = await fetch(`${API_URL}/v1/resumes/${id}/export`, {
     method: "POST",

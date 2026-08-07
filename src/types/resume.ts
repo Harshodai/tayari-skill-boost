@@ -87,25 +87,6 @@ export interface GenerateResumeRequest {
   parsedResume?: ParsedResume;
 }
 
-export interface GenerateResumeResponse {
-  success: boolean;
-  pdfGenerated?: boolean;
-  pdfBase64?: string;
-  latexSource?: string;
-  message?: string;
-  compilationLog?: string;
-  error?: string;
-  compiler?: string;
-  suggestion?: string;
-  errorType?: string;
-  errorMessage?: string;
-  progress?: {
-    step: 'optimizing' | 'converting' | 'compiling' | 'downloading';
-    message: string;
-    progress: number;
-  };
-}
-
 // Types for analysis history
 export interface ResumeAnalysisRecord {
   id: string;
