@@ -1767,7 +1767,7 @@ func (s *Server) handleDownloadVersionDocx(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"tayari-resume-%d.docx\"", id))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"tayari-resume-version-%d.docx\"", id))
 	w.WriteHeader(http.StatusOK)
 	w.Write(decoded)
 }
