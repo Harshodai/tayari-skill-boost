@@ -10,7 +10,7 @@
 
 | Bug | File | Fix | Status |
 |-----|------|-----|--------|
-| **Supabase Cloud Lock** | `src/pages/ResumeTemplates.tsx` | Replaced `supabase.functions.invoke("generate-resume-pdf")` with direct HTTP POST to local Python backend (`/api/v1/export/pdf`) | ✅ Fixed |
+| **Supabase Cloud Lock** | `src/pages/ResumeTemplates.tsx` | Replaced `supabase.functions.invoke("generate-resume-pdf")` with direct POST to Go gateway `/api/v1/resumes/generate-pdf` (Python Typst pipeline, base64 JSON) | ✅ Fixed |
 | **Go Export Uses Original Text** | `backend/go/internal/api/routes_mvp.go:handleExportResume` | Changed to accept `optimized_text` from request body, fallback to `COALESCE(optimized_text, original_text)` from DB | ✅ Fixed |
 | **JobSearch Sends Empty resume_text** | `src/pages/JobSearch.tsx` | Added `useQuery` hooks to fetch `profile` and `resumes`, pass `profile` and `resume_text` (optimized first, original fallback) to `searchJobs()` | ✅ Fixed |
 
