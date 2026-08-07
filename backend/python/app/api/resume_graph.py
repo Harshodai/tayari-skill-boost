@@ -73,16 +73,20 @@ async def get_resume_graph(
     ``_RATE_LIMIT_MAX`` requests per ``_RATE_LIMIT_WINDOW`` seconds per client IP.
     Security headers are added to the response.
     """
-    # Rate limiting
+    # Rate limiting — keyed on the authenticated user (X-User-Id forwarded by
+    # the Go gateway) so each user gets their own window; the raw client IP is
+    # unusable behind the proxy because every request arrives from the gateway's
+    # container IP, which would make the limit global across all users.
     ip = request.client.host if request.client else "unknown"
+    key = request.headers.get("x-user-id") or ip
     now = time.time()
-    timestamps = _RATE_LIMIT.get(ip, [])
+    timestamps = _RATE_LIMIT.get(key, [])
     timestamps = [t for t in timestamps if now - t < _RATE_LIMIT_WINDOW]
     if len(timestamps) >= _RATE_LIMIT_MAX:
-        logger.warning("Rate limit exceeded for IP %s", ip)
+        logger.warning("Rate limit exceeded for %s", key)
         raise HTTPException(status_code=429, detail="Too many requests")
     timestamps.append(now)
-    _RATE_LIMIT[ip] = timestamps
+    _RATE_LIMIT[key] = timestamps
 
     # Security headers
     response.headers["Content-Security-Policy"] = "default-src 'self'"
@@ -160,19 +164,26 @@ async def post_resume_graph(request: ResumeGraphRequest) -> Dict[str, Any]:
 async def delete_resume_graph(run_id: str) -> Response:
     """Delete stored resume graph for a run.
 
-    Removes the ``graph`` entry from the in‑process store if present.
-    Returns 204 No Content on success.
+    Removes the ``graph`` entry from the in‑process store if present, and
+    best‑effort deletes the persisted DB row even when the run is only known
+    to the DB (e.g. loaded from storage after an in‑process restart).
+    Returns 204 No Content on success, 404 when neither store holds the run.
     """
     store = automation_engine._autopilot_store.get(run_id)
-    if store is None:
-        raise HTTPException(status_code=404, detail="Run not found")
-    if "graph" in store:
+    had_in_memory = store is not None and "graph" in store
+    if had_in_memory:
         del store["graph"]
         logger.info("Deleted resume graph for run_id %s", run_id)
-        # Persist deletion to DB (best‑effort)
-        await delete_graph(run_id)
-    else:
-        logger.info("No graph to delete for run_id %s", run_id)
+
+    # Check the DB fallback even when the in‑process store was empty: the run
+    # may only exist as a persisted row (the common case after a restart).
+    persisted = await load_graph(run_id) is not None
+
+    if not had_in_memory and not persisted:
+        raise HTTPException(status_code=404, detail="Resume graph not found")
+
+    # Persist deletion to DB (best‑effort, no‑op if disabled).
+    await delete_graph(run_id)
     return Response(status_code=204)
 
 

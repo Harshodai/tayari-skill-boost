@@ -59,8 +59,12 @@ async def load_graph(run_id: str) -> Optional[Any]:
             row = await conn.fetchrow("SELECT graph FROM resume_graphs WHERE run_id = $1", run_id)
             if not row:
                 return None
-            # ``row['graph']`` is already a Python object because asyncpg parses JSONB.
-            return row["graph"]
+            # asyncpg returns jsonb columns as str (default codec, as in
+            # ``app.services.db.load_agent_run``), so decode it when needed.
+            graph = row["graph"]
+            if isinstance(graph, str):
+                graph = json.loads(graph)
+            return graph
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to load resume graph for run_id %s: %s", run_id, exc)
         return None
