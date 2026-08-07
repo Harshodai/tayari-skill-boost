@@ -3,10 +3,11 @@ import { Link, useLocation, Navigate } from "react-router-dom";
 import { AppShell } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Check, Eye, Loader2, AlertTriangle, FileCode, CheckCircle2, CircleDot, Circle } from "lucide-react";
+import { ArrowLeft, Download, Check, Eye, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ResumePreviewModal } from "@/components/resume/ResumePreviewModal";
+import { generateResumePdf, buildGenerateResumePdfPayload } from "@/api";
 import type { ResumeAnalysisResult, ParsedResume } from "@/types/resume";
 
 const templates = [
@@ -54,14 +55,6 @@ const templates = [
   },
 ];
 
-type StepStatus = 'pending' | 'active' | 'complete' | 'error';
-
-interface CompilationStep {
-  id: string;
-  label: string;
-  status: StepStatus;
-}
-
 const ResumeTemplates = () => {
   const location = useLocation();
   const analysisResults = location.state?.analysisResults as ResumeAnalysisResult | undefined;
@@ -75,66 +68,34 @@ const ResumeTemplates = () => {
   const [hoveredTemplate, setHoveredTemplate] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [compilationSteps, setCompilationSteps] = useState<CompilationStep[]>([
-    { id: 'optimizing', label: 'Optimizing content', status: 'pending' },
-    { id: 'converting', label: 'Converting to LaTeX', status: 'pending' },
-    { id: 'compiling', label: 'Compiling PDF', status: 'pending' },
-    { id: 'downloading', label: 'Preparing download', status: 'pending' },
-  ]);
 
   // Redirect if no data passed
   if (!analysisResults || !resumeText) {
     return <Navigate to="/resume/results" replace />;
   }
 
-  const updateStepStatus = (stepId: string, status: StepStatus) => {
-    setCompilationSteps(prev => prev.map(step => 
-      step.id === stepId ? { ...step, status } : step
-    ));
-  };
-
-  const resetSteps = () => {
-    setCompilationSteps(prev => prev.map(step => ({ ...step, status: 'pending' })));
-  };
-
   const handleDownload = async () => {
     if (!selectedTemplate) return;
 
     setIsGenerating(true);
-    resetSteps();
-    updateStepStatus('optimizing', 'active');
-
     try {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
-
-      const response = await fetch(`${apiUrl}/v1/export/pdf`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          resume_text: resumeText,
+      const data = await generateResumePdf(
+        buildGenerateResumePdfPayload({
+          resumeText,
+          profileData: parsedResume || null,
+          analysis: analysisResults,
+          appliedSuggestions,
+          jobDescription,
           template: selectedTemplate,
-          job_description: jobDescription,
-          applied_suggestions: appliedSuggestions,
-        }),
-      });
+        })
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to generate PDF");
+      const binaryString = atob(data.pdf_base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
       }
-
-      const blob = await response.blob();
-      updateStepStatus('optimizing', 'complete');
-      updateStepStatus('converting', 'complete');
-      updateStepStatus('compiling', 'complete');
-      updateStepStatus('downloading', 'active');
-
+      const blob = new Blob([bytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -143,38 +104,12 @@ const ResumeTemplates = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-
-      updateStepStatus('downloading', 'complete');
-      toast.success("Resume PDF downloaded successfully!", {
-        description: `Template: ${selectedTemplate}`,
-      });
+      toast.success("Resume PDF downloaded!");
     } catch (error) {
-      console.error("Error generating resume:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to generate resume";
-
-      const activeStep = compilationSteps.find(s => s.status === 'active');
-      if (activeStep) {
-        updateStepStatus(activeStep.id, 'error');
-      }
-
-      toast.error("Failed to generate resume", {
-        description: errorMessage,
-      });
+      console.error("Error downloading PDF:", error);
+      toast.error("Failed to download PDF");
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  const getStepIcon = (status: StepStatus) => {
-    switch (status) {
-      case 'complete':
-        return <CheckCircle2 className="w-5 h-5 text-success" />;
-      case 'active':
-        return <Loader2 className="w-5 h-5 text-primary animate-spin" />;
-      case 'error':
-        return <AlertTriangle className="w-5 h-5 text-destructive" />;
-      default:
-        return <Circle className="w-5 h-5 text-muted-foreground" />;
     }
   };
 
@@ -216,44 +151,6 @@ const ResumeTemplates = () => {
             )}
           </Button>
         </div>
-
-        {/* Progress Indicator */}
-        {isGenerating && (
-          <div className="max-w-lg mx-auto mb-8 animate-fade-in">
-            <Card className="overflow-hidden border-primary/30">
-              <CardContent className="p-6">
-                <h3 className="font-semibold mb-4 text-center">Generating Your Resume</h3>
-                <div className="space-y-3">
-                  {compilationSteps.map((step, index) => (
-                    <div 
-                      key={step.id}
-                      className={cn(
-                        "flex items-center gap-3 p-3 rounded-lg transition-all",
-                        step.status === 'active' && "bg-primary/10 border border-primary/30",
-                        step.status === 'complete' && "bg-success/10",
-                        step.status === 'error' && "bg-destructive/10"
-                      )}
-                    >
-                      {getStepIcon(step.status)}
-                      <span className={cn(
-                        "text-sm",
-                        step.status === 'active' && "font-medium text-foreground",
-                        step.status === 'complete' && "text-success",
-                        step.status === 'error' && "text-destructive",
-                        step.status === 'pending' && "text-muted-foreground"
-                      )}>
-                        {step.label}
-                      </span>
-                      {step.status === 'complete' && (
-                        <span className="ml-auto text-xs text-success">Complete</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
 
         {/* Template Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
