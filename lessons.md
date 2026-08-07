@@ -4,7 +4,50 @@ This document details key findings, architectural decisions, and lessons learned
 
 ---
 
-## 2026-08-04 — Security & correctness batch: SSRF navigation, ledger integrity, autopilot gates
+## 2026-08-07 — Resume graph tail end (429 passthrough, per-user rate limit) + PyJWT missing from requirements.txt
+
+### What was done
+- Finished the resume-graph ruthless sweep. Two more live bugs in the same feature path, both surfaced by hammering GET through the gateway: the 6th call returned 502 `ai_service_unavailable` instead of 429.
+- Go `routes_resume_graph.go` `proxyAIError`: replaced the brittle `strings.Contains(msg, " 404:")` substring hack with `extractAIStatus`, which parses the status int out of the `"AI service returned %d: ..."` error and forwards any 4xx/5xx (404 stays 404, 429 now passes through as 429). Added `TestResumeGraphGet_ForwardPython429`.
+- Python `app/api/resume_graph.py` `get_resume_graph`: the `_RATE_LIMIT` bucket was keyed on `request.client.host`, but behind the Go gateway every request arrives from the gateway's container IP → the 5/min budget was **global across all users** (one user's refresh spree starved everyone). Now keyed on `X-User-Id` (Go already forwards it via `getXUserHeaders`) with IP fallback. Live-verified: 7 rapid same-user calls → calls 1–5 are 200, calls 6–7 are 429 (per-user budget, not 502).
+- **PyJWT missing dependency (deployment bug, exposed by a compose recreate).** `app/auth/dependencies.py` does `import jwt` at module load (it's the shared JWT-verification dep added 2026-08-03), and `app/main.py` imports it via `app/routes/agent.py` — so the engine can't start without the `jwt` package. But `backend/python/requirements.txt` never listed PyJWT. The previously-running `python-ai` container had it only because someone pip-installed it at runtime into that ephemeral container; a `docker compose up -d --build` recreate discarded that and the fresh container crashed at startup with `ModuleNotFoundError: No module named 'jwt'`. Added `PyJWT==2.10.1` to requirements.txt, rebuilt `python-ai` (image `7338d3192962`), recreated it healthy, then rebuilt `go-backend` with the 429 fix.
+
+### Root cause
+- Rate limiter used the raw socket peer behind a proxy → global budget collapse. `proxyAIError` only special-cased 404, so any other upstream 4xx (429) became an opaque 502. PyJWT was a hard startup dependency that was never declared in requirements.txt; the only reason the stack ever ran was an undocumented manual pip-install into the live container, which a recreate silently destroyed.
+
+### Fix applied
+- `extractAIStatus` parses the upstream status from the ai.Client error and forwards 4xx/5xx verbatim; rate-limit bucket keyed on `X-User-Id` then IP; `PyJWT==2.10.1` added to `backend/python/requirements.txt` and the `python-ai` image rebuilt so the dependency is baked in, not ephemeral.
+
+### Reusable lesson
+- A reverse proxy flattens `request.client.host` to one IP — any per-IP rate limiter behind it is a global limiter; key on a forwarded identity header (`X-User-Id`) with IP fallback. Map upstream statuses through the gateway verbatim (404, 429, …) instead of substring-special-casing one code, or clients get an opaque 502 for a real 429. A package `pip install`-ed into a running container is not a declared dependency — it vanishes on the next recreate. Every `import` at module load time must appear in the lockfile/requirements, or `docker compose up --build` will hand you a container that can't start. Verify "builds from scratch" by recreating the container, not by trusting the running one.
+
+---
+
+## 2026-08-06 — Resume Graph "Download JSON" 404: Go gateway had no resume-graph proxy routes + Python jsonb-as-str double-encode
+
+### What was done
+- Root-caused the Resume Graph "Download JSON" red-toast failure. The phase-1/2/3 investigation showed `curl localhost:8085/api/v1/resume-graph/{runId}` returned `404 page not found` — the Go gateway registered zero `resume-graph` routes; Python's `backend/python/app/api/resume_graph.py` router only exposed bare `/v1/resume-graph/...`, unreachable through the gateway.
+- Go: new `backend/go/internal/api/routes_resume_graph.go` — GET/POST/DELETE/export proxy handlers (import+delete to Python, `GetBlob` for the export byte-stream passthrough, `DeleteNoContent` for 204), plus `proxyAIError` mapping upstream `404:` to 404 and other failures to 502 `ai_service_unavailable`.
+- Go route registration in `routes_mvp.go` under the auth-protected `/api/v1/resume-graph/*` + `/api/resume-graph/*` pair (route parity maintained).
+- `backend/go/internal/ai/client.go` gained `GetBlob(endpoint, headers) (*http.Response, error)` and `DeleteNoContent(endpoint, headers) error`.
+- Frontend `src/pages/ResumeGraph.tsx`: GET now asks Python for `?format=raw` so the response is the unwrapped `{nodes, links}` shape the viz expects (Python's default wraps in `{run_id, graph:{...}}`).
+- Python `resume_graph_storage.load_graph`: asyncpg returns `jsonb` columns as `str` (default codec — the pattern `app/services/db.load_agent_run` already handles), so `load_graph` returned the raw JSON text and `get_resume_graph`/`export_resume_graph` re-serialized it into a double-encoded JSON string. Now decodes `str` → object when the codec gives one (mirrors `load_agent_run`).
+- Python `resume_graph.delete_resume_graph`: previously 404'd ("Run not found") whenever the run was absent from the in-process `_autopilot_store`, so a DB-only graph (common after a restart) could never be deleted — the frontend Delete Graph button red-toasted for it. Now checks the DB fallback (`load_graph`) before 404ing, and always best-effort deletes the DB row; 204 whenever the run exists in either store, 404 only when it exists in neither.
+- Tests: `backend/go/internal/api/routes_resume_graph_test.go` (GET, export blob, delete 204, POST passthrough); Python `test_resume_graph_storage.py::test_load_graph_decodes_jsonb_str` and `test_resume_graph_extended.py::test_delete_resume_graph_db_only_backed`. All Go tests + `bun run build` + ResumeGraph frontend tests + Python resume-graph tests green.
+- Live-verified through the gateway: GET `?format=raw` → HTTP 200 proper `{links,nodes}` object; `/export` → HTTP 200 with `Content-Disposition: attachment; filename="resume-graph-{uuid}.json"` and a valid JSON object body.
+
+### Root cause
+- Two independent bugs stacked: (1) Go gateway never proxied `/v1/resume-graph/*` so every frontend call 404'd at the gateway; (2) the DB-fallback path in Python double-encoded the graph because asyncpg hands back `jsonb` as `str` and `load_graph` didn't re-parse it — Go's JSON client then 502'd on the JSON-string body and the export was a JSON string instead of an object. (3) A third, same-class bug: `delete_resume_graph` only consulted the in-process store, so DB-backed graphs 404'd on delete.
+
+### Fix applied
+- Register gateway proxy routes (both `/api/v1/...` and `/api/...` for parity); pass graph fetch through as `?format=raw`; add `GetBlob`/`DeleteNoContent` to the Go AI client; decode `str` jsonb in `load_graph`; make delete consult the DB fallback before 404ing.
+
+### Reusable lesson
+- The Go gateway is the only frontend entry point — never ship a Python router that the gateway doesn't proxy, and keep route parity. asyncpg's default jsonb codec returns `str`, not `dict`; any `SELECT ...::jsonb` helper must decode like `load_agent_run` does, or downstream JSON consumers will get double-encoded strings (Go's JSON decode 502s; exports contain a JSON-encoded string, not an object).
+
+---
+
+## 2026-08-04 — Security & correctness batch: SSRF navigation, API error codes, autopilot gates
 
 ### What was done
 - `0002_tayari_core_architecture.sql`: the `saved_sources` unique-index cleanup now inspects indexes by their **key columns** (`idempotency_hash`, single-column) instead of by name, and drops both standalone legacy indexes (`DROP INDEX`) and constraint-backed ones (`DROP CONSTRAINT` on the owning constraint), so any uniquely named legacy unique index is removed before the composite `(user_id, idempotency_hash)` target is created. Verified against a scratch schema on the running Supabase Postgres.
@@ -728,3 +771,20 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 ### Reusable lesson
 - A guardrail that cannot run must fail closed, not default to pass. "Skipped" and "passed" are different states and need different fields — collapsing them into one boolean makes the absence of a check indistinguishable from a clean check at every call site downstream.
 - When a scoring component has no input, drop it and renormalize the weights. Substituting a placeholder keeps the number on scale by making it a different, unstated quantity — and the higher that component's weight, the more the placeholder dominates the result.
+
+
+## 2026-08-07 — Frontend rate-limit helper; bun:test mock.module cross-file leak
+
+### What was done
+- Added `src/api/auth.ts` exporting `getAuthRateLimit(email)` — a thin wrapper over `apiFetch` hitting the new Go endpoint `GET /v1/auth/rate-limit?email=…` (Task 1, commit 2c7f0ec). Returns `{allowed, remainingAttempts, blockedUntil}`.
+- Added `src/test/RateLimiter.test.ts` with two unit tests (encoded-email call shape + blockedUntil ISO passthrough).
+
+### Root cause
+- The brief's test stubbed `global.fetch` and called the real `apiFetch`. In isolation the test passed, but in the full `bun run test` run `ResumeGraph.test.tsx`'s `mock.module("@/api", …)` leaks across files and replaces the whole `@/api` barrel (re-exported by `index.ts`) with a mock whose `apiFetch` returns resume-graph data — so `getAuthRateLimit` got `{nodes, links}` instead of `{allowed, …}`. `mock.module` in bun:test persists for the whole process, not the file.
+
+### Fix applied
+- The test mocks `@/api/client` directly (via `mock.module`) with a minimal `apiFetch` that delegates to a `mockFetch` and parses JSON. This isolates the test from the cross-file barrel leak while still exercising the real `getAuthRateLimit` (the code under test) end-to-end through its `encodeURIComponent` + path construction.
+
+### Reusable lesson
+- `bun:test`'s `mock.module` is process-global, not file-scoped — a `mock.module("@/api", …)` in one test file silently replaces the barrel for every later file in the same `bun run test` invocation. When testing a module that imports from a barrel that another test file mocks, mock the leaf submodule (`@/api/client`) in your own test so you control the contract, or your "passes alone, fails in suite" test will be a flake nobody trusts.
+- `mock.mockReset()` in bun also clears the default implementation; `mock.mockClear()` only clears call history. Use `mockClear` in `beforeEach` when you want to keep the default `mock(() => …)` impl and just add `mockResolvedValueOnce` per test.
