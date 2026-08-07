@@ -919,3 +919,24 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 ### Reusable lesson
 - When a frontend passes an analysis/result object to a Go/Python endpoint, the serialization boundary is a contract: always funnel request-body construction through a single typed builder (one mapping location) rather than building bodies inline in components — the edge-fn removal was the third occurrence of a shape mismatch silently degrading AI output to "N/A".
 - Pydantic's 422 happens BEFORE your handler's validation branch: any field the UI can legitimately omit must be `Optional[...]` with a default, or the user-facing error is the proxy's generic 502 instead of your intended 400/fallback path.
+
+## 2026-08-07 — B1 sweep: ResumeTemplates.tsx stale LaTeX-era surface removed
+
+### What was done
+- Rewired `ResumeTemplates.tsx`'s `handleDownload` from a dead `fetch` POST to `/v1/export/pdf` (no Go gateway route exists — every download since B1 loop-3 404'd with an error toast) to the shared `generateResumePdf` + `buildGenerateResumePdfPayload` helpers (`src/api/resumes.ts`), byte-matching the `ResumePreviewModal.tsx` flow from loop-3 (atob → Blob → `{stem}_optimized.pdf`).
+- Deleted the fake compilation-step theater (`compilationSteps` state, `updateStepStatus`/`resetSteps`/`getStepIcon`, the "Optimizing content → Converting to LaTeX → Compiling PDF → Preparing download" progress card) and the unused lucide imports (AlertTriangle, FileCode, CheckCircle2, CircleDot, Circle, later useEffect).
+- Deleted `src/lib/latex-templates.ts` (180 lines, zero importers — grep-verified across src).
+- Extended `src/pages/resumePreviewNoEdgeFns.test.ts` with a ResumeTemplates describe block (static readFileSync: no `/v1/export/pdf`, no `compilationSteps`, no "Converting to LaTeX"; requires `generateResumePdf`/`buildGenerateResumePdfPayload`).
+
+### Root cause
+- The B1 loop-3 plan removed the edge fn and rewired the modal but missed the page-level download button; the LaTeX-era progress UI and `latex-templates.ts` survived as dead, misleading surface. The `/v1/export/pdf` POST was unreachable through the gateway (Python's `/export/pdf` PDFExporter was never proxied), so the page's Download buttons were broken while looking healthy.
+
+### Fix applied
+- Commits `a6f2671` (rewire + progress-card removal + dead module deletion + static tests) and `aac1a14` (unused import). Reviewer verdict: APPROVED with minors; both commits exclude the stray Lovable-synced `supabase/functions/mcp/index.ts`. Build green; tests 149 pass / 15 fail — exactly the pre-existing baseline (cognee + features.test.ts); lint 51 err/1448 warn, none new.
+
+### Reusable lesson
+- Deleting a feature means deleting its entry points, not just its primary path: after the edge-fn removal, two frontend call sites existed (modal + page), and the plan only rewired one. Grep for the OLD contract (`/v1/export/pdf`, `functions.invoke`) across the whole frontend after every removal, and give dead modules (`latex-templates.ts`) a zero-importer check — they rot silently and the UI keeps advertising the dead path.
+- Static readFileSync tests are the cheapest regression lock for deletions: assert the dead string cannot return, not just that the new path exists.
+
+### Open follow-ups (ledger)
+- Python `main.py:250`/`ai_routes.py:325` still expose POST `/api/v1/export/pdf` (old PDFExporter) — unreachable via Go gateway, no route to proxy; e2e scripts (`comprehensive_e2e.py:476`, `user_perspective_e2e.py:271`) tolerate 404; `IMPLEMENTATION_SUMMARY.md:13` now doc-drift.
