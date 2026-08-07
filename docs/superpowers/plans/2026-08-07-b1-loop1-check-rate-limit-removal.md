@@ -439,3 +439,11 @@ split-brain-backend blocker — check-rate-limit is no longer duplicated.
 - `analyze-resume` edge fn (loop 2): Python `/v1/analyze` exists but needs `aiOptions` + `parsedResume` parity.
 - `generate-resume-pdf` edge fn (loop 3): needs a new Go-proxied Python orchestration endpoint (LLM-optimize → Typst → PDF).
 - Hosted `VITE_API_URL` / `/api` proxy config: addressed once all 3 loops are done (cross-cutting final step).
+
+## Status: CLOSED (2026-08-07)
+
+All 4 tasks complete, branch remediated (see `.superpowers/sdd/progress.md`):
+- `ace68cf` feat(auth) → `c484619` feat(api) → `b7fd984` refactor(rate-limiter) → `2f0f313` chore(supabase)
+- Go tests green (`go test ./...`), frontend build green (`bun run build`), live-verified: `/api/v1/auth/rate-limit` served by Go; edge fn + config block deleted.
+- Attribution of the self-contained test fix corrected via pick→edit rebase (Task 1 `ace68cf`).
+- Post-branch: lost resume-graph work restored + committed (`71fd438`, `b0da8f0`, `835a88d`, `c7a5462`), live 502 → 200 verified.
