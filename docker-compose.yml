@@ -47,6 +47,7 @@ services:
       - LLM_PROVIDER=${LLM_PROVIDER:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
+      - JWT_SECRET=${JWT_SECRET}
     volumes:
       - ./backend/python:/app
     ports:
