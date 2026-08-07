@@ -4,6 +4,26 @@ This document details key findings, architectural decisions, and lessons learned
 
 ---
 
+## 2026-08-07 — B1 loop-1 landed (check-rate-limit edge fn → Go endpoint) + lost-work restore + test-attribution rebase
+
+### What was done
+- Completed B1 loop-1 (first third of the split-brain-backend blocker): replaced the `check-rate-limit` Supabase edge function with `GET /api/v1/auth/rate-limit` in the Go gateway. 4 SDD tasks, TDD throughout: (1) Go handler `routes_auth_ratelimit.go` (sha256-hash email to match the worker's key format; unauthenticated; fail-open on nil-DB) + both `/api`/`/api/v1` route registrations + tests; (2) frontend `src/api/auth.ts` `getAuthRateLimit` + test (test stubs `@/api/client` directly to dodge a pre-existing `mock.module("@/api")` leak from `ResumeGraph.test.tsx`); (3) `src/lib/rate-limiter.ts` rewired off Supabase (supabase import removed; `recordFailedAttempt`/`resetRateLimit` become local no-ops); (4) deleted `supabase/functions/check-rate-limit/` + dangling `[functions.check-rate-limit]` block in `supabase/config.toml`.
+- Fixed a test-coupling hazard mid-branch: `routes_auth_ratelimit_test.go` used `newResumeGraphServer` (a helper defined in an uncommitted `routes_resume_graph_test.go`); if those untracked files were removed, `go test ./internal/api` would fail to build. Made the test self-contained with `NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: nil})`.
+- Recovered lost resume-graph work (see root cause) and re-committed it in clean conventional commits: Go blob helpers (`GetBlob`/`DeleteNoContent`) + resume-graph proxy route registrations; Python jsonb-str decode in `load_graph`, X-User-Id rate-limit key, delete-with-DB-fallback; `PyJWT==2.10.1` in requirements.txt; `JWT_SECRET` passthrough to `python-ai` in docker-compose.yml; frontend `?format=raw` fetch.
+- Rebased the 4 B1 commits so the self-contained test fix lives in Task 1 (it had been amended into Task 4). Verified post-rebase: tree byte-identical to pre-rebase, Task 1 holds the fixed test, Task 4 clean.
+- Live-verified after container rebuilds: `GET /api/v1/resume-graph/{run}/?format=raw` 200, export 200 (was 502), 7 rapid GETs → 200×4 then 429×3 (per-user budget), `DELETE` 204.
+
+### Root cause
+- Two independent events: (a) an earlier checkout dance (`reflog: reset moving to HEAD`) silently dropped the uncommitted resume-graph work from the working tree — the two untracked Go files survived in `/tmp` stashes, but tracked-file edits (client.go methods, routes_mvp.go registrations, Python fixes, PyJWT, frontend) were reverted, leaving the live gateway 502ing on resume-graph with zero build errors (dead routes compile fine); (b) a `git commit --amend` on the wrong commit folded a test fix into the edge-fn-deletion commit, breaking attribution and leaving Task 1's commit with a test that wouldn't build in isolation.
+
+### Fix applied
+- Restored all reverted edits from the summary/notes, committed them in conventional commits, excluded an unrelated stray `supabase/functions/mcp/index.ts` (Lovable-synced version bump) from the branch. Fixed attribution with a targeted non-interactive rebase (`GIT_SEQUENCE_EDITOR="sed ... 1s/^pick/edit/"`), amending Task 1 with the self-contained test, then `git rebase --continue` (identical-file replay merged cleanly).
+
+### Reusable lesson
+- Dead proxy routes don't fail the build — after any `reset`/checkout dance, verify live behavior (`curl` the endpoint), not just `go build ./...`. Never `git commit --amend` casually: check `git log --oneline -1` first; if a fix lands in the wrong commit, a `pick→edit` rebase of the first relevant commit moves it cleanly (replay of the identical change merges without conflict). Untracked in-flight files + `reset --hard` = data loss; stash to `/tmp` (as done here) or commit early and often. Stray managed-file changes (Lovable-synced `supabase/functions/*`) belong outside feature commits.
+
+---
+
 ## 2026-08-07 — Resume graph tail end (429 passthrough, per-user rate limit) + PyJWT missing from requirements.txt
 
 ### What was done
