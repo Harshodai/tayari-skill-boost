@@ -22,7 +22,7 @@ const dedupeKeyFor = (job: ApplyChainJob) =>
   job.dedupe_key || `${job.company ?? "unknown"}-${job.title ?? "role"}-${job.location ?? ""}`;
 
 /**
- * The real "Apply Assist" chain. Every step hits a live backend endpoint —
+ * The real "AutoPilot" chain. Every step hits a live backend endpoint —
  * if a service is down the step fails visibly instead of faking progress.
  */
 export function buildApplyChain(job: ApplyChainJob): ChainStep[] {

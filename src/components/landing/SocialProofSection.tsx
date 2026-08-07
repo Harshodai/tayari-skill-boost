@@ -23,7 +23,7 @@ const testimonials = [
   },
   {
     quote:
-      "Tailoring used to take me 40 minutes per role. Apply Assist saves the job, rewrites the resume against the JD and drafts the letter while I review it.",
+      "Tailoring used to take me 40 minutes per role. AutoPilot saves the job, rewrites the resume against the JD and drafts the letter while I review it.",
     name: "Marcus L.",
     role: "Backend Engineer",
     detail: "Beta user · ~35 min saved per application",
@@ -40,7 +40,7 @@ const testimonials = [
 const aspirationalCards = [
   {
     title: "Tailor, apply, track — one chain",
-    description: "Apply Assist saves the role, rewrites your resume against the JD, drafts the letter, and files it in your pipeline. You approve every step.",
+    description: "AutoPilot saves the role, rewrites your resume against the JD, drafts the letter, and files it in your pipeline. You approve every step.",
     icon: Rocket,
     cta: "See how it works",
     href: "/resume",

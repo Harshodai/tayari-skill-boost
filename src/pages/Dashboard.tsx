@@ -108,17 +108,17 @@ const Dashboard = () => {
   const triggerApplyChain = async () => {
     const saved = savedJobs[0];
     if (!saved) {
-      toast.info("Save a job first — Apply Assist runs on a real job.");
+      toast.info("Save a job first — AutoPilot runs on a real job.");
       return;
     }
     const job = (saved as any).job || saved;
     const { ok } = await runChain({
-      title: "Apply Assist",
+      title: "AutoPilot",
       context: `${job.title ?? saved.title} @ ${job.company ?? saved.company}`,
       steps: buildApplyChain(job),
     });
-    if (ok) toast.success("Apply Assist finished — see Activity");
-    else toast.error("Apply Assist stopped — open Activity for the reason");
+    if (ok) toast.success("AutoPilot finished — see Activity");
+    else toast.error("AutoPilot stopped — open Activity for the reason");
   };
 
 
@@ -237,7 +237,7 @@ const Dashboard = () => {
             colorScheme="default"
           />
           <StatsCard
-            label="Apply Assist Runs"
+            label="AutoPilot Runs"
             value={runs.length}
             icon={<Zap className="w-4 h-4" />}
             trend={runs.length > 0 ? { value: 100, direction: "up", label: "agents active" } : { value: 0, direction: "neutral", label: "idle" }}

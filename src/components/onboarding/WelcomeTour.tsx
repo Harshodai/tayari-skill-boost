@@ -30,7 +30,7 @@ const STEPS = [
   },
   {
     icon: Zap,
-    title: "Run your first Apply Assist",
+    title: "Run your first AutoPilot",
     body: "One click saves the job, tailors your resume to the JD, drafts a cover letter, and tracks it in your pipeline — you approve every step.",
     action: "Start my first apply",
     href: "/jobs",
@@ -74,7 +74,7 @@ export function WelcomeTour({ forceOpen = false }: { forceOpen?: boolean }) {
       // Kick off a walkthrough run so the user can see what an assisted
       // apply looks like in the Activity drawer before committing to one.
       startRun({
-        title: "Apply Assist walkthrough",
+        title: "AutoPilot walkthrough",
         context: "Guided tour",
         steps: [
           "Save the job to your pipeline",

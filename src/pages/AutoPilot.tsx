@@ -90,7 +90,7 @@ const AutoPilot = () => {
   const startMutation = useMutation({
     mutationFn: startAutopilot,
     onSuccess: (data) => {
-      toast.success("Apply Assist started");
+      toast.success("AutoPilot started");
       setRunError(null);
       setActiveRunId(data.run_id);
       queryClient.invalidateQueries({ queryKey: ["autopilot-runs"] });
@@ -125,7 +125,7 @@ const AutoPilot = () => {
     try {
       await apiFetch(`/v1/review-queue/${appId}/approve`, {
         method: "PUT",
-        body: JSON.stringify({ notes: "Approved from Apply Assist" }),
+        body: JSON.stringify({ notes: "Approved from AutoPilot" }),
       });
       toast.success("Application approved and moved to saved jobs!");
       queryClient.invalidateQueries({ queryKey: ["applications", activeRunId] });
@@ -139,7 +139,7 @@ const AutoPilot = () => {
     try {
       await apiFetch(`/v1/review-queue/${appId}/reject`, {
         method: "PUT",
-        body: JSON.stringify({ reason: "Rejected from Apply Assist" }),
+        body: JSON.stringify({ reason: "Rejected from AutoPilot" }),
       });
       toast.success("Application rejected");
       queryClient.invalidateQueries({ queryKey: ["applications", activeRunId] });
@@ -157,10 +157,10 @@ const AutoPilot = () => {
         <div className="text-center max-w-2xl mx-auto mb-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-6">
             <Zap className="w-4 h-4" />
-            Apply Assist Mode
+            AutoPilot Mode
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            Apply Assist Agent
+            AutoPilot Agent
           </h1>
           <p className="text-muted-foreground text-lg">
             Configure search criteria to let AI scan roles, optimize your resume, and draft tailored cover letters. **Submissions are gated inside the Review Queue for your safety.**
@@ -232,7 +232,7 @@ const AutoPilot = () => {
               {!resumeText && (
                 <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>Upload a resume to enable Apply Assist</span>
+                  <span>Upload a resume to enable AutoPilot</span>
                 </div>
               )}
               <div className="flex flex-col sm:flex-row gap-3">
@@ -530,7 +530,7 @@ const AutoPilot = () => {
             <Card className="py-12 text-center">
               <CardContent>
                 <RotateCcw className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No runs yet. Start your first Apply Assist run above.</p>
+                <p className="text-muted-foreground">No runs yet. Start your first AutoPilot run above.</p>
               </CardContent>
             </Card>
           ) : (

@@ -136,7 +136,7 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                 </span>
-                <span className="text-muted-foreground font-semibold">Apply Assist:</span>
+                <span className="text-muted-foreground font-semibold">AutoPilot:</span>
                 <span className="truncate max-w-[200px] md:max-w-xs">{currentRun.title}</span>
                 {currentStep && (
                   <>

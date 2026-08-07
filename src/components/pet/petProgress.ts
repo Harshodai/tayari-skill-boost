@@ -75,7 +75,7 @@ export function nextBestStep(p: PetProgress): { text: string; label: string; to:
   if (!p.hasProfile) return { text: "Tell me the role you're aiming for — one minute, and every score after that gets sharper.", label: "Finish setup", to: "/onboarding" };
   if (!p.hasResume) return { text: "Upload your resume once and I'll reuse it for scoring, tailoring and interview answers.", label: "Upload resume", to: "/resume" };
   if (p.savedJobs === 0) return { text: `Your resume is in (best score ${p.bestScore ?? 0}). Let's find roles that actually fit it.`, label: "Open Smart Search", to: "/jobs" };
-  if (p.applied === 0) return { text: `You have ${p.savedJobs} saved role${p.savedJobs === 1 ? "" : "s"}. Run Apply Assist on the strongest one.`, label: "Apply to a saved role", to: "/pipeline" };
+  if (p.applied === 0) return { text: `You have ${p.savedJobs} saved role${p.savedJobs === 1 ? "" : "s"}. Run AutoPilot on the strongest one.`, label: "Apply to a saved role", to: "/pipeline" };
   if (p.interviews === 0) return { text: `${p.applied} application${p.applied === 1 ? "" : "s"} out. Time to prep the interview before it lands.`, label: "Prep an interview", to: "/interview/prep" };
   return { text: `${p.applied} applications and ${p.interviews} prep session${p.interviews === 1 ? "" : "s"} in. Keep the pipeline moving.`, label: "Open pipeline", to: "/pipeline" };
 }

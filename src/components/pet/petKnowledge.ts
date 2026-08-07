@@ -151,7 +151,7 @@ export const PET_TOPICS: PetTopic[] = [
   },
   {
     id: "apply",
-    question: "What is Apply Assist?",
+    question: "What is AutoPilot?",
     answer:
       "One click chains four real steps: save the job to your pipeline, tailor your resume to that JD, draft a matching cover letter, and file it under Applied. You approve each step, and the Activity drawer shows exactly what ran.",
     mood: "celebrate",
@@ -161,7 +161,7 @@ export const PET_TOPICS: PetTopic[] = [
     id: "pipeline",
     question: "How do I track applications?",
     answer:
-      "A Kanban board: Saved, Applied, Interviewing, Offer. Drag a card to move it, and anything you save from Smart Search or Apply Assist lands there automatically.",
+      "A Kanban board: Saved, Applied, Interviewing, Offer. Drag a card to move it, and anything you save from Smart Search or AutoPilot lands there automatically.",
     mood: "idle",
     cta: { label: "Open my pipeline", to: "/pipeline" },
   },
@@ -224,7 +224,7 @@ export const PET_TOUR: PetTourStep[] = [
   },
   {
     id: "tour-apply",
-    title: "4. Run your first Apply Assist",
+    title: "4. Run your first AutoPilot",
     body: "Save → tailor → cover letter → tracked. You approve each step and can stop the chain at any point.",
     mood: "celebrate",
     cta: { label: "Find a job to apply to", to: "/jobs" },

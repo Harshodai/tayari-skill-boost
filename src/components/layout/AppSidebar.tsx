@@ -49,7 +49,7 @@ const primaryItems = (): Item[] => [
 ];
 
 const moreItems = (): Item[] => [
-  { title: "Apply Assist", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
+  { title: "AutoPilot", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
   { title: "Cover letters", url: "/cover-letter", icon: Mail, enabled: features.coverLetter },
   { title: "Knowledge hub", url: "/knowledge-hub", icon: BookOpen, enabled: features.knowledgeHub },
   { title: "Career radar", url: "/career-ops", icon: Terminal, enabled: features.careerOps },

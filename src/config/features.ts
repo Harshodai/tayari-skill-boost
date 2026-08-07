@@ -87,7 +87,7 @@ const CONFIG = {
     { label: "Knowledge Hub", href: "/knowledge-hub", feature: "knowledgeHub" },
 
     { label: "Job Search", href: "/jobs", feature: "jobSearch" },
-    { label: "Apply Assist", href: "/jobs/autopilot", feature: "jobSearch" },
+    { label: "AutoPilot", href: "/jobs/autopilot", feature: "jobSearch" },
     { label: "Cover Letter", href: "/cover-letter", feature: "coverLetter" },
     { label: "Communication", href: "/communication", feature: "communicationHub" },
     { label: "Career-Ops", href: "/career-ops", feature: "careerOps" },

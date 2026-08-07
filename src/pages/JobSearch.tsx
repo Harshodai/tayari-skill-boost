@@ -263,12 +263,12 @@ const JobSearch = () => {
 
   const handleApplyChain = async (job: Job) => {
     const { ok } = await runChain({
-      title: `Apply Assist — ${job.title}`,
+      title: `AutoPilot — ${job.title}`,
       context: `${job.company}${job.location ? " · " + job.location : ""}`,
       steps: buildApplyChain(job as any),
     });
-    if (ok) toast.success("Apply Assist finished — see Activity");
-    else toast.error("Apply Assist stopped — open Activity for the reason");
+    if (ok) toast.success("AutoPilot finished — see Activity");
+    else toast.error("AutoPilot stopped — open Activity for the reason");
   };
 
   const handleQueueAutoPilot = (job: Job) => {

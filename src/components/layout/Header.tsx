@@ -188,7 +188,7 @@ export function Header() {
                       </ListItem>
                     )}
                     {features.jobSearch && (
-                      <ListItem to="/jobs/autopilot" title="Apply Assist" icon={Zap}>
+                      <ListItem to="/jobs/autopilot" title="AutoPilot" icon={Zap}>
                         Automate background application workflows and outreach trackers.
                       </ListItem>
                     )}
@@ -442,7 +442,7 @@ export function Header() {
                       )}
                     >
                       <Zap className="w-4 h-4 text-primary" />
-                      <span>Apply Assist</span>
+                      <span>AutoPilot</span>
                     </Link>
                   )}
                   {features.coverLetter && (

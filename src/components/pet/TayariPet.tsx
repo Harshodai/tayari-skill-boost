@@ -441,7 +441,7 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onFocus={wake}
-                    placeholder="Ask about scores, Apply Assist, pricing…"
+                    placeholder="Ask about scores, AutoPilot, pricing…"
                     aria-label={`Ask ${petName} about Job Tayari`}
                     className="min-w-0 flex-1 rounded-lg border border-border/60 bg-background px-2 py-1.5 text-xs outline-none focus:border-primary/60"
                   />
