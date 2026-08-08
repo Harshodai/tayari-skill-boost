@@ -196,7 +196,7 @@ const App = () => (
                 path="/pipeline"
                 element={
                   <ProtectedRoute>
-                    <InterviewBoard />
+                    <Pipeline />
                   </ProtectedRoute>
                 }
               />

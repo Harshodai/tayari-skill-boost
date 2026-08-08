@@ -227,7 +227,7 @@ export default function Onboarding() {
               <Button onClick={() => setStep(2)} variant="outline" className="border-slate-800 text-slate-300">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
-              <Button onClick={() => navigate("/dashboard")} className="bg-emerald-600 hover:bg-emerald-500 font-bold px-8">
+              <Button onClick={finish} className="bg-emerald-600 hover:bg-emerald-500 font-bold px-8">
                 Launch Career Dashboard <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </div>
