@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,41 @@ export default function Onboarding() {
     "SQL / PostgreSQL Performance",
     "System Resilience & Reliability"
   ]);
+
+  const finish = async () => {
+    const payload = {
+      transitionType,
+      currentTitle,
+      targetLevel,
+      currentIndustry,
+      targetIndustry,
+      transferableSkills,
+      completedAt: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem("tayari_onboarding", JSON.stringify(payload));
+    } catch {
+      /* storage unavailable — continue */
+    }
+    try {
+      const { data } = await supabase.auth.getUser();
+      const userId = data.user?.id;
+      if (userId) {
+        const { data: prefs } = await supabase
+          .from("pet_preferences")
+          .select("state")
+          .eq("user_id", userId)
+          .maybeSingle();
+        const state = (prefs?.state as Record<string, unknown>) ?? {};
+        await supabase
+          .from("pet_preferences")
+          .upsert({ user_id: userId, state: { ...state, onboarding: payload } });
+      }
+    } catch {
+      /* best effort — never block the user */
+    }
+    navigate("/dashboard");
+  };
 
   return (
     <Layout>
@@ -227,7 +263,7 @@ export default function Onboarding() {
               <Button onClick={() => setStep(2)} variant="outline" className="border-slate-800 text-slate-300">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
-              <Button onClick={() => navigate("/dashboard")} className="bg-emerald-600 hover:bg-emerald-500 font-bold px-8">
+              <Button onClick={finish} className="bg-emerald-600 hover:bg-emerald-500 font-bold px-8">
                 Launch Career Dashboard <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </div>
