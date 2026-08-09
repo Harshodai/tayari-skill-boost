@@ -506,3 +506,24 @@ async def execute_one_shot_endpoint(payload: dict):
     except Exception as exc:
         logger.error("one-shot/execute failed: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+class VerificationRequest(BaseModel):
+    resume_text: str
+
+
+@router.post("/api/v1/verification/submit")
+async def submit_verification(payload: VerificationRequest):
+    """V3 verified-human badge: truthfulness + screening scorers (stateless)."""
+    from app.services.verification_service import run_verification
+    try:
+        result = await run_verification(payload.resume_text)
+        return result
+    except LLMNotConfiguredError as exc:
+        logger.error("verification/submit: LLM not configured: %s", exc)
+        return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("verification/submit failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Verification failed") from exc
