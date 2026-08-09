@@ -959,3 +959,22 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 - When a test and a message string disagree, find the codebase's canonical message by counting all raise sites, and check BOTH directions' tests before editing either side — two tests can assert contradictory strings on the same conceptual error (GET vs DELETE here).
 - After deleting a route, grep the whole repo (including repo-root tests/, docs/, research/) for the old path — `export/pdf` had six refs classes: two route registrations, one unit test, two e2e scripts, one doc row.
 - A "dead" exporter may not be dead: `PDFExporter` is the fallback for the Typst binary — deleting the route is safe, deleting the class would silently break resilience.
+
+## 2026-08-07 — V6 branding: converge on AutoPilot
+
+### What was done
+- Converged the three-name product branding on **AutoPilot** (user decision; the audit's V6 originally proposed renaming Auto-Apply, and my first design suggested "Apply Assist" — the user flipped it to keep AutoPilot as present). All 35 user-visible "Apply Assist" instances across 15 files → "AutoPilot". URLs (`/jobs/autopilot`), file names, and "Auto-Apply" action phrases (verbs, not product names) untouched.
+- Added `src/config/branding.test.ts`: recursive readFileSync scan of src/ asserting zero "Apply Assist" in non-test files + nav-label check. Commit `f542e4b`; design spec `docs/superpowers/specs/2026-08-07-v6-autopilot-branding-design.md`.
+
+### Root cause
+- The half-finished VT rename campaign left three concurrent names (page "AutoPilot", nav "Apply Assist", copy "Auto-Apply") — worse than any single name.
+
+### Fix applied
+- Deterministic rule: product name = AutoPilot; verb phrases stay; mechanical swap + static guard. Verified: 152/14 frontend tests (2 new), build green, lint unchanged, 0 residual grep.
+
+### Reusable lesson
+- A branding sweep is a 5-minute decision + a mechanical replace + a recursive static test. The guard test matters more than the replace: without it, the next feature-writer re-introduces a second name (the original sin). Test the INVARIANT (one name in src), not the diff.
+- When a user says "keep X as present", they mean converge ONTO X — the smallest true reading of "don't rename X".
+
+### Program status (commercial-viability sub-projects)
+- V6: DONE. V3 (verified-human badge): next. Moat-1 (referral engine), Moat-2 (interview copilot, unfrozen), V7 (glass box): pending spec → plan → implementation.
