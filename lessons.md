@@ -978,3 +978,27 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 
 ### Program status (commercial-viability sub-projects)
 - V6: DONE. V3 (verified-human badge): next. Moat-1 (referral engine), Moat-2 (interview copilot, unfrozen), V7 (glass box): pending spec → plan → implementation.
+
+## 2026-08-07 — V3 verified-human badge (full-stack, delivered)
+
+### What was done
+- New `candidate_verification` table (migration `20260807_verified_human_badge.sql` + `supabase-local/volumes/db/init/21-...` + `zz-21-` volume mount).
+- Python: `verification_service.py` — two stateless LLM moderators (truthfulness 0-100 + red flags; screening 0-100 + strengths/gaps/sample questions); `POST /api/v1/verification/submit`; LLM-not-configured → explicit 503 (never mock).
+- Go: `routes_verification.go` — POST submit (validation → Python proxy → verdict via pure `computeVerification` → upsert with ON CONFLICT) + GET status (no row → 200 unverified shape); both routes registered in `/api` AND `/api/v1` trees (parity test green).
+- Frontend: `verification: [true, true]` flag + features.test; `src/api/verification.ts` + tests (mockFetch shim pattern from RateLimiter.test.ts); Profile.tsx badge card + Get-Verified dialog (prefills latest resume, paste fallback), honest caption.
+- Gates: Python 475/0 (before: 470/0), Go `go test ./...` green + parity, frontend 155/14 (14 = cognee baseline), lint errors unchanged 51, build green.
+
+### Root cause
+- Differentiators are only real if a verifiable signal exists; claims had zero verification anywhere.
+
+### Fix applied
+- Per ADR-0003: Go authoritative (auth + DB), Python stateless AI; verdict = threshold rule (truth ≥70 AND screening ≥60) computed in a pure, unit-testable function.
+
+### Reusable lessons
+1. Units are testable even when the DB is nil in unit tests: extract the pure computation, position DB guards after validation+upstream, assert 503-after-upstream in tests to prove the proxy round-trip happened (`database.DB{Conn:nil}` is the codebase norm — no happy-path persist tests exist).
+2. In ai_routes tests, `pytest.importorskip("pydantic")` + monkeypatch `llm_json` per-test; route models live beside the route (house style).
+3. Full Python suite = whole-repo `pytest` (479 collected) — `pytest tests/` collects only 396; don't read the wrong number. Frontend suite = `bun run test` (src/ + preload), NOT bare `bun test` (that sweeps Playwright specs into collection and inflates failures).
+4. "Verified" badge copy discipline: say exactly what the signal is (self-reported claims check), never more.
+
+### Program status
+- V3: DONE. Remaining: Moat-1 referral engine, Moat-2 interview copilot (unfrozen), V7 Glass Box — each needs design spec → approval → plan → implementation.
