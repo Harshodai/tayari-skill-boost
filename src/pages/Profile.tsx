@@ -20,12 +20,16 @@ import {
   AlertCircle,
   CheckCircle2,
   Upload,
+  ShieldCheck,
+  BadgeCheck,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getProfile, updateProfile, importProfilePDF } from "@/api";
+import { getProfile, updateProfile, importProfilePDF, getVerificationStatus, submitVerification, listResumes } from "@/api";
 import { toast } from "sonner";
 import { useRef } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import type { VerificationStatus } from "@/api/verification";
 
 const Profile = () => {
   const { user } = useAuth();
@@ -34,6 +38,53 @@ const Profile = () => {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
+
+  const [verification, setVerification] = useState<VerificationStatus | null>(null);
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [verifyText, setVerifyText] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  useEffect(() => {
+    getVerificationStatus()
+      .then(setVerification)
+      .catch(() => setVerification(null));
+  }, []);
+
+  const openVerifyDialog = async () => {
+    setVerifyText("");
+    try {
+      const resumes = await listResumes();
+      const latest = resumes[0];
+      if (latest && latest.resume_text) {
+        setVerifyText(latest.resume_text);
+      }
+    } catch {
+      // fallback: user pastes their resume text
+    }
+    setVerifyOpen(true);
+  };
+
+  const handleVerify = async () => {
+    if (!verifyText.trim()) {
+      toast.error("Paste your resume text first");
+      return;
+    }
+    setIsVerifying(true);
+    try {
+      const result = await submitVerification(verifyText.trim());
+      setVerification(result);
+      setVerifyOpen(false);
+      if (result.status === "verified") {
+        toast.success("You're verified — badge active on your profile");
+      } else {
+        toast.info("Verification completed — see the score breakdown for what to improve");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Verification failed — try again");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["profile"],
@@ -435,6 +486,78 @@ const Profile = () => {
 
           <div className="space-y-6">
             <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-base font-medium flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-primary" />
+                  Verified-Human Badge
+                </CardTitle>
+                {verification?.status === "verified" && (
+                  <Badge className="bg-emerald-600 hover:bg-emerald-600 gap-1">
+                    <BadgeCheck className="w-3 h-3" /> Verified
+                  </Badge>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {verification?.status === "verified" ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Claims are AI-checked for accuracy and technical depth. This is a self-reported signal.
+                    </p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Truthfulness</span>
+                        <span className="font-medium tabular-nums">{Math.round(verification.truthful_score ?? 0)}/100</span>
+                      </div>
+                      <Progress value={verification.truthful_score ?? 0} className="h-1.5" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Screening depth</span>
+                        <span className="font-medium tabular-nums">{Math.round(verification.screening_score ?? 0)}/100</span>
+                      </div>
+                      <Progress value={verification.screening_score ?? 0} className="h-1.5" />
+                    </div>
+                    {verification.verified_at && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Badged {new Date(verification.verified_at).toLocaleDateString()}
+                      </p>
+                    )}
+                    {verification.strengths.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium">Strengths</p>
+                        {verification.strengths.map((s, i) => (
+                          <p key={i} className="text-xs text-muted-foreground flex gap-1.5">
+                            <CheckCircle2 className="w-3 h-3 shrink-0 mt-0.5 text-emerald-600" />{s}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {verification.gaps.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium">Gaps to work on</p>
+                        {verification.gaps.map((g, i) => (
+                          <p key={i} className="text-xs text-muted-foreground flex gap-1.5">
+                            <AlertCircle className="w-3 h-3 shrink-0 mt-0.5 text-amber-600" />{g}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    <Button variant="outline" size="sm" className="w-full" onClick={openVerifyDialog}>
+                      Re-run verification
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Get claims checked for accuracy and technical depth, then earn a badge on your profile. This is a self-reported signal.
+                    </p>
+                    <Button size="sm" className="w-full" onClick={openVerifyDialog}>
+                      <ShieldCheck className="w-4 h-4 mr-1" /> Get Verified
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
               <CardHeader>
                 <CardTitle>Preferences</CardTitle>
               </CardHeader>
@@ -510,6 +633,39 @@ const Profile = () => {
             </Card>
           </div>
         </div>
+
+      <Dialog open={verifyOpen} onOpenChange={setVerifyOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-primary" /> Verify your claims
+            </DialogTitle>
+            <DialogDescription>
+              We check your resume for accuracy and technical depth, then score it. A score of 70+ truthfulness and 60+ screening earns the badge.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Textarea
+              rows={10}
+              value={verifyText}
+              onChange={(e) => setVerifyText(e.target.value)}
+              placeholder="Paste your resume text (latest imported resume is pre-filled when available)…"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              This is a self-reported signal — no employers or recruiters are granted access.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVerifyOpen(false)} disabled={isVerifying}>
+              Cancel
+            </Button>
+            <Button onClick={handleVerify} disabled={isVerifying} className="gap-1">
+              {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+              {isVerifying ? "Checking…" : "Run checks"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 };

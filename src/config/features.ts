@@ -70,6 +70,8 @@ const CONFIG = {
     agentReach: [true, true],
     // Architectural Adaptations Master Gateway
     adaptationsPortal: [true, true],
+    // Verified-Human badge (truth + screening checks)
+    verification: [true, true],
   },
 
 

@@ -13,6 +13,10 @@ describe('Feature Flags Configuration', () => {
         expect(features.interviewPrep).toBe(true);
     });
 
+    it('should have verification enabled (V3 badge is live)', () => {
+        expect(features.verification).toBe(true);
+    });
+
     it('should generate navigation links', () => {
         const links = getNavLinks();
         expect(links.length).toBeGreaterThan(0);
