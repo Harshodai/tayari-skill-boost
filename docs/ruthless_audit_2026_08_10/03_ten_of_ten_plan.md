@@ -23,7 +23,7 @@ These unblock everything downstream. No feature work starts until these are gree
   - Add `custom_instructions: Optional[str] = None`
   - Add `target_role: Optional[str] = None`
   - Add `jd_url: Optional[str] = None`
-- Update `optimize_resume()` and `optimize_resume_stream()` to route to `optimizer.optimize_resume_with_options()` when `jd_url` is present.
+- Update `optimize_resume()` and `optimize_resume_stream()` to route to `optimizer.optimize_resume_with_options()` whenever any non-empty optimizer option is supplied — `jd_url`, `custom_instructions`, or `target_role` — rather than checking `jd_url` alone; the default `optimize_with_reflection` path remains when none are provided. Add coverage for each option independently in both regular and streaming paths. (current impl routes on `jd_url` only — this is the completion requirement)
 - Update Go `handleOptimizeResume` in `backend/go/internal/api/routes_mvp.go` to read and forward `custom_instructions`, `target_role`, `jd_url`.
 - Update `src/api/resumes.ts::optimizeResume()` signature to accept `{jobDescription, customInstructions, targetRole, jdUrl}`.
 - Update `src/pages/ResumeUpload.tsx` to pass `customInstructions` and `jobPostUrl` through `navigate()` state.
@@ -39,7 +39,7 @@ These unblock everything downstream. No feature work starts until these are gree
   - `current_industry TEXT`
   - `target_industry TEXT`
   - `transferable_skills TEXT[] DEFAULT '{}'`
-- Copy migration to `supabase-local/volumes/db/init/NN-20260810_01_career_goal.sql` and add individual mount in `supabase-local/docker-compose.yml` `db:` service.
+- Copy migration to `supabase-local/volumes/db/init/22-20260810_career_goal.sql` and add the individual-file mount in `supabase-local/docker-compose.yml`'s `db:` service: `- ./volumes/db/init/22-20260810_career_goal.sql:/docker-entrypoint-initdb.d/migrations/zz-22-20260810_career_goal.sql:Z` (after the zz-21 mount).
 - Update `backend/go/internal/models/profile.go`.
 - Update `backend/go/internal/api/routes_mvp.go::handleGetProfile/handleUpdateProfile`.
 - Update `src/pages/Profile.tsx` with "Career Goal" card + branch selector.
@@ -203,7 +203,7 @@ Goal: Manus-computer-level trust and isolation.
 ## Phase 7: Hardening and Launch Readiness (week 7)
 
 ### P7.1 Security audit
-- Dependency audit (`bun audit`, `pip-audit`, `go mod audit`).
+- Dependency audit (`bun audit`, `pip-audit`, Go vulnerability scan: `govulncheck ./...` (provision via `go install golang.org/x/vuln/cmd/govulncheck@latest`; record output to a committed `security-reports/govulncheck.txt` artifact and fail the CI gate on findings)).
 - Secrets scan.
 - Rate-limit verification across all routes.
 
