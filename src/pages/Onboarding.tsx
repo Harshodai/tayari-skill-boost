@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { updateProfile } from "@/api";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,20 @@ export default function Onboarding() {
       localStorage.setItem("tayari_onboarding", JSON.stringify(payload));
     } catch {
       /* storage unavailable — continue */
+    }
+    // ponytail: persist the career goal in the canonical public.profiles table
+    // (P0 audit fix Q3); pet_preferences mirror below stays as secondary storage.
+    try {
+      await updateProfile({
+        transition_type: transitionType,
+        current_title: currentTitle,
+        target_level: targetLevel,
+        current_industry: currentIndustry,
+        target_industry: targetIndustry,
+        transferable_skills: transferableSkills,
+      });
+    } catch {
+      /* best effort — never block navigation */
     }
     try {
       const { data } = await supabase.auth.getUser();

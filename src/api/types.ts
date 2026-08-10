@@ -105,6 +105,13 @@ export interface Profile {
   experience_years?: number;
   open_to_remote?: boolean;
   links?: Record<string, any>;
+  // ponytail: career-goal fields mirror the Onboarding wizard payload (P0 audit fix Q3)
+  transition_type?: "same_domain" | "cross_domain";
+  current_title?: string;
+  target_level?: string;
+  current_industry?: string;
+  target_industry?: string;
+  transferable_skills?: string[];
   created_at: string;
   updated_at?: string;
 }

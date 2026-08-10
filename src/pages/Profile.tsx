@@ -101,11 +101,18 @@ const Profile = () => {
     experience_years: 0,
     open_to_remote: false,
     links: {} as Record<string, string>,
+    transition_type: undefined as "same_domain" | "cross_domain" | undefined,
+    current_title: "",
+    target_level: "",
+    current_industry: "",
+    target_industry: "",
+    transferable_skills: [] as string[],
   });
 
   const [skillInput, setSkillInput] = useState("");
   const [roleInput, setRoleInput] = useState("");
   const [locationInput, setLocationInput] = useState("");
+  const [transferableInput, setTransferableInput] = useState("");
 
   useEffect(() => {
     if (profile) {
@@ -119,6 +126,12 @@ const Profile = () => {
         experience_years: profile.experience_years || 0,
         open_to_remote: profile.open_to_remote || false,
         links: (profile.links as Record<string, string>) || {},
+        transition_type: profile.transition_type,
+        current_title: profile.current_title || "",
+        target_level: profile.target_level || "",
+        current_industry: profile.current_industry || "",
+        target_industry: profile.target_industry || "",
+        transferable_skills: profile.transferable_skills || [],
       });
     }
   }, [profile]);
@@ -164,6 +177,19 @@ const Profile = () => {
       ...prev,
       [key]: prev[key].filter((_, i) => i !== idx),
     }));
+  };
+
+  const addTransferableSkills = () => {
+    const parsed = transferableInput
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (parsed.length === 0) return;
+    setForm((prev) => ({
+      ...prev,
+      transferable_skills: [...new Set([...prev.transferable_skills, ...parsed])],
+    }));
+    setTransferableInput("");
   };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -594,6 +620,157 @@ const Profile = () => {
                       <ShieldCheck className="w-4 h-4 mr-1" /> Get Verified
                     </Button>
                   </>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Career Goal</CardTitle>
+                <CardDescription>Your transition track — feeds the optimizer and agent targeting</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Transition type</label>
+                  {isEditing ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant={form.transition_type === "same_domain" ? "default" : "outline"}
+                        onClick={() => setForm({ ...form, transition_type: "same_domain" })}
+                      >
+                        Same domain
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={form.transition_type === "cross_domain" ? "default" : "outline"}
+                        onClick={() => setForm({ ...form, transition_type: "cross_domain" })}
+                      >
+                        Cross domain
+                      </Button>
+                    </div>
+                  ) : (
+                    <Badge variant={form.transition_type ? "default" : "outline"}>
+                      {form.transition_type === "same_domain" ? "Same domain" : form.transition_type === "cross_domain" ? "Cross domain" : "Not set"}
+                    </Badge>
+                  )}
+                </div>
+
+                {isEditing && form.transition_type === "same_domain" && (
+                  <div className="grid grid-cols-1 gap-3 pt-1">
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Current title</label>
+                      <Input
+                        value={form.current_title}
+                        onChange={(e) => setForm({ ...form, current_title: e.target.value })}
+                        placeholder="e.g. Senior Software Engineer"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Target level</label>
+                      <Input
+                        value={form.target_level}
+                        onChange={(e) => setForm({ ...form, target_level: e.target.value })}
+                        placeholder="e.g. Staff Architect"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {isEditing && form.transition_type === "cross_domain" && (
+                  <div className="grid grid-cols-1 gap-3 pt-1">
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Current industry</label>
+                      <Input
+                        value={form.current_industry}
+                        onChange={(e) => setForm({ ...form, current_industry: e.target.value })}
+                        placeholder="e.g. Fintech"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Target industry</label>
+                      <Input
+                        value={form.target_industry}
+                        onChange={(e) => setForm({ ...form, target_industry: e.target.value })}
+                        placeholder="e.g. AI / Machine Learning"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Transferable skills</label>
+                      {isEditing && (
+                        <div className="flex gap-2 mb-2">
+                          <Input
+                            placeholder="Comma-separated, e.g. Distributed Systems, APIs"
+                            value={transferableInput}
+                            onChange={(e) => setTransferableInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                addTransferableSkills();
+                              }
+                            }}
+                          />
+                          <Button type="button" variant="outline" size="icon" onClick={addTransferableSkills}>
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {form.transferable_skills.length === 0 ? (
+                          <span className="text-sm text-muted-foreground">No transferable skills added yet.</span>
+                        ) : (
+                          form.transferable_skills.map((skill, idx) => (
+                            <Badge key={idx} variant="secondary" className="flex items-center gap-1">
+                              {skill}
+                              {isEditing && (
+                                <XIcon
+                                  className="w-3 h-3 cursor-pointer"
+                                  onClick={() =>
+                                    setForm((prev) => ({
+                                      ...prev,
+                                      transferable_skills: prev.transferable_skills.filter((_, i) => i !== idx),
+                                    }))
+                                  }
+                                />
+                              )}
+                            </Badge>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!isEditing && (
+                  <dl className="space-y-2 text-sm">
+                    {(form.transition_type === "same_domain" || !form.transition_type) && (
+                      <>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-muted-foreground">Current title</dt>
+                          <dd className="text-right">{form.current_title || "—"}</dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-muted-foreground">Target level</dt>
+                          <dd className="text-right">{form.target_level || "—"}</dd>
+                        </div>
+                      </>
+                    )}
+                    {form.transition_type === "cross_domain" && (
+                      <>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-muted-foreground">Current industry</dt>
+                          <dd className="text-right">{form.current_industry || "—"}</dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-muted-foreground">Target industry</dt>
+                          <dd className="text-right">{form.target_industry || "—"}</dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-muted-foreground">Transferable skills</dt>
+                          <dd className="text-right">{form.transferable_skills.join(", ") || "—"}</dd>
+                        </div>
+                      </>
+                    )}
+                  </dl>
                 )}
               </CardContent>
             </Card>

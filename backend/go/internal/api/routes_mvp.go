@@ -31,42 +31,50 @@ func (s *Server) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var p models.Profile
-	query := `SELECT id, COALESCE(full_name, ''), COALESCE(avatar_url, ''), COALESCE(email, ''), COALESCE(headline, ''), COALESCE(summary, ''), skills, desired_roles, locations, COALESCE(experience_years, 0), COALESCE(open_to_remote, true), links, created_at, updated_at FROM profiles WHERE id=$1`
+	query := `SELECT id, COALESCE(full_name, ''), COALESCE(avatar_url, ''), COALESCE(email, ''), COALESCE(headline, ''), COALESCE(summary, ''), skills, desired_roles, locations, COALESCE(experience_years, 0), COALESCE(open_to_remote, true), links, created_at, updated_at, COALESCE(transition_type, ''), COALESCE(current_title, ''), COALESCE(target_level, ''), COALESCE(current_industry, ''), COALESCE(target_industry, ''), COALESCE(transferable_skills, '{}') FROM profiles WHERE id=$1`
 	err := s.DB.Conn.QueryRowContext(r.Context(), query, user.ID).Scan(
-		&p.ID, &p.FullName, &p.AvatarURL, &p.Email, &p.Headline, &p.Summary, &p.Skills, &p.DesiredRoles, &p.Locations, &p.ExperienceYears, &p.OpenToRemote, &p.Links, &p.CreatedAt, &p.UpdatedAt,
+		&p.ID, &p.FullName, &p.AvatarURL, &p.Email, &p.Headline, &p.Summary, &p.Skills, &p.DesiredRoles, &p.Locations, &p.ExperienceYears, &p.OpenToRemote, &p.Links, &p.CreatedAt, &p.UpdatedAt, &p.TransitionType, &p.CurrentTitle, &p.TargetLevel, &p.CurrentIndustry, &p.TargetIndustry, &p.TransferableSkills,
 	)
 	if err != nil {
 		p.ID = user.ID
 		p.Email = user.Email
 		s.respondJSON(w, http.StatusOK, map[string]interface{}{
-			"profile_id":       p.ID,
-			"full_name":        "",
-			"email":            p.Email,
-			"headline":         "",
-			"summary":          "",
-			"skills":           []string{},
-			"desired_roles":    []string{},
-			"locations":        []string{},
-			"experience_years": 0,
-			"open_to_remote":   true,
+			"profile_id":          p.ID,
+			"full_name":           "",
+			"email":               p.Email,
+			"headline":            "",
+			"summary":             "",
+			"skills":              []string{},
+			"desired_roles":       []string{},
+			"locations":           []string{},
+			"experience_years":    0,
+			"open_to_remote":      true,
+			"transition_type":     "",
+			"transferable_skills": []string{},
 		})
 		return
 	}
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"profile_id":       p.ID,
-		"full_name":        p.FullName,
-		"avatar_url":       p.AvatarURL,
-		"email":            p.Email,
-		"headline":         p.Headline,
-		"summary":          p.Summary,
-		"skills":           p.Skills,
-		"desired_roles":    p.DesiredRoles,
-		"locations":        p.Locations,
-		"experience_years": p.ExperienceYears,
-		"open_to_remote":   p.OpenToRemote,
-		"links":            p.Links,
-		"created_at":       p.CreatedAt,
-		"updated_at":       p.UpdatedAt,
+		"profile_id":          p.ID,
+		"full_name":           p.FullName,
+		"avatar_url":          p.AvatarURL,
+		"email":               p.Email,
+		"headline":            p.Headline,
+		"summary":             p.Summary,
+		"skills":              p.Skills,
+		"desired_roles":       p.DesiredRoles,
+		"locations":           p.Locations,
+		"experience_years":    p.ExperienceYears,
+		"open_to_remote":      p.OpenToRemote,
+		"links":               p.Links,
+		"created_at":          p.CreatedAt,
+		"updated_at":          p.UpdatedAt,
+		"transition_type":     p.TransitionType,
+		"current_title":       p.CurrentTitle,
+		"target_level":        p.TargetLevel,
+		"current_industry":    p.CurrentIndustry,
+		"target_industry":     p.TargetIndustry,
+		"transferable_skills": p.TransferableSkills,
 	})
 }
 
@@ -82,8 +90,8 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := `
-		INSERT INTO profiles (id, full_name, avatar_url, email, headline, summary, skills, desired_roles, locations, experience_years, open_to_remote, links, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
+		INSERT INTO profiles (id, full_name, avatar_url, email, headline, summary, skills, desired_roles, locations, experience_years, open_to_remote, links, transition_type, current_title, target_level, current_industry, target_industry, transferable_skills, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())
 		ON CONFLICT (id) DO UPDATE SET
 			full_name = EXCLUDED.full_name,
 			avatar_url = EXCLUDED.avatar_url,
@@ -96,11 +104,17 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 			experience_years = EXCLUDED.experience_years,
 			open_to_remote = EXCLUDED.open_to_remote,
 			links = EXCLUDED.links,
+			transition_type = EXCLUDED.transition_type,
+			current_title = EXCLUDED.current_title,
+			target_level = EXCLUDED.target_level,
+			current_industry = EXCLUDED.current_industry,
+			target_industry = EXCLUDED.target_industry,
+			transferable_skills = EXCLUDED.transferable_skills,
 			updated_at = NOW()
 		RETURNING updated_at
 	`
 	var updatedAt time.Time
-	err := s.DB.Conn.QueryRowContext(r.Context(), query, user.ID, req.FullName, req.AvatarURL, user.Email, req.Headline, req.Summary, req.Skills, req.DesiredRoles, req.Locations, req.ExperienceYears, req.OpenToRemote, req.Links).Scan(&updatedAt)
+	err := s.DB.Conn.QueryRowContext(r.Context(), query, user.ID, req.FullName, req.AvatarURL, user.Email, req.Headline, req.Summary, req.Skills, req.DesiredRoles, req.Locations, req.ExperienceYears, req.OpenToRemote, req.Links, req.TransitionType, req.CurrentTitle, req.TargetLevel, req.CurrentIndustry, req.TargetIndustry, req.TransferableSkills).Scan(&updatedAt)
 	if err != nil {
 		log.Printf("handleUpdateProfile: failed to upsert profile: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to update profile")
