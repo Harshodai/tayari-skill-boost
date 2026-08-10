@@ -2,6 +2,8 @@
 
 Audited from latest main via subagent code inspection. No .md files were trusted.
 
+> **Provenance:** Pre-change baseline audit (2026-08-10, commit 925d16d). The P0 fixes (2026-08-10, commits 4fb6382..f64ee3e) resolved: single product name "Job Tayari" (Landing.tsx, branding gate), branded 404 in Layout, optimizer custom_instructions/target_role/jd_url forwarding, career-goal persistence, backend platform_name cleanup. Findings below describe the state BEFORE those fixes.
+
 ---
 
 ## Q1. Does the platform look professional and use catchy, easy-to-adopt UX copy?

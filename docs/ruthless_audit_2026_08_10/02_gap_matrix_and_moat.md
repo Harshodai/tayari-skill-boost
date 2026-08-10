@@ -49,8 +49,10 @@ Source: subagent code audit + live competitive reconnaissance (Manus, Wonsulting
 
 ## Ruthless moat strategy: "Job Tayari = the agent computer for your career"
 
-Positioning sentence:
+Positioning sentence (target-state — the sandbox apply loop is not yet wired; it is the P1-P2 build target):
 > "Job Tayari is the autonomous career OS for software engineers: one profile, one command, and a transparent AI agent finds, tailors, approves, and applies to your target roles in a sandbox — while keeping you in control."
+
+**Status: target-state.** Resume optimization, approval queue, guardrails, and job scanning are live; automated sandbox submission is the P1/P2 roadmap (see 03_ten_of_ten_plan.md), not yet an existing capability.
 
 Differentiators to own:
 
