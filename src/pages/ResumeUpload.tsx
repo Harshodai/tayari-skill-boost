@@ -157,7 +157,11 @@ const ResumeUpload = () => {
     }
   };
 
-  const canAnalyze = (resumeText || resumeFile) && (jobDescription.trim().length > 50 || customInstructions.trim().length > 0) && !parsingError;
+  // ponytail: analyze endpoint requires a job description (400 otherwise) —
+  // relaxing this gate to custom-instructions-only only enabled a guaranteed
+  // error toast. Custom-instructions-only optimization lives on the results
+  // page, gated by resumeId alone.
+  const canAnalyze = (resumeText || resumeFile) && jobDescription.trim().length > 50 && !parsingError;
 
   const handlePaste = async () => {
     try {
