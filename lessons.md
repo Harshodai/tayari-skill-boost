@@ -1195,3 +1195,21 @@ Fixed four test files to stop cross-test leakage and match the new POST rate-lim
 ### Verification
 - `bun test --dom --preload ./src/test/setup.ts src/test/RateLimiter.test.ts src/test/ResumeGraph.test.tsx src/test/ResumeGraphExport.test.tsx src/test/ResumeGraphPage.test.tsx` → 5 pass, 0 fail.
 - `bunx eslint` on the 4 files → 0 errors, 10 warnings (all pre-existing `any` casts).
+
+---
+
+## 2026-08-10 — P0 Task 1: brand convergence to "Job Tayari" (ruthless-fixes plan)
+
+### What was done
+- Changed the product name to a single user-facing form, "Job Tayari": `src/pages/Landing.tsx:19` hero heading, plus three more offenders surfaced by the new branding test — `AgentReachHub.tsx` (two user-visible strings: "Candidate Intelligence Suite", "Candidate Reach Doctor"), `components/ui/job-card.tsx` and `components/ui/tayari-ui.ts` (doc comments). Rewrote `src/pages/NotFound.tsx` to render inside the shared `Layout` with branded copy and two CTAs (Back to dashboard `/dashboard`, Contact support `/contact`). Added a P0 describe block to `src/config/branding.test.ts` locking: no "Tayari Skill Boost" in src/ outside test files, and `<title>Job Tayari` in index.html.
+
+### Root causes
+- The audit found the product branded as "Tayari Skill Boost" (Landing), "Job Tayari" (index.html), and "JobTayari" (Logo) — three names, no single source of truth.
+- The brief's step-2 expectation ("only Landing.tsx fails") was stale: the verbatim test code scans all of `src/`, which surfaced 3 additional offenders (1 user-visible page, 2 doc comments).
+
+### Fix applied
+- Copy-only swaps of "Tayari Skill Boost" → "Job Tayari" everywhere the new test scans; 404 page wrapped in `Layout` per the brief's exact code. Committed as `4fb6382`; lessons entry committed separately as a docs commit per protocol.
+
+### Reusable lessons
+- When a branding test greps the whole tree, the audit's offender list is never exhaustive — run the test first and let it enumerate the full offender set before editing. The test is the source of truth, not the brief's prose.
+- A 404 page is a user-facing page; a bare `<a href="/">` link loses the app chrome (nav/footer) and the primary recovery action. Wrap it in the shared `Layout` so a lost user can navigate back instead of hitting the browser back button.
