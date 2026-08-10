@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import type { VerificationStatus } from "@/api/verification";
+import type { Profile } from "@/api/types";
 
 const Profile = () => {
   const { user } = useAuth();
@@ -114,25 +115,27 @@ const Profile = () => {
   const [locationInput, setLocationInput] = useState("");
   const [transferableInput, setTransferableInput] = useState("");
 
+  const profileToForm = (p: Profile) => ({
+    full_name: p.full_name || "",
+    headline: p.headline || "",
+    summary: p.summary || "",
+    skills: p.skills || [],
+    desired_roles: p.desired_roles || [],
+    locations: p.locations || [],
+    experience_years: p.experience_years || 0,
+    open_to_remote: p.open_to_remote || false,
+    links: (p.links as Record<string, string>) || {},
+    transition_type: p.transition_type,
+    current_title: p.current_title || "",
+    target_level: p.target_level || "",
+    current_industry: p.current_industry || "",
+    target_industry: p.target_industry || "",
+    transferable_skills: p.transferable_skills || [],
+  });
+
   useEffect(() => {
     if (profile) {
-      setForm({
-        full_name: profile.full_name || "",
-        headline: profile.headline || "",
-        summary: profile.summary || "",
-        skills: profile.skills || [],
-        desired_roles: profile.desired_roles || [],
-        locations: profile.locations || [],
-        experience_years: profile.experience_years || 0,
-        open_to_remote: profile.open_to_remote || false,
-        links: (profile.links as Record<string, string>) || {},
-        transition_type: profile.transition_type,
-        current_title: profile.current_title || "",
-        target_level: profile.target_level || "",
-        current_industry: profile.current_industry || "",
-        target_industry: profile.target_industry || "",
-        transferable_skills: profile.transferable_skills || [],
-      });
+      setForm(profileToForm(profile));
     }
   }, [profile]);
 
@@ -317,7 +320,7 @@ const Profile = () => {
               <div className="flex gap-2">
                 {isEditing ? (
                   <>
-                    <Button variant="outline" size="sm" onClick={() => { setIsEditing(false); setValidationErrors([]); }}>
+                    <Button variant="outline" size="sm" onClick={() => { setForm(profileToForm(profile)); setIsEditing(false); setValidationErrors([]); }}>
                       <X className="w-4 h-4 mr-1" /> Cancel
                     </Button>
                     <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending}>
@@ -722,15 +725,22 @@ const Profile = () => {
                             <Badge key={idx} variant="secondary" className="flex items-center gap-1">
                               {skill}
                               {isEditing && (
-                                <XIcon
-                                  className="w-3 h-3 cursor-pointer"
+                                // ponytail: interactive SVG must be a real button for keyboard access; keep ghost/sm sizing so the badge layout is unchanged
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 w-5 p-0"
+                                  aria-label={`Remove skill ${skill}`}
                                   onClick={() =>
                                     setForm((prev) => ({
                                       ...prev,
                                       transferable_skills: prev.transferable_skills.filter((_, i) => i !== idx),
                                     }))
                                   }
-                                />
+                                >
+                                  <XIcon className="w-3 h-3" />
+                                </Button>
                               )}
                             </Badge>
                           ))
