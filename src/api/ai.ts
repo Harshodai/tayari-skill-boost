@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiFetch, API_URL, getHeaders } from "./client";
 
 function stableHash(input: string): string {
   let hash = 0;
@@ -221,3 +221,50 @@ export async function queryKnowledgeHub(query: string): Promise<KnowledgeHubQuer
   });
 }
 
+
+export interface CopilotStreamEvent {
+  type: "question_type" | "hints" | "star" | "metrics" | "done" | "error";
+  value?: unknown;
+  error?: string;
+  message?: string;
+}
+
+// ponytail: SSE over the Go gateway — fetch + ReadableStream parse, no
+// EventSource (POST body required). Progressive events surface as they arrive.
+export async function streamInterviewCopilotHints(
+  payload: Record<string, unknown>,
+  onEvent: (event: CopilotStreamEvent) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const response = await fetch(`${API_URL}/v1/interview/copilot/stream`, {
+    method: "POST",
+    headers: { ...getHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal,
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(text ? `HTTP ${response.status}: ${text}` : `HTTP ${response.status}`);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Streaming unsupported");
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf("\n\n")) >= 0) {
+      const chunk = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      const line = chunk.split("\n").find((l) => l.startsWith("data: "));
+      if (!line) continue;
+      try {
+        onEvent(JSON.parse(line.slice(6)) as CopilotStreamEvent);
+      } catch {
+        // skip malformed frames
+      }
+    }
+  }
+}

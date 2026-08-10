@@ -66,6 +66,7 @@ import {
   syncGmail,
   disconnectGmail
 } from "@/api";
+import { streamInterviewCopilotHints, type CopilotStreamEvent } from "@/api/ai";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 
@@ -102,6 +103,39 @@ const InterviewBoard = () => {
   const [newNoteText, setNewNoteText] = useState("");
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [isGeneratingIQ, setIsGeneratingIQ] = useState(false);
+
+  // Live Copilot state
+  const [copilotQuestion, setCopilotQuestion] = useState("");
+  const [copilotEvents, setCopilotEvents] = useState<CopilotStreamEvent[]>([]);
+  const [isCopilotStreaming, setIsCopilotStreaming] = useState(false);
+  const copilotAbortRef = useRef<AbortController | null>(null);
+
+  const handleCopilotStream = async () => {
+    if (!copilotQuestion.trim() || isCopilotStreaming) return;
+    setIsCopilotStreaming(true);
+    setCopilotEvents([]);
+    const controller = new AbortController();
+    copilotAbortRef.current = controller;
+    try {
+      await streamInterviewCopilotHints(
+        {
+          interviewer_transcript: copilotQuestion.trim(),
+          job_title: selectedApp?.job_title || "Software Engineer",
+          company_name: selectedApp?.company_name || null,
+        },
+        (event) => setCopilotEvents((prev) => [...prev, event]),
+        controller.signal
+      );
+    } catch (err: any) {
+      setCopilotEvents((prev) => [
+        ...prev,
+        { type: "error", error: "copilot_failed", message: err?.message || "Stream failed" },
+      ]);
+    } finally {
+      setIsCopilotStreaming(false);
+      copilotAbortRef.current = null;
+    }
+  };
 
   // Recording voice note state
   const [isRecording, setIsRecording] = useState(false);
@@ -876,6 +910,9 @@ const InterviewBoard = () => {
                       <TabsTrigger value="intel" className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-1 h-full bg-transparent shadow-none font-semibold">
                         <Brain className="w-4 h-4 mr-2" /> AI Interview Prep
                       </TabsTrigger>
+                      <TabsTrigger value="copilot" className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-1 h-full bg-transparent shadow-none font-semibold">
+                        <Sparkles className="w-4 h-4 mr-2" /> Live Copilot
+                      </TabsTrigger>
                     </TabsList>
                   </div>
 
@@ -1127,6 +1164,110 @@ const InterviewBoard = () => {
                                 </ul>
                               </div>
                             )}
+                          </div>
+                        )}
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="copilot" className="m-0 space-y-6">
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="text-sm font-bold text-foreground">Live Copilot</h4>
+                          <p className="text-xs text-muted-foreground">
+                            Paste the interviewer's question for instant STAR hints, framework, and metric callouts — streamed as they generate.
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Textarea
+                            rows={3}
+                            placeholder="Paste the interviewer's question here…"
+                            value={copilotQuestion}
+                            onChange={(e) => setCopilotQuestion(e.target.value)}
+                            className="bg-background/80"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button onClick={handleCopilotStream} disabled={isCopilotStreaming || !copilotQuestion.trim()} size="sm">
+                            {isCopilotStreaming ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Streaming…
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-4 h-4 mr-2" /> Get live hints
+                              </>
+                            )}
+                          </Button>
+                          {isCopilotStreaming && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => copilotAbortRef.current?.abort()}
+                            >
+                              Stop
+                            </Button>
+                          )}
+                        </div>
+
+                        {copilotEvents.length > 0 && (
+                          <div className="space-y-3">
+                            {copilotEvents.map((event, i) => {
+                              if (event.type === "error") {
+                                return (
+                                  <div key={i} className="text-xs text-destructive bg-destructive/5 border border-destructive/30 rounded-lg p-3">
+                                    {event.error === "ai_service_unavailable"
+                                      ? "AI service unavailable — configure an LLM provider first."
+                                      : event.message || "Copilot failed"}
+                                  </div>
+                                );
+                              }
+                              if (event.type === "question_type") {
+                                return (
+                                  <div key={i} className="text-xs">
+                                    <span className="font-semibold text-primary">Question type:</span>{" "}
+                                    <Badge variant="outline">{String(event.value)}</Badge>
+                                  </div>
+                                );
+                              }
+                              if (event.type === "hints" && Array.isArray(event.value)) {
+                                return (
+                                  <div key={i} className="space-y-1.5">
+                                    <p className="text-xs font-bold uppercase tracking-wider text-primary">Instant hints</p>
+                                    {(event.value as string[]).map((h, j) => (
+                                      <p key={j} className="text-sm text-foreground/90 flex gap-2">
+                                        <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5 text-primary" />{h}
+                                      </p>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              if (event.type === "star" && event.value && typeof event.value === "object") {
+                                const star = event.value as Record<string, string>;
+                                return (
+                                  <div key={i} className="space-y-1.5">
+                                    <p className="text-xs font-bold uppercase tracking-wider text-primary">STAR framework</p>
+                                    {Object.entries(star).map(([k, v]) => (
+                                      <p key={k} className="text-sm text-foreground/90">
+                                        <span className="font-semibold uppercase text-xs mr-1">{k}:</span>{v}
+                                      </p>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              if (event.type === "metrics" && Array.isArray(event.value)) {
+                                return (
+                                  <div key={i} className="space-y-1.5">
+                                    <p className="text-xs font-bold uppercase tracking-wider text-primary">Metric callouts</p>
+                                    {(event.value as string[]).map((m, j) => (
+                                      <p key={j} className="text-sm text-foreground/90 flex gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-600" />{m}
+                                      </p>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })}
                           </div>
                         )}
                       </div>
