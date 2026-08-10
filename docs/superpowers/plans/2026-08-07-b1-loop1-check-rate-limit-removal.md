@@ -177,15 +177,27 @@ func (s *Server) handleAuthRateLimit(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-- [ ] **Step 4: Register the route (parity)**
+- [ ] **Step 4: Register the route (parity) — in the PUBLIC route group, not the JWT group**
 
-In `backend/go/internal/api/routes_app.go`, inside the auth-guarded route group, add alongside the other auth routes (find the auth/login block and add):
+The rate-limit read is an unauthenticated pre-login check, so it must live OUTSIDE the
+`authMiddleware` group — the caller isn't logged in yet. Register in the same public
+group as `/health` and `/auth/login` (which already applies `s.publicRateLimiter.Middleware`),
+and keep the existing IP-based throttle from `middleware.go` (`publicRateLimiter`) as the
+abuse cap. In `backend/go/internal/api/routes_app.go`, in the public route group (the one
+with `publicRateLimiter`, alongside the auth login block — NOT the `authMiddleware` group below it), add:
 
 ```go
 // ---- Auth rate-limit read (replaces check-rate-limit edge fn) ----
-r.Get("/api/v1/auth/rate-limit", s.handleAuthRateLimit)
-r.Get("/api/auth/rate-limit", s.handleAuthRateLimit)
+// Unauthenticated pre-login read: caller checks lockout before login.
+// Global IP rate limiter (publicRateLimiter above) caps abuse. POST with
+// a JSON body keeps the email out of the URL (no query-string leakage).
+r.Post("/api/v1/auth/rate-limit", s.handleAuthRateLimit)
+r.Post("/api/auth/rate-limit", s.handleAuthRateLimit)
 ```
+
+Note: the shipped endpoint is **POST with the email in a JSON body** (`{"email":…}`),
+not GET-with-query-param — the body keeps the email out of the URL. No JWT guard:
+adding one would break the pre-login flow this endpoint exists for.
 
 - [ ] **Step 5: Run tests to verify they pass**
 

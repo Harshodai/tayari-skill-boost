@@ -1064,9 +1064,80 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 ### Reusable lessons
 1. **Verify "gap" claims against the tree before designing around them** — the audit's V7 row was right, but my own parity-gap claim was wrong; the build caught it, the design doc had to be silently corrected in implementation. Grep for the route file BEFORE writing the design.
 2. `httptest.ResponseRecorder` lacks `http.Flusher` — optional-flusher pattern is mandatory for testable SSE passthrough (second time this lesson fired; now a house pattern).
-3. browser-use's step callback is sync while the generator is async — collect events in a list drained after `agent.run()` completes; ordering is preserved.
+3. browser-use's step callback is sync while the generator is async — feed an `asyncio.Queue` from the callback and have the generator yield events as they arrive (immediate live streaming), rather than collecting them in a list drained only after `agent.run()` completes.
 4. Pre-existing flaky live-network tests (OpenRouter 401 in `app/tests/`) are unrelated to feature work — verify by running the suite without the new test file before blaming the change.
 5. Gates: Python 501/0 (4 new; 2 pre-existing OpenRouter flakes), Go green incl. parity, frontend 165/14, lint 51 errors flat.
 
 ### Program status
 - V3: DONE. Moat-1: DONE. Moat-2: DONE. V7: DONE. All audit moats delivered. Remaining backlog: V4 pricing (NOT in scope — user never requested), plus the deferred loop-2/loop-3 minors.
+
+## 2026-08-10 — Frontend correctness sweep (SSE parsing, run-bound feed, auth POST, MCP ref, copilot lifecycle, form guards)
+
+### What was done
+- `src/api/ai.ts`: SSE parser now accepts `data:` with optional whitespace after the colon (`trimStart` after `slice`) and flushes the remaining buffer as a final frame at EOF — done/error frames without a trailing blank line are no longer dropped.
+- `src/api/auth.ts`: `getAuthRateLimit` sends `POST` with `{ email }` JSON body instead of `?email=` query string (Go gateway route changed to POST in the same task).
+- `src/api/browser.ts` + `src/components/agent/AgentLiveView.tsx`: `streamBrowserAgent` gained an optional `runId` propagated into the `run_id` body field; the "Watch the agent" feed now observes the displayed run. `startFeed` catch ignores `AbortError` (no `browser_feed_failed` on stop/unmount) and an unmount effect aborts the active controller.
+- `src/lib/mcp/index.ts`: `projectRefFromSupabaseUrl` reads `import.meta.env.VITE_SUPABASE_URL` instead of `process.env.SUPABASE_URL`; both the URL-derived ref and `VITE_SUPABASE_PROJECT_ID` now pass the same `validProjectRef` predicate (non-empty, not `project-ref-unset`, `/^[a-z0-9]{20}$/`).
+- `src/pages/InterviewBoard.tsx`: copilot hints use `selectedApp.title`/`company` (not `job_title`/`company_name`), keep `"Software Engineer"`/`null` fallbacks; AbortError from the Stop button no longer appends `copilot_failed`; unmount aborts the copilot stream; switching selected application clears `copilotQuestion` + `copilotEvents`.
+- `src/pages/Networking.tsx`: `draft()` rejects empty `targetRole` with toast "Role you're targeting is required" (matches the component's toast-error convention); Draft button disabled while empty; payload uses `targetRole.trim()`.
+- `src/pages/Profile.tsx`: resume-text Textarea in the Verify dialog got stable `id="resume-text"` + persistent `<label htmlFor="resume-text">` (plain-label convention already used at lines 607/619 in the file); placeholder/explainer unchanged.
+
+### Root cause
+- SSE frames were only parsed when terminated by `\n\n` and only matched `data: ` (space required); trailing frames and `data:`-without-space frames were silently lost.
+- Feed/copilot streams had no run binding, leaked on unmount, and reported user-initiated aborts as failures.
+- `process.env.SUPABASE_URL` is undefined in a Vite SPA (env is `import.meta.env.*`), so the issuer fallback always returned "".
+
+### Fix applied
+- Extracted `parseFrame` (prefix-agnostic, whitespace-tolerant) + EOF flush; POST body for rate-limit; `run_id` passthrough; AbortError guards + unmount aborts; `VITE_SUPABASE_URL` + shared validation predicate; empty-role guard; labeled Textarea.
+
+### Reusable lessons
+1. SSE parsers must be frame-terminator-agnostic: handle `data:` and `data: `, and flush the tail buffer at EOF — servers don't guarantee a trailing blank line after done/error.
+2. `AbortError` is a control-flow signal, not a failure: check `err?.name === "AbortError"` in stream catches before appending error events, and abort active controllers in unmount cleanup.
+3. In a Vite SPA, `process.env.*` is always undefined — only `import.meta.env.VITE_*` reaches the browser; keep the single validation predicate for env-derived values.
+4. Gates: build green, `bun test src/api/browser.test.ts` 2/2, lint errors flat 51 (all pre-existing in `external_repos/`).
+
+## 2026-08-10 — Doc-reconciliation sweep: four docs verified against code, five findings fixed
+
+Applied the five-doc reconciliation audit's follow-up fixes: ADR 0003 rate-limit route shape, the B1 loop-1 plan's route placement, the V7 plan's parent status, and three spec-table rows (V1 temporal hole, V7 browser feed, Moat-2 FROZEN status).
+
+### The Problem
+- `docs/adr/0003-...md` documented `check-rate-limit → GET /api/v1/rate-limit`; code shipped POST `/api/v1/auth/rate-limit` with `{email}` JSON body in the public route group (`routes_app.go:29-34`).
+- The loop-1 plan said to register the rate-limit aliases inside the auth-guarded group — that would require a JWT for a pre-login read.
+- The V7 plan claimed its parent spec was APPROVED; the parent says DRAFT awaiting approval.
+- The audit addendum (dated 2026-08-07) cited 2026-08-08 delivery evidence; V7 row said "no live browser feed" and the closing summary listed Moat-2 as a remaining moat — but V7 (screenshot SSE) and Moat-2 (copilot streaming) both landed 2026-08-10.
+
+### The Lesson
+- Verify docs against current code (routes, file:line) BEFORE editing; "already fixed" and "now shipped" both beat "as written". Moat-2 was unfrozen by user on 2026-08-07 and its streaming delivery on 2026-08-10 superseded the FROZEN verdict — one status must propagate to every row mentioning it (B8, backlog #16, V2, closing summary), not just one.
+
+### The Fix (in `docs/`)
+- ADR 0003 line 28: GET → `POST /api/v1/auth/rate-limit` (email in JSON body; unauthenticated pre-login read; public IP limiter).
+- loop-1 plan Step 4: aliases registered in the PUBLIC group (outside `authMiddleware`), `publicRateLimiter` retained; endpoint is POST-with-body, not GET-query.
+- V7 plan line 3: parent status APPROVED → DRAFT.
+- Audit spec: addendum re-dated 2026-08-08 (matches V1 delivery); V7 row → IMPLEMENTED (2026-08-10) with SSE evidence; V2 row → IMPLEMENTED (streaming) with unfroze history; Moat-2 removed from remaining-moats; B8 + backlog #16 frozen references marked unfrozen-with-delivery.
+
+### Reusable lessons
+1. A doc's "currently FROZEN/STALE" verdict is a volatile fact — date-stamp it and re-check before citing; a single decision (unfreeze) must update every row that references it.
+2. Route-shape facts (verb, body vs query, route-group) belong in the ADR AND match the code; when code ships differently than the plan, fix the plan text to the shipped shape.
+
+## 2026-08-10 — Test hygiene: localStorage isolation + mockFetch reset + POST rate-limit assertion
+
+Fixed four test files to stop cross-test leakage and match the new POST rate-limit route shape.
+
+### The Problem
+- `RateLimiter.test.ts` only cleared its stub Map storage; under `--dom` the real global `localStorage` persisted auth tokens between tests (real `@/api/client` reads `localStorage['auth_token']`).
+- `ResumeGraphExport.test.tsx` / `ResumeGraphPage.test.tsx` never reset mockFetch's queued one-shot responses between tests; a stale queue could serve the wrong response to a later test.
+- `RateLimiter.test.ts` still asserted the old GET `?email=` query; `getAuthRateLimit` ships POST `{email}` JSON body.
+
+### The Fix (in `src/test/`)
+- `RateLimiter.test.ts`: snapshot the real localStorage at module load; `clear()` it in beforeEach and restore the snapshot in afterEach (stub branch keeps the Map clear/delete). URL assertion updated to `expect.objectContaining({ method: "POST", body: JSON.stringify({ email }) })`.
+- `ResumeGraphExport.test.tsx` / `ResumeGraphPage.test.tsx`: beforeEach now `mockClear()` + `mockReset()` + reapply `mockImplementation(() => Promise.resolve(new Response()))` before assigning `globalThis.fetch`.
+- `ResumeGraph.test.tsx`: added assertion that the graph fetch URL contains `/v1/resume-graph/123?format=raw`.
+
+### The Lesson
+1. Test files that stub `globalThis.fetch` must clear call history AND queued one-shot responses each test, then reapply the default implementation — clearing only calls leaks queued responses across tests.
+2. When storage is real (DOM env), clearing the stub Map isn't enough — clear the real storage in beforeEach and restore the module-load snapshot in afterEach.
+3. Run `bun test --dom --preload ./src/test/setup.ts <files>` for component tests — bare `bun test <files>` fails with "document is not defined".
+
+### Verification
+- `bun test --dom --preload ./src/test/setup.ts src/test/RateLimiter.test.ts src/test/ResumeGraph.test.tsx src/test/ResumeGraphExport.test.tsx src/test/ResumeGraphPage.test.tsx` → 5 pass, 0 fail.
+- `bunx eslint` on the 4 files → 0 errors, 10 warnings (all pre-existing `any` casts).

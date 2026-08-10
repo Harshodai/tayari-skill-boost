@@ -1,6 +1,6 @@
 # V7 — Glass Box live browser feed: implementation plan
 
-Parent: `docs/superpowers/specs/2026-08-08-v7-glass-box-live-browser-feed-design.md` (APPROVED).
+Parent: `docs/superpowers/specs/2026-08-08-v7-glass-box-live-browser-feed-design.md` (DRAFT — awaiting user approval).
 Executor: direct. Commit per task; gate per task.
 
 ## T1 — Python stream generator + endpoint

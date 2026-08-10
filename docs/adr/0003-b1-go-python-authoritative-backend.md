@@ -25,7 +25,8 @@ were the default path). Consequences:
   backend. Supabase provides identity (GoTrue) + Postgres; its edge-function layer is not
   used.
 - Per-feature replacements (B1 loops 1-3):
-  - check-rate-limit → Go `GET /api/v1/rate-limit` (read endpoint) + frontend helper.
+  - check-rate-limit → Go `POST /api/v1/auth/rate-limit` (email in JSON body;
+    unauthenticated pre-login read; public IP limiter caps abuse) + frontend helper.
   - analyze-resume → Python `analyze_text_endpoint` (already existed) + frontend-only
     parity fix (`src/lib/resumeAnalysis.ts` normalizer; snake_case result contract).
   - generate-resume-pdf → Python `POST /api/v1/resumes/generate-pdf` (one `llm_json`
