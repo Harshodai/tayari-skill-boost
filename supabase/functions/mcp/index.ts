@@ -3,11 +3,11 @@
 // supabase function: mcp
 // Bundled from src/lib/mcp/index.ts by @lovable.dev/mcp-js.
 // src/lib/mcp/index.ts
-import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.1";
 
 // src/lib/mcp/tools/get-profile.ts
 import { createClient } from "npm:@supabase/supabase-js@^2.90.1";
-import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.1";
 function sb(ctx) {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
     global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
@@ -35,7 +35,7 @@ var get_profile_default = defineTool({
 
 // src/lib/mcp/tools/search-jobs.ts
 import { createClient as createClient2 } from "npm:@supabase/supabase-js@^2.90.1";
-import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z } from "npm:zod@^4.4.3";
 function sb2(ctx) {
   return createClient2(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
@@ -68,7 +68,7 @@ var search_jobs_default = defineTool2({
 
 // src/lib/mcp/tools/list-applications.ts
 import { createClient as createClient3 } from "npm:@supabase/supabase-js@^2.90.1";
-import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z2 } from "npm:zod@^4.4.3";
 function sb3(ctx) {
   return createClient3(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
@@ -102,7 +102,7 @@ var list_applications_default = defineTool3({
 
 // src/lib/mcp/tools/save-job.ts
 import { createClient as createClient4 } from "npm:@supabase/supabase-js@^2.90.1";
-import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z3 } from "npm:zod@^4.4.3";
 function sb4(ctx) {
   return createClient4(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
@@ -145,7 +145,7 @@ var save_job_default = defineTool4({
 });
 
 // src/lib/mcp/tools/optimize-resume.ts
-import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z4 } from "npm:zod@^4.4.3";
 
 // src/lib/mcp/tools/_client.ts
@@ -217,7 +217,7 @@ var optimize_resume_default = defineTool5({
 });
 
 // src/lib/mcp/tools/get-ats-score.ts
-import { defineTool as defineTool6 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool6 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z5 } from "npm:zod@^4.4.3";
 var get_ats_score_default = defineTool6({
   name: "get_ats_score",
@@ -242,7 +242,7 @@ var get_ats_score_default = defineTool6({
 });
 
 // src/lib/mcp/tools/generate-cover-letter.ts
-import { defineTool as defineTool7 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool7 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z6 } from "npm:zod@^4.4.3";
 var generate_cover_letter_default = defineTool7({
   name: "generate_cover_letter",
@@ -270,7 +270,7 @@ var generate_cover_letter_default = defineTool7({
 
 // src/lib/mcp/tools/get-pipeline.ts
 import { createClient as createClient5 } from "npm:@supabase/supabase-js@^2.90.1";
-import { defineTool as defineTool8 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool8 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z7 } from "npm:zod@^4.4.3";
 function sb5(ctx) {
   return createClient5(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
@@ -301,7 +301,7 @@ var get_pipeline_default = defineTool8({
 });
 
 // src/lib/mcp/tools/add-to-pipeline.ts
-import { defineTool as defineTool9 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool9 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z8 } from "npm:zod@^4.4.3";
 var add_to_pipeline_default = defineTool9({
   name: "add_to_pipeline",
@@ -330,7 +330,7 @@ var add_to_pipeline_default = defineTool9({
 });
 
 // src/lib/mcp/tools/get-interview-questions.ts
-import { defineTool as defineTool10 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool10 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z9 } from "npm:zod@^4.4.3";
 var get_interview_questions_default = defineTool10({
   name: "get_interview_questions",
@@ -356,7 +356,7 @@ var get_interview_questions_default = defineTool10({
 });
 
 // src/lib/mcp/tools/get-skill-gaps.ts
-import { defineTool as defineTool11 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool11 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z10 } from "npm:zod@^4.4.3";
 var get_skill_gaps_default = defineTool11({
   name: "get_skill_gaps",
@@ -389,7 +389,7 @@ var get_skill_gaps_default = defineTool11({
 });
 
 // src/lib/mcp/tools/get-market-salary.ts
-import { defineTool as defineTool12 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool12 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z11 } from "npm:zod@^4.4.3";
 var get_market_salary_default = defineTool12({
   name: "get_market_salary",
@@ -414,7 +414,7 @@ var get_market_salary_default = defineTool12({
 });
 
 // src/lib/mcp/tools/check-company.ts
-import { defineTool as defineTool13 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool13 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z12 } from "npm:zod@^4.4.3";
 var check_company_default = defineTool13({
   name: "check_company",
@@ -439,7 +439,7 @@ var check_company_default = defineTool13({
 });
 
 // src/lib/mcp/tools/report-outcome.ts
-import { defineTool as defineTool14 } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineTool as defineTool14 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z13 } from "npm:zod@^4.4.3";
 var report_outcome_default = defineTool14({
   name: "report_outcome",
@@ -474,7 +474,25 @@ var report_outcome_default = defineTool14({
 });
 
 // src/lib/mcp/index.ts
-var projectRef = (true ? "snvhgwconuidoymwdeae" : projectRefFromSupabaseUrl()) || "";
+function projectRefFromSupabaseUrl() {
+  const raw = String("http://localhost:8010");
+  if (!raw) return "";
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return "";
+  }
+  if (parsed.protocol !== "https:") return "";
+  const host = parsed.hostname.toLowerCase();
+  const match = /^([a-z0-9]{20})\.supabase\.co$/.exec(host);
+  if (!match) return "";
+  return match[1];
+}
+function validProjectRef(value) {
+  return !!value && value !== "project-ref-unset" && /^[a-z0-9]{20}$/.test(value);
+}
+var projectRef = (validProjectRef("") ? "" : projectRefFromSupabaseUrl()) || "";
 var mcp_default = defineMcp({
   name: "tayari-mcp",
   title: "Tayari",
@@ -508,5 +526,5 @@ var mcp_default = defineMcp({
 });
 
 // lovable-mcp-supabase-entry.ts
-import { createSupabaseHandler } from "npm:@lovable.dev/mcp-js@0.20.0/stacks/supabase";
+import { createSupabaseHandler } from "npm:@lovable.dev/mcp-js@0.20.1/stacks/supabase";
 Deno.serve(createSupabaseHandler(mcp_default, { functionName: "mcp" }));
