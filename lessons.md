@@ -1047,3 +1047,26 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 
 ### Program status
 - V3: DONE. Moat-1: DONE. Moat-2: DONE. Remaining: V7 Glass Box (WebSocket live browser feed — heaviest infra, separate design cycle).
+
+## 2026-08-08 — V7 Glass Box: live browser feed (delivered)
+
+### What was done
+- Python: `stream_browser_agent` async generator — runs browser-use with `register_new_step_callback` capturing `BrowserState.screenshot` (base64 PNG) + step/url/title; yields screenshot events then done-with-result; error events (`ai_service_unavailable` / `browser_agent_failed` / `invalid_instruction`) — never canned. `POST /api/v1/browser/automation/stream` SSE endpoint.
+- Go: `handleBrowserAutomationStream` SSE passthrough (PostStream + optional flusher) registered in `RegisterBrowserRoutes` under both trees.
+- Frontend: `src/api/browser.ts` SSE helper + test; AgentLiveView "Live browser feed" panel — progressive `<img>` screenshots, step counter, URL, stop button, honest caption ("per step — not a video stream").
+
+### Root cause
+- The audit's V7 gap was real: browser-use already captured per-step screenshots; nothing surfaced them. Also my design claimed a "parity gap" for `/api/v1/browser/automation` — WRONG: `routes_browser.go` already had `RegisterBrowserRoutes` with the plain proxy. Caught by the build (undefined method) before any damage; reverted to the original handler + added only the stream.
+
+### Fix applied
+- Streamed the existing per-step screenshots over the Moat-2 SSE path (zero new deps — WebSocket would have violated the no-new-deps rule).
+
+### Reusable lessons
+1. **Verify "gap" claims against the tree before designing around them** — the audit's V7 row was right, but my own parity-gap claim was wrong; the build caught it, the design doc had to be silently corrected in implementation. Grep for the route file BEFORE writing the design.
+2. `httptest.ResponseRecorder` lacks `http.Flusher` — optional-flusher pattern is mandatory for testable SSE passthrough (second time this lesson fired; now a house pattern).
+3. browser-use's step callback is sync while the generator is async — collect events in a list drained after `agent.run()` completes; ordering is preserved.
+4. Pre-existing flaky live-network tests (OpenRouter 401 in `app/tests/`) are unrelated to feature work — verify by running the suite without the new test file before blaming the change.
+5. Gates: Python 501/0 (4 new; 2 pre-existing OpenRouter flakes), Go green incl. parity, frontend 165/14, lint 51 errors flat.
+
+### Program status
+- V3: DONE. Moat-1: DONE. Moat-2: DONE. V7: DONE. All audit moats delivered. Remaining backlog: V4 pricing (NOT in scope — user never requested), plus the deferred loop-2/loop-3 minors.
