@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +24,7 @@ func TestComputeVerification_AboveThresholdsIsVerified(t *testing.T) {
 		"truthful_score": 84.0, "red_flags": []interface{}{"X"},
 		"screening_score": 73.0, "strengths": []interface{}{"Y"},
 		"gaps": []interface{}{"Z"}, "sample_questions": []interface{}{"Q1"},
+		"evidence": "independent_check",
 	})
 	if row.Status != "verified" {
 		t.Errorf("expected verified, got %s", row.Status)
@@ -37,6 +37,32 @@ func TestComputeVerification_AboveThresholdsIsVerified(t *testing.T) {
 	}
 	if len(row.RedFlags) != 1 || row.RedFlags[0] != "X" {
 		t.Errorf("unexpected red_flags: %v", row.RedFlags)
+	}
+}
+
+func TestComputeVerification_ResumeOnlyEvidenceNeverVerifies(t *testing.T) {
+	row := computeVerification(map[string]interface{}{
+		"truthful_score": 95.0, "red_flags": []interface{}{},
+		"screening_score": 90.0, "strengths": []interface{}{},
+		"gaps": []interface{}{}, "sample_questions": []interface{}{},
+		"evidence": "resume_only",
+	})
+	if row.Status != "unverified" {
+		t.Errorf("expected unverified for resume-only evidence, got %s", row.Status)
+	}
+	if row.VerifiedAt != nil {
+		t.Error("expected nil verified_at for resume-only evidence")
+	}
+}
+
+func TestComputeVerification_MissingEvidenceNeverVerifies(t *testing.T) {
+	row := computeVerification(map[string]interface{}{
+		"truthful_score": 95.0, "red_flags": []interface{}{},
+		"screening_score": 90.0, "strengths": []interface{}{},
+		"gaps": []interface{}{}, "sample_questions": []interface{}{},
+	})
+	if row.Status != "unverified" {
+		t.Errorf("expected unverified without evidence, got %s", row.Status)
 	}
 }
 
@@ -180,24 +206,68 @@ func TestVerificationSubmit_ForwardsPython503(t *testing.T) {
 	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/verification/submit",
 		[]byte(`{"resume_text":"Jane"}`)))
 
-	if w.Code != http.StatusBadGateway {
-		t.Fatalf("expected 502, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "ai_service_unavailable") {
+		t.Errorf("expected ai_service_unavailable error code, got %s", w.Body.String())
 	}
 }
 
-func TestVerificationStatus_AliasRouteReturns200Unverified(t *testing.T) {
+func TestVerificationSubmit_RejectsWhitespaceOnlyResumeText(t *testing.T) {
+	called := false
+	srv := fakeAIServer(t, func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+	defer srv.Close()
+
+	server := newVerificationServer(t, srv.URL)
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/verification/submit",
+		[]byte(`{"resume_text":"   \n\t  "}`)))
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", w.Code, w.Body.String())
+	}
+	if called {
+		t.Error("expected no upstream call for whitespace-only resume_text")
+	}
+}
+
+func TestVerificationSubmit_TrimsAndForwardsNormalizedText(t *testing.T) {
+	upstreamBody := ""
+	srv := fakeAIServer(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		upstreamBody = string(body)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, scoringResponse)
+	})
+	defer srv.Close()
+
+	server := newVerificationServer(t, srv.URL)
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/verification/submit",
+		[]byte(`{"resume_text":"  Jane Doe\nSenior Engineer at Acme.  "}`)))
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 (nil DB) after successful proxy, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(upstreamBody, `"resume_text":"Jane Doe\nSenior Engineer at Acme."`) {
+		t.Errorf("expected trimmed resume_text forwarded, got %s", upstreamBody)
+	}
+}
+
+func TestVerificationStatus_AliasRouteReturns503OnNilDB(t *testing.T) {
 	server := newVerificationServer(t, "http://127.0.0.1:1")
 	w := httptest.NewRecorder()
 	server.Router.ServeHTTP(w, authReq(http.MethodGet, "/api/verification/status", nil))
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d: %s", w.Code, w.Body.String())
 	}
-	var resp map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
-	}
-	if resp["status"] != "unverified" {
-		t.Errorf("expected unverified without DB, got %v", resp["status"])
+	if !strings.Contains(w.Body.String(), "database_unavailable") {
+		t.Errorf("expected database_unavailable error code, got %s", w.Body.String())
 	}
 }

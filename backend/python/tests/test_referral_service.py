@@ -8,7 +8,11 @@ pytest.importorskip("pydantic")
 
 from fastapi import HTTPException
 
-from app.services.referral_service import ReferralDraftVerdict, run_referral_draft
+from app.services.referral_service import (
+    ReferralDraftVerdict,
+    _validate_verdict,
+    run_referral_draft,
+)
 from app.services.llm_service import LLMNotConfiguredError
 
 MODULE = "app.services.referral_service"
@@ -149,3 +153,46 @@ async def test_endpoint_rejects_missing_relationship(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         await create_referral_draft(ReferralDraftRequest.model_validate(ctx))
     assert exc.value.status_code == 400
+
+
+def _verdict_with(subject: str, email_body: str) -> ReferralDraftVerdict:
+    return ReferralDraftVerdict(
+        fit_score=80.0,
+        subject=subject,
+        email_body=email_body,
+        linkedin_body="Hi!",
+        rationale="ok",
+    )
+
+
+def test_validate_verdict_accepts_10_word_subject():
+    verdict = _verdict_with("one two three four five six seven eight nine ten", "Para one.\n\nPara two.")
+    _validate_verdict(verdict)
+
+
+def test_validate_verdict_rejects_11_word_subject():
+    verdict = _verdict_with("one two three four five six seven eight nine ten eleven", "Para one.")
+    with pytest.raises(ValueError):
+        _validate_verdict(verdict)
+
+
+def test_validate_verdict_accepts_two_paragraph_email():
+    verdict = _verdict_with("Short subject", "Para one.\n\nPara two.")
+    _validate_verdict(verdict)
+
+
+def test_validate_verdict_rejects_three_paragraph_email():
+    verdict = _verdict_with("Short subject", "Para one.\n\nPara two.\n\nPara three.")
+    with pytest.raises(ValueError):
+        _validate_verdict(verdict)
+
+
+@pytest.mark.asyncio
+async def test_run_referral_draft_rejects_out_of_contract_verdict(monkeypatch):
+    async def fake_llm_json(system_message, user_message, response_model=None, **kwargs):
+        return _verdict_with("one two three four five six seven eight nine ten eleven", "Para one.")
+
+    monkeypatch.setattr(f"{MODULE}.llm_json", fake_llm_json)
+
+    with pytest.raises(ValueError):
+        await run_referral_draft(**_valid_context())

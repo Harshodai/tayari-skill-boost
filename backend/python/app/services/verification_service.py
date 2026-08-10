@@ -71,4 +71,8 @@ async def run_verification(resume_text: str) -> dict:
         "strengths": screening.strengths,
         "gaps": screening.gaps,
         "sample_questions": screening.sample_questions,
+        # ponytail: resume-only evaluations are assessment, not proof. The Go
+        # gateway only grants a persisted "verified" badge when an independent
+        # trusted-evidence signal is present; this endpoint never emits one.
+        "evidence": "resume_only",
     }

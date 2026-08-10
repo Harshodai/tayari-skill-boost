@@ -6,7 +6,9 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"tayari-backend/internal/auth"
 )
@@ -55,9 +57,15 @@ func toStringSlice(v interface{}) []string {
 
 // computeVerification derives the verdict row from the Python AI result.
 // Pure: no I/O — unit-testable without a database.
+//
+// ponytail: LLM scores from candidate-controlled resume_text are assessment,
+// not proof. A "verified" badge requires an independent trusted-evidence
+// signal (evidence != "resume_only"); the current endpoint never emits one,
+// so resume-only evaluations always persist as unverified.
 func computeVerification(ai map[string]interface{}) verificationRow {
 	truthful := toFloat(ai["truthful_score"])
 	screening := toFloat(ai["screening_score"])
+	evidence, _ := ai["evidence"].(string)
 	row := verificationRow{
 		Status:          "unverified",
 		TruthfulScore:   truthful,
@@ -67,13 +75,38 @@ func computeVerification(ai map[string]interface{}) verificationRow {
 		Gaps:            toStringSlice(ai["gaps"]),
 		SampleQuestions: toStringSlice(ai["sample_questions"]),
 	}
-	if truthful != nil && screening != nil &&
+	if evidence != "" && evidence != "resume_only" &&
+		truthful != nil && screening != nil &&
 		*truthful >= verificationTruthThreshold && *screening >= verificationScreenThreshold {
 		row.Status = "verified"
 		now := time.Now().UTC()
 		row.VerifiedAt = &now
 	}
 	return row
+}
+
+// extractAIErrorCode returns the upstream JSON error code from an ai.Client
+// error of the form "AI service returned %d: %s" (the %s is the upstream body,
+// e.g. {"error":"ai_service_unavailable"}). Empty string when not parseable.
+func extractAIErrorCode(err error) string {
+	msg := err.Error()
+	const prefix = "AI service returned "
+	if !strings.HasPrefix(msg, prefix) {
+		return ""
+	}
+	rest := strings.TrimPrefix(msg, prefix)
+	colon := strings.Index(rest, ": ")
+	if colon < 0 {
+		return ""
+	}
+	body := rest[colon+2:]
+	var payload struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(body), &payload); err != nil || payload.Error == "" {
+		return ""
+	}
+	return payload.Error
 }
 
 // handleVerificationSubmit proxies resume text to the Python scorers and
@@ -93,21 +126,30 @@ func (s *Server) handleVerificationSubmit(w http.ResponseWriter, r *http.Request
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	if req.ResumeText == "" {
+	resumeText := strings.TrimSpace(req.ResumeText)
+	if resumeText == "" {
 		s.respondError(w, http.StatusUnprocessableEntity, "resume_text is required")
 		return
 	}
-	if len(req.ResumeText) > 65536 {
+	if utf8.RuneCountInString(resumeText) > 65536 {
 		s.respondError(w, http.StatusBadRequest, "resume_text too large (max 65536 chars)")
 		return
 	}
 
 	aiResult, err := s.AI.PostJSON("/api/v1/verification/submit", map[string]interface{}{
-		"resume_text": req.ResumeText,
+		"resume_text": resumeText,
 	})
 	if err != nil {
 		log.Printf("handleVerificationSubmit: AI scoring failed: %v", err)
-		s.respondError(w, http.StatusBadGateway, "Verification scoring failed")
+		if status, ok := extractAIStatus(err); ok {
+			code := extractAIErrorCode(err)
+			if code == "" {
+				code = "Upstream AI service error"
+			}
+			s.respondError(w, status, code)
+			return
+		}
+		s.respondError(w, http.StatusServiceUnavailable, "ai_service_unavailable")
 		return
 	}
 
@@ -164,7 +206,7 @@ func (s *Server) handleVerificationStatus(w http.ResponseWriter, r *http.Request
 		SampleQuestions: []string{},
 	}
 	if s.DB == nil || s.DB.Conn == nil {
-		s.respondJSON(w, http.StatusOK, row) // nil-DB guard: never panic, never 500
+		s.respondError(w, http.StatusServiceUnavailable, "database_unavailable")
 		return
 	}
 

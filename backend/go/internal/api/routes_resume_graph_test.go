@@ -52,6 +52,33 @@ func TestResumeGraphGet_ProxiesToPythonAndReturns200(t *testing.T) {
 	}
 }
 
+func TestResumeGraphGet_ForwardsPageAndSizeWithoutFormat(t *testing.T) {
+	srv := fakeAIServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/resume-graph/run-1" {
+			t.Errorf("unexpected upstream path: %s", r.URL.Path)
+		}
+		q := r.URL.Query()
+		if q.Get("page") != "2" || q.Get("size") != "25" {
+			t.Errorf("expected page=2&size=25 forwarded, got %q", r.URL.RawQuery)
+		}
+		if q.Get("format") != "" {
+			t.Errorf("expected no format param, got %q", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"run_id":"run-1","graph":{"nodes":[],"links":[],"total_nodes":0,"page":2,"size":25}}`)
+	})
+	defer srv.Close()
+
+	server := newResumeGraphServer(t, srv.URL)
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodGet, "/api/v1/resume-graph/run-1?page=2&size=25", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestResumeGraphGet_ForwardPython404(t *testing.T) {
 	srv := fakeAIServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

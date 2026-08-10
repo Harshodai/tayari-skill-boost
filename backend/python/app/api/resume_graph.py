@@ -18,6 +18,33 @@ logger = logging.getLogger(__name__)
 _RATE_LIMIT: Dict[str, List[float]] = {}
 _RATE_LIMIT_WINDOW = 60  # seconds
 _RATE_LIMIT_MAX = 5
+_RATE_LIMIT_MAX_KEYS = 10_000  # bound the store; evict stale keys when exceeded
+
+
+def _rate_limit_check(key: str, now: float) -> None:
+    """Enforce the per-key window, evicting stale keys and bounding the store.
+
+    Raises HTTPException(429) when the key's window is exhausted. Stale keys
+    are pruned on every call; when the store still exceeds the key bound,
+    the oldest inactive keys are evicted so expired entries cannot accumulate
+    indefinitely.
+    """
+    if len(_RATE_LIMIT) >= _RATE_LIMIT_MAX_KEYS:
+        stale = [k for k, ts in _RATE_LIMIT.items() if not ts or now - ts[-1] >= _RATE_LIMIT_WINDOW]
+        for k in stale:
+            del _RATE_LIMIT[k]
+    if len(_RATE_LIMIT) >= _RATE_LIMIT_MAX_KEYS:
+        oldest = sorted(_RATE_LIMIT.items(), key=lambda kv: kv[1][-1] if kv[1] else 0)[: len(_RATE_LIMIT) - _RATE_LIMIT_MAX_KEYS + 1]
+        for k, _ in oldest:
+            del _RATE_LIMIT[k]
+
+    timestamps = _RATE_LIMIT.get(key, [])
+    timestamps = [t for t in timestamps if now - t < _RATE_LIMIT_WINDOW]
+    if len(timestamps) >= _RATE_LIMIT_MAX:
+        logger.warning("Rate limit exceeded for %s", key)
+        raise HTTPException(status_code=429, detail="Too many requests")
+    timestamps.append(now)
+    _RATE_LIMIT[key] = timestamps
 
 
 class GraphData(BaseModel):
@@ -79,14 +106,7 @@ async def get_resume_graph(
     # container IP, which would make the limit global across all users.
     ip = request.client.host if request.client else "unknown"
     key = request.headers.get("x-user-id") or ip
-    now = time.time()
-    timestamps = _RATE_LIMIT.get(key, [])
-    timestamps = [t for t in timestamps if now - t < _RATE_LIMIT_WINDOW]
-    if len(timestamps) >= _RATE_LIMIT_MAX:
-        logger.warning("Rate limit exceeded for %s", key)
-        raise HTTPException(status_code=429, detail="Too many requests")
-    timestamps.append(now)
-    _RATE_LIMIT[key] = timestamps
+    _rate_limit_check(key, time.time())
 
     # Security headers
     response.headers["Content-Security-Policy"] = "default-src 'self'"

@@ -17,3 +17,18 @@ CREATE TABLE IF NOT EXISTS public.candidate_verification (
 
 CREATE INDEX IF NOT EXISTS idx_candidate_verification_status
 ON public.candidate_verification (status);
+
+-- RLS: default-deny for client roles. The Go backend connects as the
+-- postgres superuser (bypasses RLS) and is the only reader/writer — same
+-- shape as auth_attempts in 20260731_self_hosted_rls_hardening.sql.
+ALTER TABLE public.candidate_verification ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON public.candidate_verification FROM anon;
+REVOKE ALL ON public.candidate_verification FROM authenticated;
+REVOKE ALL ON public.candidate_verification FROM PUBLIC;
+
+DROP POLICY IF EXISTS "candidate_verification_deny_all" ON public.candidate_verification;
+CREATE POLICY "candidate_verification_deny_all" ON public.candidate_verification
+    FOR ALL TO public
+    USING (false)
+    WITH CHECK (false);

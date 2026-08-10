@@ -21,6 +21,21 @@ class ReferralDraftVerdict(BaseModel):
     rationale: str = Field(min_length=1, max_length=500)
 
 
+def _validate_verdict(verdict: ReferralDraftVerdict) -> None:
+    """Deterministic shape checks on top of the LLM contract.
+
+    The API promises a subject of at most 10 words and an email body of at
+    most two paragraphs; character-length fields alone cannot enforce that.
+    Raises ValueError so the route maps it to 400 (reject, never silently
+    return an out-of-contract draft).
+    """
+    if len(verdict.subject.split()) > 10:
+        raise ValueError("subject must be at most 10 words")
+    email_paragraphs = [p for p in verdict.email_body.split("\n\n") if p.strip()]
+    if len(email_paragraphs) > 2:
+        raise ValueError("email body must be at most two paragraphs")
+
+
 KIND_BRIEFS = {
     "intro": "a first-touch introduction that earns a reply, not a favour",
     "referral": "a polite, low-pressure referral request that makes it easy to say yes or no",
@@ -90,4 +105,5 @@ async def run_referral_draft(
         tier="fast",
         _resource="referral_draft",
     )
+    _validate_verdict(verdict)
     return verdict

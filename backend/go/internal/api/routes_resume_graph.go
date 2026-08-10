@@ -17,8 +17,8 @@ import (
 func (s *Server) handleGetResumeGraph(w http.ResponseWriter, r *http.Request) {
 	runID := chi.URLParam(r, "run_id")
 	endpoint := "/v1/resume-graph/" + url.PathEscape(runID)
-	if q := r.URL.Query(); q.Get("format") != "" {
-		endpoint += "?" + q.Encode()
+	if r.URL.RawQuery != "" {
+		endpoint += "?" + r.URL.RawQuery
 	}
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders(endpoint, headers)
