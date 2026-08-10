@@ -33,7 +33,7 @@
   - `aiOptionsToFocusText(options: { emphasizeKeywords: boolean; quantifyAchievements: boolean; optimizeFormat: boolean; tailorSummary: boolean }): string`
   - `buildAnalyzePayload(resumeId: number | string, jdId: number | string, customInstructions: string, aiOptions: { emphasizeKeywords: boolean; quantifyAchievements: boolean; optimizeFormat: boolean; tailorSummary: boolean }): { resume_id: number | string; jd_id: number | string; custom_instructions: string }`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `src/lib/resumeAnalysis.test.ts`:
 
@@ -145,12 +145,12 @@ describe("buildAnalyzePayload", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bun test src/lib/resumeAnalysis.test.ts`
 Expected: FAIL with "Cannot find module './resumeAnalysis'"
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 `src/lib/resumeAnalysis.ts`:
 
@@ -248,12 +248,12 @@ export function buildAnalyzePayload(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bun test src/lib/resumeAnalysis.test.ts`
 Expected: PASS (all 8 assertions green)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/resumeAnalysis.ts src/lib/resumeAnalysis.test.ts
@@ -271,7 +271,7 @@ git commit -m "feat(lib): analysis normalizer + aiOptions focus-text mapper (Pyt
 - Consumes: `normalizeGoAnalysis`, `buildAnalyzePayload` from `@/lib/resumeAnalysis` (Task 1).
 - Produces: no new interfaces; removes the last `supabase.functions.invoke("analyze-resume")` call site in the app.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 There is no unit test that can meaningfully fail for a UI rewiring without React rendering (the logic lives in the Task-1 lib, already tested). The gate for this task is static: the cloud branch must be gone. Create `src/pages/resumeUploadNoCloud.test.ts`:
 
@@ -293,12 +293,12 @@ describe("ResumeUpload.tsx cloud-path removal", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bun test src/pages/resumeUploadNoCloud.test.ts`
 Expected: FAIL — both `functions.invoke` and `if (USE_SELF_HOSTED)` are still present.
 
-- [ ] **Step 3: Rewire the component**
+- [x] **Step 3: Rewire the component**
 
 In `src/pages/ResumeUpload.tsx`:
 
@@ -319,7 +319,7 @@ In `src/pages/ResumeUpload.tsx`:
    - Delete the entire cloud `else {` block (the `supabase.functions.invoke("analyze-resume")` call, the `resume_analyses` insert, and its navigation).
    - Keep the shared tail: `const normalized = normalizeGoAnalysis(result);` + navigate (already present in the Go branch).
 
-- [ ] **Step 4: Run tests + build to verify**
+- [x] **Step 4: Run tests + build to verify**
 
 Run: `bun test src/pages/resumeUploadNoCloud.test.ts src/lib/resumeAnalysis.test.ts`
 Expected: PASS (both files)
@@ -330,7 +330,7 @@ Expected: `✓ built in …s` with no TypeScript errors (watch for unused import
 Run: `bun run lint`
 Expected: clean (or only pre-existing warnings)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/pages/ResumeUpload.tsx src/pages/resumeUploadNoCloud.test.ts
@@ -347,24 +347,24 @@ git commit -m "fix(ui): analyze always via Go gateway; drop edge-fn cloud branch
 **Interfaces:**
 - Consumes: nothing. Produces: removes the last edge-fn for the B1 loop-2 surface.
 
-- [ ] **Step 1: Confirm no remaining references**
+- [x] **Step 1: Confirm no remaining references**
 
 Run: `grep -rn "analyze-resume" src/ supabase/ docker-compose.yml backend/ docs/ --include="*.ts" --include="*.tsx" --include="*.yml" --include="*.toml" --include="*.md" 2>/dev/null | grep -v "supabase/functions/analyze-resume" || echo "NO REFERENCES"`
 Expected: `NO REFERENCES` — if anything other than the function dir itself matches, stop and investigate before deleting.
 
-- [ ] **Step 2: Delete the directory**
+- [x] **Step 2: Delete the directory**
 
 Run: `rm -rf supabase/functions/analyze-resume/`
 Note: `supabase/config.toml` has NO `[functions.analyze-resume]` block (verified — only `[functions.check-breached-password]` exists), so nothing to strip there. `supabase/functions/_shared/cors.ts` stays (used by `draft-outreach`, `apply-agent`, `generate-resume-pdf`).
 
-- [ ] **Step 3: Verify the tree and tests**
+- [x] **Step 3: Verify the tree and tests**
 
 Run: `git status --short` → shows only the deletion of `supabase/functions/analyze-resume/index.ts`
 Run: `bun test src/pages/resumeUploadNoCloud.test.ts src/lib/resumeAnalysis.test.ts` → PASS
 Run: `bun run build` → green
 Run: `bun run lint` → clean
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A supabase/functions/analyze-resume

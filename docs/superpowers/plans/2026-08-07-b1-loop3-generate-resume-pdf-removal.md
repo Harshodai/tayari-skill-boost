@@ -1,6 +1,6 @@
 # B1 loop-3: generate-resume-pdf edge fn → Go/Python (Typst-only, local)
 
-**Status:** IN PROGRESS (planned 2026-08-07)
+**Status:** CLOSED (2026-08-07)
 
 ## Context & goal
 
@@ -20,7 +20,7 @@ Third and final edge fn in the split-brain-backend blocker. `supabase/functions/
 - Modal caller: `ResumeTemplates.tsx:380` — receives `parsedResume`, `resumeText`, `jobDescription`, `appliedSuggestions`, `template`, `templateName`, `resumeFileName`, `analysisResults` (UI type `ResumeAnalysisResult`: overallScore, sections[], matchedKeywords, missingKeywords, summaryRecommendation).
 - LaTeX-specific UI surface: `LaTeXSourceView.tsx` (tab content), "LaTeX Source" tab + "Download LaTeX" button in the modal. Typst-only ⇒ no LaTeX source exists ⇒ this surface is removed.
 
-**User decision:** Typst-only, local compilation. No PII leaves the stack; consent gate deleted. Matches the self-hostable positioning.
+**User decision:** Typst-only, local compilation. No third-party compilation service is involved; the consent gate is deleted. LLM inference is separate — payloads reach whichever provider `build_provider()` selects (local Ollama, or external providers such as OpenRouter/NVIDIA). Matches the self-hostable positioning.
 
 ## Approach
 
@@ -29,14 +29,14 @@ One Python endpoint replaces the whole edge fn pipeline:
 - **Render**: existing `generate_typst_code(profile_data, template)` + `compile_typst_to_pdf`.
 - **Template mapping** (UI names → exporter names): `modern→modern_tech`, `professional→executive_slate`, `creative→creative_compact`, `minimal→minimalist_ats`, `tech→faang_single_page`, `executive→executive`. (Fidelity judgment call; documented in a table in the endpoint.)
 - **Return**: JSON `{"pdf_base64": ...}` (docx pattern) — NOT StreamingResponse, so Go can proxy it without binary passthrough.
-- **No consent gate** — PII stays in our stack (LLM provider + local typst).
+- **No consent gate** — PDF compilation is local (Typst); LLM inference goes to the configured provider (local Ollama, or external providers such as OpenRouter/NVIDIA).
 
 ## Tasks (SDD, TDD per task)
 
 ### Task 1 — Python: `POST /api/v1/resumes/generate-pdf` (+ `/api/resumes/generate-pdf` alias)
 Contract (Pydantic `GenerateResumePdfRequest`):
 - `resume_text: str` (size-guarded ≤50k)
-- `profile_data: dict` (parsedResume, used as skeleton + mapped to exporter keys)
+- `profile_data: dict | None` (parsedResume, used as skeleton + mapped to exporter keys; null allowed for requests without parsed profile data)
 - `analysis: dict` (UI `ResumeAnalysisResult` → fields: `overall_score`, `missing_keywords[]`, `summary_recommendation`; derived from `overallScore`/`missingKeywords`/`summaryRecommendation`)
 - `applied_suggestions: list[str]` (≤50)
 - `job_description: str | None` (≤20k)
@@ -62,7 +62,7 @@ Grep for `generate-resume-pdf` + `GenerateResumeResponse` references across repo
 2. `python -m py_compile` on changed files; `pytest` on new Python tests
 3. `bun run build`; `bun test` on new frontend tests
 4. Live: `curl -X POST localhost:8085/api/v1/resumes/generate-pdf` (auth) → base64 decodes to `%PDF-`; template=executive and template=tech both compile; unauthed → 401
-5. Grep: zero `generate-resume-pdf` refs in `src/` + `backend/`
+5. Grep (production files only — exclude `*.test.*`/`*.spec.*`): zero `generate-resume-pdf` refs in `src/` + `backend/`; no executable edge-function invocations (`functions.invoke("generate-resume-pdf")`) anywhere in `src/` or `backend/`
 6. lessons.md entry + SDD ledger close + plan CLOSED (after review)
 
 ## Risks

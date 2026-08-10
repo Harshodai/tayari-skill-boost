@@ -34,9 +34,13 @@ were the default path). Consequences:
 - PDF compilation is Typst-only and local; the third-party LaTeX path and its consent
   gate are deleted (user decision, 2026-08-07). `PDFExporter` remains only as the
   binary-missing fallback inside the Typst pipeline — the standalone `/export/pdf`
-  routes are removed.
+  routes are removed. No third-party compilation service is involved in PDF
+  generation.
 - The LLM provider chain is the repo-standard `build_provider()` (Ollama/OpenRouter/
   NVIDIA; unconfigured → explicit 503 `ai_service_unavailable`, never silent mock).
+  LLM data handling therefore depends on the configured provider: with Ollama it
+  stays local, but hosted providers such as OpenRouter or NVIDIA receive the
+  request payloads (resume/JD text) for inference.
 
 ## Consequences
 - One contract per feature. Route parity (`/api` ↔ `/api/v1`) enforced by
@@ -44,4 +48,6 @@ were the default path). Consequences:
 - Frontend static tests (readFileSync) ban resurrecting `functions.invoke` patterns.
 - Hosted deploys must set `VITE_API_URL` to the Go gateway (baked at build time;
   `VITE_*` are build args).
-- No PII leaves the stack on the PDF path.
+- No PII leaves the stack on the PDF compilation path (Typst is local). LLM
+  inference is separate: payloads reach whichever provider `build_provider()`
+  selects — local Ollama, or external providers such as OpenRouter/NVIDIA.

@@ -12,8 +12,8 @@ Executor: direct (no subagents). All tasks carry a verification gate; commit per
 ## T2 — Python stateless scorers
 - `backend/python/app/services/verification_service.py`: truthfulness moderator + screening moderator (LLM JSON via house llm helper; LLMNotConfiguredError propagates → 503).
 - `POST /api/v1/verification/submit` in `app/api/ai_routes.py` (+ input validation).
-- `tests/unit/test_verification_service.py`: JSON parsing shapes, endpoint 200, 503 on unset LLM.
-- GATE: `.venv/bin/pytest tests/unit/test_verification_service.py` green; full suite still 470+ pass / 0 fail.
+- `backend/python/tests/test_verification_service.py`: JSON parsing shapes, endpoint 200, 503 on unset LLM.
+- GATE: from the `backend/python` working directory, `.venv/bin/pytest tests/test_verification_service.py` green; full suite still 470+ pass / 0 fail.
 
 ## T3 — Go authoritative routes
 - `backend/go/internal/api/routes_verification.go`: POST submit (proxy → verdict → upsert), GET status (no-row → unverified shape), nil-DB guard.
@@ -25,7 +25,7 @@ Executor: direct (no subagents). All tasks carry a verification gate; commit per
 - `src/config/features.ts`: `verification: [true, true]`; extend `src/config/features.test.ts`.
 - `src/api/verification.ts` + `src/api/verification.test.ts`.
 - `src/pages/Profile.tsx`: Verification card + Get-Verified modal (stored resume text preferred, paste fallback), honest caption.
-- GATE: `bun run build` green; `bun run lint` unchanged 51/1448; `bun run test` = 152+ pass / 14 fail.
+- GATE: `bun run build` green; `bun run lint` unchanged 51/1448; `bun run test` = zero failures in changed tests, with the pre-existing cognee baseline (14 failures in `external_repos/cognee`) unchanged — no new failures beyond that baseline.
 
 ## T5 — Memory
 - `lessons.md` entry (what/root-cause/fix/lesson), `.superpowers/sdd/progress.md` ledger entry.

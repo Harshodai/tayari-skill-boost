@@ -26,7 +26,7 @@
 |---|---|---|
 | `backend/go/internal/api/routes_auth_ratelimit.go` | New `GET /api/v1/auth/rate-limit` handler: hash email, query `auth_attempts`, return `{allowed, remainingAttempts, blockedUntil}` | Create |
 | `backend/go/internal/api/routes_auth_ratelimit_test.go` | TDD tests for the handler (happy path, no-row, blocked, parity) | Create |
-| `backend/go/internal/api/routes_mvp.go` | Register the new route under both `/api` and `/api/v1` prefixes (route parity) | Modify |
+| `backend/go/internal/api/routes_app.go` | Register the new route under both `/api` and `/api/v1` prefixes (route parity) | Modify |
 | `src/lib/rate-limiter.ts` | Drop `USE_SELF_HOSTED` short-circuit; call `@/api` `apiFetch` for `check`; stop calling edge fn for `record_failure`/`reset` (Go audit worker owns those now) | Modify |
 | `src/api/auth.ts` | New `getAuthRateLimit(email)` helper calling `GET /v1/auth/rate-limit?email=…` | Create |
 | `supabase/functions/check-rate-limit/index.ts` | Delete after frontend + Go are live and verified | Delete (last task) |
@@ -38,7 +38,7 @@
 **Files:**
 - Create: `backend/go/internal/api/routes_auth_ratelimit.go`
 - Create: `backend/go/internal/api/routes_auth_ratelimit_test.go`
-- Modify: `backend/go/internal/api/routes_mvp.go` (register routes)
+- Modify: `backend/go/internal/api/routes_app.go` (register routes)
 
 **Interfaces:**
 - Consumes: `*database.DB` (via `s.Server.DB`), `s.respondJSON`, `s.respondError`, `chi.URLParam`-style query (`r.URL.Query().Get("email")`)
@@ -179,7 +179,7 @@ func (s *Server) handleAuthRateLimit(w http.ResponseWriter, r *http.Request) {
 
 - [ ] **Step 4: Register the route (parity)**
 
-In `backend/go/internal/api/routes_mvp.go`, inside the `routesMVP` function, add alongside other auth routes (find the auth/login block and add):
+In `backend/go/internal/api/routes_app.go`, inside the auth-guarded route group, add alongside the other auth routes (find the auth/login block and add):
 
 ```go
 // ---- Auth rate-limit read (replaces check-rate-limit edge fn) ----
@@ -195,7 +195,7 @@ Expected: PASS for both. Parity test must pass (route registered under both pref
 - [ ] **Step 6: Commit**
 
 ```bash
-git add backend/go/internal/api/routes_auth_ratelimit.go backend/go/internal/api/routes_auth_ratelimit_test.go backend/go/internal/api/routes_mvp.go
+git add backend/go/internal/api/routes_auth_ratelimit.go backend/go/internal/api/routes_auth_ratelimit_test.go backend/go/internal/api/routes_app.go
 git commit -m "feat(auth): Go rate-limit read endpoint (replaces check-rate-limit edge fn)
 
 GET /api/v1/auth/rate-limit?email=... hashes the email (SHA-256) and reads
