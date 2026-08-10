@@ -22,7 +22,20 @@ The good news: the foundation is real. The bad news: **foundations do not retain
 
 ---
 
+## POST-CHANGE STATUS (2026-08-10) — what the P0 fixes already resolved
+
+The Q1–Q7 verdicts below are pre-change findings, now partially resolved by the P0 fixes (commits 4fb6382..f64ee3e, 41da91d, a34af6a, a929ae4, dae8c8b, b92ff19, c961f4f, 4351568):
+
+- **Q1 branding:** single name "Job Tayari" everywhere, incl. AgentReachHub labels, tayari-ui header, branded 404 in Layout; branding gate now rejects bare "Tayari" (allowlist for legacy identifier files).
+- **Q2 optimizer:** custom_instructions/target_role/jd_url forwarded end-to-end; jd_url now SSRF-guarded via `_validate_public_url` + IP pinning on scrape; target_role propagates through the URL path.
+- **Q3 onboarding:** career goal persisted in `public.profiles`; onboarding error-surfaced, sample data removed; Profile cancel restores saved form.
+- **Still open (unchanged by P0):** sandbox apply gating (P1/P2), Gmail full-body parsing + Pub/Sub watch, OmniSave platform connectors + embeddings (P0.4 task), NL autopilot intent.
+
+---
+
 ## RUTHLESS ANSWERS — THE TRUTH, NOT THE HOPE
+
+The verdicts below describe the PRE-FIX state (baseline 925d16d). See POST-CHANGE STATUS above for what the 2026-08-10 fixes resolved.
 
 ### Q1. Does it look professional and use catchy, adoptable copy?
 
@@ -313,7 +326,7 @@ Do not build new features until the existing ones are finished. The 7-week plan 
 Feed this manifest into DeepSeek with:
 
 ```
-You are a ruthless engineering execution agent on the Tayari Skill Boost monorepo at /Users/harshodaikolluru/Public/tayari-skill-boost.
+You are a ruthless engineering execution agent on the Tayari Skill Boost monorepo. Run from the repository root (use `$REPO_ROOT` or the current working directory; never assume a hard-coded absolute path).
 
 Source code is the only truth. This manifest is your task list and failure taxonomy. No other .md files are trusted.
 
@@ -364,6 +377,9 @@ F. **Write the report** in the exact format below. Report file: one per task, `d
 - Tests: Go profile round-trip test asserting GET returns what PUT stored.
 - Verification: `cd backend/go && go test ./internal/api/... -run TestProfile`; restart stack with `docker compose --profile dev up -d --build`; verify onboarding → /profile round-trip via API, not UI screenshot.
 - Definition of done: transition choice survives logout/re-login and appears in GET /api/v1/profile.
+
+### Task 4: Knowledge Hub schema unification (P0.4)
+- One line: consolidate on `public.saved_sources` + `public.source_chunks`; deprecate `saved_posts`; populate `source_chunks.embedding` on ingest in `omnisave_service.py`; sync any missing schema to `supabase-local/volumes/db/init/` with individual mounts per repo rules.
 
 ## Blockers protocol
 - If a task cannot pass its gates: report BLOCKED with the exact failing command output and your best root-cause hypothesis. Do NOT fake green. Do NOT skip a gate. Do NOT move to the next task with an open blocker.
