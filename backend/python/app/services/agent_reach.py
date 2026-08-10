@@ -1,4 +1,4 @@
-"""Tayari Jobseeker Intelligence & Reach Engine — Tayari Skill Boost (Standalone Native Engine).
+"""Tayari Jobseeker Intelligence & Reach Engine — Job Tayari (Standalone Native Engine).
 
 Full native implementation without external directory imports:
 1. Multi-Channel Jobseeker Scraper (15 channels: GitHub, LinkedIn, Twitter, YouTube, Reddit, Facebook, Instagram, Bilibili, XiaoHongShu, Xiaoyuzhou, V2EX, Xueqiu, RSS, Exa, Web)
@@ -66,7 +66,10 @@ class TayariDoctorChannelStatus(BaseModel):
 class TayariDoctorReport(BaseModel):
     total_channels: int
     active_channels: int
-    platform_name: str = "Tayari Skill Boost Jobseeker Suite"
+    # ponytail: the brand gate lives in src/config/branding.test.ts (src/ +
+    # index.html) and cannot see backend payload strings — keep this
+    # platform_name default in sync with it manually.
+    platform_name: str = "Job Tayari Jobseeker Suite"
     browser_cookies_detected: List[str] = Field(default_factory=list)
     channels: List[TayariDoctorChannelStatus] = Field(default_factory=list)
 
@@ -184,7 +187,10 @@ def run_tayari_doctor() -> TayariDoctorReport:
     return TayariDoctorReport(
         total_channels=len(jobseeker_channels_def),
         active_channels=active_count,
-        platform_name="Tayari Skill Boost Jobseeker Intelligence Suite",
+        # ponytail: keep in sync with src/config/branding.test.ts — the brand
+        # gate cannot see backend payload strings (same note as the model
+        # default above).
+        platform_name="Job Tayari Jobseeker Intelligence Suite",
         browser_cookies_detected=cookies,
         channels=status_list,
     )

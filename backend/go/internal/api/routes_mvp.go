@@ -2030,10 +2030,13 @@ func (s *Server) handleAgentReachDoctor(w http.ResponseWriter, r *http.Request) 
 	if !s.requireFeature(w, r, "agent_reach") {
 		return
 	}
+	// ponytail: the brand gate lives in src/config/branding.test.ts (src/ +
+	// index.html) and cannot see backend payload strings — keep this
+	// platform_name in sync with it manually.
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
 		"total_channels": 15,
 		"active_channels": 15,
-		"platform_name": "Tayari Skill Boost Candidate Intelligence Suite",
+		"platform_name": "Job Tayari Candidate Intelligence Suite",
 		"browser_cookies_detected": []string{"chrome", "edge", "firefox", "brave", "safari"},
 		"channels": []map[string]interface{}{
 			{"channel": "github", "label": "GitHub Portfolios & PRs", "active": true, "status": "ok", "backend": "gh CLI", "latency_ms": 45},

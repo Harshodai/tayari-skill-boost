@@ -99,5 +99,5 @@ def test_pipeline_dashboard_generator():
     stats = {"total_applications": 5, "interviews": 2, "offers": 1}
     apps = [{"company": "Acme", "role": "Dev", "status": "interviewing", "last_updated_at": "2026-08-01"}]
     html = PipelineDashboardGenerator.generate_html_report(stats, apps)
-    assert "<title>Tayari Skill Boost — Pipeline Analytics</title>" in html
+    assert "<title>Job Tayari — Pipeline Analytics</title>" in html
     assert "Acme" in html

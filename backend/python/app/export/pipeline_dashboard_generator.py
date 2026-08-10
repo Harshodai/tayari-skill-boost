@@ -27,11 +27,14 @@ class PipelineDashboardGenerator:
 
         interview_rate = round((interviews / max(total, 1)) * 100, 1)
 
+        # ponytail: this HTML title is user-visible in exported PDFs; the brand
+        # gate lives in src/config/branding.test.ts (src/ + index.html) and cannot
+        # see it — keep in sync manually.
         html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Tayari Skill Boost — Pipeline Analytics</title>
+    <title>Job Tayari — Pipeline Analytics</title>
     <style>
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 24px; }}
         .card-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }}
