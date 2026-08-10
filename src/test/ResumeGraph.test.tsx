@@ -41,4 +41,8 @@ test("renders fetched resume graph visualization", async () => {
 
   const viz = await screen.findByRole("img", { name: /resume knowledge graph/i });
   expect(viz).toBeInTheDocument();
+  expect(mockFetch).toHaveBeenCalledWith(
+    expect.stringContaining(`/v1/resume-graph/123?format=raw`),
+    expect.any(Object)
+  );
 });

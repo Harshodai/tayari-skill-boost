@@ -63,9 +63,12 @@ export function AgentLiveView({ runId, browserInstruction }: { runId: string; br
       await streamBrowserAgent(
         browserInstruction,
         (event) => setFeedEvents((prev) => [...prev, event]),
-        controller.signal
+        controller.signal,
+        25,
+        runId
       );
     } catch (err: any) {
+      if (err?.name === "AbortError") return;
       setFeedEvents((prev) => [
         ...prev,
         { type: "error", error: "browser_feed_failed", message: err?.message || "Feed failed" },
@@ -77,6 +80,10 @@ export function AgentLiveView({ runId, browserInstruction }: { runId: string; br
   };
 
   const stopFeed = () => feedAbortRef.current?.abort();
+
+  useEffect(() => {
+    return () => feedAbortRef.current?.abort();
+  }, []);
 
   const latestScreenshot = [...feedEvents].reverse().find((e) => e.type === "screenshot" && e.data);
 

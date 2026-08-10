@@ -250,6 +250,17 @@ export async function streamInterviewCopilotHints(
   if (!reader) throw new Error("Streaming unsupported");
   const decoder = new TextDecoder();
   let buffer = "";
+  const parseFrame = (frame: string) => {
+    const line = frame.split("\n").find((l) => l.startsWith("data:"));
+    if (!line) return;
+    const payload = line.slice("data:".length).trimStart();
+    if (!payload) return;
+    try {
+      onEvent(JSON.parse(payload) as CopilotStreamEvent);
+    } catch {
+      // skip malformed frames
+    }
+  };
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -258,13 +269,8 @@ export async function streamInterviewCopilotHints(
     while ((idx = buffer.indexOf("\n\n")) >= 0) {
       const chunk = buffer.slice(0, idx);
       buffer = buffer.slice(idx + 2);
-      const line = chunk.split("\n").find((l) => l.startsWith("data: "));
-      if (!line) continue;
-      try {
-        onEvent(JSON.parse(line.slice(6)) as CopilotStreamEvent);
-      } catch {
-        // skip malformed frames
-      }
+      parseFrame(chunk);
     }
   }
+  parseFrame(buffer);
 }

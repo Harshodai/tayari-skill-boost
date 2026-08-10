@@ -10,6 +10,9 @@ const mockFetch = mock(() => Promise.resolve(new Response()));
 const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
+  mockFetch.mockClear();
+  mockFetch.mockReset();
+  mockFetch.mockImplementation(() => Promise.resolve(new Response()));
   globalThis.fetch = mockFetch as any;
 });
 

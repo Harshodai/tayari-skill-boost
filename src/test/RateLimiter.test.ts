@@ -7,8 +7,17 @@ const storage = new Map<string, string>();
 
 // ponytail: the real @/api/client reads localStorage for the auth token.
 // Under --dom (full suite) localStorage exists as a readonly DOM getter; in
-// standalone runs it does not — install a stub only when missing.
+// standalone runs it does not — install a stub only when missing. Either way,
+// clear the active storage before each test and restore the module-load
+// snapshot after, so auth tokens and other entries cannot leak between tests.
 const originalLocalStorage = (globalThis as any).localStorage;
+const originalStorageSnapshot: [string, string][] =
+  originalLocalStorage === undefined
+    ? []
+    : Array.from({ length: originalLocalStorage.length }, (_, i) => {
+        const key = originalLocalStorage.key(i);
+        return [key, originalLocalStorage.getItem(key)];
+      });
 
 beforeEach(() => {
   mockFetch.mockClear();
@@ -20,6 +29,8 @@ beforeEach(() => {
       setItem: (k: string, v: string) => void storage.set(k, v),
       removeItem: (k: string) => void storage.delete(k),
     };
+  } else {
+    originalLocalStorage.clear();
   }
 });
 
@@ -27,6 +38,11 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
   if (originalLocalStorage === undefined) {
     delete (globalThis as any).localStorage;
+  } else {
+    originalLocalStorage.clear();
+    for (const [key, value] of originalStorageSnapshot) {
+      originalLocalStorage.setItem(key, value);
+    }
   }
 });
 
@@ -44,8 +60,11 @@ describe("getAuthRateLimit", () => {
     expect(result.remainingAttempts).toBe(5);
     expect(result.blockedUntil).toBeNull();
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining("/v1/auth/rate-limit?email=user%40example.com"),
-      expect.any(Object)
+      expect.stringContaining("/v1/auth/rate-limit"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ email: "user@example.com" }),
+      })
     );
   });
 

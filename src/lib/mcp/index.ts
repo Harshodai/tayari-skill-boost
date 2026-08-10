@@ -15,10 +15,10 @@ import checkCompanyTool from "./tools/check-company";
 import reportOutcomeTool from "./tools/report-outcome";
 
 // Build the Supabase issuer from the project ref. Prefer the Vite build-time
-// ref (inlined as a literal for the frontend build); fall back to the edge
-// runtime's injected SUPABASE_URL (https://<project-ref>.supabase.co) so the
-// deployed edge function gets a valid issuer even when the build-time ref
-// was empty (the historical bundle shipped `projectRef = ""` → issuer
+// ref (inlined as a literal for the frontend build); fall back to the Vite
+// runtime's VITE_SUPABASE_URL (https://<project-ref>.supabase.co) so the
+// deployed app gets a valid issuer even when the build-time ref was empty
+// (the historical bundle shipped `projectRef = ""` → issuer
 // "https://.supabase.co/auth/v1", which no OAuth server ever answers to).
 //
 // ponytail: the SUPABASE_URL fallback is parsed and its hostname validated
@@ -28,7 +28,7 @@ import reportOutcomeTool from "./tools/report-outcome";
 // emitting a garbage issuer. Supabase project refs are exactly 20 lowercase
 // alphanumeric characters.
 function projectRefFromSupabaseUrl(): string {
-  const raw = String(process.env.SUPABASE_URL ?? "");
+  const raw = String(import.meta.env.VITE_SUPABASE_URL ?? "");
   if (!raw) return "";
   let parsed: URL;
   try {
@@ -43,9 +43,12 @@ function projectRefFromSupabaseUrl(): string {
   return match[1];
 }
 
+function validProjectRef(value: string | undefined): boolean {
+  return !!value && value !== "project-ref-unset" && /^[a-z0-9]{20}$/.test(value);
+}
+
 const projectRef =
-  (import.meta.env.VITE_SUPABASE_PROJECT_ID &&
-  import.meta.env.VITE_SUPABASE_PROJECT_ID !== "project-ref-unset"
+  (validProjectRef(import.meta.env.VITE_SUPABASE_PROJECT_ID)
     ? import.meta.env.VITE_SUPABASE_PROJECT_ID
     : projectRefFromSupabaseUrl()) || "";
 

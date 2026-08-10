@@ -686,7 +686,9 @@ const Profile = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
+            <label htmlFor="resume-text" className="text-sm font-medium mb-1 block">Resume text</label>
             <Textarea
+              id="resume-text"
               rows={10}
               value={verifyText}
               onChange={(e) => setVerifyText(e.target.value)}

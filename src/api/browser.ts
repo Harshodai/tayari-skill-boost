@@ -18,12 +18,13 @@ export async function streamBrowserAgent(
   instruction: string,
   onEvent: (event: BrowserStreamEvent) => void,
   signal?: AbortSignal,
-  maxSteps = 25
+  maxSteps = 25,
+  runId?: string
 ): Promise<void> {
   const response = await fetch(`${API_URL}/v1/browser/automation/stream`, {
     method: "POST",
     headers: { ...getHeaders(), "Content-Type": "application/json" },
-    body: JSON.stringify({ instruction, max_steps: maxSteps }),
+    body: JSON.stringify({ instruction, max_steps: maxSteps, run_id: runId || null }),
     signal,
   });
   if (!response.ok) {

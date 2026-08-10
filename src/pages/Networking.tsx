@@ -132,6 +132,7 @@ export function Networking() {
     if (features.referralDrafts !== undefined && !features.referralDrafts) {
       return toast.error("Referral drafts are disabled in this environment");
     }
+    if (!targetRole.trim()) return toast.error("Role you're targeting is required");
     setDrafting(true);
     try {
       const { data: auth } = await supabase.auth.getUser();
@@ -146,7 +147,7 @@ export function Networking() {
           notes: selected.notes ?? "",
         },
         job: {
-          title: targetRole,
+          title: targetRole.trim(),
           company: selected.company ?? "",
         },
         user_context: {
@@ -348,7 +349,7 @@ export function Networking() {
                         placeholder="Shipped a payments service handling 10M events/day, cut p99 latency 45%…"
                       />
                     </div>
-                    <Button onClick={draft} disabled={drafting} className="w-full sm:w-auto">
+                    <Button onClick={draft} disabled={drafting || !targetRole.trim()} className="w-full sm:w-auto">
                       {drafting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                       Draft outreach
                     </Button>

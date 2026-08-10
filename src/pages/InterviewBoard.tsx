@@ -120,13 +120,14 @@ const InterviewBoard = () => {
       await streamInterviewCopilotHints(
         {
           interviewer_transcript: copilotQuestion.trim(),
-          job_title: selectedApp?.job_title || "Software Engineer",
-          company_name: selectedApp?.company_name || null,
+          job_title: selectedApp?.title || "Software Engineer",
+          company_name: selectedApp?.company || null,
         },
         (event) => setCopilotEvents((prev) => [...prev, event]),
         controller.signal
       );
     } catch (err: any) {
+      if (err?.name === "AbortError") return;
       setCopilotEvents((prev) => [
         ...prev,
         { type: "error", error: "copilot_failed", message: err?.message || "Stream failed" },
@@ -548,6 +549,15 @@ const InterviewBoard = () => {
       navigate(window.location.pathname, { replace: true });
     }
   }, [navigate]);
+
+  useEffect(() => {
+    return () => copilotAbortRef.current?.abort();
+  }, []);
+
+  useEffect(() => {
+    setCopilotQuestion("");
+    setCopilotEvents([]);
+  }, [selectedApp]);
 
   return (
     <AppShell>
