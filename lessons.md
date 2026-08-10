@@ -1253,10 +1253,30 @@ Fixed four test files to stop cross-test leakage and match the new POST rate-lim
 
 ---
 
+## 2026-08-10 — P0 final-review fix wave (nil-bind + canAnalyze revert)
+
+### What was done
+- Fix 3426ce8: handleUpdateProfile binds NULL (not "") for unset transition_type — the new CHECK constraint (IN ('same_domain','cross_domain'), no DEFAULT) 500'd any profile save where the user hadn't picked a track; "" violates CHECK, NULL passes. Test TestProfileUpsertTransitionTypeNilBind asserts the bound arg via the fake driver.
+- Fix e3a0e1f: reverted the canAnalyze relaxation (customInstructions alone enabling Analyze) — handleAnalyzeText 400s without a JD, so the relaxation was a guaranteed-error dead-end; instruction-only optimization is served by the ResumeResults optimize path instead.
+
+### Root causes
+- The profile upsert wrote all columns unconditionally; transition_type was the only one with a CHECK constraint, so the existing all-fields semantics 500'd on it.
+- A gate relaxation looked like it enabled a workflow the backend didn't support.
+
+### Fix applied
+- Local nil conversion at the bind site; one-line revert with ponytail comment.
+
+### Reusable lessons
+- A CHECK constraint with no DEFAULT turns an empty form field into a 500 — bind NULL for unset constrained columns.
+- Frontend gate changes must be checked against the backend's validation, not just the UI flow: enabling a button the API rejects is worse than the gate.
+
+---
+
 ## 2026-08-10 — P0 Task 2: resume optimizer — every input reaches the engine (ruthless-fixes plan)
 
 ### What was done
-- Wired `custom_instructions`, `target_role`, `jd_url` end-to-end: Python `OptimizerRequest` (both definitions — `app/api/ai_routes.py` and `app/main.py` must stay in sync, they are two independent copies) + routing branch (jd_url present → `optimize_resume_with_options`, else `optimize_with_reflection`); `optimize_resume_stream` gained `custom_instructions` Form param in both files; Go `handleOptimizeResume` struct + PostJSON payload; frontend `optimizeResume(id, opts)` new signature, `ResumeUpload` navigate state (customInstructions, jobPostUrl) + relaxed `canAnalyze`, `ResumeResults` state reads + call site.
+- Wired `custom_instructions`, `target_role`, `jd_url` end-to-end: Python `OptimizerRequest` (both definitions — `app/api/ai_routes.py` and `app/main.py` must stay in sync, they are two independent copies) + routing branch (jd_url present → `optimize_resume_with_options`, else `optimize_with_reflection`); `optimize_resume_stream` gained `custom_instructions` Form param in both files; Go `handleOptimizeResume` struct + PostJSON payload; frontend `optimizeResume(id, opts)` new signature, `ResumeUpload` navigate state (customInstructions, jobPostUrl) + canAnalyze gate kept strict (JD required), `ResumeResults` state reads + call site.
+- Note: the canAnalyze relaxation (customInstructions alone enabling Analyze) was tried in this task but REVERTED in the final-review fix wave (e3a0e1f) — `handleAnalyzeText` 400s without a JD, so the relaxation only enabled a guaranteed error toast. Shipped `canAnalyze` at src/pages/ResumeUpload.tsx:164 still requires `jobDescription.trim().length > 50`; instruction-only optimization is served by the ResumeResults optimize path instead.
 
 ### Root causes
 - P0 audit: the UI collected and the Python engine supported these inputs, but the HTTP contract (Go gateway + `src/api/resumes.ts`) dropped them, so they never reached the engine. `optimizeResume(id, jobDescription)` only ever sent `job_description`.
