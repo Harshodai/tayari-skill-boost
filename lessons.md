@@ -1002,3 +1002,25 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 
 ### Program status
 - V3: DONE. Remaining: Moat-1 referral engine, Moat-2 interview copilot (unfrozen), V7 Glass Box — each needs design spec → approval → plan → implementation.
+
+## 2026-08-08 — Moat-1 referral draft engine (full-stack, delivered)
+
+### What was done
+- New stateless Python engine `referral_service.py`: one LLM moderator drafts dual-channel (email + LinkedIn) personalized outreach with subject + fit_score + rationale, grounded ONLY in the contact's stated relationship/notes and the user's own proof points (honesty contract enforced in prompt; `kind` ∈ intro/referral/followup/thanks).
+- `POST /api/v1/referral/draft` in ai_routes; Go proxy `routes_referral.go` with both `/api` + `/api/v1` trees (parity green); no DB on either side (pure proxy like generate-pdf).
+- Frontend: `referralDrafts` flag; `src/api/referral.ts` + test; Networking.tsx `draft()` rewired from the Supabase edge function to the Go→Python engine; fit-score badge + rationale shown after drafting.
+
+### Root cause
+- The Networking page drafted outreach through `supabase.functions.invoke("draft-outreach")` — a Supabase edge function that calls Lovable's CLOUD AI directly. That silently broke the self-hostable/local-LLM architecture contract: AI must flow through Go→Python so an unconfigured/cloud-only path can never pretend to be the engine. Discovered during T3 recon, not in the design phase.
+
+### Fix applied
+- Engine matches the edge function's exact response contract (`{email, linkedin, subject}` + kinds + proof_points) so the UI rewire was mechanical. The edge function remains deployed but is dead code from the UI; Go/Python is now the only drafting path.
+
+### Reusable lessons
+1. Recon the FRONTEND CALL SITES before writing a design — the design's "user-supplied contact + job" abstraction missed that a live edge-function contract already existed. The audit's stub inventory said "stubs exist"; the call site said otherwise.
+2. When replacing a cloud edge function with the self-hosted engine, keep the response contract identical — it makes the UI change a one-line-ish swap and avoids frontend redesign churn.
+3. Honesty anchoring via prompt contract is testable: assert the relationship string reaches the prompt, and that unknown kinds are rejected BEFORE llm_json is called.
+4. Gates: Python 483/0 (+8), Go suite green incl. parity, frontend 157/14 (cognee-only) with lint errors flat at 51.
+
+### Program status
+- V3: DONE. Moat-1: DONE. Remaining: Moat-2 interview copilot (unfrozen), V7 Glass Box — each needs design spec → approval → plan → implementation.
