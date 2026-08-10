@@ -1213,3 +1213,21 @@ Fixed four test files to stop cross-test leakage and match the new POST rate-lim
 ### Reusable lessons
 - When a branding test greps the whole tree, the audit's offender list is never exhaustive — run the test first and let it enumerate the full offender set before editing. The test is the source of truth, not the brief's prose.
 - A 404 page is a user-facing page; a bare `<a href="/">` link loses the app chrome (nav/footer) and the primary recovery action. Wrap it in the shared `Layout` so a lost user can navigate back instead of hitting the browser back button.
+
+---
+
+## 2026-08-10 — P0 Task 2: resume optimizer — every input reaches the engine (ruthless-fixes plan)
+
+### What was done
+- Wired `custom_instructions`, `target_role`, `jd_url` end-to-end: Python `OptimizerRequest` (both definitions — `app/api/ai_routes.py` and `app/main.py` must stay in sync, they are two independent copies) + routing branch (jd_url present → `optimize_resume_with_options`, else `optimize_with_reflection`); `optimize_resume_stream` gained `custom_instructions` Form param in both files; Go `handleOptimizeResume` struct + PostJSON payload; frontend `optimizeResume(id, opts)` new signature, `ResumeUpload` navigate state (customInstructions, jobPostUrl) + relaxed `canAnalyze`, `ResumeResults` state reads + call site.
+
+### Root causes
+- P0 audit: the UI collected and the Python engine supported these inputs, but the HTTP contract (Go gateway + `src/api/resumes.ts`) dropped them, so they never reached the engine. `optimizeResume(id, jobDescription)` only ever sent `job_description`.
+
+### Fix applied
+- TDD: Python test (5 passed incl. new) and Go test `TestOptimizeResumeForwardsCustomInstructions` (stubbed AI client via `fakeAIServer`, canned resume row via a stdlib-only fake SQL driver — mirrors `handlers_smoke_test.go`'s `fakeSQLDriver`); both failed pre-fix. Verified build, `py_compile`, gofmt clean on new files, lint baseline unchanged (51 errors/1475 warnings). Committed as `78e7f5c`; this lessons entry is the separate docs commit.
+
+### Reusable lessons
+- The P0 audit's "DROPPED at the API contract" pattern: a feature can be fully implemented at the edges (UI + engine) and dead in the middle. Route tests should assert forwarded payload fields, not just 200 status — that's the only thing that catches a dropped field.
+- `handleOptimizeResume` needs a live `*sql.DB`; the suite's existing fake drivers error on every query. A targeted stdlib `driver.Conn` stub returning one canned row answers the resume lookup without sqlmock.
+- My `ResumeResults` edit initially removed the `const text` line while inserting the opts block — the `bun run build` after the edit (not before) is what caught it; re-run build after every frontend edit, not just once.
