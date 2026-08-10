@@ -5,6 +5,7 @@ bulleted STAR framework answer hints, technical code concepts, and metric remind
 """
 from __future__ import annotations
 import asyncio
+import re
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from app.services.llm_service import llm_complete
@@ -98,13 +99,16 @@ class CopilotHintRequest(BaseModel):
 
 async def generate_interview_hint(req: CopilotHintRequest) -> LiveCopilotResponse:
     """Single-shot STAR hint generation (plain HTTP path)."""
-    live_req = LiveCopilotRequest(
-        interviewer_transcript=req.interviewer_transcript,
+    kwargs: Dict[str, Any] = dict(
         job_title=req.target_role or req.job_title or "Software Engineer",
         company_name=req.company_name,
         candidate_resume_summary=req.candidate_resume_summary,
         target_skills=req.target_skills,
     )
+    transcript = (req.interviewer_transcript or "").strip()
+    if transcript:
+        kwargs["interviewer_transcript"] = transcript
+    live_req = LiveCopilotRequest(**kwargs)
     return await generate_live_copilot_hints(live_req)
 
 
@@ -143,7 +147,7 @@ def analyze_candidate_speech(req: VoiceAnalysisRequest) -> VoiceAnalysisResponse
     lower = req.transcript.lower()
     filler_counts: Dict[str, int] = {}
     for filler in _FILLER_WORDS:
-        count = lower.count(filler)
+        count = len(re.findall(rf"\b{re.escape(filler)}\b", lower))
         if count:
             filler_counts[filler] = count
 

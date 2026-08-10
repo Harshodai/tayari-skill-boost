@@ -969,7 +969,7 @@ async def generate_resume_pdf_endpoint(payload: GenerateResumePdfRequest):
 
         from app.export.typst_exporter import generate_typst_code, compile_typst_to_pdf
         code = generate_typst_code(profile, template=_resolve_template(payload.template))
-        pdf_bytes = compile_typst_to_pdf(code)
+        pdf_bytes = await asyncio.to_thread(compile_typst_to_pdf, code)
         if not pdf_bytes:
             raise HTTPException(status_code=500, detail="PDF compilation returned no bytes")
         import base64

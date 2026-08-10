@@ -25,18 +25,16 @@ def _rate_limit_check(key: str, now: float) -> None:
     """Enforce the per-key window, evicting stale keys and bounding the store.
 
     Raises HTTPException(429) when the key's window is exhausted. Stale keys
-    are pruned on every call; when the store still exceeds the key bound,
-    the oldest inactive keys are evicted so expired entries cannot accumulate
-    indefinitely.
+    are pruned on every call; when the store is still at the key bound and the
+    incoming key is new, reject rather than evict active entries.
     """
     if len(_RATE_LIMIT) >= _RATE_LIMIT_MAX_KEYS:
         stale = [k for k, ts in _RATE_LIMIT.items() if not ts or now - ts[-1] >= _RATE_LIMIT_WINDOW]
         for k in stale:
             del _RATE_LIMIT[k]
-    if len(_RATE_LIMIT) >= _RATE_LIMIT_MAX_KEYS:
-        oldest = sorted(_RATE_LIMIT.items(), key=lambda kv: kv[1][-1] if kv[1] else 0)[: len(_RATE_LIMIT) - _RATE_LIMIT_MAX_KEYS + 1]
-        for k, _ in oldest:
-            del _RATE_LIMIT[k]
+    if key not in _RATE_LIMIT and len(_RATE_LIMIT) >= _RATE_LIMIT_MAX_KEYS:
+        logger.warning("Rate limiter store full; rejecting new key %s", key)
+        raise HTTPException(status_code=429, detail="Too many requests")
 
     timestamps = _RATE_LIMIT.get(key, [])
     timestamps = [t for t in timestamps if now - t < _RATE_LIMIT_WINDOW]
@@ -104,6 +102,9 @@ async def get_resume_graph(
     # the Go gateway) so each user gets their own window; the raw client IP is
     # unusable behind the proxy because every request arrives from the gateway's
     # container IP, which would make the limit global across all users.
+    # Trust boundary: the gateway overwrites any client-supplied X-User-Id with
+    # the authenticated user (getXUserHeaders), and python-ai is only exposed on
+    # the internal compose network, so this header is trustworthy.
     ip = request.client.host if request.client else "unknown"
     key = request.headers.get("x-user-id") or ip
     _rate_limit_check(key, time.time())

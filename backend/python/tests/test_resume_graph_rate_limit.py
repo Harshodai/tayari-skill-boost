@@ -50,10 +50,12 @@ def test_rate_limit_evicts_stale_keys_when_store_full():
     assert "user-99999" in _RATE_LIMIT
 
 
-def test_rate_limit_evicts_oldest_when_all_active():
+def test_rate_limit_rejects_new_key_when_store_full_and_all_active():
     now = 1_000_000.0
     for i in range(10_000):
         _rate_limit_check(f"user-{i}", now)
-    _rate_limit_check("user-99999", now + 1)
-    assert len(_RATE_LIMIT) <= 10_000
-    assert "user-99999" in _RATE_LIMIT
+    with pytest.raises(HTTPException) as exc:
+        _rate_limit_check("user-99999", now + 1)
+    assert exc.value.status_code == 429
+    assert len(_RATE_LIMIT) == 10_000
+    assert "user-99999" not in _RATE_LIMIT

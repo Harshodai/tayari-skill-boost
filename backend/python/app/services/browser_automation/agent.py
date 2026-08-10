@@ -5,6 +5,7 @@ This module provides system-level browser automation execution for Tayari AI Eng
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from dataclasses import dataclass, field
@@ -266,7 +267,7 @@ async def stream_browser_agent(instruction: str, max_steps: int = DEFAULT_MAX_ST
         yield {"type": "error", "error": "ai_service_unavailable", "message": str(exc)}
         return
 
-    pending_events = []
+    queue: asyncio.Queue = asyncio.Queue()
 
     def on_step(state, output, step_number):
         event = {"type": "screenshot", "step": step_number}
@@ -279,18 +280,39 @@ async def stream_browser_agent(instruction: str, max_steps: int = DEFAULT_MAX_ST
             event["url"] = url
         if title:
             event["title"] = title
-        pending_events.append(event)
+        queue.put_nowait(event)
 
+    async def run_agent():
+        try:
+            agent = Agent(task=instruction, llm=llm, register_new_step_callback=on_step)
+            history = await agent.run(max_steps=max_steps)
+            result = _extract_history(history)
+            result.instruction = instruction
+            queue.put_nowait({"type": "result", "result": result})
+        except Exception as exc:
+            logger.error(f"[BrowserAgent] Failed step execution: {exc}")
+            queue.put_nowait({"type": "error", "error": "browser_agent_failed", "message": str(exc)})
+
+    task = asyncio.create_task(run_agent())
     try:
-        agent = Agent(task=instruction, llm=llm, register_new_step_callback=on_step)
-        history = await agent.run(max_steps=max_steps)
-        result = _extract_history(history)
-        result.instruction = instruction
-    except Exception as exc:
-        logger.error(f"[BrowserAgent] Failed step execution: {exc}")
-        yield {"type": "error", "error": "browser_agent_failed", "message": str(exc)}
-        return
+        while True:
+            event = await queue.get()
+            if event["type"] == "result":
+                result = event["result"]
+                break
+            if event["type"] == "error":
+                yield event
+                return
+            yield event
+    except BaseException:
+        task.cancel()
+        raise
+    finally:
+        if not task.done():
+            task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
-    for event in pending_events:
-        yield event
     yield {"type": "done", "result": result.to_markdown()}

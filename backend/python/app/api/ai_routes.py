@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas import (
     StrategicAnalysisResponse,
@@ -509,7 +509,7 @@ async def execute_one_shot_endpoint(payload: dict):
 
 
 class VerificationRequest(BaseModel):
-    resume_text: str
+    resume_text: str = Field(max_length=50_000)
 
 
 @router.post("/api/v1/verification/submit")
