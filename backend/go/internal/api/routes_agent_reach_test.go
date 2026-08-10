@@ -11,6 +11,23 @@ import (
 // agent-reach doctor platform_name against the stale product name. The
 // branding gate lives in src/config/branding.test.ts and can only see
 // src/ + index.html, so this backend payload must be kept in sync by hand.
+//
+// The doctor payload is GO-OWNED: handleAgentReachDoctor builds it inline in
+// routes_mvp.go (platform_name at routes_mvp.go:2046) and never proxies the
+// Python upstream, so nothing in the response is Python-translated. The
+// exact-value assertion below pins that Go value.
+//
+// // ponytail: the Python standalone engine (backend/python/app/services/
+// agent_reach.py) uses a DIFFERENT canonical value ("Job Tayari Jobseeker
+// Suite") because it is a separate engine surface the Go doctor route does
+// not proxy — the frontend only consumes the Go payload
+// (src/pages/AgentReachHub.tsx:66). This mapping is intentional, not drift:
+// do not "fix" one side to match the other without changing the ownership
+// boundary.
+//
+// // ponytail: both the Go payload and the Python engine must stay free of
+// the legacy product name; the branding gate can only see src/ + index.html,
+// so backend strings are guarded here instead.
 func TestAgentReachDoctorPlatformName_BrandingInSync(t *testing.T) {
 	server := newHermesServer(t, "http://127.0.0.1:1")
 	for _, path := range []string{"/api/v1/agent-reach/doctor", "/api/agent-reach/doctor"} {
