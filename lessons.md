@@ -1024,3 +1024,26 @@ This section documents the end-to-end 5W Analysis (Who, What, Where, When, Why) 
 
 ### Program status
 - V3: DONE. Moat-1: DONE. Remaining: Moat-2 interview copilot (unfrozen), V7 Glass Box — each needs design spec → approval → plan → implementation.
+
+## 2026-08-08 — Moat-2 live interview copilot (streaming + parity, delivered)
+
+### What was done
+- Fixed two **broken-at-runtime** endpoints: `copilot-hint` and `voice-feedback` imported names (`CopilotHintRequest`, `generate_interview_hint`, `VoiceAnalysisRequest`, `analyze_candidate_speech`) that did not exist in `live_interview_copilot.py` — every call 500'd. Implemented them (hint = thin wrapper over the existing generator; voice = deterministic cadence/filler/STAR analysis, no LLM).
+- New SSE stream: `stream_live_copilot_hints` async generator (question_type → hints → star → metrics → done; error events for unconfigured LLM / invalid output — never canned) + `POST /api/v1/interview/copilot/stream` (StreamingResponse).
+- Go: `PostStream` on the AI client + `routes_interview.go` (hint/voice proxies + SSE passthrough with optional flusher) registered under BOTH `/api` + `/api/v1` (parity green).
+- Frontend: `streamInterviewCopilotHints` SSE helper (fetch + ReadableStream parse, no EventSource since POST) + Live Copilot tab in InterviewBoard (progressive render, abort button, honest error states).
+
+### Root cause
+- The audit's "3 endpoints exist" was wrong: only `copilot` worked. The other two were declared in main.py against a service file that never defined them — a silent 500 path the frontend's `fetchInterviewCopilotHint` (itself dead code, no callers) would have hit.
+
+### Fix applied
+- Implemented the missing service pieces to match the frontend contracts (`{interviewer_transcript, target_role}` and `{transcript, duration_seconds, target_role}`), then added the stream on top.
+
+### Reusable lessons
+1. "Endpoint exists" claims must be verified by importing the module, not by grepping route decorators — main.py's lazy imports (`from app.services... import X`) fail at request time, not at startup, so the suite stayed green while the routes 500'd.
+2. `httptest.ResponseRecorder` does not implement `http.Flusher` — SSE passthrough handlers must treat the flusher as optional or unit tests can't exercise the write path.
+3. SSE over POST (EventSource can't send bodies) = fetch + ReadableStream + `\n\n` frame split; keep the parser in the api layer so the UI stays dumb.
+4. Gates: Python 498/0 (+6), Go suite green incl. parity, frontend 163/14 (cognee-only), lint errors flat 51.
+
+### Program status
+- V3: DONE. Moat-1: DONE. Moat-2: DONE. Remaining: V7 Glass Box (WebSocket live browser feed — heaviest infra, separate design cycle).
