@@ -29,6 +29,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { createReferralDraft } from "@/api/referral";
+import { features } from "@/config/features";
 
 interface Contact {
   id: string;
@@ -68,6 +70,8 @@ export function Networking() {
   const [targetRole, setTargetRole] = useState("");
   const [proofPoints, setProofPoints] = useState("");
   const [drafting, setDrafting] = useState(false);
+  const [fitScore, setFitScore] = useState<number | null>(null);
+  const [rationale, setRationale] = useState<string | null>(null);
   const [newContact, setNewContact] = useState({
     name: "",
     title: "",
@@ -125,44 +129,54 @@ export function Networking() {
 
   const draft = async () => {
     if (!selected) return;
+    if (features.referralDrafts !== undefined && !features.referralDrafts) {
+      return toast.error("Referral drafts are disabled in this environment");
+    }
     setDrafting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("draft-outreach", {
-        body: {
-          contactName: selected.name,
-          contactTitle: selected.title ?? "",
-          company: selected.company ?? "",
-          relationship: selected.relationship,
-          kind,
-          targetRole,
-          proofPoints,
-        },
-      });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
-
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user) throw new Error("Sign in first");
 
+      const result = await createReferralDraft({
+        contact: {
+          name: selected.name,
+          title: selected.title ?? "",
+          company: selected.company ?? "",
+          relationship: selected.relationship,
+          notes: selected.notes ?? "",
+        },
+        job: {
+          title: targetRole,
+          company: selected.company ?? "",
+        },
+        user_context: {
+          full_name: auth.user.user_metadata?.full_name ?? "",
+          proof_points: proofPoints,
+        },
+        kind,
+      });
+      setFitScore(result.fit_score);
+      setRationale(result.rationale);
+
       const rows = [
-        data.email
+        result.email
           ? {
               user_id: auth.user.id,
               contact_id: selected.id,
               channel: "email",
               kind,
-              subject: data.subject ?? null,
-              body: data.email as string,
+              subject: result.subject ?? null,
+              body: result.email as string,
             }
           : null,
-        data.linkedin
+        result.linkedin
           ? {
               user_id: auth.user.id,
               contact_id: selected.id,
               channel: "linkedin",
               kind,
               subject: null,
-              body: data.linkedin as string,
+              body: result.linkedin as string,
             }
           : null,
       ].filter(Boolean) as Record<string, unknown>[];
@@ -338,6 +352,14 @@ export function Networking() {
                       {drafting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                       Draft outreach
                     </Button>
+                    {fitScore !== null && (
+                      <div className="space-y-1.5">
+                        <Badge variant="outline" className="gap-1">
+                          <ShieldCheck className="h-3 w-3" /> Referral fit {Math.round(fitScore)}/100
+                        </Badge>
+                        {rationale && <p className="text-xs text-muted-foreground">{rationale}</p>}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 

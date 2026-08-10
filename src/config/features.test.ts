@@ -17,6 +17,10 @@ describe('Feature Flags Configuration', () => {
         expect(features.verification).toBe(true);
     });
 
+    it('should have referralDrafts enabled (Moat-1 is live)', () => {
+        expect(features.referralDrafts).toBe(true);
+    });
+
     it('should generate navigation links', () => {
         const links = getNavLinks();
         expect(links.length).toBeGreaterThan(0);

@@ -72,6 +72,8 @@ const CONFIG = {
     adaptationsPortal: [true, true],
     // Verified-Human badge (truth + screening checks)
     verification: [true, true],
+    // Personalized referral-draft engine (Moat-1)
+    referralDrafts: [true, true],
   },
 
 
