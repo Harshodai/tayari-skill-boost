@@ -44,7 +44,9 @@ export function buildApplyChain(job: ApplyChainJob): ChainStep[] {
         if (!resumes.length) throw new Error("No resume found — upload one in Resume Optimizer first.");
         const resume = resumes[0];
         ctx.resumeId = resume.id;
-        const result = await optimizeResume(resume.id, jd);
+        // ponytail: object form required since the Task 2 signature change —
+        // a raw string would silently drop the JD.
+        const result = await optimizeResume(resume.id, { jobDescription: jd });
         ctx.optimizedText = result?.optimized_text || result?.text || "";
         const score = result?.ats_score_after ?? result?.score;
         return score ? `ATS match now ${Math.round(score)}%` : `Tailored "${resume.title}"`;
