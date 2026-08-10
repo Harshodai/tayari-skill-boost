@@ -239,3 +239,58 @@ async def run_browser_agent(
             summary="The agent hit an error while browsing.",
             error=str(exc),
         )
+
+
+async def stream_browser_agent(instruction: str, max_steps: int = DEFAULT_MAX_STEPS):
+    """Async generator of SSE events for the Glass-Box live browser feed.
+
+    Yields dicts: {"type": "screenshot", "data": <base64 png>, "step": n,
+    "url": ..., "title": ...} per agent step, then {"type": "done",
+    "result": {...}}. Error events: "ai_service_unavailable" (LLM config) or
+    "browser_agent_failed" (run error) — never canned output.
+    """
+    instruction = (instruction or "").strip()
+    if not instruction:
+        yield {"type": "error", "error": "invalid_instruction", "message": "instruction is required"}
+        return
+
+    try:
+        from browser_use import Agent
+    except ImportError as exc:
+        yield {"type": "error", "error": "browser_agent_failed", "message": f"browser-use not installed: {exc}"}
+        return
+
+    try:
+        llm = get_llm()
+    except Exception as exc:
+        yield {"type": "error", "error": "ai_service_unavailable", "message": str(exc)}
+        return
+
+    pending_events = []
+
+    def on_step(state, output, step_number):
+        event = {"type": "screenshot", "step": step_number}
+        screenshot = getattr(state, "screenshot", None)
+        if screenshot:
+            event["data"] = screenshot
+        url = getattr(state, "url", None)
+        title = getattr(state, "title", None)
+        if url:
+            event["url"] = url
+        if title:
+            event["title"] = title
+        pending_events.append(event)
+
+    try:
+        agent = Agent(task=instruction, llm=llm, register_new_step_callback=on_step)
+        history = await agent.run(max_steps=max_steps)
+        result = _extract_history(history)
+        result.instruction = instruction
+    except Exception as exc:
+        logger.error(f"[BrowserAgent] Failed step execution: {exc}")
+        yield {"type": "error", "error": "browser_agent_failed", "message": str(exc)}
+        return
+
+    for event in pending_events:
+        yield event
+    yield {"type": "done", "result": result.to_markdown()}

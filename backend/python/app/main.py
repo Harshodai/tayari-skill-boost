@@ -1624,3 +1624,23 @@ async def live_copilot_stream_endpoint(payload: dict):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/api/v1/browser/automation/stream")
+async def browser_automation_stream_endpoint(payload: dict):
+    """SSE stream of per-step browser screenshots for the Glass-Box live feed."""
+    import json as _json
+    from app.services.browser_automation.agent import stream_browser_agent
+
+    instruction = str(payload.get("instruction", ""))
+    max_steps = int(payload.get("max_steps") or 25)
+
+    async def event_stream():
+        async for event in stream_browser_agent(instruction, max_steps=max_steps):
+            yield f"data: {_json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
