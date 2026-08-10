@@ -271,3 +271,30 @@ func (c *Client) HealthCheck() error {
 	}
 	return nil
 }
+
+// PostStream POSTs a JSON payload and returns the raw streaming response
+// body for SSE passthrough. The caller owns closing the body.
+func (c *Client) PostStream(endpoint string, payload interface{}, headers map[string]string) (*http.Response, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodPost, c.BaseURL+endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+	return resp, nil
+}
