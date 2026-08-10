@@ -113,8 +113,15 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 			updated_at = NOW()
 		RETURNING updated_at
 	`
+	// ponytail: bind NULL (not "") for transition_type so an untouched career
+	// goal satisfies the CHECK constraint — "" violates it and would 500 the
+	// whole profile save.
+	var transitionType any
+	if req.TransitionType != "" {
+		transitionType = req.TransitionType
+	}
 	var updatedAt time.Time
-	err := s.DB.Conn.QueryRowContext(r.Context(), query, user.ID, req.FullName, req.AvatarURL, user.Email, req.Headline, req.Summary, req.Skills, req.DesiredRoles, req.Locations, req.ExperienceYears, req.OpenToRemote, req.Links, req.TransitionType, req.CurrentTitle, req.TargetLevel, req.CurrentIndustry, req.TargetIndustry, req.TransferableSkills).Scan(&updatedAt)
+	err := s.DB.Conn.QueryRowContext(r.Context(), query, user.ID, req.FullName, req.AvatarURL, user.Email, req.Headline, req.Summary, req.Skills, req.DesiredRoles, req.Locations, req.ExperienceYears, req.OpenToRemote, req.Links, transitionType, req.CurrentTitle, req.TargetLevel, req.CurrentIndustry, req.TargetIndustry, req.TransferableSkills).Scan(&updatedAt)
 	if err != nil {
 		log.Printf("handleUpdateProfile: failed to upsert profile: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to update profile")

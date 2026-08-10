@@ -35,11 +35,23 @@ func (profileFakeConn) Begin() (driver.Tx, error) {
 	return nil, errors.New("fake driver")
 }
 
+var (
+	profileUpsertArgsMu sync.Mutex
+	profileUpsertArgs   []driver.NamedValue
+)
+
+func captureProfileUpsertArgs(args []driver.NamedValue) {
+	profileUpsertArgsMu.Lock()
+	defer profileUpsertArgsMu.Unlock()
+	profileUpsertArgs = args
+}
+
 func (c profileFakeConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM profiles WHERE id=$1"):
 		return newProfileFakeRows(), nil
 	case strings.Contains(query, "INSERT INTO profiles"):
+		captureProfileUpsertArgs(args)
 		return newProfileUpsertRows(), nil
 	case strings.Contains(query, "FROM tenants"):
 		return nil, errors.New("fake driver: no tenant")
@@ -189,5 +201,48 @@ func TestProfileCareerGoalRoundTrip(t *testing.T) {
 	skills, ok := got["transferable_skills"].([]interface{})
 	if !ok || len(skills) != 2 || skills[0] != "Distributed Systems" || skills[1] != "High-Throughput APIs" {
 		t.Errorf("GET transferable_skills = %#v, want [Distributed Systems High-Throughput APIs]", got["transferable_skills"])
+	}
+}
+
+// TestProfileUpsertTransitionTypeNilBind verifies the upsert binds NULL for
+// transition_type when the request omits it — "" violates the CHECK
+// constraint (no DEFAULT) and would 500 the whole profile save. The fake
+// driver ignores the CHECK, so assert the bound arg value directly.
+func TestProfileUpsertTransitionTypeNilBind(t *testing.T) {
+	server := NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: profileFakeDB()})
+
+	profileUpsertArgsMu.Lock()
+	profileUpsertArgs = nil
+	profileUpsertArgsMu.Unlock()
+
+	putBody := []byte(`{"full_name":"Ada Lovelace","headline":"Software Engineer"}`)
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPut, "/api/v1/profile", putBody))
+	if w.Code != http.StatusOK {
+		t.Fatalf("PUT /api/v1/profile without transition_type: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	profileUpsertArgsMu.Lock()
+	if profileUpsertArgs == nil {
+		profileUpsertArgsMu.Unlock()
+		t.Fatal("upsert did not reach the fake driver")
+	}
+	got := profileUpsertArgs[12].Value
+	profileUpsertArgsMu.Unlock()
+	if got != nil {
+		t.Errorf("transition_type arg (13th) = %#v, want nil (NULL) so the CHECK passes", got)
+	}
+
+	w = httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPut, "/api/v1/profile", []byte(`{"full_name":"Ada Lovelace","transition_type":"same_domain"}`)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("PUT /api/v1/profile with transition_type: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	profileUpsertArgsMu.Lock()
+	got = profileUpsertArgs[12].Value
+	profileUpsertArgsMu.Unlock()
+	if got != "same_domain" {
+		t.Errorf("transition_type arg (13th) = %#v, want same_domain", got)
 	}
 }
