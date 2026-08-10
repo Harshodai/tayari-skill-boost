@@ -261,6 +261,9 @@ class StrategicInjectRequest(BaseModel):
 class OptimizerRequest(BaseModel):
     resume_text: str
     job_description: Optional[str] = None
+    custom_instructions: Optional[str] = None
+    target_role: Optional[str] = None
+    jd_url: Optional[str] = None
 
 
 @router.post("/api/v1/strategic/analyze", response_model=None)
@@ -325,10 +328,25 @@ async def export_json(payload: ExportRequest):
 async def optimize_resume(payload: OptimizerRequest):
     """AI-powered resume optimization with reflexion loop."""
     try:
-        result = await optimizer.optimize_with_reflection(
-            payload.resume_text,
-            job_description=payload.job_description,
-        )
+        if payload.jd_url:
+            # ponytail: jd_url path routes through the scraper-backed options
+            # entry point; the plain reflection path has no URL handling.
+            # target_role is a plain-path feature: optimize_resume_with_options
+            # has no target_role parameter, so it is intentionally not passed
+            # when a URL is present.
+            result = await optimizer.optimize_resume_with_options(
+                resume_text=payload.resume_text,
+                jd_text=payload.job_description or "",
+                jd_url=payload.jd_url,
+                custom_instructions=payload.custom_instructions or "",
+            )
+        else:
+            result = await optimizer.optimize_with_reflection(
+                payload.resume_text,
+                job_description=payload.job_description,
+                target_role=payload.target_role,
+                custom_instructions=payload.custom_instructions,
+            )
         return result
     except LLMNotConfiguredError as exc:
         logger.error("optimizer/optimize: LLM not configured/available: %s", exc)
@@ -344,6 +362,7 @@ async def optimize_resume_stream(
     resume_text: Optional[str] = Form(None),
     job_description: Optional[str] = Form(None),
     target_role: Optional[str] = Form(None),
+    custom_instructions: Optional[str] = Form(None),
 ):
     """Stream resume optimization results as Server-Sent Events."""
     if resume_file:
@@ -362,6 +381,7 @@ async def optimize_resume_stream(
                 resume_text,
                 job_description=job_description,
                 target_role=target_role,
+                custom_instructions=custom_instructions,
             )
             yield f"data: {json.dumps({'type': 'result', 'data': result})}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"

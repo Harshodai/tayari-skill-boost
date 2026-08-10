@@ -941,15 +941,23 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		JobDescription string `json:"job_description,omitempty"`
+		JobDescription     string `json:"job_description,omitempty"`
+		CustomInstructions string `json:"custom_instructions,omitempty"`
+		TargetRole         string `json:"target_role,omitempty"`
+		JdURL              string `json:"jd_url,omitempty"`
 	}
 	if err := DecodeAndValidate(r, &req); err != nil {
 		// body is optional; ignore error if empty
 		req.JobDescription = ""
 	}
+	// ponytail: forward every input the UI collects so the Python engine's
+	// custom_instructions/target_role/jd_url handling is actually reachable.
 	result, err := s.AI.PostJSON("/api/v1/optimizer/optimize", map[string]interface{}{
-		"resume_text":     resumeText,
-		"job_description": req.JobDescription,
+		"resume_text":         resumeText,
+		"job_description":     req.JobDescription,
+		"custom_instructions": req.CustomInstructions,
+		"target_role":         req.TargetRole,
+		"jd_url":              req.JdURL,
 	})
 	if err != nil {
 		log.Printf("handleOptimizeResume: AI call failed: %v", err)

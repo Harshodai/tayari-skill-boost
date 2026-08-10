@@ -1,10 +1,24 @@
 import pytest
+from app.api.ai_routes import OptimizerRequest
 from app.services.optimizer import (
     analyze_keyword_gaps,
     remove_ai_buzzwords,
     validate_master_alignment,
     generate_metric_suggestions,
 )
+
+
+def test_optimizer_request_accepts_all_inputs():
+    req = OptimizerRequest(
+        resume_text="resume",
+        job_description="jd",
+        custom_instructions="emphasize leadership",
+        target_role="Senior Engineer",
+        jd_url="https://boards.greenhouse.io/example",
+    )
+    assert req.custom_instructions == "emphasize leadership"
+    assert req.target_role == "Senior Engineer"
+    assert req.jd_url == "https://boards.greenhouse.io/example"
 
 
 def test_analyze_keyword_gaps():

@@ -144,6 +144,8 @@ const ResumeUpload = () => {
           resumeFileName: resumeFile?.name || "Resume",
           resumeText: newResume.original_text || resumeText,
           jobDescription,
+          customInstructions,
+          jobPostUrl,
         },
       });
     } catch (err) {
@@ -155,7 +157,7 @@ const ResumeUpload = () => {
     }
   };
 
-  const canAnalyze = (resumeText || resumeFile) && jobDescription.trim().length > 50 && !parsingError;
+  const canAnalyze = (resumeText || resumeFile) && (jobDescription.trim().length > 50 || customInstructions.trim().length > 0) && !parsingError;
 
   const handlePaste = async () => {
     try {

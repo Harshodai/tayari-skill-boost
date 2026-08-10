@@ -56,6 +56,8 @@ const ResumeResults = () => {
   const resumeFileName = location.state?.resumeFileName as string | undefined;
   const resumeText = location.state?.resumeText as string | undefined;
   const jobDescription = location.state?.jobDescription as string | undefined;
+  const customInstructions = location.state?.customInstructions as string | undefined;
+  const jobPostUrl = location.state?.jobPostUrl as string | undefined;
   const resumeId = location.state?.resumeId as number | undefined;
 
   const [expandedSections, setExpandedSections] = useState<string[]>(
@@ -91,7 +93,13 @@ const ResumeResults = () => {
     setOptimizeError(null);
     setOptimizationResult(null);
     try {
-      const res = await optimizeResume(resumeId, jobDescription);
+      // ponytail: target_role has no UI source yet, so it is not forwarded;
+      // the contract supports it and the Python engine honors it when present.
+      const res = await optimizeResume(resumeId, {
+        jobDescription,
+        customInstructions,
+        jdUrl: jobPostUrl,
+      });
       const text = res?.optimized_text || res?.optimized_resume || res?.result;
       if (text) {
         setOptimizedText(text);

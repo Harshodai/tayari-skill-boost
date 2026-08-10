@@ -74,10 +74,22 @@ export async function getAnalysis(id: number | string): Promise<AnalysisResult> 
   return apiFetch<AnalysisResult>(`/v1/analyze/${id}`);
 }
 
-export async function optimizeResume(id: number | string, jobDescription?: string): Promise<Record<string, any>> {
+export interface OptimizeResumeOptions {
+  jobDescription?: string;
+  customInstructions?: string;
+  targetRole?: string;
+  jdUrl?: string;
+}
+
+export async function optimizeResume(id: number | string, opts?: OptimizeResumeOptions): Promise<Record<string, any>> {
   return apiFetch<Record<string, any>>(`/v1/resumes/${id}/optimize`, {
     method: "POST",
-    body: JSON.stringify({ job_description: jobDescription }),
+    body: JSON.stringify({
+      job_description: opts?.jobDescription,
+      custom_instructions: opts?.customInstructions,
+      target_role: opts?.targetRole,
+      jd_url: opts?.jdUrl,
+    }),
   });
 }
 
