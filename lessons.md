@@ -4,6 +4,60 @@ This document details key findings, architectural decisions, and lessons learned
 
 ---
 
+## 2026-08-10 — DeepSeek run prompt hardened to SDD + ponytail protocol
+
+### What was done
+- Replaced the shallow 7-rule "DEEPSEED RUN INSTRUCTIONS" block in `docs/ruthless_audit_2026_08_10/05_deepseek_ruthless_manifest.md` with a v2 prompt: TDD-first per-task protocol, per-task report contract, blocker protocol, and a concrete P0 task queue (brand convergence, optimizer field forwarding, career-goal migration).
+- Confirmed `/ponytail` is NOT a skill — it is the repo's minimal-change convention (`// ponytail:` / `# ponytail:` comments, 279+ uses across Go/TS/Python). The v2 prompt codifies it as non-negotiable rule #1 with a self-review gate that hunts final-inch failures (dropped glue fields, missing parity alias, unsynced migration, mock-as-proof).
+- Loaded `subagent-driven-development` skill: fresh-subagent-per-task + task review + final whole-branch review; applied its per-task discipline to the DeepSeek prompt's execution protocol (failing-test-first, verify-not-mock, conventional commits, reviewer-persona self-review).
+
+### Root causes
+- The original DeepSeek prompt let the agent start P0.1/P0.2/P0.3 "in parallel if file conflicts are avoided" — SDD forbids parallel implementers (conflicts) and the repo's route-parity + migration-sync invariants need a serial gate after each task.
+
+### Fix applied
+- v2 prompt: one task at a time; each task has named files, named tests, exact verification commands, and a definition of done that cannot be gamed by mocks.
+
+### Reusable lessons
+- A prompt handed to another model is a contract: it must carry the repo's invariants verbatim (parity, migration sync, mock≠passing, ponytail comments) or the agent will silently diverge.
+- "Looks done" is the failure mode of execution agents; the prompt must name the final inch per task (wire, migration, test, commit) and require exact command output as evidence.
+
+---
+
+## 2026-08-10 — Ruthless product audit: Q1–Q9 answered, 10/10 plan, agent execution manifest
+
+### What was done
+- Ran six parallel code-audit subagents across the latest main branch to answer the user's nine questions (Q1–Q7 plus Q8/Q9 synthesis) without trusting any `.md` files.
+- Produced five audit artifacts in `docs/ruthless_audit_2026_08_10/`:
+  1. `01_answers_q1_q7.md` — verdicts with confidence scores and exact file paths.
+  2. `02_gap_matrix_and_moat.md` — competitive benchmark vs. Manus, WonsultingAI, LazyApply, Simplify, Huntr.
+  3. `03_ten_of_ten_plan.md` — 7-phase, 7-week implementation plan.
+  4. `04_agent_execution_manifest.md` — subagent-ready task list with files, verification commands, and global rules.
+  5. `05_deepseek_ruthless_manifest.md` — consolidated, harsher, DeepSeek-ready execution manifest.
+
+### Root causes / key findings
+- **Q1 (professional UI):** looks credible (6/10), but brand name is inconsistent (`Job Tayari` / `Tayari Skill Boost` / `Tay` / `JobTayari`) and copy is engineering-first. The gap is copy discipline, not visual design.
+- **Q2 (resume optimizer):** JD-paste works. JD-link only fills the paste box; custom instructions are dropped before the actual optimize call. The Python optimizer supports them, but the Go/frontend glue does not.
+- **Q3 (onboarding goal):** `transitionType` is captured in UI but stored only in `localStorage` and a `pet_preferences` JSON blob, not the canonical `public.profiles` table, and is not editable on `/profile`.
+- **Q4/Q5 (Manus-like autopilot):** real browser automation, review queue, guardrails, and job scrapers exist, but the final sandbox-apply step is gated off (`auto_apply: false` hard-coded, `handleSubmitApplication` only updates DB status) and there is no natural-language goal-to-run wiring.
+- **Q6 (OmniSave AI):** `Omnisave.tsx`, `KnowledgeHub.tsx`, Go routes, Python service, and DB schema exist, but true platform connectors, embeddings population, and schema self-hosted copies are missing.
+- **Q7 (Gmail connector):** OAuth + keyword pre-filter + LLM classifier + InterviewBoard UI exist, but dedupe is weak, full body/attachments are dropped, Pub/Sub watch is unregistered, and a parallel in-memory demo board exists.
+
+### Fix applied / plan
+- 7-week plan: P0 foundation fixes (brand, optimizer data flow, career goal schema, knowledge-hub unification), P1 NL autopilot intent, P2 closed-loop sandbox apply, P3 real sandbox + safety, P4 platform connectors, P5 extension + mobile, P6 metrics/pricing, P7 launch readiness.
+
+### Reusable lessons
+- **Don't read docs to answer "does this work?" — read code.** Many features are described in the UI but not persisted or wired end-to-end.
+- **The final 10% of a feature (writing to the canonical table, invoking the real action, registering the webhook) is what separates demo from product.** Tayari has strong foundations; the gaps are mostly in the final glue.
+- **A feature that needs user trust (auto-apply, Gmail sync) cannot ship without a transparent audit log and explicit HITL gate.** Build trust plumbing before the capability.
+- **Self-hosted Supabase schema drift is a silent killer:** every `backend/db/migrations/` change needs an individual mount in `supabase-local/docker-compose.yml`.
+- **Ruthless manifests are useful for DeepSeek runs, but only if the failure taxonomy is exact.** The revised `05_deepseek_ruthless_manifest.md` replaces soft verdicts with concrete failing states and exact file/line evidence.
+
+---
+
+## 2026-08-07 — B1 loop-3 landed (generate-resume-pdf edge fn → Go/Python Typst-only) — B1 blocker closed
+
+---
+
 ## 2026-08-07 — B1 loop-3 landed (generate-resume-pdf edge fn → Go/Python Typst-only) — B1 blocker closed
 
 ### What was done
