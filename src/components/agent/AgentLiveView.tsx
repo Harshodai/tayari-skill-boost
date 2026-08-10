@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,8 @@ import {
   ShieldCheck,
   ExternalLink,
   Ban,
+  MonitorPlay,
+  Square,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -20,6 +22,7 @@ import {
   transitionRun,
   type AgentRunStatus,
 } from "@/lib/agent/applyAgent";
+import { streamBrowserAgent, type BrowserStreamEvent } from "@/api/browser";
 
 const statusTone: Record<AgentRunStatus, string> = {
   queued: "bg-muted text-muted-foreground",
@@ -43,9 +46,39 @@ const statusLabel: Record<AgentRunStatus, string> = {
  * Glass-Box view of one agent run: every step, every log line, and an explicit
  * human gate. The agent never submits — the user does.
  */
-export function AgentLiveView({ runId }: { runId: string }) {
+export function AgentLiveView({ runId, browserInstruction }: { runId: string; browserInstruction?: string }) {
   const queryClient = useQueryClient();
   const logRef = useRef<HTMLDivElement>(null);
+  const [feedEvents, setFeedEvents] = useState<BrowserStreamEvent[]>([]);
+  const [isFeeding, setIsFeeding] = useState(false);
+  const feedAbortRef = useRef<AbortController | null>(null);
+
+  const startFeed = async () => {
+    if (!browserInstruction || isFeeding) return;
+    setIsFeeding(true);
+    setFeedEvents([]);
+    const controller = new AbortController();
+    feedAbortRef.current = controller;
+    try {
+      await streamBrowserAgent(
+        browserInstruction,
+        (event) => setFeedEvents((prev) => [...prev, event]),
+        controller.signal
+      );
+    } catch (err: any) {
+      setFeedEvents((prev) => [
+        ...prev,
+        { type: "error", error: "browser_feed_failed", message: err?.message || "Feed failed" },
+      ]);
+    } finally {
+      setIsFeeding(false);
+      feedAbortRef.current = null;
+    }
+  };
+
+  const stopFeed = () => feedAbortRef.current?.abort();
+
+  const latestScreenshot = [...feedEvents].reverse().find((e) => e.type === "screenshot" && e.data);
 
   const { data: run } = useQuery({
     queryKey: ["agent-run", runId],
@@ -160,6 +193,62 @@ export function AgentLiveView({ runId }: { runId: string }) {
             )}
           </div>
         </div>
+
+        {browserInstruction ? (
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Live browser feed
+              </div>
+              {!isFeeding && feedEvents.length === 0 ? (
+                <Button size="sm" variant="outline" onClick={startFeed}>
+                  <MonitorPlay className="mr-2 h-3.5 w-3.5" /> Watch the agent
+                </Button>
+              ) : isFeeding ? (
+                <Button size="sm" variant="outline" onClick={stopFeed}>
+                  <Square className="mr-2 h-3.5 w-3.5" /> Stop
+                </Button>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              {latestScreenshot ? (
+                <div className="overflow-hidden rounded-lg border bg-muted/40">
+                  <img
+                    src={`data:image/png;base64,${latestScreenshot.data}`}
+                    alt={`Agent view at step ${latestScreenshot.step ?? "?"}`}
+                    className="w-full h-auto"
+                  />
+                  <div className="flex items-center justify-between px-3 py-1.5 text-[11px] text-muted-foreground">
+                    <span>Step {latestScreenshot.step ?? "?"}</span>
+                    {latestScreenshot.url ? (
+                      <span className="truncate max-w-[60%]">{latestScreenshot.url}</span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border bg-muted/40 p-4 text-center text-xs text-muted-foreground">
+                  {isFeeding ? (
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1" />
+                  ) : null}
+                  {isFeeding ? "Waiting for the agent's first step…" : "No screenshots yet."}
+                </div>
+              )}
+              {feedEvents.some((e) => e.type === "error") ? (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                  {feedEvents.find((e) => e.type === "error")?.message || "Browser feed failed"}
+                </div>
+              ) : null}
+              {feedEvents.some((e) => e.type === "done") ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Agent finished — {feedEvents.find((e) => e.type === "done")?.result}
+                </p>
+              ) : null}
+              <p className="text-[11px] text-muted-foreground">
+                What the agent sees, per step — not a video stream.
+              </p>
+            </div>
+          </div>
+        ) : null}
 
         {run.outcome ? (
           <div className="rounded-lg border bg-card/60 p-3 text-sm">{run.outcome}</div>
