@@ -13,7 +13,7 @@ This file tells subagents exactly what to build, in what order, and how to verif
 5. **Test every change** — add or update a test for each modified endpoint/handler/component.
 6. **Append to `lessons.md`** — every task completion gets a dated entry per CLAUDE.md.
 7. **No manualChunks** in `vite.config.ts`.
-8. **JWT_SECRET / POSTGRES_PASSWORD** must stay identical between root `.env` and `supabase-local/.env`.
+8. **Pairwise secret parity** — root `.env` `JWT_SECRET` must equal `supabase-local/.env` `JWT_SECRET`; root `.env` `POSTGRES_PASSWORD` must equal `supabase-local/.env` `POSTGRES_PASSWORD`. `JWT_SECRET` and `POSTGRES_PASSWORD` must remain DIFFERENT values from each other — never reuse one secret for the other.
 
 ---
 
@@ -200,10 +200,4 @@ This file tells subagents exactly what to build, in what order, and how to verif
 
 ## Coordination command for orchestrator
 
-Spawn one subagent per Task above. Each subagent returns:
-1. Modified files list.
-2. Verification command output.
-3. Any blockers.
-4. `lessons.md` entry summary.
-
-Do not let subagents touch the same file simultaneously. Use file-lock comments in todo tracker.
+**Coordination command for orchestrator** — spawn one subagent per Task. Tasks sharing a file run SEQUENTIALLY: Task 1.1 (brand convergence, touches `src/pages/Landing.tsx`) MUST complete before Task 6.3 (pricing/copy, same file); Task 1.4 (knowledge-hub unification, touches `backend/python/app/services/omnisave_service.py`) MUST complete before Task 4.1 (Substack/Medium connectors, same file). Before spawning each subagent, acquire an actual file lock: `mkdir -p .superpowers/locks && for f in <files>; do while ! mkdir ".superpowers/locks/$f" 2>/dev/null; do sleep 1; done; done` and release with `rmdir` on completion — todo-tracker comments are not synchronization. Each subagent still returns: 1) modified files list, 2) verification command output, 3) blockers, 4) `lessons.md` entry summary.
