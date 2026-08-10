@@ -22,9 +22,11 @@ import reportOutcomeTool from "./tools/report-outcome";
 // "https://.supabase.co/auth/v1", which no OAuth server ever answers to).
 //
 // ponytail: the SUPABASE_URL fallback is parsed and its hostname validated
-// against the expected *.supabase.co domain before the project ref is
-// extracted. A missing, malformed, or unexpected-hostname value leaves
-// projectRef empty rather than emitting a garbage issuer.
+// against the canonical single-label https://<project-ref>.supabase.co shape
+// before the project ref is extracted. A missing, malformed, non-HTTPS,
+// nested-subdomain, or wrong-length value leaves projectRef empty rather than
+// emitting a garbage issuer. Supabase project refs are exactly 20 lowercase
+// alphanumeric characters.
 function projectRefFromSupabaseUrl(): string {
   const raw = String(process.env.SUPABASE_URL ?? "");
   if (!raw) return "";
@@ -34,9 +36,11 @@ function projectRefFromSupabaseUrl(): string {
   } catch {
     return "";
   }
+  if (parsed.protocol !== "https:") return "";
   const host = parsed.hostname.toLowerCase();
-  if (host === "supabase.co" || !host.endsWith(".supabase.co")) return "";
-  return parsed.hostname.replace(/\.supabase\.co$/, "");
+  const match = /^([a-z0-9]{20})\.supabase\.co$/.exec(host);
+  if (!match) return "";
+  return match[1];
 }
 
 const projectRef =

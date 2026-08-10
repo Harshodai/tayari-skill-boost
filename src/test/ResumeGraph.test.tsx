@@ -1,19 +1,36 @@
-import { mock, test, expect } from "bun:test";
+import { mock, test, expect, beforeEach, afterEach } from "bun:test";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import ResumeGraph from "@/pages/ResumeGraph";
 
-mock.module("@/api", () => ({
-  apiFetch: async () => ({
-    nodes: [
-      { id: "1", label: "Node 1" },
-      { id: "2", label: "Node 2" },
-    ],
-    links: [{ source: "1", target: "2" }],
-  }),
-}));
+// ponytail: stub globalThis.fetch instead of mock.module("@/api") — the
+// barrel mock leaks into every other test file in the run (it replaces
+// @/api/client too), breaking tests that exercise the real client.
+const mockFetch = mock(() => Promise.resolve(new Response()));
+const originalFetch = globalThis.fetch;
+
+beforeEach(() => {
+  globalThis.fetch = mockFetch as any;
+});
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
 
 test("renders fetched resume graph visualization", async () => {
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    text: async () =>
+      JSON.stringify({
+        nodes: [
+          { id: "1", label: "Node 1" },
+          { id: "2", label: "Node 2" },
+        ],
+        links: [{ source: "1", target: "2" }],
+      }),
+  } as any);
+
   render(
     <MemoryRouter initialEntries={["/resume-graph?runId=123"]}>
       <Routes>

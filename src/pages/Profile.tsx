@@ -544,6 +544,47 @@ const Profile = () => {
                       Re-run verification
                     </Button>
                   </>
+                ) : verification && (verification.truthful_score !== null || verification.screening_score !== null) ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Your last check didn't meet the badge threshold (70+ truthfulness, 60+ screening). Scores are shown for assessment — this is a self-reported signal.
+                    </p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Truthfulness</span>
+                        <span className="font-medium tabular-nums">{Math.round(verification.truthful_score ?? 0)}/100</span>
+                      </div>
+                      <Progress value={verification.truthful_score ?? 0} className="h-1.5" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Screening depth</span>
+                        <span className="font-medium tabular-nums">{Math.round(verification.screening_score ?? 0)}/100</span>
+                      </div>
+                      <Progress value={verification.screening_score ?? 0} className="h-1.5" />
+                    </div>
+                    {verification.strengths.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium">Strengths</p>
+                        {verification.strengths.map((s, i) => (
+                          <p key={i} className="text-xs text-muted-foreground flex gap-1.5">
+                            <CheckCircle2 className="w-3 h-3 shrink-0 mt-0.5 text-emerald-600" />{s}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {verification.gaps.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium">Gaps to work on</p>
+                        {verification.gaps.map((g, i) => (
+                          <p key={i} className="text-xs text-muted-foreground flex gap-1.5">
+                            <AlertCircle className="w-3 h-3 shrink-0 mt-0.5 text-amber-600" />{g}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    <Button size="sm" className="w-full" onClick={openVerifyDialog}>
+                      <ShieldCheck className="w-4 h-4 mr-1" /> Re-run checks
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <p className="text-xs text-muted-foreground">

@@ -3,27 +3,31 @@ import { getAuthRateLimit } from "@/api/auth";
 
 const mockFetch = mock(() => Promise.resolve(new Response()));
 const originalFetch = globalThis.fetch;
+const storage = new Map<string, string>();
 
-// ponytail: mock @/api/client's apiFetch directly so the test is isolated from
-// cross-file mock.module("@/api") leaks (e.g. ResumeGraph.test.tsx replaces the
-// whole @/api barrel). We exercise the real getAuthRateLimit against a stubbed
-// fetch, not a stubbed apiFetch.
-mock.module("@/api/client", () => ({
-  apiFetch: async (path: string, options: any = {}) => {
-    const response = await mockFetch(`${"/api"}${path}`, options);
-    const text = await (response as any).text();
-    return text ? JSON.parse(text) : undefined;
-  },
-  API_URL: "/api",
-}));
+// ponytail: the real @/api/client reads localStorage for the auth token.
+// Under --dom (full suite) localStorage exists as a readonly DOM getter; in
+// standalone runs it does not — install a stub only when missing.
+const originalLocalStorage = (globalThis as any).localStorage;
 
 beforeEach(() => {
   mockFetch.mockClear();
   globalThis.fetch = mockFetch as any;
+  storage.clear();
+  if (originalLocalStorage === undefined) {
+    (globalThis as any).localStorage = {
+      getItem: (k: string) => storage.get(k) ?? null,
+      setItem: (k: string, v: string) => void storage.set(k, v),
+      removeItem: (k: string) => void storage.delete(k),
+    };
+  }
 });
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  if (originalLocalStorage === undefined) {
+    delete (globalThis as any).localStorage;
+  }
 });
 
 describe("getAuthRateLimit", () => {
