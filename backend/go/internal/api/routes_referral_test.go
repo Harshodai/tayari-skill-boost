@@ -21,7 +21,49 @@ func newReferralServer(t *testing.T, pythonURL string) *Server {
 const draftResponse = `{"fit_score":88.0,"subject":"Referral ask for Acme","body":"Hi Alice...","rationale":"Former manager"}`
 
 func validDraftPayload() []byte {
-	return []byte(`{"contact":{"name":"Alice Chen","relationship":"Worked together at Acme 2019-2022","notes":"Backend team"},"job":{"title":"Senior Backend Engineer","company":"Acme"},"user_context":{"full_name":"Jane Doe","skills":["Go"]}}`)
+	return []byte(`{"contact":{"name":"Alice Chen","relationship":"Worked together at Acme 2019-2022","notes":"Backend team"},"job":{"title":"Senior Backend Engineer","company":"Acme"},"user_context":{"full_name":"Jane Doe","skills":["Go"]},"kind":"referral"}`)
+}
+
+func TestReferralDraft_RejectsMissingKind(t *testing.T) {
+	called := false
+	srv := fakeAIServer(t, func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+	defer srv.Close()
+
+	server := newReferralServer(t, srv.URL)
+	payload := []byte(`{"contact":{"name":"Alice Chen","relationship":"Worked together at Acme"},"job":{"title":"Engineer"}}`)
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/referral/draft", payload))
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", w.Code, w.Body.String())
+	}
+	if called {
+		t.Error("expected no upstream call for missing kind")
+	}
+}
+
+func TestReferralDraft_RejectsUnknownKind(t *testing.T) {
+	called := false
+	srv := fakeAIServer(t, func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+	defer srv.Close()
+
+	server := newReferralServer(t, srv.URL)
+	payload := []byte(`{"contact":{"name":"Alice Chen","relationship":"Worked together at Acme"},"job":{"title":"Engineer"},"kind":"spam"}`)
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/referral/draft", payload))
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", w.Code, w.Body.String())
+	}
+	if called {
+		t.Error("expected no upstream call for unknown kind")
+	}
 }
 
 func TestReferralDraft_ProxiesToPythonAndReturns200(t *testing.T) {
@@ -84,7 +126,7 @@ func TestReferralDraft_RejectsMissingRelationship(t *testing.T) {
 	defer srv.Close()
 
 	server := newReferralServer(t, srv.URL)
-	payload := []byte(`{"contact":{"name":"Alice Chen","relationship":""},"job":{"title":"Engineer"}}`)
+	payload := []byte(`{"contact":{"name":"Alice Chen","relationship":""},"job":{"title":"Engineer"},"kind":"referral"}`)
 	w := httptest.NewRecorder()
 	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/referral/draft", payload))
 
@@ -105,7 +147,7 @@ func TestReferralDraft_RejectsOversizedNotes(t *testing.T) {
 	defer srv.Close()
 
 	server := newReferralServer(t, srv.URL)
-	payload := []byte(`{"contact":{"name":"Alice","relationship":"Former colleague","notes":"` + strings.Repeat("n", 2001) + `"},"job":{"title":"Engineer"}}`)
+	payload := []byte(`{"contact":{"name":"Alice","relationship":"Former colleague","notes":"` + strings.Repeat("n", 2001) + `"},"job":{"title":"Engineer"},"kind":"referral"}`)
 	w := httptest.NewRecorder()
 	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/referral/draft", payload))
 

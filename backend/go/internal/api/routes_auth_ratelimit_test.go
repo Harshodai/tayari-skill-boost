@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"tayari-backend/internal/config"
@@ -15,7 +16,9 @@ func TestAuthRateLimit_NoRow_ReturnsAllowedDefault(t *testing.T) {
 	// (that helper lives in an untracked file and would break this test in isolation).
 	srv := NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: nil})
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/rate-limit?email=nobody@example.com", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/rate-limit",
+		strings.NewReader(`{"email":"nobody@example.com"}`))
+	req.Header.Set("Content-Type", "application/json")
 	srv.Router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -33,11 +36,38 @@ func TestAuthRateLimit_NoRow_ReturnsAllowedDefault(t *testing.T) {
 	}
 }
 
-func TestAuthRateLimit_MissingEmailParam_Returns400(t *testing.T) {
+func TestAuthRateLimit_MissingEmail_Returns400(t *testing.T) {
 	server := NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: nil})
 	w := httptest.NewRecorder()
-	server.Router.ServeHTTP(w, authReq(http.MethodGet, "/api/v1/auth/rate-limit", nil))
+	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/auth/rate-limit", []byte(`{}`)))
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for missing email, got %d", w.Code)
+	}
+}
+
+func TestAuthRateLimit_EmptyEmail_Returns400(t *testing.T) {
+	server := NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: nil})
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/auth/rate-limit", []byte(`{"email":""}`)))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for empty email, got %d", w.Code)
+	}
+}
+
+func TestAuthRateLimit_MalformedJSON_Returns400(t *testing.T) {
+	server := NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: nil})
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/auth/rate-limit", []byte(`not-json`)))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for malformed JSON, got %d", w.Code)
+	}
+}
+
+func TestAuthRateLimit_AliasRouteAlsoAcceptsPost(t *testing.T) {
+	server := NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: nil})
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/auth/rate-limit", []byte(`{"email":"a@b.com"}`)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 }

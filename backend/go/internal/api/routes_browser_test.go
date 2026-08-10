@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"tayari-backend/internal/config"
 	"tayari-backend/internal/database"
@@ -123,5 +125,53 @@ func TestBrowserAutomationStream_ForwardsUpstream503(t *testing.T) {
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestBrowserAutomationStream_ClientDisconnectCancelsUpstream verifies that
+// cancelling the caller's context propagates to the Python request: the fake
+// upstream observes a cancelled request context instead of hanging or
+// completing normally. The fake drains the request body first (as a real
+// server would) so the connection close triggered by the client abort is
+// visible to its read loop.
+func TestBrowserAutomationStream_ClientDisconnectCancelsUpstream(t *testing.T) {
+	upstreamCanceled := make(chan struct{}, 1)
+	srv := fakeAIServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		<-r.Context().Done()
+		upstreamCanceled <- struct{}{}
+	})
+	defer srv.Close()
+
+	server := newBrowserServer(t, srv.URL)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := authReq(http.MethodPost, "/api/v1/browser/automation/stream",
+		[]byte(`{"instruction":"Apply"}`))
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		server.Router.ServeHTTP(w, req)
+		close(done)
+	}()
+
+	// Give the handler a chance to establish the upstream request, then
+	// cancel the caller's context as a client disconnect would.
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-upstreamCanceled:
+		// The Python request context was cancelled upstream.
+	case <-time.After(5 * time.Second):
+		t.Fatal("upstream request context was not cancelled after client disconnect")
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("handler did not return after client disconnect")
 	}
 }

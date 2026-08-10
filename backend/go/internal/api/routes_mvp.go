@@ -1800,7 +1800,7 @@ func (s *Server) handleGenerateResumePdf(w http.ResponseWriter, r *http.Request)
 	result, err := s.AI.PostJSON("/api/v1/resumes/generate-pdf", req)
 	if err != nil {
 		log.Printf("handleGenerateResumePdf: generate failed: %v", err)
-		s.respondError(w, http.StatusBadGateway, "Failed to generate resume PDF")
+		s.proxyAIError(w, err)
 		return
 	}
 	pdf, _ := result["pdf_base64"].(string)

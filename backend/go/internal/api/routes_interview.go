@@ -53,7 +53,7 @@ func (s *Server) handleInterviewCopilotStream(w http.ResponseWriter, r *http.Req
 		body = make(map[string]interface{})
 	}
 
-	upstream, err := s.AI.PostStream("/api/v1/interview/copilot/stream", body, s.getXUserHeaders(r))
+	upstream, err := s.AI.PostStream(r.Context(), "/api/v1/interview/copilot/stream", body, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleInterviewCopilotStream: upstream failed: %v", err)
 		if status, ok := extractAIStatus(err); ok {

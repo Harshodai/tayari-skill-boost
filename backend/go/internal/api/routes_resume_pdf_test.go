@@ -130,7 +130,25 @@ func TestResumeGeneratePdf_ForwardPython500(t *testing.T) {
 	w := httptest.NewRecorder()
 	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/resumes/generate-pdf", body))
 
-	if w.Code != http.StatusBadGateway {
-		t.Fatalf("expected 502, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestResumeGeneratePdf_ForwardPythonClientError(t *testing.T) {
+	srv := fakeAIServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = io.WriteString(w, `{"detail":"rate limited"}`)
+	})
+	defer srv.Close()
+
+	server := newResumePdfServer(t, srv.URL)
+	body := []byte(`{"resume_text":"Jane","profile_data":{},"analysis":{}}`)
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/resumes/generate-pdf", body))
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d: %s", w.Code, w.Body.String())
 	}
 }

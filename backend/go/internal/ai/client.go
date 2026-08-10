@@ -2,6 +2,7 @@ package ai
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -273,13 +274,14 @@ func (c *Client) HealthCheck() error {
 }
 
 // PostStream POSTs a JSON payload and returns the raw streaming response
-// body for SSE passthrough. The caller owns closing the body.
-func (c *Client) PostStream(endpoint string, payload interface{}, headers map[string]string) (*http.Response, error) {
+// body for SSE passthrough. The caller owns closing the body. The request is
+// bound to ctx so caller cancellation propagates upstream.
+func (c *Client) PostStream(ctx context.Context, endpoint string, payload interface{}, headers map[string]string) (*http.Response, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(http.MethodPost, c.BaseURL+endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

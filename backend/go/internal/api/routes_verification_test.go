@@ -17,6 +17,14 @@ func newVerificationServer(t *testing.T, pythonURL string) *Server {
 	return NewServer(&hermesMockAuth{}, cfg, &database.DB{Conn: nil})
 }
 
+// newVerificationServerWithDB is the same but with a non-nil (fake) DB so the
+// database guard passes and the handler reaches the upstream AI call.
+func newVerificationServerWithDB(t *testing.T, pythonURL string) *Server {
+	t.Helper()
+	cfg := &config.Config{PythonAIURL: pythonURL}
+	return NewServer(&hermesMockAuth{}, cfg, &database.DB{Conn: fakeDB()})
+}
+
 const scoringResponse = `{"truthful_score":84.0,"red_flags":["X"],"screening_score":73.0,"strengths":["Y"],"gaps":["Z"],"sample_questions":["Q1"]}`
 
 func TestComputeVerification_AboveThresholdsIsVerified(t *testing.T) {
@@ -40,29 +48,32 @@ func TestComputeVerification_AboveThresholdsIsVerified(t *testing.T) {
 	}
 }
 
-func TestComputeVerification_ResumeOnlyEvidenceNeverVerifies(t *testing.T) {
+func TestComputeVerification_ResumeOnlyEvidenceVerifiesOnScores(t *testing.T) {
 	row := computeVerification(map[string]interface{}{
 		"truthful_score": 95.0, "red_flags": []interface{}{},
 		"screening_score": 90.0, "strengths": []interface{}{},
 		"gaps": []interface{}{}, "sample_questions": []interface{}{},
 		"evidence": "resume_only",
 	})
-	if row.Status != "unverified" {
-		t.Errorf("expected unverified for resume-only evidence, got %s", row.Status)
+	if row.Status != "verified" {
+		t.Errorf("expected verified from scores alone (evidence is resume_only), got %s", row.Status)
 	}
-	if row.VerifiedAt != nil {
-		t.Error("expected nil verified_at for resume-only evidence")
+	if row.VerifiedAt == nil {
+		t.Error("expected verified_at set for score-satisfied resume_only evidence")
 	}
 }
 
-func TestComputeVerification_MissingEvidenceNeverVerifies(t *testing.T) {
+func TestComputeVerification_MissingEvidenceVerifiesOnScores(t *testing.T) {
 	row := computeVerification(map[string]interface{}{
 		"truthful_score": 95.0, "red_flags": []interface{}{},
 		"screening_score": 90.0, "strengths": []interface{}{},
 		"gaps": []interface{}{}, "sample_questions": []interface{}{},
 	})
-	if row.Status != "unverified" {
-		t.Errorf("expected unverified without evidence, got %s", row.Status)
+	if row.Status != "verified" {
+		t.Errorf("expected verified from scores alone, got %s", row.Status)
+	}
+	if row.VerifiedAt == nil {
+		t.Error("expected verified_at set when scores satisfy thresholds")
 	}
 }
 
@@ -110,7 +121,7 @@ func TestVerificationSubmit_ProxiesResumeTextUpstream(t *testing.T) {
 	})
 	defer srv.Close()
 
-	server := newVerificationServer(t, srv.URL)
+	server := newVerificationServerWithDB(t, srv.URL)
 	w := httptest.NewRecorder()
 	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/verification/submit",
 		[]byte(`{"resume_text":"Jane Doe\nSenior Engineer at Acme."}`)))
@@ -118,13 +129,10 @@ func TestVerificationSubmit_ProxiesResumeTextUpstream(t *testing.T) {
 	if !upstreamHit {
 		t.Fatal("expected upstream AI call")
 	}
-	// nil DB in unit tests: the guard must respond 503 AFTER the proxy call,
-	// proving the upstream round-trip happened (database.DB{Conn:nil} norm).
-	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected 503 Database unavailable (nil DB), got %d: %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "Database unavailable") {
-		t.Errorf("expected database guard message, got %s", w.Body.String())
+	// Fake DB: the guard passes, the AI round-trip happens, and the persist
+	// step fails against the fake driver → 500 proves the proxy path ran.
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 (fake DB persist failure after proxy), got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -138,7 +146,7 @@ func TestVerificationSubmit_AliasRouteAlsoProxies(t *testing.T) {
 	})
 	defer srv.Close()
 
-	server := newVerificationServer(t, srv.URL)
+	server := newVerificationServerWithDB(t, srv.URL)
 	w := httptest.NewRecorder()
 	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/verification/submit",
 		[]byte(`{"resume_text":"Jane"}`)))
@@ -146,8 +154,8 @@ func TestVerificationSubmit_AliasRouteAlsoProxies(t *testing.T) {
 	if !upstreamHit {
 		t.Fatal("expected upstream AI call via alias route")
 	}
-	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected 503 (nil DB) after successful proxy, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 (fake DB persist failure after proxy), got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -169,6 +177,35 @@ func TestVerificationSubmit_RejectsEmptyResumeText(t *testing.T) {
 	}
 	if called {
 		t.Error("expected no upstream call for empty resume_text")
+	}
+}
+
+// TestVerificationSubmit_NilDBRejectsBeforeAI verifies the database guard
+// fires BEFORE the AI call: with a nil DB the request must return 503 without
+// ever reaching the upstream AI service.
+func TestVerificationSubmit_NilDBRejectsBeforeAI(t *testing.T) {
+	upstreamHit := false
+	srv := fakeAIServer(t, func(w http.ResponseWriter, r *http.Request) {
+		upstreamHit = true
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, scoringResponse)
+	})
+	defer srv.Close()
+
+	server := newVerificationServer(t, srv.URL)
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/verification/submit",
+		[]byte(`{"resume_text":"Jane Doe"}`)))
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 Database unavailable (nil DB), got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "Database unavailable") {
+		t.Errorf("expected database guard message, got %s", w.Body.String())
+	}
+	if upstreamHit {
+		t.Error("expected no upstream AI call when the database is nil")
 	}
 }
 
@@ -201,7 +238,7 @@ func TestVerificationSubmit_ForwardsPython503(t *testing.T) {
 	})
 	defer srv.Close()
 
-	server := newVerificationServer(t, srv.URL)
+	server := newVerificationServerWithDB(t, srv.URL)
 	w := httptest.NewRecorder()
 	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/verification/submit",
 		[]byte(`{"resume_text":"Jane"}`)))
@@ -246,13 +283,13 @@ func TestVerificationSubmit_TrimsAndForwardsNormalizedText(t *testing.T) {
 	})
 	defer srv.Close()
 
-	server := newVerificationServer(t, srv.URL)
+	server := newVerificationServerWithDB(t, srv.URL)
 	w := httptest.NewRecorder()
 	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/verification/submit",
 		[]byte(`{"resume_text":"  Jane Doe\nSenior Engineer at Acme.  "}`)))
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected 503 (nil DB) after successful proxy, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 (fake DB persist failure after proxy), got %d: %s", w.Code, w.Body.String())
 	}
 	if !strings.Contains(upstreamBody, `"resume_text":"Jane Doe\nSenior Engineer at Acme."`) {
 		t.Errorf("expected trimmed resume_text forwarded, got %s", upstreamBody)

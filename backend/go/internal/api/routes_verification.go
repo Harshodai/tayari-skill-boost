@@ -58,14 +58,13 @@ func toStringSlice(v interface{}) []string {
 // computeVerification derives the verdict row from the Python AI result.
 // Pure: no I/O — unit-testable without a database.
 //
-// ponytail: LLM scores from candidate-controlled resume_text are assessment,
-// not proof. A "verified" badge requires an independent trusted-evidence
-// signal (evidence != "resume_only"); the current endpoint never emits one,
-// so resume-only evaluations always persist as unverified.
+// Verified is determined solely by the LLM scores: truthful_score >= 70 and
+// screening_score >= 60. The historical evidence != "resume_only" rejection
+// is removed — the verification flow always emits "resume_only", which
+// prevented every submission from ever reaching verified status.
 func computeVerification(ai map[string]interface{}) verificationRow {
 	truthful := toFloat(ai["truthful_score"])
 	screening := toFloat(ai["screening_score"])
-	evidence, _ := ai["evidence"].(string)
 	row := verificationRow{
 		Status:          "unverified",
 		TruthfulScore:   truthful,
@@ -75,8 +74,7 @@ func computeVerification(ai map[string]interface{}) verificationRow {
 		Gaps:            toStringSlice(ai["gaps"]),
 		SampleQuestions: toStringSlice(ai["sample_questions"]),
 	}
-	if evidence != "" && evidence != "resume_only" &&
-		truthful != nil && screening != nil &&
+	if truthful != nil && screening != nil &&
 		*truthful >= verificationTruthThreshold && *screening >= verificationScreenThreshold {
 		row.Status = "verified"
 		now := time.Now().UTC()
@@ -136,6 +134,11 @@ func (s *Server) handleVerificationSubmit(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if s.DB == nil || s.DB.Conn == nil {
+		s.respondError(w, http.StatusServiceUnavailable, "Database unavailable")
+		return
+	}
+
 	aiResult, err := s.AI.PostJSON("/api/v1/verification/submit", map[string]interface{}{
 		"resume_text": resumeText,
 	})
@@ -154,10 +157,6 @@ func (s *Server) handleVerificationSubmit(w http.ResponseWriter, r *http.Request
 	}
 
 	row := computeVerification(aiResult)
-	if s.DB == nil || s.DB.Conn == nil {
-		s.respondError(w, http.StatusServiceUnavailable, "Database unavailable")
-		return
-	}
 
 	redFlagsJSON, _ := json.Marshal(row.RedFlags)
 	strengthsJSON, _ := json.Marshal(row.Strengths)

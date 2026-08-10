@@ -4,22 +4,27 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"time"
 )
 
-// handleAuthRateLimit serves GET /api/v1/auth/rate-limit?email=...
-// It is an UNAUTHENTICATED pre-login read: the caller is checking whether
-// they're locked out before they can log in. It must not require a JWT.
-// It hashes the email with SHA-256 before querying auth_attempts, matching
-// the audit worker's storage convention (worker.go:73-74). The gateway's
-// global IP rate limiter (middleware.go) caps abuse.
+// handleAuthRateLimit serves POST /api/v1/auth/rate-limit with the email in a
+// JSON body (never in the URL, so the value cannot leak through query strings
+// or logs). It is an UNAUTHENTICATED pre-login read: the caller is checking
+// whether they're locked out before they can log in. It must not require a
+// JWT. It hashes the email with SHA-256 before querying auth_attempts,
+// matching the audit worker's storage convention (worker.go:73-74). The
+// gateway's global IP rate limiter (middleware.go) caps abuse.
 func (s *Server) handleAuthRateLimit(w http.ResponseWriter, r *http.Request) {
-	email := r.URL.Query().Get("email")
-	if email == "" {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
 		s.respondError(w, http.StatusBadRequest, "email parameter required")
 		return
 	}
+	email := req.Email
 
 	// ponytail: hash email to match the audit worker's storage convention —
 	// the edge fn queried by raw email, which never matched Go's hashed rows.

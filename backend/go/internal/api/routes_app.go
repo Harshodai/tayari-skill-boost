@@ -28,9 +28,10 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 
 		// ---- Auth rate-limit read (replaces check-rate-limit edge fn) ----
 		// Unauthenticated pre-login read: caller checks lockout before login.
-		// Global IP rate limiter (publicRateLimiter above) caps abuse.
-		r.Get("/api/v1/auth/rate-limit", s.handleAuthRateLimit)
-		r.Get("/api/auth/rate-limit", s.handleAuthRateLimit)
+		// Global IP rate limiter (publicRateLimiter above) caps abuse. POST with
+		// a JSON body keeps the email out of the URL (no query-string leakage).
+		r.Post("/api/v1/auth/rate-limit", s.handleAuthRateLimit)
+		r.Post("/api/auth/rate-limit", s.handleAuthRateLimit)
 
 		r.Get("/api/v1/tenants/branding", s.handleGetTenantBranding)
 		r.Post("/api/v1/analytics/performance", s.handleAnalyticsPerformance)

@@ -49,10 +49,17 @@ func (s *Server) handleBrowserAutomation(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleBrowserAutomationStream(w http.ResponseWriter, r *http.Request) {
 	var body map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		body = make(map[string]interface{})
+		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+	// Reject trailing data after the first JSON value (e.g. two concatenated
+	// objects) — the decoder must hit EOF, otherwise the payload is malformed.
+	if err := json.NewDecoder(r.Body).Decode(&struct{}{}); err != io.EOF {
+		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
+		return
 	}
 
-	upstream, err := s.AI.PostStream("/api/v1/browser/automation/stream", body, s.getXUserHeaders(r))
+	upstream, err := s.AI.PostStream(r.Context(), "/api/v1/browser/automation/stream", body, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleBrowserAutomationStream: upstream failed: %v", err)
 		if status, ok := extractAIStatus(err); ok {

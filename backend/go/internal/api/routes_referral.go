@@ -9,12 +9,20 @@ import (
 // moderator (Moat-1). Pure proxy: auth handled by the route group; no DB.
 func (s *Server) handleReferralDraft(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Contact      map[string]interface{} `json:"contact"`
-		Job          map[string]interface{} `json:"job"`
-		UserContext  map[string]interface{} `json:"user_context"`
+		Contact     map[string]interface{} `json:"contact"`
+		Job         map[string]interface{} `json:"job"`
+		UserContext map[string]interface{} `json:"user_context"`
+		Kind        string                 `json:"kind"`
 	}
 	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	switch req.Kind {
+	case "intro", "referral", "followup", "thanks":
+		// Valid draft kinds — forwarded to Python verbatim.
+	default:
+		s.respondError(w, http.StatusUnprocessableEntity, "kind must be one of: intro, referral, followup, thanks")
 		return
 	}
 	contactName, _ := req.Contact["name"].(string)
