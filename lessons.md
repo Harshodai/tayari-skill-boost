@@ -4,6 +4,26 @@ This document details key findings, architectural decisions, and lessons learned
 
 ---
 
+## 2026-08-10 — P0 Task 4: backend brand payloads converged to "Job Tayari"
+
+### What was done
+- Swapped the stale "Tayari Skill Boost" product name in four backend payloads the frontend brand gate cannot see: Go `handleAgentReachDoctor` `platform_name` (routes_mvp.go:2036, both `/api/agent-reach/doctor` and `/api/v1/agent-reach/doctor`), Python `TayariDoctorReport.platform_name` default (agent_reach.py:69) + `run_tayari_doctor` return value (:187), and the exported PDF HTML `<title>` (pipeline_dashboard_generator.py:34). Also fixed the module docstring's trailing product name.
+- TDD: Go test `TestAgentReachDoctorPlatformName_BrandingInSync` (behavioral — hits both route aliases via `newHermesServer`+`authReq`, asserts exact `platform_name`; no Python upstream needed, the handler responds inline); Python `test_agent_reach_branding.py` (model default + `run_tayari_doctor`). All failed pre-swap, pass post-swap. Updated the pre-existing `test_phase2_adaptations.py:102` HTML-title assertion alongside.
+- `// ponytail:` / `# ponytail:` comments at each swap noting the brand gate lives in `src/config/branding.test.ts` and can't see backend strings.
+
+### Root causes
+- Task 1's brand gate scopes `src/` + `index.html`; backend payload strings were a separate leak the gate's grep cannot enumerate. The P0 audit's offender list was still incomplete — grep surfaced a fourth user-visible spot (PDF HTML title) plus a test that pinned the old title, which would have gone red on the swap.
+
+### Fix applied
+- Copy-level value swap only; no identifiers/routes/imports changed. Grep now shows zero "Tayari Skill Boost" in non-test backend files.
+
+### Reusable lessons
+- A branding/rename gate that greps only the frontend tree will always miss backend payload strings — every swap site needs a ponytail comment pointing at the gate so future renames find them.
+- The audit's offender list is never exhaustive: grep the whole tree for the stale string BEFORE swapping, and grep for tests that pin the old value (a string-asserting test is a hidden compile-time of the copy).
+- A comment inside a Go map literal triggers a gofmt alignment rewrite of the whole literal (pre-existing gofmt debt in routes_mvp.go) — put the ponytail comment above the statement, not inside the map, to keep the diff surgical.
+
+---
+
 ## 2026-08-10 — Autopilot apply chain dropped JD after optimizeResume signature change
 
 ### What was done
