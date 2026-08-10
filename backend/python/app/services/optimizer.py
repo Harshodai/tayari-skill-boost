@@ -676,6 +676,7 @@ async def optimize_resume_with_options(
     filename: str = "",
     jd_text: str = "",
     jd_url: str = "",
+    target_role: str = "",
     custom_instructions: str = ""
 ) -> dict:
     """Reflective Resume Optimizer supporting file upload parsing, raw text input,
@@ -711,6 +712,7 @@ async def optimize_resume_with_options(
     return await optimize_with_reflection(
         resume_text=effective_resume_text,
         job_description=jd_text or None,
+        target_role=target_role or None,
         custom_instructions=custom_instructions or None,
     )
 

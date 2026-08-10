@@ -165,7 +165,7 @@ strategic_analyzer = StrategicAnalyzer()
 
 from app.routes import health, ats
 from app.routes.ats import AnalyzeRequest
-from app.api.ai_routes import router as ai_router
+from app.api.ai_routes import router as ai_router, _validate_public_url
 from app.api.adaptations_routes import adaptations_router
 
 app.include_router(health.router)
@@ -263,15 +263,17 @@ async def optimize_resume(payload: OptimizerRequest):
     """AI-powered resume optimization with reflexion loop."""
     try:
         if payload.jd_url:
-            # ponytail: jd_url path routes through the scraper-backed options
-            # entry point; the plain reflection path has no URL handling.
-            # target_role is a plain-path feature: optimize_resume_with_options
-            # has no target_role parameter, so it is intentionally not passed
-            # when a URL is present.
+            # ponytail: SSRF guard — run the same public-URL validation as the
+            # job-descriptions/import path before the scraper sees the URL; the
+            # scraper additionally pins the resolved IP and re-validates every
+            # redirect hop (optimizer.scrape_jd_url -> _resolve_and_validate_url
+            # + BrowserOperator.navigate(validate_redirects=True)).
+            safe_url = _validate_public_url(payload.jd_url)
             result = await optimizer.optimize_resume_with_options(
                 resume_text=payload.resume_text,
                 jd_text=payload.job_description or "",
-                jd_url=payload.jd_url,
+                jd_url=safe_url,
+                target_role=payload.target_role,
                 custom_instructions=payload.custom_instructions or "",
             )
         else:
@@ -285,6 +287,8 @@ async def optimize_resume(payload: OptimizerRequest):
     except LLMNotConfiguredError as exc:
         logger.error("optimizer/optimize: LLM not configured/available: %s", exc)
         return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("optimizer/optimize failed: %s", exc)
         raise HTTPException(status_code=502, detail="Optimization failed") from exc

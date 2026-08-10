@@ -1,5 +1,10 @@
 import pytest
-from app.api.ai_routes import OptimizerRequest
+from unittest import mock
+
+from fastapi import HTTPException
+
+from app.api import ai_routes
+from app.api.ai_routes import OptimizerRequest, _validate_public_url
 from app.services.optimizer import (
     analyze_keyword_gaps,
     remove_ai_buzzwords,
@@ -19,6 +24,55 @@ def test_optimizer_request_accepts_all_inputs():
     assert req.custom_instructions == "emphasize leadership"
     assert req.target_role == "Senior Engineer"
     assert req.jd_url == "https://boards.greenhouse.io/example"
+
+
+def test_validate_public_url_rejects_loopback():
+    with pytest.raises(HTTPException) as excinfo:
+        _validate_public_url("http://127.0.0.1:8080/job")
+    assert excinfo.value.status_code == 400
+
+
+def test_validate_public_url_accepts_public_host():
+    safe = _validate_public_url("https://boards.greenhouse.io/jobs/123")
+    assert safe == "https://boards.greenhouse.io/jobs/123"
+
+
+@pytest.mark.asyncio
+async def test_optimize_with_jd_url_propagates_target_role_and_validates_url():
+    options_mock = mock.AsyncMock(return_value={"optimized_text": "x"})
+    with (
+        mock.patch.object(ai_routes.optimizer, "optimize_resume_with_options", options_mock),
+        mock.patch.object(ai_routes, "_validate_public_url", return_value="https://example.com/job"),
+    ):
+        result = await ai_routes.optimize_resume(
+            OptimizerRequest(
+                resume_text="resume",
+                target_role="Staff Engineer",
+                jd_url="https://example.com/job",
+            )
+        )
+        assert result is not None
+        assert isinstance(result, dict)
+        options_mock.assert_awaited_once()
+        kwargs = options_mock.await_args.kwargs
+        assert kwargs["jd_url"] == "https://example.com/job"
+        assert kwargs["target_role"] == "Staff Engineer"
+
+
+@pytest.mark.asyncio
+async def test_optimize_with_invalid_jd_url_rejected_before_scraper():
+    options_mock = mock.AsyncMock()
+    with mock.patch.object(ai_routes.optimizer, "optimize_resume_with_options", options_mock):
+        with pytest.raises(HTTPException) as excinfo:
+            await ai_routes.optimize_resume(
+                OptimizerRequest(
+                    resume_text="resume",
+                    target_role="Staff Engineer",
+                    jd_url="http://127.0.0.1:8080/job",
+                )
+            )
+    assert excinfo.value.status_code == 400
+    options_mock.assert_not_awaited()
 
 
 def test_analyze_keyword_gaps():
