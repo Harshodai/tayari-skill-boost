@@ -4,6 +4,23 @@ This document details key findings, architectural decisions, and lessons learned
 
 ---
 
+## 2026-08-10 — Autopilot apply chain dropped JD after optimizeResume signature change
+
+### What was done
+- Fixed `src/lib/automation/applyChain.ts:47`: `optimizeResume(resume.id, jd)` passed a raw string to the new `opts?: OptimizeResumeOptions` parameter (Task 2 redefined the signature in `src/api/resumes.ts`). At runtime `opts.jobDescription` was `undefined`, so the AutoPilot apply chain POSTed `job_description: undefined` — the "input dropped at the contract" P0 pattern, silently regressed in the autopilot path.
+- Fix: `optimizeResume(resume.id, { jobDescription: jd })` with a `// ponytail:` comment. `bunx tsc --noEmit` clean (0 errors), `bun run build` passes.
+
+### Root causes
+- Task 2 changed a shared API helper's second parameter from a string to an options object, but the build/typecheck did not catch the call site: a string is a valid value for a `string | undefined` options bag under structural typing at the call boundary, so no type error surfaced; the loss happens only at runtime JSON serialization.
+
+### Fix applied
+- Object form at the call site plus a ponytail comment documenting the contract.
+
+### Reusable lessons
+- Signature changes on shared API helpers silently break callers that build passes don't catch — when a helper's parameter type changes from a scalar to an object, grep every call site for positional-scalar usage instead of trusting the compiler (structural typing will happily accept the wrong shape).
+
+---
+
 ## 2026-08-10 — DeepSeek run prompt hardened to SDD + ponytail protocol
 
 ### What was done
