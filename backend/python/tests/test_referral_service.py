@@ -32,7 +32,8 @@ def _verdict():
     return ReferralDraftVerdict(
         fit_score=88.0,
         subject="Referral ask for Acme Senior Backend Engineer",
-        body="Hi Alice, we worked together at Acme on the backend team.\n\nI'd appreciate a referral...",
+        email_body="Hi Alice, we worked together at Acme on the backend team.\n\nI'd appreciate a referral...",
+        linkedin_body="Hi Alice! Would you be open to referring me for the Acme role?",
         rationale="Former manager relationship with relevant team",
     )
 
@@ -49,6 +50,7 @@ async def test_run_referral_draft_parses_verdict(monkeypatch):
 
     assert verdict.fit_score == 88.0
     assert "Acme" in verdict.subject
+    assert verdict.email_body and verdict.linkedin_body
     assert verdict.rationale
 
 
@@ -66,6 +68,17 @@ async def test_run_referral_draft_relationship_reaches_prompt(monkeypatch):
 
     assert "Worked together at Acme 2019-2022" in seen["user_message"]
     assert "Managed backend team" in seen["user_message"]
+
+
+@pytest.mark.asyncio
+async def test_run_referral_draft_rejects_unknown_kind(monkeypatch):
+    async def fake_llm_json(**kwargs):
+        raise AssertionError("llm_json must not be called for unknown kind")
+
+    monkeypatch.setattr(f"{MODULE}.llm_json", fake_llm_json)
+
+    with pytest.raises(ValueError):
+        await run_referral_draft(**_valid_context(), kind="spam")
 
 
 @pytest.mark.asyncio

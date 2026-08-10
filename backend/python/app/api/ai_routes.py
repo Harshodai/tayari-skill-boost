@@ -547,12 +547,14 @@ class ReferralDraftUserContext(BaseModel):
     full_name: Optional[str] = None
     headline: Optional[str] = None
     skills: List[str] = []
+    proof_points: Optional[str] = None
 
 
 class ReferralDraftRequest(BaseModel):
     contact: ReferralDraftContact
     job: ReferralDraftJob
     user_context: Optional[ReferralDraftUserContext] = None
+    kind: str = "referral"
 
 
 @router.post("/api/v1/referral/draft")
@@ -564,11 +566,13 @@ async def create_referral_draft(payload: ReferralDraftRequest):
             payload.contact.model_dump(),
             payload.job.model_dump(),
             (payload.user_context or ReferralDraftUserContext()).model_dump(),
+            kind=payload.kind,
         )
         return {
             "fit_score": verdict.fit_score,
             "subject": verdict.subject,
-            "body": verdict.body,
+            "email": verdict.email_body,
+            "linkedin": verdict.linkedin_body,
             "rationale": verdict.rationale,
         }
     except LLMNotConfiguredError as exc:
