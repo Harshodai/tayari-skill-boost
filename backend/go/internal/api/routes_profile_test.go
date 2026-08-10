@@ -151,6 +151,10 @@ func (profileFakeDriver) Open(string) (driver.Conn, error) {
 func TestProfileCareerGoalRoundTrip(t *testing.T) {
 	server := NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: profileFakeDB()})
 
+	profileUpsertArgsMu.Lock()
+	profileUpsertArgs = nil
+	profileUpsertArgsMu.Unlock()
+
 	putBody := []byte(`{
 		"full_name":"Ada Lovelace",
 		"headline":"Software Engineer",
@@ -183,6 +187,37 @@ func TestProfileCareerGoalRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatalf("GET response is not JSON: %v", err)
 	}
+	// ponytail: the fake driver ignores the upsert's bound values and always
+	// serves the canned GET row (newProfileFakeRows), so the GET assertions
+	// above only prove the scan side. Assert the bound upsert args directly —
+	// the only way this test proves the PUT values reached persistence.
+	profileUpsertArgsMu.Lock()
+	if profileUpsertArgs == nil {
+		profileUpsertArgsMu.Unlock()
+		t.Fatal("upsert did not reach the fake driver")
+	}
+	gotArgs := profileUpsertArgs
+	profileUpsertArgsMu.Unlock()
+	if gotArgs[12].Value != "cross_domain" {
+		t.Errorf("upsert transition_type arg (13th) = %#v, want cross_domain", gotArgs[12].Value)
+	}
+	if gotArgs[13].Value != "Senior Software Engineer" {
+		t.Errorf("upsert current_title arg (14th) = %#v, want Senior Software Engineer", gotArgs[13].Value)
+	}
+	if gotArgs[14].Value != "Staff Architect" {
+		t.Errorf("upsert target_level arg (15th) = %#v, want Staff Architect", gotArgs[14].Value)
+	}
+	if gotArgs[15].Value != "Fintech" {
+		t.Errorf("upsert current_industry arg (16th) = %#v, want Fintech", gotArgs[15].Value)
+	}
+	if gotArgs[16].Value != "AI / Machine Learning" {
+		t.Errorf("upsert target_industry arg (17th) = %#v, want AI / Machine Learning", gotArgs[16].Value)
+	}
+	wantSkills := `{"Distributed Systems","High-Throughput APIs"}`
+	if gotSkills, ok := gotArgs[17].Value.(string); !ok || gotSkills != wantSkills {
+		t.Errorf("upsert transferable_skills arg (18th) = %#v, want %s", gotArgs[17].Value, wantSkills)
+	}
+
 	if got["transition_type"] != "cross_domain" {
 		t.Errorf("GET transition_type = %v, want cross_domain", got["transition_type"])
 	}
