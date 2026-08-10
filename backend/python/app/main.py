@@ -1605,3 +1605,22 @@ if __name__ == "__main__":
     import uvicorn  # noqa: E402
 
     uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+
+
+@app.post("/api/v1/interview/copilot/stream")
+async def live_copilot_stream_endpoint(payload: dict):
+    """SSE stream of progressive STAR hints for live interviewer questions."""
+    import json as _json
+    from app.services.live_interview_copilot import LiveCopilotRequest, stream_live_copilot_hints
+
+    req = LiveCopilotRequest(**payload)
+
+    async def event_stream():
+        async for event in stream_live_copilot_hints(req):
+            yield f"data: {_json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
