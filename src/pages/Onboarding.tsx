@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { updateProfile } from "@/api";
+import { getProfile, updateProfile } from "@/api";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,17 +24,30 @@ type TransitionType = "same_domain" | "cross_domain";
 export default function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [transitionType, setTransitionType] = useState<TransitionType>("same_domain");
-  const [currentTitle, setCurrentTitle] = useState("Senior Software Engineer");
-  const [targetLevel, setTargetLevel] = useState("Staff Architect");
-  const [currentIndustry, setCurrentIndustry] = useState("Fintech");
-  const [targetIndustry, setTargetIndustry] = useState("AI / Machine Learning");
-  const [transferableSkills, setTransferableSkills] = useState<string[]>([
-    "Distributed Systems",
-    "High-Throughput APIs",
-    "SQL / PostgreSQL Performance",
-    "System Resilience & Reliability"
-  ]);
+  const [currentTitle, setCurrentTitle] = useState("");
+  const [targetLevel, setTargetLevel] = useState("");
+  const [currentIndustry, setCurrentIndustry] = useState("");
+  const [targetIndustry, setTargetIndustry] = useState("");
+  const [transferableSkills, setTransferableSkills] = useState<string[]>([]);
+
+  // ponytail: hydrate from the canonical profile so re-running onboarding
+  // doesn't clobber saved values with defaults.
+  useEffect(() => {
+    getProfile()
+      .then((profile) => {
+        setTransitionType((profile.transition_type as TransitionType) ?? "same_domain");
+        if (profile.current_title) setCurrentTitle(profile.current_title);
+        if (profile.target_level) setTargetLevel(profile.target_level);
+        if (profile.current_industry) setCurrentIndustry(profile.current_industry);
+        if (profile.target_industry) setTargetIndustry(profile.target_industry);
+        if (profile.transferable_skills?.length) setTransferableSkills(profile.transferable_skills);
+      })
+      .catch(() => {
+        /* profile fetch failed — keep empty defaults */
+      });
+  }, []);
 
   const finish = async () => {
     const payload = {
@@ -53,6 +66,8 @@ export default function Onboarding() {
     }
     // ponytail: persist the career goal in the canonical public.profiles table
     // (P0 audit fix Q3); pet_preferences mirror below stays as secondary storage.
+    // ponytail: a silent profile-write failure would drop the career goal the
+    // user just set — surface it and let them retry.
     try {
       await updateProfile({
         transition_type: transitionType,
@@ -63,8 +78,10 @@ export default function Onboarding() {
         transferable_skills: transferableSkills,
       });
     } catch {
-      /* best effort — never block navigation */
+      setSaveError("Failed to save your career goal. Please try again.");
+      return;
     }
+    setSaveError(null);
     try {
       const { data } = await supabase.auth.getUser();
       const userId = data.user?.id;
@@ -236,11 +253,15 @@ export default function Onboarding() {
                   <label className="text-xs font-semibold text-slate-300">Transferable Technical Competencies Preview</label>
                   <div className="p-4 bg-slate-950 rounded-lg border border-slate-800 space-y-2">
                     <div className="flex flex-wrap gap-2">
-                      {transferableSkills.map((sk, i) => (
-                        <Badge key={i} className="bg-purple-950 text-purple-300 border border-purple-800">
-                          {sk}
-                        </Badge>
-                      ))}
+                      {transferableSkills.length > 0 ? (
+                        transferableSkills.map((sk, i) => (
+                          <Badge key={i} className="bg-purple-950 text-purple-300 border border-purple-800">
+                            {sk}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-sm text-slate-500">No skills added yet</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -273,6 +294,12 @@ export default function Onboarding() {
                 </span>.
               </p>
             </div>
+
+            {saveError && (
+              <p className="text-red-400 text-sm bg-red-950/40 border border-red-500/30 rounded-lg px-4 py-3">
+                {saveError}
+              </p>
+            )}
 
             <div className="flex justify-center gap-4 pt-4">
               <Button onClick={() => setStep(2)} variant="outline" className="border-slate-800 text-slate-300">
