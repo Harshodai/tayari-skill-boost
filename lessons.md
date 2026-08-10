@@ -1248,3 +1248,23 @@ Fixed four test files to stop cross-test leakage and match the new POST rate-lim
 - The P0 audit's "DROPPED at the API contract" pattern: a feature can be fully implemented at the edges (UI + engine) and dead in the middle. Route tests should assert forwarded payload fields, not just 200 status — that's the only thing that catches a dropped field.
 - `handleOptimizeResume` needs a live `*sql.DB`; the suite's existing fake drivers error on every query. A targeted stdlib `driver.Conn` stub returning one canned row answers the resume lookup without sqlmock.
 - My `ResumeResults` edit initially removed the `const text` line while inserting the opts block — the `bun run build` after the edit (not before) is what caught it; re-run build after every frontend edit, not just once.
+
+## 2026-08-10 — Career-goal persistence: onboarding wrote to pet_preferences instead of canonical profiles
+
+### What was done
+- P0 audit fix Q3: the onboarding wizard captured `transitionType`/`currentTitle`/`targetLevel`/`currentIndustry`/`targetIndustry`/`transferableSkills` but persisted them only to `localStorage` + `pet_preferences` — not the canonical `public.profiles` table, so Profile, optimizer, and agent targeting never saw them.
+- Added migration `20260810_01_career_goal.sql` (6 columns + CHECK on transition_type) and synced it to `supabase-local/volumes/db/init/22-` with the required `zz-22-` mount in `supabase-local/docker-compose.yml`.
+- Added the six fields to `models.Profile` (snake_case JSON tags, StringSlice for transferable_skills), `handleGetProfile` SELECT/scan/map, and `handleUpdateProfile` upsert (18 placeholders).
+- Frontend: six optional fields on `src/api/types.ts` Profile; Profile.tsx gained a "Career Goal" card (branch selector + conditional inputs, load/save); Onboarding `finish()` now best-effort calls `updateProfile(...)` — `localStorage`/`pet_preferences` mirror stays secondary.
+- TDD: `TestProfileCareerGoalRoundTrip` (routes_profile_test.go) with a canned-row fake driver asserting PUT accepts + GET returns all six fields.
+
+### Root causes
+- Onboarding predated the canonical profile schema and never grew a bridge; the P0 audit surfaced the drift (UI collects, localStorage holds, canonical table never sees).
+
+### Fix applied
+- Full wire: DB migration (both homes), Go model + GET/PUT handlers, TS Profile type, Profile page card, Onboarding best-effort PUT.
+
+### Reusable lessons
+- Any UI-captured field that shapes product behavior belongs in the canonical profile table, not localStorage/aux tables — the fake-driver round-trip test (canned `driver.Rows` matching SELECT scan order + a RETURNING updated_at row for the upsert) proves the wire end-to-end without a live DB.
+- Postgres `TEXT[]` scans via the existing `StringSlice` custom type; `nil` fixture values break scans into plain `string` fields — COALESCE in the query means the fixture must yield `""`, not NULL.
+- Running `gofmt -w` on a not-gofmt-clean file drags unrelated alignment hunks into the diff — restore and re-apply manually to keep the change surgical.
