@@ -1,5 +1,5 @@
 /**
- * Tayari UI Component System — Barrel Exports
+ * Job Tayari UI Component System — Barrel Exports
  *
  * Production-grade, accessible, reusable components for the Job Tayari platform.
  *

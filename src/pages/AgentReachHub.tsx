@@ -264,7 +264,7 @@ export function AgentReachHub() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-bold tracking-tight">Tayari Candidate Intelligence & Reach Suite</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Job Tayari Candidate Intelligence & Reach Suite</h1>
               <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
                 <Zap className="w-3.5 h-3.5 mr-1" /> 15 Candidate Channels Active
               </Badge>
@@ -276,7 +276,7 @@ export function AgentReachHub() {
 
           <Button variant="outline" onClick={fetchDoctorStatus} className="gap-2 shrink-0">
             <Stethoscope className="w-4 h-4 text-emerald-500" />
-            Tayari Jobseeker Doctor ({doctorReport?.active_channels || 15}/15 Active)
+            Job Tayari Jobseeker Doctor ({doctorReport?.active_channels || 15}/15 Active)
           </Button>
         </div>
 
@@ -286,7 +286,8 @@ export function AgentReachHub() {
             <TabsTrigger value="transcribe" className="gap-1.5"><Mic className="w-3.5 h-3.5" /> Audio Whisper</TabsTrigger>
             <TabsTrigger value="search" className="gap-1.5"><Search className="w-3.5 h-3.5" /> Exa Career Search</TabsTrigger>
             <TabsTrigger value="cookies" className="gap-1.5"><Cookie className="w-3.5 h-3.5" /> Browser Cookies</TabsTrigger>
-            <TabsTrigger value="doctor" className="gap-1.5"><Stethoscope className="w-3.5 h-3.5" /> Tayari Doctor</TabsTrigger>
+            {/* ponytail: user-facing labels; the branding gate in src/config/branding.test.ts enforces the "Job Tayari" prefix rule */}
+            <TabsTrigger value="doctor" className="gap-1.5"><Stethoscope className="w-3.5 h-3.5" /> Job Tayari Doctor</TabsTrigger>
           </TabsList>
 
           {/* TAB 1: Content Extractor */}
@@ -535,7 +536,7 @@ export function AgentReachHub() {
             </Card>
           </TabsContent>
 
-          {/* TAB 5: Tayari Jobseeker Doctor */}
+          {/* TAB 5: Job Tayari Jobseeker Doctor */}
           <TabsContent value="doctor" className="space-y-4 mt-4">
             <Card>
               <CardHeader className="pb-3">
