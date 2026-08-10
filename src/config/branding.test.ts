@@ -32,3 +32,18 @@ describe("branding: AutoPilot is the single product name (V6)", () => {
     expect(features).toContain('label: "AutoPilot", href: "/jobs/autopilot"');
   });
 });
+
+describe("branding: Job Tayari is the single product name (P0)", () => {
+  const productNameOffenders = sourceFiles(SRC).filter(
+    (f) => !/\.test\.(ts|tsx)$/.test(f) && /Tayari Skill Boost/.test(readFileSync(f, "utf8"))
+  );
+
+  it("no user-visible 'Tayari Skill Boost' remains in src/", () => {
+    expect(productNameOffenders.map((f) => f.replace(SRC, ""))).toEqual([]);
+  });
+
+  it("index.html title uses Job Tayari", () => {
+    const html = readFileSync(join(SRC, "..", "index.html"), "utf8");
+    expect(html).toContain("<title>Job Tayari");
+  });
+});

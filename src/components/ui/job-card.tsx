@@ -1,5 +1,5 @@
 /**
- * JobCard — Premium job listing card component for Tayari Skill Boost
+ * JobCard — Premium job listing card component for Job Tayari
  *
  * Props/API:
  *  job          — Job object { id, title, company, location, salary?, type, logo?, atsScore?, tags?, postedAt, isRemote?, isSaved? }

@@ -63,7 +63,7 @@ export function AgentReachHub() {
   const [doctorReport, setDoctorReport] = useState<DoctorReport | null>({
     total_channels: 15,
     active_channels: 15,
-    platform_name: "Tayari Skill Boost Candidate Intelligence Suite",
+    platform_name: "Job Tayari Candidate Intelligence Suite",
     browser_cookies_detected: ["chrome", "edge", "firefox", "brave", "safari"],
     channels: [
       { channel: "github", label: "GitHub Portfolios & PRs", jobseeker_purpose: "Candidate code quality, open source PRs, repo READMEs", active: true, status: "ok", backend: "gh CLI / REST API", latency_ms: 85 },
@@ -540,7 +540,7 @@ export function AgentReachHub() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Stethoscope className="w-4 h-4 text-emerald-500" /> Tayari Skill Boost Candidate Reach Doctor
+                  <Stethoscope className="w-4 h-4 text-emerald-500" /> Job Tayari Candidate Reach Doctor
                 </CardTitle>
                 <CardDescription className="text-xs">
                   Real-time diagnostic health probes across 15 candidate intelligence channels and binary toolchains.

@@ -1,7 +1,7 @@
 /**
  * Tayari UI Component System — Barrel Exports
  *
- * Production-grade, accessible, reusable components for the Tayari Skill Boost platform.
+ * Production-grade, accessible, reusable components for the Job Tayari platform.
  *
  * ┌─────────────────────────────────────────────────────────────────┐
  * │  COMPONENT REGISTRY                                             │
