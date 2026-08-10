@@ -1,4 +1,3 @@
-import pytest
 from app.services.agent_reach import TayariDoctorReport, run_tayari_doctor
 
 
@@ -13,5 +12,4 @@ def test_tayari_doctor_report_platform_name_uses_job_tayari_branding():
 def test_run_tayari_doctor_platform_name_uses_job_tayari_branding():
     # ponytail: same manual-sync note as the model default above.
     report = run_tayari_doctor()
-    assert report.platform_name.startswith("Job Tayari ")
-    assert "Tayari Skill Boost" not in report.platform_name
+    assert report.platform_name == "Job Tayari Jobseeker Suite"

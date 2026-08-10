@@ -189,8 +189,12 @@ def run_tayari_doctor() -> TayariDoctorReport:
         active_channels=active_count,
         # ponytail: keep in sync with src/config/branding.test.ts — the brand
         # gate cannot see backend payload strings (same note as the model
-        # default above).
-        platform_name="Job Tayari Jobseeker Intelligence Suite",
+        # default above). The Go gateway doctor payload intentionally uses
+        # "Job Tayari Candidate Intelligence Suite" (Go-owned, built inline in
+        # backend/go/internal/api/routes_mvp.go, consumed by the frontend);
+        # this Python engine is a standalone surface — keep the two in sync
+        # for branding only, never merge them.
+        platform_name="Job Tayari Jobseeker Suite",
         browser_cookies_detected=cookies,
         channels=status_list,
     )
