@@ -527,3 +527,55 @@ async def submit_verification(payload: VerificationRequest):
     except Exception as exc:
         logger.error("verification/submit failed: %s", exc)
         raise HTTPException(status_code=500, detail="Verification failed") from exc
+
+
+class ReferralDraftContact(BaseModel):
+    name: str
+    title: Optional[str] = None
+    company: Optional[str] = None
+    relationship: str
+    notes: Optional[str] = None
+
+
+class ReferralDraftJob(BaseModel):
+    title: str
+    company: Optional[str] = None
+    description: Optional[str] = None
+
+
+class ReferralDraftUserContext(BaseModel):
+    full_name: Optional[str] = None
+    headline: Optional[str] = None
+    skills: List[str] = []
+
+
+class ReferralDraftRequest(BaseModel):
+    contact: ReferralDraftContact
+    job: ReferralDraftJob
+    user_context: Optional[ReferralDraftUserContext] = None
+
+
+@router.post("/api/v1/referral/draft")
+async def create_referral_draft(payload: ReferralDraftRequest):
+    """Moat-1: personalize a referral-request draft for one contact (stateless)."""
+    from app.services.referral_service import run_referral_draft
+    try:
+        verdict = await run_referral_draft(
+            payload.contact.model_dump(),
+            payload.job.model_dump(),
+            (payload.user_context or ReferralDraftUserContext()).model_dump(),
+        )
+        return {
+            "fit_score": verdict.fit_score,
+            "subject": verdict.subject,
+            "body": verdict.body,
+            "rationale": verdict.rationale,
+        }
+    except LLMNotConfiguredError as exc:
+        logger.error("referral/draft: LLM not configured: %s", exc)
+        return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("referral/draft failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Referral draft failed") from exc
