@@ -1499,3 +1499,9 @@ keeps ratcheting. Accepting a finding must be an explicit, reviewable commit
 - Frontend `cancelBrowserRun` now bounds itself, returns whether a session was terminated, and toasts failures instead of swallowing them.
 
 **Lesson:** A kill switch is a security boundary, not a convenience button. Any registry keyed only by an opaque id (`run_id`) is an IDOR waiting to happen — bind the owner at creation, verify at every control operation, and make the control path the *shortest*-timeout path in the system, not the longest. And a control that silently swallows its own failure is indistinguishable from one that works.
+
+## 2026-08-11 — Server-side analytics: presets, paging, drill-down
+- **Done:** Added `route_analytics_summary` / `route_analytics_breakdown` SQL functions (SECURITY INVOKER, so RLS still decides whose rows count), rebuilt `src/pages/RouteInsights.tsx` around them, added `src/pages/analytics/presets.ts` (localStorage filter presets + builtins) and `src/pages/analytics/RouteDrilldown.tsx` (paged raw events per route).
+- **Root cause:** The dashboard pulled up to 5000 rows client-side and aggregated in JS — correctness silently degrades past that cap and payloads grow unbounded.
+- **Fix:** Aggregate/sort/page in Postgres; the client only renders one page. Drill-down uses `.range()` with `count: "exact"`.
+- **Lesson:** Keep reporting functions SECURITY INVOKER — a DEFINER aggregate would have leaked every tenant's traffic to any signed-in user. Also: dynamic ORDER BY in plain SQL is safest as a `CASE` ladder over a whitelist rather than string-built dynamic SQL.
