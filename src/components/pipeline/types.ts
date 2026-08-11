@@ -8,7 +8,19 @@ export interface PipelineJob {
   url?: string | null;
   stage: PipelineStage;
   savedAt?: string;
+  /**
+   * Submission proof, when a receipt exists for this job.
+   * `undefined` = never submitted through the agent.
+   * `verified: false` = we submitted but found no confirmation on the page,
+   * which is deliberately shown rather than rounded up to "Applied".
+   */
+  receipt?: {
+    verified: boolean;
+    confirmationNumber?: string | null;
+    submittedAt?: string | null;
+  };
 }
+
 
 export const PIPELINE_STAGES: { key: PipelineStage; label: string; tint: string }[] = [
   { key: "saved", label: "Saved", tint: "text-muted-foreground" },
