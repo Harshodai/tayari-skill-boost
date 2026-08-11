@@ -110,7 +110,13 @@ const CONFIG = {
 const isProd = (() => {
   if (CONFIG.mode === 'production') return true;
   if (CONFIG.mode === 'preview') return false;
-  return typeof window !== 'undefined' && window.location.hostname === "tayari-skill-boost.lovable.app";
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  // Anything that isn't a local dev host or a hosted preview sandbox is treated
+  // as production, so custom domains work without a code change.
+  const isLocal = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+  const isPreviewSandbox = host.startsWith('id-preview--') || host.endsWith('.lovableproject.com');
+  return !isLocal && !isPreviewSandbox;
 })();
 
 export const isProductionMode = isProd;
