@@ -24,11 +24,11 @@ class OmnisaveService:
     Chunks body text into 512-token segments and constructs RAG prompts with
     mandatory inline citations ([Source 1], [Source 2]).
 
-    Retrieval is recency-based, not vector-based: DB-backed queries read the
-    user's most recent chunks (``ORDER BY created_at DESC LIMIT top_k``) rather
-    than embedding/semantic matching, and the in-memory fallback serves the
-    newest chunks scoped to the requesting user. Returned chunks are ordered by
-    recency, not by relevance.
+    Retrieval is vector-based: the query is embedded (fastembed, 384 dims) and
+    matched against ``public.source_chunks.embedding`` via pgvector cosine
+    distance. If embeddings or the DB are unavailable, retrieval degrades to a
+    recency-ordered read (``ORDER BY created_at DESC LIMIT top_k``) and finally
+    to the in-memory store scoped to the requesting user.
 
     Persistence: sources and chunks are written to Postgres
     (public.saved_sources / public.source_chunks) whenever the DB pool is
