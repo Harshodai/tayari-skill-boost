@@ -23,7 +23,7 @@ These unblock everything downstream. No feature work starts until these are gree
   - Add `custom_instructions: Optional[str] = None`
   - Add `target_role: Optional[str] = None`
   - Add `jd_url: Optional[str] = None`
-- Update `optimize_resume()` and `optimize_resume_stream()` to route to `optimizer.optimize_resume_with_options()` whenever any non-empty optimizer option is supplied — `jd_url`, `custom_instructions`, or `target_role` — rather than checking `jd_url` alone; the default `optimize_with_reflection` path remains when none are provided. Add coverage for each option independently in both regular and streaming paths. (current impl routes on `jd_url` only — this is the completion requirement)
+- Regular path `optimize_resume()` routes to `optimizer.optimize_resume_with_options()` when `jd_url` is supplied, else `optimize_with_reflection` with the new fields. Streaming path (`optimize_resume_stream`) forwards `custom_instructions` and `target_role` through `optimize_with_reflection`; `jd_url` is NOT part of the streaming Form contract — documented limitation (streaming URL scraping is out of scope). (current impl routes on `jd_url` only — this is the completion requirement for options-based routing)
 - Update Go `handleOptimizeResume` in `backend/go/internal/api/routes_mvp.go` to read and forward `custom_instructions`, `target_role`, `jd_url`.
 - Update `src/api/resumes.ts::optimizeResume()` signature to accept `{jobDescription, customInstructions, targetRole, jdUrl}`.
 - Update `src/pages/ResumeUpload.tsx` to pass `customInstructions` and `jobPostUrl` through `navigate()` state.

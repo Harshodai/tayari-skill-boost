@@ -189,7 +189,7 @@ This file tells subagents exactly what to build, in what order, and how to verif
 
 ### Task 6.2 — Security/dependency audit
 **Files:**
-- Run: `bun audit`, `pip-audit`, `go mod audit`, `git-secrets`.
+- Run: `bun audit`, `pip-audit`, `govulncheck ./...`, `git-secrets`.
 
 ### Task 6.3 — Legal + pricing pages
 **Files:**
@@ -200,4 +200,4 @@ This file tells subagents exactly what to build, in what order, and how to verif
 
 ## Coordination command for orchestrator
 
-**Coordination command for orchestrator** — spawn one subagent per Task. Tasks sharing a file run SEQUENTIALLY: Task 1.1 (brand convergence, touches `src/pages/Landing.tsx`) MUST complete before Task 6.3 (pricing/copy, same file); Task 1.4 (knowledge-hub unification, touches `backend/python/app/services/omnisave_service.py`) MUST complete before Task 4.1 (Substack/Medium connectors, same file). Before spawning each subagent, acquire an actual file lock: `mkdir -p .superpowers/locks && for f in <files>; do while ! mkdir ".superpowers/locks/$f" 2>/dev/null; do sleep 1; done; done` and release with `rmdir` on completion — todo-tracker comments are not synchronization. Each subagent still returns: 1) modified files list, 2) verification command output, 3) blockers, 4) `lessons.md` entry summary.
+**Coordination command for orchestrator** — spawn one subagent per Task. Tasks sharing a file run SEQUENTIALLY: Task 1.1 (brand convergence, touches `src/pages/Landing.tsx`) MUST complete before Task 6.3 (pricing/copy, same file); Task 1.4 (knowledge-hub unification, touches `backend/python/app/services/omnisave_service.py`) MUST complete before Task 4.1 (Substack/Medium connectors, same file). Before spawning each subagent, acquire an actual file lock: `mkdir -p .superpowers/locks && for f in <files>; do key="${f//\//_}"; while ! mkdir ".superpowers/locks/$key" 2>/dev/null; do sleep 1; done; done` and release with `rmdir .superpowers/locks/"${key}"` (same `key` — paths are translated to single-level keys, so `src/pages/Landing.tsx` → `src_pages_Landing.tsx`) — todo-tracker comments are not synchronization. Each subagent still returns: 1) modified files list, 2) verification command output, 3) blockers, 4) `lessons.md` entry summary.
