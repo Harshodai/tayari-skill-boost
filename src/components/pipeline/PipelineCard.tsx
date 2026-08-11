@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ExternalLink, GripVertical, MapPin, MessageSquare } from "lucide-react";
+import { ExternalLink, GripVertical, MapPin, MessageSquare, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { PipelineJob, PipelineStage } from "./types";
