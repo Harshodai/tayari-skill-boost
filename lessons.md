@@ -31,13 +31,13 @@ This document details key findings, architectural decisions, and lessons learned
 - Fix: `optimizeResume(resume.id, { jobDescription: jd })` with a `// ponytail:` comment. `bunx tsc --noEmit` clean (0 errors), `bun run build` passes.
 
 ### Root causes
-- Task 2 changed a shared API helper's second parameter from a string to an options object, but the build/typecheck did not catch the call site: a string is a valid value for a `string | undefined` options bag under structural typing at the call boundary, so no type error surfaced; the loss happens only at runtime JSON serialization.
+- Task 2 changed a shared API helper's second parameter from a string to an options object; the call site `optimizeResume(resume.id, jd)` kept the old scalar shape. TypeScript's structural typing does NOT accept a `string` for an options object (verified: `bunx tsc --noEmit --strictNullChecks false` on `function f(opts?: { jobDescription?: string }) {}; const jd: string = "x"; f(jd);` → `error TS2559: Type 'string' has no properties in common with type '{ jobDescription?: string; }'`). The real bypass was that neither `bun run build` (vite build, no typecheck) nor `bun run lint` (eslint, no type errors) runs the typechecker; tsc was only executed after the fix. At runtime JSON.stringify omits `undefined` properties (verified: `JSON.stringify({a: undefined, b: 1})` → `{"b":1}`), so the wire carried no `job_description` key at all — the Python engine then optimized with no JD context.
 
 ### Fix applied
 - Object form at the call site plus a ponytail comment documenting the contract.
 
 ### Reusable lessons
-- Signature changes on shared API helpers silently break callers that build passes don't catch — when a helper's parameter type changes from a scalar to an object, grep every call site for positional-scalar usage instead of trusting the compiler (structural typing will happily accept the wrong shape).
+- When a helper's parameter type changes from scalar to object, the compiler is only a guard if a typechecker runs in CI or the build — vite build does not. Grep every call site for positional-scalar usage AND add a typecheck step; runtime loss is silent (JSON.stringify drops undefined).
 
 ---
 
@@ -63,7 +63,7 @@ This document details key findings, architectural decisions, and lessons learned
 ## 2026-08-10 — Ruthless product audit: Q1–Q9 answered, 10/10 plan, agent execution manifest
 
 ### What was done
-- Ran six parallel code-audit subagents across the latest main branch to answer the user's nine questions (Q1–Q7 plus Q8/Q9 synthesis) without trusting any `.md` files.
+- Ran six parallel code-audit subagents across the latest main branch to answer the user's nine questions (Q1–Q7, with Q8/Q9 synthesis delivered in the chat summary and the 03/05 plan docs, not as a standalone artifact) without trusting any `.md` files.
 - Produced five audit artifacts in `docs/ruthless_audit_2026_08_10/`:
   1. `01_answers_q1_q7.md` — verdicts with confidence scores and exact file paths.
   2. `02_gap_matrix_and_moat.md` — competitive benchmark vs. Manus, WonsultingAI, LazyApply, Simplify, Huntr.
@@ -1305,7 +1305,7 @@ Fixed four test files to stop cross-test leakage and match the new POST rate-lim
 - Full wire: DB migration (both homes), Go model + GET/PUT handlers, TS Profile type, Profile page card, Onboarding best-effort PUT.
 
 ### Reusable lessons
-- Any UI-captured field that shapes product behavior belongs in the canonical profile table, not localStorage/aux tables — the fake-driver round-trip test (canned `driver.Rows` matching SELECT scan order + a RETURNING updated_at row for the upsert) proves the wire end-to-end without a live DB.
+- Any UI-captured field that shapes product behavior belongs in the canonical profile table, not localStorage/aux tables — the fake-driver round-trip test proves handler-level wiring only (SELECT scan order, upsert arg binding, JSON serialization) — it never touches a real database, so the migration DDL, the supabase-local init mount, and the CHECK constraint are validated only by a real-stack round-trip (restart the stack with `docker compose --profile dev up -d --build` and PUT/GET /api/v1/profile against the live Postgres).
 - Postgres `TEXT[]` scans via the existing `StringSlice` custom type; `nil` fixture values break scans into plain `string` fields — COALESCE in the query means the fixture must yield `""`, not NULL.
 - Running `gofmt -w` on a not-gofmt-clean file drags unrelated alignment hunks into the diff — restore and re-apply manually to keep the change surgical.
 
