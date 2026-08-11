@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/api";
 
 export type AgentRunStatus =
   | "queued"
@@ -92,4 +93,16 @@ export async function listAgentRunSteps(runId: string): Promise<AgentRunStep[]> 
     .order("idx", { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? []) as AgentRunStep[];
+}
+
+// WS-03 take-over: pauses the run server-side and enqueues a pending
+// question in the human-answer queue, then the caller routes to /questions.
+// Goes through the Go gateway (the single front door), not Python.
+export async function takeOverRun(
+  runId: string,
+): Promise<{ ok: boolean; question_id?: string; run_id: string }> {
+  return apiFetch<{ ok: boolean; question_id?: string; run_id: string }>(
+    `/v1/agent-runs/${runId}/take-over`,
+    { method: "POST" },
+  );
 }

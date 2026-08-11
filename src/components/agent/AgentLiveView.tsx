@@ -16,12 +16,13 @@ import {
   Square,
   Hand,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   getAgentRun,
   listAgentRunSteps,
   transitionRun,
+  takeOverRun,
   type AgentRunStatus,
 } from "@/lib/agent/applyAgent";
 import { streamBrowserAgent, cancelBrowserRun, type BrowserStreamEvent } from "@/api/browser";
@@ -50,6 +51,7 @@ const statusLabel: Record<AgentRunStatus, string> = {
  */
 export function AgentLiveView({ runId, browserInstruction }: { runId: string; browserInstruction?: string }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const logRef = useRef<HTMLDivElement>(null);
   const [feedEvents, setFeedEvents] = useState<BrowserStreamEvent[]>([]);
   const [isFeeding, setIsFeeding] = useState(false);
@@ -129,6 +131,22 @@ export function AgentLiveView({ runId, browserInstruction }: { runId: string; br
       toast.success(action === "submit" ? "Marked as submitted" : "Run cancelled");
       queryClient.invalidateQueries({ queryKey: ["agent-run", runId] });
       queryClient.invalidateQueries({ queryKey: ["agent-runs"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // WS-03 Take-over: pause the run server-side and enqueue a pending question
+  // in the human-answer queue, then hand the user to /questions where they
+  // answer it once and have it reused on future runs. The run stays paused
+  // until the answer lands (the queue's pending->answered transition is what
+  // unblocks it). Only navigate after the backend operation succeeded.
+  const takeOver = useMutation({
+    mutationFn: () => takeOverRun(runId),
+    onSuccess: () => {
+      toast.success("Agent paused — answer the question to continue the run");
+      queryClient.invalidateQueries({ queryKey: ["agent-run", runId] });
+      queryClient.invalidateQueries({ queryKey: ["agent-runs"] });
+      navigate("/questions");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -294,11 +312,20 @@ export function AgentLiveView({ runId, browserInstruction }: { runId: string; br
                 sensitive-field question to the human-answer queue, where the
                 user can answer it once and have it reused on future runs.
                 The run stays paused until the answer lands (the queue's
-                pending->answered transition is what unblocks it). */}
-            <Button asChild variant="outline">
-              <Link to="/questions">
-                <Hand className="mr-2 h-4 w-4" /> Take over
-              </Link>
+                pending->answered transition is what unblocks it). The pause
+                + enqueue happens server-side first (handleAgentRunTakeOver);
+                only on success do we route to /questions. */}
+            <Button
+              variant="outline"
+              onClick={() => takeOver.mutate()}
+              disabled={takeOver.isPending}
+            >
+              {takeOver.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Hand className="mr-2 h-4 w-4" />
+              )}
+              {takeOver.isPending ? "Pausing agent…" : "Take over"}
             </Button>
           </div>
         ) : null}

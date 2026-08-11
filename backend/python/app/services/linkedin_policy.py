@@ -21,9 +21,7 @@ from urllib.parse import urlparse
 
 LINKEDIN_DOMAINS = ("linkedin.com", "www.linkedin.com")
 
-_BLOCKED_ACTIONS = frozenset(
-    {"submit", "apply", "connect", "message", "scrape_profile"}
-)
+_ALLOWED_ACTIONS = frozenset({"view", "save"})
 
 
 class LinkedInAutomationBlocked(RuntimeError):
@@ -53,7 +51,7 @@ def is_linkedin_url(url: str) -> bool:
         return False
     parsed = urlparse(url if "://" in url else f"https://{url}")
     host = (parsed.hostname or "").lower()
-    return host in LINKEDIN_DOMAINS
+    return host == "linkedin.com" or host.endswith(".linkedin.com")
 
 
 def assert_not_linkedin_automation(url: str, action: str) -> None:
@@ -63,5 +61,5 @@ def assert_not_linkedin_automation(url: str, action: str) -> None:
     save a LinkedIn posting and prep a resume against it; they just
     submit manually.
     """
-    if is_linkedin_url(url) and action in _BLOCKED_ACTIONS:
+    if is_linkedin_url(url) and action not in _ALLOWED_ACTIONS:
         raise LinkedInAutomationBlocked(url, action)

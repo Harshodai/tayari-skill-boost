@@ -45,6 +45,7 @@ VENDOR_TIERS: dict[str, ATSVendorTier] = {
     "successfactors": "difficult",
     # do_not_submit — skip entirely; manual-only
     "linkedin": "do_not_submit",
+    "usajobs": "do_not_submit",
 }
 
 

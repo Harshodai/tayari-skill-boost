@@ -24,10 +24,10 @@ LazyApply's documented "LinkedIn ban risk" is the lived proof: users lost their 
 
 The policy is not a paragraph in a doc — it is a single chokepoint in the code that fails closed:
 
-- `backend/python/app/services/linkedin_policy.py` — `is_linkedin_url(url)` and `assert_not_linkedin_automation(url, action)`. The guard raises `LinkedInAutomationBlocked` for the blocked actions (`submit`, `apply`, `connect`, `message`, `scrape_profile`) on any `linkedin.com` host. Read-only actions (`view`, `save`) are allowed — the user can still save a LinkedIn posting and prep a resume against it.
+- `backend/python/app/services/linkedin_policy.py` — `is_linkedin_url(url)` and `assert_not_linkedin_automation(url, action)`. The guard uses an **allowlist** of allowed read-only actions (`view`, `save`); it raises `LinkedInAutomationBlocked` for any action outside that set on any `linkedin.com` host or subdomain (e.g. `in.linkedin.com`). The user can still save a LinkedIn posting and prep a resume against it.
 - `backend/python/app/services/automation_engine.py:516` calls `assert_not_linkedin_automation(url, "submit")` before any submit. On block, the application is marked `skipped_linkedin_policy` — not errored, not retried, not silently dropped.
 - `backend/python/app/services/browser_library.py:103` calls the same guard again as defense-in-depth, so a direct browser-library caller cannot bypass the engine.
-- `backend/python/app/services/ats_tiers.py` puts LinkedIn in the `do_not_submit` tier — the tier gate in `run_autopilot` skips it before any apply attempt, separate from and in addition to the URL guard.
+- `backend/python/app/services/ats_tiers.py` puts LinkedIn and USAJobs in the `do_not_submit` tier — the tier gate in `run_autopilot` skips them before any apply attempt, separate from and in addition to the URL guard.
 - UI warning — `src/pages/AutoPilot.tsx:401-415` and `src/pages/ApplyAgent.tsx:40-131` show an inline, unmissable notice citing UA §8.2 when a LinkedIn URL is entered: *"LinkedIn submissions are not automated. LinkedIn's User Agreement §8.2 prohibits bots and enforcement is account termination. We'll save the job and prep your resume, but you submit manually."*
 
 The code and this document are kept in sync by design: **docs follow code, not the other way around.** If the code ever changes to permit LinkedIn automation, this policy must be rewritten and re-reviewed before that change merges — it is a P0 legal-gate change.
@@ -43,11 +43,13 @@ None of these actions are automated by JobTayari. The boundary is: JobTayari pre
 
 ## ATS portals we DO automate
 
-LinkedIn is the exception, not the rule. JobTayari automates ATS vendor portals where third-party autofill is tolerated:
+LinkedIn is the exception, not the rule. JobTayari automates ATS vendor portals per an **internal JobTayari risk decision** — no vendor sanctions third-party submission (see `ats_tiers.py`'s own docstring: "No major ATS offers a sanctioned third-party submission API"). The tiers are JobTayari's risk call, not vendor approval:
 
-- **Friendly tier** (submit OK when the user approves): Greenhouse, Lever, Ashby, Workable, Recruitee, BambooHR, Jobvite.
+- **Friendly tier (JobTayari internal risk decision — submit OK when the user approves; not a vendor sanction):** Greenhouse, Lever, Ashby, Workable, Recruitee, BambooHR, Jobvite.
 - **Difficult tier** (prepare + stop at the approval gate, never auto-submit even with approval): Workday, SmartRecruiters, iCIMS, Taleo, SuccessFactors.
-- **Do-not-submit tier** (skip entirely, manual-only): LinkedIn.
+- **Do-not-submit tier** (skip entirely, manual-only): LinkedIn, USAJobs.
+
+Vendors without explicit supporting provider policy remain **prepare-only** — in code, an unknown vendor resolves to `None` from `tier_for_url`/`tier_for_vendor`, and `automation_engine` treats `None` as prepare-only (`prepared_ats_difficult`), the same as the difficult tier.
 
 See `backend/python/app/services/ats_tiers.py` for the authoritative `VENDOR_TIERS` table. The tier of a vendor is resolved from the URL before any apply attempt; `do_not_submit` short-circuits to `skipped_ats_tier`, `difficult` short-circuits to `prepared_ats_difficult` (a prepared receipt is saved but the apply call is never made).
 

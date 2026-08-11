@@ -1,17 +1,23 @@
 """Tests for the browser agent origin guard (Flow 6 tier 2 / §1.5).
 
-Covers the four required scenarios:
+Covers the required scenarios:
   (a) same-origin credential entry is allowed;
   (b) cross-origin credential entry raises OriginGuardError;
   (c) a non-credential field on a cross-origin page does NOT raise
       (the guard fires only for credential fields);
   (d) BROWSER_ALLOWED_ORIGINS extends the allowlist beyond the start origin.
+Plus the agent-level composition rules:
+  (e) an unresolved target label fails closed on a cross-origin page;
+  (f) a password-type input is treated as a credential target.
 """
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
+from app.services.browser_automation.agent import _guard_credential_entry
 from app.services.browser_automation.origin_guard import (
     OriginGuardError,
     assert_origin_for_credential_entry,
@@ -23,6 +29,20 @@ from app.services.browser_automation.origin_guard import (
 
 START = "https://jobs.workday.com"
 ATTACK = "https://evil-phish.example.com"
+
+
+def _fake_action(action_dump: dict):
+    """Minimal stand-in for browser-use's ActionModel with model_dump."""
+    return SimpleNamespace(model_dump=lambda exclude_none: action_dump)
+
+
+def _guard_state(url: str, selector_map: dict):
+    """Minimal stand-in for the browser-use BrowserState the guard reads."""
+    return SimpleNamespace(url=url, selector_map=selector_map)
+
+
+def _guard_fake_output(*actions) -> SimpleNamespace:
+    return SimpleNamespace(action=list(actions))
 
 
 def test_extract_origin_strips_path_and_default_port():
@@ -85,21 +105,44 @@ def test_c_non_credential_field_on_cross_origin_page_does_not_raise():
     """Scenario (c): the guard only fires for credential fields.
 
     A plain ATS textbox on a cross-origin page is not a credential fill, so
-    the guard must not raise. (The label check is the caller's job; here we
-    assert the guard composes correctly with the heuristic — if the label is
-    not credential-shaped, the caller never calls assert, and nothing raises.)
+    the agent-level guard must not raise: the label resolves, the heuristic
+    does not match, and the assertion is skipped.
     """
-    label = "Full name"
-    assert credential_field_heuristic(label) is False
-    # The caller only invokes the guard when the heuristic matches, so a
-    # non-credential label on a cross-origin page never reaches the assertion.
-    # We still confirm the guard itself would block if it WERE called.
+    state = _guard_state(
+        url=f"{ATTACK}/apply",
+        selector_map={1: SimpleNamespace(attributes={"name": "full_name"}, tag_name="input")},
+    )
+    output = _guard_fake_output(_fake_action({"input_text": {"index": 1, "text": "John"}}))
+    _guard_credential_entry(state, output, start_url=f"{START}/apply/123", allowed_origins=[])
+
+
+def test_c2_unresolved_label_fails_closed_on_cross_origin():
+    """Scenario (e): an unresolved target label must NOT skip the guard.
+
+    When the action's index is missing from the selector_map, the label is
+    "" — the guard treats that as credential-sensitive (fail-closed) and
+    asserts the origin, raising on the attacker's page.
+    """
+    state = _guard_state(url=f"{ATTACK}/apply", selector_map={})
+    output = _guard_fake_output(_fake_action({"input_text": {"index": 1, "text": "secret"}}))
     with pytest.raises(OriginGuardError):
-        assert_origin_for_credential_entry(
-            current_url=f"{ATTACK}/apply",
-            start_url=f"{START}/apply/123",
-            allowed_origins=[],
-        )
+        _guard_credential_entry(state, output, start_url=f"{START}/apply/123", allowed_origins=[])
+
+
+def test_c3_password_type_input_is_a_credential_target():
+    """Scenario (f): <input type=password> must trip the guard.
+
+    Even with no label attributes, the type attribute alone identifies a
+    credential field — the label resolves to "<input type=password>" and the
+    heuristic matches, so a fill on the attacker's origin raises.
+    """
+    state = _guard_state(
+        url=f"{ATTACK}/apply",
+        selector_map={1: SimpleNamespace(attributes={"type": "password"}, tag_name="input")},
+    )
+    output = _guard_fake_output(_fake_action({"input_text": {"index": 1, "text": "hunter2"}}))
+    with pytest.raises(OriginGuardError):
+        _guard_credential_entry(state, output, start_url=f"{START}/apply/123", allowed_origins=[])
 
 
 def test_d_allowed_origins_env_extends_the_list():

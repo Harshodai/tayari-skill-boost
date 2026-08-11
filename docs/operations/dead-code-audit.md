@@ -70,8 +70,16 @@ Zero code changes resulted from the codename audit.
 
 ## 5. Gates run
 
-- `go test ./internal/api/` — see output below
-- `bunx tsc --noEmit -p tsconfig.app.json` — see output below
+- `go test ./internal/api -run 'TestSmoke|TestRouteParity' -count=1` — PASS (exit 0):
+
+```
+ok  	tayari-backend/internal/api	0.780s
+```
+
+- `bunx tsc --noEmit -p tsconfig.app.json` — PASS (exit 0, no output).
+
 - No Python files touched; `py_compile` not required.
 
-Volatile facts above verified 2026-08-11.
+Note: full `go test ./...` also run as a check (2026-08-11): PASS (exit 0) — the nil-DB panic subset previously documented as red is fixed; the green subset above remains the gate for this audit.
+
+Volatile facts above verified 2026-08-11 (gates re-run on this date).

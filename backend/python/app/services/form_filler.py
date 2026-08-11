@@ -149,7 +149,11 @@ class FormFiller:
                 "form_url": form_url
             }
 
-        nav_res = await self.browser.navigate(url_info["target_url"], headers=url_info["headers"])
+        # ponytail: respect_robots=False — filling a form the user chose to
+        # apply to is the human's own user-directed single-page action, not
+        # bulk discovery scraping; robots.txt compliance is still enforced on
+        # the discovery paths.
+        nav_res = await self.browser.navigate(url_info["target_url"], headers=url_info["headers"], respect_robots=False)
         if not nav_res.get("success"):
             # ponytail: __aexit__ owns cleanup — the context manager contract
             # guarantees close() runs exactly once after the call completes.

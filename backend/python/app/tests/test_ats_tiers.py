@@ -18,6 +18,7 @@ from app.services.ats_tiers import (
 GREENHOUSE_URL = "https://boards.greenhouse.io/company/jobs/123"
 WORKDAY_URL = "https://myworkdayjobs.com/acme/en-US/job/123"
 LINKEDIN_URL = "https://www.linkedin.com/jobs/view/123"
+USAJOBS_URL = "https://www.usajobs.gov/Apply/Search/123"
 UNKNOWN_URL = "https://example.com/careers/456"
 
 
@@ -31,6 +32,11 @@ def test_workday_is_difficult():
 
 def test_linkedin_is_do_not_submit():
     assert tier_for_url(LINKEDIN_URL) == "do_not_submit"
+
+
+def test_usajobs_is_do_not_submit():
+    assert tier_for_url(USAJOBS_URL) == "do_not_submit"
+    assert should_skip(USAJOBS_URL) is True
 
 
 def test_unknown_vendor_returns_none():
@@ -70,6 +76,7 @@ def test_vendor_tiers_dict_shape():
     assert VENDOR_TIERS["taleo"] == "difficult"
     assert VENDOR_TIERS["successfactors"] == "difficult"
     assert VENDOR_TIERS["linkedin"] == "do_not_submit"
+    assert VENDOR_TIERS["usajobs"] == "do_not_submit"
 
 
 @pytest.mark.asyncio
@@ -155,3 +162,92 @@ async def test_automation_engine_workday_sets_prepared_status():
     assert apps[0]["status"] == "prepared_ats_difficult"
     assert apps[0]["receipt"]["prepared"] is True
     assert any(outcome == "prepared" for _, outcome in captured_calls)
+
+
+@pytest.mark.asyncio
+async def test_automation_engine_gate_blocked_preserved_in_tier_branches():
+    """A gate-blocked resume must keep its status across ATS tier branches.
+
+    Regression: the tier gate previously overwrote ``gate_blocked`` with
+    ``skipped_ats_tier`` / ``prepared_ats_difficult``, and the prepared branch
+    wrote a receipt + receipt dict for a resume that never got past guardrails.
+    """
+    from app.services import automation_engine as ae
+
+    ae._autopilot_store.clear()
+
+    workday_job = {
+        "title": "Senior Engineer",
+        "company": "Acme",
+        "url": WORKDAY_URL,
+        "description": "Does engineering things.",
+    }
+    greenhouse_job = {
+        "title": "Backend Engineer",
+        "company": "Beta",
+        "url": GREENHOUSE_URL,
+        "description": "Does engineering things.",
+    }
+
+    captured_calls: list = []
+
+    async def _no_save_receipt(receipt):
+        captured_calls.append(("save_receipt", receipt["outcome"]))
+        return True
+
+    async def _fake_optimize(*args, **kwargs):
+        return {"optimized_text": "tailored", "new_heuristic_score": 80,
+                "estimated_score": 80, "refinement_passes": 1,
+                "changes": [], "keywords_added": []}
+
+    async def _fake_cover(*args, **kwargs):
+        return "cover letter"
+
+    async def _no_op(*args, **kwargs):
+        return None
+
+    gate_fail = {"all_passed": False,
+                 "results": {"truthfulness": {"passed": False},
+                             "keyword_stuffing": {"passed": True},
+                             "pii": {"passed": True}}}
+
+    async def _run(url: str) -> list:
+        captured_calls.clear()
+        job = dict(workday_job, url=url)
+        async def _search(*args, **kwargs):
+            return {"results": [job]}
+        with patch.object(ae, "Browser") as MockBrowser, \
+             patch.object(ae, "save_receipt", side_effect=_no_save_receipt), \
+             patch.object(ae, "_cover_letter", side_effect=_fake_cover), \
+             patch.object(ae, "smart_search", side_effect=_search), \
+             patch.object(ae, "optimize_with_reflection", side_effect=_fake_optimize), \
+             patch.object(ae, "_screen_posting", side_effect=lambda *a, **k: {"status": ae._SCREEN_CLEARED, "reason": ""}), \
+             patch.object(ae, "_QUALITY_GATE") as gate, \
+             patch.object(ae, "_db_create_agent_run", side_effect=_no_op), \
+             patch.object(ae, "_db_update_agent_run", side_effect=_no_op), \
+             patch.object(ae, "_db_append_log", side_effect=_no_op), \
+             patch.object(ae, "_queue_approval", side_effect=lambda *a, **k: "fp"), \
+             patch.object(ae, "_approval_granted", side_effect=lambda *a, **k: True):
+            gate.check.return_value = gate_fail
+            await ae.run_autopilot(
+                run_id="test-gate-blocked",
+                config={"user_id": None, "auto_apply": True, "max_applications": 1,
+                        "job_titles": ["Senior Engineer"]},
+                profile={},
+                resume_text="base resume",
+                candidate_name="Tester",
+            )
+            MockBrowser.apply_job_with_evidence.assert_not_called()
+        return ae._autopilot_store["test-gate-blocked"]["applications"]
+
+    apps = await _run(WORKDAY_URL)
+    assert len(apps) == 1
+    assert apps[0]["status"] == "gate_blocked"
+    assert "receipt" not in apps[0]
+    assert captured_calls == [], f"no receipts may be saved for a gate-blocked run, got {captured_calls}"
+
+    apps = await _run(GREENHOUSE_URL)
+    assert len(apps) == 1
+    assert apps[0]["status"] == "gate_blocked"
+    assert "receipt" not in apps[0]
+    assert captured_calls == []

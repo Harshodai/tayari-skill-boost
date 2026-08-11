@@ -32,6 +32,9 @@ const Pricing = () => {
   // branch that credits the user's balance on `checkout.session.completed` instead of
   // `invoice.paid`. Until that lands, the paid-pack buttons below still POST `plan` and will
   // create a subscription — treat this page as the pricing model of record, not a wired funnel.
+  // The paid tiers are therefore gated off (PAID_CHECKOUT_IMPLEMENTED = false) so no one can
+  // accidentally subscribe; only the free tier stays fully functional.
+  const PAID_CHECKOUT_IMPLEMENTED = false;
   const handleCheckout = async (planKey: string) => {
     if (!user) {
       navigate(`/auth?plan=${planKey}`);
@@ -40,6 +43,13 @@ const Pricing = () => {
 
     if (planKey === "free") {
       navigate("/dashboard");
+      return;
+    }
+
+    // // ponytail: paid credit-pack checkout is not wired up yet — refuse to
+    // POST `plan` (which would create a subscription, wrong for credit packs).
+    if (!PAID_CHECKOUT_IMPLEMENTED) {
+      toast.info("Credit packs are coming soon — checkout isn't wired up yet.");
       return;
     }
 
@@ -118,6 +128,7 @@ const Pricing = () => {
       cta: user ? "Current Plan" : "Get Started",
       highlighted: false,
       note: null,
+      comingSoon: false,
     },
     {
       key: "verified-pack",
@@ -137,6 +148,7 @@ const Pricing = () => {
       cta: "Buy 40 Credits",
       highlighted: true,
       note: "Self-limiting by design",
+      comingSoon: true,
     },
     {
       key: "outreach-pack",
@@ -155,6 +167,7 @@ const Pricing = () => {
       cta: "Buy 60 Credits",
       highlighted: false,
       note: "No monthly clock",
+      comingSoon: true,
     },
   ];
 
@@ -172,7 +185,7 @@ const Pricing = () => {
     {
       question: "Why credits instead of a subscription?",
       answer:
-        "Subscriptions meter calendar time; credits meter work. Every subscription rival (Teal, Huntr, Simplify) earns its 1-star reviews on cancellation friction and the monthly clock. Credits sidestep that entirely — there's nothing to cancel, nothing to refund, nothing to chase.",
+        "Subscriptions meter calendar time; credits meter work. Every subscription rival (Teal, Huntr, Simplify) earns its 1-star reviews on cancellation friction and the monthly clock. Credits sidestep that entirely — there's nothing to cancel, nothing to chase. Unused credits are refundable within 7 days; used credits are receipted work.",
     },
     {
       question: "Is tracking really free forever?",
@@ -266,7 +279,11 @@ const Pricing = () => {
                       ? "bg-primary hover:bg-primary/90"
                       : "bg-card hover:bg-accent border border-border"
                   }`}
-                  disabled={loadingPlan === tier.key || (user && tier.key === "free")}
+                  disabled={Boolean(
+                    loadingPlan === tier.key ||
+                      (user && tier.key === "free") ||
+                      (tier.key !== "free" && !PAID_CHECKOUT_IMPLEMENTED),
+                  )}
                   onClick={() => handleCheckout(tier.key)}
                 >
                   {loadingPlan === tier.key ? (
@@ -274,6 +291,11 @@ const Pricing = () => {
                   ) : null}
                   {tier.cta}
                 </Button>
+                {tier.comingSoon ? (
+                  <p className="text-xs text-muted-foreground mt-2 text-center">
+                    Checkout coming soon — pricing model of record, not a wired funnel.
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>
@@ -346,16 +368,26 @@ const Pricing = () => {
                   </li>
                 </ul>
               </div>
-              <div className="space-y-3">
+              <form
+                className="space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleContactSales();
+                }}
+              >
                 <div className="flex gap-2">
+                  <label htmlFor="contact-sales-email" className="sr-only">
+                    Work email for contact sales
+                  </label>
                   <input
+                    id="contact-sales-email"
                     type="email"
                     placeholder="work@email.com"
                     value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
                     className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
-                  <Button size="sm" onClick={handleContactSales} className="bg-primary hover:bg-primary/90">
+                  <Button type="submit" size="sm" className="bg-primary hover:bg-primary/90">
                     <Mail className="w-4 h-4 mr-1" />
                     Contact Us
                   </Button>
@@ -363,7 +395,7 @@ const Pricing = () => {
                 <p className="text-xs text-muted-foreground">
                   We'll respond within one business day with a tailored proposal.
                 </p>
-              </div>
+              </form>
             </div>
           </div>
 

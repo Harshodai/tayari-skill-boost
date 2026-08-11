@@ -287,6 +287,8 @@ class OptimizerRequest(BaseModel):
                 raise ValueError("target_industry is required when transition_type is specified")
             if not self.transferable_skills:
                 raise ValueError("transferable_skills must be a non-empty list when transition_type is specified")
+            if any(not s or not s.strip() for s in self.transferable_skills):
+                raise ValueError("transferable_skills entries must be non-empty")
         return self
 
 
@@ -298,11 +300,14 @@ def _transition_payload(payload: OptimizerRequest) -> Optional[dict]:
     """
     if not payload.transition_type:
         return None
+    # ponytail: trim skills here, the only builder downstream reads
+    # (optimizer._transition_directives re-trims defensively); the validator
+    # already guarantees every entry is a non-empty string.
     return {
         "transition_type": payload.transition_type,
         "current_industry": payload.current_industry.strip(),
         "target_industry": payload.target_industry.strip(),
-        "transferable_skills": payload.transferable_skills,
+        "transferable_skills": [s.strip() for s in (payload.transferable_skills or [])],
     }
 
 

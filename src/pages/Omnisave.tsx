@@ -36,6 +36,7 @@ export default function Omnisave() {
   }, []);
 
   const handleSyncAgentReach = async () => {
+    if (backendUnavailable) return;
     setSyncing(true);
     setError(null);
     try {
@@ -69,7 +70,7 @@ export default function Omnisave() {
   const [ingesting, setIngesting] = useState<boolean>(false);
 
   const handleIngestUrl = async () => {
-    if (!urlInput.trim()) return;
+    if (!urlInput.trim() || backendUnavailable) return;
     setIngesting(true);
     setError(null);
     try {
@@ -93,7 +94,7 @@ export default function Omnisave() {
   };
 
   const handleAskRAG = async () => {
-    if (!qaInput.trim()) return;
+    if (!qaInput.trim() || backendUnavailable) return;
     setLoading(true);
     setError(null);
     try {
@@ -133,7 +134,7 @@ export default function Omnisave() {
             <Badge className="bg-blue-950 text-blue-300 border-blue-800">LinkedIn Sync</Badge>
             <Button
               onClick={handleSyncAgentReach}
-              disabled={syncing}
+              disabled={syncing || backendUnavailable}
               size="sm"
               className="bg-purple-700 hover:bg-purple-600 text-white font-bold text-xs flex items-center gap-1.5 ml-2"
               aria-label={syncing ? 'Syncing saved posts via Agent Reach' : 'Sync saved posts from Substack, Medium, and LinkedIn'}
@@ -161,10 +162,11 @@ export default function Omnisave() {
             placeholder="Paste Substack, Medium, or LinkedIn article URL for Tayari Computer extraction..."
             className="bg-slate-950 border-slate-800 text-xs font-mono flex-1"
             aria-label="Target article URL for Tayari Computer extraction"
+            disabled={backendUnavailable}
           />
           <Button
             onClick={handleIngestUrl}
-            disabled={ingesting || !urlInput.trim()}
+            disabled={ingesting || !urlInput.trim() || backendUnavailable}
             className="bg-purple-600 hover:bg-purple-500 font-bold text-xs px-5 w-full sm:w-auto"
             aria-label={ingesting ? 'Extracting article via Tayari Computer Sandbox' : 'Extract and ingest article'}
           >
@@ -280,10 +282,11 @@ export default function Omnisave() {
               onChange={(e) => setQaInput(e.target.value)}
               placeholder="e.g. How do I structure STAR bullets for system design interviews?"
               className="bg-slate-950 border-slate-800 text-xs font-mono"
+              disabled={backendUnavailable}
             />
             <Button
               onClick={handleAskRAG}
-              disabled={loading}
+              disabled={loading || backendUnavailable}
               className="bg-purple-600 hover:bg-purple-500 font-bold px-6"
               aria-label={loading ? 'Querying knowledge base, please wait' : 'Query RAG knowledge base'}
             >

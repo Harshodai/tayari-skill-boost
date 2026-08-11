@@ -77,7 +77,7 @@ export function ReceiptShowcase() {
                     {RECEIPT_SAMPLE.jobTitle}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    at {RECEIPT_SAMPLE.company} <span className="text-muted-foreground/60">(company redacted in this showcase)</span>
+                    at {RECEIPT_SAMPLE.company}
                   </p>
                 </div>
 

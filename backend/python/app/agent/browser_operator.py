@@ -53,7 +53,7 @@ class BrowserOperator:
             await self.close()
             return False
 
-    async def navigate(self, url: str, headers: Optional[Dict[str, str]] = None, validate_redirects: bool = False) -> Dict[str, Any]:
+    async def navigate(self, url: str, headers: Optional[Dict[str, str]] = None, validate_redirects: bool = False, respect_robots: bool = True) -> Dict[str, Any]:
         """Navigate to target URL and retrieve simplified page text & metadata.
 
         When ``headers`` is provided, its entries are applied as extra HTTP
@@ -69,11 +69,17 @@ class BrowserOperator:
         failure. When hosted mode is on, the URL must also be a licensed
         feed origin (fail-closed), else the navigation is skipped with
         ``{"success": False, "licensed_blocked": True}``.
+
+        robots.txt + outbound backoff are enforced when ``respect_robots`` is
+        True (default — bulk discovery/scraping). Interactive user-directed
+        single-page actions (e.g. an ATS application form the user chose to
+        fill) pass ``respect_robots=False``; the licensed-source gate runs
+        regardless.
         """
-        # Legal boundary first: hosted-mode licensed gate + robots.txt gate +
-        # per-domain backoff.
+        # Legal boundary first: hosted-mode licensed gate (always) + robots.txt
+        # gate + per-domain backoff (the robots-compliance path).
         from app.services.scraping_policy import (
-            assert_robots_allowed,
+            aassert_robots_allowed,
             assert_licensed_source,
             LicensedSourceError,
             RobotsDisallowedError,
@@ -84,12 +90,13 @@ class BrowserOperator:
         except LicensedSourceError as exc:
             logger.info("SKIPPED: hosted mode restricts scraping to licensed feeds (%s)", url)
             return {"success": False, "error": str(exc), "licensed_blocked": True}
-        try:
-            assert_robots_allowed(url)
-        except RobotsDisallowedError as exc:
-            logger.info("SKIPPED: robots.txt disallows %s", url)
-            return {"success": False, "error": f"robots.txt disallows {url!r}", "robots_blocked": True}
-        await await_backoff(url)
+        if respect_robots:
+            try:
+                await aassert_robots_allowed(url)
+            except RobotsDisallowedError as exc:
+                logger.info("SKIPPED: robots.txt disallows %s", url)
+                return {"success": False, "error": f"robots.txt disallows {url!r}", "robots_blocked": True}
+            await await_backoff(url)
 
         if not self.page:
             init_ok = await self.initialize()

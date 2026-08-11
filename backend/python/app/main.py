@@ -1701,6 +1701,7 @@ async def browser_automation_stream_endpoint(payload: dict, request: Request):
     """SSE stream of per-step browser screenshots for the Glass-Box live feed."""
     import json as _json
     from app.services.browser_automation.agent import stream_browser_agent
+    from app.services.db import load_agent_run
 
     actor = browser_actor(request)
     instruction = str(payload.get("instruction", ""))
@@ -1708,10 +1709,35 @@ async def browser_automation_stream_endpoint(payload: dict, request: Request):
     run_id = payload.get("run_id") or None
     logger.info("[Audit] component=browser-agent action=stream actor=%s run=%s outcome=started", actor, run_id or "-")
 
+    # ponytail: the credential-origin trust anchor (start_url) must come from
+    # the SERVER-trusted authorized run record, never from the request body.
+    # payload["start_url"] is ignored; if no authorized record provides a job
+    # URL, start_url stays None and the agent falls back to instruction parsing.
+    start_url: Optional[str] = None
+    if run_id:
+        run_record = await load_agent_run(str(run_id))
+        if run_record and str(run_record.get("user_id")) == str(actor):
+            config = run_record.get("config") or {}
+            if isinstance(config, str):
+                import json as _cjson
+                try:
+                    config = _cjson.loads(config)
+                except Exception:
+                    config = {}
+            candidate = (
+                config.get("job_url")
+                or config.get("url")
+                or config.get("apply_url")
+                or run_record.get("job_url")
+            )
+            if isinstance(candidate, str) and candidate.strip():
+                start_url = candidate.strip()
+
     async def event_stream():
         try:
             async for event in stream_browser_agent(
-                instruction, max_steps=max_steps, run_id=run_id, owner_id=actor
+                instruction, max_steps=max_steps, run_id=run_id, owner_id=actor,
+                start_url=start_url,
             ):
                 yield f"data: {_json.dumps(event)}\n\n"
             logger.info("[Audit] component=browser-agent action=stream actor=%s run=%s outcome=ok", actor, run_id or "-")

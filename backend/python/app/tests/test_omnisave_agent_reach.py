@@ -252,6 +252,45 @@ def test_answer_grounding_cases():
 
 
 @pytest.mark.asyncio
+async def test_ingest_retains_auto_topics_and_summary():
+    """auto_tag's topics + one-line summary flow into the returned source:
+    secondary_tags gets the topics, summary_bullets gets the summary when the
+    caller provided none; caller-provided topics/summary win over auto values."""
+    fake_tag = mock.AsyncMock(return_value=("Finance", ["stocks", "retirement"], "short summary"))
+
+    omnisave = OmnisaveService()
+    with mock.patch("app.services.omnisave_service.auto_tag", new=fake_tag), \
+         mock.patch("app.services.omnisave_service.get_pool", new=mock.AsyncMock(return_value=None)):
+        res = await omnisave.ingest_source(
+            platform="substack",
+            url="https://substack.com/@x/p/finance",
+            title="Finance 101",
+            author="Author F",
+            raw_content="Stocks and retirement planning content.",
+            user_id=TEST_USER_ID,
+        )
+    assert res["success"] is True
+    assert res["source"]["secondary_tags"] == ["stocks", "retirement"]
+    assert res["source"]["summary_bullets"] == ["short summary"]
+
+    omnisave2 = OmnisaveService()
+    with mock.patch("app.services.omnisave_service.auto_tag", new=fake_tag), \
+         mock.patch("app.services.omnisave_service.get_pool", new=mock.AsyncMock(return_value=None)):
+        res2 = await omnisave2.ingest_source(
+            platform="substack",
+            url="https://substack.com/@x/p/finance2",
+            title="Finance 102",
+            author="Author F",
+            raw_content="More retirement content.",
+            user_id=TEST_USER_ID,
+            summary_bullets=["caller wins"],
+            topics=["caller topics"],
+        )
+    assert res2["source"]["secondary_tags"] == ["caller topics"]
+    assert res2["source"]["summary_bullets"] == ["caller wins"]
+
+
+@pytest.mark.asyncio
 async def test_query_knowledge_rag_replaces_uncited_answer():
     """An uncited LLM answer is replaced with the fixed insufficiency response."""
     omnisave = OmnisaveService()

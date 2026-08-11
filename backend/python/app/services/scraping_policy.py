@@ -16,12 +16,14 @@ robots.txt — the user, not us, is the operator there.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 import random
+import re
 import time
 import urllib.parse
 import urllib.request
-import logging
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -86,7 +88,16 @@ class LicensedSourceError(RuntimeError):
 
 
 def is_licensed_source(url: str) -> bool:
-    """True when the URL's origin is on the licensed-feed allow-list."""
+    """True when the URL's origin is on the licensed-feed allow-list.
+
+    Matches the exact origin or any subdomain of a licensed origin
+    (domain.endswith("." + origin)), including subdomains OF the subdomain
+    (e.g. acme.jobs.lever.co or apply.boards.greenhouse.io). Hosted mode
+    therefore restricts scraping to licensed feed origins AND any subdomain
+    of them — which is what lets provider-branded apply pages through —
+    and anything that cannot be confirmed as a licensed-provider or
+    licensed-feed origin is licensed_blocked.
+    """
     domain = _domain_of(url)
     if not domain:
         return False
@@ -127,13 +138,21 @@ _robots_cache: dict[str, tuple[float, dict]] = {}
 
 
 def _origin(url: str) -> str:
-    """Return scheme://host[:port] for the URL, or "" when unparseable."""
+    """Return scheme://host[:port] for the URL, or "" when unparseable.
+
+    Only http and https schemes are accepted — anything else (file, ftp,
+    ...) returns "" so robots.txt fetching can never reach a non-HTTP
+    handler.
+    """
     try:
         parsed = urllib.parse.urlparse(url if "://" in url else f"https://{url}")
         if not parsed.hostname:
             return ""
         netloc = parsed.netloc or parsed.hostname
-        return f"{parsed.scheme or 'https'}://{netloc}"
+        scheme = (parsed.scheme or "https").lower()
+        if scheme not in ("http", "https"):
+            return ""
+        return f"{scheme}://{netloc}"
     except Exception:
         return ""
 
@@ -267,6 +286,32 @@ def fetch_robots_txt(url: str, user_agent: str = "JobTayari") -> Optional[dict]:
     return record
 
 
+async def afetch_robots_txt(url: str, user_agent: str = "JobTayari") -> Optional[dict]:
+    """Async fetch and parse of robots.txt for the URL's origin.
+
+    Same semantics as fetch_robots_txt, but the network fetch runs off the
+    event loop via asyncio.to_thread so async callers do not block.
+    """
+    origin = _origin(url)
+    if not origin:
+        return {"allowed": True, "crawl_delay": None, "disallowed_paths": []}
+
+    now = time.monotonic()
+    cached = _robots_cache.get(origin)
+    if cached is not None:
+        ts, record = cached
+        if now - ts < _ROBOTS_CACHE_TTL_SECONDS:
+            return record
+
+    raw = await asyncio.to_thread(_fetch_robots_raw, origin)
+    if not raw:
+        record = {"allowed": True, "crawl_delay": None, "disallowed_paths": []}
+    else:
+        record = _parse_robots(raw, user_agent)
+    _robots_cache[origin] = (now, record)
+    return record
+
+
 def _path_matches(path: str, pattern: str) -> bool:
     """robots.txt path matching with '*' wildcard and '$' end-anchor."""
     if pattern == "":
@@ -274,28 +319,25 @@ def _path_matches(path: str, pattern: str) -> bool:
     if pattern == "/":
         # A bare "/" rule covers the whole origin (RFC 9309 §5.3.1).
         return True
-    # Translate pattern to regex: * -> .*, $ -> end anchor.
-    regex = "^" + pattern.replace("*", ".*")
-    if regex.endswith("$"):
-        regex = regex[:-1] + "$"
-    else:
-        regex = regex
-    import re
+    # Escape the pattern before regex construction so literal regex
+    # metacharacters in a rule ('.', '+', '(', ...) match literally; the
+    # only supported wildcard is '*' and the only anchor is a trailing '$'.
+    regex = "^" + re.escape(pattern)
+    regex = regex.replace(r"\*", ".*")
+    if regex.endswith(r"\$"):
+        regex = regex[:-2] + "$"
     try:
         return bool(re.match(regex, path))
     except re.error:
         return path.startswith(pattern.rstrip("$"))
 
 
-def is_robots_allowed(url: str, user_agent: str = "JobTayari") -> bool:
-    """True when robots.txt allows this URL for the User-Agent.
+def _is_robots_allowed(record: Optional[dict], url: str) -> bool:
+    """Evaluate a parsed robots record against the URL's path.
 
-    Fails open (returns True) on any fetch error — RFC 9309 says an
-    unreachable robots.txt means crawl is allowed, but the fetch is logged.
+    The longest matching rule wins (RFC 9309 §5.3.1); Allow never silently
+    defeats a longer Disallow. None/empty record means allowed.
     """
-    if not url or not isinstance(url, str):
-        return True
-    record = fetch_robots_txt(url, user_agent=user_agent)
     if record is None:
         return True
     disallowed = record.get("disallowed_paths", []) or []
@@ -306,8 +348,6 @@ def is_robots_allowed(url: str, user_agent: str = "JobTayari") -> bool:
         return True
     path = parsed.path or "/"
 
-    # The longest matching rule wins (RFC 9309 §5.3.1); Allow never
-    # silently defeats a longer Disallow.
     matches = []
     for pat in allowed_paths:
         if _path_matches(path, pat):
@@ -321,6 +361,18 @@ def is_robots_allowed(url: str, user_agent: str = "JobTayari") -> bool:
     return matches[0][1]
 
 
+def is_robots_allowed(url: str, user_agent: str = "JobTayari") -> bool:
+    """True when robots.txt allows this URL for the User-Agent.
+
+    Fails open (returns True) on any fetch error — RFC 9309 says an
+    unreachable robots.txt means crawl is allowed, but the fetch is logged.
+    """
+    if not url or not isinstance(url, str):
+        return True
+    record = fetch_robots_txt(url, user_agent=user_agent)
+    return _is_robots_allowed(record, url)
+
+
 def assert_robots_allowed(url: str, user_agent: str = "JobTayari") -> None:
     """Raise ``RobotsDisallowedError`` when the URL is disallowed.
 
@@ -328,6 +380,17 @@ def assert_robots_allowed(url: str, user_agent: str = "JobTayari") -> None:
     (and therefore the URL is allowed), this is a no-op.
     """
     if not is_robots_allowed(url, user_agent=user_agent):
+        raise RobotsDisallowedError(url)
+
+
+async def aassert_robots_allowed(url: str, user_agent: str = "JobTayari") -> None:
+    """Async twin of assert_robots_allowed for coroutine call sites.
+
+    Fetches robots.txt off the event loop (asyncio.to_thread) so the
+    coroutine path never blocks; the sync entry points above are unchanged.
+    """
+    record = await afetch_robots_txt(url, user_agent=user_agent)
+    if not _is_robots_allowed(record, url):
         raise RobotsDisallowedError(url)
 
 

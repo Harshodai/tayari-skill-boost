@@ -85,10 +85,41 @@ def _action_target_label(state, action_dump: dict) -> str:
             val = attrs.get(field)
             if val:
                 return str(val)
+        # A password-type input with no label attributes must still count as
+        # a credential target — the heuristic regex matches "password" here.
+        if (attrs.get("type") or "").lower() == "password":
+            return "<input type=password>"
         tag = getattr(node, "tag_name", "") or ""
         if tag:
             return f"<{tag.lower()}>"
     return ""
+
+
+def _guard_credential_entry(state, model_output, start_url: str, allowed_origins: list[str]) -> None:
+    """Flow 6 tier 2 origin guard — fires before any credential fill.
+
+    Inspects each action the model just decided. For ``input_text`` actions
+    whose target element label matches ``credential_field_heuristic``, we
+    assert the current page origin is in the allowlist. Raising here
+    propagates out of ``agent.run()`` and is caught below as
+    ``OriginGuardError`` — the action never executes.
+
+    Fail-closed rule: an action whose target element cannot be resolved
+    (``_action_target_label`` returned "") is treated as credential-sensitive
+    and asserted, so an unlabeled field on a foreign origin can never slip
+    past the guard.
+    """
+    current_url = getattr(state, "url", "") or ""
+    actions = getattr(model_output, "action", None) or []
+    for action in actions:
+        try:
+            dump = action.model_dump(exclude_none=True)
+        except Exception:
+            continue
+        label = _action_target_label(state, dump)
+        if label and not credential_field_heuristic(label):
+            continue
+        assert_origin_for_credential_entry(current_url, start_url, allowed_origins)
 
 
 @dataclass
@@ -299,8 +330,17 @@ async def run_browser_agent(
     on_step: Optional[Callable] = None,
     run_id: Optional[str] = None,
     owner_id: Optional[str] = None,
+    *,
+    start_url: Optional[str] = None,
 ) -> AgentResult:
-    """Run the browser-use agent for a single natural language instruction."""
+    """Run the browser-use agent for a single natural language instruction.
+
+    ``start_url`` is the caller-supplied trusted start origin for the
+    credential guard. When omitted, it falls back to parsing the first URL
+    out of the instruction text (which opens with "Navigate to <url>. ...").
+    The explicit URL always wins — instruction text is never trusted to
+    override a caller-supplied origin.
+    """
     instruction = (instruction or "").strip()
     if not instruction:
         return AgentResult(
@@ -309,29 +349,8 @@ async def run_browser_agent(
             summary="Please provide an instruction for the agent to carry out.",
         )
 
-    start_url = _start_url_from_instruction(instruction)
+    start_url = start_url or _start_url_from_instruction(instruction)
     allowed = _allowed_origins()
-
-    def _guard_credential_entry(state, model_output) -> None:
-        """Flow 6 tier 2 origin guard — fires before any credential fill.
-
-        Inspects each action the model just decided. For ``input_text`` actions
-        whose target element label matches ``credential_field_heuristic``, we
-        assert the current page origin is in the allowlist. Raising here
-        propagates out of ``agent.run()`` and is caught below as
-        ``OriginGuardError`` — the action never executes.
-        """
-        current_url = getattr(state, "url", "") or ""
-        actions = getattr(model_output, "action", None) or []
-        for action in actions:
-            try:
-                dump = action.model_dump(exclude_none=True)
-            except Exception:
-                continue
-            label = _action_target_label(state, dump)
-            if not label or not credential_field_heuristic(label):
-                continue
-            assert_origin_for_credential_entry(current_url, start_url, allowed)
 
     try:
         from browser_use import Agent
@@ -366,7 +385,7 @@ async def run_browser_agent(
         # Flow 6 tier 2: block credential entry on disallowed origins BEFORE
         # the action executes. Raising aborts the run; the guard runs first
         # so a credential leak never happens even if the kill switch is idle.
-        _guard_credential_entry(state, output)
+        _guard_credential_entry(state, output, start_url, allowed)
         shot = getattr(state, "screenshot", None)
         if shot:
             evidence["screenshot"] = shot
@@ -431,6 +450,8 @@ async def stream_browser_agent(
     max_steps: int = DEFAULT_MAX_STEPS,
     run_id: Optional[str] = None,
     owner_id: Optional[str] = None,
+    *,
+    start_url: Optional[str] = None,
 ):
     """Async generator of SSE events for the Glass-Box live browser feed.
 
@@ -438,28 +459,17 @@ async def stream_browser_agent(
     "url": ..., "title": ...} per agent step, then {"type": "done",
     "result": {...}}. Error events: "ai_service_unavailable" (LLM config) or
     "browser_agent_failed" (run error) — never canned output.
+
+    ``start_url`` is the caller-supplied trusted start origin for the
+    credential guard (explicit value wins over instruction-text parsing).
     """
     instruction = (instruction or "").strip()
     if not instruction:
         yield {"type": "error", "error": "invalid_instruction", "message": "instruction is required"}
         return
 
-    start_url = _start_url_from_instruction(instruction)
+    start_url = start_url or _start_url_from_instruction(instruction)
     allowed = _allowed_origins()
-
-    def _guard_credential_entry(state, model_output) -> None:
-        """Flow 6 tier 2 origin guard for the streaming path — see run_browser_agent."""
-        current_url = getattr(state, "url", "") or ""
-        actions = getattr(model_output, "action", None) or []
-        for action in actions:
-            try:
-                dump = action.model_dump(exclude_none=True)
-            except Exception:
-                continue
-            label = _action_target_label(state, dump)
-            if not label or not credential_field_heuristic(label):
-                continue
-            assert_origin_for_credential_entry(current_url, start_url, allowed)
 
     try:
         from browser_use import Agent
@@ -478,7 +488,7 @@ async def stream_browser_agent(
     def on_step(state, output, step_number):
         if is_cancelled(run_id):
             raise RunCancelled(run_id or "")
-        _guard_credential_entry(state, output)
+        _guard_credential_entry(state, output, start_url, allowed)
         event = {"type": "screenshot", "step": step_number}
         screenshot = getattr(state, "screenshot", None)
         if screenshot:

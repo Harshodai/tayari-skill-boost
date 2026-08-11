@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export const BACKEND_UNAVAILABLE_MESSAGE =
-  "Advanced features need the local Tayari engine. Tracking and resume tailoring work everywhere; the browser agent, autopilot, and AI analysis run when the Go+Python stack is reachable. Self-host with `docker compose --profile dev up -d --build` or connect to a deployed backend.";
+  "Tracking works without the backend. Everything AI — resume optimization, the browser agent, autopilot, and AI analysis — needs the local Tayari engine. Self-host with `docker compose --profile dev up -d --build` or connect to a deployed backend.";
 
 const FEATURE_LABELS: Record<string, string> = {
   autopilot: "AutoPilot",

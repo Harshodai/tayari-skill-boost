@@ -135,6 +135,8 @@ def test_hosted_mode_blocks_unlicensed_source(monkeypatch) -> None:
         assert_licensed_source("https://www.linkedin.com/jobs/view/123")
     with pytest.raises(LicensedSourceError):
         assert_licensed_source("https://randomboards.example.com/jobs")
+    with pytest.raises(LicensedSourceError):
+        assert_licensed_source("https://careers.acme.com/jobs")
 
 
 def test_hosted_mode_licensed_feeds_pass(monkeypatch) -> None:
@@ -144,6 +146,8 @@ def test_hosted_mode_licensed_feeds_pass(monkeypatch) -> None:
         assert_licensed_source(f"https://{origin}/x")
     assert_licensed_source("https://jobs.lever.co/acme/abc")
     assert_licensed_source("https://boards.greenhouse.io/acme/123")
+    assert_licensed_source("https://acme.jobs.lever.co/jobs/123")
+    assert_licensed_source("https://apply.boards.greenhouse.io/acme/123")
 
 
 def test_hosted_mode_off_allows_any_source(monkeypatch) -> None:
@@ -167,6 +171,7 @@ async def test_navigate_blocks_unlicensed_in_hosted_mode(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_navigate_robots_blocked_returns_skip(monkeypatch) -> None:
+    monkeypatch.delenv("TAYARI_HOSTED_MODE", raising=False)
     monkeypatch.setattr(
         sp, "_fetch_robots_raw", lambda origin: "User-agent: *\nDisallow: /\n"
     )

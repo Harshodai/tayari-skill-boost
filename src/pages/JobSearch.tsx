@@ -144,6 +144,10 @@ const JobSearch = () => {
 
   const handleSearch = async () => {
     if (!query.trim()) return;
+    if (backendUnavailable) {
+      setSearchError("Search is unavailable while the backend is down.");
+      return;
+    }
     setIsSearching(true);
     setIsAgentSearching(false);
     setVisibleAgentEvents([]);
@@ -184,6 +188,10 @@ const JobSearch = () => {
 
   const handleAgentSearch = async () => {
     if (!query.trim()) return;
+    if (backendUnavailable) {
+      setSearchError("Search is unavailable while the backend is down.");
+      return;
+    }
     setIsSearching(true);
     setIsAgentSearching(true);
     setSearchError(null);
@@ -303,7 +311,7 @@ const JobSearch = () => {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="pl-10 h-11 bg-background/60 border-border/70 text-sm"
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                onKeyDown={(e) => e.key === "Enter" && !backendUnavailable && handleSearch()}
               />
             </div>
             <div className="relative w-full lg:w-60">
@@ -315,7 +323,7 @@ const JobSearch = () => {
                 className="pl-10 h-11 bg-background/60 border-border/70 text-sm"
               />
             </div>
-            <Button onClick={handleSearch} disabled={isSearching} variant="outline" className="h-11 min-w-[100px] border-border/60">
+            <Button onClick={handleSearch} disabled={isSearching || backendUnavailable} variant="outline" className="h-11 min-w-[100px] border-border/60">
               {isSearching && !isAgentSearching ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
@@ -326,7 +334,7 @@ const JobSearch = () => {
             </Button>
             <Button 
               onClick={handleAgentSearch} 
-              disabled={isSearching} 
+              disabled={isSearching || backendUnavailable}
               className="h-11 min-w-[140px] bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-sm"
             >
               {isSearching && isAgentSearching ? (

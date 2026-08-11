@@ -79,6 +79,15 @@ def _gate_passed(gate_result: dict) -> bool:
     """SRP: True only when every hard-block guardrail passed."""
     return bool(gate_result.get("all_passed", False))
 
+
+async def _safe_save_receipt(receipt: dict) -> bool:
+    """Receipt persistence must never alter the reported submission outcome."""
+    try:
+        return await save_receipt(receipt)
+    except Exception as exc:  # noqa: BLE001 - storage failure is non-fatal by design
+        logger.warning("autopilot: receipt persistence failed (outcome unchanged): %s", exc)
+        return False
+
 LETTER_SYSTEM = (
     "You are Tayari's cover letter writer. You write concise, specific, "
     "non-generic cover letters (180-260 words) that connect the candidate's real "
@@ -455,7 +464,10 @@ async def run_autopilot(
                 job_url = job.get("url")
                 tier = _tier_for_url(job_url)
                 if _should_skip_ats(job_url):
-                    application["status"] = "skipped_ats_tier"
+                    # ponytail: a gate_blocked application must keep its status
+                    # — tier skips must not masquerade a blocked resume as skipped.
+                    if application["status"] != "gate_blocked":
+                        application["status"] = "skipped_ats_tier"
                     _log(
                         run_id,
                         "APPLY",
@@ -466,7 +478,11 @@ async def run_autopilot(
                     applications.append(application)
                     continue
                 if _should_prepare_only(job_url) or tier is None:
-                    application["status"] = "prepared_ats_difficult"
+                    # ponytail: gate_blocked is the terminal status — keep it;
+                    # a blocked resume must not pick up a prepared receipt.
+                    is_gate_blocked = application["status"] == "gate_blocked"
+                    if not is_gate_blocked:
+                        application["status"] = "prepared_ats_difficult"
                     if tier is None:
                         _log(
                             run_id,
@@ -482,20 +498,21 @@ async def run_autopilot(
                             f"must submit manually for {job['title']} @ "
                             f"{job['company']}",
                         )
-                    prepared_receipt = build_prepared_receipt(
-                        run_id=run_id,
-                        user_id=config.get("user_id"),
-                        job=job,
-                        resume_text=tailored_text,
-                    )
-                    await save_receipt(prepared_receipt)
-                    application["receipt"] = {
-                        "verified": False,
-                        "prepared": True,
-                        "confirmation_number": None,
-                        "confirmation_text": None,
-                        "ats_vendor": prepared_receipt["ats_vendor"],
-                    }
+                    if not is_gate_blocked:
+                        prepared_receipt = build_prepared_receipt(
+                            run_id=run_id,
+                            user_id=config.get("user_id"),
+                            job=job,
+                            resume_text=tailored_text,
+                        )
+                        await _safe_save_receipt(prepared_receipt)
+                        application["receipt"] = {
+                            "verified": False,
+                            "prepared": True,
+                            "confirmation_number": None,
+                            "confirmation_text": None,
+                            "ats_vendor": prepared_receipt["ats_vendor"],
+                        }
                     applications.append(application)
                     continue
                 if config.get("auto_apply", False) and gate_ok and not approved:
@@ -540,7 +557,7 @@ async def run_autopilot(
                             final_url=evidence.get("final_url"),
                             screenshot_b64=evidence.get("screenshot_b64"),
                         )
-                        await save_receipt(receipt)
+                        await _safe_save_receipt(receipt)
                         application["receipt"] = {
                             "verified": receipt["verified"],
                             "confirmation_number": receipt["confirmation_number"],
@@ -578,7 +595,7 @@ async def run_autopilot(
                                 error=evidence.get("error"),
                                 screenshot_b64=evidence.get("screenshot_b64"),
                             )
-                            await save_receipt(failed_receipt)
+                            await _safe_save_receipt(failed_receipt)
                             application["receipt"] = {
                                 "verified": False,
                                 "failed": True,
@@ -603,7 +620,7 @@ async def run_autopilot(
                             agent_summary=str(exc),
                             error=str(exc),
                         )
-                        await save_receipt(failed_receipt)
+                        await _safe_save_receipt(failed_receipt)
                         application["receipt"] = {
                             "verified": False,
                             "failed": True,

@@ -50,25 +50,38 @@ The drill restores the latest backup into a throwaway DB and verifies the key
 tables (`profiles`, `resumes`, `saved_jobs`, `submission_receipts`) are present
 and queryable.
 
+The drill **requires a dedicated throwaway endpoint** via the
+`SUPABASE_DB_DRILL_*` env namespace (host/port/user/password/name). The generic
+`SUPABASE_DB_*` vars are production config — the script only uses them to
+reject a drill target that matches the production endpoint (`host:port`), and
+it refuses to run if the `SUPABASE_DB_DRILL_*` vars are missing.
+
 ```bash
 # 1. Stand up a throwaway Postgres (NOT the production db). e.g. a fresh
 #    docker container on a different host port:
 #    docker run --rm -d --name tayari-drill-db \
 #      -e POSTGRES_PASSWORD=drillpw -p 54330:5432 postgres:15
-#    export SUPABASE_DB_PORT=54330 SUPABASE_DB_PASSWORD=drillpw SUPABASE_DB_NAME=postgres
+#    export SUPABASE_DB_DRILL_HOST=localhost SUPABASE_DB_DRILL_PORT=54330 \
+#      SUPABASE_DB_DRILL_USER=postgres SUPABASE_DB_DRILL_PASSWORD=drillpw \
+#      SUPABASE_DB_DRILL_NAME=postgres
 
-# 2. Run the drill (the safety gate refuses without this env):
+# 2. Run the drill (the safety gates refuse without this env):
 BACKUP_DRILL_MODE=true ./scripts/restore-drill.sh
 ```
 
 The script:
 1. Refuses unless `BACKUP_DRILL_MODE=true`.
-2. Prompts the operator to type the target DB name — a last-line defense
+2. Requires the `SUPABASE_DB_DRILL_*` throwaway endpoint — exits with an error
+   listing them if any are missing (never falls back to `SUPABASE_DB_*`).
+3. Rejects a drill target matching the configured production endpoint
+   (`SUPABASE_DB_HOST`/`SUPABASE_DB_PORT`, defaults `localhost`/`54329`) before
+   the prompt or any restore — exits 2 with a REFUSING message.
+4. Prompts the operator to type the target DB name — a last-line defense
    against pointing at production.
-3. `pg_restore --clean --if-exists --no-owner --no-acl` against the target.
-4. Counts rows in each key table. A query error (table missing/unreadable)
+5. `pg_restore --clean --if-exists --no-owner --no-acl` against the target.
+6. Counts rows in each key table. A query error (table missing/unreadable)
    returns `-1` and fails the drill.
-5. Exits 0 only if every key table is queryable (count >= 0).
+7. Exits 0 only if every key table is queryable (count >= 0).
 
 ### Real restore (against production)
 
@@ -119,10 +132,7 @@ The script:
 2. **On-call engineer** (see team contact list — populate before launch):
    - Primary: `__________________________`
    - Secondary: `__________________________`
-3. **If the backup file itself is corrupt** (gzip/header check fails, or
-   `pg_restore` errors before any table is created), fall back to the previous
-   day's dump. If two consecutive dumps are corrupt, escalate to the DB owner
-   and page the primary on-call.
+3. **If the backup file itself is suspect** (the backup is a `pg_restore` custom archive, not gzip — `pg_restore --list backups/tayari_hosted_YYYYMMDD_HHMMSS.dump` is only a fast custom-archive *format precheck*, not an integrity check: a successful `--list` confirms the file is a readable custom archive but does NOT prove the dump restores cleanly). Before selecting the candidate dump for production, run a **full restore drill of that exact dump** into the throwaway endpoint (`BACKUP_DRILL_MODE=true ./scripts/restore-drill.sh <candidate.dump>`) and require it to PASS the key-table verification. If the candidate dump fails the drill, fall back to the previous day's dump and apply the **same full-drill validation** to it before selecting it. If both candidates fail their drills, escalate to the DB owner and page the primary on-call.
 4. **If the drill passes but production restore fails**, the difference is
    almost always a role/ownership mismatch on the production DB — re-run
    `pg_restore` with `--no-owner --no-acl` (already in the script) and check

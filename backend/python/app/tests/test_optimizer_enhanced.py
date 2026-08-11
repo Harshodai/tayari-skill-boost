@@ -85,6 +85,18 @@ def test_optimizer_request_missing_transition_fields():
     assert "transferable_skills must be a non-empty list" in str(exc_info3.value)
 
 
+def test_optimizer_request_rejects_whitespace_skills():
+    with pytest.raises(ValidationError) as exc_info:
+        OptimizerRequest(
+            resume_text="resume",
+            transition_type="same_domain",
+            current_industry="Tech",
+            target_industry="Finance",
+            transferable_skills=["Python", "   "],
+        )
+    assert "transferable_skills entries must be non-empty" in str(exc_info.value)
+
+
 def test_transition_payload_helper():
     # Non-transition mode returns None
     req_no_trans = OptimizerRequest(resume_text="resume", transition_type="")
@@ -108,6 +120,17 @@ def test_transition_payload_helper():
         "target_industry": "EdTech",
         "transferable_skills": ["Game Dev", "C++"],
     }
+
+    # Padded skill entries are trimmed in the payload built for the optimizer
+    req_padded = OptimizerRequest(
+        resume_text="resume",
+        transition_type="same_domain",
+        current_industry="Tech",
+        target_industry="Finance",
+        transferable_skills=["  Game Dev ", "C++"],
+    )
+    payload_padded = _transition_payload(req_padded)
+    assert payload_padded["transferable_skills"] == ["Game Dev", "C++"]
 
 
 def test_validate_public_url_rejects_loopback():

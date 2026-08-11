@@ -22,6 +22,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 from app.services.db import get_pool
 
@@ -73,16 +74,29 @@ _ATS_HOSTS: tuple[tuple[str, str], ...] = (
     ("workable.com", "workable"),
     ("recruitee.com", "recruitee"),
     ("linkedin.com", "linkedin"),
+    ("usajobs.gov", "usajobs"),
 )
 
 
 def detect_ats_vendor(url: str | None) -> str | None:
-    """Return a known ATS vendor slug for ``url``, or None."""
+    """Return a known ATS vendor slug for ``url``, or None.
+
+    Matches the URL's hostname against each registered host suffix: an exact
+    host match OR a dot-boundary subdomain (``host.endswith("." + suffix)``).
+    Occurrences in paths, queries, or lookalike domains (e.g.
+    ``evil-greenhouse.io``) do not match.
+    """
     if not url:
         return None
-    lowered = url.lower()
-    for host, vendor in _ATS_HOSTS:
-        if host in lowered:
+    try:
+        parsed = urlparse(url if "://" in url else f"https://{url}")
+        host = (parsed.hostname or "").lower()
+    except Exception:
+        return None
+    if not host:
+        return None
+    for suffix, vendor in _ATS_HOSTS:
+        if host == suffix or host.endswith("." + suffix):
             return vendor
     return None
 
@@ -190,6 +204,45 @@ def build_receipt(
     }
 
 
+# Approved, user-safe failure messages keyed by category. No portion of the
+# raw error or agent_summary is ever persisted — detailed diagnostics live
+# only in server logs (the receipt's ``_error`` field, which is NOT
+# persisted by save_receipt). Categories are matched against the raw error
+# string; unknown errors get the generic fallback.
+_FAILURE_CATEGORIES: tuple[tuple[str, str], ...] = (
+    ("linkedin_automation_blocked", "LinkedIn automation is not permitted by policy. Save the job and submit manually."),
+    ("linkedin", "LinkedIn automation is not permitted by policy. Save the job and submit manually."),
+    ("no_job_url", "No application URL was provided, so nothing could be submitted."),
+    ("blockedbyclient", "The site blocked the automated browser. Open the posting and submit manually."),
+    ("timeout", "The application step timed out. Try again, or submit manually."),
+    ("timed out", "The application step timed out. Try again, or submit manually."),
+    ("navigation", "The browser could not reach the application page. Check the URL and retry."),
+    ("auth", "The application required a login the agent could not provide. Submit manually."),
+    ("captcha", "The application presented a CAPTCHA the agent could not solve. Submit manually."),
+    ("rate", "A rate limit was hit. Wait a moment and retry."),
+    ("network", "A network error interrupted the application. Retry, or submit manually."),
+    ("ai_service_unavailable", "The AI engine was not available, so the application could not be prepared."),
+    ("llm_not_configured", "The AI engine was not configured, so the application could not be prepared."),
+)
+_FAILURE_FALLBACK = "The application could not be completed automatically. Open the posting and submit manually."
+
+
+def _classify_failure_reason(error: str | None, agent_summary: str | None) -> str:
+    """Map a raw error/summary to an approved user-safe failure message.
+
+    No portion of ``error``/``agent_summary`` is returned — only approved
+    strings. Category matching is case-insensitive substring on the raw
+    diagnostic (used for classification only, never persisted).
+    """
+    diag = (error or agent_summary or "").lower()
+    if not diag:
+        return _FAILURE_FALLBACK
+    for needle, message in _FAILURE_CATEGORIES:
+        if needle in diag:
+            return message
+    return _FAILURE_FALLBACK
+
+
 def build_failed_receipt(
     *,
     run_id: str,
@@ -207,7 +260,13 @@ def build_failed_receipt(
     is visually indistinguishable from a pending one (audit Q8.2 / WS-02).
     `verified` is always False; `outcome` is 'failed' so the UI can render the
     distinct "Submission failed" badge.
+
+    ``failure_reason`` is an allowlisted, user-safe message — never the raw
+    error or agent_summary (not even sanitized/truncated). The raw diagnostic
+    is retained under ``_error`` for server-side logs only; ``save_receipt``
+    does NOT persist ``_error``.
     """
+    reason = _classify_failure_reason(error, agent_summary)
     return {
         "run_id": run_id,
         "user_id": user_id,
@@ -224,6 +283,7 @@ def build_failed_receipt(
         "submitted_resume_text": resume_text,
         "answers": answers or {},
         "outcome": "failed",
+        "failure_reason": reason,
         "_error": error or (agent_summary or "the agent did not reach a submit step"),
     }
 
@@ -243,6 +303,12 @@ def build_prepared_receipt(
     user submits manually. We still record a receipt row so the package is
     visible as "prepared, awaiting manual submit" rather than vanishing.
     `verified` is always False; `outcome` is 'prepared'.
+
+    Prepared receipts must never populate the submitted_resume_* fields — the
+    resume was not submitted, and a populated submitted_* fingerprint would
+    claim it was. The prepared resume rides under prepared_resume_* (held in
+    the dict only; save_receipt persists just the submitted_* columns, so the
+    DB row keeps them null).
     """
     return {
         "run_id": run_id,
@@ -256,8 +322,10 @@ def build_prepared_receipt(
         "confirmation_text": None,
         "confirmation_number": None,
         "screenshot_path": None,
-        "submitted_resume_sha256": resume_fingerprint(resume_text),
-        "submitted_resume_text": resume_text,
+        "submitted_resume_sha256": None,
+        "submitted_resume_text": None,
+        "prepared_resume_sha256": resume_fingerprint(resume_text),
+        "prepared_resume_text": resume_text,
         "answers": answers or {},
         "outcome": "prepared",
     }
@@ -274,6 +342,13 @@ async def save_receipt(receipt: dict[str, Any]) -> bool:
         logger.warning("submission_receipt: skipping receipt with no user_id")
         return False
     try:
+        # ponytail: no failure_reason column exists in submission_receipts —
+        # persist it under the reserved answers key so the reason survives
+        # storage/retrieval via the jsonb without a schema migration. The
+        # receipt dict itself stays clean (failure_reason is a top-level key).
+        persist_answers = dict(receipt.get("answers") or {})
+        if receipt.get("outcome") == "failed" and receipt.get("failure_reason"):
+            persist_answers["_failure_reason"] = receipt["failure_reason"]
         async with pool.acquire() as conn:
             await conn.execute(
                 """
@@ -297,7 +372,7 @@ async def save_receipt(receipt: dict[str, Any]) -> bool:
                 receipt.get("screenshot_path"),
                 receipt.get("submitted_resume_sha256"),
                 receipt.get("submitted_resume_text"),
-                json.dumps(receipt.get("answers") or {}),
+                json.dumps(persist_answers),
                 receipt.get("outcome") or "unknown",
             )
         return True

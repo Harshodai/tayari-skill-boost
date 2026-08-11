@@ -91,9 +91,8 @@ ALTER TABLE public.submission_receipts ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "submission_receipts_all_own" ON public.submission_receipts;
 CREATE POLICY "submission_receipts_all_own" ON public.submission_receipts
-    FOR ALL TO authenticated
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
+    FOR SELECT TO authenticated
+    USING (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "submission_receipts_service_all" ON public.submission_receipts;
 CREATE POLICY "submission_receipts_service_all" ON public.submission_receipts

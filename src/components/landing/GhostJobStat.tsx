@@ -2,7 +2,7 @@ import { ShieldCheck, Ghost } from "lucide-react";
 
 const GHOST_JOB_STAT = {
   precision: 1.0,
-  recall: 0.933,
+  recall: 0.867,
   sampleSize: 30,
 };
 
@@ -17,12 +17,13 @@ export function GhostJobStat() {
             Ghost-job screening — measured, not promised
           </p>
           <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4 tracking-tight">
-            We screen out 1 in 4 ghost jobs before you waste your time.
+            Measured screening: every ghost we flag is real — 87% of ghost postings caught.
           </h2>
           <p className="text-lg text-muted-foreground leading-relaxed mb-8">
             Measured: {pct(GHOST_JOB_STAT.precision)} precision, {pct(GHOST_JOB_STAT.recall)} recall on a{" "}
-            {GHOST_JOB_STAT.sampleSize}-posting hand-labeled set. The number is reproducible from a
-            committed fixture — re-verify via <code className="text-foreground/80">/api/v1/screening/metrics</code> when{" "}
+            {GHOST_JOB_STAT.sampleSize}-posting hand-labeled set (fixture v2 — synthetic, not general performance). The
+            number is reproducible from a committed fixture — re-verify via{" "}
+            <code className="text-foreground/80">/api/v1/screening/metrics</code> when{" "}
             <code className="text-foreground/80">posting_screen.py</code> changes.
           </p>
           <p className="text-xs text-muted-foreground inline-flex items-center gap-2">

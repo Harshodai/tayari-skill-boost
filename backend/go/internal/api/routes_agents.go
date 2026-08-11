@@ -1,11 +1,14 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
 
+	"tayari-backend/internal/auth"
 	"tayari-backend/internal/models"
 
 	"github.com/go-chi/chi/v5"
@@ -34,6 +37,145 @@ func (s *Server) routesAgents(r chi.Router) {
 		// codename kept as an alias so existing clients keep working.
 		r.Get("/api/v1/agent/config", s.handleGetHermesConfig)
 		r.Get("/api/v1/hermes/config", s.handleGetHermesConfig)
+
+		// WS-03 take-over: pause a running apply-agent run and hand control to
+		// the human-answer queue (agent_questions). Both /api/v1 and /api
+		// twins are registered — route parity is asserted by
+		// TestRouteParity_BidirectionalAliases.
+		r.Post("/api/v1/agent-runs/{runId}/take-over", s.handleAgentRunTakeOver)
+		r.Post("/api/agent-runs/{runId}/take-over", s.handleAgentRunTakeOver)
+	})
+}
+
+// handleAgentRunTakeOver pauses a running/queued apply-agent run and, in the
+// same transaction, enqueues a pending question for it in the human-answer
+// queue (agent_questions). The run stays paused until the user answers; the
+// queue's pending->answered transition is what unblocks it. Simple CRUD on
+// Supabase tables — Go's lane, no Python hop.
+func (s *Server) handleAgentRunTakeOver(w http.ResponseWriter, r *http.Request) {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok || user == nil || user.ID == [16]byte{} {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	uid := user.ID.String()
+	runID := chi.URLParam(r, "runId")
+	if runID == "" {
+		s.respondError(w, http.StatusBadRequest, "runId is required")
+		return
+	}
+	if s.DB == nil || s.DB.Conn == nil {
+		s.respondError(w, http.StatusServiceUnavailable, "database unavailable")
+		return
+	}
+
+	tx, err := s.DB.Conn.BeginTx(r.Context(), nil)
+	if err != nil {
+		log.Printf("handleAgentRunTakeOver: begin tx failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to start take-over")
+		return
+	}
+	defer tx.Rollback()
+
+	// Verify ownership + pause the run. The user-scoped WHERE doubles as the
+	// authorization check: a run that isn't the caller's never matches.
+	// progress is kept; only status/current_step move to the human gate.
+	res, err := tx.ExecContext(r.Context(), `
+		UPDATE agent_runs
+		SET status = 'awaiting_review',
+		    current_step = 'Take-over: paused for your input',
+		    updated_at = NOW()
+		WHERE id = $1 AND user_id = $2 AND status IN ('running', 'queued')
+	`, runID, uid)
+	if err != nil {
+		log.Printf("handleAgentRunTakeOver: pause failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to pause the run")
+		return
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		log.Printf("handleAgentRunTakeOver: rows affected failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to pause the run")
+		return
+	}
+	if rowsAffected == 0 {
+		// The run was not paused by this call (already not running, or not
+		// owned by the caller). A prior take-over may have already paused it
+		// and enqueued a question — resolve that question by (user, run) so
+		// a repeated take-over returns the existing question id instead of
+		// 404. If no owned pending question exists, preserve the not-found
+		// error.
+		var existingID string
+		lookupErr := tx.QueryRowContext(r.Context(), `
+			SELECT id FROM agent_questions
+			WHERE user_id = $1 AND run_id = $2 AND status = 'pending'
+			LIMIT 1
+		`, uid, runID).Scan(&existingID)
+		if lookupErr == nil && existingID != "" {
+			if err := tx.Commit(); err != nil {
+				log.Printf("handleAgentRunTakeOver: commit (existing) failed: %v", err)
+				s.respondError(w, http.StatusInternalServerError, "Failed to complete take-over")
+				return
+			}
+			s.respondJSON(w, http.StatusOK, map[string]interface{}{
+				"ok":          true,
+				"run_id":      runID,
+				"question_id": existingID,
+			})
+			return
+		}
+		tx.Rollback()
+		s.respondError(w, http.StatusNotFound, "Run not found or not running")
+		return
+	}
+
+	// Enqueue one pending question for this run — but only if one isn't
+	// already sitting in the queue for it. The INSERT..SELECT..WHERE NOT
+	// EXISTS guard keeps repeated take-overs idempotent.
+	var questionID string
+	err = tx.QueryRowContext(r.Context(), `
+		INSERT INTO agent_questions (user_id, run_id, job_title, company, field_label, field_type, status)
+		SELECT $1, $2,
+		       (SELECT job_title FROM agent_runs WHERE id = $2),
+		       (SELECT company FROM agent_runs WHERE id = $2),
+		       'Manual take-over — the agent paused and handed control to you',
+		       'text',
+		       'pending'
+		WHERE NOT EXISTS (
+			SELECT 1 FROM agent_questions
+			WHERE user_id = $1 AND run_id = $2 AND status = 'pending'
+		)
+		RETURNING id
+	`, uid, runID).Scan(&questionID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		log.Printf("handleAgentRunTakeOver: enqueue failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to enqueue the question")
+		return
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		// A pending question already exists for this (user, run) — resolve
+		// its id so the response carries the real question id.
+		var existingID string
+		lookupErr := tx.QueryRowContext(r.Context(), `
+			SELECT id FROM agent_questions
+			WHERE user_id = $1 AND run_id = $2 AND status = 'pending'
+			LIMIT 1
+		`, uid, runID).Scan(&existingID)
+		if lookupErr == nil && existingID != "" {
+			questionID = existingID
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		log.Printf("handleAgentRunTakeOver: commit failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to complete take-over")
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"ok":          true,
+		"run_id":      runID,
+		"question_id": questionID,
 	})
 }
 

@@ -59,7 +59,7 @@ fi
 unset PGPASSWORD
 
 END_EPOCH=$(date +%s)
-DUMP_SIZE=$(stat -f -z %z "${DUMP_FILE}" 2>/dev/null || stat -c %s "${DUMP_FILE}" 2>/dev/null || echo 0)
+DUMP_SIZE=$(stat -c %s "${DUMP_FILE}" 2>/dev/null || stat -f %z "${DUMP_FILE}" 2>/dev/null || echo 0)
 DUMP_SIZE_MB=$(( DUMP_SIZE / 1024 / 1024 ))
 ELAPSED=$(( END_EPOCH - START_EPOCH ))
 

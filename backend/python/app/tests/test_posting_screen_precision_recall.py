@@ -8,6 +8,11 @@ on the landing page — if the screener or fixture changes such that we
 can no longer clear it, the number on the landing page must be updated
 to the new measured value (re-verify via ``/api/v1/screening/metrics``).
 
+The fixture is synthetic and implementation-aligned — see
+``app/tests/fixtures/ghost_job_labels_PROVENANCE.md`` (fixture v2,
+2026-08-11). The numbers printed here are fixture-relative
+upper-bound engineering estimates, NOT general screening performance.
+
 The published-number endpoint ``compute_screening_metrics()`` shares
 the same computation so the test and the public API cannot drift.
 """

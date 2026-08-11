@@ -64,8 +64,14 @@ const AutoPilot = () => {
   const isLinkedInUrl = (url: string | undefined): boolean => {
     if (!url) return false;
     try {
-      const host = new URL(url).hostname.toLowerCase();
-      return host === "linkedin.com" || host === "www.linkedin.com";
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      // ponytail: https-only (an http LinkedIn URL would be a downgrade/mitm
+      // risk for an automated-flow page) and any *.linkedin.com subdomain.
+      return (
+        parsed.protocol === "https:" &&
+        (host === "linkedin.com" || host.endsWith(".linkedin.com"))
+      );
     } catch {
       return false;
     }
@@ -119,8 +125,20 @@ const AutoPilot = () => {
     },
   });
 
+  // ponytail: computed here (after all three queries + startMutation) so both
+  // the Start button's disabled prop and handleStart's guard share one source.
+  const backendDown =
+    backendUnavailable ||
+    isBackendUnavailable(runsError) ||
+    isBackendUnavailable(runStatusError) ||
+    isBackendUnavailable(startMutation.error);
+
   const handleStart = () => {
     setRunError(null);
+    if (backendDown) {
+      setRunError("Backend unavailable — start a run once the engine is reachable.");
+      return;
+    }
     if (!resumeText) {
       setRunError("Upload a resume first — we need your base resume to tailor from.");
       toast.error("No resume found. Upload one from the Resume page first.");
@@ -168,11 +186,6 @@ const AutoPilot = () => {
   };
 
   const isRunning = runStatus?.status === "running" || runStatus?.status === "queued";
-  const backendDown =
-    backendUnavailable ||
-    isBackendUnavailable(runsError) ||
-    isBackendUnavailable(runStatusError) ||
-    isBackendUnavailable(startMutation.error);
 
   return (
     <AppShell>
@@ -266,7 +279,7 @@ const AutoPilot = () => {
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button
                   onClick={handleStart}
-                  disabled={startMutation.isPending || isRunning}
+                  disabled={startMutation.isPending || isRunning || backendDown}
                   className="min-w-[140px]"
                 >
                   {startMutation.isPending ? (
@@ -391,7 +404,9 @@ const AutoPilot = () => {
               Applications Generated ({applications.length})
             </h2>
             <div className="space-y-4">
-              {applications.map((app) => (
+              {applications.map((app) => {
+                const isLinkedInApp = isLinkedInUrl(app.job?.url || app.apply_url);
+                return (
                 <Card key={app.application_id} className="card-hover">
                   <CardContent className="py-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -415,20 +430,22 @@ const AutoPilot = () => {
                         <p className="text-muted-foreground text-sm">
                           {app.job?.company || "Unknown Company"}
                         </p>
-                        {isLinkedInUrl(app.job?.url || app.apply_url) && (
+                        {/* ponytail: the https-validated LinkedIn URL gates the
+                            warning block, so the link href is always https here. */}
+                        {isLinkedInApp && (
                           <div className="mt-2 rounded-lg border border-amber-300/60 bg-amber-50 dark:bg-amber-950/30 p-2.5 text-xs text-amber-800 dark:text-amber-200">
-                            <div className="flex items-start gap-1.5">
-                              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                              <div className="flex-1">
-                                <p className="font-medium">
-                                  LinkedIn submissions are not automated. LinkedIn's User Agreement §8.2 prohibits bots and enforcement is account termination. We'll save the job and prep your resume, but you submit manually.
-                                </p>
-                                <a
-                                  href={app.job?.url || app.apply_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="mt-1.5 inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline"
-                                >
+                              <div className="flex items-start gap-1.5">
+                                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                <div className="flex-1">
+                                  <p className="font-medium">
+                                    LinkedIn submissions are not automated. LinkedIn's User Agreement §8.2 prohibits bots and enforcement is account termination. We'll save the job and prep your resume, but you submit manually.
+                                  </p>
+                                  <a
+                                    href={app.job?.url || app.apply_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-1.5 inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline"
+                                  >
                                   Open LinkedIn posting <ExternalLink className="h-3 w-3" />
                                 </a>
                               </div>
@@ -506,7 +523,7 @@ const AutoPilot = () => {
                               className="bg-success text-success-foreground hover:bg-success/90"
                               onClick={() => handleApproveApp(app.application_id)}
                             >
-                              Approve & Submit
+                              {isLinkedInApp ? "Approve & Save" : "Approve & Submit"}
                             </Button>
                             <Button
                               variant="outline"
@@ -551,7 +568,8 @@ const AutoPilot = () => {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

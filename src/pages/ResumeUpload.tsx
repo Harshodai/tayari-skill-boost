@@ -20,7 +20,8 @@ import {
   ChevronDown,
   ChevronUp,
   LogIn,
-  AlertCircle
+  AlertCircle,
+  RefreshCcw
 } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import {
@@ -53,11 +54,27 @@ const ResumeUpload = () => {
   const [analysisStep, setAnalysisStep] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { unavailable: backendUnavailable } = useBackendHealth();
+  const { unavailable: backendUnavailable, refetch: refetchHealth } = useBackendHealth();
   // ponytail: analyze/parse endpoints all hit the Go gateway — if it's down
   // the whole form is useless, so render the honest banner instead of a
   // broken upload + toast loop.
   const [analyzeFailedBackendDown, setAnalyzeFailedBackendDown] = useState(false);
+
+  // ponytail: analyzeFailedBackendDown otherwise sticks until reload — retry
+  // re-probes via the health hook's refetch; refetch rejects when the gateway
+  // is still unreachable, so resolve == healthy == clear the flag.
+  const [retryingConnection, setRetryingConnection] = useState(false);
+  const handleRetryConnection = async () => {
+    setRetryingConnection(true);
+    try {
+      await refetchHealth();
+      setAnalyzeFailedBackendDown(false);
+    } catch {
+      // backend still unreachable — stay down
+    } finally {
+      setRetryingConnection(false);
+    }
+  };
 
   // AI Workflow Options
   const [aiOptions, setAiOptions] = useState({
@@ -270,8 +287,21 @@ const ResumeUpload = () => {
       <div className="container mx-auto px-4 py-12">
         {/* Backend unavailable — show the honest state instead of a broken upload form */}
         {(backendUnavailable || analyzeFailedBackendDown) && (
-          <div className="max-w-3xl mx-auto mb-8">
+          <div className="max-w-3xl mx-auto mb-8 space-y-3">
             <BackendUnavailableBanner feature="resume optimizer" variant="full" />
+            <Button
+              variant="outline"
+              onClick={handleRetryConnection}
+              disabled={retryingConnection}
+              className="mx-auto flex"
+            >
+              {retryingConnection ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <RefreshCcw className="w-4 h-4 mr-2" />
+              )}
+              Retry connection
+            </Button>
           </div>
         )}
         {!backendUnavailable && !analyzeFailedBackendDown && (

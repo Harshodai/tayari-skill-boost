@@ -1,0 +1,194 @@
+"""Tests for submission receipts: prepared receipts must not claim a
+submission, and failed receipts carry a sanitized, persisted failure_reason."""
+import json
+from unittest import mock
+
+import pytest
+
+from app.services import submission_receipt as sr
+
+JOB = {
+    "url": "https://boards.greenhouse.io/acme/jobs/123",
+    "title": "Senior Engineer",
+    "company": "Acme",
+}
+
+
+def test_build_prepared_receipt_does_not_claim_submission():
+    receipt = sr.build_prepared_receipt(
+        run_id="r1",
+        user_id="u1",
+        job=JOB,
+        resume_text="abc",
+    )
+    assert receipt["outcome"] == "prepared"
+    assert receipt["submitted_resume_sha256"] is None
+    assert receipt["submitted_resume_text"] is None
+    assert receipt["prepared_resume_sha256"] == sr.resume_fingerprint("abc")
+    assert receipt["prepared_resume_text"] == "abc"
+
+
+"""Tests for submission receipts: prepared receipts must not claim a
+submission, and failed receipts carry an allowlisted, persisted failure_reason."""
+import json
+from unittest import mock
+
+import pytest
+
+from app.services import submission_receipt as sr
+
+JOB = {
+    "url": "https://boards.greenhouse.io/acme/jobs/123",
+    "title": "Senior Engineer",
+    "company": "Acme",
+}
+
+
+def test_build_prepared_receipt_does_not_claim_submission():
+    receipt = sr.build_prepared_receipt(
+        run_id="r1",
+        user_id="u1",
+        job=JOB,
+        resume_text="abc",
+    )
+    assert receipt["outcome"] == "prepared"
+    assert receipt["submitted_resume_sha256"] is None
+    assert receipt["submitted_resume_text"] is None
+    assert receipt["prepared_resume_sha256"] == sr.resume_fingerprint("abc")
+    assert receipt["prepared_resume_text"] == "abc"
+
+
+def test_build_failed_receipt_maps_known_category_to_approved_message():
+    receipt = sr.build_failed_receipt(
+        run_id="r2",
+        user_id="u2",
+        job=JOB,
+        resume_text="abc",
+        error="RuntimeError('boom')\nTraceback (most recent call last):\n  File \"/srv/app.py\", line 1",
+    )
+    assert receipt["outcome"] == "failed"
+    # No portion of the raw error is persisted in failure_reason — only an
+    # approved allowlisted message. "RuntimeError('boom')" matches no category,
+    # so the generic fallback is returned.
+    assert receipt["failure_reason"] == sr._FAILURE_FALLBACK
+    assert "RuntimeError" not in receipt["failure_reason"]
+    assert "Traceback" not in receipt["failure_reason"]
+    assert "/srv/app.py" not in receipt["failure_reason"]
+    # raw diagnostic retained for server logs only (not persisted by save_receipt)
+    assert "Traceback" in receipt["_error"]
+
+
+def test_build_failed_receipt_timeout_category_maps_approved():
+    receipt = sr.build_failed_receipt(
+        run_id="r2b",
+        user_id="u2",
+        job=JOB,
+        resume_text="abc",
+        error="Connection timed out",
+    )
+    assert receipt["failure_reason"] == "The application step timed out. Try again, or submit manually."
+
+
+def test_build_failed_receipt_linkedin_category_maps_approved():
+    receipt = sr.build_failed_receipt(
+        run_id="r2c",
+        user_id="u2",
+        job=JOB,
+        resume_text="abc",
+        error="linkedin_automation_blocked",
+    )
+    assert "LinkedIn automation is not permitted by policy" in receipt["failure_reason"]
+
+
+def test_build_failed_receipt_fallback_when_no_diagnostic():
+    fallback = sr.build_failed_receipt(run_id="r3", user_id="u3", job=JOB, resume_text=None)
+    assert fallback["failure_reason"] == sr._FAILURE_FALLBACK
+
+
+class _FakeConn:
+    def __init__(self):
+        self.executed = None
+
+    async def execute(self, sql, *args):
+        self.executed = (sql, args)
+        return "OK"
+
+
+class _FakePool:
+    def __init__(self, conn):
+        self._conn = conn
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    def acquire(self):
+        return _PoolCtx(self._conn)
+
+
+class _PoolCtx:
+    def __init__(self, conn):
+        self._conn = conn
+
+    async def __aenter__(self):
+        return self._conn
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+@pytest.mark.asyncio
+async def test_save_receipt_persists_failure_reason_in_answers():
+    conn = _FakeConn()
+    pool = _FakePool(conn)
+    receipt = sr.build_failed_receipt(
+        run_id="r4",
+        user_id="u4",
+        job=JOB,
+        resume_text="abc",
+        error="Connection timed out",
+        answers={"existing": "kept"},
+    )
+    with mock.patch("app.services.submission_receipt.get_pool", new=mock.AsyncMock(return_value=pool)):
+        saved = await sr.save_receipt(receipt)
+    assert saved is True
+    assert conn.executed is not None
+    sql, args = conn.executed
+    assert "INSERT INTO submission_receipts" in sql
+    answers_arg = args[13]  # $14::jsonb
+    persisted = json.loads(answers_arg)
+    # the allowlisted timeout message is persisted, not the raw error text
+    assert persisted["_failure_reason"] == "The application step timed out. Try again, or submit manually."
+    assert "Connection timed out" not in persisted["_failure_reason"]
+    assert persisted["existing"] == "kept"
+
+
+@pytest.mark.asyncio
+async def test_save_receipt_non_failed_answers_untouched():
+    conn = _FakeConn()
+    pool = _FakePool(conn)
+    receipt = {
+        "run_id": "r5",
+        "user_id": "u5",
+        "job_url": JOB["url"],
+        "job_title": JOB["title"],
+        "company": JOB["company"],
+        "ats_vendor": "greenhouse",
+        "submitted_at": None,
+        "verified": False,
+        "confirmation_text": None,
+        "confirmation_number": None,
+        "screenshot_path": None,
+        "submitted_resume_sha256": None,
+        "submitted_resume_text": None,
+        "answers": {"a": 1},
+        "outcome": "prepared",
+        "failure_reason": "should not leak",
+    }
+    with mock.patch("app.services.submission_receipt.get_pool", new=mock.AsyncMock(return_value=pool)):
+        saved = await sr.save_receipt(receipt)
+    assert saved is True
+    persisted = json.loads(conn.executed[1][13])
+    assert persisted == {"a": 1}

@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -380,15 +382,19 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 		// the next webhook with a real email lands in the right account.
 		var err error
 		if email == "" {
-			log.Printf("[GmailWebhook] No notified address in message and no email match — refusing to attribute to a tenant")
+			log.Printf("[GmailWebhook] No notified address in message — refusing to attribute to a tenant")
 			return
 		}
 		err = s.DB.Conn.QueryRowContext(ctx,
-			`SELECT user_id, access_token, refresh_token, expiry FROM gmail_tokens WHERE scope LIKE '%' || $1 || '%' OR user_id IN (SELECT id FROM users WHERE email=$1) LIMIT 1`,
+			`SELECT user_id, access_token, refresh_token, expiry FROM gmail_tokens WHERE user_id IN (SELECT id FROM users WHERE email=$1)`,
 			email).Scan(&userID, &accessToken, &refreshToken, &expiry)
 
 		if err != nil {
-			log.Printf("[GmailWebhook] No matching token for email %s: %v", email, err)
+			if errors.Is(err, sql.ErrNoRows) {
+				log.Printf("[GmailWebhook] No matching token/account for email %s", email)
+			} else {
+				log.Printf("[GmailWebhook] Token lookup failed for email %s: %v", email, err)
+			}
 			return
 		}
 

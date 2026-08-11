@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from app.services.form_filler import FormFiller as TayariComputerSandboxExecutor
 from app.services.omnisave_service import OmnisaveService
@@ -43,7 +45,7 @@ async def test_omnisave_rag_engine():
 
     try:
         rag_res = await omnisave.query_knowledge_rag("system architecture", user_id=test_user_id)
-    except (LLMNotConfiguredError, httpx.HTTPError) as e:
+    except (LLMNotConfiguredError, httpx.HTTPError, asyncio.TimeoutError) as e:
         pytest.skip(f"LLM call failed ({e}); skipping live RAG answer assertion")
 
     assert "answer" in rag_res

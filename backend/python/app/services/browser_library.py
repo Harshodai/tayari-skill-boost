@@ -32,7 +32,7 @@ class Browser:
         )
 
     @staticmethod
-    def _run_agent(instruction: str):
+    def _run_agent(instruction: str, start_url: str | None = None):
         """Run the browser agent to completion and return its AgentResult."""
         from app.services.browser_automation import run_browser_agent
 
@@ -58,7 +58,7 @@ class Browser:
 
             def _run_in_thread() -> None:
                 try:
-                    result_box["result"] = asyncio.run(run_browser_agent(instruction))
+                    result_box["result"] = asyncio.run(run_browser_agent(instruction, start_url=start_url))
                 except Exception as thread_exc:  # noqa: BLE001 - re-raised on the caller's thread below
                     result_box["error"] = thread_exc
 
@@ -71,7 +71,7 @@ class Browser:
 
             return result_box["result"]
 
-        return asyncio.run(run_browser_agent(instruction))
+        return asyncio.run(run_browser_agent(instruction, start_url=start_url))
 
     @staticmethod
     def apply_job_with_evidence(job: dict, resume_text: str, cover_letter: str) -> dict:
@@ -116,7 +116,11 @@ class Browser:
         instruction = Browser._build_instruction(job, resume_text, cover_letter)
 
         try:
-            result = Browser._run_agent(instruction)
+            # ponytail: the caller-supplied job URL is the authoritative
+            # credential-origin allowlist source; instruction text is never
+            # trusted to change it (explicit start_url always wins over the
+            # instruction-parsing fallback inside run_browser_agent).
+            result = Browser._run_agent(instruction, start_url=url)
             logger.info("[Browser] Application completed with status: %s", result.success)
             return {
                 "success": bool(result.success),

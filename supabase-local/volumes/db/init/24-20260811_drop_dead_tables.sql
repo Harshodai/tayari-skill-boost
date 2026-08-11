@@ -6,9 +6,13 @@
 -- baseline.json (a scanner artifact, not a consumer). No Go/Python/TS code reads
 -- or writes any of these tables. No foreign keys reference them.
 --
--- Dropping with CASCADE for safety (drops any dependent views/indexes that may
--- have been added out-of-band). This is irreversible — if a table turns out to be
--- needed, restore from the migration that created it and re-run.
+-- Dropping with RESTRICT (default), so PostgreSQL aborts if any unexpected
+-- dependency (view, index, FK) exists — fail loudly rather than silently
+-- dropping dependents. The audit verified no REFERENCES/FKs point at these
+-- tables (docs/operations/dead-code-audit.md §1), so RESTRICT should never
+-- fire; if it does, an out-of-band dependency needs explicit review first.
+-- This is irreversible — if a table turns out to be needed, restore from the
+-- migration that created it and re-run.
 --
 -- Tables dropped (creation migration in parentheses):
 --   application_attempts  (20260620_hermes_agents.sql)
@@ -19,10 +23,10 @@
 --   user_sessions         (20260620_hermes_agents.sql)
 --   voice_note_files       (20260625_archive_integration.sql)
 
-DROP TABLE IF EXISTS public.application_attempts CASCADE;
-DROP TABLE IF EXISTS public.interview_messages CASCADE;
-DROP TABLE IF EXISTS public.learning_resources CASCADE;
-DROP TABLE IF EXISTS public.platform_configs CASCADE;
-DROP TABLE IF EXISTS public.tailored_resumes CASCADE;
-DROP TABLE IF EXISTS public.user_sessions CASCADE;
-DROP TABLE IF EXISTS public.voice_note_files CASCADE;
+DROP TABLE IF EXISTS public.application_attempts;
+DROP TABLE IF EXISTS public.interview_messages;
+DROP TABLE IF EXISTS public.learning_resources;
+DROP TABLE IF EXISTS public.platform_configs;
+DROP TABLE IF EXISTS public.tailored_resumes;
+DROP TABLE IF EXISTS public.user_sessions;
+DROP TABLE IF EXISTS public.voice_note_files;

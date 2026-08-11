@@ -68,13 +68,13 @@ async def fetch_substack_rss(publication_url: str) -> list[dict]:
     """
     import httpx
     from app.services.scraping_policy import (
-        assert_robots_allowed,
+        aassert_robots_allowed,
         RobotsDisallowedError,
         await_backoff,
     )
     feed_url = publication_url.rstrip("/") + "/feed"
     try:
-        assert_robots_allowed(feed_url)
+        await aassert_robots_allowed(feed_url)
     except RobotsDisallowedError:
         logger.info("SKIPPED: robots.txt disallows %s", feed_url)
         return []
@@ -177,7 +177,7 @@ class OmnisaveService:
                         source_obj["raw_content"],
                         source_obj["clean_markdown"],
                         source_obj["primary_category"],
-                        None,
+                        source_obj.get("secondary_tags") or [],
                         source_obj.get("summary_bullets") or [],
                     )
                     # ponytail: ON CONFLICT DO NOTHING with no RETURNING row means a
@@ -209,6 +209,7 @@ class OmnisaveService:
                             "raw_content": canonical["raw_content"],
                             "clean_markdown": canonical["clean_markdown"],
                             "primary_category": canonical["primary_category"],
+                            "secondary_tags": canonical["secondary_tags"] or [],
                             "summary_bullets": canonical["summary_bullets"] or [],
                             "saved_at": canonical["created_at"].isoformat() if canonical["created_at"] else None,
                         }
@@ -293,6 +294,7 @@ class OmnisaveService:
                 "raw_content": row["raw_content"],
                 "clean_markdown": row["clean_markdown"],
                 "primary_category": row["primary_category"],
+                "secondary_tags": row["secondary_tags"] or [],
                 "summary_bullets": row["summary_bullets"] or [],
                 "saved_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
@@ -300,7 +302,7 @@ class OmnisaveService:
             logger.warning("[Omnisave] Failed to look up existing source in DB: %s", exc)
             return None
 
-    async def ingest_source(self, platform: str, url: str, title: str, author: str, raw_content: str, user_id: str, category: str | None = None, summary_bullets: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def ingest_source(self, platform: str, url: str, title: str, author: str, raw_content: str, user_id: str, category: str | None = None, summary_bullets: Optional[List[str]] = None, topics: Optional[List[str]] = None) -> Dict[str, Any]:
         """Ingest source from Substack, Medium, LinkedIn, or custom URL.
 
         WS-07: when ``category`` is not provided we run a real LLM auto-tag
@@ -312,8 +314,12 @@ class OmnisaveService:
             platform = "custom_url"
 
         # WS-07: real auto-tagging at ingest, replacing the hardcoded category.
+        # Topics + one-line summary are retained so secondary_tags and
+        # summary_bullets are no longer discarded.
+        auto_topics: List[str] = []
+        auto_summary: str | None = None
         if not category:
-            category, _topics, _summary = await auto_tag(title, raw_content)
+            category, auto_topics, auto_summary = await auto_tag(title, raw_content)
 
         idempotency_hash = self.compute_idempotency_hash(url, raw_content)
 
@@ -355,9 +361,14 @@ class OmnisaveService:
             "raw_content": raw_content,
             "clean_markdown": f"# {title}\n*By {author} ({platform.title()})*\n\n{raw_content}",
             "primary_category": category,
+            # ponytail: caller-provided topics/summary win; auto-tagged values
+            # only fill the gap so the DB row never loses what auto_tag produced.
+            "secondary_tags": topics if topics is not None else auto_topics,
             # WS-07: no fabricated "insight" bullets. If no real summary was
-            # produced, say nothing rather than inventing one.
-            "summary_bullets": summary_bullets or [],
+            # produced, say nothing rather than inventing one. A caller-provided
+            # empty list is preserved (explicit "no summary"); the auto_summary
+            # fallback fills in ONLY when summary_bullets is None (absent).
+            "summary_bullets": summary_bullets if summary_bullets is not None else ([auto_summary] if auto_summary else []),
             "saved_at": datetime.now(timezone.utc).isoformat()
         }
         self.saved_sources.append(source_obj)
@@ -437,7 +448,7 @@ class OmnisaveService:
                     }""")
                     if content_eval and content_eval.get("body"):
                         # WS-07: real auto-tag instead of the hardcoded label.
-                        cat, _topics, _summary = await auto_tag(
+                        cat, topics, _summary = await auto_tag(
                             content_eval.get("title") or title,
                             content_eval.get("body"),
                         )
@@ -446,6 +457,7 @@ class OmnisaveService:
                             "title": content_eval.get("title") or title,
                             "author": content_eval.get("author") or f"{platform.title()} Author",
                             "category": cat,
+                            "topics": topics,
                             "content": content_eval.get("body"),
                             "summary": content_eval.get("bullets") or [f"Extracted dynamic content from {url_info['original_url']}"]
                         }
@@ -499,7 +511,8 @@ class OmnisaveService:
                     raw_content=extracted["content"],
                     category=extracted["category"],
                     user_id=user_id,
-                    summary_bullets=extracted["summary"]
+                    summary_bullets=extracted["summary"],
+                    topics=extracted.get("topics"),
                 )
                 if res.get("success"):
                     synced_sources.append(res.get("source"))
