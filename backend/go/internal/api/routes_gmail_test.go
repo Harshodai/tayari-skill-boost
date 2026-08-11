@@ -25,6 +25,24 @@ func TestGmailStatus_NotConfigured(t *testing.T) {
 	}
 }
 
+func TestRedactEmail(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"user@example.com", "u***@example.com"},
+		{"jane.doe@sub.domain.org", "j***@sub.domain.org"},
+		{"a@b.co", "a***@b.co"},
+		{"not-an-email", "***"},
+		{"", "***"},
+	}
+	for _, c := range cases {
+		if got := redactEmail(c.in); got != c.want {
+			t.Errorf("redactEmail(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 func TestGmailWebhook_ProcessesPayload(t *testing.T) {
 	server := newHermesServer(t, "")
 

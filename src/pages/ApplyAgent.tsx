@@ -32,7 +32,12 @@ export function ApplyAgent() {
     try {
       const candidate = trimmed.includes("://") ? trimmed : `https://${trimmed}`;
       const parsed = new URL(candidate);
-      const host = parsed.hostname.toLowerCase();
+      // ponytail: https-only — an http LinkedIn URL is a downgrade/MITM risk
+      // for a page the agent will enter credentials on.
+      if (parsed.protocol !== "https:") return { isLinkedIn: false, normalizedUrl: "" };
+      // ponytail: strip a terminal dot — "linkedin.com." is the same origin
+      // as "linkedin.com" to DNS but fails a plain string comparison.
+      const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
       const isLinkedIn =
         host === "linkedin.com" ||
         host === "www.linkedin.com" ||

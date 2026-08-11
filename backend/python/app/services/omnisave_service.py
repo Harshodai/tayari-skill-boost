@@ -350,6 +350,14 @@ class OmnisaveService:
                 return {"success": True, "source": source, "message": "Source already ingested."}
 
         source_id = str(uuid_lib.uuid4())
+        # ponytail: caller-provided topics/summary win; auto-tagged values
+        # only fill the gap so the DB row never loses what auto_tag produced.
+        # Caller topics get the same normalization auto_tag applies (trim,
+        # 40-char cap, empty-filter, 5-tag cap); an empty result falls back to
+        # the auto-tagged topics rather than persisting a blank tag list.
+        normalized_topics = None
+        if topics is not None:
+            normalized_topics = [t.strip()[:40] for t in topics if t.strip()][:5]
         source_obj = {
             "id": source_id,
             "user_id": user_id,
@@ -361,9 +369,7 @@ class OmnisaveService:
             "raw_content": raw_content,
             "clean_markdown": f"# {title}\n*By {author} ({platform.title()})*\n\n{raw_content}",
             "primary_category": category,
-            # ponytail: caller-provided topics/summary win; auto-tagged values
-            # only fill the gap so the DB row never loses what auto_tag produced.
-            "secondary_tags": topics if topics is not None else auto_topics,
+            "secondary_tags": normalized_topics if normalized_topics else auto_topics,
             # WS-07: no fabricated "insight" bullets. If no real summary was
             # produced, say nothing rather than inventing one. A caller-provided
             # empty list is preserved (explicit "no summary"); the auto_summary

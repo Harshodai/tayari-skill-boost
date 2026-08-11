@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes } from "@/api";
+import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes, isBackendUnavailable } from "@/api";
 import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
 import { useAutomation } from "@/contexts/AutomationContext";
@@ -93,7 +93,7 @@ const JobSearch = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { startRun, runChain } = useAutomation();
-  const { unavailable: backendUnavailable } = useBackendHealth();
+  const { unavailable: backendUnavailable, refetch: refetchHealth } = useBackendHealth();
 
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
@@ -178,7 +178,13 @@ const JobSearch = () => {
       setSelectedIdx(0);
       if (jobs.length === 0) toast.info("No jobs matched. Try broader keywords.");
     } catch (err: any) {
-      const msg = err.message || "Search failed";
+      // ponytail: re-probe the gateway before reporting the failure — the
+      // banner and disabled states key off `backendUnavailable`, which only
+      // refreshes on the poll interval otherwise.
+      await refetchHealth().catch(() => null);
+      const msg = isBackendUnavailable(err)
+        ? "Search is unavailable while the backend is down."
+        : err.message || "Search failed";
       setSearchError(msg);
       toast.error(msg);
     } finally {
@@ -235,7 +241,13 @@ const JobSearch = () => {
       setSelectedIdx(0);
       if (finalJobs.length === 0) toast.info("No jobs matched. Try broader keywords.");
     } catch (err: any) {
-      const msg = err.message || "Agent search failed";
+      // ponytail: re-probe the gateway before reporting the failure — same
+      // rationale as handleSearch; the agent-search path must not leave the
+      // backend state stale either.
+      await refetchHealth().catch(() => null);
+      const msg = isBackendUnavailable(err)
+        ? "Agent search is unavailable while the backend is down."
+        : err.message || "Agent search failed";
       setSearchError(msg);
       toast.error(msg);
     } finally {

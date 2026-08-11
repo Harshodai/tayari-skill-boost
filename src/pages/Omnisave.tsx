@@ -10,7 +10,7 @@ import { BackendUnavailableBanner } from '@/components/BackendUnavailableBanner'
 import { useBackendHealth } from '@/hooks/useBackendHealth';
 
 export default function Omnisave() {
-  const { unavailable: backendUnavailable } = useBackendHealth();
+  const { unavailable: backendUnavailable, refetch: refetchHealth } = useBackendHealth();
   const [articles, setArticles] = useState<SavedArticleItem[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -26,6 +26,10 @@ export default function Omnisave() {
       const res = await fetchSavedArticles();
       setArticles(res.sources ?? []);
     } catch (err) {
+      // ponytail: re-probe the gateway so the banner + disabled states reflect
+      // current health instead of a stale poll — a transient failure must not
+      // leave the page permanently "unavailable".
+      await refetchHealth().catch(() => null);
       setArticles([]);
       setError("Couldn't load your saved sources. Try again in a moment.");
     }
@@ -47,6 +51,7 @@ export default function Omnisave() {
         await loadArticles();
       }
     } catch (err) {
+      await refetchHealth().catch(() => null);
       setError('Failed to sync saved posts. Please check your connection and try again.');
     } finally {
       setSyncing(false);
@@ -87,6 +92,7 @@ export default function Omnisave() {
         await loadArticles();
       }
     } catch (err) {
+      await refetchHealth().catch(() => null);
       setError('Failed to extract article via Tayari Computer Sandbox. Please verify URL and try again.');
     } finally {
       setIngesting(false);
@@ -104,6 +110,7 @@ export default function Omnisave() {
         citations: res.citations || [],
       });
     } catch (err) {
+      await refetchHealth().catch(() => null);
       setError('Failed to query knowledge base. Please try again.');
       setQaResponse(null);
     } finally {

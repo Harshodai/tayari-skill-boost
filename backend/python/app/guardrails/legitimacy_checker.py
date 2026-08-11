@@ -132,7 +132,11 @@ class LegitimacyChecker:
             if not LegitimacyChecker.SALARY_RANGE_SEPARATOR_RE.match(between):
                 continue
             context_start = max(0, first.start() - 40)
-            if not LegitimacyChecker.SALARY_CONTEXT_RE.search(desc_lower[context_start:first.end()]) and "$" not in first.group(0):
+            context_end = min(len(desc_lower), second.end() + 40)
+            # Salary context may precede the range ("Salary: $40k to $140k") or
+            # follow it ("40k to 140k base salary"); currency notation on EITHER
+            # bound also signals a compensation range.
+            if not LegitimacyChecker.SALARY_CONTEXT_RE.search(desc_lower[context_start:context_end]) and "$" not in first.group(0) and "$" not in second.group(0):
                 continue
             try:
                 lo = float(first.group(1).replace(",", ""))

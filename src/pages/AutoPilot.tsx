@@ -65,7 +65,9 @@ const AutoPilot = () => {
     if (!url) return false;
     try {
       const parsed = new URL(url);
-      const host = parsed.hostname.toLowerCase();
+      // ponytail: strip a terminal dot — "linkedin.com." is the same origin
+      // as "linkedin.com" to DNS but fails a plain string comparison.
+      const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
       // ponytail: https-only (an http LinkedIn URL would be a downgrade/mitm
       // risk for an automated-flow page) and any *.linkedin.com subdomain.
       return (
@@ -127,11 +129,13 @@ const AutoPilot = () => {
 
   // ponytail: computed here (after all three queries + startMutation) so both
   // the Start button's disabled prop and handleStart's guard share one source.
+  // startMutation.error is deliberately excluded: a failed attempt is a
+  // transient event, not evidence the backend is down — including it would
+  // leave the button permanently disabled after one error.
   const backendDown =
     backendUnavailable ||
     isBackendUnavailable(runsError) ||
-    isBackendUnavailable(runStatusError) ||
-    isBackendUnavailable(startMutation.error);
+    isBackendUnavailable(runStatusError);
 
   const handleStart = () => {
     setRunError(null);
@@ -438,7 +442,7 @@ const AutoPilot = () => {
                                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                                 <div className="flex-1">
                                   <p className="font-medium">
-                                    LinkedIn submissions are not automated. LinkedIn's User Agreement §8.2 prohibits bots and enforcement is account termination. We'll save the job and prep your resume, but you submit manually.
+                                    LinkedIn submissions are not automated: LinkedIn's User Agreement §8.2 prohibits bots, and enforcement can include account termination. We'll save the job and prep your resume, but you submit manually.
                                   </p>
                                   <a
                                     href={app.job?.url || app.apply_url}

@@ -7,7 +7,7 @@
 -- or writes any of these tables. No foreign keys reference them.
 --
 -- Dropping with RESTRICT (default), so PostgreSQL aborts if any unexpected
--- dependency (view, index, FK) exists — fail loudly rather than silently
+-- dependency (view, FK) exists — fail loudly rather than silently
 -- dropping dependents. The audit verified no REFERENCES/FKs point at these
 -- tables (docs/operations/dead-code-audit.md §1), so RESTRICT should never
 -- fire; if it does, an out-of-band dependency needs explicit review first.

@@ -49,6 +49,17 @@ def test_url_without_scheme_detected() -> None:
     assert is_linkedin_url("linkedin.com/jobs/456")
 
 
+def test_trailing_dot_host_is_detected() -> None:
+    # A DNS-valid FQDN form ("linkedin.com.") must not bypass the policy.
+    assert is_linkedin_url("https://linkedin.com./jobs/view/123")
+    assert is_linkedin_url("https://www.linkedin.com./jobs/view/456")
+
+
+def test_trailing_dot_submit_raises() -> None:
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_automation("https://www.linkedin.com./jobs/view/123", "submit")
+
+
 def test_empty_url_is_safe() -> None:
     assert not is_linkedin_url("")
     assert not is_linkedin_url(None)  # type: ignore[arg-type]

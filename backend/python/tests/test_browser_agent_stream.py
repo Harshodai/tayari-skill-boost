@@ -2,10 +2,22 @@
 
 Pure tests: browser_use import and get_llm are monkeypatched; no browser runs.
 """
+import os
+import sys
+
+# app.main's import chain fail-fasts without JWT_SECRET (app/tests/conftest.py
+# sets it for that tree; this file must stand alone when run directly).
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-for-browser-stream-tests")
+
 import pytest
 
 pytest.importorskip("pydantic")
 
+from fastapi import HTTPException
+
+import app.main as main_module
+import app.services.db as db_module
+from app.main import browser_automation_stream_endpoint
 from app.services.browser_automation.agent import stream_browser_agent
 
 MODULE = "app.services.browser_automation.agent"
@@ -98,3 +110,67 @@ async def test_stream_emits_error_when_browser_use_missing(monkeypatch):
     assert len(events) == 1
     assert events[0]["type"] == "error"
     assert events[0]["error"] == "browser_agent_failed"
+
+
+# --- endpoint-level fail-closed tests for the run_id trust anchor -----------
+
+
+def _authz_endpoint_request(monkeypatch):
+    """Patch auth to a fixed actor and return the raw endpoint to call."""
+    monkeypatch.setattr(main_module, "browser_actor", lambda request: "u-test")
+    return browser_automation_stream_endpoint
+
+
+@pytest.mark.asyncio
+async def test_stream_unknown_run_fails_closed_404(monkeypatch):
+    endpoint = _authz_endpoint_request(monkeypatch)
+
+    async def no_run(run_id: str):
+        return None
+
+    monkeypatch.setattr(db_module, "load_agent_run", no_run)
+
+    with pytest.raises(HTTPException) as exc:
+        await endpoint(
+            {"instruction": "x", "run_id": "11111111-1111-1111-1111-111111111111"},
+            request=object(),
+        )
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_stream_mismatched_owner_fails_closed_403(monkeypatch):
+    endpoint = _authz_endpoint_request(monkeypatch)
+
+    async def foreign_run(run_id: str):
+        return {"user_id": "u-other", "config": None, "job_url": None}
+
+    monkeypatch.setattr(db_module, "load_agent_run", foreign_run)
+
+    with pytest.raises(HTTPException) as exc:
+        await endpoint(
+            {"instruction": "x", "run_id": "22222222-2222-2222-2222-222222222222"},
+            request=object(),
+        )
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_stream_authorized_run_streams_successfully(monkeypatch):
+    endpoint = _authz_endpoint_request(monkeypatch)
+
+    async def owned_run(run_id: str):
+        return {"user_id": "u-test", "config": {"job_url": "https://jobs.example.com/123"}, "job_url": None}
+
+    monkeypatch.setattr(db_module, "load_agent_run", owned_run)
+    monkeypatch.setitem(sys.modules, "browser_use", type("browser_use", (), {"Agent": _FakeAgent})())
+    monkeypatch.setattr(f"{MODULE}.get_llm", lambda: object())
+
+    response = await endpoint(
+        {"instruction": "Apply", "run_id": "33333333-3333-3333-3333-333333333333"},
+        request=object(),
+    )
+    chunks = [c async for c in response.body_iterator]
+    body = "".join(chunks)
+    assert "screenshot" in body
+    assert "done" in body

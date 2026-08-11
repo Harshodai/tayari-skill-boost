@@ -69,6 +69,9 @@ const ResumeUpload = () => {
     try {
       await refetchHealth();
       setAnalyzeFailedBackendDown(false);
+      // ponytail: a successful re-probe also clears the last failure message
+      // so the form doesn't keep showing a stale error alongside working UI.
+      setError(null);
     } catch {
       // backend still unreachable — stay down
     } finally {

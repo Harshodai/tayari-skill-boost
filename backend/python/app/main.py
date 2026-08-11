@@ -1713,25 +1713,33 @@ async def browser_automation_stream_endpoint(payload: dict, request: Request):
     # the SERVER-trusted authorized run record, never from the request body.
     # payload["start_url"] is ignored; if no authorized record provides a job
     # URL, start_url stays None and the agent falls back to instruction parsing.
+    # An unknown run (or one whose owner is not the caller) fails closed before
+    # the stream is created — load_agent_run returns None for both missing rows
+    # and DB lookup failures, so neither can slip through with start_url unset.
     start_url: Optional[str] = None
     if run_id:
         run_record = await load_agent_run(str(run_id))
-        if run_record and str(run_record.get("user_id")) == str(actor):
-            config = run_record.get("config") or {}
-            if isinstance(config, str):
-                import json as _cjson
-                try:
-                    config = _cjson.loads(config)
-                except Exception:
-                    config = {}
-            candidate = (
-                config.get("job_url")
-                or config.get("url")
-                or config.get("apply_url")
-                or run_record.get("job_url")
-            )
-            if isinstance(candidate, str) and candidate.strip():
-                start_url = candidate.strip()
+        if not run_record:
+            logger.warning("[Audit] component=browser-agent action=stream actor=%s run=%s outcome=not-found", actor, run_id)
+            raise HTTPException(status_code=404, detail="run not found")
+        if str(run_record.get("user_id")) != str(actor):
+            logger.warning("[Audit] component=browser-agent action=stream actor=%s run=%s outcome=denied", actor, run_id)
+            raise HTTPException(status_code=403, detail="run does not belong to caller")
+        config = run_record.get("config") or {}
+        if isinstance(config, str):
+            import json as _cjson
+            try:
+                config = _cjson.loads(config)
+            except Exception:
+                config = {}
+        candidate = (
+            config.get("job_url")
+            or config.get("url")
+            or config.get("apply_url")
+            or run_record.get("job_url")
+        )
+        if isinstance(candidate, str) and candidate.strip():
+            start_url = candidate.strip()
 
     async def event_stream():
         try:

@@ -232,9 +232,11 @@ def _classify_failure_reason(error: str | None, agent_summary: str | None) -> st
 
     No portion of ``error``/``agent_summary`` is returned — only approved
     strings. Category matching is case-insensitive substring on the raw
-    diagnostic (used for classification only, never persisted).
+    diagnostic (used for classification only, never persisted). Both the
+    error and the summary are searched so a known condition that only shows
+    up in one of them is still detected.
     """
-    diag = (error or agent_summary or "").lower()
+    diag = " ".join(x for x in (error, agent_summary) if x).lower()
     if not diag:
         return _FAILURE_FALLBACK
     for needle, message in _FAILURE_CATEGORIES:
@@ -306,9 +308,9 @@ def build_prepared_receipt(
 
     Prepared receipts must never populate the submitted_resume_* fields — the
     resume was not submitted, and a populated submitted_* fingerprint would
-    claim it was. The prepared resume rides under prepared_resume_* (held in
-    the dict only; save_receipt persists just the submitted_* columns, so the
-    DB row keeps them null).
+    claim it was. The prepared resume rides under prepared_resume_* (persisted
+    via reserved ``answers`` keys so it survives restart without a schema
+    migration; the submitted_* columns stay null in the row).
     """
     return {
         "run_id": run_id,
@@ -349,6 +351,14 @@ async def save_receipt(receipt: dict[str, Any]) -> bool:
         persist_answers = dict(receipt.get("answers") or {})
         if receipt.get("outcome") == "failed" and receipt.get("failure_reason"):
             persist_answers["_failure_reason"] = receipt["failure_reason"]
+        # Same zero-migration pattern for prepared receipts: the prepared
+        # resume fields have no columns either, so they persist under reserved
+        # answers keys and survive process restart for later retrieval.
+        if receipt.get("outcome") == "prepared":
+            if receipt.get("prepared_resume_sha256") is not None:
+                persist_answers["_prepared_resume_sha256"] = receipt["prepared_resume_sha256"]
+            if receipt.get("prepared_resume_text") is not None:
+                persist_answers["_prepared_resume_text"] = receipt["prepared_resume_text"]
         async with pool.acquire() as conn:
             await conn.execute(
                 """

@@ -52,6 +52,16 @@ func gmailClientID() string     { return os.Getenv("GOOGLE_CLIENT_ID") }
 func gmailClientSecret() string { return os.Getenv("GOOGLE_CLIENT_SECRET") }
 func gmailEnabled() bool        { return gmailClientID() != "" && gmailClientSecret() != "" }
 
+// redactEmail keeps the local part's first character and the domain, so logs
+// stay correlatable without emitting the full address (PII).
+func redactEmail(email string) string {
+	at := strings.Index(email, "@")
+	if at <= 0 {
+		return "***"
+	}
+	return email[:1] + "***@" + email[at+1:]
+}
+
 func gmailRedirectURI() string {
 	if v := os.Getenv("GMAIL_REDIRECT_URI"); v != "" {
 		return v
@@ -361,7 +371,7 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 	var gmailData pubSubGmailData
 	_ = json.Unmarshal(dataBytes, &gmailData)
 
-	log.Printf("[GmailWebhook] Received notification for %s (HistoryId: %d)", gmailData.EmailAddress, gmailData.HistoryID)
+	log.Printf("[GmailWebhook] Received notification for %s (HistoryId: %d)", redactEmail(gmailData.EmailAddress), gmailData.HistoryID)
 
 	go func(email string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -391,9 +401,9 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				log.Printf("[GmailWebhook] No matching token/account for email %s", email)
+				log.Printf("[GmailWebhook] No matching token/account for email %s", redactEmail(email))
 			} else {
-				log.Printf("[GmailWebhook] Token lookup failed for email %s: %v", email, err)
+				log.Printf("[GmailWebhook] Token lookup failed for email %s: %v", redactEmail(email), err)
 			}
 			return
 		}

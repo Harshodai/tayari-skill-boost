@@ -96,19 +96,28 @@ _resolve_addrs() {
     local host="$1"
     local out=""
     if command -v getent >/dev/null 2>&1; then
-        out="$(getent ahostsv4 "$host" 2>/dev/null | awk '{print $1}' | sort -u)"
-        out="$out$(getent ahostsv6 "$host" 2>/dev/null | awk '{print $1}' | sort -u)"
+        local v4 v6
+        v4="$(getent ahostsv4 "$host" 2>/dev/null | awk '{print $1}' | sort -u)"
+        v6="$(getent ahostsv6 "$host" 2>/dev/null | awk '{print $1}' | sort -u)"
+        # ponytail: command substitution strips trailing newlines, so the two
+        # outputs must be joined with an explicit separator — a bare
+        # `out="$out$v6"` merges the last v4 address and the first v6 address
+        # onto one line, making the address comparison ambiguous.
+        out="$v4
+$v6"
     fi
     if [ -z "$out" ] && command -v host >/dev/null 2>&1; then
         out="$(host "$host" 2>/dev/null | awk '/has (IPv4|IPv6) address/ {print $NF}' | sort -u)"
     fi
     if [ -z "$out" ]; then
         # Python stdlib resolves /etc/hosts + DNS (covers macOS where `host`
-        # only queries DNS and misses localhost).
+        # only queries DNS and misses localhost). The host is passed via
+        # argv, never interpolated into the script source — a host containing
+        # a quote (or anything else) cannot break out of the -c string.
         out="$(python3 -c "
 import socket, sys
 try:
-    infos = socket.getaddrinfo('$host', None, proto=socket.IPPROTO_TCP)
+    infos = socket.getaddrinfo(sys.argv[1], None, proto=socket.IPPROTO_TCP)
 except socket.gaierror:
     sys.exit(1)
 seen = set()
@@ -118,7 +127,7 @@ for fam, _stype, _proto, _canon, sockaddr in infos:
         addr = addr.split('%')[0]
     seen.add(addr)
 print(' '.join(sorted(seen)))
-" 2>/dev/null)" || return 1
+" "$host" 2>/dev/null)" || return 1
     fi
     if [ -z "$out" ]; then
         return 1

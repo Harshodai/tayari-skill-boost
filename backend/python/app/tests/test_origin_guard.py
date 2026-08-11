@@ -145,6 +145,53 @@ def test_c3_password_type_input_is_a_credential_target():
         _guard_credential_entry(state, output, start_url=f"{START}/apply/123", allowed_origins=[])
 
 
+def test_c4_unlabeled_input_fails_closed_on_cross_origin():
+    """An input with no usable attributes must NOT resolve to a tag-only
+    label (which the heuristic would read as non-credential). The empty label
+    is credential-sensitive, so a fill on the attacker's origin raises."""
+    state = _guard_state(
+        url=f"{ATTACK}/apply",
+        selector_map={1: SimpleNamespace(attributes={}, tag_name="input")},
+    )
+    output = _guard_fake_output(_fake_action({"input_text": {"index": 1, "text": "secret"}}))
+    with pytest.raises(OriginGuardError):
+        _guard_credential_entry(state, output, start_url=f"{START}/apply/123", allowed_origins=[])
+
+
+def test_c4b_unlabeled_input_allowed_on_start_origin():
+    """The same fail-closed label on the TRUSTED start origin is allowed."""
+    state = _guard_state(
+        url=f"{START}/apply",
+        selector_map={1: SimpleNamespace(attributes={}, tag_name="input")},
+    )
+    output = _guard_fake_output(_fake_action({"input_text": {"index": 1, "text": "secret"}}))
+    _guard_credential_entry(state, output, start_url=f"{START}/apply/123", allowed_origins=[])
+
+
+def test_c5_click_action_is_not_guarded():
+    """Only input_text actions are credential entry points — a click on a
+    credential-looking element on the attacker's origin must NOT raise."""
+    state = _guard_state(
+        url=f"{ATTACK}/apply",
+        selector_map={1: SimpleNamespace(attributes={"type": "password"}, tag_name="input")},
+    )
+    output = _guard_fake_output(_fake_action({"click_element": {"index": 1}}))
+    _guard_credential_entry(state, output, start_url=f"{START}/apply/123", allowed_origins=[])
+
+
+def test_c6_model_dump_failure_fails_closed():
+    """If an action dump cannot be produced, the guard asserts the origin
+    instead of silently skipping the action (fail-closed)."""
+
+    def _boom(exclude_none):
+        raise RuntimeError("dump failed")
+
+    state = _guard_state(url=f"{ATTACK}/apply", selector_map={})
+    output = _guard_fake_output(SimpleNamespace(model_dump=_boom))
+    with pytest.raises(OriginGuardError):
+        _guard_credential_entry(state, output, start_url=f"{START}/apply/123", allowed_origins=[])
+
+
 def test_d_allowed_origins_env_extends_the_list():
     """Scenario (d): BROWSER_ALLOWED_ORIGINS extends the allowlist."""
     # Without the extra origin, the attack origin is blocked.

@@ -12,6 +12,7 @@ import (
 	"tayari-backend/internal/models"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 // routesAgents wires the Digital Employees and Tool Approvals proxy routes.
@@ -62,6 +63,12 @@ func (s *Server) handleAgentRunTakeOver(w http.ResponseWriter, r *http.Request) 
 	runID := chi.URLParam(r, "runId")
 	if runID == "" {
 		s.respondError(w, http.StatusBadRequest, "runId is required")
+		return
+	}
+	// Supabase's agent_runs.id is a uuid column; a malformed runId would fail
+	// inside the UPDATE with a Postgres type error (500) instead of a 400.
+	if _, err := uuid.Parse(runID); err != nil {
+		s.respondError(w, http.StatusBadRequest, "invalid run id")
 		return
 	}
 	if s.DB == nil || s.DB.Conn == nil {

@@ -26,6 +26,14 @@ def test_unpaired_amounts_not_a_range():
     assert LegitimacyChecker._detect_wide_salary_range("We pay $80k and also $200k total comp") is False
 
 
+def test_salary_context_after_second_amount_counts():
+    assert LegitimacyChecker._detect_wide_salary_range("40k to 140k base salary") is True
+
+
+def test_currency_on_second_bound_counts():
+    assert LegitimacyChecker._detect_wide_salary_range("Levels: 40k to $140k") is True
+
+
 def _long(desc: str) -> str:
     """Pad a description past the 200-char vague-description threshold so
     only the signal under test moves the score, and include a requirements

@@ -89,9 +89,10 @@ def _action_target_label(state, action_dump: dict) -> str:
         # a credential target — the heuristic regex matches "password" here.
         if (attrs.get("type") or "").lower() == "password":
             return "<input type=password>"
-        tag = getattr(node, "tag_name", "") or ""
-        if tag:
-            return f"<{tag.lower()}>"
+    # No usable label: return "" so the caller treats the element as
+    # credential-sensitive and asserts the origin (fail-closed). A tag-only
+    # label like "<input>" must NOT be returned — the heuristic would read it
+    # as non-credential and let a fill on a foreign origin through.
     return ""
 
 
@@ -115,6 +116,14 @@ def _guard_credential_entry(state, model_output, start_url: str, allowed_origins
         try:
             dump = action.model_dump(exclude_none=True)
         except Exception:
+            # Fail-closed: if the action dump cannot be produced we cannot
+            # tell whether this is a credential fill — assert the origin.
+            logger.warning("origin_guard: action dump failed, asserting origin for %s", current_url)
+            assert_origin_for_credential_entry(current_url, start_url, allowed_origins)
+            continue
+        if "input_text" not in dump:
+            # Only credential-fill (input_text) actions are guarded — clicks
+            # and other action types are not credential entry points.
             continue
         label = _action_target_label(state, dump)
         if label and not credential_field_heuristic(label):

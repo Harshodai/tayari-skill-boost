@@ -89,6 +89,21 @@ def test_build_failed_receipt_timeout_category_maps_approved():
     assert receipt["failure_reason"] == "The application step timed out. Try again, or submit manually."
 
 
+def test_build_failed_receipt_category_from_agent_summary_with_error_present():
+    # A known condition that only shows up in agent_summary must still be
+    # detected when error is present (both sources are combined, not OR-ed
+    # with error winning).
+    receipt = sr.build_failed_receipt(
+        run_id="r2d",
+        user_id="u2",
+        job=JOB,
+        resume_text="abc",
+        error="Some unrelated failure",
+        agent_summary="aborted by linkedin_automation_blocked policy",
+    )
+    assert "LinkedIn automation is not permitted" in receipt["failure_reason"]
+
+
 def test_build_failed_receipt_linkedin_category_maps_approved():
     receipt = sr.build_failed_receipt(
         run_id="r2c",
@@ -163,6 +178,33 @@ async def test_save_receipt_persists_failure_reason_in_answers():
     assert persisted["_failure_reason"] == "The application step timed out. Try again, or submit manually."
     assert "Connection timed out" not in persisted["_failure_reason"]
     assert persisted["existing"] == "kept"
+
+
+@pytest.mark.asyncio
+async def test_save_receipt_persists_prepared_resume_in_answers():
+    conn = _FakeConn()
+    pool = _FakePool(conn)
+    receipt = sr.build_prepared_receipt(
+        run_id="r6",
+        user_id="u6",
+        job=JOB,
+        resume_text="prepared resume body",
+    )
+    with mock.patch("app.services.submission_receipt.get_pool", new=mock.AsyncMock(return_value=pool)):
+        saved = await sr.save_receipt(receipt)
+    assert saved is True
+    sql, args = conn.executed
+    assert "INSERT INTO submission_receipts" in sql
+    # the prepared resume survives storage via the jsonb answers column
+    persisted = json.loads(args[13])  # $14::jsonb
+    assert persisted["_prepared_resume_sha256"] == sr.resume_fingerprint("prepared resume body")
+    assert persisted["_prepared_resume_text"] == "prepared resume body"
+    # reload: a reader of the answers column retains both prepared fields
+    assert persisted["_prepared_resume_sha256"] == receipt["prepared_resume_sha256"]
+    assert persisted["_prepared_resume_text"] == receipt["prepared_resume_text"]
+    # submitted_* stay None in the row itself — the resume was never submitted
+    assert args[11] is None  # $12 submitted_resume_sha256
+    assert args[12] is None  # $13 submitted_resume_text
 
 
 @pytest.mark.asyncio

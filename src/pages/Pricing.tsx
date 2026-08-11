@@ -104,8 +104,10 @@ const Pricing = () => {
       toast.success("Thanks — we'll reach out within one business day.");
       setContactEmail("");
     } catch {
-      toast.success("Thanks — we'll reach out within one business day.");
-      setContactEmail("");
+      // ponytail: keep the entered email on failure — a failed submit is
+      // transient and the user should retry without retyping; reporting
+      // success for a failed request is a lie.
+      toast.error("We couldn't reach the waitlist service. Your email was not submitted — try again in a moment.");
     }
   };
 
