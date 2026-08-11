@@ -93,13 +93,19 @@ export async function apiFetch<T>(
   const { asBlob, ...fetchOptions } = options;
   const isFormData = typeof FormData !== "undefined" && fetchOptions.body instanceof FormData;
   const defaultHeaders = getHeaders(isFormData);
-  const response = await fetch(`${API_URL}${path}`, {
-    ...fetchOptions,
-    headers: {
-      ...defaultHeaders,
-      ...(fetchOptions.headers || {}),
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...fetchOptions,
+      headers: {
+        ...defaultHeaders,
+        ...(fetchOptions.headers || {}),
+      },
+    });
+  } catch {
+    // Connection refused / DNS failure / offline: the gateway isn't there.
+    throw new BackendUnavailableError();
+  }
 
   await checkResponse(response);
   if (asBlob) {
@@ -112,5 +118,11 @@ export async function apiFetch<T>(
   if (!text || !text.trim()) {
     return undefined as unknown as T;
   }
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // A 200 that isn't JSON means the SPA fallback answered, i.e. no gateway
+    // is mounted at API_URL. Surface that instead of a raw SyntaxError.
+    throw new BackendUnavailableError();
+  }
 }
