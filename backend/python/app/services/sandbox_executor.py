@@ -5,6 +5,12 @@ import socket
 import ipaddress
 from typing import Dict, Any, List, Optional
 from app.agent.browser_operator import BrowserOperator
+from app.services.question_queue import (
+    classify_fields,
+    enqueue_questions,
+    is_sensitive_field,
+    pending_answers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -114,12 +120,25 @@ class TayariComputerSandboxExecutor:
         else:
             return self._redact_value(profile)
 
-    async def execute_form_auto_fill(self, form_url: str, candidate_profile: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_form_auto_fill(
+        self,
+        form_url: str,
+        candidate_profile: Dict[str, Any],
+        *,
+        user_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        job_title: Optional[str] = None,
+        company: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Execute semantic form auto-fill using Accessibility Snapshot.
         Discovers form input roles, textboxes, and buttons without relying on brittle CSS.
+
+        Fields the agent must not answer itself (sponsorship, salary, veteran
+        status, ...) are escalated to the human-answer queue instead of guessed.
         """
         clean_profile = self.redact_sensitive_data(candidate_profile)
+
 
         # Validate URL using the established mechanism
         url_info = _resolve_and_validate_url(form_url)
@@ -170,11 +189,36 @@ class TayariComputerSandboxExecutor:
 
         actions = []
         any_real_action = False
+        filled_labels: List[str] = []
+
+        # Answers the user has already given for these fields on earlier runs —
+        # ask a human once, not once per application.
+        known_answers = await pending_answers(user_id)
 
         # Perform semantic mapping with actual fill operations
         for input_node in accessibility_nodes:
             role = input_node.get("role", "")
-            name = input_node.get("name", "").lower()
+            label = input_node.get("name", "")
+            name = label.lower()
+
+            # Never guess a legal/compensation/self-identification field, even
+            # when the profile happens to contain something that looks right.
+            if is_sensitive_field(label):
+                answer = known_answers.get(name.strip())
+                if answer:
+                    selector = self._selector_for_node(input_node)
+                    if self.browser.page and selector:
+                        try:
+                            fill_res = await self.browser.fill(selector, answer)
+                            if fill_res.get("success"):
+                                actions.append(f"Filled {role} '{label}' from your saved answer")
+                                filled_labels.append(label)
+                                any_real_action = True
+                                continue
+                        except Exception as e:
+                            actions.append(f"Could not fill '{label}' ({e})")
+                actions.append(f"Escalated '{label}' to you — the agent does not guess this field")
+                continue
 
             if role in role_field_map:
                 for token, profile_key in role_field_map[role]:
@@ -190,6 +234,7 @@ class TayariComputerSandboxExecutor:
                                     fill_res = await self.browser.fill(selector, val) if selector else {"success": False, "error": "no selector derivable"}
                                     if fill_res.get("success"):
                                         actions.append(f"Filled {role} '{input_node.get('name')}'")
+                                        filled_labels.append(label)
                                         any_real_action = True
                                     else:
                                         actions.append(f"Simulated fill {role} '{input_node.get('name')}' (fill failed: {fill_res.get('error')})")
@@ -200,9 +245,20 @@ class TayariComputerSandboxExecutor:
                         # Skip field if profile key is absent or empty
                         break  # Use first matching token (specific before generic)
 
+        # Queue everything the agent refused to answer. The run reports
+        # `needs_human` so the caller can hold the submission.
+        questions = classify_fields(accessibility_nodes, filled_labels=filled_labels)
+        queued = await enqueue_questions(
+            questions,
+            user_id=user_id,
+            run_id=run_id,
+            job_title=job_title,
+            company=company,
+        )
+
         # Fallback: if no accessibility nodes or no real actions, report discovery without claiming submit
         if not any_real_action:
-            actions = [
+            actions = actions + [
                 f"Discovered {len(accessibility_nodes)} semantic accessibility elements.",
                 f"Available profile: name={clean_profile.get('name', 'Candidate')}, email={clean_profile.get('email', 'candidate@tayariskillboost.com')}",
             ]
@@ -217,7 +273,10 @@ class TayariComputerSandboxExecutor:
             "accessibility_nodes_found": len(accessibility_nodes),
             "actions_executed": actions,
             "simulated": not any_real_action,
+            "questions_queued": queued,
+            "needs_human": bool(questions),
         }
+
 
     def _selector_for_node(self, node: Dict[str, Any]) -> Optional[str]:
         """Derive a CSS selector for a snapshot node (fill() takes a selector, not a label).

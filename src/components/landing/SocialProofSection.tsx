@@ -13,29 +13,17 @@ import type { DashboardStats } from '@/api/types';
  * Every number below is either read live from the platform or clearly
  * labelled as a product capability rather than a customer outcome.
  */
-const testimonials = [
-  {
-    quote:
-      "The match score changed how I search. I stopped applying to 40 roles a week and started applying to six that actually fit — two turned into interviews.",
-    name: "Priya N.",
-    role: "Senior Product Manager",
-    detail: "Beta user · 2 interviews from 6 applications",
-  },
-  {
-    quote:
-      "Tailoring used to take me 40 minutes per role. AutoPilot saves the job, rewrites the resume against the JD and drafts the letter while I review it.",
-    name: "Marcus L.",
-    role: "Backend Engineer",
-    detail: "Beta user · ~35 min saved per application",
-  },
-  {
-    quote:
-      "I self-host it with a local model, so my resume and salary numbers never leave my machine. That was the dealbreaker with every other tool.",
-    name: "Daniel K.",
-    role: "Staff SRE",
-    detail: "Self-hosted deployment · local LLM",
-  },
-];
+/**
+ * Testimonials are intentionally empty until real, attributable quotes exist.
+ * Invented personas are worse than no social proof: one reader who recognises
+ * the pattern discredits every other number on the page.
+ */
+const testimonials: {
+  quote: string;
+  name: string;
+  role: string;
+  detail: string;
+}[] = [];
 
 const aspirationalCards = [
   {
@@ -126,25 +114,30 @@ export function SocialProofSection() {
             What early users say.
           </h2>
           <p className="text-lg text-muted-foreground">
-            Quotes from named beta users, with the outcome they actually measured.
+            {testimonials.length === 0
+              ? "We're still in early access, so there are no customer quotes here yet. When there are, they'll carry a real name and a measured outcome."
+              : "Quotes from named beta users, with the outcome they actually measured."}
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-20">
-          {testimonials.map((t) => (
-            <Card key={t.name} className="border-border/50 bg-card/60 backdrop-blur-sm">
-              <CardContent className="pt-8 pb-8 flex flex-col h-full">
-                <Quote className="w-6 h-6 text-primary/60 mb-4" />
-                <p className="text-foreground/90 leading-relaxed mb-6 flex-1">"{t.quote}"</p>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{t.name}</p>
-                  <p className="text-xs text-muted-foreground">{t.role}</p>
-                  <p className="text-xs text-primary mt-1">{t.detail}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {testimonials.length > 0 && (
+          <div className="grid md:grid-cols-3 gap-6 mb-20">
+            {testimonials.map((t) => (
+              <Card key={t.name} className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <CardContent className="pt-8 pb-8 flex flex-col h-full">
+                  <Quote className="w-6 h-6 text-primary/60 mb-4" />
+                  <p className="text-foreground/90 leading-relaxed mb-6 flex-1">"{t.quote}"</p>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{t.name}</p>
+                    <p className="text-xs text-muted-foreground">{t.role}</p>
+                    <p className="text-xs text-primary mt-1">{t.detail}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
 
         {/* Section header */}
         <div className="text-center max-w-2xl mx-auto mb-12">

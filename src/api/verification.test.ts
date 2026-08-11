@@ -8,7 +8,11 @@ const originalFetch = globalThis.fetch;
 // cross-file mock.module("@/api") leaks (same pattern as RateLimiter.test.ts).
 mock.module("@/api/client", () => ({
   apiFetch: async (path: string, options: any = {}) => {
-    const response = await mockFetch(`${"/api"}${path}`, options);
+    // ponytail: bun's mock.module is process-global and never unloads, so this
+    // stub leaks into every later test file. Delegate to whatever
+    // globalThis.fetch is *at call time* (this file installs mockFetch in
+    // beforeEach) so later files' own fetch stubs keep working.
+    const response = await globalThis.fetch(`${"/api"}${path}`, options);
     const text = await (response as any).text();
     return text ? JSON.parse(text) : undefined;
   },

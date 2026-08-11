@@ -73,6 +73,7 @@ const PortfolioGenerator = lazy(() => import('./pages/PortfolioGenerator'));
 const RecruiterOutreach = lazy(() => import('./pages/RecruiterOutreach'));
 const Networking = lazy(() => import('./pages/Networking'));
 const AgentQuestions = lazy(() => import('./pages/AgentQuestions'));
+const ApplyAgent = lazy(() => import('./pages/ApplyAgent'));
 
 
 const ApplicationAnalytics = lazy(() => import('./pages/ApplicationAnalytics'));
@@ -396,6 +397,16 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/apply-agent"
+                element={
+                  <ProtectedRoute>
+                    <ApplyAgent />
+                  </ProtectedRoute>
+                }
+              />
+
+
 
 
               <Route

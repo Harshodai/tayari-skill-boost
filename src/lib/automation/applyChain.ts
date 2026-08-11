@@ -73,7 +73,7 @@ export function buildApplyChain(job: ApplyChainJob): ChainStep[] {
       },
     },
     {
-      // Apply Assist only *prepares* an application — it never submits to an
+      // AutoPilot only *prepares* an application — it never submits to an
       // ATS. Recording it as "applied" would be a lie the user acts on, so the
       // record lands in Saved until a real submission is proven.
       label: "Saving the prepared application",

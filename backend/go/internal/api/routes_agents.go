@@ -30,6 +30,9 @@ func (s *Server) routesAgents(r chi.Router) {
 		r.Get("/api/v1/approvals", s.handleListApprovals)
 		r.Put("/api/v1/approvals/{approval_id}", s.handleUpdateApproval)
 
+		// `/agent/config` is the current name; `/hermes/config` is the legacy
+		// codename kept as an alias so existing clients keep working.
+		r.Get("/api/v1/agent/config", s.handleGetHermesConfig)
 		r.Get("/api/v1/hermes/config", s.handleGetHermesConfig)
 	})
 }
