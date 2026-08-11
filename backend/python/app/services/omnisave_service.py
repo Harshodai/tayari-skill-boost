@@ -309,7 +309,7 @@ class OmnisaveService:
         to extract dynamic article title, author, and content without hardcoding.
         """
         try:
-            from app.services.sandbox_executor import TayariComputerSandboxExecutor, _resolve_and_validate_url
+            from app.services.form_filler import FormFiller as TayariComputerSandboxExecutor, _resolve_and_validate_url
             url_info = _resolve_and_validate_url(target_url)
             if not url_info:
                 logger.warning("[Omnisave] Rejected unsafe extraction URL: %s", target_url)
