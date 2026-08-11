@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_questions: {
+        Row: {
+          answer: string | null
+          answered_at: string | null
+          company: string | null
+          created_at: string
+          field_label: string
+          field_type: string
+          id: string
+          job_title: string | null
+          options: Json
+          run_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          answer?: string | null
+          answered_at?: string | null
+          company?: string | null
+          created_at?: string
+          field_label: string
+          field_type?: string
+          id?: string
+          job_title?: string | null
+          options?: Json
+          run_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          answer?: string | null
+          answered_at?: string | null
+          company?: string | null
+          created_at?: string
+          field_label?: string
+          field_type?: string
+          id?: string
+          job_title?: string | null
+          options?: Json
+          run_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       agent_run_steps: {
         Row: {
           created_at: string
@@ -107,6 +155,51 @@ export type Database = {
           progress?: number
           status?: string
           submitted_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      application_approvals: {
+        Row: {
+          approved_at: string | null
+          company: string | null
+          created_at: string
+          decision: string
+          id: string
+          job_title: string | null
+          job_url: string | null
+          resume_preview: string | null
+          resume_sha256: string
+          run_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          company?: string | null
+          created_at?: string
+          decision?: string
+          id?: string
+          job_title?: string | null
+          job_url?: string | null
+          resume_preview?: string | null
+          resume_sha256: string
+          run_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          company?: string | null
+          created_at?: string
+          decision?: string
+          id?: string
+          job_title?: string | null
+          job_url?: string | null
+          resume_preview?: string | null
+          resume_sha256?: string
+          run_id?: string
           updated_at?: string
           user_id?: string
         }
@@ -564,6 +657,69 @@ export type Database = {
           remote_only?: boolean
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      submission_receipts: {
+        Row: {
+          answers: Json
+          application_id: string | null
+          ats_vendor: string | null
+          company: string | null
+          confirmation_number: string | null
+          confirmation_text: string | null
+          created_at: string
+          id: string
+          job_title: string | null
+          job_url: string | null
+          outcome: string
+          run_id: string | null
+          screenshot_path: string | null
+          submitted_at: string | null
+          submitted_resume_sha256: string | null
+          updated_at: string
+          user_id: string
+          verified: boolean
+        }
+        Insert: {
+          answers?: Json
+          application_id?: string | null
+          ats_vendor?: string | null
+          company?: string | null
+          confirmation_number?: string | null
+          confirmation_text?: string | null
+          created_at?: string
+          id?: string
+          job_title?: string | null
+          job_url?: string | null
+          outcome?: string
+          run_id?: string | null
+          screenshot_path?: string | null
+          submitted_at?: string | null
+          submitted_resume_sha256?: string | null
+          updated_at?: string
+          user_id: string
+          verified?: boolean
+        }
+        Update: {
+          answers?: Json
+          application_id?: string | null
+          ats_vendor?: string | null
+          company?: string | null
+          confirmation_number?: string | null
+          confirmation_text?: string | null
+          created_at?: string
+          id?: string
+          job_title?: string | null
+          job_url?: string | null
+          outcome?: string
+          run_id?: string | null
+          screenshot_path?: string | null
+          submitted_at?: string | null
+          submitted_resume_sha256?: string | null
+          updated_at?: string
+          user_id?: string
+          verified?: boolean
         }
         Relationships: []
       }
