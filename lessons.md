@@ -1435,3 +1435,32 @@ missing field, because it looks implemented.
   one — always delegate to a global the current file controls.
 - A table plus a UI is not a feature. Grep for the *producer* before calling a
   workstream done.
+
+## 2026-08-11 — WS-08: the orphan pipelines are gone
+
+**What was done**
+- Deleted `app/services/end_to_end_pipeline.py`, `app/services/autopilot_graph.py`
+  and the fake `app/services/sandbox_executor.py` shim, plus the dead
+  `POST /adaptations/end-to-end-pipeline` endpoint and the tests that only
+  existed to cover those engines (`tests/test_end_to_end_pipeline.py`,
+  `tests/test_phase18_adaptations.py`, the autopilot-graph test).
+- Merged, not dropped, the parts that were worth keeping:
+  - ghost-job + role-intent guardrails → new `app/services/posting_screen.py`,
+    now called by `automation_engine.run_autopilot` during SELECT so a fake or
+    mismatched posting is skipped before any tailoring budget is spent;
+  - `_untrusted` prompt fencing → new `app/services/prompt_safety.py`
+    (`omnisave_service` now imports it from there).
+- `resume_parser.py` is NOT an orphan despite the plan listing it: `resume_graph`
+  and `automation_engine` both call `parse_resume`. Kept.
+
+**Root cause.** Three engines were built for the same job; only
+`automation_engine` was ever wired to Celery. The other two accumulated the best
+guardrails in the repo while being unreachable from any user path.
+
+**Fix.** Merge-then-delete, with the merged guard on the live path and its own
+test file (`tests/test_posting_screen.py`, 5 tests, all fail-closed cases).
+
+**Reusable lesson.** Deleting an orphan engine is only safe after you diff its
+guardrails against the live one — dead code is often where the careful thinking
+went. And verify the "orphan" list yourself: one of the three named in the plan
+was actively imported by two live modules.
