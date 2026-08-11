@@ -41,28 +41,70 @@ import { features } from "@/config/features";
 import { cn } from "@/lib/utils";
 
 type Item = { title: string; url: string; icon: any; enabled?: boolean };
+type Group = { label: string; items: Item[] };
 
-/** The five things that make the product work. Everything else lives under "More". */
+/** The five things that make the product work. Everything else lives below. */
 const primaryItems = (): Item[] => [
   { title: "Home", url: "/dashboard", icon: LayoutDashboard, enabled: true },
   { title: "Find jobs", url: "/jobs", icon: Search, enabled: features.jobSearch },
   { title: "My resume", url: "/resume", icon: FileText, enabled: features.resumeOptimizer },
-  { title: "Applications", url: "/pipeline", icon: Bookmark, enabled: features.jobSearch },
+  { title: "Saved jobs", url: "/pipeline", icon: Bookmark, enabled: features.jobSearch },
   { title: "Interviews", url: "/interview/prep", icon: Mic, enabled: features.interviewAI },
 ];
 
-const moreItems = (): Item[] => [
-  { title: "Outcomes", url: "/outcomes", icon: TrendingUp, enabled: true },
-  { title: "AutoPilot", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
-  { title: "Agent questions", url: "/questions", icon: HelpCircle, enabled: features.jobSearch },
-  { title: "Networking", url: "/networking", icon: Users, enabled: true },
-
-  { title: "Cover letters", url: "/cover-letter", icon: Mail, enabled: features.coverLetter },
-  { title: "Knowledge hub", url: "/knowledge-hub", icon: BookOpen, enabled: features.knowledgeHub },
-  { title: "Career radar", url: "/career-ops", icon: Terminal, enabled: features.careerOps },
-  { title: "LinkedIn import", url: "/linkedin-import", icon: Linkedin, enabled: true },
-  { title: "API keys", url: "/api-keys", icon: Key, enabled: true },
-  { title: "Help", url: "/help", icon: HelpCircle, enabled: features.help },
+/**
+ * Everything the app can actually do. These pages were all built and routed
+ * but had no entry point, which made them invisible to users.
+ */
+const moreGroups = (): Group[] => [
+  {
+    label: "Apply",
+    items: [
+      { title: "Apply agent", url: "/apply-agent", icon: Bot, enabled: features.jobSearch },
+      { title: "AutoPilot", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
+      { title: "Agent questions", url: "/questions", icon: HelpCircle, enabled: features.jobSearch },
+      { title: "Review queue", url: "/review-queue", icon: ClipboardCheck, enabled: true },
+      { title: "Application board", url: "/applications", icon: KanbanSquare, enabled: true },
+    ],
+  },
+  {
+    label: "Craft",
+    items: [
+      { title: "Resume studio", url: "/typst-studio", icon: PenTool, enabled: features.resumeOptimizer },
+      { title: "Cover letters", url: "/cover-letter", icon: Mail, enabled: features.coverLetter },
+      { title: "Answer bank", url: "/answer-bank", icon: MessageSquareText, enabled: true },
+      { title: "Portfolio", url: "/portfolio", icon: Globe, enabled: true },
+    ],
+  },
+  {
+    label: "Reach out",
+    items: [
+      { title: "Networking", url: "/networking", icon: Users, enabled: true },
+      { title: "Recruiter outreach", url: "/outreach", icon: Send, enabled: true },
+      { title: "Company radar", url: "/radar", icon: Radar, enabled: true },
+      { title: "Negotiation", url: "/negotiation", icon: Handshake, enabled: true },
+    ],
+  },
+  {
+    label: "Grow",
+    items: [
+      { title: "Outcomes", url: "/outcomes", icon: TrendingUp, enabled: true },
+      { title: "Funnel analytics", url: "/analytics-funnel", icon: BarChart3, enabled: true },
+      { title: "Skill gaps", url: "/skill-gap-radar", icon: Target, enabled: true },
+      { title: "Career roadmap", url: "/roadmap", icon: Map, enabled: features.careerRoadmap },
+      { title: "Career radar", url: "/career-ops", icon: Terminal, enabled: features.careerOps },
+      { title: "Knowledge hub", url: "/knowledge-hub", icon: BookOpen, enabled: features.knowledgeHub },
+    ],
+  },
+  {
+    label: "Account",
+    items: [
+      { title: "LinkedIn import", url: "/linkedin-import", icon: Linkedin, enabled: true },
+      { title: "Privacy check", url: "/privacy-diagnostics", icon: ShieldCheck, enabled: true },
+      { title: "API keys", url: "/api-keys", icon: Key, enabled: true },
+      { title: "Help", url: "/help", icon: HelpCircle, enabled: features.help },
+    ],
+  },
 ];
 
 const linkClass = (active: boolean) =>
