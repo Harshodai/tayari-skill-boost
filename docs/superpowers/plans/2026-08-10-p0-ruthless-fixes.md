@@ -126,16 +126,16 @@ git commit -m "fix(brand): single product name 'Job Tayari', branded 404 in Layo
 ### Task 2: Resume optimizer — every input reaches the engine
 
 **Files:**
-- Modify: `backend/python/app/api/ai_routes.py` — `OptimizerRequest` (line ~261) gains `custom_instructions: Optional[str] = None`, `target_role: Optional[str] = None`, `jd_url: Optional[str] = None`; `optimize_resume` (line ~325) routes to `optimizer.optimize_resume_with_options()` when `jd_url` is present, else `optimize_with_reflection` with the new fields; `optimize_resume_stream` (line ~341) gains `custom_instructions: Optional[str] = Form(None)` and passes it through.
-- Modify: `backend/python/app/main.py` — `OptimizerRequest` (line ~253) same three fields; `optimize_resume` (line ~259) same routing; `optimize_resume_stream` (line ~275) same custom_instructions Form field.
+- Modify: `backend/python/app/api/ai_routes.py` — `OptimizerRequest` (line ~261) gains `custom_instructions: Optional[str] = None`, `target_role: Optional[str] = None`, `jd_url: Optional[str] = None`; `optimize_resume` (line ~325) routes to `optimizer.optimize_resume_with_options()` when `jd_url` is present, else `optimize_with_reflection` with the new fields; `optimize_resume_stream` (line ~341) gains `custom_instructions` and `target_role` Form params and threads them into `optimize_with_reflection` (jd_url is regular-path-only — not part of the streaming Form contract; documented limitation).
+- Modify: `backend/python/app/main.py` — `OptimizerRequest` (line ~253) same three fields; `optimize_resume` (line ~259) same routing; `optimize_resume_stream` (line ~275) same custom_instructions + target_role Form fields.
 - Modify: `backend/go/internal/api/routes_mvp.go::handleOptimizeResume` (line ~926) — request struct gains `CustomInstructions`, `TargetRole`, `JdURL` (`json:"custom_instructions,omitempty"` etc.); forward all to Python.
 - Modify: `src/api/resumes.ts::optimizeResume` (line ~77) — signature `optimizeResume(id: string | number, opts?: { jobDescription?: string; customInstructions?: string; targetRole?: string; jdUrl?: string })`; body sends `job_description`, `custom_instructions`, `target_role`, `jd_url`.
 - Modify: `src/pages/ResumeUpload.tsx` — `navigate("/resume/results", { state: ... })` (line ~139) also passes `customInstructions` and `jobPostUrl`; `canAnalyze` (line ~158) relaxes to `(resumeText || resumeFile) && (jobDescription.trim().length > 50 || customInstructions.trim().length > 0) && !parsingError`.
 - Modify: `src/pages/ResumeResults.tsx` — read `customInstructions` and `jobPostUrl` from `location.state` (lines ~56-58); `handleOptimize` (line ~88) calls `optimizeResume(resumeId, { jobDescription, customInstructions, targetRole, jdUrl })` where `targetRole` stays undefined unless a source exists.
 
 **Interfaces:**
-- Consumes: `optimizer.optimize_with_reflection(resume_text, job_description=..., target_role=..., job_label=..., custom_instructions=...)` (already supports all fields); `optimizer.optimize_resume_with_options(resume_text, file_bytes, filename, jd_text, jd_url, custom_instructions)` (already supports `jd_url` scraping with Playwright fallback).
-- Produces: HTTP contract where `POST /api/v1/optimizer/optimize` accepts `{resume_text, job_description, custom_instructions, target_role, jd_url}` and the UI round-trips them.
+- Consumes: `optimizer.optimize_with_reflection(resume_text, job_description=..., target_role=..., job_label=..., custom_instructions=...)` (already supports all fields); `optimizer.optimize_resume_with_options(resume_text="", file_bytes=None, filename="", jd_text="", jd_url="", custom_instructions="", target_role="")` (already supports `jd_url` scraping with Playwright fallback).
+- Produces: HTTP contract where `POST /api/v1/optimizer/optimize` accepts `{resume_text, job_description, custom_instructions, target_role, jd_url}` and the UI round-trips them. Streaming coverage asserts custom_instructions + target_role reach `optimize_with_reflection`; jd_url streaming is a documented limitation, not a gap.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -202,7 +202,7 @@ class OptimizerRequest(BaseModel):
         return result
 ```
 
-`optimize_resume_stream` — add `custom_instructions: Optional[str] = Form(None)` param and thread into `optimize_with_reflection` call.
+`optimize_resume_stream` — add `custom_instructions: Optional[str] = Form(None)` and `target_role: Optional[str] = Form(None)` params and thread both into the `optimize_with_reflection` call (jd_url stays regular-path-only — not part of the streaming Form contract).
 
 Same three changes in `backend/python/app/main.py` (duplicate definitions — keep both in sync; ponytail comment: two files because main.py registers the app while ai_routes is the mounted router).
 
@@ -249,7 +249,7 @@ git commit -m "feat(optimizer): forward custom_instructions, target_role, jd_url
 - Modify: `backend/go/internal/api/routes_mvp.go` — `handleGetProfile` SELECT/scan/map and `handleUpdateProfile` INSERT/upsert (lines ~34-115) include the new columns
 - Modify: `src/api/types.ts` — `Profile` interface gains the six optional fields
 - Modify: `src/pages/Profile.tsx` — form state + Career Goal card with branch selector + conditional inputs; load/save the fields
-- Modify: `src/pages/Onboarding.tsx` — `finish()` writes via `updateProfile()` (best-effort; pet_preferences mirror stays secondary)
+- Modify: `src/pages/Onboarding.tsx` — `finish()` awaits `updateProfile()` — on failure, keep the user on the current step, show an inline error, and allow retry (no navigation); navigate to `/dashboard` only after the canonical profile write succeeds. `localStorage` + `pet_preferences` mirror stays best-effort secondary storage.
 
 **Interfaces:**
 - Consumes: `updateProfile(payload: Partial<Profile>)` from `@/api` (PUT /v1/profile); `models.Profile` JSON tags.
@@ -288,7 +288,7 @@ Go model fields (JSON tags snake_case matching existing style), handler query/sc
 
 `Profile.tsx`: add to form state and the useEffect load; add a "Career Goal" card with a two-button branch selector (`same_domain` / `cross_domain`) plus conditional inputs (current_title, target_level, current_industry, target_industry, transferable_skills); include in the updateMutation payload.
 
-`Onboarding.tsx`: in `finish()`, after localStorage write, call `updateProfile({ transition_type: transitionType, current_title, target_level, current_industry, target_industry, transferable_skills })` in a try/catch (best-effort; never block navigation).
+`Onboarding.tsx`: in `finish()`, after localStorage write, `await updateProfile({ transition_type: transitionType, current_title, target_level, current_industry, target_industry, transferable_skills })`; on failure keep the user on the current step with an inline error and allow retry — no navigation. Navigate to `/dashboard` only after the canonical profile write succeeds; the `localStorage` + `pet_preferences` mirror remains best-effort secondary storage.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
