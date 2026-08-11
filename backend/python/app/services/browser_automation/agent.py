@@ -397,5 +397,7 @@ async def stream_browser_agent(
             await task
         except asyncio.CancelledError:
             pass
+        await close_session(session)
+
 
     yield {"type": "done", "result": result.to_markdown()}
