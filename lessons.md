@@ -1505,3 +1505,8 @@ keeps ratcheting. Accepting a finding must be an explicit, reviewable commit
 - **Root cause:** The dashboard pulled up to 5000 rows client-side and aggregated in JS — correctness silently degrades past that cap and payloads grow unbounded.
 - **Fix:** Aggregate/sort/page in Postgres; the client only renders one page. Drill-down uses `.range()` with `count: "exact"`.
 - **Lesson:** Keep reporting functions SECURITY INVOKER — a DEFINER aggregate would have leaked every tenant's traffic to any signed-in user. Also: dynamic ORDER BY in plain SQL is safest as a `CASE` ladder over a whitelist rather than string-built dynamic SQL.
+
+## 2026-08-11 — Ruthless audit plan (multi-persona, local execution)
+- **Done:** Wrote `docs/JOB_TAYARI_RUTHLESS_AUDIT_PLAN.md` — a 6-flow persona test matrix, 3-pass environment diff (local full stack / Supabase-only hosted / mobile), and a P0–P3 fix backlog.
+- **Root cause found during inventory:** 64 routes registered but ~20 unreachable from nav; `ContactSection.tsx:61` fakes submit with a timer and always toasts success; `check-breached-password` edge function is orphaned while `Auth.tsx:77` calls the undeployed Go route.
+- **Lesson:** "Deployed" and "reachable" are different audits. A feature inventory must cross-check route registration against nav entries AND against which backend the page depends on — hosted Supabase-only environments silently break every `apiFetch` page while the route still renders.
