@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getProfile, updateProfile, importProfilePDF, getVerificationStatus, submitVerification, listResumes } from "@/api";
+import { getProfile, updateProfile, importProfilePDF, getVerificationStatus, submitVerification, listResumes, getResume } from "@/api";
 import { toast } from "sonner";
 import { useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -56,8 +56,11 @@ const Profile = () => {
     try {
       const resumes = await listResumes();
       const latest = resumes[0];
-      if (latest && latest.resume_text) {
-        setVerifyText(latest.resume_text);
+      if (latest) {
+        const full = await getResume(latest.id);
+        if (full.original_text) {
+          setVerifyText(full.original_text);
+        }
       }
     } catch {
       // fallback: user pastes their resume text

@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { createReferralDraft } from "@/api/referral";
+import { createReferralDraft, type ReferralKind } from "@/api/referral";
 import { features } from "@/config/features";
 
 interface Contact {
@@ -66,7 +66,7 @@ const KINDS = [
 export function Networking() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [kind, setKind] = useState("intro");
+  const [kind, setKind] = useState<ReferralKind>("intro");
   const [targetRole, setTargetRole] = useState("");
   const [proofPoints, setProofPoints] = useState("");
   const [drafting, setDrafting] = useState(false);
@@ -325,7 +325,7 @@ export function Networking() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
                         <Label htmlFor="kind">Message type</Label>
-                        <Select value={kind} onValueChange={setKind}>
+                        <Select value={kind} onValueChange={(v) => setKind(v as ReferralKind)}>
                           <SelectTrigger id="kind"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {KINDS.map((k) => (
