@@ -73,7 +73,10 @@ export function buildApplyChain(job: ApplyChainJob): ChainStep[] {
       },
     },
     {
-      label: "Creating the application record",
+      // Apply Assist only *prepares* an application — it never submits to an
+      // ATS. Recording it as "applied" would be a lie the user acts on, so the
+      // record lands in Saved until a real submission is proven.
+      label: "Saving the prepared application",
       run: async (ctx) => {
         const app = await createApplication({
           job,
@@ -83,12 +86,13 @@ export function buildApplyChain(job: ApplyChainJob): ChainStep[] {
           url: job.url,
           tailored_resume_text: ctx.optimizedText,
           cover_letter: ctx.coverLetter,
-          status: "applied",
-          stage: "applied",
+          status: "saved",
+          stage: "saved",
         } as any);
         ctx.applicationId = app.application_id;
-        return "Tracked in Pipeline → Applied";
+        return "Draft ready in Pipeline → Saved (not yet submitted)";
       },
     },
+
   ];
 }
