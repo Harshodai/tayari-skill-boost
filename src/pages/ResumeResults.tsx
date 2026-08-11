@@ -59,6 +59,7 @@ const ResumeResults = () => {
   const customInstructions = location.state?.customInstructions as string | undefined;
   const jobPostUrl = location.state?.jobPostUrl as string | undefined;
   const resumeId = location.state?.resumeId as number | undefined;
+  const targetRole = location.state?.targetRole as string | undefined;
 
   const [expandedSections, setExpandedSections] = useState<string[]>(
     analysisResults?.sections?.[0]?.name ? [analysisResults.sections[0].name] : []
@@ -93,12 +94,14 @@ const ResumeResults = () => {
     setOptimizeError(null);
     setOptimizationResult(null);
     try {
-      // ponytail: target_role has no UI source yet, so it is not forwarded;
-      // the contract supports it and the Python engine honors it when present.
+      // ponytail: targetRole flows from location.state when a flow supplies
+      // it (contract supports it, Python honors it); ResumeUpload does not
+      // send one yet, so it is undefined and omitted — not forwarded as empty.
       const res = await optimizeResume(resumeId, {
         jobDescription,
         customInstructions,
         jdUrl: jobPostUrl,
+        targetRole,
       });
       const text = res?.optimized_text || res?.optimized_resume || res?.result;
       if (text) {
