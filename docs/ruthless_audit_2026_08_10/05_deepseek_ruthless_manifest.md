@@ -339,7 +339,7 @@ Execute the task queue below in order, one task at a time, TDD-first. Do NOT sta
 3. **DB migration sync** — every change under backend/db/migrations/ MUST be copied to supabase-local/volumes/db/init/ with the next NN- prefix AND mounted individually in supabase-local/docker-compose.yml under the db: service. The Supabase postgres migrate.sh globs non-recursively: a directory mount is silently invisible (zero tables, zero errors).
 4. **Mock ≠ passing** — a green test against mocks does not prove the wire. Verify each task's endpoint against the real stack (or the exact probe the task names) before claiming done.
 5. **No manualChunks** in vite.config.ts — per-package chunking breaks scoped packages (`@sentry/*`, `@radix-ui/*`) with runtime TDZ errors. Let Rollup chunk automatically.
-6. **JWT_SECRET + POSTGRES_PASSWORD identical** across root .env and supabase-local/.env. A mismatch never errors — every login just looks like an invalid token.
+6. **Pairwise secret parity** — root `.env` `JWT_SECRET` must equal `supabase-local/.env` `JWT_SECRET`, and root `.env` `POSTGRES_PASSWORD` must equal `supabase-local/.env` `POSTGRES_PASSWORD`. `JWT_SECRET` and `POSTGRES_PASSWORD` must remain DISTINCT values from each other — never reuse one secret for the other. A parity mismatch never errors — every login just looks like an invalid token.
 7. **VITE_* vars are build args**, not runtime env.
 8. Never `docker compose down -v` or `rm -rf supabase-local/volumes/db/data` — bind mount, not a named volume.
 9. **Lessons capture** — after each task append a dated entry to lessons.md (what, root cause, fix, reusable lesson). If it's not in lessons.md it didn't happen.
@@ -367,7 +367,7 @@ F. **Write the report** in the exact format below. Report file: one per task, `d
 - Go: backend/go/internal/api/routes_mvp.go::handleOptimizeResume reads custom_instructions, target_role, jd_url from the JSON body and forwards them (route parity unchanged — routes already exist on both trees).
 - Frontend: src/api/resumes.ts::optimizeResume accepts { jobDescription, customInstructions, targetRole, jdUrl }; src/pages/ResumeUpload.tsx passes customInstructions + jobPostUrl through navigate() state; src/pages/ResumeResults.tsx::handleOptimize forwards them; relax the canAnalyze JD-length gate when custom instructions are present.
 - Tests: Python test that /api/v1/optimizer/optimize accepts and respects custom_instructions; Go route test mirroring routes_resume_import_test.go for the new fields; frontend unit test for the payload builder.
-- Verification: `cd backend/python && pytest app/tests/test_optimizer.py -v`; `cd backend/go && go test ./internal/api/... -run TestOptimize`; `bun run build`.
+- Verification: `cd backend/python && .venv/bin/python -m pytest app/tests/test_optimizer_enhanced.py -v` (covers the new request fields + URL propagation cases); `cd backend/go && go test ./internal/api/... -run TestOptimize`; `bun run build`.
 - Definition of done: custom instructions, target role, and JD URL all demonstrably reach optimize_with_reflection (assert in tests), and the UI round-trips them.
 
 ### Task 3: Career goal persisted in canonical profile
