@@ -114,12 +114,25 @@ class TayariComputerSandboxExecutor:
         else:
             return self._redact_value(profile)
 
-    async def execute_form_auto_fill(self, form_url: str, candidate_profile: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_form_auto_fill(
+        self,
+        form_url: str,
+        candidate_profile: Dict[str, Any],
+        *,
+        user_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        job_title: Optional[str] = None,
+        company: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Execute semantic form auto-fill using Accessibility Snapshot.
         Discovers form input roles, textboxes, and buttons without relying on brittle CSS.
+
+        Fields the agent must not answer itself (sponsorship, salary, veteran
+        status, ...) are escalated to the human-answer queue instead of guessed.
         """
         clean_profile = self.redact_sensitive_data(candidate_profile)
+
 
         # Validate URL using the established mechanism
         url_info = _resolve_and_validate_url(form_url)
