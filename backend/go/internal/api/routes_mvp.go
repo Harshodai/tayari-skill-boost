@@ -984,6 +984,23 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 		}
 		req.JobDescription = ""
 	}
+	// WS-04: the onboarding wizard collects the user's career-transition track
+	// but nothing downstream ever read it, so a cross-domain pivot got the same
+	// rewrite as a same-domain promotion. Load it here and forward it — a
+	// missing profile row is not fatal, the optimizer just stays track-neutral.
+	var (
+		transitionType     string
+		currentIndustry    string
+		targetIndustry     string
+		transferableSkills models.StringSlice
+	)
+	if err := s.DB.Conn.QueryRowContext(r.Context(),
+		`SELECT COALESCE(transition_type, ''), COALESCE(current_industry, ''), COALESCE(target_industry, ''), COALESCE(transferable_skills, '{}') FROM profiles WHERE id=$1`,
+		user.ID,
+	).Scan(&transitionType, &currentIndustry, &targetIndustry, &transferableSkills); err != nil {
+		log.Printf("handleOptimizeResume: profile transition lookup skipped: %v", err)
+	}
+
 	// ponytail: forward every input the UI collects so the Python engine's
 	// custom_instructions/target_role/jd_url handling is actually reachable.
 	result, err := s.AI.PostJSON("/api/v1/optimizer/optimize", map[string]interface{}{
@@ -992,7 +1009,12 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 		"custom_instructions": req.CustomInstructions,
 		"target_role":         req.TargetRole,
 		"jd_url":              req.JdURL,
+		"transition_type":     transitionType,
+		"current_industry":    currentIndustry,
+		"target_industry":     targetIndustry,
+		"transferable_skills": transferableSkills,
 	})
+
 	if err != nil {
 		log.Printf("handleOptimizeResume: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Optimization failed")
