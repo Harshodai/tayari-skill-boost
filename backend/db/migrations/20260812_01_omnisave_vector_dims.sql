@@ -14,3 +14,7 @@ ALTER TABLE public.source_chunks
 CREATE INDEX idx_source_chunks_embedding_hnsw
     ON public.source_chunks
     USING hnsw (embedding vector_cosine_ops);
+
+-- The unused helper still declares a 1536-dim parameter; drop it so it cannot
+-- be called with a mismatched vector. (Retrieval now runs inline in Python.)
+DROP FUNCTION IF EXISTS public.match_job_knowledge(TEXT, vector(1536), UUID, TEXT, INT);
