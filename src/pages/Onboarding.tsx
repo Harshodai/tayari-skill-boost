@@ -31,25 +31,57 @@ export default function Onboarding() {
   const [currentIndustry, setCurrentIndustry] = useState("");
   const [targetIndustry, setTargetIndustry] = useState("");
   const [transferableSkills, setTransferableSkills] = useState<string[]>([]);
+  const [hydration, setHydration] = useState<"pending" | "empty" | "loaded" | "error">("pending");
+  const [retryHydration, setRetryHydration] = useState(0);
 
   // ponytail: hydrate from the canonical profile so re-running onboarding
   // doesn't clobber saved values with defaults.
+  // ponytail: GET /v1/profile returns 200 with the fallback empty profile on
+  // BOTH a missing row and a DB error (backend/go/internal/api/routes_mvp.go
+  // handleGetProfile) — so "no profile exists" is only distinguishable by the
+  // empty career fields, never by HTTP status. A fetch/network failure must
+  // not be treated as "new user", or the empty defaults would overwrite a
+  // real saved profile.
   useEffect(() => {
+    setHydration("pending");
     getProfile()
       .then((profile) => {
+        const hasCareerFields =
+          profile.transition_type ||
+          profile.current_title ||
+          profile.target_level ||
+          profile.current_industry ||
+          profile.target_industry ||
+          (profile.transferable_skills?.length ?? 0) > 0;
+        if (!hasCareerFields) {
+          setHydration("empty");
+          return;
+        }
         setTransitionType((profile.transition_type as TransitionType) ?? "same_domain");
         if (profile.current_title) setCurrentTitle(profile.current_title);
         if (profile.target_level) setTargetLevel(profile.target_level);
         if (profile.current_industry) setCurrentIndustry(profile.current_industry);
         if (profile.target_industry) setTargetIndustry(profile.target_industry);
         if (profile.transferable_skills?.length) setTransferableSkills(profile.transferable_skills);
+        setHydration("loaded");
       })
       .catch(() => {
-        /* profile fetch failed — keep empty defaults */
+        setHydration("error");
       });
-  }, []);
+  }, [retryHydration]);
 
   const finish = async () => {
+    // ponytail: never submit before hydration settles, and never treat a
+    // fetch failure as "no profile exists" — the fallback empty profile (200
+    // on no-row) is the only signal that a fresh write is safe.
+    if (hydration === "pending") {
+      setSaveError("Loading your profile — try again in a moment.");
+      return;
+    }
+    if (hydration === "error") {
+      setSaveError("Couldn't load your profile — retry.");
+      return;
+    }
     const payload = {
       transitionType,
       currentTitle,
@@ -302,10 +334,23 @@ export default function Onboarding() {
             )}
 
             <div className="flex justify-center gap-4 pt-4">
+              {hydration === "error" && (
+                <Button
+                  onClick={() => setRetryHydration((n) => n + 1)}
+                  variant="outline"
+                  className="border-slate-800 text-slate-300"
+                >
+                  Retry
+                </Button>
+              )}
               <Button onClick={() => setStep(2)} variant="outline" className="border-slate-800 text-slate-300">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
-              <Button onClick={finish} className="bg-emerald-600 hover:bg-emerald-500 font-bold px-8">
+              <Button
+                onClick={finish}
+                disabled={hydration === "pending"}
+                className="bg-emerald-600 hover:bg-emerald-500 font-bold px-8"
+              >
                 Launch Career Dashboard <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </div>
