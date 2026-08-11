@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "bun test --dom --preload ./src/test/setup.ts src/",
-    "test:e2e": "playwright test --reporter=list"
+    "test:e2e": "playwright test --reporter=list",
+    "security:scan": "node scripts/security_scan.mjs",
+    "security:baseline": "node scripts/security_scan.mjs --update-baseline"
+
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

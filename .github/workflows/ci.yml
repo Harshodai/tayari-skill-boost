@@ -171,6 +171,38 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  security-regression:
+    name: Security Regression Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Re-run security scan and fail on new findings
+        # Compares the current scan against security/baseline.json. Pre-existing
+        # findings are reported but tolerated; any NEW finding fails the build.
+        # Accept a new finding deliberately with `bun run security:baseline`.
+        run: bun run security:scan
+
+      - name: Upload scan report
+        if: always()
+        run: node scripts/security_scan.mjs --json > security-report.json || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-scan-report
+          path: security-report.json
+
+
+
   docker-compose:
     name: Docker Compose E2E
     runs-on: ubuntu-latest

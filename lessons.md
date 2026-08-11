@@ -1464,3 +1464,23 @@ test file (`tests/test_posting_screen.py`, 5 tests, all fail-closed cases).
 guardrails against the live one — dead code is often where the careful thinking
 went. And verify the "orphan" list yourself: one of the three named in the plan
 was actively imported by two live modules.
+
+## 2026-08-11 — CI security regression gate
+
+**What:** Added `scripts/security_scan.mjs` (dependency audit, migration RLS/GRANT
+checks, client-secret leaks, edge-function hygiene), a committed
+`security/baseline.json`, `security:scan`/`security:baseline` package scripts, and a
+`security-regression` job in `.github/workflows/ci.yml`.
+
+**Root cause:** The hosted security scanner only runs inside Lovable, so nothing
+blocked a PR that introduced a table without RLS or leaked a server-only key into
+`src/`.
+
+**Fix:** Deterministic offline scanner diffed against a baseline — pre-existing debt
+(115 findings, mostly legacy self-hosted migrations) is tolerated; any NEW finding
+exits 1 and fails the build.
+
+**Lesson:** A security gate on a mature repo must be a *baseline diff*, not an
+absolute threshold. Fail-on-any-finding gets disabled within a week; fail-on-new
+keeps ratcheting. Accepting a finding must be an explicit, reviewable commit
+(`bun run security:baseline`) rather than a silent code comment.
