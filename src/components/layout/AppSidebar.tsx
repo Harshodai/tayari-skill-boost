@@ -167,38 +167,48 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {more.length > 0 && (
-          <SidebarGroup>
+        {groups.length > 0 && (
+          <>
             {!collapsed && (
-              <SidebarGroupLabel asChild>
-                <button
-                  type="button"
-                  onClick={() => setMoreOpen((v) => !v)}
-                  aria-expanded={moreOpen}
-                  className="flex w-full items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground/70 hover:text-foreground"
-                >
-                  <span>More tools</span>
-                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", moreOpen && "rotate-180")} />
-                </button>
-              </SidebarGroupLabel>
+              <SidebarGroup className="py-0">
+                <SidebarGroupLabel asChild>
+                  <button
+                    type="button"
+                    onClick={() => setMoreOpen((v) => !v)}
+                    aria-expanded={moreOpen}
+                    className="flex w-full items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground/70 hover:text-foreground"
+                  >
+                    <span>More tools</span>
+                    <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", moreOpen && "rotate-180")} />
+                  </button>
+                </SidebarGroupLabel>
+              </SidebarGroup>
             )}
-            {(moreOpen || collapsed) && (
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {more.map((item) => (
-                    <SidebarMenuItem key={item.url}>
-                      <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
-                        <NavLink to={item.url} className={({ isActive: a }) => linkClass(a)}>
-                          <item.icon className="h-4 w-4 shrink-0" />
-                          {!collapsed && <span className="truncate">{item.title}</span>}
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            )}
-          </SidebarGroup>
+            {(moreOpen || collapsed) &&
+              groups.map((group) => (
+                <SidebarGroup key={group.label} className="py-1">
+                  {!collapsed && (
+                    <SidebarGroupLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/55">
+                      {group.label}
+                    </SidebarGroupLabel>
+                  )}
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {group.items.map((item) => (
+                        <SidebarMenuItem key={item.url}>
+                          <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                            <NavLink to={item.url} className={({ isActive: a }) => linkClass(a)}>
+                              <item.icon className="h-4 w-4 shrink-0" />
+                              {!collapsed && <span className="truncate">{item.title}</span>}
+                            </NavLink>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              ))}
+          </>
         )}
       </SidebarContent>
 
