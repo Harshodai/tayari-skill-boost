@@ -45,6 +45,9 @@ from app.services.job_agent import smart_search
 from app.services.job_providers import search_jobs
 from app.services.optimizer import optimize_with_reflection
 from app.services.job_application_automation import apply_job
+from app.services.browser_library import Browser
+from app.services.submission_receipt import build_receipt, save_receipt
+
 from app.guardrails.gate import PipelineGate
 
 logger = logging.getLogger(__name__)
@@ -421,13 +424,59 @@ async def run_autopilot(
                     )
                 if config.get("auto_apply", False) and gate_ok and approved:
                     try:
-                        apply_job(job, tailored_text, cover)
-                        application["status"] = "prepared"
-                        _log(run_id, "PREPARE", f"Application package prepared for {job['title']} @ {job['company']} (queued for user review)")
+                        # WS-02: run the agent for its *evidence*, not a
+                        # boolean. The status we write is derived from what the
+                        # ATS actually printed — an unconfirmed run stays
+                        # "submitted_unverified" instead of quietly becoming
+                        # "applied". Self-reported success is the lie this
+                        # whole product exists to stop telling.
+                        evidence = Browser.apply_job_with_evidence(job, tailored_text, cover)
+                        receipt = build_receipt(
+                            run_id=run_id,
+                            user_id=config.get("user_id"),
+                            job=job,
+                            resume_text=tailored_text,
+                            agent_summary=evidence.get("summary"),
+                            agent_actions=evidence.get("actions"),
+                            final_url=evidence.get("final_url"),
+                            screenshot_b64=evidence.get("screenshot_b64"),
+                        )
+                        await save_receipt(receipt)
+                        application["receipt"] = {
+                            "verified": receipt["verified"],
+                            "confirmation_number": receipt["confirmation_number"],
+                            "confirmation_text": receipt["confirmation_text"],
+                            "ats_vendor": receipt["ats_vendor"],
+                        }
+                        if receipt["verified"]:
+                            application["status"] = "applied"
+                            _log(
+                                run_id,
+                                "APPLY",
+                                f"Submission CONFIRMED for {job['title']} @ {job['company']}"
+                                + (f" (ref {receipt['confirmation_number']})" if receipt["confirmation_number"] else ""),
+                            )
+                        elif evidence.get("success"):
+                            application["status"] = "submitted_unverified"
+                            _log(
+                                run_id,
+                                "APPLY",
+                                f"Agent finished {job['title']} @ {job['company']} but the site showed no "
+                                f"confirmation — marked unverified so you can check it yourself.",
+                            )
+                        else:
+                            application["status"] = "apply_failed"
+                            _log(
+                                run_id,
+                                "APPLY",
+                                f"Could not complete the application for {job['company']}: "
+                                f"{evidence.get('error') or 'the agent did not reach a submit step'}",
+                            )
                     except Exception as exc:
                         logger.error("Auto‑apply failed for %s: %s", job.get("company"), exc)
                         application["status"] = "apply_failed"
                         _log(run_id, "APPLY", f"Failed to auto‑apply to {job['company']}: {exc}")
+
 
                 applications.append(application)
                 _log(

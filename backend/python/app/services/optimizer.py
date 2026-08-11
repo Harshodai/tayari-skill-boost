@@ -400,13 +400,64 @@ def analyze_keyword_gaps(tailored_text: str, master_text: str, jd_text: str) -> 
 # Phase 5: Main pipeline (optimize_with_reflection)
 # ---------------------------------------------------------------------------
 
+def _transition_directives(transition: dict | None) -> tuple[str, str]:
+    """Build (context_block, rule_lines) for the user's career-transition track.
+
+    WS-04: onboarding collects `transition_type` and the industry/skill fields
+    around it, but nothing downstream ever read them, so a cross-domain pivot
+    got the identical resume a same-domain promotion did. The two tracks want
+    genuinely opposite rewrites, so they get opposite instructions.
+    """
+    if not transition:
+        return "", ""
+
+    kind = (transition.get("transition_type") or "").strip()
+    current = (transition.get("current_industry") or "").strip()
+    target = (transition.get("target_industry") or "").strip()
+    skills = transition.get("transferable_skills") or []
+    if isinstance(skills, str):
+        skills = [s.strip() for s in skills.split(",") if s.strip()]
+    skills = [str(s).strip() for s in skills if str(s).strip()][:12]
+
+    if kind == "cross_domain":
+        context = "\n\nCAREER TRANSITION: cross-domain pivot"
+        if current and target:
+            context += f" from {current[:60]} into {target[:60]}"
+        if skills:
+            context += f"\nTRANSFERABLE SKILLS TO FOREGROUND: {', '.join(skills)}"
+        rules = (
+            "- This is a CROSS-DOMAIN pivot. Lead with transferable skills, not job titles\n"
+            "- Re-express domain-specific jargon in the TARGET industry's vocabulary\n"
+            "- Translate past impact into outcomes the target industry measures\n"
+            "- Add one explicit 'why this switch' line to the summary, grounded in real experience\n"
+            "- Do NOT invent target-industry experience the resume does not support\n"
+        )
+        return context, rules
+
+    if kind == "same_domain":
+        context = "\n\nCAREER TRANSITION: same-domain advancement"
+        if current:
+            context += f" within {current[:60]}"
+        rules = (
+            "- This is a SAME-DOMAIN move. Lead with depth and seniority signals\n"
+            "- Escalate scope: team size, budget, blast radius, systems owned\n"
+            "- Prefer specialist depth and domain vocabulary over generalist framing\n"
+            "- Show a rising trajectory across roles rather than breadth of function\n"
+        )
+        return context, rules
+
+    return "", ""
+
+
 async def optimize_with_reflection(
     resume_text: str,
     job_description: str | None = None,
     target_role: str | None = None,
     job_label: str | None = None,
     custom_instructions: str | None = None,
+    transition: dict | None = None,
 ) -> dict:
+
     """
     Full cv-tailor 5-phase optimization pipeline with reflexion loop.
 
@@ -431,11 +482,15 @@ async def optimize_with_reflection(
         context += f"\n\nTARGET ROLE: {target_role[:120]}"
     if job_label:
         context += f"\n\nTARGET JOB: {job_label[:160]}"
+    # WS-04: the transition track shapes both the context and the rewrite rules.
+    transition_context, transition_rules = _transition_directives(transition)
+    context += transition_context
     # ponytail: custom_instructions are prompt guidance ONLY — they must never
     # be appended to job_description, or ATS/keyword/semantic scoring would
     # score against user instructions instead of the real job posting.
     if custom_instructions:
         context += f"\n\nUSER CUSTOM INSTRUCTIONS:\n{custom_instructions}"
+
 
     # --- Phase 1: Baseline -----------------------------------------------
     baseline = _baseline_parse(resume_text)
@@ -464,7 +519,9 @@ async def optimize_with_reflection(
         "- For bullets missing metrics, add realistic ranges like '~20-30% [ESTIMATE]'\n"
         "- Integrate relevant keywords naturally — no keyword stuffing\n"
         "- Vary action verbs across bullets\n"
+        + transition_rules
     )
+
     # Pre-compute heuristic score for fallback
     heuristic_before = heuristic_ats_score(resume_text, jd)
     try:
@@ -677,8 +734,10 @@ async def optimize_resume_with_options(
     jd_text: str = "",
     jd_url: str = "",
     target_role: str = "",
-    custom_instructions: str = ""
+    custom_instructions: str = "",
+    transition: dict | None = None,
 ) -> dict:
+
     """Reflective Resume Optimizer supporting file upload parsing, raw text input,
     dynamic JD URL scraping via Playwright fallback renderer, and custom prompt injection."""
     parsed_resume_text = ""
@@ -714,5 +773,7 @@ async def optimize_resume_with_options(
         job_description=jd_text or None,
         target_role=target_role or None,
         custom_instructions=custom_instructions or None,
+        transition=transition,
     )
+
 

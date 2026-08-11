@@ -1364,3 +1364,42 @@ irreversible action must be a separate persisted record, fingerprinted to the
 exact artifact being authorised, and checked fail-closed at the point of
 execution. Correspondingly, never let the UI assert an external side effect
 (submitted, sent, paid) that the system cannot produce evidence for.
+
+---
+
+## 2026-02-19 — WS-02 submission receipts, WS-04 transition track, WS-05 answer queue
+
+**What was done.**
+- `browser_automation/agent.py`: `AgentResult` now carries `final_screenshot`
+  and `final_url`, captured by an always-registered internal step observer that
+  wraps (and never lets an exception from) a caller-supplied `on_step`.
+- New `app/services/submission_receipt.py`: confirmation-phrase and
+  reference-number detection, ATS vendor detection, screenshot persistence,
+  resume fingerprinting, and an insert into `submission_receipts`.
+- `browser_library.Browser.apply_job_with_evidence()` returns the run's
+  evidence; the old boolean `apply_job` is now a thin wrapper over it.
+- `automation_engine.run_autopilot` derives status from the receipt:
+  `applied` only when confirmed, `submitted_unverified` when the agent finished
+  without a confirmation, `apply_failed` otherwise.
+- Go gateway loads `transition_type` / industries / transferable skills from
+  `profiles` and forwards them to the Python optimizer (WS-04's missing half).
+- New `/questions` page (`src/pages/AgentQuestions.tsx`) surfacing
+  `agent_questions`, plus sidebar entries for it and the existing `/networking`.
+
+**Root cause.** The apply path returned a single boolean, so the only thing the
+system knew about a submission was whether the agent *thought* it went well.
+Every downstream status was therefore an assertion, not an observation. WS-04's
+transition data was collected at onboarding and silently dropped at the gateway.
+
+**Fix.** Thread evidence, not verdicts, out of the automation layer, and let
+the persistence layer classify it. Detection is deliberately conservative — the
+regex set matches "we received your application" but not the "Submit
+Application" button label, so a run that merely reached the button cannot be
+promoted to verified.
+
+**Reusable lesson.** When a subsystem's output is a boolean, every consumer is
+forced to trust it and no consumer can audit it. Return the observations and
+classify centrally: it makes the honest-but-unverified state representable,
+which is the state that actually occurs most often. A corollary for data
+plumbing: a field collected in the UI and never read downstream is worse than a
+missing field, because it looks implemented.

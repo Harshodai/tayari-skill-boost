@@ -30,6 +30,12 @@ class AgentResult:
     visited_urls: List[str] = field(default_factory=list)
     actions: List[str] = field(default_factory=list)
     error: Optional[str] = None
+    # WS-02 submission receipts: evidence captured from the final step so a
+    # submission can be proven rather than asserted. `final_screenshot` is a
+    # base64 PNG when the driver exposed one.
+    final_screenshot: Optional[str] = None
+    final_url: Optional[str] = None
+
 
     def to_markdown(self) -> str:
         """Render the result as a chat-friendly markdown block."""
@@ -226,12 +232,34 @@ async def run_browser_agent(
             error=str(exc),
         )
 
+    # WS-02: always observe steps so the final screenshot/URL survive the run,
+    # even when the caller passed no callback of its own. Without this the
+    # apply path finishes with nothing but a boolean and a submission can
+    # never be proven.
+    evidence: dict = {"screenshot": None, "url": None}
+
+    def _observe(state, output, step_number):
+        shot = getattr(state, "screenshot", None)
+        if shot:
+            evidence["screenshot"] = shot
+        url = getattr(state, "url", None)
+        if url:
+            evidence["url"] = url
+        if on_step is not None:
+            try:
+                on_step(state, output, step_number)
+            except Exception as exc:  # a caller's callback must not kill the run
+                logger.warning("[BrowserAgent] on_step callback failed: %s", exc)
+
     try:
-        agent = Agent(task=instruction, llm=llm, register_new_step_callback=on_step)
+        agent = Agent(task=instruction, llm=llm, register_new_step_callback=_observe)
         history = await agent.run(max_steps=max_steps)
         result = _extract_history(history)
         result.instruction = instruction
+        result.final_screenshot = evidence["screenshot"]
+        result.final_url = evidence["url"] or (result.visited_urls[-1] if result.visited_urls else None)
         return result
+
     except Exception as exc:
         logger.error(f"[BrowserAgent] Failed step execution: {exc}")
         return AgentResult(

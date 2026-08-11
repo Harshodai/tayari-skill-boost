@@ -256,12 +256,30 @@ class OptimizerRequest(BaseModel):
     custom_instructions: Optional[str] = None
     target_role: Optional[str] = None
     jd_url: Optional[str] = None
+    # WS-04: the caller's career-transition track. Optional so existing clients
+    # keep working unchanged; when present it materially changes the rewrite.
+    transition_type: Optional[str] = None
+    current_industry: Optional[str] = None
+    target_industry: Optional[str] = None
+    transferable_skills: Optional[list[str]] = None
+
+
+def _transition_payload(payload: "OptimizerRequest") -> Optional[dict]:
+    if payload.transition_type not in ("same_domain", "cross_domain"):
+        return None
+    return {
+        "transition_type": payload.transition_type,
+        "current_industry": payload.current_industry,
+        "target_industry": payload.target_industry,
+        "transferable_skills": payload.transferable_skills or [],
+    }
 
 
 @app.post("/api/v1/optimizer/optimize")
 async def optimize_resume(payload: OptimizerRequest):
     """AI-powered resume optimization with reflexion loop."""
     try:
+        transition = _transition_payload(payload)
         if payload.jd_url:
             # ponytail: SSRF guard — run the same public-URL validation as the
             # job-descriptions/import path before the scraper sees the URL; the
@@ -275,6 +293,7 @@ async def optimize_resume(payload: OptimizerRequest):
                 jd_url=safe_url,
                 target_role=payload.target_role,
                 custom_instructions=payload.custom_instructions or "",
+                transition=transition,
             )
         else:
             result = await optimizer.optimize_with_reflection(
@@ -282,7 +301,12 @@ async def optimize_resume(payload: OptimizerRequest):
                 job_description=payload.job_description,
                 target_role=payload.target_role,
                 custom_instructions=payload.custom_instructions,
+                transition=transition,
             )
+        if transition:
+            result["transition_mode"] = transition["transition_type"]
+        return result
+
         return result
     except LLMNotConfiguredError as exc:
         logger.error("optimizer/optimize: LLM not configured/available: %s", exc)
