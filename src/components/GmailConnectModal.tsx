@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Mail, CheckCircle2, AlertCircle, Lock, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog';
 import { getGmailLogin, getGmailStatus } from '@/api/dashboard';
 
@@ -12,7 +11,6 @@ interface GmailConnectModalProps {
 }
 
 export const GmailConnectModal: React.FC<GmailConnectModalProps> = ({ isOpen, onClose, onConnected }) => {
-  const [emailInput, setEmailInput] = useState('');
   const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
   const [step, setStep] = useState<1 | 2 | 'error' | 'verifying'>(1);
   const [loading, setLoading] = useState(false);
@@ -60,18 +58,7 @@ export const GmailConnectModal: React.FC<GmailConnectModalProps> = ({ isOpen, on
     }
   };
 
-  const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
   const handleConnect = async () => {
-    if (!validateEmail(emailInput)) {
-      setErrorMessage('Please enter a valid email address');
-      setStep('error');
-      return;
-    }
-
     setLoading(true);
     setErrorMessage(null);
 
@@ -124,27 +111,15 @@ export const GmailConnectModal: React.FC<GmailConnectModalProps> = ({ isOpen, on
             </DialogHeader>
 
             <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label htmlFor="gmail-email" className="text-xs font-semibold text-slate-300">
-                  Candidate Email Address
-                </label>
-                <Input
-                  id="gmail-email"
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  placeholder="candidate@gmail.com"
-                  className="bg-slate-950 border-slate-800 text-xs font-mono"
-                  disabled={loading}
-                  autoComplete="email"
-                />
-              </div>
-
               <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 space-y-2 text-xs text-slate-400">
                 <div className="flex items-center gap-2 text-slate-200 font-semibold">
                   <Lock className="w-4 h-4 text-emerald-400" /> Read-Only Permission Guarantee
                 </div>
                 <p>
-                  Tayari requests strictly <code>gmail.readonly</code> scope. Your emails are parsed locally for interview detection and never stored or shared.
+                  Google&apos;s <code>gmail.readonly</code> permission is read-only, but it can allow the connected application to read mailbox messages. Tayari uses an interview-focused search after connection; it is not a mailbox-limited Google permission. Connect only if you accept the Google consent screen.
+                </p>
+                <p>
+                  This connector is beta. Before a broad release, it needs candidate-visible query and time-window controls, retention details, disconnect, and deletion controls. Do not connect a mailbox you are not comfortable granting read-only access to.
                 </p>
               </div>
 
@@ -153,7 +128,7 @@ export const GmailConnectModal: React.FC<GmailConnectModalProps> = ({ isOpen, on
                 disabled={loading}
                 className="w-full bg-blue-600 hover:bg-blue-500 font-bold text-white"
               >
-                {loading ? "Initiating OAuth..." : "Authorize Gmail OAuth Access"}
+                {loading ? "Opening Google consent..." : "Review Gmail consent"}
               </Button>
             </div>
           </>
@@ -175,7 +150,7 @@ export const GmailConnectModal: React.FC<GmailConnectModalProps> = ({ isOpen, on
             <div className="space-y-1">
               <h2 className="text-lg font-bold text-emerald-400">Gmail Connected Successfully</h2>
               <p className="text-xs text-slate-400">
-                Connected <code>{verifiedEmail || emailInput}</code> with read-only interview classification.
+                Connected <code>{verifiedEmail || 'verified Gmail account'}</code>. Interview classification remains read-only and beta; review your connected-data controls before relying on it for a hiring process.
               </p>
             </div>
             <Button onClick={handleClose} className="w-full bg-slate-800 hover:bg-slate-700 font-semibold">

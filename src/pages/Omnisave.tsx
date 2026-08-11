@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Layout } from '@/components/layout';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { BookOpen, Search, Sparkles, ExternalLink, Bookmark, Filter, Layers, MessageSquare, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
+import { BookOpen, Search, Sparkles, ExternalLink, Layers, MessageSquare, Loader2, AlertCircle, ShieldCheck } from 'lucide-react';
 import { queryKnowledgeHub, fetchSavedArticles, syncSavedPosts, SavedArticleItem } from '@/api/ai';
 import { BackendUnavailableBanner } from '@/components/BackendUnavailableBanner';
 import { useBackendHealth } from '@/hooks/useBackendHealth';
@@ -17,7 +17,6 @@ export default function Omnisave() {
   const [qaInput, setQaInput] = useState<string>('');
   const [qaResponse, setQaResponse] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [syncing, setSyncing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadArticles = async () => {
@@ -38,25 +37,6 @@ export default function Omnisave() {
   useEffect(() => {
     loadArticles();
   }, []);
-
-  const handleSyncAgentReach = async () => {
-    if (backendUnavailable) return;
-    setSyncing(true);
-    setError(null);
-    try {
-      const res = await syncSavedPosts(['substack', 'medium', 'linkedin']);
-      if (res.sources && res.sources.length > 0) {
-        setArticles(res.sources);
-      } else {
-        await loadArticles();
-      }
-    } catch (err) {
-      await refetchHealth().catch(() => null);
-      setError('Failed to sync saved posts. Please check your connection and try again.');
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   // Categories come from what has actually been ingested — no dead filter pills.
   const categories = [
@@ -93,7 +73,7 @@ export default function Omnisave() {
       }
     } catch (err) {
       await refetchHealth().catch(() => null);
-      setError('Failed to extract article via Tayari Computer Sandbox. Please verify URL and try again.');
+      setError("Couldn't import this link. Check that it is a public article URL and try again.");
     } finally {
       setIngesting(false);
     }
@@ -131,51 +111,34 @@ export default function Omnisave() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-4 gap-4">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight flex items-center gap-3">
-              <Layers className="w-8 h-8 text-purple-400" /> Omnisave AI Knowledge Vector Dashboard
+              <Layers className="w-8 h-8 text-purple-400" /> Omnisave Career Reading
             </h1>
-            <p className="text-xs text-slate-400">Ingest, vector index, and query saved articles across Substack, Medium, and LinkedIn via Tayari Computer Sandbox</p>
+            <p className="text-xs text-slate-400">Save public article links you choose, organize them with AI, and ask questions with linked source citations.</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge className="bg-orange-950 text-orange-300 border-orange-800">Substack Sync</Badge>
-            <Badge className="bg-emerald-950 text-emerald-300 border-emerald-800">Medium Sync</Badge>
-            <Badge className="bg-blue-950 text-blue-300 border-blue-800">LinkedIn Sync</Badge>
-            <Button
-              onClick={handleSyncAgentReach}
-              disabled={syncing || backendUnavailable}
-              size="sm"
-              className="bg-purple-700 hover:bg-purple-600 text-white font-bold text-xs flex items-center gap-1.5 ml-2"
-              aria-label={syncing ? 'Syncing saved posts via Agent Reach' : 'Sync saved posts from Substack, Medium, and LinkedIn'}
-            >
-              {syncing ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Syncing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Sync Agent Reach
-                </>
-              )}
-            </Button>
+            <Badge className="border-orange-800 bg-orange-950 text-orange-300">Substack link import</Badge>
+            <Badge className="border-emerald-800 bg-emerald-950 text-emerald-300">Medium link import</Badge>
+            <Badge className="border-blue-800 bg-blue-950 text-blue-300">LinkedIn link import</Badge>
           </div>
         </div>
 
-        {/* Dynamic Tayari Computer Extraction Bar */}
+        <Card className="border-amber-800/70 bg-amber-950/30 p-4 text-xs leading-relaxed text-amber-100"><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" /><p><strong>Import scope:</strong> Omnisave currently imports public article URLs that you paste. It does not connect to or enumerate your saved-post lists on Substack, Medium, or LinkedIn. LinkedIn saved items require an authorized integration or a user-provided export before that promise can be made.</p></div></Card>
+
+        {/* Candidate-selected public article URL import */}
         <Card className="bg-slate-900/80 border-slate-800 p-4 flex flex-col sm:flex-row items-center gap-3">
           <Input
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="Paste Substack, Medium, or LinkedIn article URL for Tayari Computer extraction..."
+            placeholder="Paste a public Substack, Medium, LinkedIn, or other article URL..."
             className="bg-slate-950 border-slate-800 text-xs font-mono flex-1"
-            aria-label="Target article URL for Tayari Computer extraction"
+            aria-label="Public article URL to import"
             disabled={backendUnavailable}
           />
           <Button
             onClick={handleIngestUrl}
             disabled={ingesting || !urlInput.trim() || backendUnavailable}
             className="bg-purple-600 hover:bg-purple-500 font-bold text-xs px-5 w-full sm:w-auto"
-            aria-label={ingesting ? 'Extracting article via Tayari Computer Sandbox' : 'Extract and ingest article'}
+            aria-label={ingesting ? 'Importing article' : 'Import article'}
           >
             {ingesting ? (
               <>
@@ -237,8 +200,7 @@ export default function Omnisave() {
               <div>
                 <p className="font-medium text-slate-100">Nothing saved yet</p>
                 <p className="text-xs text-slate-400">
-                  Paste an article URL above, or sync your Substack and Medium feeds.
-                  LinkedIn has no saved-items API — upload your official data export instead.
+                  Paste a public article URL above to begin. Account-level saved-post synchronization is not connected; LinkedIn saved items require an authorized integration or your official data export.
                 </p>
               </div>
             </CardContent>
@@ -280,7 +242,7 @@ export default function Omnisave() {
         <Card className="bg-slate-900 border-purple-900/60 text-slate-100 p-6 space-y-4 shadow-xl shadow-purple-950/40">
           <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
             <MessageSquare className="w-5 h-5 text-purple-400" />
-            <h3 className="text-lg font-bold">Ask Omnisave RAG Knowledge Base</h3>
+            <h3 className="text-lg font-bold">Ask your saved career reading</h3>
           </div>
 
           <div className="flex gap-3">
@@ -295,7 +257,7 @@ export default function Omnisave() {
               onClick={handleAskRAG}
               disabled={loading || backendUnavailable}
               className="bg-purple-600 hover:bg-purple-500 font-bold px-6"
-              aria-label={loading ? 'Querying knowledge base, please wait' : 'Query RAG knowledge base'}
+              aria-label={loading ? 'Searching saved reading, please wait' : 'Ask saved reading'}
             >
               {loading ? (
                 <>
@@ -303,7 +265,7 @@ export default function Omnisave() {
                   Querying...
                 </>
               ) : (
-                'Query RAG'
+                'Ask sources'
               )}
             </Button>
           </div>

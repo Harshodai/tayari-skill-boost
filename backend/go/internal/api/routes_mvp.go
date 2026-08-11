@@ -21,6 +21,22 @@ import (
 	"github.com/google/uuid"
 )
 
+// Application status is user-visible career data. Keep the public API from accepting
+// arbitrary labels that would make analytics and the review queue unreliable.
+var allowedApplicationStatuses = map[string]struct{}{
+	"draft": {}, "saved": {}, "review": {}, "approved": {}, "ready": {},
+	"applied": {}, "submitted": {}, "screening": {}, "phone_screen": {},
+	"interview": {}, "interviewing": {}, "technical_interview": {}, "onsite": {},
+	"responded": {}, "offer": {}, "accepted": {}, "rejected": {},
+	"withdrawn": {}, "archived": {}, "failed": {}, "ghost": {},
+}
+
+func normalizeApplicationStatus(status string) (string, bool) {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	_, allowed := allowedApplicationStatuses[normalized]
+	return normalized, allowed
+}
+
 // -------------------------------------------------------------------
 // Profile
 // -------------------------------------------------------------------
@@ -544,6 +560,18 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 	if req.Status == "" {
 		req.Status = "saved"
 	}
+	var validStatus bool
+	req.Status, validStatus = normalizeApplicationStatus(req.Status)
+	if !validStatus {
+		s.respondError(w, http.StatusBadRequest, "status is not a supported application stage")
+		return
+	}
+	// "applied" is candidate-reported unless an external receipt service has
+	// independently verified it. Require a deliberate mode so an omitted field
+	// cannot accidentally inflate the applied metric.
+	if req.Status == "applied" && strings.TrimSpace(req.SubmissionMode) == "" {
+		req.SubmissionMode = "manual"
+	}
 	if req.Job == nil {
 		req.Job = map[string]interface{}{}
 	}
@@ -568,7 +596,16 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 		s.incrementBanditPull(r.Context(), *req.ResumeVariantID)
 	}
 
-	s.respondJSON(w, http.StatusCreated, map[string]interface{}{"id": id, "application_id": appID, "status": req.Status})
+	s.respondJSON(w, http.StatusCreated, map[string]interface{}{
+		"id": id, "application_id": appID, "status": req.Status,
+		"submission_mode": req.SubmissionMode,
+		"submission_notice": func() string {
+			if req.Status == "applied" && req.SubmissionMode == "manual" {
+				return "This is candidate-reported as applied. It is not an externally verified ATS receipt."
+			}
+			return ""
+		}(),
+	})
 }
 
 func (s *Server) handleListApplications(w http.ResponseWriter, r *http.Request) {
@@ -693,6 +730,12 @@ func (s *Server) handleUpdateApplication(w http.ResponseWriter, r *http.Request)
 		s.respondError(w, http.StatusBadRequest, "status is required")
 		return
 	}
+	var validStatus bool
+	req.Status, validStatus = normalizeApplicationStatus(req.Status)
+	if !validStatus {
+		s.respondError(w, http.StatusBadRequest, "status is not a supported application stage")
+		return
+	}
 
 	tx, err := s.DB.Conn.BeginTx(r.Context(), nil)
 	if err != nil {
@@ -703,12 +746,21 @@ func (s *Server) handleUpdateApplication(w http.ResponseWriter, r *http.Request)
 
 	// 1. Fetch current status and resume_variant_id with FOR UPDATE lock
 	var currentStatus string
-	var currentStage sql.NullString
+	var currentStage, currentSubmissionMode sql.NullString
 	var variantID sql.NullInt64
-	checkQuery := `SELECT status, stage, resume_variant_id FROM applications WHERE (application_id::text = $1 OR id::text = $1) AND user_id = $2 FOR UPDATE`
-	err = tx.QueryRowContext(r.Context(), checkQuery, appIDStr, user.ID).Scan(&currentStatus, &currentStage, &variantID)
+	checkQuery := `SELECT status, stage, resume_variant_id, submission_mode FROM applications WHERE (application_id::text = $1 OR id::text = $1) AND user_id = $2 FOR UPDATE`
+	err = tx.QueryRowContext(r.Context(), checkQuery, appIDStr, user.ID).Scan(&currentStatus, &currentStage, &variantID, &currentSubmissionMode)
 	if err != nil {
 		s.respondError(w, http.StatusNotFound, "Application not found")
+		return
+	}
+
+	// A generic kanban update cannot be the mechanism that asserts a real
+	// external application. The dedicated review/submission path records the
+	// candidate's chosen submission mode, while the receipt service can add
+	// verified evidence when it exists.
+	if req.Status == "applied" && (!currentSubmissionMode.Valid || strings.TrimSpace(currentSubmissionMode.String) == "") {
+		s.respondError(w, http.StatusConflict, "Cannot mark this application as applied without a submission record. Use the review queue or record a manual submission first.")
 		return
 	}
 
@@ -2076,9 +2128,9 @@ func (s *Server) handleAgentReachDoctor(w http.ResponseWriter, r *http.Request) 
 	// index.html) and cannot see backend payload strings — keep this
 	// platform_name in sync with it manually.
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"total_channels": 15,
-		"active_channels": 15,
-		"platform_name": "Job Tayari Candidate Intelligence Suite",
+		"total_channels":           15,
+		"active_channels":          15,
+		"platform_name":            "Job Tayari Candidate Intelligence Suite",
 		"browser_cookies_detected": []string{"chrome", "edge", "firefox", "brave", "safari"},
 		"channels": []map[string]interface{}{
 			{"channel": "github", "label": "GitHub Portfolios & PRs", "active": true, "status": "ok", "backend": "gh CLI", "latency_ms": 45},
@@ -2108,9 +2160,9 @@ func (s *Server) handleAgentReachExtract(w http.ResponseWriter, r *http.Request)
 	result, err := s.AI.PostJSON("/api/v1/hermes/extract", body)
 	if err != nil || result == nil {
 		s.respondJSON(w, http.StatusOK, map[string]interface{}{
-			"status": "extracted",
+			"status":           "extracted",
 			"skills_extracted": []string{"System Architecture", "Redis", "Kafka", "Docker"},
-			"summary": "High-scale backend engineering patterns",
+			"summary":          "High-scale backend engineering patterns",
 		})
 		return
 	}
@@ -2120,9 +2172,9 @@ func (s *Server) handleAgentReachExtract(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleListAnalysisHistory(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, http.StatusOK, []map[string]interface{}{
 		{
-			"id": 1,
-			"resume_id": 1,
-			"score": 88,
+			"id":         1,
+			"resume_id":  1,
+			"score":      88,
 			"created_at": "2026-07-24T00:00:00Z",
 		},
 	})
@@ -2295,5 +2347,3 @@ func (s *Server) routesMVP(r chi.Router) {
 		r.Post("/api/user/account/delete", s.handleDeleteAccount)
 	})
 }
-
-

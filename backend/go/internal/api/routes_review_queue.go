@@ -576,6 +576,10 @@ func (s *Server) handleSubmitApplication(w http.ResponseWriter, r *http.Request)
 	if req.SubmissionMode == "" {
 		req.SubmissionMode = "manual"
 	}
+	if req.SubmissionMode != "manual" && req.SubmissionMode != "assisted" {
+		s.respondError(w, http.StatusBadRequest, "submission_mode must be 'manual' or 'assisted'")
+		return
+	}
 
 	res, err := s.DB.Conn.ExecContext(r.Context(), `
 		UPDATE applications 
@@ -592,8 +596,9 @@ func (s *Server) handleSubmitApplication(w http.ResponseWriter, r *http.Request)
 	}
 
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"application_id": appIDStr,
-		"status":         "applied",
-		"message":        "Application submitted successfully",
+		"application_id":  appIDStr,
+		"status":          "applied",
+		"submission_mode": req.SubmissionMode,
+		"message":         "Application recorded as candidate-confirmed. This is not an externally verified ATS submission receipt.",
 	})
 }

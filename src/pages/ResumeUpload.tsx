@@ -47,6 +47,7 @@ const ResumeUpload = () => {
   const [resumeText, setResumeText] = useState<string>("");
   const [parsingError, setParsingError] = useState<string | null>(null);
   const [jobDescription, setJobDescription] = useState("");
+  const [jobDescriptionSource, setJobDescriptionSource] = useState<'pasted' | 'imported' | null>(null);
   const [jobPostUrl, setJobPostUrl] = useState("");
   const [isImportingJobDescription, setIsImportingJobDescription] = useState(false);
   const [customInstructions, setCustomInstructions] = useState("");
@@ -173,6 +174,7 @@ const ResumeUpload = () => {
           jobDescription,
           customInstructions,
           jobPostUrl,
+          jobDescriptionSource,
         },
       });
     } catch (err) {
@@ -197,6 +199,7 @@ const ResumeUpload = () => {
     try {
       const text = await navigator.clipboard.readText();
       setJobDescription(text);
+      setJobDescriptionSource('pasted');
     } catch (err) {
       console.error("Failed to paste from clipboard");
     }
@@ -216,7 +219,8 @@ const ResumeUpload = () => {
     try {
       const imported = await importJobDescription(url);
       setJobDescription(imported.job_description);
-      toast.success("Job description imported.");
+      setJobDescriptionSource('imported');
+      toast.success("Job description imported. Review and edit it before analysis.");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to import the job description.";
       setError(message);
@@ -343,7 +347,7 @@ const ResumeUpload = () => {
             Resume Optimizer
           </h1>
           <p className="text-muted-foreground text-lg">
-            Upload your resume and paste the job description to get AI-powered suggestions for improvement.
+            Upload or paste your resume, then paste a job description or import it from a public job link. Review every suggestion before using it.
           </p>
         </div>
 
@@ -397,7 +401,7 @@ const ResumeUpload = () => {
                   </div>
                   <div>
                     <CardTitle className="text-lg">Job Description</CardTitle>
-                    <CardDescription>Paste the target job posting</CardDescription>
+                    <CardDescription>Paste the target posting or import readable text from one public job link</CardDescription>
                   </div>
                 </div>
                 <Button variant="ghost" size="sm" onClick={handlePaste}>
@@ -442,13 +446,16 @@ Include:
 • Responsibilities
 • Nice-to-have requirements"
                 value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
+                onChange={(e) => {
+                  setJobDescription(e.target.value);
+                  setJobDescriptionSource('pasted');
+                }}
                 className="min-h-[200px] resize-none"
               />
-              <p className="text-muted-foreground text-sm mt-2">
-                {jobDescription.length} characters
-                {jobDescription.length < 50 && " (minimum 50 required)"}
-              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span>{jobDescription.length} characters{jobDescription.length < 50 && " (minimum 50 required)"}</span>
+                {jobDescriptionSource && <span className="rounded-full border border-border px-2 py-0.5 text-xs">Source: {jobDescriptionSource === 'imported' ? 'public link — review before continuing' : 'pasted or edited by you'}</span>}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -556,7 +563,7 @@ Examples:
                       className="min-h-[120px] resize-none"
                     />
                     <p className="text-muted-foreground text-xs">
-                      Optional: Provide context or specific focus areas for better results
+                      Optional: These instructions guide emphasis and tone. They do not authorize the system to invent employers, titles, dates, metrics, credentials, or work authorization.
                     </p>
                   </div>
                 </CardContent>
@@ -575,7 +582,7 @@ Examples:
             className="min-w-[250px]"
           >
             <Sparkles className="w-5 h-5 mr-2" />
-            Analyze Resume
+            Generate review
             <ArrowRight className="w-5 h-5 ml-2" />
           </Button>
         </div>

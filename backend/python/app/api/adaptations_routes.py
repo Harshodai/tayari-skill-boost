@@ -168,9 +168,17 @@ def negotiation_script_endpoint(req: NegotiationRequest):
 
 @adaptations_router.post("/squad-run")
 async def squad_run_endpoint(req: SquadRunRequest):
-    """Run collaborative multi-agent squad workflow."""
+    """Produce an approval-required multi-agent resume review package.
+
+    This endpoint does not search external portals, control a browser, or submit
+    an application. Its completed state means the returned artifacts are ready
+    for candidate review.
+    """
     orchestrator = AgentSquadOrchestrator()
-    return await orchestrator.execute_squad_workflow(req.resume_text, req.jd_text, req.company, req.role)
+    try:
+        return await orchestrator.execute_squad_workflow(req.resume_text, req.jd_text, req.company, req.role)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 class SemanticRoleMatchRequest(BaseModel):
