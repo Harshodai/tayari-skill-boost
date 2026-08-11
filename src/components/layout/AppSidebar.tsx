@@ -51,6 +51,7 @@ const primaryItems = (): Item[] => [
 ];
 
 const moreItems = (): Item[] => [
+  { title: "Outcomes", url: "/outcomes", icon: TrendingUp, enabled: true },
   { title: "AutoPilot", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
   { title: "Agent questions", url: "/questions", icon: HelpCircle, enabled: features.jobSearch },
   { title: "Networking", url: "/networking", icon: Users, enabled: true },

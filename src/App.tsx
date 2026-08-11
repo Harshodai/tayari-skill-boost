@@ -23,6 +23,7 @@ const Onboarding = lazy(() => import('./pages/Onboarding'));
 const Auth = lazy(() => import('./pages/Auth'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Pipeline = lazy(() => import('./pages/Pipeline'));
+const Outcomes = lazy(() => import('./pages/Outcomes'));
 const PetInsights = lazy(() => import('./pages/PetInsights'));
 const Settings = lazy(() => import('./pages/Settings'));
 const ResumeUpload = lazy(() => import('./pages/ResumeUpload'));
@@ -199,6 +200,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Pipeline />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/outcomes"
+                element={
+                  <ProtectedRoute>
+                    <Outcomes />
                   </ProtectedRoute>
                 }
               />
