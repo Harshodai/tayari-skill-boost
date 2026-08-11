@@ -312,7 +312,11 @@ async def run_browser_agent(
 
 
 
-async def stream_browser_agent(instruction: str, max_steps: int = DEFAULT_MAX_STEPS):
+async def stream_browser_agent(
+    instruction: str,
+    max_steps: int = DEFAULT_MAX_STEPS,
+    run_id: Optional[str] = None,
+):
     """Async generator of SSE events for the Glass-Box live browser feed.
 
     Yields dicts: {"type": "screenshot", "data": <base64 png>, "step": n,
@@ -340,6 +344,8 @@ async def stream_browser_agent(instruction: str, max_steps: int = DEFAULT_MAX_ST
     queue: asyncio.Queue = asyncio.Queue()
 
     def on_step(state, output, step_number):
+        if is_cancelled(run_id):
+            raise RunCancelled(run_id or "")
         event = {"type": "screenshot", "step": step_number}
         screenshot = getattr(state, "screenshot", None)
         if screenshot:
@@ -352,16 +358,23 @@ async def stream_browser_agent(instruction: str, max_steps: int = DEFAULT_MAX_ST
             event["title"] = title
         queue.put_nowait(event)
 
+    session = await open_session(run_id)
+    if session.live_view_url:
+        yield {"type": "live_view", "url": session.live_view_url}
+
     async def run_agent():
         try:
-            agent = Agent(task=instruction, llm=llm, register_new_step_callback=on_step)
+            agent = _build_agent(Agent, instruction, llm, on_step, session)
             history = await agent.run(max_steps=max_steps)
             result = _extract_history(history)
             result.instruction = instruction
             queue.put_nowait({"type": "result", "result": result})
+        except RunCancelled:
+            queue.put_nowait({"type": "error", "error": "cancelled", "message": "Run stopped by the user."})
         except Exception as exc:
             logger.error(f"[BrowserAgent] Failed step execution: {exc}")
             queue.put_nowait({"type": "error", "error": "browser_agent_failed", "message": str(exc)})
+
 
     task = asyncio.create_task(run_agent())
     try:
