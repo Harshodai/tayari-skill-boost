@@ -223,6 +223,14 @@ const App = () => (
                 }
               />
               <Route
+                path="/admin/analytics"
+                element={
+                  <ProtectedRoute>
+                    <RouteInsights />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/analytics"
                 element={
                   <ProtectedRoute>
@@ -230,6 +238,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/settings"
                 element={
