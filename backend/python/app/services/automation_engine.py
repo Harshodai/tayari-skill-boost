@@ -45,6 +45,9 @@ from app.services.job_agent import smart_search
 from app.services.job_providers import search_jobs
 from app.services.optimizer import optimize_with_reflection
 from app.services.job_application_automation import apply_job
+from app.services.browser_library import Browser
+from app.services.submission_receipt import build_receipt, save_receipt
+
 from app.guardrails.gate import PipelineGate
 
 logger = logging.getLogger(__name__)
