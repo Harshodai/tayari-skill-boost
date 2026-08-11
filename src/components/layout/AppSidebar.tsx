@@ -50,6 +50,9 @@ const primaryItems = (): Item[] => [
 
 const moreItems = (): Item[] => [
   { title: "AutoPilot", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
+  { title: "Agent questions", url: "/questions", icon: HelpCircle, enabled: features.jobSearch },
+  { title: "Networking", url: "/networking", icon: Users, enabled: true },
+
   { title: "Cover letters", url: "/cover-letter", icon: Mail, enabled: features.coverLetter },
   { title: "Knowledge hub", url: "/knowledge-hub", icon: BookOpen, enabled: features.knowledgeHub },
   { title: "Career radar", url: "/career-ops", icon: Terminal, enabled: features.careerOps },
