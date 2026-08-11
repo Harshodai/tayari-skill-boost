@@ -120,11 +120,19 @@ class OmnisaveService:
                         }
                         return {"inserted": False, "source": canonical_source, "chunks_created": 0}
                     for chunk in chunks:
+                        # WS-07: persist the real embedding so retrieval can be
+                        # semantic. NULL only when the embedding model is absent.
+                        vector = chunk.get("embedding")
+                        vector_literal = (
+                            "[" + ",".join(str(float(v)) for v in vector) + "]"
+                            if vector
+                            else None
+                        )
                         await conn.execute(
                             """
                             INSERT INTO public.source_chunks
                                 (id, source_id, user_id, chunk_index, chunk_content, embedding)
-                            VALUES ($1, $2, $3, $4, $5, NULL)
+                            VALUES ($1, $2, $3, $4, $5, $6::vector)
                             ON CONFLICT DO NOTHING
                             """,
                             uuid_lib.UUID(chunk["id"]),
@@ -132,6 +140,7 @@ class OmnisaveService:
                             user_uuid,
                             chunk["chunk_index"],
                             chunk["chunk_content"],
+                            vector_literal,
                         )
                     return {"inserted": True, "source": source_obj, "chunks_created": len(chunks)}
         except Exception as exc:
@@ -242,16 +251,16 @@ class OmnisaveService:
             "raw_content": raw_content,
             "clean_markdown": f"# {title}\n*By {author} ({platform.title()})*\n\n{raw_content}",
             "primary_category": category,
-            "summary_bullets": summary_bullets or [
-                f"Key insight extracted from {author} on {platform.title()}.",
-                "Vector indexed into Omnisave AI Hybrid RAG Engine."
-            ],
+            # WS-07: no fabricated "insight" bullets. If no real summary was
+            # produced, say nothing rather than inventing one.
+            "summary_bullets": summary_bullets or [],
             "saved_at": datetime.now(timezone.utc).isoformat()
         }
         self.saved_sources.append(source_obj)
 
         # Compute chunks
         segments = self.chunk_text(raw_content)
+        vectors = await self._embed(segments)
         chunk_objs = []
         for idx, seg in enumerate(segments):
             chunk_obj = {
@@ -260,7 +269,7 @@ class OmnisaveService:
                 "user_id": user_id,
                 "chunk_index": idx,
                 "chunk_content": seg,
-                "embedding": None,
+                "embedding": vectors[idx] if vectors and idx < len(vectors) else None,
             }
             self.source_chunks.append(chunk_obj)
             chunk_objs.append(chunk_obj)
@@ -453,6 +462,63 @@ class OmnisaveService:
             logger.warning("[Omnisave] Failed to load source chunks from DB: %s", exc)
             return []
 
+    @staticmethod
+    async def _embed(texts: List[str]) -> Optional[List[List[float]]]:
+        """Embed texts off the event loop. Returns None when unavailable."""
+        if not texts:
+            return None
+        try:
+            from app.services.embedding_service import embed_texts
+
+            return await asyncio.to_thread(embed_texts, list(texts))
+        except Exception as exc:  # noqa: BLE001 — embeddings are best-effort
+            logger.warning("[Omnisave] Embedding failed: %s", exc)
+            return None
+
+    async def _load_relevant_chunks_db(
+        self, query: str, user_id: str, top_k: int
+    ) -> List[Dict[str, Any]]:
+        """pgvector cosine top-k for the user's chunks. Empty list on any miss."""
+        vectors = await self._embed([query])
+        if not vectors or not vectors[0]:
+            return []
+        query_literal = "[" + ",".join(str(float(v)) for v in vectors[0]) + "]"
+        try:
+            pool = await get_pool()
+            if pool is None:
+                return []
+            user_uuid = uuid_lib.UUID(user_id)
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT c.id AS chunk_id, c.source_id, c.chunk_index, c.chunk_content,
+                           s.title, s.author, s.canonical_url
+                    FROM public.source_chunks c
+                    JOIN public.saved_sources s ON s.id = c.source_id
+                    WHERE c.user_id = $1 AND c.embedding IS NOT NULL
+                    ORDER BY c.embedding <=> $2::vector
+                    LIMIT $3
+                    """,
+                    user_uuid,
+                    query_literal,
+                    top_k,
+                )
+        except Exception as exc:  # noqa: BLE001 — fall back to recency
+            logger.warning("[Omnisave] Vector retrieval failed: %s", exc)
+            return []
+        return [
+            {
+                "id": str(row["chunk_id"]),
+                "source_id": str(row["source_id"]),
+                "chunk_index": row.get("chunk_index", 0),
+                "chunk_content": row["chunk_content"],
+                "title": row["title"],
+                "author": row["author"],
+                "canonical_url": row["canonical_url"],
+            }
+            for row in rows
+        ]
+
     async def _load_user_chunks_db(self, user_id: str, top_k: int) -> List[Dict[str, Any]]:
         """Read the user's most recent chunks from Postgres as a fallback.
 
@@ -503,13 +569,13 @@ class OmnisaveService:
         """
         Build RAG response with inline citations referencing indexed chunks ([Source 1], [Source 2]).
 
-        Retrieval is recency-based: the user's most recently created chunks are
-        loaded (up to ``top_k``) and passed to the LLM as context. Chunks are
-        not relevance-ranked or semantically matched against the query.
+        Retrieval is semantic: the query is embedded and matched against the
+        user's chunk embeddings with pgvector cosine distance. When embeddings
+        are unavailable the recency-ordered loader is used as a fallback.
         """
-        # ponytail: read from DB first for user-filtered persistence; fall back to
-        # the in-memory store scoped to this user.
-        matched_chunks = await self._load_user_chunks_db(user_id, top_k)
+        matched_chunks = await self._load_relevant_chunks_db(query, user_id, top_k)
+        if not matched_chunks:
+            matched_chunks = await self._load_user_chunks_db(user_id, top_k)
         if not matched_chunks:
             matched_chunks = [c for c in self.source_chunks if c.get("user_id") == user_id][:top_k]
         if not matched_chunks:
