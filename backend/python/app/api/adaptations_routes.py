@@ -207,26 +207,4 @@ def hybrid_job_search_endpoint(req: HybridJobSearchRequest):
         raise HTTPException(status_code=400, detail=f"Invalid hybrid job search inputs: {exc}") from exc
 
 
-class EndToEndPipelineRequest(BaseModel):
-    target_role: str = Field(..., example="Data Engineer")
-    job_title: str = Field(..., example="Analytics Platform Wrangler")
-    job_description: str = Field(..., example="Building PySpark, Airflow, and Snowflake pipelines.")
-    candidate_skills: List[str] = Field(..., example=["Python", "SQL", "Airflow"])
-    company_name: Optional[str] = Field("Target Corp", example="Target Corp")
-
-
-@adaptations_router.post("/end-to-end-pipeline")
-def end_to_end_pipeline_endpoint(req: EndToEndPipelineRequest):
-    """Execute end-to-end autonomous job application workflow."""
-    from app.services.end_to_end_pipeline import EndToEndPipelineEngine
-    return EndToEndPipelineEngine.process_job_application(
-        target_role=req.target_role,
-        job_title=req.job_title,
-        job_description=req.job_description,
-        candidate_skills=req.candidate_skills,
-        verified_candidate_facts=req.candidate_skills,
-        company_name=req.company_name or "Target Corp"
-    )
-
-
 

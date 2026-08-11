@@ -6,7 +6,7 @@ import uuid as uuid_lib
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
-from app.services.autopilot_graph import _untrusted
+from app.services.prompt_safety import untrusted as _untrusted
 from app.services.db import get_pool
 from app.services.llm_service import llm_complete
 

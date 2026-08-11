@@ -34,7 +34,9 @@ from pydantic import BaseModel, Field
 from app.services.approval_gate import is_approved as _approval_granted, request_approval as _queue_approval
 from app.services.ats_engine import heuristic_ats_score
 from app.services.grounding import claims_supported as _claims_supported
+from app.services.posting_screen import CLEARED as _SCREEN_CLEARED, screen_posting as _screen_posting
 from app.services.resume_parser import parse_resume
+
 from app.services.db import (
     append_log as _db_append_log,
     create_agent_run as _db_create_agent_run,
@@ -340,7 +342,26 @@ async def run_autopilot(
             j["_priority"] = base + (25 if j["is_dream_company"] else 0)
         all_jobs.sort(key=lambda x: -x["_priority"])
         max_apps = min(int(config.get("max_applications", 3)), 5)
-        selected = all_jobs[:max_apps]
+
+        # WS-08 posting screen (merged from the deleted end_to_end_pipeline):
+        # ghost-job risk + role-intent match, both fail-closed, run before we
+        # spend tailoring budget on a fake or mismatched posting.
+        target_role = (job_titles[0] or "") if job_titles else ""
+        selected = []
+        for j in all_jobs:
+            if len(selected) >= max_apps:
+                break
+            screen = _screen_posting(target_role, j.get("title", ""), j.get("description", "") or "")
+            j["posting_screen"] = screen
+            if screen["status"] != _SCREEN_CLEARED:
+                _log(
+                    run_id,
+                    "SELECT",
+                    f"Skipped {j.get('title')} @ {j.get('company')} — {screen['reason']}",
+                )
+                continue
+            selected.append(j)
+
         dream_hits = sum(1 for j in selected if j.get("is_dream_company"))
         _log(
             run_id,

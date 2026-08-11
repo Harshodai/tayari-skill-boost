@@ -708,7 +708,7 @@ async def scrape_jd_url(url: str) -> str | None:
             # private address) while carrying the original hostname in the Host
             # header. validate_redirects=True re-checks every redirect hop
             # against the same SSRF guard, matching agent_engine.navigate_web
-            # and sandbox_executor.execute_form_auto_fill. Context-level SSRF
+            # and form_filler.execute_form_auto_fill. Context-level SSRF
             # protection is already applied by the caller.
             res = await browser.navigate(url_info["target_url"], headers=url_info["headers"], validate_redirects=True)
             # ponytail: content_preview is truncated to 3000 characters by the
