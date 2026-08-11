@@ -829,6 +829,31 @@ export type Database = {
         }
         Returns: boolean
       }
+      route_analytics_breakdown: {
+        Args: {
+          p_dir?: string
+          p_limit?: number
+          p_offset?: number
+          p_route?: string
+          p_since?: string
+          p_sort?: string
+        }
+        Returns: {
+          last_seen: string
+          route: string
+          total_routes: number
+          users: number
+          views: number
+        }[]
+      }
+      route_analytics_summary: {
+        Args: { p_route?: string; p_since?: string }
+        Returns: {
+          distinct_routes: number
+          total_views: number
+          unique_users: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
