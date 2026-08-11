@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Zap,
   Users,
+  TrendingUp,
 
 } from "lucide-react";
 import {
