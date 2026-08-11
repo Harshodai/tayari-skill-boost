@@ -29,6 +29,22 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The Go gateway isn't reachable. In hosted (backend-only) deploys it isn't
+ * deployed at all, so pages that call it must say so instead of hanging or
+ * throwing an opaque "Failed to fetch" / "Unexpected token '<'".
+ */
+export class BackendUnavailableError extends ApiError {
+  constructor(message = "Advanced features need the local Tayari engine, which isn't running in this environment.") {
+    super(message, 0);
+    this.name = "BackendUnavailableError";
+  }
+}
+
+export function isBackendUnavailable(error: unknown): boolean {
+  return error instanceof BackendUnavailableError;
+}
+
 export function handleUnauthorized(): never {
   localStorage.removeItem("auth_token");
   window.dispatchEvent(new CustomEvent("auth:unauthorized"));
