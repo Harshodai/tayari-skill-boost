@@ -61,7 +61,7 @@ export function HeroSection() {
               <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
             </span>
             <Sparkles className="w-3.5 h-3.5 text-primary" />
-            <span>Now with Hermes AI Agent</span>
+            <span>Every submission comes with a receipt</span>
           </div>
 
           {/* Headline — Apple/Stripe scale */}
