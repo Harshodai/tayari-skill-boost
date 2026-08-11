@@ -66,7 +66,7 @@ const KINDS = [
 export function Networking() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [kind, setKind] = useState("intro");
+  const [kind, setKind] = useState<ReferralKind>("intro");
   const [targetRole, setTargetRole] = useState("");
   const [proofPoints, setProofPoints] = useState("");
   const [drafting, setDrafting] = useState(false);
