@@ -5,6 +5,8 @@ import {
   FeaturesSection,
   ProductsSection,
   SocialProofSection,
+  GhostJobStat,
+  ReceiptShowcase,
   CTASection,
 } from "@/components/landing";
 import { TayariPet } from "@/components/pet";
@@ -23,6 +25,10 @@ const Index = () => {
       )}
 
       <SocialProofSection />
+
+      <GhostJobStat />
+
+      <ReceiptShowcase />
 
       <CTASection />
 

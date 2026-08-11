@@ -5,3 +5,5 @@ export { SocialProofSection } from "./SocialProofSection";
 export { FAQSection } from "./FAQSection";
 export { ContactSection } from "./ContactSection";
 export { CTASection } from "./CTASection";
+export { GhostJobStat } from "./GhostJobStat";
+export { ReceiptShowcase } from "./ReceiptShowcase";

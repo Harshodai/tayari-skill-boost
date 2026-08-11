@@ -373,15 +373,19 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 		var accessToken, refreshToken string
 		var expiry time.Time
 
+		// Q7: when the Pub/Sub message carries no notified address we must NOT
+		// fall back to "most recently updated token across all users" — that
+		// routes one user's inbox change into another user's sync pipeline
+		// (cross-tenant mis-attribution). Refuse to guess; log and return so
+		// the next webhook with a real email lands in the right account.
 		var err error
-		if email != "" {
-			err = s.DB.Conn.QueryRowContext(ctx,
-				`SELECT user_id, access_token, refresh_token, expiry FROM gmail_tokens WHERE scope LIKE '%' || $1 || '%' OR user_id IN (SELECT id FROM users WHERE email=$1) LIMIT 1`,
-				email).Scan(&userID, &accessToken, &refreshToken, &expiry)
-		} else {
-			err = s.DB.Conn.QueryRowContext(ctx,
-				`SELECT user_id, access_token, refresh_token, expiry FROM gmail_tokens ORDER BY updated_at DESC LIMIT 1`).Scan(&userID, &accessToken, &refreshToken, &expiry)
+		if email == "" {
+			log.Printf("[GmailWebhook] No notified address in message and no email match — refusing to attribute to a tenant")
+			return
 		}
+		err = s.DB.Conn.QueryRowContext(ctx,
+			`SELECT user_id, access_token, refresh_token, expiry FROM gmail_tokens WHERE scope LIKE '%' || $1 || '%' OR user_id IN (SELECT id FROM users WHERE email=$1) LIMIT 1`,
+			email).Scan(&userID, &accessToken, &refreshToken, &expiry)
 
 		if err != nil {
 			log.Printf("[GmailWebhook] No matching token for email %s: %v", email, err)

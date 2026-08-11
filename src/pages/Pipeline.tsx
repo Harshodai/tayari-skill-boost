@@ -42,7 +42,7 @@ export default function Pipeline() {
       if (USE_SELF_HOSTED) return [];
       const { data, error } = await supabase
         .from("submission_receipts")
-        .select("job_url,verified,confirmation_number,submitted_at")
+        .select("job_url,verified,confirmation_number,submitted_at,outcome")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -55,6 +55,7 @@ export default function Pipeline() {
       if (!r.job_url || map.has(r.job_url)) continue;
       map.set(r.job_url, {
         verified: !!r.verified,
+        failed: r.outcome === "failed",
         confirmationNumber: r.confirmation_number,
         submittedAt: r.submitted_at,
       });

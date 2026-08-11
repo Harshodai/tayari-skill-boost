@@ -37,6 +37,8 @@ import {
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes } from "@/api";
+import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
+import { useBackendHealth } from "@/hooks/useBackendHealth";
 import { useAutomation } from "@/contexts/AutomationContext";
 import { SkillGapWidget } from "@/components/jobs/SkillGapWidget";
 import { JobFeedbackButtons } from "@/components/jobs/JobFeedbackButtons";
@@ -91,6 +93,7 @@ const JobSearch = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { startRun, runChain } = useAutomation();
+  const { unavailable: backendUnavailable } = useBackendHealth();
 
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
@@ -283,6 +286,12 @@ const JobSearch = () => {
 
   return (
     <AppShell title="Smart Job Search" subtitle="Search • Match • Apply — in one flow">
+      {/* Backend unavailable — search, saved jobs, and profile all need Go+Python */}
+      {backendUnavailable && (
+        <div className="mb-6">
+          <BackendUnavailableBanner feature="job search" />
+        </div>
+      )}
       {/* Top NL search bar */}
       <div className="mb-5">
         <div className="rounded-2xl border border-border/60 bg-card/40 backdrop-blur p-3 md:p-4 shadow-sm">

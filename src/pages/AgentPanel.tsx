@@ -60,7 +60,7 @@ export default function AgentPanel() {
   const [loading, setLoading] = useState(true);
   const [configYaml, setConfigYaml] = useState("");
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<"board" | "hermes">("board");
+  const [activeTab, setActiveTab] = useState<"board" | "agent">("board");
 
   // New agent form
   const [showAddForm, setShowAddForm] = useState(false);
@@ -114,9 +114,9 @@ export default function AgentPanel() {
     }
   }, [API_URL, token]);
 
-  const fetchHermesConfig = useCallback(async () => {
+  const fetchAgentConfig = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/v1/hermes/config`, {
+      const res = await fetch(`${API_URL}/v1/agent/config`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -159,9 +159,9 @@ export default function AgentPanel() {
 
   useEffect(() => {
     fetchAgents();
-    fetchHermesConfig();
+    fetchAgentConfig();
     fetchTasks();
-  }, [fetchAgents, fetchHermesConfig, fetchTasks]);
+  }, [fetchAgents, fetchAgentConfig, fetchTasks]);
 
   const handleRunTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -332,8 +332,8 @@ export default function AgentPanel() {
               Digital Employees
             </Button>
             <Button
-              variant={activeTab === "hermes" ? "default" : "outline"}
-              onClick={() => setActiveTab("hermes")}
+              variant={activeTab === "agent" ? "default" : "outline"}
+              onClick={() => setActiveTab("agent")}
               className="px-5"
             >
               <Terminal className="w-4 h-4 mr-2" />
@@ -419,7 +419,7 @@ export default function AgentPanel() {
                           className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm"
                         >
                           <option value="default">Default API (OpenRouter/NVIDIA NIM)</option>
-                          <option value="hermes">Desktop Agent (Local CLI)</option>
+                          <option value="agent">Desktop Agent (Local CLI)</option>
                         </select>
                       </div>
                     </div>
@@ -599,7 +599,7 @@ export default function AgentPanel() {
           </div>
         )}
 
-        {activeTab === "hermes" && (
+        {activeTab === "agent" && (
           <div className="max-w-3xl mx-auto space-y-6">
             <Card className="border-primary/20">
               <CardHeader>

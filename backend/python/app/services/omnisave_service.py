@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 
 from app.services.prompt_safety import untrusted as _untrusted
 from app.services.db import get_pool
-from app.services.llm_service import llm_complete
+from app.services.llm_service import llm_complete, active_engine, LLMNotConfiguredError
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,100 @@ logger = logging.getLogger(__name__)
 # emit when the snippets do not answer the query. It is the ONLY answer accepted
 # without citations; anything else must cite at least one recognized source.
 _INSUFFICIENT_ANSWER_RESPONSE = "The indexed knowledge does not contain enough information to answer this question."
+
+
+async def auto_tag(title: str, body: str) -> tuple[str, list[str], str | None]:
+    """WS-07: replace the hardcoded 'Career Strategy' category with a real
+    LLM call at ingest. Returns (category, topics[], one_line_summary).
+
+    Degrades honestly: when no LLM is configured, returns ('Uncategorised', [],
+    None) — NOT a fabricated specific category. Inventing 'Career Strategy'
+    for every article is worse than admitting we don't know.
+    """
+    if not active_engine() or active_engine() == "mock":
+        return ("Uncategorised", [], None)
+    try:
+        prompt = (
+            "Read this saved article and respond ONLY in compact JSON:\n"
+            '{"category": "<one short label, 1-3 words>", '
+            '"topics": ["<=5 short topic tags"], '
+            '"one_line_summary": "<=140 chars or null>"}\n\n'
+            f"TITLE: {title[:200]}\n\nBODY (truncated):\n{(body or '')[:2000]}"
+        )
+        raw = await llm_complete(
+            "You are an honest tagging engine. Never invent details.",
+            prompt,
+            tier="fast",
+            max_tokens=200,
+            temperature=0.1,
+        )
+        import json as _json
+        parsed = _json.loads(raw.strip().strip("`").lstrip("json").strip())
+        category = (parsed.get("category") or "Uncategorised").strip()[:80]
+        topics = [t.strip()[:40] for t in (parsed.get("topics") or []) if t.strip()][:5]
+        summary = (parsed.get("one_line_summary") or None)
+        if summary:
+            summary = summary.strip()[:140]
+        return category, topics, summary
+    except Exception as exc:  # noqa: BLE001 — tagging never breaks ingest
+        logger.warning("auto_tag failed: %s", exc)
+        return ("Uncategorised", [], None)
+
+
+async def fetch_substack_rss(publication_url: str) -> list[dict]:
+    """WS-07: real Substack RSS ingest. Substack exposes `/api/v1/archive` or
+    the standard `/feed` suffix; both are public and need no OAuth. Returns
+    a list of {url, title, author, content} dicts, empty on any failure
+    (so the caller falls back to single-URL scraping).
+
+    Legal boundary: robots.txt is checked for the publication origin and
+    outbound backoff is applied before the fetch. A robots-disallowed feed
+    returns [] and is logged.
+    """
+    import httpx
+    from app.services.scraping_policy import (
+        assert_robots_allowed,
+        RobotsDisallowedError,
+        await_backoff,
+    )
+    feed_url = publication_url.rstrip("/") + "/feed"
+    try:
+        assert_robots_allowed(feed_url)
+    except RobotsDisallowedError:
+        logger.info("SKIPPED: robots.txt disallows %s", feed_url)
+        return []
+    await await_backoff(feed_url)
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(feed_url, headers={"User-Agent": "JobTayari-Omnisave/1.0"})
+            resp.raise_for_status()
+        # Minimal RSS parse — no extra dep. Items: <item><title/><link/>
+        # <description/><content:encoded/></item>
+        text = resp.text
+        items: list[dict] = []
+        for m in re.finditer(r"<item>([\s\S]*?)</item>", text, re.IGNORECASE):
+            block = m.group(1)
+            def _field(tag: str) -> str:
+                mm = re.search(rf"<{tag}[^>]*>(.*?)</{tag}>", block, re.IGNORECASE | re.DOTALL)
+                return mm.group(1).strip() if mm else ""
+            link = _field("link")
+            if not link:
+                continue
+            title = _field("title")
+            # Strip nested CDATA/tags from description/content
+            content = _field("content:encoded") or _field("description")
+            content = re.sub(r"<[^>]+>", " ", content)
+            content = re.sub(r"\s+", " ", content).strip()
+            items.append({
+                "url": link,
+                "title": title or link,
+                "author": _field("author") or "Substack",
+                "content": content[:8000],
+            })
+        return items[:25]
+    except Exception as exc:  # noqa: BLE001
+        logger.info("fetch_substack_rss: %s failed (%s)", feed_url, exc)
+        return []
 
 class OmnisaveService:
     """
@@ -206,10 +300,20 @@ class OmnisaveService:
             logger.warning("[Omnisave] Failed to look up existing source in DB: %s", exc)
             return None
 
-    async def ingest_source(self, platform: str, url: str, title: str, author: str, raw_content: str, user_id: str, category: str = "Career Strategy", summary_bullets: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Ingest source from Substack, Medium, LinkedIn, or custom URL."""
+    async def ingest_source(self, platform: str, url: str, title: str, author: str, raw_content: str, user_id: str, category: str | None = None, summary_bullets: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Ingest source from Substack, Medium, LinkedIn, or custom URL.
+
+        WS-07: when ``category`` is not provided we run a real LLM auto-tag
+        call rather than hardcoding 'Career Strategy' for every article. When
+        no LLM is configured we fall back to the honest 'Uncategorised' label,
+        never a fabricated specific topic.
+        """
         if platform not in ("substack", "medium", "linkedin", "custom_url"):
             platform = "custom_url"
+
+        # WS-07: real auto-tagging at ingest, replacing the hardcoded category.
+        if not category:
+            category, _topics, _summary = await auto_tag(title, raw_content)
 
         idempotency_hash = self.compute_idempotency_hash(url, raw_content)
 
@@ -332,11 +436,16 @@ class OmnisaveService:
                         };
                     }""")
                     if content_eval and content_eval.get("body"):
+                        # WS-07: real auto-tag instead of the hardcoded label.
+                        cat, _topics, _summary = await auto_tag(
+                            content_eval.get("title") or title,
+                            content_eval.get("body"),
+                        )
                         return {
                             "url": url_info["original_url"],
                             "title": content_eval.get("title") or title,
                             "author": content_eval.get("author") or f"{platform.title()} Author",
-                            "category": "Career Strategy",
+                            "category": cat,
                             "content": content_eval.get("body"),
                             "summary": content_eval.get("bullets") or [f"Extracted dynamic content from {url_info['original_url']}"]
                         }

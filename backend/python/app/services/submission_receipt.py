@@ -181,8 +181,85 @@ def build_receipt(
         "confirmation_number": confirmation_number,
         "screenshot_path": store_screenshot(run_id, screenshot_b64),
         "submitted_resume_sha256": resume_fingerprint(resume_text),
+        # Q8.5: the SHA256 is a fingerprint, not an artifact. Store the full
+        # submitted resume text so the user can prove exactly what was sent on
+        # their behalf — a hash alone is not reconstructable evidence.
+        "submitted_resume_text": resume_text,
         "answers": answers or {},
         "outcome": "submitted" if verified else "unconfirmed",
+    }
+
+
+def build_failed_receipt(
+    *,
+    run_id: str,
+    user_id: str | None,
+    job: dict,
+    resume_text: str | None,
+    agent_summary: str | None = None,
+    error: str | None = None,
+    screenshot_b64: str | None = None,
+    answers: dict | None = None,
+) -> dict[str, Any]:
+    """Assemble a receipt for a run that died before reaching submit.
+
+    A failed run must still leave a receipt row — otherwise a missing receipt
+    is visually indistinguishable from a pending one (audit Q8.2 / WS-02).
+    `verified` is always False; `outcome` is 'failed' so the UI can render the
+    distinct "Submission failed" badge.
+    """
+    return {
+        "run_id": run_id,
+        "user_id": user_id,
+        "job_url": job.get("url"),
+        "job_title": job.get("title"),
+        "company": job.get("company"),
+        "ats_vendor": detect_ats_vendor(job.get("url")),
+        "submitted_at": None,
+        "verified": False,
+        "confirmation_text": None,
+        "confirmation_number": None,
+        "screenshot_path": store_screenshot(run_id, screenshot_b64),
+        "submitted_resume_sha256": resume_fingerprint(resume_text),
+        "submitted_resume_text": resume_text,
+        "answers": answers or {},
+        "outcome": "failed",
+        "_error": error or (agent_summary or "the agent did not reach a submit step"),
+    }
+
+
+def build_prepared_receipt(
+    *,
+    run_id: str,
+    user_id: str | None,
+    job: dict,
+    resume_text: str | None,
+    answers: dict | None = None,
+) -> dict[str, Any]:
+    """Assemble a receipt for a difficult-tier job that was prepped, not submitted.
+
+    Audit Q8.7 / P3: a difficult-tier ATS (Workday, SmartRecruiters, iCIMS,
+    Taleo, SuccessFactors) is never auto-submitted even with approval — the
+    user submits manually. We still record a receipt row so the package is
+    visible as "prepared, awaiting manual submit" rather than vanishing.
+    `verified` is always False; `outcome` is 'prepared'.
+    """
+    return {
+        "run_id": run_id,
+        "user_id": user_id,
+        "job_url": job.get("url"),
+        "job_title": job.get("title"),
+        "company": job.get("company"),
+        "ats_vendor": detect_ats_vendor(job.get("url")),
+        "submitted_at": None,
+        "verified": False,
+        "confirmation_text": None,
+        "confirmation_number": None,
+        "screenshot_path": None,
+        "submitted_resume_sha256": resume_fingerprint(resume_text),
+        "submitted_resume_text": resume_text,
+        "answers": answers or {},
+        "outcome": "prepared",
     }
 
 
@@ -203,8 +280,9 @@ async def save_receipt(receipt: dict[str, Any]) -> bool:
                 INSERT INTO submission_receipts
                     (user_id, run_id, job_url, job_title, company, ats_vendor,
                      submitted_at, verified, confirmation_text, confirmation_number,
-                     screenshot_path, submitted_resume_sha256, answers, outcome)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14)
+                     screenshot_path, submitted_resume_sha256, submitted_resume_text,
+                     answers, outcome)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15)
                 """,
                 receipt["user_id"],
                 receipt.get("run_id"),
@@ -218,6 +296,7 @@ async def save_receipt(receipt: dict[str, Any]) -> bool:
                 receipt.get("confirmation_number"),
                 receipt.get("screenshot_path"),
                 receipt.get("submitted_resume_sha256"),
+                receipt.get("submitted_resume_text"),
                 json.dumps(receipt.get("answers") or {}),
                 receipt.get("outcome") or "unknown",
             )

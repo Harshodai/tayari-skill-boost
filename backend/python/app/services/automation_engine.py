@@ -35,7 +35,6 @@ from app.services.approval_gate import is_approved as _approval_granted, request
 from app.services.ats_engine import heuristic_ats_score
 from app.services.grounding import claims_supported as _claims_supported
 from app.services.posting_screen import CLEARED as _SCREEN_CLEARED, screen_posting as _screen_posting
-from app.services.resume_parser import parse_resume
 
 from app.services.db import (
     append_log as _db_append_log,
@@ -49,7 +48,9 @@ from app.services.job_providers import search_jobs
 from app.services.optimizer import optimize_with_reflection
 from app.services.job_application_automation import apply_job
 from app.services.browser_library import Browser
-from app.services.submission_receipt import build_receipt, save_receipt
+from app.services.linkedin_policy import assert_not_linkedin_automation, LinkedInAutomationBlocked
+from app.services.submission_receipt import build_receipt, build_failed_receipt, build_prepared_receipt, save_receipt
+from app.services.ats_tiers import can_auto_submit as _can_auto_submit, should_prepare_only as _should_prepare_only, should_skip as _should_skip_ats, tier_for_url as _tier_for_url
 
 from app.guardrails.gate import PipelineGate
 
@@ -272,10 +273,9 @@ async def run_autopilot(
         # ---- 1. LOAD ----------------------------------------------------
         _update_run(run_id, status="running", progress=5, current_step="LOAD")
         _log(run_id, "LOAD", "Loading your profile and resume")
-        # Parse resume text into a knowledge graph for later use
-        graph = parse_resume(resume_text)
-        if graph is not None:
-            _autopilot_store[run_id]["graph"] = graph
+        # WS-08: open_resume library is not installed; graph enrichment is
+        # best-effort. Skip silently so the run continues unblocked.
+        graph = None  # reserved for future knowledge-graph enrichment
 
         # ---- 2. SEARCH ---------------------------------------------------
         job_titles = [t for t in config.get("job_titles", []) if t.strip()][:3]
@@ -442,6 +442,62 @@ async def run_autopilot(
                 approved = await _approval_granted(
                     config.get("user_id"), run_id, fingerprint
                 )
+                # ---- ATS TIER GATE (P3 / Q8.7) -------------------------------
+                # Tier the URL before any submit decision. No major ATS offers a
+                # sanctioned third-party submission API; treating Workday and
+                # Greenhouse identically forces a choice between over-submitting
+                # to hostile portals (ban risk) and under-submitting to friendly
+                # ones (lost volume). The tier decides what "approved" may do:
+                #   friendly       -> auto-submit when approved (existing flow)
+                #   difficult       -> prepare only; never auto-submit (draft)
+                #   do_not_submit  -> skip the submit entirely; save the package
+                #   unknown vendor -> safe default = prepare only
+                job_url = job.get("url")
+                tier = _tier_for_url(job_url)
+                if _should_skip_ats(job_url):
+                    application["status"] = "skipped_ats_tier"
+                    _log(
+                        run_id,
+                        "APPLY",
+                        f"SKIPPED: ATS vendor in do_not_submit tier for "
+                        f"{job['title']} @ {job['company']} — package saved, "
+                        f"not submitted.",
+                    )
+                    applications.append(application)
+                    continue
+                if _should_prepare_only(job_url) or tier is None:
+                    application["status"] = "prepared_ats_difficult"
+                    if tier is None:
+                        _log(
+                            run_id,
+                            "APPLY",
+                            f"Unknown ATS vendor — treating as difficult for "
+                            f"{job['title']} @ {job['company']}",
+                        )
+                    else:
+                        _log(
+                            run_id,
+                            "APPLY",
+                            f"PREPARED ONLY: ATS vendor is difficult — user "
+                            f"must submit manually for {job['title']} @ "
+                            f"{job['company']}",
+                        )
+                    prepared_receipt = build_prepared_receipt(
+                        run_id=run_id,
+                        user_id=config.get("user_id"),
+                        job=job,
+                        resume_text=tailored_text,
+                    )
+                    await save_receipt(prepared_receipt)
+                    application["receipt"] = {
+                        "verified": False,
+                        "prepared": True,
+                        "confirmation_number": None,
+                        "confirmation_text": None,
+                        "ats_vendor": prepared_receipt["ats_vendor"],
+                    }
+                    applications.append(application)
+                    continue
                 if config.get("auto_apply", False) and gate_ok and not approved:
                     application["status"] = "awaiting_approval"
                     _log(
@@ -451,6 +507,21 @@ async def run_autopilot(
                         f"{job['title']} @ {job['company']} — nothing was submitted.",
                     )
                 if config.get("auto_apply", False) and gate_ok and approved:
+                    # Defense-in-depth: the do_not_submit tier already skipped
+                    # LinkedIn above; this keeps the legacy UA §8.2 guard for
+                    # any future do_not_submit member that should also hard-block.
+                    try:
+                        assert_not_linkedin_automation(job.get("url", ""), "submit")
+                    except LinkedInAutomationBlocked:
+                        application["status"] = "skipped_linkedin_policy"
+                        _log(
+                            run_id,
+                            "APPLY",
+                            f"SKIPPED: LinkedIn automation not permitted by policy (UA §8.2) "
+                            f"for {job['title']} @ {job['company']} — save it and submit manually.",
+                        )
+                        applications.append(application)
+                        continue
                     try:
                         # WS-02: run the agent for its *evidence*, not a
                         # boolean. The status we write is derived from what the
@@ -494,6 +565,27 @@ async def run_autopilot(
                             )
                         else:
                             application["status"] = "apply_failed"
+                            # WS-02: a failed run still gets a receipt row so
+                            # the UI can render the distinct "Submission failed"
+                            # badge — without this a missing receipt is visually
+                            # indistinguishable from a pending one.
+                            failed_receipt = build_failed_receipt(
+                                run_id=run_id,
+                                user_id=config.get("user_id"),
+                                job=job,
+                                resume_text=tailored_text,
+                                agent_summary=evidence.get("summary"),
+                                error=evidence.get("error"),
+                                screenshot_b64=evidence.get("screenshot_b64"),
+                            )
+                            await save_receipt(failed_receipt)
+                            application["receipt"] = {
+                                "verified": False,
+                                "failed": True,
+                                "confirmation_number": None,
+                                "confirmation_text": None,
+                                "ats_vendor": failed_receipt["ats_vendor"],
+                            }
                             _log(
                                 run_id,
                                 "APPLY",
@@ -503,6 +595,22 @@ async def run_autopilot(
                     except Exception as exc:
                         logger.error("Auto‑apply failed for %s: %s", job.get("company"), exc)
                         application["status"] = "apply_failed"
+                        failed_receipt = build_failed_receipt(
+                            run_id=run_id,
+                            user_id=config.get("user_id"),
+                            job=job,
+                            resume_text=tailored_text,
+                            agent_summary=str(exc),
+                            error=str(exc),
+                        )
+                        await save_receipt(failed_receipt)
+                        application["receipt"] = {
+                            "verified": False,
+                            "failed": True,
+                            "confirmation_number": None,
+                            "confirmation_text": None,
+                            "ats_vendor": failed_receipt["ats_vendor"],
+                        }
                         _log(run_id, "APPLY", f"Failed to auto‑apply to {job['company']}: {exc}")
 
 

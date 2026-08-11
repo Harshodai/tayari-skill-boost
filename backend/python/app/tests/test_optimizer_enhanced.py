@@ -1,10 +1,10 @@
 import pytest
 from unittest import mock
-
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.api import ai_routes
-from app.api.ai_routes import OptimizerRequest, _validate_public_url
+from app.api.ai_routes import OptimizerRequest, _transition_payload, _validate_public_url
 from app.services.optimizer import (
     analyze_keyword_gaps,
     remove_ai_buzzwords,
@@ -24,6 +24,90 @@ def test_optimizer_request_accepts_all_inputs():
     assert req.custom_instructions == "emphasize leadership"
     assert req.target_role == "Senior Engineer"
     assert req.jd_url == "https://boards.greenhouse.io/example"
+
+
+def test_optimizer_request_valid_transition():
+    req = OptimizerRequest(
+        resume_text="resume",
+        transition_type="same_domain",
+        current_industry="Software Development",
+        target_industry="Fintech",
+        transferable_skills=["Python", "System Design"],
+    )
+    assert req.transition_type == "same_domain"
+    assert req.current_industry == "Software Development"
+    assert req.target_industry == "Fintech"
+    assert req.transferable_skills == ["Python", "System Design"]
+
+
+def test_optimizer_request_invalid_transition_type():
+    with pytest.raises(ValidationError):
+        OptimizerRequest(
+            resume_text="resume",
+            transition_type="invalid_domain",
+            current_industry="Tech",
+            target_industry="Finance",
+            transferable_skills=["Python"],
+        )
+
+
+def test_optimizer_request_missing_transition_fields():
+    # Missing current_industry
+    with pytest.raises(ValidationError) as exc_info1:
+        OptimizerRequest(
+            resume_text="resume",
+            transition_type="cross_domain",
+            target_industry="Healthcare",
+            transferable_skills=["Data Analysis"],
+        )
+    assert "current_industry is required" in str(exc_info1.value)
+
+    # Empty target_industry
+    with pytest.raises(ValidationError) as exc_info2:
+        OptimizerRequest(
+            resume_text="resume",
+            transition_type="cross_domain",
+            current_industry="Tech",
+            target_industry="   ",
+            transferable_skills=["Data Analysis"],
+        )
+    assert "target_industry is required" in str(exc_info2.value)
+
+    # Empty transferable_skills
+    with pytest.raises(ValidationError) as exc_info3:
+        OptimizerRequest(
+            resume_text="resume",
+            transition_type="same_domain",
+            current_industry="Tech",
+            target_industry="Finance",
+            transferable_skills=[],
+        )
+    assert "transferable_skills must be a non-empty list" in str(exc_info3.value)
+
+
+def test_transition_payload_helper():
+    # Non-transition mode returns None
+    req_no_trans = OptimizerRequest(resume_text="resume", transition_type="")
+    assert _transition_payload(req_no_trans) is None
+
+    req_none = OptimizerRequest(resume_text="resume")
+    assert _transition_payload(req_none) is None
+
+    # Valid transition mode returns expected dict
+    req_trans = OptimizerRequest(
+        resume_text="resume",
+        transition_type="same_domain",
+        current_industry="  Gaming  ",
+        target_industry="  EdTech  ",
+        transferable_skills=["Game Dev", "C++"],
+    )
+    payload = _transition_payload(req_trans)
+    assert payload == {
+        "transition_type": "same_domain",
+        "current_industry": "Gaming",
+        "target_industry": "EdTech",
+        "transferable_skills": ["Game Dev", "C++"],
+    }
 
 
 def test_validate_public_url_rejects_loopback():

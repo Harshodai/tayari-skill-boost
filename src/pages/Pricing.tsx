@@ -1,6 +1,18 @@
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Check, Zap, Crown, Building2, Loader2, Mail } from "lucide-react";
+import {
+  Check,
+  Zap,
+  ShieldCheck,
+  Send,
+  Building2,
+  Loader2,
+  Mail,
+  Clock,
+  Receipt,
+  Infinity as InfinityIcon,
+  X,
+} from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,9 +23,15 @@ const Pricing = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
-  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("monthly");
-  const [waitlistEmail, setWaitlistEmail] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
 
+  // TODO(backend): routes_billing.go's handleCreateCheckoutSession expects a `plan` key
+  // and builds a Stripe Subscription checkout. Credit packs are one-time payments, so
+  // billing.BillingService needs a CreateCreditPackCheckoutSession(user_id, pack_slug, return_url)
+  // path that uses Stripe Checkout in `mode=payment` with a Price ID per pack, plus a webhook
+  // branch that credits the user's balance on `checkout.session.completed` instead of
+  // `invoice.paid`. Until that lands, the paid-pack buttons below still POST `plan` and will
+  // create a subscription — treat this page as the pricing model of record, not a wired funnel.
   const handleCheckout = async (planKey: string) => {
     if (!user) {
       navigate(`/auth?plan=${planKey}`);
@@ -51,7 +69,7 @@ const Pricing = () => {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        toast.success("Self-hosted mode: Unlimited Pro unlocked automatically!");
+        toast.success("Self-hosted mode: pack unlocked automatically!");
         navigate("/dashboard");
       }
     } catch (err: any) {
@@ -61,8 +79,8 @@ const Pricing = () => {
     }
   };
 
-  const handleWaitlist = async () => {
-    if (!waitlistEmail.trim() || !waitlistEmail.includes("@")) {
+  const handleContactSales = async () => {
+    if (!contactEmail.trim() || !contactEmail.includes("@")) {
       toast.error("Please enter a valid email address");
       return;
     }
@@ -70,93 +88,106 @@ const Pricing = () => {
       const response = await fetch("/api/v1/waitlist/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: waitlistEmail.trim(), tier: "team" }),
+        body: JSON.stringify({ email: contactEmail.trim(), tier: "institutions" }),
       });
-      if (!response.ok) throw new Error("Failed to join waitlist");
-      toast.success("You're on the Team waitlist! We'll notify you when it's ready.");
-      setWaitlistEmail("");
+      if (!response.ok) throw new Error("Failed to submit");
+      toast.success("Thanks — we'll reach out within one business day.");
+      setContactEmail("");
     } catch {
-      toast.success("You're on the Team waitlist! We'll notify you when it's ready.");
-      setWaitlistEmail("");
+      toast.success("Thanks — we'll reach out within one business day.");
+      setContactEmail("");
     }
   };
 
-  const isAnnual = billingPeriod === "annual";
-
-  const plans = [
+  const tiers = [
     {
       key: "free",
-      name: "Free",
-      price: "0",
-      period: "forever",
-      description: "Perfect for getting started with your job search",
+      name: "Free Forever",
+      price: "$0",
+      period: "no card required",
+      description: "Everything you need to run a serious search. Free, permanently. This is the wedge.",
       icon: Zap,
       features: [
-        "1 resume profile",
-        "3 scans per month",
-        "5 tailored applications/mo",
-        "Basic ATS score analysis",
+        "Job tracking board",
+        "Resume tailoring vs. any JD",
+        "Ghost-job screening",
+        "ATS scoring + breakdown",
         "Standard templates",
-        "Community support"
+        "Community support",
       ],
       cta: user ? "Current Plan" : "Get Started",
-      highlighted: false
+      highlighted: false,
+      note: null,
     },
     {
-      key: "pro",
-      name: "Pro",
-      price: isAnnual ? "190" : "19",
-      period: isAnnual ? "yr (billed annually)" : "mo",
-      description: "Best for active job seekers who want an edge",
-      icon: Crown,
+      key: "verified-pack",
+      name: "Verified Applications",
+      price: "$39",
+      period: "40 credits · one-time",
+      description: "Pay for proof, not for hope. A credit burns only when a submission produces a receipt.",
+      icon: ShieldCheck,
       features: [
-        "Unlimited resume scans",
-        "Advanced ATS scoring breakdown",
-        "AI cover letter writer",
-        "50 tailored applications/mo",
+        "40 verified application credits",
+        "Credit consumed only on a receipted submission",
+        "Receipt covers verified, unverified, or failed — the point is proof exists",
+        "Credits never expire",
+        "Everything in Free, included",
+        "Priority queue processing",
+      ],
+      cta: "Buy 40 Credits",
+      highlighted: true,
+      note: "Self-limiting by design",
+    },
+    {
+      key: "outreach-pack",
+      name: "Outreach Credits",
+      price: "$19",
+      period: "60 credits · one-time",
+      description: "For cold emails, connection requests, and referral drafts that actually get sent.",
+      icon: Send,
+      features: [
+        "60 outreach credits",
+        "Cold emails, LinkedIn notes, referral drafts",
+        "Credits never expire",
+        "Everything in Free, included",
         "Email support",
-        "Priority queue processing"
       ],
-      cta: "Start Free Trial",
-      highlighted: true
+      cta: "Buy 60 Credits",
+      highlighted: false,
+      note: "No monthly clock",
     },
-    {
-      key: "team",
-      name: "Team",
-      price: "—",
-      period: "",
-      description: "Collaboration + shared pipelines for career teams & bootcamps",
-      icon: Building2,
-      features: [
-        "Everything in Pro",
-        "Shared candidate pipelines",
-        "Team review queue + collaboration",
-        "Admin dashboard & analytics",
-        "Bulk resume optimization",
-        "Multi-board job aggregation"
-      ],
-      cta: "Join Waitlist",
-      highlighted: false
-    }
   ];
 
   const faqs = [
     {
-      question: "Can I cancel my subscription anytime?",
-      answer: "Yes, you can cancel your subscription at any time. You'll continue to have access until the end of your billing period."
+      question: "Do credits expire?",
+      answer:
+        "No. Credits never expire. Buy a pack, use it over whatever timeline your search actually takes — a week, a quarter, a year. You paid for the work, not for calendar access.",
     },
     {
-      question: "Is there a free trial for Pro?",
-      answer: "Yes! We offer a 7-day free trial for our Pro plan. No credit card required to start."
+      question: "What exactly counts as a 'verified application'?",
+      answer:
+        "A credit is consumed only when a submission produces a receipt — verified, unverified, or failed. The point is that a receipt exists: you're paying for proof that a real submission happened, not for the hope of an auto-apply. No receipt, no charge.",
+    },
+    {
+      question: "Why credits instead of a subscription?",
+      answer:
+        "Subscriptions meter calendar time; credits meter work. Every subscription rival (Teal, Huntr, Simplify) earns its 1-star reviews on cancellation friction and the monthly clock. Credits sidestep that entirely — there's nothing to cancel, nothing to refund, nothing to chase.",
+    },
+    {
+      question: "Is tracking really free forever?",
+      answer:
+        "Yes. Job tracking, resume tailoring, ghost-job screening, and ATS scoring are free forever, no card required. That's the acquisition wedge. We only charge for verified submissions and outreach — the things nobody else can prove.",
     },
     {
       question: "What payment methods do you accept?",
-      answer: "We accept all major credit cards, PayPal, and M-Pesa for our users in East Africa."
+      answer: "We accept all major credit cards, PayPal, and M-Pesa for users in East Africa.",
     },
     {
-      question: "Can I upgrade or downgrade my plan?",
-      answer: "Absolutely. You can change your plan at any time from your account settings."
-    }
+      question: "Can I get a refund if the credits don't work for me?",
+      answer:
+        "Unused credits are refundable within 7 days of purchase. Used credits are not — a receipt is a receipt. This is the honesty of the model: we charge for outcomes, not for access you can claw back.",
+    },
   ];
 
   return (
@@ -166,152 +197,193 @@ const Pricing = () => {
           {/* Header */}
           <div className="text-center mb-16">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              Simple, Transparent <span className="text-gradient">Pricing</span>
+              Pay for <span className="text-gradient">Proof</span>, Not Access
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-              Choose the plan that fits your career goals. Start free, upgrade when you're ready.
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Tracking and resume tailoring are free forever. You only pay when a submission produces a receipt.
+              No monthly clock, no cancellation friction.
             </p>
-
-            {/* Billing Toggle */}
-            <div className="inline-flex items-center gap-3 bg-muted/50 rounded-full p-1">
-              <button
-                onClick={() => setBillingPeriod("monthly")}
-                className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
-                  billingPeriod === "monthly"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Monthly
-              </button>
-              <button
-                onClick={() => setBillingPeriod("annual")}
-                className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
-                  billingPeriod === "annual"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Annual
-                <span className="ml-1.5 text-[10px] bg-success/20 text-success px-1.5 py-0.5 rounded-full">
-                  Save 17%
-                </span>
-              </button>
-            </div>
           </div>
 
           {/* Pricing Cards */}
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto mb-20">
-            {plans.map((plan, index) => (
+            {tiers.map((tier, index) => (
               <div
                 key={index}
                 className={`relative rounded-2xl p-8 border transition-all duration-300 ${
-                  plan.highlighted
+                  tier.highlighted
                     ? "bg-gradient-to-b from-primary/20 to-card border-primary glow-primary scale-105"
                     : "glass border-border hover:border-primary/50"
                 }`}
               >
-                {plan.highlighted && (
+                {tier.highlighted && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
                     <span className="bg-primary text-primary-foreground text-sm font-medium px-4 py-1 rounded-full">
-                      Most Popular
+                      The thing nobody else sells
                     </span>
                   </div>
                 )}
 
                 <div className="flex items-center gap-3 mb-4">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    plan.highlighted ? "bg-primary" : "bg-primary/10"
-                  }`}>
-                    <plan.icon className={`w-5 h-5 ${plan.highlighted ? "text-primary-foreground" : "text-primary"}`} />
+                  <div
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      tier.highlighted ? "bg-primary" : "bg-primary/10"
+                    }`}
+                  >
+                    <tier.icon
+                      className={`w-5 h-5 ${tier.highlighted ? "text-primary-foreground" : "text-primary"}`}
+                    />
                   </div>
-                  <h3 className="text-xl font-bold">{plan.name}</h3>
+                  <h3 className="text-xl font-bold">{tier.name}</h3>
                 </div>
 
-                <div className="mb-4">
-                  <span className="text-4xl font-bold">
-                    {plan.key === "team" ? plan.price : plan.price === "0" ? "$0" : `$${plan.price}`}
-                  </span>
-                  <span className="text-muted-foreground ml-2">/{plan.period}</span>
+                <div className="mb-2">
+                  <span className="text-4xl font-bold">{tier.price}</span>
+                  <span className="text-muted-foreground ml-2 text-sm">/{tier.period}</span>
                 </div>
 
-                <p className="text-muted-foreground mb-6">{plan.description}</p>
+                <p className="text-muted-foreground mb-6 text-sm">{tier.description}</p>
 
-                {plan.key === "team" ? (
-                  <div className="space-y-3 mb-8">
-                    <div className="flex gap-2">
-                      <input
-                        type="email"
-                        placeholder="your@email.com"
-                        value={waitlistEmail}
-                        onChange={(e) => setWaitlistEmail(e.target.value)}
-                        className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      <Button
-                        size="sm"
-                        onClick={handleWaitlist}
-                        className="bg-primary hover:bg-primary/90"
-                      >
-                        <Mail className="w-4 h-4 mr-1" />
-                        Join
-                      </Button>
-                    </div>
-                    <ul className="space-y-3">
-                      {plan.features.map((feature, i) => (
-                        <li key={i} className="flex items-center gap-3">
-                          <Check className="w-5 h-5 text-success flex-shrink-0" />
-                          <span className="text-foreground/90">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
+                {tier.note && (
+                  <div className="mb-6 flex items-center gap-2 text-xs text-primary">
+                    <InfinityIcon className="w-3.5 h-3.5" />
+                    <span>{tier.note}</span>
                   </div>
-                ) : (
-                  <>
-                    <ul className="space-y-3 mb-8">
-                      {plan.features.map((feature, i) => (
-                        <li key={i} className="flex items-center gap-3">
-                          <Check className="w-5 h-5 text-success flex-shrink-0" />
-                          <span className="text-foreground/90">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <Button
-                      className={`w-full ${
-                        plan.highlighted
-                          ? "bg-primary hover:bg-primary/90"
-                          : "bg-card hover:bg-accent border border-border"
-                      }`}
-                      disabled={loadingPlan === plan.key}
-                      onClick={() => handleCheckout(plan.key)}
-                    >
-                      {loadingPlan === plan.key ? (
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      ) : null}
-                      {plan.cta}
-                    </Button>
-                  </>
                 )}
+
+                <ul className="space-y-3 mb-8">
+                  {tier.features.map((feature, i) => (
+                    <li key={i} className="flex items-start gap-3">
+                      <Check className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
+                      <span className="text-foreground/90 text-sm">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <Button
+                  className={`w-full ${
+                    tier.highlighted
+                      ? "bg-primary hover:bg-primary/90"
+                      : "bg-card hover:bg-accent border border-border"
+                  }`}
+                  disabled={loadingPlan === tier.key || (user && tier.key === "free")}
+                  onClick={() => handleCheckout(tier.key)}
+                >
+                  {loadingPlan === tier.key ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : null}
+                  {tier.cta}
+                </Button>
               </div>
             ))}
           </div>
 
-          {/* Trust Banner (Refund & Cancellation) */}
+          {/* Why Credits, Not Subscriptions */}
+          <div className="max-w-4xl mx-auto mb-20">
+            <h2 className="text-3xl font-bold text-center mb-10">
+              Why <span className="text-gradient">Credits</span>, Not Subscriptions?
+            </h2>
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="glass rounded-2xl p-6 border border-border/50">
+                <div className="flex items-center gap-2 mb-3">
+                  <Receipt className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-sm">You pay for outcomes</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Subscriptions meter calendar time; credits meter work. You pay for verified submissions, not for
+                  access that ticks down while you sleep.
+                </p>
+              </div>
+              <div className="glass rounded-2xl p-6 border border-border/50">
+                <div className="flex items-center gap-2 mb-3">
+                  <X className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-sm">No cancellation friction</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  The #1 complaint against Teal, Huntr, and Simplify is the monthly clock and the refund runaround.
+                  One-time packs mean there's nothing to cancel and nothing to chase.
+                </p>
+              </div>
+              <div className="glass rounded-2xl p-6 border border-border/50">
+                <div className="flex items-center gap-2 mb-3">
+                  <ShieldCheck className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-sm">Self-limiting by design</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  You can't burn 500 credits in a week, because each one requires a real, receipted submission. The
+                  model refuses the auto-apply spam that gets rival tools banned.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Institutions / Contact Sales */}
+          <div className="max-w-4xl mx-auto mb-20 p-8 rounded-2xl border border-border bg-gradient-to-r from-card via-card to-primary/5">
+            <div className="grid md:grid-cols-2 gap-8 items-center">
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-bold">For Institutions</h3>
+                </div>
+                <p className="text-muted-foreground mb-4 text-sm">
+                  Outplacement firms, university career centers, and bootcamps. Multi-tenant cohorts, dashboards, and
+                  SSO. Let's talk about volume pricing and verified-submission reporting for your cohorts.
+                </p>
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-success flex-shrink-0" />
+                    Cohort dashboards with per-job-seeker receipts
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-success flex-shrink-0" />
+                    SSO + multi-tenant admin
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-success flex-shrink-0" />
+                    Volume credit pricing
+                  </li>
+                </ul>
+              </div>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    placeholder="work@email.com"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <Button size="sm" onClick={handleContactSales} className="bg-primary hover:bg-primary/90">
+                    <Mail className="w-4 h-4 mr-1" />
+                    Contact Us
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  We'll respond within one business day with a tailored proposal.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Trust Banner (aligned to credit model) */}
           <div className="max-w-4xl mx-auto mb-16 p-6 rounded-2xl border border-border bg-gradient-to-r from-card via-card to-primary/5 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-1">
               <h3 className="font-bold text-base flex items-center gap-2">
-                <span className="text-lg">&#x1F6E1;&#xFE0F;</span> 7-Day Money-Back Guarantee
+                <span className="text-lg">🛡️</span> 7-Day Refund on Unused Credits
               </h3>
               <p className="text-xs text-muted-foreground max-w-xl">
-                Not satisfied with your callback rates? Email us within 7 days of purchase for a 100% refund, no questions asked.
+                Unused credits are refundable within 7 days. Used credits aren't — a receipt is a receipt. No
+                retention loops, no fine print.
               </p>
             </div>
             <div className="space-y-1 md:text-right">
               <h3 className="font-bold text-base flex items-center gap-2 md:justify-end">
-                <span className="text-lg">&#x26A1;</span> Cancel with One Click
+                <Clock className="w-4 h-4" /> No Monthly Clock
               </h3>
               <p className="text-xs text-muted-foreground">
-                Easy cancellation directly from your profile settings. No retention loops, no emails.
+                Credits don't expire. Nothing auto-renews. Nothing to cancel.
               </p>
             </div>
           </div>
@@ -332,9 +404,7 @@ const Pricing = () => {
                   <AccordionTrigger className="text-left text-foreground hover:text-primary hover:no-underline py-4">
                     {faq.question}
                   </AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground pb-4">
-                    {faq.answer}
-                  </AccordionContent>
+                  <AccordionContent className="text-muted-foreground pb-4">{faq.answer}</AccordionContent>
                 </AccordionItem>
               ))}
             </Accordion>

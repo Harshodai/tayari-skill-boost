@@ -61,7 +61,36 @@ class BrowserOperator:
         cannot leak to later origins). When ``validate_redirects`` is true, every
         redirect destination is re-checked against the SSRF URL guard and the
         navigation is aborted if any hop targets a private or non-public host.
+
+        Legal boundary: robots.txt + outbound backoff are enforced before the
+        navigation. A URL disallowed by robots.txt returns
+        ``{"success": False, "error": "robots.txt disallows <url>"}`` and is
+        logged; the caller treats this the same as any other navigation
+        failure. When hosted mode is on, the URL must also be a licensed
+        feed origin (fail-closed), else the navigation is skipped with
+        ``{"success": False, "licensed_blocked": True}``.
         """
+        # Legal boundary first: hosted-mode licensed gate + robots.txt gate +
+        # per-domain backoff.
+        from app.services.scraping_policy import (
+            assert_robots_allowed,
+            assert_licensed_source,
+            LicensedSourceError,
+            RobotsDisallowedError,
+            await_backoff,
+        )
+        try:
+            assert_licensed_source(url)
+        except LicensedSourceError as exc:
+            logger.info("SKIPPED: hosted mode restricts scraping to licensed feeds (%s)", url)
+            return {"success": False, "error": str(exc), "licensed_blocked": True}
+        try:
+            assert_robots_allowed(url)
+        except RobotsDisallowedError as exc:
+            logger.info("SKIPPED: robots.txt disallows %s", url)
+            return {"success": False, "error": f"robots.txt disallows {url!r}", "robots_blocked": True}
+        await await_backoff(url)
+
         if not self.page:
             init_ok = await self.initialize()
             if not init_ok or not self.page:

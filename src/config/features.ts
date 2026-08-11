@@ -44,16 +44,8 @@ const CONFIG = {
     negotiationCopilot: [true, true],
     // 15-minute Company Radar Job Sentinel
     companyRadar: [true, true],
-    // Skill gap radar with free learning resources
-    skillGapRadar: [true, true],
     // AI interactive portfolio site generator
     portfolioGenerator: [true, true],
-    // Recruiter cold email & LinkedIn note copilot
-    recruiterOutreach: [true, true],
-    // Application conversion funnel analytics
-    funnelAnalytics: [true, true],
-    // Self-hosted privacy and offline diagnostics panel
-    privacyReadiness: [true, true],
     // Browser extension availability (enabled)
     browserExtension: [true, true],
     // Knowledge hub for resume knowledge graph
@@ -68,8 +60,6 @@ const CONFIG = {
     candidateAnswerBank: [true, true],
     // Agent-Reach Content & Social Extractor
     agentReach: [true, true],
-    // Architectural Adaptations Master Gateway
-    adaptationsPortal: [true, true],
     // Verified-Human badge (truth + screening checks)
     verification: [true, true],
     // Personalized referral-draft engine (Moat-1)

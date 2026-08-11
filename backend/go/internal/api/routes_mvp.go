@@ -2082,7 +2082,7 @@ func (s *Server) handleAgentReachDoctor(w http.ResponseWriter, r *http.Request) 
 		"browser_cookies_detected": []string{"chrome", "edge", "firefox", "brave", "safari"},
 		"channels": []map[string]interface{}{
 			{"channel": "github", "label": "GitHub Portfolios & PRs", "active": true, "status": "ok", "backend": "gh CLI", "latency_ms": 45},
-			{"channel": "linkedin", "label": "LinkedIn Leads", "active": true, "status": "ok", "backend": "Hermes Jina", "latency_ms": 60},
+			{"channel": "linkedin", "label": "LinkedIn Leads", "active": true, "status": "ok", "backend": "Jina reader", "latency_ms": 60},
 			{"channel": "youtube", "label": "Tech Talks", "active": true, "status": "ok", "backend": "yt-dlp", "latency_ms": 50},
 		},
 	})
@@ -2219,7 +2219,16 @@ func (s *Server) routesMVP(r chi.Router) {
 		r.Post("/api/v1/interview/prep", s.handleInterviewPrep)
 		r.Post("/api/interview/prep", s.handleInterviewPrep)
 
-		// ---- Profile Import -----------------------------------------------
+		// ---- Account self-service (GDPR) — /me aliases --------------------
+		// Canonical handlers live in routes_account.go; these are short-URL
+		// aliases so Settings.tsx can call DELETE /api/v1/me instead of
+		// /api/v1/account and GET /api/v1/me/export instead of /api/v1/account/export.
+		r.Delete("/api/v1/me", s.handleDeleteAccount)
+		r.Delete("/api/me", s.handleDeleteAccount)
+		r.Get("/api/v1/me/export", s.handleExportAccount)
+		r.Get("/api/me/export", s.handleExportAccount)
+
+		// ---- Profile import ------------------------------------------------
 		r.Post("/api/v1/profile/import-pdf", s.handleImportProfilePDF)
 		r.Post("/api/profile/import-pdf", s.handleImportProfilePDF)
 

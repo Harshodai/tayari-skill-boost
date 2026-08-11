@@ -6,8 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { BookOpen, Search, Sparkles, ExternalLink, Bookmark, Filter, Layers, MessageSquare, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 import { queryKnowledgeHub, fetchSavedArticles, syncSavedPosts, SavedArticleItem } from '@/api/ai';
+import { BackendUnavailableBanner } from '@/components/BackendUnavailableBanner';
+import { useBackendHealth } from '@/hooks/useBackendHealth';
 
 export default function Omnisave() {
+  const { unavailable: backendUnavailable } = useBackendHealth();
   const [articles, setArticles] = useState<SavedArticleItem[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -110,6 +113,12 @@ export default function Omnisave() {
   return (
     <Layout>
       <div className="max-w-6xl mx-auto px-6 py-10 space-y-8 text-slate-100 font-sans">
+        {/* Backend unavailable — the whole page is Go+Python gated */}
+        {backendUnavailable && (
+          <div className="mb-6">
+            <BackendUnavailableBanner feature="knowledge hub" />
+          </div>
+        )}
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-4 gap-4">
           <div>

@@ -24,6 +24,7 @@ import {
   RotateCcw,
   AlertTriangle,
   FileText,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -37,12 +38,15 @@ import {
   listResumes,
   getResume,
   apiFetch,
+  isBackendUnavailable,
 } from "@/api";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
+import { useBackendHealth } from "@/hooks/useBackendHealth";
 
 const AutoPilot = () => {
   const [query, setQuery] = useState("");
@@ -52,6 +56,20 @@ const AutoPilot = () => {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { unavailable: backendUnavailable } = useBackendHealth();
+  // ponytail: autopilot endpoints (start/list/run) are all Go-gated. When the
+  // probe says the gateway is down (or a list/starts call throws
+  // BackendUnavailableError), we render the honest banner instead of the form.
+
+  const isLinkedInUrl = (url: string | undefined): boolean => {
+    if (!url) return false;
+    try {
+      const host = new URL(url).hostname.toLowerCase();
+      return host === "linkedin.com" || host === "www.linkedin.com";
+    } catch {
+      return false;
+    }
+  };
 
   const { data: resumes = [] } = useQuery({
     queryKey: ["resumes"],
@@ -150,10 +168,20 @@ const AutoPilot = () => {
   };
 
   const isRunning = runStatus?.status === "running" || runStatus?.status === "queued";
+  const backendDown =
+    backendUnavailable ||
+    isBackendUnavailable(runsError) ||
+    isBackendUnavailable(runStatusError) ||
+    isBackendUnavailable(startMutation.error);
 
   return (
     <AppShell>
       <div className="container mx-auto px-4 py-12">
+        {backendDown && (
+          <div className="mb-6">
+            <BackendUnavailableBanner feature="autopilot" />
+          </div>
+        )}
         <div className="text-center max-w-2xl mx-auto mb-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-6">
             <Zap className="w-4 h-4" />
@@ -387,6 +415,26 @@ const AutoPilot = () => {
                         <p className="text-muted-foreground text-sm">
                           {app.job?.company || "Unknown Company"}
                         </p>
+                        {isLinkedInUrl(app.job?.url || app.apply_url) && (
+                          <div className="mt-2 rounded-lg border border-amber-300/60 bg-amber-50 dark:bg-amber-950/30 p-2.5 text-xs text-amber-800 dark:text-amber-200">
+                            <div className="flex items-start gap-1.5">
+                              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                              <div className="flex-1">
+                                <p className="font-medium">
+                                  LinkedIn submissions are not automated. LinkedIn's User Agreement §8.2 prohibits bots and enforcement is account termination. We'll save the job and prep your resume, but you submit manually.
+                                </p>
+                                <a
+                                  href={app.job?.url || app.apply_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mt-1.5 inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline"
+                                >
+                                  Open LinkedIn posting <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
                           <span>ATS: {app.ats_score_before}</span>
                           <span>→</span>

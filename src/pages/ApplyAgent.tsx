@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play, ShieldCheck, Eye } from "lucide-react";
+import { Loader2, Play, ShieldCheck, Eye, AlertTriangle, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { AgentLiveView } from "@/components/agent/AgentLiveView";
 import { listAgentRuns, startApplyAgent } from "@/lib/agent/applyAgent";
@@ -25,6 +25,19 @@ export function ApplyAgent() {
   const [error, setError] = useState<string | null>(null);
 
   const { data: runs = [] } = useQuery({ queryKey: ["agent-runs"], queryFn: listAgentRuns });
+
+  const isLinkedInUrl = (url: string): boolean => {
+    const trimmed = url.trim();
+    if (!trimmed) return false;
+    try {
+      const candidate = trimmed.includes("://") ? trimmed : `https://${trimmed}`;
+      const host = new URL(candidate).hostname.toLowerCase();
+      return host === "linkedin.com" || host === "www.linkedin.com";
+    } catch {
+      return false;
+    }
+  };
+  const linkedinUrlEntered = isLinkedInUrl(jobUrl);
 
   // Only offer the live browser feed when there is a real posting URL to open.
   const browserInstruction = jobUrl.trim()
@@ -101,6 +114,26 @@ export function ApplyAgent() {
               <div className="space-y-1.5">
                 <Label htmlFor="url">Application URL</Label>
                 <Input id="url" value={jobUrl} onChange={(e) => setJobUrl(e.target.value)} placeholder="https://…" />
+                {linkedinUrlEntered && (
+                  <div className="mt-1.5 rounded-lg border border-amber-300/60 bg-amber-50 dark:bg-amber-950/30 p-2.5 text-xs text-amber-800 dark:text-amber-200">
+                    <div className="flex items-start gap-1.5">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-medium">
+                          LinkedIn submissions are not automated. LinkedIn's User Agreement §8.2 prohibits bots and enforcement is account termination. We'll save the job and prep your resume, but you submit manually.
+                        </p>
+                        <a
+                          href={jobUrl.trim()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1.5 inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline"
+                        >
+                          Open LinkedIn posting <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="jd">Job description</Label>

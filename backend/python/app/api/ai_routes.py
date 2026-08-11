@@ -10,12 +10,12 @@ import re
 import socket
 import ssl
 from html.parser import HTMLParser
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, Literal
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas import (
     StrategicAnalysisResponse,
@@ -264,6 +264,46 @@ class OptimizerRequest(BaseModel):
     custom_instructions: Optional[str] = None
     target_role: Optional[str] = None
     jd_url: Optional[str] = None
+    # WS-04: career-transition track, forwarded verbatim to optimizer.
+    # Optional so existing callers remain unaffected.
+    transition_type: Optional[Literal["same_domain", "cross_domain"]] = None
+    current_industry: Optional[str] = None
+    target_industry: Optional[str] = None
+    transferable_skills: Optional[List[str]] = None
+
+    @field_validator("transition_type", mode="before")
+    @classmethod
+    def normalize_transition_type(cls, v: Any) -> Any:
+        if v == "":
+            return None
+        return v
+
+    @model_validator(mode="after")
+    def validate_transition_contract(self) -> "OptimizerRequest":
+        if self.transition_type is not None:
+            if not self.current_industry or not self.current_industry.strip():
+                raise ValueError("current_industry is required when transition_type is specified")
+            if not self.target_industry or not self.target_industry.strip():
+                raise ValueError("target_industry is required when transition_type is specified")
+            if not self.transferable_skills:
+                raise ValueError("transferable_skills must be a non-empty list when transition_type is specified")
+        return self
+
+
+def _transition_payload(payload: OptimizerRequest) -> Optional[dict]:
+    """Build the transition dict expected by optimizer._transition_directives.
+
+    Returns None when no transition mode is selected so the optimizer
+    stays track-neutral — same behaviour as before WS-04.
+    """
+    if not payload.transition_type:
+        return None
+    return {
+        "transition_type": payload.transition_type,
+        "current_industry": payload.current_industry.strip(),
+        "target_industry": payload.target_industry.strip(),
+        "transferable_skills": payload.transferable_skills,
+    }
 
 
 @router.post("/api/v1/strategic/analyze", response_model=None)
@@ -328,6 +368,7 @@ async def export_json(payload: ExportRequest):
 async def optimize_resume(payload: OptimizerRequest):
     """AI-powered resume optimization with reflexion loop."""
     try:
+        transition = _transition_payload(payload)
         if payload.jd_url:
             # ponytail: SSRF guard — run the same public-URL validation as the
             # job-descriptions/import path before the scraper sees the URL; the
@@ -341,6 +382,7 @@ async def optimize_resume(payload: OptimizerRequest):
                 jd_url=safe_url,
                 target_role=payload.target_role,
                 custom_instructions=payload.custom_instructions or "",
+                transition=transition,
             )
         else:
             result = await optimizer.optimize_with_reflection(
@@ -348,7 +390,10 @@ async def optimize_resume(payload: OptimizerRequest):
                 job_description=payload.job_description,
                 target_role=payload.target_role,
                 custom_instructions=payload.custom_instructions,
+                transition=transition,
             )
+        if transition:
+            result["transition_mode"] = transition["transition_type"]
         return result
     except LLMNotConfiguredError as exc:
         logger.error("optimizer/optimize: LLM not configured/available: %s", exc)
@@ -607,3 +652,45 @@ async def create_referral_draft(payload: ReferralDraftRequest):
     except Exception as exc:
         logger.error("referral/draft failed: %s", exc)
         raise HTTPException(status_code=500, detail="Referral draft failed") from exc
+
+
+@router.get("/api/v1/screening/metrics")
+@router.get("/api/screening/metrics")
+async def screening_metrics_endpoint():
+    """Published ghost-job screening precision/recall/F1 (audit P2 #15, Flow 3).
+
+    This is the number we publish on the landing page: of a 30-posting
+    hand-labeled fixture, what fraction of ghost-flagged postings are
+    truly ghosts (precision) and what fraction of true ghosts we catch
+    (recall). Computed live from the committed fixture at
+    ``app/tests/fixtures/ghost_job_labels.json`` so the public number
+    and the test harness cannot drift. Re-verify this endpoint whenever
+    ``posting_screen.py`` or the fixture changes.
+    """
+    import os as _os
+    from datetime import datetime, timezone
+    from app.tests.test_posting_screen_precision_recall import (
+        compute_screening_metrics,
+        load_fixture,
+    )
+
+    fixture_path = _os.path.join(
+        _os.path.dirname(__file__), "..", "tests", "fixtures", "ghost_job_labels.json"
+    )
+    try:
+        entries = load_fixture()
+        metrics = compute_screening_metrics(entries)
+    except FileNotFoundError as exc:
+        logger.error("screening/metrics: fixture missing: %s", exc)
+        raise HTTPException(status_code=500, detail="Screening fixture not found") from exc
+    except Exception as exc:
+        logger.error("screening/metrics failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Screening metrics computation failed") from exc
+
+    return {
+        "precision": round(metrics["precision"], 3),
+        "recall": round(metrics["recall"], 3),
+        "f1": round(metrics["f1"], 3),
+        "sample_size": metrics["sample_size"],
+        "last_calculated_at": datetime.now(timezone.utc).isoformat(),
+    }

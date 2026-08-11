@@ -14,7 +14,9 @@ import {
   Ban,
   MonitorPlay,
   Square,
+  Hand,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
   getAgentRun,
@@ -287,6 +289,16 @@ export function AgentLiveView({ runId, browserInstruction }: { runId: string; br
               disabled={transition.isPending}
             >
               <Square className="mr-2 h-4 w-4" /> Stop run
+            </Button>
+            {/* WS-03 Take-over: pause the agent and hand the current
+                sensitive-field question to the human-answer queue, where the
+                user can answer it once and have it reused on future runs.
+                The run stays paused until the answer lands (the queue's
+                pending->answered transition is what unblocks it). */}
+            <Button asChild variant="outline">
+              <Link to="/questions">
+                <Hand className="mr-2 h-4 w-4" /> Take over
+              </Link>
             </Button>
           </div>
         ) : null}

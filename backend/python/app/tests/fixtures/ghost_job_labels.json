@@ -1,0 +1,212 @@
+[
+  {
+    "url": "https://example.invalid/ghost-01",
+    "title": "Marketing Rockstar",
+    "company": "Confidential Company",
+    "description": "We are a fast-paced environment seeking a self-starter to wear many hats. Competitive salary. Dynamic team. Urgent hire. Join our family.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-02",
+    "title": "Sales Ninja",
+    "company": "A Leading Firm",
+    "description": "Fast-paced environment. Self-starter. Wear many hats. Competitive salary. Team player. Dynamic team. Apply now.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-03",
+    "title": "Growth Hacker",
+    "company": "Confidential",
+    "description": "Fast-paced environment, self-starter, wear many hats, competitive salary, team player, dynamic team, urgent hire.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-04",
+    "title": "Business Development",
+    "company": "A Confidential Employer",
+    "description": "Fast-paced environment, self-starter, wear many hats, competitive salary, team player, dynamic team. Confidential company. Apply ASAP.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-05",
+    "title": "Marketing Associate",
+    "company": "Confidential",
+    "description": "Fast-paced environment, self-starter, wear many hats, competitive salary, team player, dynamic team. Vague role. No requirements listed.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-06",
+    "title": "Operations Specialist",
+    "company": "A Growing Company",
+    "description": "Fast-paced environment, self-starter, wear many hats, competitive salary, team player, dynamic team, urgent hire, confidential company.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-07",
+    "title": "Account Executive",
+    "company": "Confidential",
+    "description": "Fast-paced environment, self-starter, wear many hats, competitive salary, team player, dynamic team. Salary $40k to $140k DOE.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-08",
+    "title": "Customer Success Manager",
+    "company": "A Innovative Startup",
+    "description": "Fast-paced environment, self-starter, wear many hats, competitive salary, team player, dynamic team. Urgent hire. No deadline.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-09",
+    "title": "Account Executive",
+    "company": "Confidential",
+    "description": "Fast-paced environment, self-starter, wear many hats, competitive salary, team player, dynamic team. Confidential company. Urgent hire.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-10",
+    "title": "Inside Sales Rep",
+    "company": "Confidential",
+    "description": "Fast-paced environment, self-starter, wear many hats, competitive salary, team player, dynamic team, confidential company, urgent hire.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-11",
+    "title": "Junior Marketing Associate",
+    "company": "Confidential Employer",
+    "description": "We are hiring immediately. Confidential company. Competitive salary. Fast-paced environment. Self-starter. Team player. No experience required.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-12",
+    "title": "Inside Sales Representative",
+    "company": "A Growing Firm",
+    "description": "Confidential company. Fast-paced environment, self-starter, wear many hats, competitive salary, team player, dynamic team, urgent hire.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-13",
+    "title": "Operations Coordinator",
+    "company": "Confidential",
+    "description": "Fast-paced environment, self-starter, wear many hats, competitive salary, team player, dynamic team, confidential company, urgent hire. Confidential employer.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-14",
+    "title": "Sales Representative",
+    "company": "A Growing Startup",
+    "description": "Fast-paced environment, self-starter, wear many hats, competitive salary, team player, dynamic team, confidential company, urgent hire, confidential.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/ghost-15",
+    "title": "Account Executive",
+    "company": "Confidential",
+    "description": "Confidential company, fast-paced environment, self-starter, wear many hats, competitive salary, team player, dynamic team, urgent hire, confidential employer, confidential.",
+    "label": "ghost"
+  },
+  {
+    "url": "https://example.invalid/real-01",
+    "title": "Senior Software Engineer (Backend)",
+    "company": "Acme Corp",
+    "description": "Acme Corp is hiring a Senior Software Engineer to build distributed services in Python and Go. You will own API design, work with Postgres and Redis, and ship to AWS. Requirements: 5+ years of backend experience, fluency in Python, solid understanding of SQL and schema design, experience with Kafka or similar streaming systems. Seniority band: Senior (5-8 years). Location: Remote (US). Salary: $160k-$180k base. We are a concrete team building a concrete product.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-02",
+    "title": "Data Engineer",
+    "company": "Globex Analytics",
+    "description": "Globex Analytics seeks a Data Engineer to build and maintain ETL pipelines using Airflow, dbt, and Snowflake. Requirements: 3+ years of data engineering, strong SQL, Python, experience with Snowflake or BigQuery, dbt modeling. Seniority: Mid-level (3-5 years). Location: New York, NY (hybrid 3 days/week). Salary: $130k-$150k. Concrete stack, concrete deliverables.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-03",
+    "title": "Frontend Engineer (React/TypeScript)",
+    "company": "Initech",
+    "description": "Initech is hiring a Frontend Engineer to build accessible React applications with TypeScript and Tailwind CSS. You will work on the customer dashboard and design-system components. Requirements: 3+ years React, strong TypeScript, experience with Vite or Webpack, accessibility (WCAG 2.1 AA). Seniority: Mid-level. Location: Austin, TX (on-site). Salary: $120k-$140k. Clear tech stack, clear requirements.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-04",
+    "title": "Machine Learning Engineer",
+    "company": "Soylent Technologies",
+    "description": "Soylent Technologies is hiring an ML Engineer to deploy models to production using PyTorch, Triton Inference Server, and Kubernetes. Requirements: 4+ years ML engineering, PyTorch, experience with model serving, distributed training. Seniority: Senior. Location: San Francisco, CA. Salary: $180k-$210k. Concrete requirements, named tools, clear deliverables.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-05",
+    "title": "DevOps Engineer",
+    "company": "Stark Industries",
+    "description": "Stark Industries seeks a DevOps Engineer to manage our Kubernetes clusters on AWS, with Terraform IaC and ArgoCD GitOps. Requirements: 5+ years DevOps, AWS, Terraform, Kubernetes, CI/CD with GitHub Actions. Seniority: Senior (5+ years). Location: Boston, MA (hybrid). Salary: $170k-$200k. Clear tech stack, clear requirements, named tools.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-06",
+    "title": "Product Manager (B2B SaaS)",
+    "company": "Wayne Enterprises",
+    "description": "Wayne Enterprises is hiring a Senior Product Manager for our B2B analytics SaaS. You will own roadmap, write PRDs, work with engineering and design. Requirements: 6+ years PM experience, B2B SaaS background, SQL fluency, experience with Amplitude or Mixpanel. Seniority: Senior (6-10 years). Location: Remote (US). Salary: $170k-$200k. Concrete requirements and a clear scope.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-07",
+    "title": "Site Reliability Engineer",
+    "company": "Umbrella Health",
+    "description": "Umbrella Health is hiring an SRE to keep our platform reliable. Stack: Go services on AWS, Grafana, Prometheus, PagerDuty. Requirements: 4+ years SRE, Go, Linux internals, Prometheus, incident response. Seniority: Senior (4-7 years). Location: Chicago, IL (hybrid 2 days). Salary: $165k-$190k. Clear tech stack, clear deliverables, on-call rotation disclosed.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-08",
+    "title": "Analytics Engineer (dbt + SQL)",
+    "company": "Vandelay Industries",
+    "description": "Vandelay Industries is hiring an Analytics Engineer to build the analytics layer in dbt on top of Snowflake. Requirements: 3+ years analytics engineering, dbt, Snowflake, Looker or Tableau, strong SQL. Seniority: Mid-level (3-5 years). Location: New York, NY (hybrid). Salary: $140k-$160k. Concrete stack, concrete requirements.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-09",
+    "title": "Mobile Engineer (iOS Swift)",
+    "company": "Cyberdyne Systems",
+    "description": "Cyberdyne Systems seeks an iOS Engineer to build our consumer mobile app in Swift and SwiftUI. Requirements: 4+ years iOS, Swift, SwiftUI, experience with Combine, CI for mobile (Fastlane). Seniority: Senior (4-7 years). Location: Remote (US/EU). Salary: $160k-$185k. Named stack, clear seniority, clear requirements.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-10",
+    "title": "Backend Engineer (Java/Spring)",
+    "company": "Hooli",
+    "description": "Hooli is hiring a Backend Engineer to build payment services in Java 17 with Spring Boot, Kafka, and Postgres on GCP. Requirements: 5+ years Java, Spring Boot, Kafka, SQL, GCP or AWS. Seniority: Senior (5-8 years). Location: Seattle, WA (hybrid 3 days). Salary: $175k-$200k. Concrete stack, named tools, clear requirements and seniority band.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-11",
+    "title": "Security Engineer (AppSec)",
+    "company": "Massive Dynamic",
+    "description": "Massive Dynamic is hiring an Application Security Engineer to review code, run threat models, and integrate SAST/DAST into CI. Requirements: 5+ years AppSec, Python and Go, Burp Suite, Snyk, OWASP top 10 fluency. Seniority: Senior (5-8 years). Location: Remote (US). Salary: $180k-$210k. Concrete requirements, named tools, clear scope and deliverables.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-12",
+    "title": "Full Stack Engineer (Node + React)",
+    "company": "Pied Piper",
+    "description": "Pied Piper is hiring a Full Stack Engineer to build our web app with Node.js, TypeScript, React, Postgres, and AWS. Requirements: 4+ years full stack, Node.js, TypeScript, React, SQL, AWS. Seniority: Mid-Senior (4-6 years). Location: Remote (US). Salary: $150k-$175k. Concrete stack, clear requirements, named tools.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-13",
+    "title": "Data Scientist (NLP)",
+    "company": "Aperture Science",
+    "description": "Aperture Science is hiring a Data Scientist to work on NLP models with HuggingFace Transformers, PyTorch, and Spark. Requirements: PhD or 4+ years industry NLP, Python, PyTorch, HuggingFace, Spark. Seniority: Senior (4-7 years). Location: Remote (US). Salary: $170k-$200k. Concrete requirements, named tools, clear deliverables.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-14",
+    "title": "Platform Engineer (Kubernetes)",
+    "company": "Tyrell Corporation",
+    "description": "Tyrell Corporation is hiring a Platform Engineer to build our internal developer platform on Kubernetes, with Crossplane, ArgoCD, and Go. Requirements: 5+ years platform engineering, Go, Kubernetes, Crossplane or similar. Seniority: Senior (5-8 years). Location: San Francisco, CA (hybrid 2 days). Salary: $190k-$220k. Concrete stack, clear requirements, named tools.",
+    "label": "real"
+  },
+  {
+    "url": "https://example.invalid/real-15",
+    "title": "Engineering Manager (Infrastructure)",
+    "company": "Nakatomi Trading",
+    "description": "Nakatomi Trading is hiring an Engineering Manager to lead our infrastructure team of 6 engineers. Stack: Go services, AWS, Terraform, Kubernetes. Requirements: 3+ years management, 5+ years prior IC in infrastructure, Go or Python, AWS. Seniority: EM (3-5 years management). Location: Los Angeles, CA (hybrid 2 days). Salary: $220k-$260k. Concrete scope, clear management requirements, named tools.",
+    "label": "real"
+  }
+]

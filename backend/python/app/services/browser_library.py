@@ -8,6 +8,8 @@ import asyncio
 import logging
 import threading
 
+from app.services.linkedin_policy import assert_not_linkedin_automation, LinkedInAutomationBlocked
+
 logger = logging.getLogger(__name__)
 
 
@@ -93,6 +95,23 @@ class Browser:
         if not url:
             logger.warning("[Browser] No URL provided for job application; nothing to apply to.")
             return {"success": False, "error": "no_job_url", "summary": "", "actions": []}
+
+        # Defense-in-depth: automation_engine already guards this, but a
+        # future caller could bypass it. Block LinkedIn submissions here too
+        # so the legal boundary holds regardless of the entry path.
+        try:
+            assert_not_linkedin_automation(url, "submit")
+        except LinkedInAutomationBlocked:
+            logger.warning(
+                "[Browser] Refused LinkedIn automation for %s at %s (UA §8.2): %s",
+                title, company, url,
+            )
+            return {
+                "success": False,
+                "error": "linkedin_automation_blocked",
+                "summary": "LinkedIn automation not permitted by policy (UA §8.2).",
+                "actions": [],
+            }
 
         instruction = Browser._build_instruction(job, resume_text, cover_letter)
 

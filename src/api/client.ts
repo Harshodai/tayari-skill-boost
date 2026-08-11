@@ -55,6 +55,14 @@ export async function checkResponse(response: Response): Promise<void> {
   if (response.ok) return;
   if (response.status === 401) handleUnauthorized();
   const error = await response.json().catch(() => ({} as Record<string, unknown>));
+  // 5xx gateway errors mean the Go+Python stack is up but degraded (e.g. the
+  // gateway maps an unreachable AI engine to 502) — surface it as backend
+  // unavailable, not a generic HTTP error.
+  if (response.status === 502 || response.status === 503 || response.status === 504) {
+    throw new BackendUnavailableError(
+      (error && (error.error as string)) || "Advanced features need the local Tayari engine, which isn't running in this environment."
+    );
+  }
   throw new ApiError(
     (error && (error.error as string)) || `HTTP ${response.status}`,
     response.status,
@@ -76,14 +84,6 @@ export async function clearPrivacyLedger(): Promise<Record<string, unknown>> {
   return apiFetch<Record<string, unknown>>("/v1/privacy/clear-ledger", {
     method: "POST",
   });
-}
-
-export async function exportUserData(): Promise<Blob> {
-  return apiFetch<Blob>("/v1/user/export-data", { asBlob: true });
-}
-
-export async function deleteUserAccount(): Promise<void> {
-  return apiFetch<void>("/v1/user/account", { method: "DELETE" });
 }
 
 export async function apiFetch<T>(

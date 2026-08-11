@@ -31,6 +31,7 @@ var knownAsymmetric = map[string]bool{
 	"GET /api/v1/analytics/bandit-stats":           true,
 	"GET /api/v1/analytics/funnel":                 true,
 	"GET /api/v1/approvals":                        true,
+	"GET /api/v1/agent/config":                     true,
 	"GET /api/v1/hermes/config":                    true,
 	"GET /api/v1/resumes/{id}/variants":            true,
 	"POST /api/v1/advisor/cohorts":                 true,

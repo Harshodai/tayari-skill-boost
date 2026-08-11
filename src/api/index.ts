@@ -1,5 +1,6 @@
 export * from "./types";
 export * from "./client";
+export * from "./account";
 export * from "./resumes";
 export * from "./jobs";
 export * from "./autopilot";

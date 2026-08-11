@@ -30,8 +30,39 @@ import (
 // -------------------------------------------------------------------
 
 // routesHermes wires the Hermes proxy routes (both /api/v1 and /api aliases).
+//
+// WS-09: the user-facing name is "agent" (no Hermes codename in the URL bar).
+// The /api/v1/agent/* and /api/agent/* paths are the canonical ones going
+// forward; the /hermes/* paths remain as route-parity aliases so existing
+// clients and tests keep working (CLAUDE.md route-parity rule). Handlers and
+// the Python upstream path keep their historical names — only the public Go
+// route strings change.
 func (s *Server) routesHermes(r chi.Router) {
-	// v1 routes
+	// Canonical v1 routes (/agent/*)
+	r.Post("/api/v1/agent/scrape", s.handleHermesScrape)
+	r.Get("/api/v1/agent/jobs/{board}", s.handleHermesJobsBoard)
+	r.Get("/api/v1/agent/runs", s.handleHermesRunsList)
+	r.Get("/api/v1/agent/runs/active", s.handleHermesRunsActive)
+	r.Get("/api/v1/agent/runs/{id}", s.handleHermesRunDetail)
+	r.Get("/api/v1/agent/context", s.handleHermesContext)
+	r.Get("/api/v1/agent/status", s.handleHermesStatus)
+	r.Post("/api/v1/agent/sessions", s.handleHermesCreateSession)
+	r.Post("/api/v1/agent/sessions/{id}/events", s.handleHermesAddEvent)
+	r.Get("/api/v1/agent/sessions/{id}", s.handleHermesGetSession)
+
+	// Canonical /api aliases (/agent/*)
+	r.Post("/api/agent/scrape", s.handleHermesScrape)
+	r.Get("/api/agent/jobs/{board}", s.handleHermesJobsBoard)
+	r.Get("/api/agent/runs", s.handleHermesRunsList)
+	r.Get("/api/agent/runs/active", s.handleHermesRunsActive)
+	r.Get("/api/agent/runs/{id}", s.handleHermesRunDetail)
+	r.Get("/api/agent/context", s.handleHermesContext)
+	r.Get("/api/agent/status", s.handleHermesStatus)
+	r.Post("/api/agent/sessions", s.handleHermesCreateSession)
+	r.Post("/api/agent/sessions/{id}/events", s.handleHermesAddEvent)
+	r.Get("/api/agent/sessions/{id}", s.handleHermesGetSession)
+
+	// Legacy /hermes/* aliases — keep until all callers migrate. Route parity.
 	r.Post("/api/v1/hermes/scrape", s.handleHermesScrape)
 	r.Get("/api/v1/hermes/jobs/{board}", s.handleHermesJobsBoard)
 	r.Get("/api/v1/hermes/runs", s.handleHermesRunsList)

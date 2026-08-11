@@ -28,7 +28,34 @@ async def _hermes_scrape(query: str, location: str, target_board: dict | None) -
     Lazy-imported so the module stays importable when the hermes package or
     its optional deps are absent. Every provider failure is caught inside the
     orchestrator, so a scrape never raises out of here.
+
+    Legal boundary: in hosted mode (TAYARI_HOSTED_MODE=true), aggressive DOM
+    scraping is disabled and only licensed/official feeds run. In self-host
+    mode the aggressive scraper runs, but robots.txt + outbound backoff still
+    gate every fetch (enforced inside BrowserOperator.navigate and the Hermes
+    providers).
     """
+    from app.services.scraping_policy import hosted_safe_sources_only, LICENSED_FEEDS
+    if hosted_safe_sources_only():
+        logger.info(
+            "Hosted mode: aggressive scraping disabled, using licensed feeds only "
+            "(allowed=%s)", sorted(LICENSED_FEEDS)
+        )
+        # Only the licensed ATS JSON providers (greenhouse/lever) are kept —
+        # firecrawl/apify/crawl4ai/playwright_local are aggressive DOM scrapers
+        # that fetch third-party pages, which the hosted operator must not do.
+        try:
+            from app.services.hermes import HermesScraper
+            from app.services.hermes.providers import greenhouse, lever
+        except Exception as exc:  # noqa: BLE001 - hermes is optional
+            logger.warning("Hermes licensed-only path unavailable: %s", exc)
+            return []
+        try:
+            scraper = HermesScraper(providers=[greenhouse, lever])
+            return await scraper.scrape(query, location, board=target_board)
+        except Exception as exc:  # noqa: BLE001 - never break the pipeline
+            logger.warning("Hermes licensed-only scrape failed: %s", exc)
+            return []
     try:
         from app.services.hermes import HermesScraper
     except Exception as exc:  # noqa: BLE001 - hermes is optional
@@ -368,6 +395,67 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
             if boost > 0 and j.get("match_score") is not None:
                 j["match_score"] = min(j["match_score"] + int(boost), 100)
                 j["match_reason"] = (j.get("match_reason") or "") + f" (Boosted by {int(boost)}% based on your feedback)"
+
+    # WS-04: career-transition-aware rerank. A cross-domain pivot and a
+    # same-domain promotion want opposite rankings for the same candidate:
+    # the pivot needs skill-overlap to dominate (titles lie across domains),
+    # the promotion needs title-overlap to dominate (titles track seniority
+    # within one). Without this branch the two modes got byte-identical order,
+    # which is the audit's Q3 finding. We reweight the existing match_score
+    # in place — no extra LLM call.
+    transition_kind = (profile or {}).get("transition_type", "") if isinstance(profile, dict) else ""
+    if transition_kind in ("cross_domain", "same_domain"):
+        transferable = {
+            s.strip().lower()
+            for s in (profile or {}).get("transferable_skills", []) or []
+            if isinstance(s, str) and s.strip()
+        }
+        for j in ranked:
+            base = j.get("match_score")
+            if base is None:
+                continue
+            matched = [s.lower() for s in (j.get("matched_skills") or [])]
+            matched_set = set(matched)
+            title = (j.get("title") or "").lower()
+            # How strongly the candidate's stated desired roles/titles match
+            # this job's title. Used as the same-domain signal.
+            desired = [
+                r.lower() for r in (profile or {}).get("desired_roles", []) or []
+                if isinstance(r, str) and r.strip()
+            ]
+            title_overlap = 0
+            if desired and title:
+                title_overlap = sum(1 for d in desired if d and d in title) / max(len(desired), 1)
+            skill_overlap = 0.0
+            if matched_set:
+                if transferable:
+                    skill_overlap = len(matched_set & transferable) / max(len(transferable), 1)
+                else:
+                    skill_overlap = min(len(matched_set) / 5.0, 1.0)
+
+            if transition_kind == "cross_domain":
+                # De-emphasise title (lies across domains), emphasise skill
+                # overlap — especially transferable skills the user flagged.
+                adj = 0.7 * base + 0.3 * (skill_overlap * 100)
+                # Small penalty when title_overlap is high but skill_overlap is
+                # low: that's a same-domain trap, not a pivot target.
+                if title_overlap > 0.5 and skill_overlap < 0.2:
+                    adj -= 5.0
+                j["match_score"] = max(0, min(100, int(round(adj))))
+                j["match_reason"] = (j.get("match_reason") or "") + " (Reweighted for cross-domain pivot: skills over titles)"
+            else:  # same_domain
+                adj = 0.7 * base + 0.3 * (title_overlap * 100)
+                if title_overlap > 0.5:
+                    adj += 3.0
+                j["match_score"] = max(0, min(100, int(round(adj))))
+                j["match_reason"] = (j.get("match_reason") or "") + " (Reweighted for same-domain move: titles track seniority)"
+
+        ranked.sort(key=lambda x: (x.get("match_score") is None, -(x.get("match_score") or 0)))
+        log_step(
+            "RANK",
+            f"Transition-aware rerank applied ({transition_kind}) — "
+            f"{'skill-overlap boosted, title-overlap dampened' if transition_kind == 'cross_domain' else 'title-overlap boosted'}",
+        )
 
     scored = [j for j in ranked if j.get("match_score") is not None]
     log_step("RANK", f"AI scored {len(scored)} jobs against your profile")

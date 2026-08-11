@@ -4,6 +4,7 @@ from unittest.mock import patch, AsyncMock
 from app.agent.autonomous_career_engine import AutonomousCareerEngine
 from app.agent.email_connector import EmailConnector
 from app.agent.interview_board import InterviewBoardEngine
+from app.services.llm_service import LLMNotConfiguredError
 
 @pytest.mark.asyncio
 async def test_email_connector():
@@ -71,10 +72,11 @@ async def test_ai_salary_negotiation():
     engine = AutonomousCareerEngine()
     # ponytail: with no LLM configured the engine must NOT fabricate a counter-offer;
     # it signals unavailability and leaves derived outputs absent so callers can 503.
-    res = await engine.generate_ai_salary_negotiation(current_offer=200000, target_role="Staff Engineer", location="San Francisco, CA", company="OpenAI")
-    assert res["llm_available"] is False
-    assert res["target_counter_offer"] is None
-    assert res["counter_offer_script"] is None
+    with patch("app.agent.autonomous_career_engine.llm_complete", new_callable=AsyncMock, side_effect=LLMNotConfiguredError("unconfigured")):
+        res = await engine.generate_ai_salary_negotiation(current_offer=200000, target_role="Staff Engineer", location="San Francisco, CA", company="OpenAI")
+        assert res["llm_available"] is False
+        assert res["target_counter_offer"] is None
+        assert res["counter_offer_script"] is None
 
     # When the LLM is available, the counter-offer and script are produced.
     with patch("app.agent.autonomous_career_engine.llm_complete", new_callable=AsyncMock, return_value="Counter at $240,000 based on benchmarks."):

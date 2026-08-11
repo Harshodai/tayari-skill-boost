@@ -165,7 +165,12 @@ strategic_analyzer = StrategicAnalyzer()
 
 from app.routes import health, ats
 from app.routes.ats import AnalyzeRequest
-from app.api.ai_routes import router as ai_router, _validate_public_url
+from app.api.ai_routes import (
+    router as ai_router,
+    _validate_public_url,
+    OptimizerRequest,
+    _transition_payload,
+)
 from app.api.adaptations_routes import adaptations_router
 
 app.include_router(health.router)
@@ -249,30 +254,6 @@ async def export_json(payload: ExportRequest):
 # ---------------------------------------------------------------------------
 # NEW: Optimizer, Deep ATS, Job Search, Auto-Pilot, DOCX Export
 # ---------------------------------------------------------------------------
-
-class OptimizerRequest(BaseModel):
-    resume_text: str
-    job_description: Optional[str] = None
-    custom_instructions: Optional[str] = None
-    target_role: Optional[str] = None
-    jd_url: Optional[str] = None
-    # WS-04: the caller's career-transition track. Optional so existing clients
-    # keep working unchanged; when present it materially changes the rewrite.
-    transition_type: Optional[str] = None
-    current_industry: Optional[str] = None
-    target_industry: Optional[str] = None
-    transferable_skills: Optional[list[str]] = None
-
-
-def _transition_payload(payload: "OptimizerRequest") -> Optional[dict]:
-    if payload.transition_type not in ("same_domain", "cross_domain"):
-        return None
-    return {
-        "transition_type": payload.transition_type,
-        "current_industry": payload.current_industry,
-        "target_industry": payload.target_industry,
-        "transferable_skills": payload.transferable_skills or [],
-    }
 
 
 @app.post("/api/v1/optimizer/optimize")

@@ -32,10 +32,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { extractTextFromFile } from "@/lib/resume-parser";
 import { toast } from "sonner";
 import { resumeUploadSchema } from "@/lib/schemas";
-import { createResume, createJD, analyzeResume, importJobDescription, uploadResumeMultipart } from "@/api";
+import { createResume, createJD, analyzeResume, importJobDescription, uploadResumeMultipart, isBackendUnavailable } from "@/api";
 import { buildAnalyzePayload, normalizeGoAnalysis } from "@/lib/resumeAnalysis";
 import { Input } from "@/components/ui/input";
 import { ResumeFilePreview } from "@/components/resume/ResumeFilePreview";
+import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
+import { useBackendHealth } from "@/hooks/useBackendHealth";
 
 const ResumeUpload = () => {
   const navigate = useNavigate();
@@ -51,6 +53,11 @@ const ResumeUpload = () => {
   const [analysisStep, setAnalysisStep] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { unavailable: backendUnavailable } = useBackendHealth();
+  // ponytail: analyze/parse endpoints all hit the Go gateway — if it's down
+  // the whole form is useless, so render the honest banner instead of a
+  // broken upload + toast loop.
+  const [analyzeFailedBackendDown, setAnalyzeFailedBackendDown] = useState(false);
 
   // AI Workflow Options
   const [aiOptions, setAiOptions] = useState({
@@ -150,6 +157,9 @@ const ResumeUpload = () => {
       });
     } catch (err) {
       console.error("Analysis error:", err);
+      if (isBackendUnavailable(err)) {
+        setAnalyzeFailedBackendDown(true);
+      }
       const message = err instanceof Error ? err.message : "Failed to analyze resume";
       setError(message);
       toast.error(message);
@@ -258,6 +268,14 @@ const ResumeUpload = () => {
   return (
     <AppShell>
       <div className="container mx-auto px-4 py-12">
+        {/* Backend unavailable — show the honest state instead of a broken upload form */}
+        {(backendUnavailable || analyzeFailedBackendDown) && (
+          <div className="max-w-3xl mx-auto mb-8">
+            <BackendUnavailableBanner feature="resume optimizer" variant="full" />
+          </div>
+        )}
+        {!backendUnavailable && !analyzeFailedBackendDown && (
+        <>
         {/* Sign-in prompt for guests */}
         {!user && (
           <Alert className="max-w-5xl mx-auto mb-8 border-primary/30 bg-primary/5">
@@ -550,11 +568,12 @@ Examples:
               className="text-center p-6 rounded-xl bg-card/50 border border-border/50 animate-fade-in-up"
               style={{ animationDelay: `${0.4 + index * 0.1}s` }}
             >
-              <h3 className="font-semibold text-foreground mb-2">{item.title}</h3>
-              <p className="text-muted-foreground text-sm">{item.description}</p>
-            </div>
-          ))}
+            <h3 className="font-semibold text-foreground mb-2">{item.title}</h3>
+            <p className="text-muted-foreground text-sm">{item.description}</p>
+          </div>
+        ))}
         </div>
+        </>)}
       </div>
     </AppShell>
   );

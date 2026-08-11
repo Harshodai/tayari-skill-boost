@@ -45,6 +45,8 @@ import { MemoryBadge } from "@/components/pipeline/MemoryBadge";
 import { GamificationBadge } from "@/components/GamificationBadge";
 import { AchievementsBadge } from "@/components/AchievementsBadge";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { useBackendHealth } from "@/hooks/useBackendHealth";
+import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
 import { buildApplyChain } from "@/lib/automation/applyChain";
 import { toast } from "sonner";
 import { WelcomeTour } from "@/components/onboarding/WelcomeTour";
@@ -59,6 +61,7 @@ const Dashboard = () => {
   const firstName = user?.user_metadata?.full_name?.split(" ")[0] ?? user?.email?.split("@")[0] ?? "";
 
   const { analyses = [], savedJobs = [], roadmap = [], interviews = [], funnel = { saved: 0, applied: 0, interview: 0, offer: 0 }, isLoading, isError, refetch } = useDashboardData(userId);
+  const { unavailable: backendUnavailable } = useBackendHealth();
 
   const totalApps = (funnel.applied ?? 0) + (funnel.interview ?? 0) + (funnel.offer ?? 0);
   const responseRate = totalApps > 0 ? Math.round(((funnel.interview + funnel.offer) / totalApps) * 100) : 0;
@@ -128,6 +131,11 @@ const Dashboard = () => {
     <AppShell>
       <WelcomeTour />
       <div className="container mx-auto px-4 py-10 max-w-7xl">
+        {backendUnavailable && (
+          <div className="mb-6">
+            <BackendUnavailableBanner feature="dashboard" />
+          </div>
+        )}
         {/* ponytail: minimal loading skeleton + error retry — single guard for all dashboard queries */}
         {isLoading && (
           <div className="space-y-4 mb-8" aria-busy="true" aria-live="polite">

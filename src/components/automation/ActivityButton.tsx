@@ -19,7 +19,7 @@ export function ActivityButton({ className }: { className?: string }) {
     let cancelled = false;
     const poll = async () => {
       try {
-        const data = await apiFetch<{ count?: number }>(`/v1/hermes/runs/active`);
+        const data = await apiFetch<{ count?: number }>(`/v1/agent/runs/active`);
         if (!cancelled && typeof data?.count === "number") setServerActive(data.count);
       } catch {
         // ponytail: 401/network → silently keep client count; not worth a toast

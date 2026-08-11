@@ -13,6 +13,7 @@ import httpx
 
 from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LongContextClient
 from app.schemas import StrategicAnalysisResponse, HiddenSkill
+from app.services.llm_service import LLMNotConfiguredError
 
 
 class _StrategicLLMCallable:
@@ -73,8 +74,16 @@ class StrategicAnalyzer:
         resume_text: str,
         jd_text: str,
     ) -> StrategicAnalysisResponse:
+        # B5: never silently serve fabricated output. When no LLM is configured
+        # the route handler returns an honest 503 `ai_service_unavailable` —
+        # we must NOT short-circuit to _fallback_analysis (template strings
+        # the user would mistake for real analysis). Transient failures (the
+        # try/except below) still fall back so a one-off network blip does
+        # not fail a paid action, but the no-LLM-at-all case is hard-failed.
         if not self.llm_url or not self.llm_api_key:
-            return self._fallback_analysis(resume_text, jd_text)
+            raise LLMNotConfiguredError(
+                "StrategicAnalyzer: LLM_API_URL/LLM_API_KEY not configured"
+            )
 
         try:
             return await self._llm_analysis(resume_text, jd_text)
