@@ -379,6 +379,15 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/questions"
+                element={
+                  <ProtectedRoute>
+                    <AgentQuestions />
+                  </ProtectedRoute>
+                }
+              />
+
 
               <Route
                 path="/analytics-funnel"
