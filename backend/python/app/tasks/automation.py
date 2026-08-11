@@ -70,6 +70,11 @@ def run_scheduled(self, user_id: str, config: dict | None = None) -> dict:
     """
     config = dict(config or {})
     config.setdefault("user_id", user_id)
+    # WS-01: a scheduled run may never carry submission consent. `auto_apply`
+    # stored on a job_watches row used to reach the engine verbatim, which let
+    # a DB row submit applications no human ever reviewed. Consent now lives
+    # only in `application_approvals`.
+    config["auto_apply"] = False
     profile, resume_text, candidate_name = _load_user_context(user_id)
     run_id = str(uuid.uuid4())
     task = run_application_agent.apply_async(
@@ -95,6 +100,8 @@ def run_scheduled_autopilot(self, schedule_id: str, user_id: str,
     config = dict(config or {})
     config.setdefault("user_id", user_id)
     config.setdefault("schedule_id", schedule_id)
+    # WS-01: scheduled runs prepare applications; they never submit them.
+    config["auto_apply"] = False
     profile, resume_text, candidate_name = _load_user_context(user_id)
     run_id = str(uuid.uuid4())
     task = run_application_agent.apply_async(

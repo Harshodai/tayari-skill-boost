@@ -32,6 +32,36 @@ export default function Pipeline() {
     },
   });
 
+  // Submission proof (WS-02). A saved job only shows an "applied"-style badge
+  // when a receipt actually exists, so the board can never claim a submission
+  // that never happened.
+  const { data: receipts = [] } = useQuery({
+    queryKey: ["submission-receipts", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      if (USE_SELF_HOSTED) return [];
+      const { data, error } = await supabase
+        .from("submission_receipts")
+        .select("job_url,verified,confirmation_number,submitted_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const receiptByUrl = useMemo(() => {
+    const map = new Map<string, PipelineJob["receipt"]>();
+    for (const r of receipts as any[]) {
+      if (!r.job_url || map.has(r.job_url)) continue;
+      map.set(r.job_url, {
+        verified: !!r.verified,
+        confirmationNumber: r.confirmation_number,
+        submittedAt: r.submitted_at,
+      });
+    }
+    return map;
+  }, [receipts]);
+
   const stageMutation = useMutation({
     mutationFn: async ({ id, stage }: { id: string; stage: PipelineStage }) => {
       if (USE_SELF_HOSTED) return;
@@ -55,9 +85,11 @@ export default function Pipeline() {
         url: j.url ?? null,
         stage: (j.stage as PipelineStage) ?? "saved",
         savedAt: j.saved_at,
+        receipt: j.url ? receiptByUrl.get(j.url) : undefined,
       })),
-    [savedJobs]
+    [savedJobs, receiptByUrl]
   );
+
 
   return (
     <AppShell title="Pipeline" subtitle="Track every application from saved to offer">

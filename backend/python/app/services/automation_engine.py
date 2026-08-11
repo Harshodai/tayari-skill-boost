@@ -31,6 +31,7 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 
+from app.services.approval_gate import is_approved as _approval_granted, request_approval as _queue_approval
 from app.services.ats_engine import heuristic_ats_score
 from app.services.resume_parser import parse_resume
 from app.services.db import (
@@ -399,7 +400,26 @@ async def run_autopilot(
                     application["status"] = "gate_blocked"
 
                 # ---- APPLY ---------------------------------------------------
-                if config.get("auto_apply", False) and gate_ok:
+                # WS-01 approval gate: submission requires an explicit human
+                # approval of THIS exact tailored resume. `auto_apply` in the
+                # config is a request, never consent — a stored job_watches row
+                # can no longer submit on its own.
+                fingerprint = await _queue_approval(
+                    config.get("user_id"), run_id, tailored_text, job
+                )
+                application["resume_sha256"] = fingerprint
+                approved = await _approval_granted(
+                    config.get("user_id"), run_id, fingerprint
+                )
+                if config.get("auto_apply", False) and gate_ok and not approved:
+                    application["status"] = "awaiting_approval"
+                    _log(
+                        run_id,
+                        "APPROVAL",
+                        f"Waiting for your approval of the tailored resume for "
+                        f"{job['title']} @ {job['company']} — nothing was submitted.",
+                    )
+                if config.get("auto_apply", False) and gate_ok and approved:
                     try:
                         apply_job(job, tailored_text, cover)
                         application["status"] = "prepared"

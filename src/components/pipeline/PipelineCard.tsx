@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ExternalLink, GripVertical, MapPin, MessageSquare } from "lucide-react";
+import { ExternalLink, GripVertical, MapPin, MessageSquare, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { PipelineJob, PipelineStage } from "./types";
@@ -57,7 +57,30 @@ export function PipelineCard({ job, isOverlay }: Props) {
               <MapPin className="w-3 h-3 shrink-0" /> {job.location}
             </p>
           )}
+          {job.receipt && (
+            <p
+              className={cn(
+                "text-[11px] mt-1.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5",
+                job.receipt.verified
+                  ? "bg-success/10 text-success"
+                  : "bg-muted text-muted-foreground"
+              )}
+              title={
+                job.receipt.verified
+                  ? `Confirmed by the job site${job.receipt.confirmationNumber ? ` — ref ${job.receipt.confirmationNumber}` : ""}`
+                  : "Submitted, but the site returned no confirmation we could capture"
+              }
+            >
+              {job.receipt.verified ? (
+                <ShieldCheck className="w-3 h-3 shrink-0" />
+              ) : (
+                <ShieldAlert className="w-3 h-3 shrink-0" />
+              )}
+              {job.receipt.verified ? "Submission verified" : "Unverified submission"}
+            </p>
+          )}
         </div>
+
         <div className="flex items-center gap-1 shrink-0">
           {commType && (
             <Link

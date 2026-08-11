@@ -23,8 +23,9 @@ const faqs = [
     answer: "Our platform offers mock behavioral interviews, system design discussions, and coding challenges. The AI adapts to your experience level and provides real-time feedback to help you improve.",
   },
   {
-    question: "How accurate is the job matching algorithm?",
-    answer: "Our job matching uses advanced AI to analyze your skills, experience, preferences, and career goals. We've seen users receive 2.5x more relevant job matches compared to traditional job boards.",
+    question: "How does the job matching work?",
+    answer: "Matching scores each role against your resume, stated preferences, and career goals, and shows you the reasoning behind the score. We don't publish a comparative accuracy figure — you can see the per-job breakdown and judge it yourself.",
+
   },
   {
     question: "Can I export my optimized resume?",

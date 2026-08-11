@@ -1325,3 +1325,42 @@ Fixed four test files to stop cross-test leakage and match the new POST rate-lim
 ### Reusable lessons
 - Always verify test files exist and grep for the asserted cases before pointing docs at them; a doc command that cannot run is worse than no doc at all.
 - Two-secret cross-file requirements are best stated as explicit pairwise equalities + explicit cross-secret inequality — one sentence per constraint, no implied relations.
+
+## 2026-08-11 — Human approval gate, submission receipts, and honest copy
+
+**What was done.** Implemented WS-01 (approval gate), the WS-02 data layer
+(submission receipts), the WS-05 question-queue table, and WS-09 (copy/trust
+cleanup) from `docs/JOB_TAYARI_10_10_PLAN.md`.
+
+- Migration adds `application_approvals`, `submission_receipts`, and
+  `agent_questions`, each with GRANTs + `auth.uid()`-scoped RLS.
+- New `backend/python/app/services/approval_gate.py`: sha256 fingerprint of the
+  tailored resume, `request_approval` (idempotent pending row) and
+  `is_approved`.
+- `automation_engine.run_autopilot` now queues an approval and refuses to call
+  `apply_job` without an `approved` row; unapproved packages land in
+  `awaiting_approval`.
+- `tasks/automation.py` forces `config["auto_apply"] = False` in both
+  `run_scheduled` and `run_scheduled_autopilot`.
+- `PipelineCard` renders "Submission verified" / "Unverified submission" only
+  when a real receipt row exists; `Pipeline.tsx` joins receipts by `job_url`.
+- Removed the "Hermes" codename from all user-facing copy and the unsourced
+  "2.5x more relevant job matches" FAQ claim.
+
+**Root cause.** Consent lived in request config rather than in data. A
+`job_watches` row with `auto_apply: true` reached the engine verbatim, so the
+only thing preventing an unreviewed submission was a hardcoded `false` in
+`AutoPilot.tsx` — a UI-layer guard on a backend-triggerable path. Separately,
+the pipeline board displayed "Applied" for work that was only *prepared*.
+
+**Fix.** Move consent into a queryable table keyed by a content fingerprint,
+and make the gate fail closed (no DB, no `user_id`, or any exception ⇒ not
+approved). Make status claims in the UI derive from evidence rows rather than
+from optimistic writes.
+
+**Reusable lesson.** A permission expressed as a request parameter is not a
+permission — anything that can reach the queue can set it. Authorisation for an
+irreversible action must be a separate persisted record, fingerprinted to the
+exact artifact being authorised, and checked fail-closed at the point of
+execution. Correspondingly, never let the UI assert an external side effect
+(submitted, sent, paid) that the system cannot produce evidence for.
