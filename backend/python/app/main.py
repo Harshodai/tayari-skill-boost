@@ -817,13 +817,49 @@ class BrowserAutomationRequest(BaseModel):
     max_steps: Optional[int] = 25
 
 
+# --- browser agent authz + limits (WS-06 hardening) -----------------------
+BROWSER_RUN_TIMEOUT_SECONDS = float(os.getenv("BROWSER_RUN_TIMEOUT_SECONDS", "300"))
+BROWSER_CANCEL_TIMEOUT_SECONDS = float(os.getenv("BROWSER_CANCEL_TIMEOUT_SECONDS", "15"))
+BROWSER_MAX_STEPS_CAP = int(os.getenv("BROWSER_MAX_STEPS_CAP", "50"))
+
+
+def browser_actor(request: Request) -> str:
+    """Resolve the authenticated caller forwarded by the Go gateway.
+
+    The gateway authenticates the user and sets ``X-User-Id``. A request that
+    reaches this service without it is unauthenticated and must be refused —
+    browser control is the most dangerous surface in the product.
+    """
+    actor = (request.headers.get("X-User-Id") or "").strip()
+    if not actor:
+        logger.warning("[Audit] component=browser-agent action=%s actor=- outcome=denied reason=no-actor", request.url.path)
+        raise HTTPException(status_code=401, detail="authentication required")
+    return actor
+
+
+def clamp_steps(value: Optional[int]) -> int:
+    try:
+        steps = int(value or 25)
+    except (TypeError, ValueError):
+        steps = 25
+    return max(1, min(steps, BROWSER_MAX_STEPS_CAP))
+
+
 @app.post("/api/v1/browser/automation")
 @app.post("/api/browser/automation")
-async def browser_automation_endpoint(payload: BrowserAutomationRequest):
+async def browser_automation_endpoint(payload: BrowserAutomationRequest, request: Request):
     """Execute autonomous browser instruction via browser-use + Playwright."""
     from app.services.browser_automation import run_browser_agent
+
+    actor = browser_actor(request)
+    steps = clamp_steps(payload.max_steps)
+    logger.info("[Audit] component=browser-agent action=run actor=%s run=- outcome=started steps=%s", actor, steps)
     try:
-        result = await run_browser_agent(payload.instruction, max_steps=payload.max_steps or 25)
+        result = await asyncio.wait_for(
+            run_browser_agent(payload.instruction, max_steps=steps, owner_id=actor),
+            timeout=BROWSER_RUN_TIMEOUT_SECONDS,
+        )
+        logger.info("[Audit] component=browser-agent action=run actor=%s run=- outcome=%s", actor, "ok" if result.success else "failed")
         return {
             "success": result.success,
             "instruction": result.instruction,
@@ -833,9 +869,14 @@ async def browser_automation_endpoint(payload: BrowserAutomationRequest):
             "error": result.error,
             "markdown": result.to_markdown(),
         }
+    except asyncio.TimeoutError as exc:
+        logger.warning("[Audit] component=browser-agent action=run actor=%s run=- outcome=timeout", actor)
+        raise HTTPException(status_code=504, detail="browser run timed out") from exc
+    except HTTPException:
+        raise
     except Exception as exc:
-        logger.error("browser automation failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.error("[Audit] component=browser-agent action=run actor=%s outcome=error detail=%s", actor, exc)
+        raise HTTPException(status_code=500, detail="browser automation failed") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -1675,18 +1716,27 @@ async def live_copilot_stream_endpoint(payload: dict):
 
 
 @app.post("/api/v1/browser/automation/stream")
-async def browser_automation_stream_endpoint(payload: dict):
+async def browser_automation_stream_endpoint(payload: dict, request: Request):
     """SSE stream of per-step browser screenshots for the Glass-Box live feed."""
     import json as _json
     from app.services.browser_automation.agent import stream_browser_agent
 
+    actor = browser_actor(request)
     instruction = str(payload.get("instruction", ""))
-    max_steps = int(payload.get("max_steps") or 25)
+    max_steps = clamp_steps(payload.get("max_steps"))
     run_id = payload.get("run_id") or None
+    logger.info("[Audit] component=browser-agent action=stream actor=%s run=%s outcome=started", actor, run_id or "-")
 
     async def event_stream():
-        async for event in stream_browser_agent(instruction, max_steps=max_steps, run_id=run_id):
-            yield f"data: {_json.dumps(event)}\n\n"
+        try:
+            async for event in stream_browser_agent(
+                instruction, max_steps=max_steps, run_id=run_id, owner_id=actor
+            ):
+                yield f"data: {_json.dumps(event)}\n\n"
+            logger.info("[Audit] component=browser-agent action=stream actor=%s run=%s outcome=ok", actor, run_id or "-")
+        except Exception as exc:  # noqa: BLE001 - stream must close with an error event
+            logger.error("[Audit] component=browser-agent action=stream actor=%s run=%s outcome=error detail=%s", actor, run_id or "-", exc)
+            yield f"data: {_json.dumps({'type': 'error', 'error': 'browser_agent_failed'})}\n\n"
 
     return StreamingResponse(
         event_stream(),
@@ -1696,13 +1746,34 @@ async def browser_automation_stream_endpoint(payload: dict):
 
 
 @app.post("/api/v1/browser/automation/cancel")
-async def browser_automation_cancel_endpoint(payload: dict):
-    """WS-06 kill switch: terminate the isolated browser session for a run."""
-    from app.services.browser_automation.session import cancel_run
+async def browser_automation_cancel_endpoint(payload: dict, request: Request):
+    """WS-06 kill switch: terminate the isolated browser session for a run.
 
+    Authz: only the user that started the run may kill it. Bounded by a hard
+    timeout so a wedged provider API cannot hang the kill switch.
+    """
+    from app.services.browser_automation.session import BrowserAuthzError, cancel_run
+
+    actor = browser_actor(request)
     run_id = str(payload.get("run_id") or "").strip()
     if not run_id:
         raise HTTPException(status_code=400, detail="run_id is required")
-    terminated = await cancel_run(run_id)
+
+    logger.info("[Audit] component=browser-agent action=cancel actor=%s run=%s outcome=requested", actor, run_id)
+    try:
+        terminated = await asyncio.wait_for(
+            cancel_run(run_id, owner_id=actor), timeout=BROWSER_CANCEL_TIMEOUT_SECONDS
+        )
+    except BrowserAuthzError as exc:
+        logger.warning("[Audit] component=browser-agent action=cancel actor=%s run=%s outcome=denied", actor, run_id)
+        raise HTTPException(status_code=403, detail="run does not belong to caller") from exc
+    except asyncio.TimeoutError as exc:
+        logger.error("[Audit] component=browser-agent action=cancel actor=%s run=%s outcome=timeout", actor, run_id)
+        raise HTTPException(status_code=504, detail="cancel timed out") from exc
+
+    logger.info(
+        "[Audit] component=browser-agent action=cancel actor=%s run=%s outcome=%s",
+        actor, run_id, "terminated" if terminated else "not-found",
+    )
     return {"run_id": run_id, "terminated": terminated}
 
