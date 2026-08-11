@@ -56,8 +56,11 @@ const Profile = () => {
     try {
       const resumes = await listResumes();
       const latest = resumes[0];
-      if (latest && latest.resume_text) {
-        setVerifyText(latest.resume_text);
+      if (latest) {
+        const full = await getResume(latest.id);
+        if (full.original_text) {
+          setVerifyText(full.original_text);
+        }
       }
     } catch {
       // fallback: user pastes their resume text
