@@ -13,29 +13,17 @@ import type { DashboardStats } from '@/api/types';
  * Every number below is either read live from the platform or clearly
  * labelled as a product capability rather than a customer outcome.
  */
-const testimonials = [
-  {
-    quote:
-      "The match score changed how I search. I stopped applying to 40 roles a week and started applying to six that actually fit — two turned into interviews.",
-    name: "Priya N.",
-    role: "Senior Product Manager",
-    detail: "Beta user · 2 interviews from 6 applications",
-  },
-  {
-    quote:
-      "Tailoring used to take me 40 minutes per role. AutoPilot saves the job, rewrites the resume against the JD and drafts the letter while I review it.",
-    name: "Marcus L.",
-    role: "Backend Engineer",
-    detail: "Beta user · ~35 min saved per application",
-  },
-  {
-    quote:
-      "I self-host it with a local model, so my resume and salary numbers never leave my machine. That was the dealbreaker with every other tool.",
-    name: "Daniel K.",
-    role: "Staff SRE",
-    detail: "Self-hosted deployment · local LLM",
-  },
-];
+/**
+ * Testimonials are intentionally empty until real, attributable quotes exist.
+ * Invented personas are worse than no social proof: one reader who recognises
+ * the pattern discredits every other number on the page.
+ */
+const testimonials: {
+  quote: string;
+  name: string;
+  role: string;
+  detail: string;
+}[] = [];
 
 const aspirationalCards = [
   {
