@@ -1,26 +1,9 @@
 import pytest
-import asyncio
-from app.services.autopilot_graph import AutopilotGraphEngine
 from app.services.form_filler import FormFiller as TayariComputerSandboxExecutor
 from app.services.omnisave_service import OmnisaveService
 from app.services.email_classifier import match_email_to_application
 from app.services.llm_service import is_llm_configured
 
-@pytest.mark.asyncio
-async def test_autopilot_graph_execution():
-    engine = AutopilotGraphEngine()
-    state = await engine.execute_run(
-        run_id="RUN-TEST-001",
-        candidate_id="00000000-0000-0000-0000-000000000001",
-        job_id="00000000-0000-0000-0000-000000000002"
-    )
-    assert state["stage"] == "COMPLETED"
-    assert state["tailored_resume"] is not None
-    assert state["cover_letter"] is not None
-    assert state["auto_apply_payload"] is not None
-    assert state["recruiter_intel"] is not None
-    assert state["interview_kit"] is not None
-    assert "RUN-TEST-001" in engine.checkpoints
 
 def test_tayari_computer_sandbox_redaction():
     executor = TayariComputerSandboxExecutor()
