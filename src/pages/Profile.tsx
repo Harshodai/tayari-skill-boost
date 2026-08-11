@@ -87,7 +87,7 @@ const Profile = () => {
     }
   };
 
-  const { data: profile, isLoading } = useQuery({
+  const { data: profile, isLoading, isError, refetch } = useQuery({
     queryKey: ["profile"],
     queryFn: getProfile,
   });
@@ -134,10 +134,10 @@ const Profile = () => {
   });
 
   useEffect(() => {
-    if (profile) {
+    if (profile && !isEditing) {
       setForm(profileToForm(profile));
     }
-  }, [profile]);
+  }, [profile, isEditing]); // ponytail: while editing, unsaved form values must not be clobbered by a refetch — the save mutation invalidates the query and the fresh profile would wipe in-progress edits.
 
   const validate = (): boolean => {
     const errors: string[] = [];
@@ -240,6 +240,19 @@ const Profile = () => {
             </div>
           </div>
         </div>
+      </AppShell>
+    );
+  }
+
+  // ponytail: profileToForm reads fields off the object — an absent profile (query error)
+  // would crash the Cancel/Edit handlers, so gate the whole page on it
+  if (isError || !profile) {
+    return (
+      <AppShell title="Profile" subtitle="Your single source of truth — feeds every workflow">
+        <Card className="mx-auto max-w-md mt-12 p-6 text-center space-y-4">
+          <p className="text-muted-foreground">Couldn't load your profile.</p>
+          <Button onClick={() => refetch()}>Retry</Button>
+        </Card>
       </AppShell>
     );
   }
