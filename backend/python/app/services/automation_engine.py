@@ -34,7 +34,9 @@ from pydantic import BaseModel, Field
 from app.services.approval_gate import is_approved as _approval_granted, request_approval as _queue_approval
 from app.services.ats_engine import heuristic_ats_score
 from app.services.grounding import claims_supported as _claims_supported
+from app.services.posting_screen import CLEARED as _SCREEN_CLEARED, screen_posting as _screen_posting
 from app.services.resume_parser import parse_resume
+
 from app.services.db import (
     append_log as _db_append_log,
     create_agent_run as _db_create_agent_run,
