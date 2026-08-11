@@ -136,8 +136,12 @@ export function AppSidebar() {
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + "/");
 
   const primary = primaryItems().filter((i) => i.enabled !== false);
-  const more = moreItems().filter((i) => i.enabled !== false);
-  const [moreOpen, setMoreOpen] = useState(() => more.some((i) => isActive(i.url)));
+  const groups = moreGroups()
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.enabled !== false) }))
+    .filter((g) => g.items.length > 0);
+  const [moreOpen, setMoreOpen] = useState(() =>
+    groups.some((g) => g.items.some((i) => isActive(i.url)))
+  );
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/60">
