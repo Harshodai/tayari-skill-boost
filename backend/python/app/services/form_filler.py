@@ -77,7 +77,7 @@ SENSITIVE_PATTERNS = [
 ]
 
 
-class TayariComputerSandboxExecutor:
+class FormFiller:
     """
     Tayari Computer Accessibility Snapshot Sandbox Executor.
     Drives Playwright using Accessibility Snapshots (page.accessibility.snapshot())
