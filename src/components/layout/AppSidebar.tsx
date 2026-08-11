@@ -19,7 +19,19 @@ import {
   Zap,
   Users,
   TrendingUp,
-
+  Bot,
+  ClipboardCheck,
+  KanbanSquare,
+  PenTool,
+  MessageSquareText,
+  Globe,
+  Send,
+  Radar,
+  Handshake,
+  BarChart3,
+  Target,
+  Map,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -41,28 +53,70 @@ import { features } from "@/config/features";
 import { cn } from "@/lib/utils";
 
 type Item = { title: string; url: string; icon: any; enabled?: boolean };
+type Group = { label: string; items: Item[] };
 
-/** The five things that make the product work. Everything else lives under "More". */
+/** The five things that make the product work. Everything else lives below. */
 const primaryItems = (): Item[] => [
   { title: "Home", url: "/dashboard", icon: LayoutDashboard, enabled: true },
   { title: "Find jobs", url: "/jobs", icon: Search, enabled: features.jobSearch },
   { title: "My resume", url: "/resume", icon: FileText, enabled: features.resumeOptimizer },
-  { title: "Applications", url: "/pipeline", icon: Bookmark, enabled: features.jobSearch },
+  { title: "Saved jobs", url: "/pipeline", icon: Bookmark, enabled: features.jobSearch },
   { title: "Interviews", url: "/interview/prep", icon: Mic, enabled: features.interviewAI },
 ];
 
-const moreItems = (): Item[] => [
-  { title: "Outcomes", url: "/outcomes", icon: TrendingUp, enabled: true },
-  { title: "AutoPilot", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
-  { title: "Agent questions", url: "/questions", icon: HelpCircle, enabled: features.jobSearch },
-  { title: "Networking", url: "/networking", icon: Users, enabled: true },
-
-  { title: "Cover letters", url: "/cover-letter", icon: Mail, enabled: features.coverLetter },
-  { title: "Knowledge hub", url: "/knowledge-hub", icon: BookOpen, enabled: features.knowledgeHub },
-  { title: "Career radar", url: "/career-ops", icon: Terminal, enabled: features.careerOps },
-  { title: "LinkedIn import", url: "/linkedin-import", icon: Linkedin, enabled: true },
-  { title: "API keys", url: "/api-keys", icon: Key, enabled: true },
-  { title: "Help", url: "/help", icon: HelpCircle, enabled: features.help },
+/**
+ * Everything the app can actually do. These pages were all built and routed
+ * but had no entry point, which made them invisible to users.
+ */
+const moreGroups = (): Group[] => [
+  {
+    label: "Apply",
+    items: [
+      { title: "Apply agent", url: "/apply-agent", icon: Bot, enabled: features.jobSearch },
+      { title: "AutoPilot", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
+      { title: "Agent questions", url: "/questions", icon: HelpCircle, enabled: features.jobSearch },
+      { title: "Review queue", url: "/review-queue", icon: ClipboardCheck, enabled: true },
+      { title: "Application board", url: "/applications", icon: KanbanSquare, enabled: true },
+    ],
+  },
+  {
+    label: "Craft",
+    items: [
+      { title: "Resume studio", url: "/typst-studio", icon: PenTool, enabled: features.resumeOptimizer },
+      { title: "Cover letters", url: "/cover-letter", icon: Mail, enabled: features.coverLetter },
+      { title: "Answer bank", url: "/answer-bank", icon: MessageSquareText, enabled: true },
+      { title: "Portfolio", url: "/portfolio", icon: Globe, enabled: true },
+    ],
+  },
+  {
+    label: "Reach out",
+    items: [
+      { title: "Networking", url: "/networking", icon: Users, enabled: true },
+      { title: "Recruiter outreach", url: "/outreach", icon: Send, enabled: true },
+      { title: "Company radar", url: "/radar", icon: Radar, enabled: true },
+      { title: "Negotiation", url: "/negotiation", icon: Handshake, enabled: true },
+    ],
+  },
+  {
+    label: "Grow",
+    items: [
+      { title: "Outcomes", url: "/outcomes", icon: TrendingUp, enabled: true },
+      { title: "Funnel analytics", url: "/analytics-funnel", icon: BarChart3, enabled: true },
+      { title: "Skill gaps", url: "/skill-gap-radar", icon: Target, enabled: true },
+      { title: "Career roadmap", url: "/roadmap", icon: Map, enabled: features.careerRoadmap },
+      { title: "Career radar", url: "/career-ops", icon: Terminal, enabled: features.careerOps },
+      { title: "Knowledge hub", url: "/knowledge-hub", icon: BookOpen, enabled: features.knowledgeHub },
+    ],
+  },
+  {
+    label: "Account",
+    items: [
+      { title: "LinkedIn import", url: "/linkedin-import", icon: Linkedin, enabled: true },
+      { title: "Privacy check", url: "/privacy-diagnostics", icon: ShieldCheck, enabled: true },
+      { title: "API keys", url: "/api-keys", icon: Key, enabled: true },
+      { title: "Help", url: "/help", icon: HelpCircle, enabled: features.help },
+    ],
+  },
 ];
 
 const linkClass = (active: boolean) =>
@@ -82,8 +136,12 @@ export function AppSidebar() {
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + "/");
 
   const primary = primaryItems().filter((i) => i.enabled !== false);
-  const more = moreItems().filter((i) => i.enabled !== false);
-  const [moreOpen, setMoreOpen] = useState(() => more.some((i) => isActive(i.url)));
+  const groups = moreGroups()
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.enabled !== false) }))
+    .filter((g) => g.items.length > 0);
+  const [moreOpen, setMoreOpen] = useState(() =>
+    groups.some((g) => g.items.some((i) => isActive(i.url)))
+  );
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/60">
@@ -109,38 +167,48 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {more.length > 0 && (
-          <SidebarGroup>
+        {groups.length > 0 && (
+          <>
             {!collapsed && (
-              <SidebarGroupLabel asChild>
-                <button
-                  type="button"
-                  onClick={() => setMoreOpen((v) => !v)}
-                  aria-expanded={moreOpen}
-                  className="flex w-full items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground/70 hover:text-foreground"
-                >
-                  <span>More tools</span>
-                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", moreOpen && "rotate-180")} />
-                </button>
-              </SidebarGroupLabel>
+              <SidebarGroup className="py-0">
+                <SidebarGroupLabel asChild>
+                  <button
+                    type="button"
+                    onClick={() => setMoreOpen((v) => !v)}
+                    aria-expanded={moreOpen}
+                    className="flex w-full items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground/70 hover:text-foreground"
+                  >
+                    <span>More tools</span>
+                    <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", moreOpen && "rotate-180")} />
+                  </button>
+                </SidebarGroupLabel>
+              </SidebarGroup>
             )}
-            {(moreOpen || collapsed) && (
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {more.map((item) => (
-                    <SidebarMenuItem key={item.url}>
-                      <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
-                        <NavLink to={item.url} className={({ isActive: a }) => linkClass(a)}>
-                          <item.icon className="h-4 w-4 shrink-0" />
-                          {!collapsed && <span className="truncate">{item.title}</span>}
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            )}
-          </SidebarGroup>
+            {(moreOpen || collapsed) &&
+              groups.map((group) => (
+                <SidebarGroup key={group.label} className="py-1">
+                  {!collapsed && (
+                    <SidebarGroupLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/55">
+                      {group.label}
+                    </SidebarGroupLabel>
+                  )}
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {group.items.map((item) => (
+                        <SidebarMenuItem key={item.url}>
+                          <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                            <NavLink to={item.url} className={({ isActive: a }) => linkClass(a)}>
+                              <item.icon className="h-4 w-4 shrink-0" />
+                              {!collapsed && <span className="truncate">{item.title}</span>}
+                            </NavLink>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              ))}
+          </>
         )}
       </SidebarContent>
 

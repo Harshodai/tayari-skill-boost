@@ -29,6 +29,22 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The Go gateway isn't reachable. In hosted (backend-only) deploys it isn't
+ * deployed at all, so pages that call it must say so instead of hanging or
+ * throwing an opaque "Failed to fetch" / "Unexpected token '<'".
+ */
+export class BackendUnavailableError extends ApiError {
+  constructor(message = "Advanced features need the local Tayari engine, which isn't running in this environment.") {
+    super(message, 0);
+    this.name = "BackendUnavailableError";
+  }
+}
+
+export function isBackendUnavailable(error: unknown): boolean {
+  return error instanceof BackendUnavailableError;
+}
+
 export function handleUnauthorized(): never {
   localStorage.removeItem("auth_token");
   window.dispatchEvent(new CustomEvent("auth:unauthorized"));
@@ -77,13 +93,19 @@ export async function apiFetch<T>(
   const { asBlob, ...fetchOptions } = options;
   const isFormData = typeof FormData !== "undefined" && fetchOptions.body instanceof FormData;
   const defaultHeaders = getHeaders(isFormData);
-  const response = await fetch(`${API_URL}${path}`, {
-    ...fetchOptions,
-    headers: {
-      ...defaultHeaders,
-      ...(fetchOptions.headers || {}),
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...fetchOptions,
+      headers: {
+        ...defaultHeaders,
+        ...(fetchOptions.headers || {}),
+      },
+    });
+  } catch {
+    // Connection refused / DNS failure / offline: the gateway isn't there.
+    throw new BackendUnavailableError();
+  }
 
   await checkResponse(response);
   if (asBlob) {
@@ -96,5 +118,11 @@ export async function apiFetch<T>(
   if (!text || !text.trim()) {
     return undefined as unknown as T;
   }
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // A 200 that isn't JSON means the SPA fallback answered, i.e. no gateway
+    // is mounted at API_URL. Surface that instead of a raw SyntaxError.
+    throw new BackendUnavailableError();
+  }
 }

@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Mail, MessageSquare, MapPin, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const contactInfo = [
   {
@@ -58,8 +59,21 @@ export function ContactSection() {
       return;
     }
 
-    // Simulate form submission
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const { error } = await supabase.from("contact_messages").insert({
+      name: validationResult.data.name,
+      email: validationResult.data.email,
+      message: validationResult.data.message,
+    });
+
+    if (error) {
+      toast({
+        title: "Message not sent",
+        description: "Something went wrong on our end. Please email hello@jobtayari.com instead.",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+      return;
+    }
 
     toast({
       title: "Message sent!",
