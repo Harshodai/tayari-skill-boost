@@ -166,7 +166,7 @@ const Settings = () => {
     const deepLink = `hermes://mcp/register?name=JobTheory&url=${encodeURIComponent(backendUrl)}&token=${encodeURIComponent(token)}`;
     window.location.href = deepLink;
     toast({
-      title: "Opening Hermes Desktop",
+      title: "Opening Desktop Agent",
       description: "Initiating native companion registration request...",
     });
   };
@@ -819,9 +819,9 @@ const Settings = () => {
 
             <Card className="animate-fade-in-up">
               <CardHeader>
-                <CardTitle>Hermes Desktop Integration</CardTitle>
+                <CardTitle>Desktop Agent Integration</CardTitle>
                 <CardDescription>
-                  Configure local autonomous agents (Hermes Desktop/Claude Desktop) to control your Job Tayari board
+                  Configure local autonomous agents (Job Tayari Desktop Agent, Claude Desktop) to control your Job Tayari board
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -830,7 +830,7 @@ const Settings = () => {
                     <div>
                       <h4 className="font-semibold text-foreground mb-1">Your Personal Access Token</h4>
                       <p className="text-sm text-muted-foreground mb-3">
-                        Use this token to authenticate your local Hermes Agent. Keep it private.
+                        Use this token to authenticate your local Desktop Agent. Keep it private.
                       </p>
                       <div className="flex items-center gap-2">
                         <Input
@@ -862,7 +862,7 @@ const Settings = () => {
                       <div>
                         <h4 className="font-medium text-foreground mb-1">Download mcp.json</h4>
                         <p className="text-sm text-muted-foreground">
-                          Download a pre-configured settings file ready to copy into your local Hermes Desktop directory.
+                          Download a pre-configured settings file ready to copy into your local Desktop Agent directory.
                         </p>
                       </div>
                       <Button onClick={handleDownloadMcpConfig} className="w-full">
@@ -875,12 +875,12 @@ const Settings = () => {
                       <div>
                         <h4 className="font-medium text-foreground mb-1">Deep Link Registration</h4>
                         <p className="text-sm text-muted-foreground">
-                          Directly initiate a registration request inside your locally running Hermes Desktop client.
+                          Directly initiate a registration request inside your locally running Desktop Agent client.
                         </p>
                       </div>
                       <Button onClick={handleOpenHermes} variant="outline" className="w-full">
                         <ExternalLink className="w-4 h-4 mr-2" />
-                        Open in Hermes Desktop
+                        Open in Desktop Agent
                       </Button>
                     </div>
                   </div>
