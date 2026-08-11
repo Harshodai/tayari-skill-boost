@@ -79,6 +79,22 @@ def test_scheme_relative_trailing_dot_host_detected() -> None:
     assert is_linkedin_url("//linkedin.com./jobs/view/123")
 
 
+def test_multiple_trailing_dots_host_detected() -> None:
+    # rstrip(".") strips ALL trailing dots — "linkedin.com..." is the same
+    # origin as "linkedin.com" to DNS. Cross-layer parity with
+    # ApplyAgent.tsx (src/test/ApplyAgentLinkedIn.test.ts pins identical
+    # inputs against the same expectation).
+    assert is_linkedin_url("https://linkedin.com.../jobs/view/123")
+    assert is_linkedin_url("https://www.linkedin.com../jobs/view/456")
+    assert is_linkedin_url("//linkedin.com.../jobs/view/123")
+    assert not is_linkedin_url("https://evil.com.../jobs/view/123")
+
+
+def test_multiple_trailing_dots_submit_raises() -> None:
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_automation("https://www.linkedin.com.../jobs/view/123", "submit")
+
+
 def test_empty_url_is_safe() -> None:
     assert not is_linkedin_url("")
     assert not is_linkedin_url(None)  # type: ignore[arg-type]

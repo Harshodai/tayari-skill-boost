@@ -11,6 +11,7 @@ import { Loader2, Play, ShieldCheck, Eye, AlertTriangle, ExternalLink } from "lu
 import { toast } from "sonner";
 import { AgentLiveView } from "@/components/agent/AgentLiveView";
 import { listAgentRuns, startApplyAgent } from "@/lib/agent/applyAgent";
+import { isLinkedInUrl } from "@/lib/agent/linkedinUrl";
 
 /** Glass-Box Apply Agent console: watch every step, submit yourself. */
 export function ApplyAgent() {
@@ -26,33 +27,6 @@ export function ApplyAgent() {
 
   const { data: runs = [] } = useQuery({ queryKey: ["agent-runs"], queryFn: listAgentRuns });
 
-  const isLinkedInUrl = (url: string): { isLinkedIn: boolean; normalizedUrl: string } => {
-    const trimmed = url.trim();
-    if (!trimmed) return { isLinkedIn: false, normalizedUrl: "" };
-    try {
-      const candidate = trimmed.includes("://") ? trimmed : `https://${trimmed}`;
-      const parsed = new URL(candidate);
-      // ponytail: strip a terminal dot — "linkedin.com." is the same origin
-      // as "linkedin.com" to DNS but fails a plain string comparison. Detect
-      // on the stripped host so scheme-relative and non-https variants are
-      // still recognized as LinkedIn.
-      const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
-      const isLinkedIn =
-        host === "linkedin.com" ||
-        host === "www.linkedin.com" ||
-        host.endsWith(".linkedin.com");
-      if (!isLinkedIn) return { isLinkedIn: false, normalizedUrl: "" };
-      // ponytail: https-only — an http LinkedIn URL is a downgrade/MITM risk
-      // for a page the agent will enter credentials on. Recognized, but no
-      // safe URL to run against.
-      if (parsed.protocol !== "https:") return { isLinkedIn: true, normalizedUrl: "" };
-      // Canonicalize the host so the run opens the dot-stripped origin.
-      if (parsed.hostname !== host) parsed.hostname = host;
-      return { isLinkedIn: true, normalizedUrl: parsed.toString() };
-    } catch {
-      return { isLinkedIn: false, normalizedUrl: "" };
-    }
-  };
   const linkedinUrlInfo = isLinkedInUrl(jobUrl);
 
   // Only offer the live browser feed when there is a real posting URL to open.
