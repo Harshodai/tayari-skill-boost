@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { RouteAnalytics } from "@/components/analytics/RouteAnalytics";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PageTransition } from "@/components/layout/PageTransition";
@@ -108,6 +109,7 @@ const App = () => (
         <ActivityDrawer />
         <BrowserRouter>
           <ScrollToTopHandler />
+          <RouteAnalytics />
           <PageTransition>
           <Suspense fallback={<LoadingFallback />}>
             <RouteErrorBoundary>
