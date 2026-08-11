@@ -63,8 +63,9 @@ export function BoomerangCard({ userId, offers }: { userId?: string; offers: num
 
       const { error: prefError } = await supabase
         .from("pet_preferences")
-        .upsert({ user_id: userId, state }, { onConflict: "user_id" });
+        .upsert([{ user_id: userId, state: state as any }], { onConflict: "user_id" });
       if (prefError) throw prefError;
+
 
       if (searches.length) {
         const { error: searchError } = await supabase
