@@ -88,6 +88,7 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
                 <kbd className="ml-2 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-mono">⌘K</kbd>
               </Button>
               {actions}
+              <AskTayariButton placement="header" />
               <NotificationsBell />
               <ActivityButton />
               <DropdownMenu>

@@ -1,0 +1,10 @@
+{
+  "visits": {
+    "code": "failed_precondition",
+    "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+  },
+  "rank": {
+    "code": "failed_precondition",
+    "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+  }
+}
