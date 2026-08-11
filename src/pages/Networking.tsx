@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { createReferralDraft } from "@/api/referral";
+import { createReferralDraft, type ReferralKind } from "@/api/referral";
 import { features } from "@/config/features";
 
 interface Contact {
