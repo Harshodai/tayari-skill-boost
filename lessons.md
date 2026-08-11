@@ -1403,3 +1403,35 @@ classify centrally: it makes the honest-but-unverified state representable,
 which is the state that actually occurs most often. A corollary for data
 plumbing: a field collected in the UI and never read downstream is worse than a
 missing field, because it looks implemented.
+
+## 2026-08-13 — Test pollution, unreachable pages, and the no-guess form filler
+
+**What was done**
+- Fixed the last 6 failing frontend tests and the branding assertion.
+- Removed the fabricated landing-page testimonials ("Priya N."/"Marcus L."/"Daniel K.").
+- Routed the orphaned `ApplyAgent` page at `/apply-agent`.
+- Aliased `/api/v1/hermes/config` to `/api/v1/agent/config` (route-parity rule).
+- Built WS-05's missing producer: `backend/python/app/services/question_queue.py`
+  plus wiring in `sandbox_executor.py`.
+
+**Root cause**
+- `mock.module("@/api/client", ...)` in `src/api/verification.test.ts` and
+  `referral.test.ts` is *process-global and permanent* in bun. Later files
+  (SocialProofSection, ResumeGraph, RateLimiter) stubbed `globalThis.fetch`, but
+  their code path went through the leaked module mock, which called the *first*
+  file's captured `mockFetch` instead. Tests passed in isolation, failed in the
+  full run.
+- `agent_questions` had a UI and a table but nothing ever inserted a row, so the
+  agent still guessed sponsorship/salary/veteran fields.
+
+**Fix applied**
+- The leaked module mocks now delegate to `globalThis.fetch` *at call time*, so
+  whichever file currently owns the fetch stub wins.
+- The form filler routes every sensitive field to the queue, reuses previously
+  answered values, and returns `needs_human` so a caller can hold submission.
+
+**Reusable lesson**
+- `mock.module` in bun never unloads: never close over a file-local mock inside
+  one — always delegate to a global the current file controls.
+- A table plus a UI is not a feature. Grep for the *producer* before calling a
+  workstream done.
