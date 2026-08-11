@@ -234,6 +234,7 @@ async def run_browser_agent(
     max_steps: int = DEFAULT_MAX_STEPS,
     on_step: Optional[Callable] = None,
     run_id: Optional[str] = None,
+    owner_id: Optional[str] = None,
 ) -> AgentResult:
     """Run the browser-use agent for a single natural language instruction."""
     instruction = (instruction or "").strip()
@@ -288,7 +289,7 @@ async def run_browser_agent(
 
     session = None
     try:
-        session = await open_session(run_id)
+        session = await open_session(run_id, owner_id)
         agent = _build_agent(Agent, instruction, llm, _observe, session)
         history = await agent.run(max_steps=max_steps)
         result = _extract_history(history)
@@ -323,6 +324,7 @@ async def stream_browser_agent(
     instruction: str,
     max_steps: int = DEFAULT_MAX_STEPS,
     run_id: Optional[str] = None,
+    owner_id: Optional[str] = None,
 ):
     """Async generator of SSE events for the Glass-Box live browser feed.
 
@@ -365,7 +367,7 @@ async def stream_browser_agent(
             event["title"] = title
         queue.put_nowait(event)
 
-    session = await open_session(run_id)
+    session = await open_session(run_id, owner_id)
     if session.live_view_url:
         yield {"type": "live_view", "url": session.live_view_url}
 
