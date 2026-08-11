@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getProfile, updateProfile, importProfilePDF, getVerificationStatus, submitVerification, listResumes } from "@/api";
+import { getProfile, updateProfile, importProfilePDF, getVerificationStatus, submitVerification, listResumes, getResume } from "@/api";
 import { toast } from "sonner";
 import { useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
