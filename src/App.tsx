@@ -26,6 +26,8 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Pipeline = lazy(() => import('./pages/Pipeline'));
 const Outcomes = lazy(() => import('./pages/Outcomes'));
 const PetInsights = lazy(() => import('./pages/PetInsights'));
+const RouteInsights = lazy(() => import('./pages/RouteInsights'));
+
 const Settings = lazy(() => import('./pages/Settings'));
 const ResumeUpload = lazy(() => import('./pages/ResumeUpload'));
 const ResumeResults = lazy(() => import('./pages/ResumeResults'));
@@ -223,6 +225,14 @@ const App = () => (
                 }
               />
               <Route
+                path="/admin/analytics"
+                element={
+                  <ProtectedRoute>
+                    <RouteInsights />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/analytics"
                 element={
                   <ProtectedRoute>
@@ -230,6 +240,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/settings"
                 element={
