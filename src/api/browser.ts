@@ -1,12 +1,30 @@
 import { API_URL, getHeaders } from "./client";
 
-/** WS-06 kill switch — terminate the isolated browser session for a run. */
-export async function cancelBrowserRun(runId: string): Promise<void> {
-  await fetch(`${API_URL}/v1/browser/automation/cancel`, {
-    method: "POST",
-    headers: { ...getHeaders(), "Content-Type": "application/json" },
-    body: JSON.stringify({ run_id: runId }),
-  });
+/**
+ * WS-06 kill switch — terminate the isolated browser session for a run.
+ *
+ * Bounded by a short client timeout (the server bounds itself too) and it
+ * surfaces failures instead of swallowing them: a silent kill switch is worse
+ * than no kill switch. 403 means the run belongs to another account.
+ */
+export async function cancelBrowserRun(runId: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const response = await fetch(`${API_URL}/v1/browser/automation/cancel`, {
+      method: "POST",
+      headers: { ...getHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ run_id: runId }),
+      signal: controller.signal,
+    });
+    if (response.status === 401) throw new Error("Sign in again to stop this run.");
+    if (response.status === 403) throw new Error("This run belongs to another account.");
+    if (!response.ok) throw new Error(`Failed to stop run (HTTP ${response.status})`);
+    const body = (await response.json().catch(() => ({}))) as { terminated?: boolean };
+    return Boolean(body.terminated);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 
