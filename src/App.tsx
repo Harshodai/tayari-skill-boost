@@ -397,6 +397,16 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/apply-agent"
+                element={
+                  <ProtectedRoute>
+                    <ApplyAgent />
+                  </ProtectedRoute>
+                }
+              />
+
+
 
 
               <Route
