@@ -1484,3 +1484,18 @@ exits 1 and fails the build.
 absolute threshold. Fail-on-any-finding gets disabled within a week; fail-on-new
 keeps ratcheting. Accepting a finding must be an explicit, reviewable commit
 (`bun run security:baseline`) rather than a silent code comment.
+
+## 2026-08-11 — Hardened the browser-agent kill switch (authz, timeouts, audit)
+
+**What was done:** Locked down `/api/v1/browser/automation`, `/stream`, and `/cancel` across the Go gateway and the Python AI engine.
+
+**Root cause:** The kill switch trusted whatever `run_id` arrived. The in-process session registry (`browser_automation/session.py`) had no owner field, so any authenticated user could terminate — or observe — another user's browser run. Proxy calls also used the AI client's 240s default timeout, so a wedged provider API could hang the one control users press when something goes wrong, and nothing was audit-logged.
+
+**Fix applied:**
+- `BrowserSession.owner_id`; `open_session(run_id, owner_id)` binds it and `cancel_run(run_id, owner_id)` raises `BrowserAuthzError` (→ HTTP 403) on mismatch.
+- Python endpoints require the gateway-forwarded `X-User-Id` (`browser_actor()`, 401 without it), clamp `max_steps` (`BROWSER_MAX_STEPS_CAP`), and bound work with `asyncio.wait_for` (`BROWSER_RUN_TIMEOUT_SECONDS`, `BROWSER_CANCEL_TIMEOUT_SECONDS`).
+- Go handlers re-check the authenticated user (defence in depth against a future mis-registration outside the auth group), cap bodies at 256 KiB via `MaxBytesReader`, overwrite any client-supplied `user_id`, and use the new `ai.Client.PostJSONWithContext` with per-route deadlines (15s cancel / 5m run / 20m stream).
+- Stable single-line audit records `[Audit] component=browser-agent action=… actor=… run=… outcome=…` on both tiers.
+- Frontend `cancelBrowserRun` now bounds itself, returns whether a session was terminated, and toasts failures instead of swallowing them.
+
+**Lesson:** A kill switch is a security boundary, not a convenience button. Any registry keyed only by an opaque id (`run_id`) is an IDOR waiting to happen — bind the owner at creation, verify at every control operation, and make the control path the *shortest*-timeout path in the system, not the longest. And a control that silently swallows its own failure is indistinguishable from one that works.

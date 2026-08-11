@@ -11,6 +11,7 @@ from app.services.browser_automation.agent import (
 )
 from app.services.browser_automation.session import (
     BrowserSession,
+    BrowserAuthzError,
     cancel_run,
     get_provider,
     get_session,
@@ -23,6 +24,7 @@ __all__ = [
     "stream_browser_agent",
     "get_llm",
     "BrowserSession",
+    "BrowserAuthzError",
     "cancel_run",
     "get_provider",
     "get_session",

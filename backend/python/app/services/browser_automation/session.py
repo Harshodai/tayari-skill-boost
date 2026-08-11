@@ -38,6 +38,7 @@ class BrowserSession:
     cdp_url: Optional[str] = None
     live_view_url: Optional[str] = None
     cancelled: bool = False
+    owner_id: Optional[str] = None
     meta: Dict[str, str] = field(default_factory=dict)
 
 
@@ -140,12 +141,21 @@ def get_provider() -> BrowserProvider:
 _SESSIONS: Dict[str, BrowserSession] = {}
 
 
-async def open_session(run_id: Optional[str]) -> BrowserSession:
-    """Create and register an isolated session for ``run_id``."""
+async def open_session(run_id: Optional[str], owner_id: Optional[str] = None) -> BrowserSession:
+    """Create and register an isolated session for ``run_id``.
+
+    ``owner_id`` binds the session to the authenticated user that started it;
+    the kill switch refuses to terminate a session owned by someone else.
+    """
     provider = get_provider()
     key = run_id or f"anon-{id(provider)}"
     session = await provider.create(key)
+    session.owner_id = owner_id
     _SESSIONS[key] = session
+    logger.info(
+        "[Audit] component=browser-session action=open actor=%s run=%s provider=%s",
+        owner_id or "-", key, session.provider,
+    )
     return session
 
 
@@ -171,14 +181,35 @@ def get_session(run_id: str) -> Optional[BrowserSession]:
     return _SESSIONS.get(run_id)
 
 
-async def cancel_run(run_id: str) -> bool:
+class BrowserAuthzError(PermissionError):
+    """Raised when a caller tries to control a run they do not own."""
+
+
+async def cancel_run(run_id: str, owner_id: Optional[str] = None) -> bool:
     """Kill switch: flag the run and terminate its remote browser.
 
-    Returns True when a live session was found and terminated.
+    ``owner_id`` is the authenticated caller. When the session carries an
+    owner, it must match — otherwise ``BrowserAuthzError`` is raised and the
+    session is left untouched. Returns True when a live session was found and
+    terminated.
     """
     session = _SESSIONS.get(run_id)
     if session is None:
+        logger.info(
+            "[Audit] component=browser-session action=cancel actor=%s run=%s outcome=not-found",
+            owner_id or "-", run_id,
+        )
         return False
+    if session.owner_id and owner_id != session.owner_id:
+        logger.warning(
+            "[Audit] component=browser-session action=cancel actor=%s run=%s outcome=denied owner=%s",
+            owner_id or "-", run_id, session.owner_id,
+        )
+        raise BrowserAuthzError("run does not belong to caller")
     session.cancelled = True
     await close_session(session)
+    logger.info(
+        "[Audit] component=browser-session action=cancel actor=%s run=%s outcome=terminated",
+        owner_id or "-", run_id,
+    )
     return True
