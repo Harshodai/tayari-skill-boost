@@ -1788,7 +1788,7 @@ The pricing page was selling the wrong thing. The audit's §1.4 conclusion is ex
 
 ---
 
-## 2026-08-11 — Batch-3 remediation: 14 findings (fail-closed stream/take-over, receipt persistence, guard inputs, hostname dots, frontend retry states)
+## 2026-08-11 — Batch-3 remediation: 15 findings (fail-closed stream/take-over, receipt persistence, guard inputs, hostname dots, frontend retry states)
 
 - **What was done:** Third remediation batch across Go, Python, SQL comments, frontend, docs, and scripts — all validated green (go test ./..., go vet, full pytest 586 passed / 4 skipped incl. 3 new endpoint-level stream tests, tsc clean, py_compile, bash -n):
   1. **Stream endpoint fail-closed** (`main.py`): the batch-2 ownership check silently *skipped* the trust-anchor lookup on unknown/mismatched runs — `start_url` stayed None and the agent fell back to instruction parsing with no audit trail. Now: unknown run → 404, mismatched owner → 403, each with an `[Audit] action=stream outcome=not-found/denied` log line, raised BEFORE the StreamingResponse is created. DB lookup failures can't slip through either — `load_agent_run` swallows them to None, which the 404 branch treats explicitly. 3 new endpoint-level tests in `tests/test_browser_agent_stream.py` pin the 404/403 fail-closed paths and the authorized-run happy path (auth bypassed by patching `browser_actor`; the file sets `JWT_SECRET` itself since `app/tests/conftest.py`'s env setup does not cover the top-level `tests/` tree when run standalone).

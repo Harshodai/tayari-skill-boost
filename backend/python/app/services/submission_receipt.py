@@ -208,7 +208,7 @@ def build_receipt(
 # raw error or agent_summary is ever persisted — detailed diagnostics live
 # only in server logs (the receipt's ``_error`` field, which is NOT
 # persisted by save_receipt). Categories are matched against the raw error
-# string; unknown errors get the generic fallback.
+# and agent_summary strings; unknown diagnostics get the generic fallback.
 _FAILURE_CATEGORIES: tuple[tuple[str, str], ...] = (
     ("linkedin_automation_blocked", "LinkedIn automation is not permitted by policy. Save the job and submit manually."),
     ("linkedin", "LinkedIn automation is not permitted by policy. Save the job and submit manually."),
@@ -217,9 +217,11 @@ _FAILURE_CATEGORIES: tuple[tuple[str, str], ...] = (
     ("timeout", "The application step timed out. Try again, or submit manually."),
     ("timed out", "The application step timed out. Try again, or submit manually."),
     ("navigation", "The browser could not reach the application page. Check the URL and retry."),
-    ("auth", "The application required a login the agent could not provide. Submit manually."),
+    ("word:auth", "The application required a login the agent could not provide. Submit manually."),
+    ("authentication", "The application required a login the agent could not provide. Submit manually."),
     ("captcha", "The application presented a CAPTCHA the agent could not solve. Submit manually."),
-    ("rate", "A rate limit was hit. Wait a moment and retry."),
+    ("rate limit", "A rate limit was hit. Wait a moment and retry."),
+    ("ratelimit", "A rate limit was hit. Wait a moment and retry."),
     ("network", "A network error interrupted the application. Retry, or submit manually."),
     ("ai_service_unavailable", "The AI engine was not available, so the application could not be prepared."),
     ("llm_not_configured", "The AI engine was not configured, so the application could not be prepared."),
@@ -227,20 +229,35 @@ _FAILURE_CATEGORIES: tuple[tuple[str, str], ...] = (
 _FAILURE_FALLBACK = "The application could not be completed automatically. Open the posting and submit manually."
 
 
+def _needle_matches(needle: str, diag: str) -> bool:
+    """Match a category needle against the combined diagnostic.
+
+    Plain needles are case-insensitive substring matches. A ``word:``
+    prefix bounds the needle with word boundaries — ``word:auth`` matches
+    "auth failed" but not "author"/"authorization", which contain "auth"
+    as an incidental substring.
+    """
+    if needle.startswith("word:"):
+        return re.search(rf"\b{re.escape(needle[5:])}\b", diag) is not None
+    return needle in diag
+
+
 def _classify_failure_reason(error: str | None, agent_summary: str | None) -> str:
     """Map a raw error/summary to an approved user-safe failure message.
 
     No portion of ``error``/``agent_summary`` is returned — only approved
     strings. Category matching is case-insensitive substring on the raw
-    diagnostic (used for classification only, never persisted). Both the
-    error and the summary are searched so a known condition that only shows
-    up in one of them is still detected.
+    diagnostic (used for classification only, never persisted), with
+    ``word:``-prefixed needles bounded by word boundaries so generic words
+    ("corporate", "author") cannot trigger a category. Both the error and
+    the summary are searched so a known condition that only shows up in
+    one of them is still detected.
     """
     diag = " ".join(x for x in (error, agent_summary) if x).lower()
     if not diag:
         return _FAILURE_FALLBACK
     for needle, message in _FAILURE_CATEGORIES:
-        if needle in diag:
+        if _needle_matches(needle, diag):
             return message
     return _FAILURE_FALLBACK
 
@@ -353,8 +370,13 @@ async def save_receipt(receipt: dict[str, Any]) -> bool:
             persist_answers["_failure_reason"] = receipt["failure_reason"]
         # Same zero-migration pattern for prepared receipts: the prepared
         # resume fields have no columns either, so they persist under reserved
-        # answers keys and survive process restart for later retrieval.
+        # answers keys and survive process restart for later retrieval. Drop
+        # any pre-existing reserved keys first — a prepared run with a None
+        # resume (nothing new to write) must not leave a stale value from an
+        # earlier attempt behind.
         if receipt.get("outcome") == "prepared":
+            persist_answers.pop("_prepared_resume_sha256", None)
+            persist_answers.pop("_prepared_resume_text", None)
             if receipt.get("prepared_resume_sha256") is not None:
                 persist_answers["_prepared_resume_sha256"] = receipt["prepared_resume_sha256"]
             if receipt.get("prepared_resume_text") is not None:

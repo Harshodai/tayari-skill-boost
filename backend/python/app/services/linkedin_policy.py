@@ -45,14 +45,23 @@ def is_linkedin_url(url: str) -> bool:
 
     Tolerant of ``None``/empty (returns False) and of URLs without a
     scheme (urlparse treats those as path-only, so we prepend a scheme
-    before parsing to avoid a hostless false-negative). Trailing dots
-    (``linkedin.com.`` — a DNS-valid FQDN form) are stripped before the
-    apex/subdomain checks so a dot-terminated host cannot bypass the
+    before parsing to avoid a hostless false-negative). Scheme-relative
+    URLs (``//linkedin.com/...`` — "use the current scheme") are parsed
+    as https so they cannot dodge the policy; only URLs with no scheme
+    and no scheme-relative prefix get ``https://`` prepended. Trailing
+    dots (``linkedin.com.`` — a DNS-valid FQDN form) are stripped before
+    the apex/subdomain checks so a dot-terminated host cannot bypass the
     policy.
     """
     if not url or not isinstance(url, str):
         return False
-    parsed = urlparse(url if "://" in url else f"https://{url}")
+    if url.startswith("//"):
+        candidate = f"https:{url}"
+    elif "://" in url:
+        candidate = url
+    else:
+        candidate = f"https://{url}"
+    parsed = urlparse(candidate)
     host = (parsed.hostname or "").rstrip(".").lower()
     return host == "linkedin.com" or host.endswith(".linkedin.com")
 

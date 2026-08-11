@@ -102,9 +102,17 @@ _resolve_addrs() {
         # ponytail: command substitution strips trailing newlines, so the two
         # outputs must be joined with an explicit separator — a bare
         # `out="$out$v6"` merges the last v4 address and the first v6 address
-        # onto one line, making the address comparison ambiguous.
-        out="$v4
+        # onto one line, making the address comparison ambiguous. The
+        # separator is only inserted when BOTH families resolved — joining
+        # with a newline when both are empty yields a single non-empty
+        # newline that would skip the host/python fallbacks for a host
+        # getent cannot resolve.
+        if [ -n "$v4" ] && [ -n "$v6" ]; then
+            out="$v4
 $v6"
+        else
+            out="$v4$v6"
+        fi
     fi
     if [ -z "$out" ] && command -v host >/dev/null 2>&1; then
         out="$(host "$host" 2>/dev/null | awk '/has (IPv4|IPv6) address/ {print $NF}' | sort -u)"

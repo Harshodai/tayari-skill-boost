@@ -14,6 +14,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -53,13 +54,24 @@ func gmailClientSecret() string { return os.Getenv("GOOGLE_CLIENT_SECRET") }
 func gmailEnabled() bool        { return gmailClientID() != "" && gmailClientSecret() != "" }
 
 // redactEmail keeps the local part's first character and the domain, so logs
-// stay correlatable without emitting the full address (PII).
+// stay correlatable without emitting the full address (PII). Inputs that do
+// not look like an email — missing, multiple, or misplaced "@", an empty local
+// part or domain, or any control/whitespace character — are invalid and
+// collapse to "***".
 func redactEmail(email string) string {
-	at := strings.Index(email, "@")
-	if at <= 0 {
+	if strings.Count(email, "@") != 1 {
 		return "***"
 	}
-	return email[:1] + "***@" + email[at+1:]
+	at := strings.Index(email, "@")
+	if at == 0 || at == len(email)-1 {
+		return "***"
+	}
+	for _, r := range email {
+		if unicode.IsControl(r) || unicode.IsSpace(r) {
+			return "***"
+		}
+	}
+	return string([]rune(email)[0]) + "***@" + email[at+1:]
 }
 
 func gmailRedirectURI() string {

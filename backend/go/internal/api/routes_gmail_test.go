@@ -35,6 +35,12 @@ func TestRedactEmail(t *testing.T) {
 		{"a@b.co", "a***@b.co"},
 		{"not-an-email", "***"},
 		{"", "***"},
+		{"a@b@c.com", "***"},
+		{"@example.com", "***"},
+		{"user@", "***"},
+		{"us\ter@example.com", "***"},
+		{"us er@example.com", "***"},
+		{"user@exa\tmple.com", "***"},
 	}
 	for _, c := range cases {
 		if got := redactEmail(c.in); got != c.want {

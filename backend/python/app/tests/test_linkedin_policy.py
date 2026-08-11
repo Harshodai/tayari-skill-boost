@@ -60,6 +60,25 @@ def test_trailing_dot_submit_raises() -> None:
         assert_not_linkedin_automation("https://www.linkedin.com./jobs/view/123", "submit")
 
 
+def test_scheme_relative_url_detected() -> None:
+    # "//host/..." is scheme-relative (means "use the current scheme") — it
+    # must resolve to the https form, not be mangled by prepending another
+    # scheme ("https:////host/...") into a hostless parse.
+    assert is_linkedin_url("//linkedin.com/jobs/view/123")
+    assert is_linkedin_url("//www.linkedin.com/jobs/view/456")
+    assert is_linkedin_url("//jobs.linkedin.com/456")
+    assert not is_linkedin_url("//evil.com/jobs/view/123")
+
+
+def test_scheme_relative_submit_raises() -> None:
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_automation("//linkedin.com/jobs/view/123", "submit")
+
+
+def test_scheme_relative_trailing_dot_host_detected() -> None:
+    assert is_linkedin_url("//linkedin.com./jobs/view/123")
+
+
 def test_empty_url_is_safe() -> None:
     assert not is_linkedin_url("")
     assert not is_linkedin_url(None)  # type: ignore[arg-type]

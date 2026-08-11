@@ -234,3 +234,100 @@ async def test_save_receipt_non_failed_answers_untouched():
     assert saved is True
     persisted = json.loads(conn.executed[1][13])
     assert persisted == {"a": 1}
+
+
+def test_failure_classification_ignores_corporate_substring():
+    # "corporate" contains "rate" as an incidental substring — it must not
+    # map to the rate-limit category.
+    receipt = sr.build_failed_receipt(
+        run_id="r8",
+        user_id="u8",
+        job=JOB,
+        resume_text="abc",
+        error="Chrome crashed",
+        agent_summary="the corporate policy review blocked the attempt",
+    )
+    assert receipt["failure_reason"] == sr._FAILURE_FALLBACK
+
+
+def test_failure_classification_ignores_author_substring():
+    # "author" contains "auth" as an incidental substring — it must not map
+    # to the authentication category.
+    receipt = sr.build_failed_receipt(
+        run_id="r8b",
+        user_id="u8",
+        job=JOB,
+        resume_text="abc",
+        error="Browser disconnected",
+        agent_summary="the author of the posting was not reachable",
+    )
+    assert receipt["failure_reason"] == sr._FAILURE_FALLBACK
+
+
+def test_failure_classification_authentication_matches():
+    receipt = sr.build_failed_receipt(
+        run_id="r8c",
+        user_id="u8",
+        job=JOB,
+        resume_text="abc",
+        error="Authentication failed for the applicant portal",
+    )
+    assert "login" in receipt["failure_reason"]
+
+
+def test_failure_classification_auth_word_matches():
+    receipt = sr.build_failed_receipt(
+        run_id="r8d",
+        user_id="u8",
+        job=JOB,
+        resume_text="abc",
+        error="auth failed on the portal",
+    )
+    assert "login" in receipt["failure_reason"]
+
+
+def test_failure_classification_rate_limit_matches():
+    receipt = sr.build_failed_receipt(
+        run_id="r8e",
+        user_id="u8",
+        job=JOB,
+        resume_text="abc",
+        error="rate limit exceeded",
+    )
+    assert "rate limit" in receipt["failure_reason"]
+
+
+@pytest.mark.asyncio
+async def test_save_receipt_none_prepared_resume_drops_stale_reserved_keys():
+    # A prepared receipt with no resume must not leave stale
+    # _prepared_resume_* values from an earlier attempt in the answers —
+    # the conditional writes skip None values, so stale keys must be
+    # removed before them, not just overwritten.
+    conn = _FakeConn()
+    pool = _FakePool(conn)
+    receipt = {
+        "run_id": "r9",
+        "user_id": "u9",
+        "job_url": JOB["url"],
+        "job_title": JOB["title"],
+        "company": JOB["company"],
+        "ats_vendor": "workday",
+        "submitted_at": None,
+        "verified": False,
+        "confirmation_text": None,
+        "confirmation_number": None,
+        "screenshot_path": None,
+        "submitted_resume_sha256": None,
+        "submitted_resume_text": None,
+        "answers": {
+            "_prepared_resume_sha256": "stale-hash",
+            "_prepared_resume_text": "stale text",
+        },
+        "outcome": "prepared",
+    }
+    with mock.patch("app.services.submission_receipt.get_pool", new=mock.AsyncMock(return_value=pool)):
+        saved = await sr.save_receipt(receipt)
+    assert saved is True
+    persisted = json.loads(conn.executed[1][13])
+    assert "_prepared_resume_sha256" not in persisted
+    assert "_prepared_resume_text" not in persisted

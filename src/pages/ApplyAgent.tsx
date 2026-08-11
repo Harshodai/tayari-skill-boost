@@ -32,17 +32,23 @@ export function ApplyAgent() {
     try {
       const candidate = trimmed.includes("://") ? trimmed : `https://${trimmed}`;
       const parsed = new URL(candidate);
-      // ponytail: https-only — an http LinkedIn URL is a downgrade/MITM risk
-      // for a page the agent will enter credentials on.
-      if (parsed.protocol !== "https:") return { isLinkedIn: false, normalizedUrl: "" };
       // ponytail: strip a terminal dot — "linkedin.com." is the same origin
-      // as "linkedin.com" to DNS but fails a plain string comparison.
+      // as "linkedin.com" to DNS but fails a plain string comparison. Detect
+      // on the stripped host so scheme-relative and non-https variants are
+      // still recognized as LinkedIn.
       const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
       const isLinkedIn =
         host === "linkedin.com" ||
         host === "www.linkedin.com" ||
         host.endsWith(".linkedin.com");
-      return { isLinkedIn, normalizedUrl: isLinkedIn ? parsed.toString() : "" };
+      if (!isLinkedIn) return { isLinkedIn: false, normalizedUrl: "" };
+      // ponytail: https-only — an http LinkedIn URL is a downgrade/MITM risk
+      // for a page the agent will enter credentials on. Recognized, but no
+      // safe URL to run against.
+      if (parsed.protocol !== "https:") return { isLinkedIn: true, normalizedUrl: "" };
+      // Canonicalize the host so the run opens the dot-stripped origin.
+      if (parsed.hostname !== host) parsed.hostname = host;
+      return { isLinkedIn: true, normalizedUrl: parsed.toString() };
     } catch {
       return { isLinkedIn: false, normalizedUrl: "" };
     }
@@ -67,12 +73,16 @@ export function ApplyAgent() {
       setError("Role, job description and resume text are all required.");
       return;
     }
+    if (linkedinUrlInfo.isLinkedIn && !linkedinUrlInfo.normalizedUrl) {
+      setError("LinkedIn URLs must use HTTPS — the agent cannot open an insecure posting.");
+      return;
+    }
     setRunning(true);
     try {
       const { runId } = await startApplyAgent({
         jobTitle: jobTitle.trim(),
         company: company.trim(),
-        jobUrl: jobUrl.trim(),
+        jobUrl: linkedinUrlInfo.isLinkedIn ? linkedinUrlInfo.normalizedUrl : jobUrl.trim(),
         jobDescription: jobDescription.trim(),
         resumeText: resumeText.trim(),
       });
@@ -132,14 +142,16 @@ export function ApplyAgent() {
                         <p className="font-medium">
                           LinkedIn submissions are not automated. LinkedIn's User Agreement §8.2 prohibits bots and enforcement is account termination. We'll save the job and prep your resume, but you submit manually.
                         </p>
-                        <a
-                          href={linkedinUrlInfo.normalizedUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1.5 inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline"
-                        >
-                          Open LinkedIn posting <ExternalLink className="h-3 w-3" />
-                        </a>
+                        {linkedinUrlInfo.normalizedUrl && (
+                          <a
+                            href={linkedinUrlInfo.normalizedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1.5 inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline"
+                          >
+                            Open LinkedIn posting <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
