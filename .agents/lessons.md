@@ -36,3 +36,37 @@ Whenever a code review finding or architectural flaw is identified during pair p
 1. Fix the underlying issue completely without patching symptoms.
 2. Verify with automated test suites (`pytest`, `npx tsc`, `npm run build`).
 3. Record the guideline in this `lessons.md` file so future agent executions do not repeat the mistake.
+
+## 2026-08-11 — WS-06 isolation + kill switch, WS-09 route analytics, WS-10 boomerang
+
+**What was done**
+- Added `backend/python/app/services/browser_automation/session.py`: a `BrowserProvider`
+  interface (`local` Playwright, `browserbase` remote) selected by `BROWSER_PROVIDER`,
+  a per-run session registry, and `cancel_run()` that terminates the remote session.
+- Wired `run_browser_agent` / `stream_browser_agent` to open one session per `run_id`,
+  poll cancellation between steps (`RunCancelled`), and always close the session.
+- New `POST /api/v1/browser/automation/cancel` (FastAPI) + Go proxy (both `/api` and
+  `/api/v1` for route parity). The UI "Stop run" button now calls it, not just `abort()`.
+- Renamed `sandbox_executor.py` → `form_filler.py` (`TayariComputerSandboxExecutor` →
+  `FormFiller`) with a deprecation shim; it was never a sandbox.
+- WS-09: `route_views` table + `RouteAnalytics` mounted in the router, so dead routes can
+  be deleted with evidence.
+- WS-10: `BoomerangCard` on `/outcomes` — offer-holders switch to passive monitoring and
+  it really flips `saved_searches.alert_enabled`.
+- Security: profiles + saved_searches policies re-scoped from `public` to `authenticated`.
+
+**Root cause of the gap**
+"Stop" was a client-side `AbortController` only. Closing the SSE reader never touched the
+browser, so a cancelled run kept driving a real page — the worst possible failure mode for
+an agent that fills out forms.
+
+**Lesson**
+A cancel button is only real if it terminates the resource on the far side of the network.
+Client-side abort is a UI affordance, not a kill switch — always pair it with a
+server-side terminate call and a cancellation flag the work loop polls.
+
+**Still open**
+WS-08 (delete orphan pipelines) is NOT done and should not be blindly executed: the plan
+calls `end_to_end_pipeline.py`, `autopilot_graph.py` and `resume_parser.py` orphans, but
+all three are still imported (adaptations_routes, omnisave_service, automation_engine) and
+covered by tests. The merge-then-delete needs its own pass.
