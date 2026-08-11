@@ -325,7 +325,7 @@ export function Networking() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
                         <Label htmlFor="kind">Message type</Label>
-                        <Select value={kind} onValueChange={setKind}>
+                        <Select value={kind} onValueChange={(v) => setKind(v as ReferralKind)}>
                           <SelectTrigger id="kind"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {KINDS.map((k) => (
