@@ -22,7 +22,7 @@ import {
   transitionRun,
   type AgentRunStatus,
 } from "@/lib/agent/applyAgent";
-import { streamBrowserAgent, type BrowserStreamEvent } from "@/api/browser";
+import { streamBrowserAgent, cancelBrowserRun, type BrowserStreamEvent } from "@/api/browser";
 
 const statusTone: Record<AgentRunStatus, string> = {
   queued: "bg-muted text-muted-foreground",
