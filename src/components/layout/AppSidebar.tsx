@@ -19,7 +19,19 @@ import {
   Zap,
   Users,
   TrendingUp,
-
+  Bot,
+  ClipboardCheck,
+  KanbanSquare,
+  PenTool,
+  MessageSquareText,
+  Globe,
+  Send,
+  Radar,
+  Handshake,
+  BarChart3,
+  Target,
+  Map,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Sidebar,
