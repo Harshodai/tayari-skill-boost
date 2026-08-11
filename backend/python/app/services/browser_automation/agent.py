@@ -13,6 +13,13 @@ from typing import Callable, List, Optional
 
 from dotenv import load_dotenv
 
+from app.services.browser_automation.session import (
+    close_session,
+    is_cancelled,
+    open_session,
+)
+
+
 logger = logging.getLogger(__name__)
 
 load_dotenv()
