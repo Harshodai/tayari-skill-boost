@@ -79,11 +79,19 @@ export function AgentLiveView({ runId, browserInstruction }: { runId: string; br
     }
   };
 
-  const stopFeed = () => feedAbortRef.current?.abort();
+  // WS-06 kill switch: aborting the SSE stream only closes our reader — the
+  // remote browser session has to be terminated server-side too.
+  const stopFeed = () => {
+    feedAbortRef.current?.abort();
+    cancelBrowserRun(runId).catch(() => {
+      /* the abort already stopped the local feed; surface nothing extra */
+    });
+  };
 
   useEffect(() => {
     return () => feedAbortRef.current?.abort();
   }, []);
+
 
   const latestScreenshot = [...feedEvents].reverse().find((e) => e.type === "screenshot" && e.data);
 
