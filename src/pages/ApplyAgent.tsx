@@ -131,7 +131,7 @@ export function ApplyAgent() {
 
           <div className="space-y-6">
             {activeRunId ? (
-              <AgentLiveView runId={activeRunId} />
+              <AgentLiveView runId={activeRunId} browserInstruction={browserInstruction} />
             ) : (
               <Card>
                 <CardContent className="py-12 text-center text-sm text-muted-foreground">
