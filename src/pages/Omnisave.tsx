@@ -212,7 +212,22 @@ export default function Omnisave() {
         </div>
 
         {/* Knowledge Card Grid */}
+        {filteredArticles.length === 0 ? (
+          <Card className="bg-slate-900 border-slate-800 text-slate-300">
+            <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+              <BookOpen className="h-8 w-8 text-slate-500" />
+              <div>
+                <p className="font-medium text-slate-100">Nothing saved yet</p>
+                <p className="text-xs text-slate-400">
+                  Paste an article URL above, or sync your Substack and Medium feeds.
+                  LinkedIn has no saved-items API — upload your official data export instead.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
           {filteredArticles.map(art => (
             <Card key={art.id} className="bg-slate-900 border-slate-800 text-slate-100 flex flex-col justify-between p-4 space-y-4 hover:border-purple-500/50 transition">
               <div className="space-y-2">
