@@ -5,6 +5,12 @@ import socket
 import ipaddress
 from typing import Dict, Any, List, Optional
 from app.agent.browser_operator import BrowserOperator
+from app.services.question_queue import (
+    classify_fields,
+    enqueue_questions,
+    is_sensitive_field,
+    pending_answers,
+)
 
 logger = logging.getLogger(__name__)
 
