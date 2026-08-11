@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, BarChart3, ShieldCheck, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
+import { BoomerangCard } from "@/components/outcomes/BoomerangCard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 type Stage = "saved" | "applied" | "interview" | "offer" | "rejected";
@@ -300,6 +301,8 @@ export default function Outcomes() {
                 </div>
               </CardContent>
             </Card>
+
+            <BoomerangCard userId={userId} offers={funnel.offers} />
 
             <p className="text-xs text-muted-foreground">
               "Applied" counts a role once its pipeline stage moved past Saved, or once a

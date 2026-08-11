@@ -6,7 +6,25 @@ Exposes run_browser_agent and AgentResult for internal Python backend services a
 from app.services.browser_automation.agent import (
     AgentResult,
     run_browser_agent,
+    stream_browser_agent,
     get_llm,
 )
+from app.services.browser_automation.session import (
+    BrowserSession,
+    cancel_run,
+    get_provider,
+    get_session,
+    is_cancelled,
+)
 
-__all__ = ["AgentResult", "run_browser_agent", "get_llm"]
+__all__ = [
+    "AgentResult",
+    "run_browser_agent",
+    "stream_browser_agent",
+    "get_llm",
+    "BrowserSession",
+    "cancel_run",
+    "get_provider",
+    "get_session",
+    "is_cancelled",
+]

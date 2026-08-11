@@ -13,6 +13,13 @@ from typing import Callable, List, Optional
 
 from dotenv import load_dotenv
 
+from app.services.browser_automation.session import (
+    close_session,
+    is_cancelled,
+    open_session,
+)
+
+
 logger = logging.getLogger(__name__)
 
 load_dotenv()
@@ -198,10 +205,35 @@ def _extract_history(history) -> AgentResult:
     )
 
 
+def _build_agent(Agent, instruction: str, llm, callback, session):
+    """Construct a browser-use Agent bound to the run's isolated session.
+
+    Remote providers hand back a CDP URL; older/newer browser-use versions
+    accept it under different kwargs, so we degrade to the local browser
+    rather than failing the run.
+    """
+    cdp_url = getattr(session, "cdp_url", None)
+    if cdp_url:
+        for kwarg in ("cdp_url", "browser_session", "wss_url"):
+            try:
+                return Agent(task=instruction, llm=llm, register_new_step_callback=callback, **{kwarg: cdp_url})
+            except TypeError:
+                continue
+            except Exception:
+                raise
+        logger.warning("[BrowserAgent] browser-use rejected remote CDP kwargs; using local browser")
+    return Agent(task=instruction, llm=llm, register_new_step_callback=callback)
+
+
+class RunCancelled(Exception):
+    """Raised inside the agent loop when the kill switch fires."""
+
+
 async def run_browser_agent(
     instruction: str,
     max_steps: int = DEFAULT_MAX_STEPS,
     on_step: Optional[Callable] = None,
+    run_id: Optional[str] = None,
 ) -> AgentResult:
     """Run the browser-use agent for a single natural language instruction."""
     instruction = (instruction or "").strip()
@@ -239,6 +271,9 @@ async def run_browser_agent(
     evidence: dict = {"screenshot": None, "url": None}
 
     def _observe(state, output, step_number):
+        # WS-06 kill switch: poll cancellation between steps.
+        if is_cancelled(run_id):
+            raise RunCancelled(run_id or "")
         shot = getattr(state, "screenshot", None)
         if shot:
             evidence["screenshot"] = shot
@@ -251,8 +286,10 @@ async def run_browser_agent(
             except Exception as exc:  # a caller's callback must not kill the run
                 logger.warning("[BrowserAgent] on_step callback failed: %s", exc)
 
+    session = None
     try:
-        agent = Agent(task=instruction, llm=llm, register_new_step_callback=_observe)
+        session = await open_session(run_id)
+        agent = _build_agent(Agent, instruction, llm, _observe, session)
         history = await agent.run(max_steps=max_steps)
         result = _extract_history(history)
         result.instruction = instruction
@@ -260,6 +297,15 @@ async def run_browser_agent(
         result.final_url = evidence["url"] or (result.visited_urls[-1] if result.visited_urls else None)
         return result
 
+    except RunCancelled:
+        return AgentResult(
+            instruction=instruction,
+            success=False,
+            summary="Run stopped by the user. The browser session was terminated.",
+            error="cancelled",
+            final_screenshot=evidence["screenshot"],
+            final_url=evidence["url"],
+        )
     except Exception as exc:
         logger.error(f"[BrowserAgent] Failed step execution: {exc}")
         return AgentResult(
@@ -268,9 +314,16 @@ async def run_browser_agent(
             summary="The agent hit an error while browsing.",
             error=str(exc),
         )
+    finally:
+        await close_session(session)
 
 
-async def stream_browser_agent(instruction: str, max_steps: int = DEFAULT_MAX_STEPS):
+
+async def stream_browser_agent(
+    instruction: str,
+    max_steps: int = DEFAULT_MAX_STEPS,
+    run_id: Optional[str] = None,
+):
     """Async generator of SSE events for the Glass-Box live browser feed.
 
     Yields dicts: {"type": "screenshot", "data": <base64 png>, "step": n,
@@ -298,6 +351,8 @@ async def stream_browser_agent(instruction: str, max_steps: int = DEFAULT_MAX_ST
     queue: asyncio.Queue = asyncio.Queue()
 
     def on_step(state, output, step_number):
+        if is_cancelled(run_id):
+            raise RunCancelled(run_id or "")
         event = {"type": "screenshot", "step": step_number}
         screenshot = getattr(state, "screenshot", None)
         if screenshot:
@@ -310,16 +365,23 @@ async def stream_browser_agent(instruction: str, max_steps: int = DEFAULT_MAX_ST
             event["title"] = title
         queue.put_nowait(event)
 
+    session = await open_session(run_id)
+    if session.live_view_url:
+        yield {"type": "live_view", "url": session.live_view_url}
+
     async def run_agent():
         try:
-            agent = Agent(task=instruction, llm=llm, register_new_step_callback=on_step)
+            agent = _build_agent(Agent, instruction, llm, on_step, session)
             history = await agent.run(max_steps=max_steps)
             result = _extract_history(history)
             result.instruction = instruction
             queue.put_nowait({"type": "result", "result": result})
+        except RunCancelled:
+            queue.put_nowait({"type": "error", "error": "cancelled", "message": "Run stopped by the user."})
         except Exception as exc:
             logger.error(f"[BrowserAgent] Failed step execution: {exc}")
             queue.put_nowait({"type": "error", "error": "browser_agent_failed", "message": str(exc)})
+
 
     task = asyncio.create_task(run_agent())
     try:
@@ -342,5 +404,7 @@ async def stream_browser_agent(instruction: str, max_steps: int = DEFAULT_MAX_ST
             await task
         except asyncio.CancelledError:
             pass
+        await close_session(session)
+
 
     yield {"type": "done", "result": result.to_markdown()}

@@ -1682,9 +1682,10 @@ async def browser_automation_stream_endpoint(payload: dict):
 
     instruction = str(payload.get("instruction", ""))
     max_steps = int(payload.get("max_steps") or 25)
+    run_id = payload.get("run_id") or None
 
     async def event_stream():
-        async for event in stream_browser_agent(instruction, max_steps=max_steps):
+        async for event in stream_browser_agent(instruction, max_steps=max_steps, run_id=run_id):
             yield f"data: {_json.dumps(event)}\n\n"
 
     return StreamingResponse(
@@ -1692,3 +1693,16 @@ async def browser_automation_stream_endpoint(payload: dict):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/api/v1/browser/automation/cancel")
+async def browser_automation_cancel_endpoint(payload: dict):
+    """WS-06 kill switch: terminate the isolated browser session for a run."""
+    from app.services.browser_automation.session import cancel_run
+
+    run_id = str(payload.get("run_id") or "").strip()
+    if not run_id:
+        raise HTTPException(status_code=400, detail="run_id is required")
+    terminated = await cancel_run(run_id)
+    return {"run_id": run_id, "terminated": terminated}
+

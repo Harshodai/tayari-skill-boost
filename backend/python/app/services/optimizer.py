@@ -692,7 +692,7 @@ async def optimize_with_reflection(
 async def scrape_jd_url(url: str) -> str | None:
     """Scrape Job Description text from URL via Playwright fallback renderer.
     Returns the scraped text on success, None on failure."""
-    from app.services.sandbox_executor import _resolve_and_validate_url
+    from app.services.form_filler import _resolve_and_validate_url
     # ponytail: never point the headless browser at a private or non-public
     # destination, even when the caller provided the URL.
     url_info = _resolve_and_validate_url(url)

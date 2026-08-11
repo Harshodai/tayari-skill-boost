@@ -1,5 +1,15 @@
 import { API_URL, getHeaders } from "./client";
 
+/** WS-06 kill switch — terminate the isolated browser session for a run. */
+export async function cancelBrowserRun(runId: string): Promise<void> {
+  await fetch(`${API_URL}/v1/browser/automation/cancel`, {
+    method: "POST",
+    headers: { ...getHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ run_id: runId }),
+  });
+}
+
+
 export interface BrowserStreamEvent {
   type: "screenshot" | "done" | "error";
   data?: string;

@@ -22,7 +22,35 @@ func (s *Server) RegisterBrowserRoutes(r chi.Router) {
 	r.Post("/api/browser/automation", s.handleBrowserAutomation)
 	r.Post("/api/v1/browser/automation/stream", s.handleBrowserAutomationStream)
 	r.Post("/api/browser/automation/stream", s.handleBrowserAutomationStream)
+	r.Post("/api/v1/browser/automation/cancel", s.handleBrowserAutomationCancel)
+	r.Post("/api/browser/automation/cancel", s.handleBrowserAutomationCancel)
 }
+
+// handleBrowserAutomationCancel is the WS-06 kill switch: it asks the AI
+// engine to terminate the isolated browser session bound to a run.
+func (s *Server) handleBrowserAutomationCancel(w http.ResponseWriter, r *http.Request) {
+	var payload map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+	if runID, _ := payload["run_id"].(string); runID == "" {
+		http.Error(w, "run_id is required", http.StatusBadRequest)
+		return
+	}
+
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/browser/automation/cancel", payload, s.getXUserHeaders(r))
+	if err != nil {
+		log.Printf("[BrowserAutomation] Cancel proxy error: %v", err)
+		http.Error(w, "failed to cancel browser run", http.StatusBadGateway)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(result)
+}
+
 
 func (s *Server) handleBrowserAutomation(w http.ResponseWriter, r *http.Request) {
 	var payload map[string]interface{}

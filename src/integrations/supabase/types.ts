@@ -579,6 +579,30 @@ export type Database = {
         }
         Relationships: []
       }
+      route_views: {
+        Row: {
+          created_at: string
+          id: string
+          referrer: string | null
+          route: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          referrer?: string | null
+          route: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          referrer?: string | null
+          route?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       saved_jobs: {
         Row: {
           company: string
