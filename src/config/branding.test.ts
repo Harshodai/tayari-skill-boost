@@ -87,11 +87,32 @@ describe("branding: Job Tayari is the single product name (P0)", () => {
     "/pages/About.tsx",
   ];
 
+  // ponytail: token-boundary rule — a "Tayari" occurrence is only the brand
+  // when it completes an exact "Job Tayari" / "JobTayari" token: "Job" must be
+  // a whole word immediately before (rejects "LegacyJobTayari") and nothing
+  // may follow the "Tayari" (rejects "JobTayariX", "Job TayariX"). Any other
+  // occurrence is a bare-Tayari offender.
+  const hasBareTayari = (content: string): boolean => {
+    const tayariRe = /Tayari/g;
+    let m: RegExpExecArray | null;
+    while ((m = tayariRe.exec(content)) !== null) {
+      const before = content.slice(Math.max(0, m.index - 20), m.index);
+      const after = content.slice(m.index + m[0].length, m.index + m[0].length + 20);
+      const jobMatch = before.match(/Job\s?$/u);
+      const valid =
+        jobMatch !== null &&
+        (jobMatch.index === 0 || !/[\p{L}\p{N}_]/u.test(before[jobMatch.index - 1])) &&
+        !/[\p{L}\p{N}_]/u.test(after[0] ?? "");
+      if (!valid) return true;
+    }
+    return false;
+  };
+
   const bareTayariOffenders = sourceFiles(SRC).filter(
     (f) =>
       !/\.test\.(ts|tsx)$/.test(f) &&
       !legacyBareTayariFiles.includes(f.replace(SRC, "")) &&
-      /(?<!Job)(?<!Job )Tayari/.test(readFileSync(f, "utf8"))
+      hasBareTayari(readFileSync(f, "utf8"))
   );
 
   it("no bare 'Tayari' label remains (must be 'Job Tayari' or 'JobTayari')", () => {
