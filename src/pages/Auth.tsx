@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { PasswordStrengthMeter } from "@/components/auth";
 import { isPasswordValid } from "@/lib/password-validator";
-import { apiFetch } from "@/api";
+import { supabase } from "@/integrations/supabase/client";
 import { loginSchema, signupSchema } from "@/lib/schemas";
 import { checkRateLimit, recordFailedAttempt } from "@/lib/rate-limiter";
 import { FadeIn } from "@/components/ui/motion";
@@ -70,18 +70,22 @@ const Auth = () => {
       const hashPrefix = hash.substring(0, 5);
       const hashSuffix = hash.substring(5);
 
-      // Go backend, not a Supabase Edge Function: this feature has no
-      // Cloud/self-hosted split (see routes_security.go) and works in both
-      // auth modes the same way.
-      const data = await apiFetch<{ breached: boolean; count?: number; error?: string }>(
-        "/v1/security/check-breached-password",
-        { method: "POST", body: JSON.stringify({ hashPrefix, hashSuffix }) }
-      );
+      // Edge function, not the Go gateway: the Go route is unreachable in
+      // hosted (backend-only) deploys, which silently disabled this check.
+      const { data, error } = await supabase.functions.invoke<{
+        breached: boolean;
+        count?: number;
+        message?: string;
+        error?: string;
+      }>("check-breached-password", { body: { hashPrefix, hashSuffix } });
 
-      if (typeof data.breached === "boolean") {
+      if (error) {
+        console.warn("Breach check failed:", error.message);
+        setBreachResult(null);
+      } else if (data && typeof data.breached === "boolean") {
         setBreachResult({ breached: data.breached, count: data.count });
       } else {
-        console.warn("Breach check failed:", data.error);
+        console.warn("Breach check failed:", data?.error);
         setBreachResult(null);
       }
     } catch (error) {
