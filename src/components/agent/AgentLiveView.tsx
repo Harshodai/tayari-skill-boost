@@ -83,10 +83,17 @@ export function AgentLiveView({ runId, browserInstruction }: { runId: string; br
   // remote browser session has to be terminated server-side too.
   const stopFeed = () => {
     feedAbortRef.current?.abort();
-    cancelBrowserRun(runId).catch(() => {
-      /* the abort already stopped the local feed; surface nothing extra */
-    });
+    cancelBrowserRun(runId)
+      .then((terminated) =>
+        toast.success(
+          terminated
+            ? "Browser session terminated"
+            : "Feed stopped — no live browser session was running",
+        ),
+      )
+      .catch((e: Error) => toast.error(e.message || "Failed to stop the browser session"));
   };
+
 
   useEffect(() => {
     return () => feedAbortRef.current?.abort();
