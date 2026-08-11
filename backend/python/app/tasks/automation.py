@@ -100,6 +100,8 @@ def run_scheduled_autopilot(self, schedule_id: str, user_id: str,
     config = dict(config or {})
     config.setdefault("user_id", user_id)
     config.setdefault("schedule_id", schedule_id)
+    # WS-01: scheduled runs prepare applications; they never submit them.
+    config["auto_apply"] = False
     profile, resume_text, candidate_name = _load_user_context(user_id)
     run_id = str(uuid.uuid4())
     task = run_application_agent.apply_async(
