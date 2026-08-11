@@ -1308,3 +1308,20 @@ Fixed four test files to stop cross-test leakage and match the new POST rate-lim
 - Any UI-captured field that shapes product behavior belongs in the canonical profile table, not localStorage/aux tables — the fake-driver round-trip test (canned `driver.Rows` matching SELECT scan order + a RETURNING updated_at row for the upsert) proves the wire end-to-end without a live DB.
 - Postgres `TEXT[]` scans via the existing `StringSlice` custom type; `nil` fixture values break scans into plain `string` fields — COALESCE in the query means the fixture must yield `""`, not NULL.
 - Running `gofmt -w` on a not-gofmt-clean file drags unrelated alignment hunks into the diff — restore and re-apply manually to keep the change surgical.
+
+## 2026-08-11: Manifest audit doc fixes — canonical optimizer test path, pairwise secret parity
+### What was done
+- Fixed docs/ruthless_audit_2026_08_10/05_deepseek_ruthless_manifest.md Task 2 verification line: `pytest app/tests/test_optimizer.py` → `.venv/bin/python -m pytest app/tests/test_optimizer_enhanced.py -v` (the file does not exist; bare `pytest` also fails collection with "No module named 'app'").
+- Rewrote secret rule to state pairwise parity (JWT_SECRET equal across both .env files, POSTGRES_PASSWORD equal across both) plus the inequality requirement (JWT_SECRET and POSTGRES_PASSWORD distinct from each other).
+- Committed as dac88e2.
+
+### Root causes
+- Doc referenced a test file that never existed; bare `pytest` cannot import `app` without the venv entry point.
+- Old wording implied JWT_SECRET and POSTGRES_PASSWORD should match *each other*, which would be a worse failure than the mismatch it warned about.
+
+### Fix applied
+- Verified test_optimizer_enhanced.py exists and contains `test_optimize_with_jd_url_propagates_target_role_and_validates_url` / `test_optimize_with_invalid_jd_url_rejected_before_scraper` before writing the line.
+
+### Reusable lessons
+- Always verify test files exist and grep for the asserted cases before pointing docs at them; a doc command that cannot run is worse than no doc at all.
+- Two-secret cross-file requirements are best stated as explicit pairwise equalities + explicit cross-secret inequality — one sentence per constraint, no implied relations.
