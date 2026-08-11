@@ -221,3 +221,41 @@ func TestOptimizeResumeForwardsCustomInstructions(t *testing.T) {
 		t.Fatalf("expected passthrough body, got %s", w.Body.String())
 	}
 }
+
+// TestOptimizeResume_RejectsMalformedBodyButAcceptsEmptyBody verifies the
+// handler 400s on any non-empty-body decode/validation error instead of
+// optimizing with a half-decoded request, while an empty body (JD optional)
+// still succeeds.
+func TestOptimizeResume_RejectsMalformedBodyButAcceptsEmptyBody(t *testing.T) {
+	upstream := fakeAIServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/optimizer/optimize" {
+			t.Fatalf("unexpected upstream path: %s", r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"optimized_text":"Optimized resume text."}`)
+	})
+	defer upstream.Close()
+
+	server := NewServer(&hermesMockAuth{}, &config.Config{PythonAIURL: upstream.URL}, &database.DB{Conn: optimizeResumeFakeDB()})
+
+	// Invalid JSON body -> 400, no upstream call.
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/resumes/42/optimize", []byte(`{`)))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("malformed body: expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Empty body (JSON decode hits io.EOF) -> 200, upstream returns
+	// optimized_text which the handler passes through.
+	w = httptest.NewRecorder()
+	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/resumes/42/optimize", []byte(``)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("empty body: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp["optimized_text"] != "Optimized resume text." {
+		t.Fatalf("expected passthrough body, got %s", w.Body.String())
+	}
+}

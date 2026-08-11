@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -39,17 +40,23 @@ func (s *Server) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 		p.ID = user.ID
 		p.Email = user.Email
 		s.respondJSON(w, http.StatusOK, map[string]interface{}{
-			"profile_id":          p.ID,
-			"full_name":           "",
-			"email":               p.Email,
-			"headline":            "",
-			"summary":             "",
-			"skills":              []string{},
-			"desired_roles":       []string{},
-			"locations":           []string{},
-			"experience_years":    0,
-			"open_to_remote":      true,
-			"transition_type":     "",
+			"profile_id":       p.ID,
+			"full_name":        "",
+			"email":            p.Email,
+			"headline":         "",
+			"summary":          "",
+			"skills":           []string{},
+			"desired_roles":    []string{},
+			"locations":        []string{},
+			"experience_years": 0,
+			"open_to_remote":   true,
+			"transition_type":  "",
+			// ponytail: fallback must mirror the success schema so the
+			// frontend never sees a partial profile shape.
+			"current_title":       "",
+			"target_level":        "",
+			"current_industry":    "",
+			"target_industry":     "",
 			"transferable_skills": []string{},
 		})
 		return
@@ -968,7 +975,13 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 		JdURL              string `json:"jd_url,omitempty"`
 	}
 	if err := DecodeAndValidate(r, &req); err != nil {
-		// body is optional; ignore error if empty
+		// ponytail: an empty request body is a valid optimize (JD optional);
+		// any other decode/validation error is a client bug — 400, don't
+		// optimize with a half-decoded request.
+		if !errors.Is(err, io.EOF) {
+			s.respondError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
 		req.JobDescription = ""
 	}
 	// ponytail: forward every input the UI collects so the Python engine's

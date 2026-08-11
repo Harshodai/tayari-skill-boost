@@ -112,6 +112,22 @@ func TestSmoke_Profile(t *testing.T) {
 			if w.Code != tc.wantCode {
 				t.Fatalf("GET %s: want %d, got %d (body=%s)", tc.path, tc.wantCode, w.Code, w.Body.String())
 			}
+			if tc.token != "" {
+				var body map[string]any
+				if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+					t.Fatalf("GET %s: invalid JSON: %v (body=%s)", tc.path, err, w.Body.String())
+				}
+				// ponytail: the fallback profile must mirror the success
+				// schema — these keys must exist even on the error path.
+				for _, key := range []string{"current_title", "target_level", "current_industry", "target_industry", "transition_type"} {
+					if _, ok := body[key]; !ok {
+						t.Errorf("GET %s: fallback profile missing key %q (body=%s)", tc.path, key, w.Body.String())
+					}
+				}
+				if ct, ok := body["current_title"].(string); !ok || ct != "" {
+					t.Errorf("GET %s: current_title=%v want \"\" (body=%s)", tc.path, body["current_title"], w.Body.String())
+				}
+			}
 		})
 	}
 }
