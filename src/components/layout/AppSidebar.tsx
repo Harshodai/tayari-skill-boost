@@ -17,6 +17,8 @@ import {
   Terminal,
   ChevronDown,
   Zap,
+  Users,
+
 } from "lucide-react";
 import {
   Sidebar,
