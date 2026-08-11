@@ -261,6 +261,21 @@ export function AgentLiveView({ runId, browserInstruction }: { runId: string; br
           <div className="rounded-lg border bg-card/60 p-3 text-sm">{run.outcome}</div>
         ) : null}
 
+        {run.status === "running" || run.status === "queued" ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                stopFeed();
+                transition.mutate("cancel");
+              }}
+              disabled={transition.isPending}
+            >
+              <Square className="mr-2 h-4 w-4" /> Stop run
+            </Button>
+          </div>
+        ) : null}
+
         {awaiting ? (
           <div className="flex flex-wrap gap-2">
             {run.job_url ? (

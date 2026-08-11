@@ -17,58 +17,14 @@ export default function Omnisave() {
   const [syncing, setSyncing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const initialDemoArticles: SavedArticleItem[] = [
-    {
-      id: "SRC-001",
-      title: "Designing Zero-Downtime Distributed System Migrations",
-      author: "Pragmatic Engineer",
-      platform: "substack",
-      category: "System Architecture",
-      summary: [
-        "Use dual-write database strategies during major migrations.",
-        "Implement circuit breakers to isolate downstream service degradation."
-      ],
-      url: "https://substack.com/@pragmaticengineer",
-      saved_at: "2 hours ago"
-    },
-    {
-      id: "SRC-002",
-      title: "Mastering Staff Engineer Behavioral & System Design Interviews",
-      author: "Staff Tech Lead",
-      platform: "medium",
-      category: "Interview Prep",
-      summary: [
-        "Structure answer using Situation, Task, Action, and Result (STAR).",
-        "Quantify business impact with clear before/after latency metrics."
-      ],
-      url: "https://medium.com/@stafftechlead",
-      saved_at: "1 day ago"
-    },
-    {
-      id: "SRC-003",
-      title: "Navigating Executive Compensation & Counter-Offer Negotiation",
-      author: "Tech Recruiter Insights",
-      platform: "linkedin",
-      category: "Compensation",
-      summary: [
-        "Always anchor negotiation around 90th percentile market rates.",
-        "Request equity refreshers and signing bonus adjustments."
-      ],
-      url: "https://linkedin.com/in/recruiter-insights",
-      saved_at: "3 days ago"
-    }
-  ];
-
   const loadArticles = async () => {
+    setError(null);
     try {
       const res = await fetchSavedArticles();
-      if (res.sources && res.sources.length > 0) {
-        setArticles(res.sources);
-      } else {
-        setArticles(initialDemoArticles);
-      }
+      setArticles(res.sources ?? []);
     } catch (err) {
-      setArticles(initialDemoArticles);
+      setArticles([]);
+      setError("Couldn't load your saved sources. Try again in a moment.");
     }
   };
 
@@ -87,13 +43,17 @@ export default function Omnisave() {
         await loadArticles();
       }
     } catch (err) {
-      setError('Failed to sync saved posts via Agent Reach. Please check connection and try again.');
+      setError('Failed to sync saved posts. Please check your connection and try again.');
     } finally {
       setSyncing(false);
     }
   };
 
-  const categories = ['All', 'System Architecture', 'Interview Prep', 'Compensation', 'Career Strategy'];
+  // Categories come from what has actually been ingested — no dead filter pills.
+  const categories = [
+    'All',
+    ...Array.from(new Set(articles.map((a) => a.category).filter(Boolean))),
+  ] as string[];
 
   const filteredArticles = articles.filter(art => {
     const matchesCat = activeCategory === 'All' || art.category === activeCategory;
@@ -252,7 +212,22 @@ export default function Omnisave() {
         </div>
 
         {/* Knowledge Card Grid */}
+        {filteredArticles.length === 0 ? (
+          <Card className="bg-slate-900 border-slate-800 text-slate-300">
+            <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+              <BookOpen className="h-8 w-8 text-slate-500" />
+              <div>
+                <p className="font-medium text-slate-100">Nothing saved yet</p>
+                <p className="text-xs text-slate-400">
+                  Paste an article URL above, or sync your Substack and Medium feeds.
+                  LinkedIn has no saved-items API — upload your official data export instead.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
           {filteredArticles.map(art => (
             <Card key={art.id} className="bg-slate-900 border-slate-800 text-slate-100 flex flex-col justify-between p-4 space-y-4 hover:border-purple-500/50 transition">
               <div className="space-y-2">

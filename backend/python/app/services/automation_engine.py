@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 
 from app.services.approval_gate import is_approved as _approval_granted, request_approval as _queue_approval
 from app.services.ats_engine import heuristic_ats_score
+from app.services.grounding import claims_supported as _claims_supported
 from app.services.resume_parser import parse_resume
 from app.services.db import (
     append_log as _db_append_log,
@@ -231,11 +232,17 @@ async def _cover_letter(resume_text: str, job: dict, candidate_name: str) -> str
         f"JOB DESCRIPTION:\n{jd_condensed}\n\n"
         "Write the cover letter now."
     )
-    return (
+    letter = (
         await LongContextClient().map_reduce(
             resume_text, user_msg, kind="resume", system=LETTER_SYSTEM, tier="fast"
         )
     ).strip()
+    # WS-08 grounding guard: never hand back a letter that invents a contact
+    # number, employer, or credential that neither source supports.
+    if not _claims_supported(letter, resume_text, job.get("description", "") or ""):
+        logger.warning("cover letter rejected by grounding guard for %s", job.get("company"))
+        return ""
+    return letter
 
 
 async def run_autopilot(

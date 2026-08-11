@@ -26,6 +26,18 @@ export function ApplyAgent() {
 
   const { data: runs = [] } = useQuery({ queryKey: ["agent-runs"], queryFn: listAgentRuns });
 
+  // Only offer the live browser feed when there is a real posting URL to open.
+  const browserInstruction = jobUrl.trim()
+    ? [
+        `Open ${jobUrl.trim()} and walk through the application form for the role`,
+        `"${jobTitle.trim() || "this position"}"${company.trim() ? ` at ${company.trim()}` : ""}.`,
+        `Read each field and report what it asks for. Do not submit the form.`,
+        resumeText.trim() ? `Candidate background: ${resumeText.trim().slice(0, 800)}` : "",
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : undefined;
+
   const start = async () => {
     setError(null);
     if (!jobTitle.trim() || !jobDescription.trim() || !resumeText.trim()) {
@@ -119,7 +131,7 @@ export function ApplyAgent() {
 
           <div className="space-y-6">
             {activeRunId ? (
-              <AgentLiveView runId={activeRunId} />
+              <AgentLiveView runId={activeRunId} browserInstruction={browserInstruction} />
             ) : (
               <Card>
                 <CardContent className="py-12 text-center text-sm text-muted-foreground">
