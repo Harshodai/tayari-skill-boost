@@ -340,6 +340,7 @@ class OmnisaveService:
                 "chunks_created": 0,
                 "source": existing,
                 "message": "Source already ingested.",
+                "durably_persisted": True,
             }
 
         # ponytail: in-memory dedup scoped to (user_id, idempotency_hash) is
@@ -347,7 +348,13 @@ class OmnisaveService:
         # when the DB is unavailable.
         for source in self.saved_sources:
             if source.get("user_id") == user_id and source.get("idempotency_hash") == idempotency_hash:
-                return {"success": True, "source": source, "message": "Source already ingested."}
+                return {
+                    "success": True,
+                    "source_id": source.get("id"),
+                    "source": source,
+                    "message": "Source already ingested.",
+                    "durably_persisted": False,
+                }
 
         source_id = str(uuid_lib.uuid4())
         # ponytail: caller-provided topics/summary win; auto-tagged values
@@ -415,14 +422,86 @@ class OmnisaveService:
                 "chunks_created": 0,
                 "source": canonical,
                 "message": "Source already ingested.",
+                "durably_persisted": True,
             }
 
         return {
             "success": True,
             "source_id": source_id,
             "chunks_created": len(segments),
-            "source": source_obj
+            "source": source_obj,
+            # A cache-only result must never be presented as a durable candidate
+            # knowledge record. API routes use this to fail closed when Postgres
+            # is unavailable instead of losing a candidate's saved reading on a
+            # restart.
+            "durably_persisted": outcome is not None,
         }
+
+    @staticmethod
+    def _platform_for_url(url: str) -> str:
+        """Classify a candidate-selected public URL without trusting UI hints."""
+        from urllib.parse import urlparse
+
+        host = (urlparse(url).hostname or "").lower()
+        if host.endswith("substack.com"):
+            return "substack"
+        if host == "medium.com" or host.endswith(".medium.com"):
+            return "medium"
+        if host == "linkedin.com" or host.endswith(".linkedin.com"):
+            return "linkedin"
+        return "custom_url"
+
+    def _discard_cached_source(self, source_id: str | None, user_id: str) -> None:
+        """Remove a non-durable source from the process cache after a failed import."""
+        if not source_id:
+            return
+        self.saved_sources = [
+            source for source in self.saved_sources
+            if not (source.get("id") == source_id and source.get("user_id") == user_id)
+        ]
+        self.source_chunks = [
+            chunk for chunk in self.source_chunks
+            if not (chunk.get("source_id") == source_id and chunk.get("user_id") == user_id)
+        ]
+
+    async def import_public_url(self, user_id: str, url: str) -> Dict[str, Any]:
+        """Import one explicitly selected public article URL into durable storage.
+
+        This is deliberately not a private saved-list synchroniser. It performs
+        extraction only for a URL the candidate supplied, rejects an unreadable
+        or unsafe target, and fails closed if the resulting source cannot be
+        durably persisted for that candidate.
+        """
+        target_url = (url or "").strip()
+        if not target_url:
+            return {"success": False, "error": "url_required"}
+
+        platform = self._platform_for_url(target_url)
+        extracted = await self.extract_via_tayari_computer(platform, target_url)
+        if not extracted:
+            return {"success": False, "error": "source_unavailable"}
+
+        result = await self.ingest_source(
+            platform=platform,
+            url=extracted["url"],
+            title=extracted["title"],
+            author=extracted["author"],
+            raw_content=extracted["content"],
+            category=extracted.get("category"),
+            user_id=user_id,
+            summary_bullets=extracted.get("summary"),
+            topics=extracted.get("topics"),
+        )
+        if not result.get("success"):
+            return result
+        if not result.get("durably_persisted"):
+            self._discard_cached_source(result.get("source_id"), user_id)
+            return {
+                "success": False,
+                "error": "persistence_unavailable",
+                "message": "The source could not be stored safely. Nothing was saved.",
+            }
+        return result
 
     async def extract_via_tayari_computer(self, platform: str, target_url: str) -> Optional[Dict[str, Any]]:
         """
@@ -471,79 +550,133 @@ class OmnisaveService:
             logger.warning("Tayari Computer sandbox extraction error for %s: %s", target_url, exc)
         return None
 
-    async def sync_agent_reach_posts(self, user_id: str, platforms: Optional[List[str]] = None, target_urls: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def sync_agent_reach_posts(
+        self,
+        user_id: str,
+        platforms: Optional[List[str]] = None,
+        target_urls: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Compatibility adapter for explicit public-URL imports.
+
+        It does not enumerate any private saved-post list. ``platforms`` is
+        retained only for clients that already send it; source classification is
+        derived from each URL server-side. Every URL is handled independently so
+        one blocked article cannot make successful imports disappear.
         """
-        Use Agent Reach & Tayari Computer Sandbox extraction engine to fetch saved/bookmarked posts
-        from Substack, Medium, and LinkedIn dynamically, and ingest them into vector memory.
-        """
-        target_platforms = platforms or ["substack", "medium", "linkedin"]
-        synced_sources = []
-
-        # Use explicitly provided URLs or discover via Agent Reach Hermes scraper
-        urls_to_process = target_urls or []
-
-        # Build platform->url mapping with positional assignment first, then name matching, then fallback
-        platform_url_map = {}
-
-        # Step 1: Assign positionally (target_urls[0] -> target_platforms[0], etc.)
-        for i, platform in enumerate(target_platforms):
-            if i < len(urls_to_process):
-                platform_url_map[platform.lower()] = urls_to_process[i]
-
-        # Step 2: For platforms without a positional URL, try matching by platform name
-        for platform in target_platforms:
-            plat_key = platform.lower()
-            if plat_key not in platform_url_map:
-                matching_urls = [u for u in urls_to_process if plat_key in u.lower()]
-                if matching_urls:
-                    platform_url_map[plat_key] = matching_urls[0]
-
-        for platform in target_platforms:
-            plat_key = platform.lower()
-            url = platform_url_map.get(plat_key)
-            if not url:
-                # ponytail: never fabricate platform URLs to drive the browser at;
-                # skip platforms without a user-supplied URL.
-                logger.info("[Omnisave] No user-provided URL for platform %s; skipping", plat_key)
-                continue
-
-            extracted = await self.extract_via_tayari_computer(plat_key, url)
-            if extracted:
-                res = await self.ingest_source(
-                    platform=plat_key,
-                    url=extracted["url"],
-                    title=extracted["title"],
-                    author=extracted["author"],
-                    raw_content=extracted["content"],
-                    category=extracted["category"],
-                    user_id=user_id,
-                    summary_bullets=extracted["summary"],
-                    topics=extracted.get("topics"),
-                )
-                if res.get("success"):
-                    synced_sources.append(res.get("source"))
-
-        user_sources = [s for s in self.saved_sources if s.get("user_id") == user_id]
-
-        if not synced_sources and not user_sources:
+        requested_urls = list(dict.fromkeys(url.strip() for url in (target_urls or []) if url and url.strip()))
+        if not requested_urls:
             return {
                 "success": False,
-                "error": "No reachable saved post URLs or RSS feeds found. Please provide valid article URLs for Tayari Computer extraction.",
+                "error": "url_required",
                 "count": 0,
-                "synced_platforms": target_platforms,
-                "sources": []
+                "sources": [],
+                "errors": [{"error": "url_required"}],
             }
 
+        imported_sources: List[Dict[str, Any]] = []
+        errors: List[Dict[str, str]] = []
+        for url in requested_urls:
+            result = await self.import_public_url(user_id=user_id, url=url)
+            if result.get("success"):
+                imported_sources.append(result.get("source") or {})
+            else:
+                errors.append({"url": url, "error": result.get("error", "import_failed")})
+
+        # This read proves the response reflects the durable store, not a
+        # worker-local cache. Let the route map a storage outage to 503.
+        sources = await self.list_user_saved_sources(user_id)
         return {
-            "success": True,
-            "count": len(synced_sources),
-            "synced_platforms": target_platforms,
-            "sources": user_sources
+            "success": bool(imported_sources),
+            "count": len(imported_sources),
+            "sources": sources,
+            "errors": errors,
+            "synced_platforms": platforms or [],
         }
 
     def get_user_saved_sources(self, user_id: str) -> List[Dict[str, Any]]:
-        """Return saved sources for the requested user only."""
+        """Return cached saved sources for the requested user only.
+
+        This compatibility helper exists for worker-local operations. Candidate
+        API reads must use :meth:`list_user_saved_sources`, which reads the
+        durable store and never turns an in-memory cache into a production
+        source of truth.
+        """
         return [s for s in self.saved_sources if s.get("user_id") == user_id]
+
+    async def list_user_saved_sources(self, user_id: str) -> List[Dict[str, Any]]:
+        """Return the candidate's durable sources, newest first, or fail closed."""
+        try:
+            pool = await get_pool()
+            user_uuid = uuid_lib.UUID(user_id)
+            if pool is None:
+                raise RuntimeError("knowledge_store_unavailable")
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT id, user_id, idempotency_hash, source_platform, canonical_url,
+                           title, author, raw_content, clean_markdown, primary_category,
+                           secondary_tags, summary_bullets, created_at
+                    FROM public.saved_sources
+                    WHERE user_id = $1
+                    ORDER BY created_at DESC
+                    """,
+                    user_uuid,
+                )
+        except Exception as exc:
+            logger.error("[Omnisave] Durable source listing failed for user %r: %s", user_id, exc)
+            raise RuntimeError("knowledge_store_unavailable") from exc
+
+        sources = [
+            {
+                "id": str(row["id"]),
+                "user_id": str(row["user_id"]),
+                "idempotency_hash": row["idempotency_hash"],
+                "source_platform": row["source_platform"],
+                "canonical_url": row["canonical_url"],
+                "title": row["title"],
+                "author": row["author"],
+                "raw_content": row["raw_content"],
+                "clean_markdown": row["clean_markdown"],
+                "primary_category": row["primary_category"],
+                "secondary_tags": row["secondary_tags"] or [],
+                "summary_bullets": row["summary_bullets"] or [],
+                "saved_at": row["created_at"].isoformat() if row["created_at"] else None,
+            }
+            for row in rows
+        ]
+        # Keep worker cache warm only with records already confirmed durable.
+        self.saved_sources = [s for s in self.saved_sources if s.get("user_id") != user_id] + sources
+        return sources
+
+    async def delete_user_source(self, user_id: str, source_id: str) -> bool:
+        """Delete one durable source owned by the requesting candidate.
+
+        ``source_chunks`` are removed by the database foreign-key cascade. A
+        row absent for this user is intentionally indistinguishable from another
+        candidate's source, preserving tenancy isolation.
+        """
+        try:
+            pool = await get_pool()
+            user_uuid = uuid_lib.UUID(user_id)
+            source_uuid = uuid_lib.UUID(source_id)
+            if pool is None:
+                raise RuntimeError("knowledge_store_unavailable")
+            async with pool.acquire() as conn:
+                deleted = await conn.fetchrow(
+                    "DELETE FROM public.saved_sources WHERE id = $1 AND user_id = $2 RETURNING id",
+                    source_uuid,
+                    user_uuid,
+                )
+        except ValueError:
+            return False
+        except Exception as exc:
+            logger.error("[Omnisave] Durable source deletion failed for user %r: %s", user_id, exc)
+            raise RuntimeError("knowledge_store_unavailable") from exc
+
+        if deleted is None:
+            return False
+        self._discard_cached_source(source_id, user_id)
+        return True
 
     async def _load_source_chunks_db(self, source_id: str, user_id: str) -> List[Dict[str, Any]]:
         """Load a specific source's chunks from Postgres for in-memory rehydration."""
@@ -701,15 +834,25 @@ class OmnisaveService:
         user's chunk embeddings with pgvector cosine distance. When embeddings
         are unavailable the recency-ordered loader is used as a fallback.
         """
+        # Candidate-facing answers are available only when the durable store is
+        # reachable. A worker-local cache may warm retrieval, but it must never
+        # become a hidden source of truth after a database outage or restart.
+        durable_sources = await self.list_user_saved_sources(user_id)
+        if not durable_sources:
+            return {
+                "query": query,
+                "answer": "No indexed articles currently exist in your Omnisave AI Knowledge Base. Submit an article URL to ingest knowledge.",
+                "citations": [],
+                "context_snippets": []
+            }
+
         matched_chunks = await self._load_relevant_chunks_db(query, user_id, top_k)
         if not matched_chunks:
             matched_chunks = await self._load_user_chunks_db(user_id, top_k)
         if not matched_chunks:
-            matched_chunks = [c for c in self.source_chunks if c.get("user_id") == user_id][:top_k]
-        if not matched_chunks:
             return {
                 "query": query,
-                "answer": "No indexed articles currently exist in your Omnisave AI Knowledge Base. Use 'Sync Agent Reach' or submit an article URL to ingest knowledge.",
+                "answer": _INSUFFICIENT_ANSWER_RESPONSE,
                 "citations": [],
                 "context_snippets": []
             }
@@ -724,9 +867,13 @@ class OmnisaveService:
             citation_tag = f"[Source {i}]"
             sources_reference.append({
                 "citation": citation_tag,
+                "source_id": chk.get("source_id"),
                 "title": src_info.get("title", "Saved Article"),
                 "author": src_info.get("author", "Unknown"),
-                "url": src_info.get("canonical_url", "#")
+                "url": src_info.get("canonical_url", "#"),
+                # Evidence is intentionally bounded: citations should be useful
+                # for inspection without exposing the entire imported document.
+                "excerpt": re.sub(r"\s+", " ", chk.get("chunk_content", "")).strip()[:320],
             })
             rag_context_snippets.append(f"{citation_tag} ({src_info.get('title')}): {chk['chunk_content']}")
 

@@ -1,9 +1,9 @@
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { describe, it, expect, mock, afterEach } from "bun:test";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { ScrollToTop } from "./ScrollToTop";
 
 // Mock window.scrollTo
-const scrollToMock = mock();
+const scrollToMock = vi.fn();
 global.window.scrollTo = scrollToMock;
 
 afterEach(() => {

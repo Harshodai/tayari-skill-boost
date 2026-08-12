@@ -1,7 +1,7 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { streamBrowserAgent } from "@/api/browser";
 
-const mockFetch = mock(() => Promise.resolve(new Response()));
+const mockFetch = vi.fn(() => Promise.resolve(new Response()));
 const originalFetch = globalThis.fetch;
 
 // ponytail: stub globalThis.fetch — the real client reads localStorage for

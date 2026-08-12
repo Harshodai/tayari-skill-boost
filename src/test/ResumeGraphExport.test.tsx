@@ -1,12 +1,12 @@
-import { mock, describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { vi, describe, test, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import ResumeGraph from "@/pages/ResumeGraph";
 
-// ponytail: stub globalThis.fetch instead of mock.module("@/api") — the
+// ponytail: stub globalThis.fetch instead of vi.mock("@/api") — the
 // barrel mock leaks into every other test file in the run (it replaces
 // @/api/client too), breaking tests that exercise the real client.
-const mockFetch = mock(() => Promise.resolve(new Response()));
+const mockFetch = vi.fn(() => Promise.resolve(new Response()));
 const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
@@ -20,7 +20,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-mock.module("html-to-image", () => ({
+vi.mock("html-to-image", () => ({
   toBlob: async () => new Blob(["pngdata"], { type: "image/png" }),
 }));
 

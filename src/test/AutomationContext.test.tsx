@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { AutomationProvider, useAutomation } from '@/contexts/AutomationContext';
 import React from 'react';

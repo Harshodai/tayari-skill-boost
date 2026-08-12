@@ -1,69 +1,147 @@
-"""Knowledge Hub (Omni-Save) — Python AI layer.
+"""Candidate-authorised Omnisave AI API.
 
-Provides AI enrichment for saved posts (summarize, categorize, tag).
-Persistence is handled by the Go backend; this service is stateless.
+The public contract intentionally supports importing an article URL a candidate
+selects. It does not claim to enumerate private saved-post lists from third
+party services without a separate authorised integration.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+import logging
 from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, HttpUrl
 
 from app.auth.dependencies import get_current_user
 from app.services.llm_service import LLMNotConfiguredError, summarize_saved_post
 from app.services.omnisave_service import get_omnisave_service
 
-
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["knowledge-hub"])
 
 
 class SaveAnalyzeRequest(BaseModel):
-    url: str
-    note: Optional[str] = ""
-    source: Optional[str] = "other"
+    """Legacy enrichment endpoint; URL validation and authentication are required."""
+
+    url: HttpUrl
+    note: str = Field(default="", max_length=2_000)
+    source: str = Field(default="other", max_length=40)
+
+
+class SaveImportRequest(BaseModel):
+    """A candidate-selected, public article URL to ingest into Omnisave."""
+
+    url: HttpUrl
 
 
 class KnowledgeQueryRequest(BaseModel):
-    query: str
-    top_k: Optional[int] = 3
+    query: str = Field(min_length=1, max_length=2_000)
+    top_k: int = Field(default=3, ge=1, le=5)
 
 
 class SaveSyncRequest(BaseModel):
-    platforms: Optional[list[str]] = ["substack", "medium", "linkedin"]
+    """Backwards-compatible explicit URL batch import; no account enumeration."""
+
+    platforms: Optional[list[str]] = None
+    urls: Optional[list[HttpUrl]] = None
+    url: Optional[HttpUrl] = None
+
+
+def _storage_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="knowledge_store_unavailable",
+    )
 
 
 @router.get("/saves")
 async def get_saved_sources(user_id: str = Depends(get_current_user)):
-    """Fetch saved sources from Omnisave AI vector knowledge base. Requires valid Bearer token."""
-    service = get_omnisave_service()
-    sources = service.get_user_saved_sources(user_id=user_id)
+    """List only sources durably stored for the authenticated candidate."""
+    try:
+        sources = await get_omnisave_service().list_user_saved_sources(user_id=user_id)
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
     return {"success": True, "sources": sources}
 
 
+@router.post("/saves/import", status_code=status.HTTP_201_CREATED)
+async def import_public_saved_source(
+    payload: SaveImportRequest,
+    user_id: str = Depends(get_current_user),
+):
+    """Extract and durably save one candidate-provided public article URL."""
+    result = await get_omnisave_service().import_public_url(user_id=user_id, url=str(payload.url))
+    if result.get("success"):
+        return result
+
+    error = result.get("error", "import_failed")
+    if error == "persistence_unavailable":
+        raise _storage_unavailable()
+    if error == "url_required":
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error)
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail="source_unavailable",
+    )
+
+
 @router.post("/saves/sync")
-async def sync_agent_reach_saves(user_id: str = Depends(get_current_user), payload: Optional[SaveSyncRequest] = None):
-    """Trigger Agent Reach & Hermes extraction engine to sync saved posts. Requires valid Bearer token."""
-    service = get_omnisave_service()
-    platforms = payload.platforms if payload and payload.platforms else ["substack", "medium", "linkedin"]
-    result = await service.sync_agent_reach_posts(user_id=user_id, platforms=platforms)
+async def sync_agent_reach_saves(
+    payload: SaveSyncRequest,
+    user_id: str = Depends(get_current_user),
+):
+    """Compatibility endpoint for an explicit batch of candidate-selected URLs."""
+    requested_urls = [str(url) for url in (payload.urls or [])]
+    if payload.url:
+        requested_urls.append(str(payload.url))
+    try:
+        result = await get_omnisave_service().sync_agent_reach_posts(
+            user_id=user_id,
+            platforms=payload.platforms,
+            target_urls=requested_urls,
+        )
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
+    if not result.get("success") and result.get("error") == "url_required":
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="url_required")
     return result
 
 
-@router.post("/saves/analyze")
-async def analyze_saved_post(payload: SaveAnalyzeRequest):
-    """AI-enrich a saved URL: generate title, summary, tags, category."""
-    if not payload.url or len(payload.url) < 5:
-        raise HTTPException(status_code=422, detail="url is required")
+@router.delete("/saves/{source_id}")
+async def delete_saved_source(source_id: str, user_id: str = Depends(get_current_user)):
+    """Permanently delete one source owned by the authenticated candidate."""
     try:
-        result = await summarize_saved_post(
-            url=payload.url,
-            note=payload.note or "",
-            source=payload.source or "other",
+        deleted = await get_omnisave_service().delete_user_source(user_id=user_id, source_id=source_id)
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
+    if not deleted:
+        # Do not disclose whether an ID belongs to another candidate.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="source_not_found")
+    return {"success": True, "deleted": True, "source_id": source_id}
+
+
+@router.post("/saves/analyze")
+async def analyze_saved_post(
+    payload: SaveAnalyzeRequest,
+    _user_id: str = Depends(get_current_user),
+):
+    """Legacy AI enrichment, retained only as an authenticated helper."""
+    try:
+        return await summarize_saved_post(
+            url=str(payload.url),
+            note=payload.note,
+            source=payload.source,
         )
-        return result
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=502, detail=f"AI enrichment failed: {exc}") from exc
+        logger.warning("Omnisave legacy enrichment failed: %s", exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="ai_enrichment_failed") from exc
 
 
 @router.post("/knowledge-hub/query")
@@ -71,31 +149,32 @@ async def query_knowledge_hub(
     payload: KnowledgeQueryRequest,
     user_id: str = Depends(get_current_user),
 ):
-    """Query the Omnisave knowledge base using RAG. Requires valid Bearer token."""
+    """Answer only from the candidate's indexed sources and return citations."""
     try:
-        omnisave = get_omnisave_service()
-        result = await omnisave.query_knowledge_rag(
+        result = await get_omnisave_service().query_knowledge_rag(
             query=payload.query,
             user_id=user_id,
             top_k=payload.top_k,
         )
-        # Transform citations format to match frontend expectations
         citations = [
             {
-                "tag": c.get("citation", f"[Source {i+1}]"),
-                "title": c.get("title", "Saved Article"),
-                "author": c.get("author", "Unknown"),
-                "url": c.get("url", "#"),
+                "tag": citation.get("citation", f"[Source {index + 1}]"),
+                "source_id": citation.get("source_id"),
+                "title": citation.get("title", "Saved Article"),
+                "author": citation.get("author", "Unknown"),
+                "url": citation.get("url", "#"),
+                "excerpt": citation.get("excerpt", ""),
             }
-            for i, c in enumerate(result.get("citations", []))
+            for index, citation in enumerate(result.get("citations", []))
         ]
-        return {
-            "answer": result.get("answer", ""),
-            "citations": citations,
-        }
-    except LLMNotConfiguredError as exc:
-        return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
+        return {"answer": result.get("answer", ""), "citations": citations}
+    except LLMNotConfiguredError:
+        return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"error": "ai_service_unavailable"})
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        logger.error("Knowledge query runtime failure", exc_info=exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="knowledge_query_failed") from exc
     except Exception as exc:  # noqa: BLE001
-        import logging
-        logging.getLogger(__name__).error("Knowledge query failed", exc_info=exc)
-        raise HTTPException(status_code=502, detail="Knowledge query failed") from exc
+        logger.error("Knowledge query failed", exc_info=exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="knowledge_query_failed") from exc

@@ -1,12 +1,12 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { submitVerification, getVerificationStatus } from "@/api/verification";
 
-const mockFetch = mock(() => Promise.resolve(new Response()));
+const mockFetch = vi.fn(() => Promise.resolve(new Response()));
 const originalFetch = globalThis.fetch;
 
 // ponytail: mock @/api/client's apiFetch directly so the test is isolated from
-// cross-file mock.module("@/api") leaks (same pattern as RateLimiter.test.ts).
-mock.module("@/api/client", () => ({
+// cross-file vi.mock("@/api") leaks (same pattern as RateLimiter.test.ts).
+vi.mock("@/api/client", () => ({
   apiFetch: async (path: string, options: any = {}) => {
     // ponytail: bun's mock.module is process-global and never unloads, so this
     // stub leaks into every later test file. Delegate to whatever

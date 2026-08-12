@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect } from "vitest";
 import { isUserActivated, INITIAL_ACTIVATION_STATE, ActivationState } from "./activation";
 
 describe("isUserActivated", () => {

@@ -35,7 +35,7 @@ export class ApiError extends Error {
  * throwing an opaque "Failed to fetch" / "Unexpected token '<'".
  */
 export class BackendUnavailableError extends ApiError {
-  constructor(message = "Advanced features need the local Tayari engine, which isn't running in this environment.") {
+  constructor(message = "Advanced features need the local Job Tayari engine, which isn't running in this environment.") {
     super(message, 0);
     this.name = "BackendUnavailableError";
   }
@@ -60,7 +60,7 @@ export async function checkResponse(response: Response): Promise<void> {
   // unavailable, not a generic HTTP error.
   if (response.status === 502 || response.status === 503 || response.status === 504) {
     throw new BackendUnavailableError(
-      (error && (error.error as string)) || "Advanced features need the local Tayari engine, which isn't running in this environment."
+      (error && (error.error as string)) || "Advanced features need the local Job Tayari engine, which isn't running in this environment."
     );
   }
   throw new ApiError(

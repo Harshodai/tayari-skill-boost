@@ -4,8 +4,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { BookOpen, Search, Sparkles, ExternalLink, Layers, MessageSquare, Loader2, AlertCircle, ShieldCheck } from 'lucide-react';
-import { queryKnowledgeHub, fetchSavedArticles, syncSavedPosts, SavedArticleItem } from '@/api/ai';
+import { BookOpen, Search, Sparkles, ExternalLink, Layers, MessageSquare, Loader2, AlertCircle, ShieldCheck, Trash2 } from 'lucide-react';
+import { queryKnowledgeHub, fetchSavedArticles, importPublicArticle, deleteSavedArticle, SavedArticleItem } from '@/api/ai';
 import { BackendUnavailableBanner } from '@/components/BackendUnavailableBanner';
 import { useBackendHealth } from '@/hooks/useBackendHealth';
 
@@ -53,29 +53,44 @@ export default function Omnisave() {
 
   const [urlInput, setUrlInput] = useState<string>('');
   const [ingesting, setIngesting] = useState<boolean>(false);
+  const [deletingSourceId, setDeletingSourceId] = useState<string | null>(null);
 
   const handleIngestUrl = async () => {
     if (!urlInput.trim() || backendUnavailable) return;
     setIngesting(true);
     setError(null);
     try {
-      let platform = 'custom_url';
-      if (urlInput.includes('substack.')) platform = 'substack';
-      else if (urlInput.includes('medium.')) platform = 'medium';
-      else if (urlInput.includes('linkedin.')) platform = 'linkedin';
-
-      const res = await syncSavedPosts([platform], urlInput.trim());
-      if (res.sources && res.sources.length > 0) {
-        setArticles(res.sources);
-        setUrlInput('');
-      } else {
-        await loadArticles();
-      }
+      await importPublicArticle(urlInput.trim());
+      // Reload from the durable source of truth rather than trusting a worker
+      // response, so a refresh immediately matches what Omnisave will retain.
+      await loadArticles();
+      setUrlInput('');
     } catch (err) {
       await refetchHealth().catch(() => null);
       setError("Couldn't import this link. Check that it is a public article URL and try again.");
     } finally {
       setIngesting(false);
+    }
+  };
+
+  const handleDeleteSource = async (article: SavedArticleItem) => {
+    if (backendUnavailable || deletingSourceId) return;
+    const confirmed = window.confirm(
+      `Permanently delete “${article.title}” and its indexed reading notes? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingSourceId(article.id);
+    setError(null);
+    try {
+      await deleteSavedArticle(article.id);
+      setArticles((current) => current.filter((item) => item.id !== article.id));
+      setQaResponse(null);
+    } catch (err) {
+      await refetchHealth().catch(() => null);
+      setError("Couldn't delete this saved source. Nothing has been removed yet; please try again.");
+    } finally {
+      setDeletingSourceId(null);
     }
   };
 
@@ -228,11 +243,24 @@ export default function Omnisave() {
                 </div>
               </div>
 
-              <div className="flex justify-between items-center border-t border-slate-800 pt-3">
+              <div className="flex justify-between items-center border-t border-slate-800 pt-3 gap-2">
                 <Badge className="bg-slate-950 text-slate-400 border-slate-800 text-[10px]">{art.category}</Badge>
-                <a href={art.url} target="_blank" rel="noreferrer" className="text-purple-400 hover:text-purple-300 text-xs flex items-center gap-1 font-semibold">
-                  Read <ExternalLink className="w-3 h-3" />
-                </a>
+                <div className="flex items-center gap-2">
+                  <a href={art.url} target="_blank" rel="noreferrer" className="text-purple-400 hover:text-purple-300 text-xs flex items-center gap-1 font-semibold">
+                    Read <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteSource(art)}
+                    disabled={backendUnavailable || deletingSourceId === art.id}
+                    aria-label={deletingSourceId === art.id ? `Deleting ${art.title}` : `Delete ${art.title}`}
+                    className="h-7 w-7 text-slate-400 hover:bg-red-950/50 hover:text-red-300"
+                  >
+                    {deletingSourceId === art.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
               </div>
             </Card>
           ))}
@@ -282,17 +310,20 @@ export default function Omnisave() {
               
               <div className="space-y-2 border-t border-slate-800 pt-3">
                 <div className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">References & Inline Citations</div>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid gap-2 sm:grid-cols-2">
                   {qaResponse.citations.map((c: any, i: number) => (
-                    <a
-                      key={i}
-                      href={c.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="p-2 bg-purple-950/60 border border-purple-800 text-purple-300 rounded text-[11px] hover:bg-purple-900 transition flex items-center gap-1.5"
-                    >
-                      <span className="font-bold">{c.tag}</span> {c.title} ({c.author}) <ExternalLink className="w-3 h-3" />
-                    </a>
+                    <div key={c.source_id || i} className="rounded border border-purple-800 bg-purple-950/40 p-2 text-[11px] text-purple-200">
+                      <a
+                        href={c.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-purple-300 hover:text-purple-100 transition flex items-center gap-1.5"
+                      >
+                        <span>{c.tag}</span> {c.title} <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <p className="mt-1 text-slate-400">{c.author}</p>
+                      {c.excerpt ? <p className="mt-2 border-t border-purple-900/70 pt-2 text-slate-300">“{c.excerpt}”</p> : null}
+                    </div>
                   ))}
                 </div>
               </div>

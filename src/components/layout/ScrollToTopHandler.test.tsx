@@ -1,11 +1,11 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { ScrollToTopHandler } from "./ScrollToTopHandler";
 import { useEffect } from "react";
 
 // Mock window.scrollTo
-const scrollToMock = mock(() => { });
+const scrollToMock = vi.fn(() => { });
 global.window.scrollTo = scrollToMock;
 
 describe('ScrollToTopHandler', () => {

@@ -154,20 +154,11 @@ async def test_ingest_rehydrates_chunks_with_user_id(tmp_path):
         "embedding": None,
     })
 
-    # DB pool disabled: query_knowledge_rag must fall back to in-memory chunks.
-    async def fake_llm(system_message, user_message, **kw):
-        return "The answer is grounded in [Source 1]."
-
-    with mock.patch("app.services.omnisave_service.get_pool", new=mock.AsyncMock(return_value=None)), \
-         mock.patch("app.services.omnisave_service.llm_complete", new=fake_llm):
-        rag = await omnisave.query_knowledge_rag("orchestration", user_id=TEST_USER_ID)
-    assert rag["context_snippets"]
-    assert len(rag["citations"]) == 1
-    assert rag["citations"][0]["title"] == "Rehydrated Article"
-    joined_context = "\n".join(rag["context_snippets"])
-    assert "FOREIGN SECRET" not in joined_context
-    assert "Foreign Top Secret Article" not in joined_context
-    assert all(c.get("title") != "Foreign Top Secret Article" for c in rag["citations"])
+    # Candidate-facing answers must not use process memory when durable storage
+    # is unavailable, even if that cache is correctly user-scoped.
+    with mock.patch("app.services.omnisave_service.get_pool", new=mock.AsyncMock(return_value=None)):
+        with pytest.raises(RuntimeError, match="knowledge_store_unavailable"):
+            await omnisave.query_knowledge_rag("orchestration", user_id=TEST_USER_ID)
 
 
 @pytest.mark.asyncio
@@ -308,7 +299,132 @@ async def test_query_knowledge_rag_replaces_uncited_answer():
     async def fake_llm(system_message, user_message, **kw):
         return "Answer with no citation tag."
 
-    with mock.patch("app.services.omnisave_service.OmnisaveService._load_user_chunks_db", new=mock.AsyncMock(return_value=[])), \
+    with mock.patch.object(omnisave, "list_user_saved_sources", new=mock.AsyncMock(return_value=omnisave.saved_sources)), \
+         mock.patch("app.services.omnisave_service.OmnisaveService._load_user_chunks_db", new=mock.AsyncMock(return_value=[])), \
          mock.patch("app.services.omnisave_service.llm_complete", new=fake_llm):
         rag = await omnisave.query_knowledge_rag("query", user_id=TEST_USER_ID)
     assert rag["answer"] == _INSUFFICIENT_ANSWER_RESPONSE
+
+
+# --- Durable public-URL lifecycle contract ---
+
+
+@pytest.mark.asyncio
+async def test_public_url_import_fails_closed_when_durable_persistence_is_unavailable():
+    """A cache-only import must be discarded instead of appearing saved."""
+    omnisave = OmnisaveService()
+    provisional_source = {
+        "id": "provisional-source",
+        "user_id": TEST_USER_ID,
+        "title": "Volatile source",
+    }
+    provisional_chunk = {
+        "id": "provisional-chunk",
+        "source_id": "provisional-source",
+        "user_id": TEST_USER_ID,
+    }
+
+    async def fake_extract(*_args, **_kwargs):
+        return {
+            "url": "https://medium.com/@candidate/example",
+            "title": "Example",
+            "author": "Candidate",
+            "content": "Useful public content.",
+        }
+
+    async def fake_ingest(**_kwargs):
+        omnisave.saved_sources.append(provisional_source)
+        omnisave.source_chunks.append(provisional_chunk)
+        return {
+            "success": True,
+            "source_id": "provisional-source",
+            "source": provisional_source,
+            "durably_persisted": False,
+        }
+
+    with mock.patch.object(omnisave, "extract_via_tayari_computer", new=fake_extract), \
+         mock.patch.object(omnisave, "ingest_source", new=fake_ingest):
+        result = await omnisave.import_public_url(
+            user_id=TEST_USER_ID,
+            url="https://medium.com/@candidate/example",
+        )
+
+    assert result == {
+        "success": False,
+        "error": "persistence_unavailable",
+        "message": "The source could not be stored safely. Nothing was saved.",
+    }
+    assert omnisave.saved_sources == []
+    assert omnisave.source_chunks == []
+
+
+@pytest.mark.asyncio
+async def test_delete_source_is_scoped_to_candidate_and_removes_worker_cache():
+    """A delete cannot discover or remove another candidate's source."""
+    source_id = "11111111-1111-1111-1111-111111111111"
+    queried = {}
+
+    class FakeConnection:
+        async def fetchrow(self, _query, received_source_id, received_user_id):
+            queried["source_id"] = received_source_id
+            queried["user_id"] = received_user_id
+            return {"id": received_source_id}
+
+    class FakeAcquire:
+        async def __aenter__(self):
+            return FakeConnection()
+
+        async def __aexit__(self, *_args):
+            return False
+
+    class FakePool:
+        def acquire(self):
+            return FakeAcquire()
+
+    omnisave = OmnisaveService()
+    omnisave.saved_sources.append({"id": source_id, "user_id": TEST_USER_ID})
+    omnisave.source_chunks.append({"id": "chunk", "source_id": source_id, "user_id": TEST_USER_ID})
+    foreign_source = {"id": source_id, "user_id": "other-user"}
+    omnisave.saved_sources.append(foreign_source)
+
+    with mock.patch("app.services.omnisave_service.get_pool", new=mock.AsyncMock(return_value=FakePool())):
+        deleted = await omnisave.delete_user_source(TEST_USER_ID, source_id)
+
+    assert deleted is True
+    assert str(queried["user_id"]) == TEST_USER_ID
+    assert str(queried["source_id"]) == source_id
+    assert omnisave.get_user_saved_sources(TEST_USER_ID) == []
+    assert omnisave.get_user_saved_sources("other-user") == [foreign_source]
+
+
+@pytest.mark.asyncio
+async def test_grounded_citation_exposes_source_id_and_bounded_excerpt():
+    """The UI can link every accepted answer back to a specific saved source."""
+    omnisave = OmnisaveService()
+    omnisave.saved_sources = [{
+        "id": "source-1",
+        "user_id": TEST_USER_ID,
+        "title": "Evidence source",
+        "author": "Author",
+        "canonical_url": "https://example.com/evidence",
+    }]
+    chunk = {
+        "id": "chunk-1",
+        "source_id": "source-1",
+        "user_id": TEST_USER_ID,
+        "chunk_content": "A grounded evidence excerpt about interview preparation.",
+    }
+
+    async def fake_llm(system_message, user_message, **_kwargs):
+        return "Use the documented preparation method [Source 1]."
+
+    with mock.patch.object(omnisave, "list_user_saved_sources", new=mock.AsyncMock(return_value=omnisave.saved_sources)), \
+         mock.patch.object(omnisave, "_load_relevant_chunks_db", new=mock.AsyncMock(return_value=[])), \
+         mock.patch.object(omnisave, "_load_user_chunks_db", new=mock.AsyncMock(return_value=[chunk])), \
+         mock.patch("app.services.omnisave_service.llm_complete", new=fake_llm):
+        result = await omnisave.query_knowledge_rag("How should I prepare?", TEST_USER_ID)
+
+    citation = result["citations"][0]
+    assert citation["source_id"] == "source-1"
+    assert citation["excerpt"] == chunk["chunk_content"]
+    assert len(citation["excerpt"]) <= 320

@@ -1,8 +1,8 @@
-import { mock, test, expect } from "bun:test";
+import { vi, test, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { AchievementsBadge } from "@/components/AchievementsBadge";
 
-mock.module("@/hooks/useGamification", () => ({
+vi.mock("@/hooks/useGamification", () => ({
   useGamification: () => ({
     streak: 12,
     xp: 1200,

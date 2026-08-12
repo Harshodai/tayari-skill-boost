@@ -1,17 +1,36 @@
-import { describe, it, expect } from "bun:test";
-import { render, screen } from '@testing-library/react';
-import App from './App';
+import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
 
-describe('App Component', () => {
-    it('renders without crashing', () => {
-        // App uses Routes, AuthProvider etc. `render` will mount it.
-        // Note: We might need to mock some contexts if they are strict, 
-        // but AuthProvider usually has a default state.
-        // QueryClientProvider is also in App.
+vi.mock("./pages/Index", () => ({
+  default: () => <main data-testid="index-route">Job Tayari home</main>,
+}));
 
-        // Attempt to render
-        // We are just smoke testing. if it throws, test fails.
-        const { container } = render(<App />);
-        expect(container).toBeDefined();
-    });
+vi.mock("@/contexts/AuthContext", () => ({
+  AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock("@/contexts/AutomationContext", () => ({
+  AutomationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock("@/hooks/useMigrateAutomationRuns", () => ({
+  useMigrateAutomationRuns: () => undefined,
+}));
+
+vi.mock("@/components/analytics/RouteAnalytics", () => ({
+  RouteAnalytics: () => null,
+}));
+
+vi.mock("@/components/automation/ActivityDrawer", () => ({
+  ActivityDrawer: () => null,
+}));
+
+import App from "./App";
+
+describe("App", () => {
+  it("mounts its application shell without relying on live providers or network services", async () => {
+    render(<App />);
+
+    expect(await screen.findByTestId("index-route")).toHaveTextContent("Job Tayari home");
+  });
 });

@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { describe, it, expect, mock, afterEach } from "bun:test";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { Switch } from "./switch";
 
 afterEach(() => {
@@ -14,7 +14,7 @@ describe("Switch Component", () => {
     });
 
     it("toggles state when clicked", () => {
-        const handleCheckedChange = mock();
+        const handleCheckedChange = vi.fn();
         render(<Switch onCheckedChange={handleCheckedChange} aria-label="Toggle" />);
         const switchEl = screen.getByRole("switch", { name: /toggle/i });
 

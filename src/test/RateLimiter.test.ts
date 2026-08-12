@@ -1,7 +1,7 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getAuthRateLimit } from "@/api/auth";
 
-const mockFetch = mock(() => Promise.resolve(new Response()));
+const mockFetch = vi.fn(() => Promise.resolve(new Response()));
 const originalFetch = globalThis.fetch;
 const storage = new Map<string, string>();
 

@@ -1,7 +1,8 @@
 import * as matchers from "@testing-library/jest-dom/matchers";
-import { GlobalRegistrator } from "@happy-dom/global-registrator";
+import { cleanup } from "@testing-library/react";
+import { afterEach, vi } from "vitest";
 
-GlobalRegistrator.register();
+afterEach(() => cleanup());
 expect.extend(matchers);
 
 // Mock window.scrollTo
@@ -14,3 +15,12 @@ if (global.window) {
 process.env.VITE_API_URL = process.env.VITE_API_URL || "http://localhost:8085";
 process.env.VITE_SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://mock.supabase.co";
 process.env.VITE_SUPABASE_PUBLISHABLE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "mock-key";
+
+// Tests must never attempt a real backend call. Individual API tests replace
+// this stub and restore it after asserting their own request contract.
+globalThis.fetch = vi.fn(async () =>
+  new Response(JSON.stringify({ error: "Test backend unavailable" }), {
+    status: 503,
+    headers: { "Content-Type": "application/json" },
+  })
+) as typeof fetch;

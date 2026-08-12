@@ -9,7 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "bun test --dom --preload ./src/test/setup.ts src/",
+    "test": "vitest run --config vitest.config.ts",
     "test:e2e": "playwright test --reporter=list",
     "security:scan": "node scripts/security_scan.mjs",
     "security:baseline": "node scripts/security_scan.mjs --update-baseline"

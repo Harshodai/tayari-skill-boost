@@ -167,50 +167,70 @@ export interface SavedArticleItem {
   saved_at: string;
 }
 
+interface SavedSourceResponse {
+  id?: string;
+  canonical_url?: string;
+  title?: string;
+  author?: string;
+  source_platform?: SavedArticleItem['platform'];
+  primary_category?: string;
+  summary_bullets?: string[];
+  saved_at?: string;
+}
+
+function formatSavedSource(source: SavedSourceResponse): SavedArticleItem {
+  return {
+    id: source.id || stableHash(source.canonical_url || source.title || "unknown"),
+    title: source.title || "Saved Source",
+    author: source.author || "Unknown",
+    platform: source.source_platform || "custom_url",
+    category: source.primary_category || "Uncategorised",
+    summary: source.summary_bullets || [],
+    url: source.canonical_url || "#",
+    saved_at: source.saved_at || "Recently",
+  };
+}
+
 export async function fetchSavedArticles(): Promise<{ success: boolean; sources: SavedArticleItem[] }> {
-  return apiFetch<{ success: boolean; sources: any[] }>("/v1/saves", {
+  return apiFetch<{ success: boolean; sources: SavedSourceResponse[] }>("/v1/saves", {
     method: "GET",
-  }).then(res => {
-    const formatted = (res.sources || []).map((s: any) => ({
-      id: s.id || stableHash(s.canonical_url || s.title || "unknown"),
-      title: s.title || "Saved Source",
-      author: s.author || "Unknown",
-      platform: (s.source_platform || "custom_url") as any,
-      category: s.primary_category || "General",
-      summary: s.summary_bullets || [s.raw_content || ""],
-      url: s.canonical_url || "#",
-      saved_at: s.saved_at || "Recently",
-    }));
-    return { success: true, sources: formatted };
+  }).then((res) => ({ success: true, sources: (res.sources || []).map(formatSavedSource) }));
+}
+
+export async function importPublicArticle(url: string): Promise<{ success: boolean; source: SavedArticleItem }> {
+  return apiFetch<{ success: boolean; source: SavedSourceResponse }>("/v1/saves/import", {
+    method: "POST",
+    body: JSON.stringify({ url: url.trim() }),
+  }).then((res) => ({ success: res.success, source: formatSavedSource(res.source) }));
+}
+
+export async function deleteSavedArticle(sourceId: string): Promise<{ success: boolean; deleted: boolean; source_id: string }> {
+  return apiFetch<{ success: boolean; deleted: boolean; source_id: string }>(`/v1/saves/${encodeURIComponent(sourceId)}`, {
+    method: "DELETE",
   });
 }
 
+/** @deprecated Use importPublicArticle for one candidate-selected public URL. */
 export async function syncSavedPosts(platforms?: string[], url?: string): Promise<{ success: boolean; count: number; sources: SavedArticleItem[] }> {
-  return apiFetch<{ success: boolean; count: number; sources: any[] }>("/v1/saves/sync", {
+  return apiFetch<{ success: boolean; count: number; sources: SavedSourceResponse[] }>("/v1/saves/sync", {
     method: "POST",
-    body: JSON.stringify({ platforms: platforms || ["substack", "medium", "linkedin"], url: url?.trim() }),
-  }).then(res => {
-    const formatted = (res.sources || []).map((s: any) => ({
-      id: s.id || stableHash(s.canonical_url || s.title || "unknown"),
-      title: s.title || "Saved Source",
-      author: s.author || "Unknown",
-      platform: (s.source_platform || "custom_url") as any,
-      category: s.primary_category || "General",
-      summary: s.summary_bullets || [s.raw_content || ""],
-      url: s.canonical_url || "#",
-      saved_at: s.saved_at || "Just now",
-    }));
-    return { success: true, count: res.count || formatted.length, sources: formatted };
-  });
+    body: JSON.stringify({ platforms: platforms || [], urls: url?.trim() ? [url.trim()] : [] }),
+  }).then((res) => ({
+    success: res.success,
+    count: res.count || 0,
+    sources: (res.sources || []).map(formatSavedSource),
+  }));
 }
 
 export interface KnowledgeHubQueryResponse {
   answer: string;
   citations: Array<{
     tag: string;
+    source_id?: string;
     title: string;
     author: string;
     url: string;
+    excerpt?: string;
   }>;
 }
 

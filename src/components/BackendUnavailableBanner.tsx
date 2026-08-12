@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export const BACKEND_UNAVAILABLE_MESSAGE =
-  "Tracking works without the backend. Everything AI — resume optimization, the browser agent, autopilot, and AI analysis — needs the local Tayari engine. Self-host with `docker compose --profile dev up -d --build` or connect to a deployed backend.";
+  "Tracking works without the backend. Everything AI — resume optimization, the browser agent, autopilot, and AI analysis — needs the local Job Tayari engine. Self-host with `docker compose --profile dev up -d --build` or connect to a deployed backend.";
 
 const FEATURE_LABELS: Record<string, string> = {
   autopilot: "AutoPilot",
@@ -39,7 +39,7 @@ export function BackendUnavailableBanner({
           <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
           <div className="space-y-1.5 min-w-0">
             <p className="font-semibold text-sm sm:text-base">
-              {featureLabel ? `${featureLabel} needs the local Tayari engine` : "Advanced features need the local Tayari engine"}
+              {featureLabel ? `${featureLabel} needs the local Job Tayari engine` : "Advanced features need the local Job Tayari engine"}
             </p>
             <p className="text-sm leading-relaxed text-amber-900/90 dark:text-amber-100/90">
               {BACKEND_UNAVAILABLE_MESSAGE}

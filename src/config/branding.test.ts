@@ -1,8 +1,9 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const SRC = join(import.meta.dir, "..");
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 function sourceFiles(dir: string): string[] {
   const files: string[] = [];

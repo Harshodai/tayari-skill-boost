@@ -1,8 +1,12 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const currentDirectory = dirname(fileURLToPath(import.meta.url));
 
 describe("ResumePreviewModal.tsx edge-function removal (Typst-only)", () => {
-  const source = readFileSync(new URL("../components/resume/ResumePreviewModal.tsx", import.meta.url), "utf8");
+  const source = readFileSync(resolve(currentDirectory, "../components/resume/ResumePreviewModal.tsx"), "utf8");
 
   it("no longer invokes the generate-resume-pdf edge function", () => {
     expect(source).not.toContain("functions.invoke");
@@ -17,7 +21,7 @@ describe("ResumePreviewModal.tsx edge-function removal (Typst-only)", () => {
 });
 
 describe("src/api/resumes.ts Go-pdf helper", () => {
-  const source = readFileSync(new URL("../api/resumes.ts", import.meta.url), "utf8");
+  const source = readFileSync(resolve(currentDirectory, "../api/resumes.ts"), "utf8");
 
   it("exports generateResumePdf", () => {
     expect(source).toContain("generateResumePdf");
@@ -25,7 +29,7 @@ describe("src/api/resumes.ts Go-pdf helper", () => {
 });
 
 describe("ResumeTemplates.tsx stale LaTeX-era surface removal", () => {
-  const source = readFileSync(new URL("./ResumeTemplates.tsx", import.meta.url), "utf8");
+  const source = readFileSync(resolve(currentDirectory, "ResumeTemplates.tsx"), "utf8");
 
   it("no longer posts to the dead /v1/export/pdf route", () => {
     expect(source).not.toContain("/v1/export/pdf");

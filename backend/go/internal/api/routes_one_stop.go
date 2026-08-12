@@ -44,10 +44,17 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 		r.Post("/api/v1/privacy/check", s.handleOneStopProxy("/api/v1/privacy/check"))
 		r.Post("/api/privacy/check", s.handleOneStopProxy("/api/v1/privacy/check"))
 
+		// Omnisave is URL-import-first. These routes proxy only to the Python
+		// lifecycle service; no legacy saved_posts table participates in this
+		// candidate knowledge path.
 		r.Get("/api/v1/saves", s.handleOneStopProxyGET("/api/v1/saves"))
 		r.Get("/api/saves", s.handleOneStopProxyGET("/api/v1/saves"))
+		r.Post("/api/v1/saves/import", s.handleOneStopProxy("/api/v1/saves/import"))
+		r.Post("/api/saves/import", s.handleOneStopProxy("/api/v1/saves/import"))
 		r.Post("/api/v1/saves/sync", s.handleOneStopProxy("/api/v1/saves/sync"))
 		r.Post("/api/saves/sync", s.handleOneStopProxy("/api/v1/saves/sync"))
+		r.Delete("/api/v1/saves/{source_id}", s.handleOneStopProxyDELETEPath("/api/v1/saves/", "source_id"))
+		r.Delete("/api/saves/{source_id}", s.handleOneStopProxyDELETEPath("/api/v1/saves/", "source_id"))
 
 		r.Post("/api/v1/one-shot/execute", s.handleOneStopProxy("/api/v1/one-shot/execute"))
 		r.Post("/api/one-shot/execute", s.handleOneStopProxy("/api/v1/one-shot/execute"))
@@ -80,6 +87,26 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 		// /api/v1/candidate-bank/match, which routesMVP's handler calls
 		// correctly) — see routesMVP's comment for the counterpart.
 	})
+}
+
+func (s *Server) handleOneStopProxyDELETEPath(prefix, parameter string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		value := chi.URLParam(r, parameter)
+		if value == "" {
+			http.Error(w, "missing resource identifier", http.StatusBadRequest)
+			return
+		}
+		headers := s.getXUserHeaders(r)
+		result, err := s.AI.DeleteJSONWithHeaders(prefix+value, headers)
+		if err != nil {
+			log.Printf("[OneStopProxy] DELETE %s failed: %v", prefix+value, err)
+			http.Error(w, "knowledge source deletion failed", http.StatusBadGateway)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(result)
+	}
 }
 
 func (s *Server) handleTypstExport(w http.ResponseWriter, r *http.Request) {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { buildGenerateResumePdfPayload } from "./resumes";
 import type { ParsedResume, ResumeAnalysisResult } from "../types/resume";
 

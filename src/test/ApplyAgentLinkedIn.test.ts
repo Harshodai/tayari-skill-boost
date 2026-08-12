@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect } from "vitest";
 import { isLinkedInUrl } from "@/lib/agent/linkedinUrl";
 
 // Cross-layer parity with backend/python/app/services/linkedin_policy.py:

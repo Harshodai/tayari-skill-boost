@@ -1,9 +1,13 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
+const currentDirectory = dirname(fileURLToPath(import.meta.url));
+
 describe("ResumeUpload.tsx cloud-path removal", () => {
-  const source = readFileSync(new URL("./ResumeUpload.tsx", import.meta.url), "utf8");
+  const source = readFileSync(resolve(currentDirectory, "ResumeUpload.tsx"), "utf8");
   const sf = ts.createSourceFile("ResumeUpload.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 
   const imports = sf.statements.filter(ts.isImportDeclaration);

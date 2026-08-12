@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { describe, it, expect, mock, afterEach } from "bun:test";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { Button } from "./button";
 
 afterEach(() => {
@@ -27,7 +27,7 @@ describe("Button Component", () => {
     });
 
     it("handles click events", () => {
-        const handleClick = mock();
+        const handleClick = vi.fn();
         render(<Button onClick={handleClick}>Click me</Button>);
         const button = screen.getByRole("button", { name: /click me/i });
 

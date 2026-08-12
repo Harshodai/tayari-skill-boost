@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import { describe, test, expect, beforeEach } from "vitest";
 import { autofillFormFields } from "../../extension/autofill_engine.js";
 
 describe("Tayari Extension Autofill Engine DOM Fixture Tests", () => {

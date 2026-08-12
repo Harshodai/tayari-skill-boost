@@ -1,4 +1,4 @@
-import { test, expect } from "bun:test";
+import { test, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Chart, DataPoint } from "@/components/charts/Chart";
 
