@@ -14,6 +14,7 @@ wedged.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from dataclasses import dataclass, field
@@ -39,6 +40,7 @@ class BrowserSession:
     live_view_url: Optional[str] = None
     cancelled: bool = False
     owner_id: Optional[str] = None
+    lease_token: Optional[str] = None
     meta: Dict[str, str] = field(default_factory=dict)
 
 
@@ -151,6 +153,21 @@ async def open_session(run_id: Optional[str], owner_id: Optional[str] = None) ->
     key = run_id or f"anon-{id(provider)}"
     session = await provider.create(key)
     session.owner_id = owner_id
+
+    # When Postgres is configured, an execution run must acquire a durable,
+    # candidate-bound lease before it can control a browser.  Development
+    # without a database retains the local provider for deterministic tests.
+    if run_id and owner_id:
+        from app.services.db import is_db_enabled
+        from app.services.run_control import acquire_worker_lease
+
+        session.lease_token = await acquire_worker_lease(run_id, owner_id)
+        if is_db_enabled() and not session.lease_token:
+            await provider.terminate(session)
+            raise BrowserSessionError(
+                "could not acquire a durable worker lease; retry after the run-control migration is available"
+            )
+
     _SESSIONS[key] = session
     logger.info(
         "[Audit] component=browser-session action=open actor=%s run=%s provider=%s",
@@ -167,7 +184,11 @@ async def close_session(session: Optional[BrowserSession]) -> None:
         await get_provider().terminate(session)
     except Exception as exc:  # noqa: BLE001 - cleanup must not mask run errors
         logger.warning("[BrowserSession] terminate failed for %s: %s", session.run_id, exc)
-    _SESSIONS.pop(session.run_id, None)
+    finally:
+        _SESSIONS.pop(session.run_id, None)
+        if session.owner_id and session.lease_token:
+            from app.services.run_control import release_worker_lease
+            await release_worker_lease(session.run_id, session.owner_id, session.lease_token)
 
 
 def is_cancelled(run_id: Optional[str]) -> bool:
@@ -185,6 +206,31 @@ class BrowserAuthzError(PermissionError):
     """Raised when a caller tries to control a run they do not own."""
 
 
+async def watch_durable_cancellation(
+    session: BrowserSession,
+    poll_interval_seconds: float = 1.0,
+) -> None:
+    """Mirror a durable stop request into the synchronous browser callback flag."""
+    if not session.owner_id:
+        return
+    from app.services.run_control import cancellation_requested
+
+    while not session.cancelled:
+        if await cancellation_requested(session.run_id, session.owner_id):
+            session.cancelled = True
+            try:
+                await get_provider().terminate(session)
+            except Exception as exc:  # noqa: BLE001 - loop must still surface cancellation
+                logger.warning("[BrowserSession] durable cancellation terminate failed for %s: %s", session.run_id, exc)
+            logger.info(
+                "[Audit] component=browser-session action=cancel actor=%s run=%s outcome=durable-request-observed",
+                session.owner_id,
+                session.run_id,
+            )
+            return
+        await asyncio.sleep(max(0.25, poll_interval_seconds))
+
+
 async def cancel_run(run_id: str, owner_id: Optional[str] = None) -> bool:
     """Kill switch: flag the run and terminate its remote browser.
 
@@ -194,20 +240,29 @@ async def cancel_run(run_id: str, owner_id: Optional[str] = None) -> bool:
     terminated.
     """
     session = _SESSIONS.get(run_id)
-    if session is None:
-        logger.info(
-            "[Audit] component=browser-session action=cancel actor=%s run=%s outcome=not-found",
-            owner_id or "-", run_id,
-        )
-        return False
-    if session.owner_id and owner_id != session.owner_id:
+    if session is not None and session.owner_id and owner_id != session.owner_id:
         logger.warning(
             "[Audit] component=browser-session action=cancel actor=%s run=%s outcome=denied owner=%s",
             owner_id or "-", run_id, session.owner_id,
         )
         raise BrowserAuthzError("run does not belong to caller")
+    durable_requested = False
+    if owner_id:
+        from app.services.run_control import request_cancellation
+        durable_requested = await request_cancellation(run_id, owner_id)
+
+    if session is None:
+        logger.info(
+            "[Audit] component=browser-session action=cancel actor=%s run=%s outcome=%s",
+            owner_id or "-", run_id, "durably-requested" if durable_requested else "not-found",
+        )
+        return durable_requested
+
     session.cancelled = True
     await close_session(session)
+    if durable_requested and owner_id:
+        from app.services.run_control import acknowledge_cancellation
+        await acknowledge_cancellation(run_id, owner_id, "browser session terminated")
     logger.info(
         "[Audit] component=browser-session action=cancel actor=%s run=%s outcome=terminated",
         owner_id or "-", run_id,

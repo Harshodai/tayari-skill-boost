@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { streamBrowserAgent } from "@/api/browser";
+import { getBrowserRunControlState, streamBrowserAgent } from "@/api/browser";
 
 const mockFetch = vi.fn(() => Promise.resolve(new Response()));
 const originalFetch = globalThis.fetch;
@@ -33,6 +33,29 @@ function sseResponse(frames: string[]): Response {
     headers: { "Content-Type": "text/event-stream" },
   });
 }
+
+describe("getBrowserRunControlState", () => {
+  it("requests the candidate-owned control snapshot with an encoded run ID and bounded history", async () => {
+    mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      run_id: "run/a",
+      status: "running",
+      progress: 20,
+      current_step: "Reviewing form",
+      cancellation_requested_at: null,
+      cancellation_reason: null,
+      cancellation_acknowledged_at: null,
+      worker_lease_expires_at: null,
+      events: [],
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+
+    const state = await getBrowserRunControlState("run/a", 999);
+
+    expect(state.status).toBe("running");
+    const [url, options] = mockFetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain("/v1/browser/automation/runs/run%2Fa/control?event_limit=200");
+    expect(options.method).toBeUndefined();
+  });
+});
 
 describe("streamBrowserAgent", () => {
   it("parses screenshot and done events in order", async () => {

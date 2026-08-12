@@ -175,3 +175,44 @@ func TestBrowserAutomationStream_ClientDisconnectCancelsUpstream(t *testing.T) {
 		t.Fatal("handler did not return after client disconnect")
 	}
 }
+
+func TestBrowserAutomationControl_PreservesDurableStateErrors(t *testing.T) {
+	cases := []struct {
+		name       string
+		upstream   int
+		expected   int
+		bodyPhrase string
+	}{
+		{name: "foreign candidate", upstream: http.StatusForbidden, expected: http.StatusForbidden, bodyPhrase: "another candidate"},
+		{name: "missing run", upstream: http.StatusNotFound, expected: http.StatusNotFound, bodyPhrase: "not found"},
+		{name: "durable store unavailable", upstream: http.StatusServiceUnavailable, expected: http.StatusServiceUnavailable, bodyPhrase: "temporarily unavailable"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := fakeAIServer(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/v1/browser/automation/runs/run-1/control" {
+					t.Errorf("unexpected upstream path: %s", r.URL.Path)
+				}
+				if r.URL.Query().Get("event_limit") != "100" {
+					t.Errorf("expected bounded default event limit, got %q", r.URL.Query().Get("event_limit"))
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.upstream)
+				_, _ = io.WriteString(w, `{"error":"durable_control_unavailable"}`)
+			})
+			defer srv.Close()
+
+			server := newBrowserServer(t, srv.URL)
+			w := httptest.NewRecorder()
+			server.Router.ServeHTTP(w, authReq(http.MethodGet, "/api/v1/browser/automation/runs/run-1/control", nil))
+
+			if w.Code != tc.expected {
+				t.Fatalf("expected %d, got %d: %s", tc.expected, w.Code, w.Body.String())
+			}
+			if !strings.Contains(strings.ToLower(w.Body.String()), tc.bodyPhrase) {
+				t.Errorf("expected response to contain %q, got %s", tc.bodyPhrase, w.Body.String())
+			}
+		})
+	}
+}

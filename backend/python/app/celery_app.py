@@ -24,7 +24,7 @@ celery_app = Celery(
     "tayari",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["app.tasks.scraping", "app.tasks.automation", "app.tasks.learning"],
+    include=["app.tasks.scraping", "app.tasks.automation", "app.tasks.learning", "app.tasks.delivery"],
 )
 
 celery_app.conf.update(
@@ -60,6 +60,12 @@ celery_app.conf.update(
         "nightly-db-backup": {
             "task": "system.nightly_database_backup",
             "schedule": 60 * 60 * 24,  # 24h
+        },
+        # The ledger is idempotent and candidate-scoped; provider credentials
+        # and channel opt-in are still required before any external delivery.
+        "delivery-ledger-dispatch": {
+            "task": "delivery.dispatch_pending_messages",
+            "schedule": 30,
         },
     },
 )

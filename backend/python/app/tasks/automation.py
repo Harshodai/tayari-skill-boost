@@ -227,49 +227,30 @@ def run_agent_task(self, task_id: str, user_id: str, agent_id: str, config: dict
             # Run step
             response = await router.execute_agent_step(sys_prompt, user_prompt, runtime_id="default")
             
-            # Step 2: Critical action requiring human approval
-            tool_input = {"company": "Acme Corp", "role": "Full Stack Engineer", "salary": "$120,000"}
-            approved = await router.request_tool_execution(
-                tool_name="submit_application",
-                tool_input=tool_input,
-                content_preview="Submit application to Acme Corp for Full Stack Engineer position",
-                poll_interval_seconds=0.5,
-                timeout_seconds=60.0
-            )
-            
-            if not approved:
-                await create_agent_router_event(
-                    user_id, task_id, "info", 
-                    "Task execution halted: human reviewer rejected critical tool call"
-                )
-                await update_agent_task_status(
-                    user_id, task_id, status="failed", 
-                    error_text="Tool execution rejected by human"
-                )
-                if attempt_id:
-                    await update_agent_task_attempt(
-                        user_id, attempt_id, status="failed", 
-                        error_text="Tool execution rejected by human"
-                    )
-                return {"task_id": task_id, "status": "failed", "reason": "rejected"}
-            
-            # Step 3: Action Approved, complete the submission
+            # Step 2: complete the safe part of the task only.  AgentSpace has
+            # no candidate-scoped browser worker or artefact-bound approval
+            # receipt, so it must never imitate portal submission or return a
+            # synthetic confirmation.  A separate browser run can perform an
+            # external action only after it validates a current approval
+            # receipt bound to the candidate, job, portal and exact artefact.
+            draft_output = response if isinstance(response, (dict, list, str, int, float, bool, type(None))) else str(response)
+            result = {
+                "status": "draft_ready",
+                "submitted": False,
+                "submission_permitted": False,
+                "requires_candidate_approval": True,
+                "next_step": "Review the draft, then use the isolated browser flow for an approved final action.",
+                "agent_output": draft_output,
+            }
             await create_agent_router_event(
-                user_id, task_id, "info", 
-                "Executing application submission to Acme Corp portals"
-            )
-            await asyncio.sleep(0.5) # simulate submission latency
-            
-            result = {"status": "success", "company": "Acme Corp", "application_id": "app_999"}
-            await create_agent_router_event(
-                user_id, task_id, "task_success", 
-                "Application submitted successfully! Portal confirmation received.",
-                payload_json=result
+                user_id, task_id, "task_success",
+                "Research draft is ready. No external application was submitted.",
+                payload_json=result,
             )
             await update_agent_task_status(user_id, task_id, status="success", result_json=result)
             if attempt_id:
                 await update_agent_task_attempt(user_id, attempt_id, status="success")
-            return {"task_id": task_id, "status": "success"}
+            return {"task_id": task_id, "status": "draft_ready", "submission_permitted": False}
             
         except Exception as exc:
             logger.exception("AgentSpace task execution failed")

@@ -1760,6 +1760,39 @@ async def browser_automation_stream_endpoint(payload: dict, request: Request):
     )
 
 
+@app.get("/api/v1/browser/automation/runs/{run_id}/control")
+async def browser_automation_control_endpoint(run_id: str, request: Request, event_limit: int = 100):
+    """Return candidate-owned durable state for a browser-assisted run.
+
+    This endpoint never fabricates progress from process memory.  It returns a
+    bounded event history and cancellation acknowledgement only when the
+    durable control plane confirms the authenticated candidate owns the run.
+    """
+    from app.services.run_control import (
+        RunControlOwnershipError,
+        RunControlStoreUnavailable,
+        get_run_control_snapshot,
+    )
+
+    actor = browser_actor(request)
+    normalized_run_id = str(run_id or "").strip()
+    if not normalized_run_id:
+        raise HTTPException(status_code=400, detail="run_id is required")
+    try:
+        snapshot = await get_run_control_snapshot(normalized_run_id, actor, event_limit=event_limit)
+    except RunControlOwnershipError:
+        logger.warning("[Audit] component=browser-agent action=control actor=%s run=%s outcome=forbidden", actor, normalized_run_id)
+        raise HTTPException(status_code=403, detail="run belongs to another candidate")
+    except RunControlStoreUnavailable:
+        logger.error("[Audit] component=browser-agent action=control actor=%s run=%s outcome=storage_unavailable", actor, normalized_run_id)
+        raise HTTPException(status_code=503, detail="durable run control is temporarily unavailable")
+    if snapshot is None:
+        logger.warning("[Audit] component=browser-agent action=control actor=%s run=%s outcome=missing", actor, normalized_run_id)
+        raise HTTPException(status_code=404, detail="run not found")
+    logger.info("[Audit] component=browser-agent action=control actor=%s run=%s outcome=ok", actor, normalized_run_id)
+    return snapshot
+
+
 @app.post("/api/v1/browser/automation/cancel")
 async def browser_automation_cancel_endpoint(payload: dict, request: Request):
     """WS-06 kill switch: terminate the isolated browser session for a run.

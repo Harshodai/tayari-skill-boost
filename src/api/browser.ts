@@ -1,4 +1,4 @@
-import { API_URL, getHeaders } from "./client";
+import { API_URL, ApiError, apiFetch, getHeaders } from "./client";
 
 /**
  * WS-06 kill switch — terminate the isolated browser session for a run.
@@ -27,6 +27,52 @@ export async function cancelBrowserRun(runId: string): Promise<boolean> {
   }
 }
 
+
+export interface BrowserRunEvent {
+  sequence_no: number;
+  event_type: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface BrowserControlState {
+  run_id: string;
+  run_type: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  progress: number;
+  current_step: string | null;
+  created_at?: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  cancellation_requested: boolean;
+  cancellation_requested_at: string | null;
+  cancellation_reason: string | null;
+  cancellation_acknowledged: boolean;
+  cancellation_acknowledged_at: string | null;
+  worker_lease_expires_at: string | null;
+  lease_active: boolean;
+  events: BrowserRunEvent[];
+}
+
+/** Read durable, candidate-owned state for a browser-assisted run. */
+export async function getBrowserRunControlState(runId: string, eventLimit = 100): Promise<BrowserControlState> {
+  const normalizedRunId = runId.trim();
+  if (!normalizedRunId) throw new Error("A browser run ID is required.");
+  const boundedLimit = Math.max(1, Math.min(Math.trunc(eventLimit), 200));
+  try {
+    return await apiFetch<BrowserControlState>(
+      `/v1/browser/automation/runs/${encodeURIComponent(normalizedRunId)}/control?event_limit=${boundedLimit}`,
+    );
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 403) {
+      throw new Error("This run belongs to another account.");
+    }
+    if (error instanceof ApiError && error.status === 404) {
+      throw new Error("This run is unavailable for this account.");
+    }
+    throw error;
+  }
+}
 
 export interface BrowserStreamEvent {
   type: "screenshot" | "done" | "error";

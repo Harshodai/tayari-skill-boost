@@ -6,6 +6,7 @@ This module provides system-level browser automation execution for Tayari AI Eng
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import re
@@ -23,6 +24,7 @@ from app.services.browser_automation.session import (
     close_session,
     is_cancelled,
     open_session,
+    watch_durable_cancellation,
 )
 
 
@@ -408,8 +410,11 @@ async def run_browser_agent(
                 logger.warning("[BrowserAgent] on_step callback failed: %s", exc)
 
     session = None
+    cancellation_watch: asyncio.Task | None = None
     try:
         session = await open_session(run_id, owner_id)
+        if run_id and owner_id:
+            cancellation_watch = asyncio.create_task(watch_durable_cancellation(session))
         agent = _build_agent(Agent, instruction, llm, _observe, session)
         history = await agent.run(max_steps=max_steps)
         result = _extract_history(history)
@@ -419,6 +424,9 @@ async def run_browser_agent(
         return result
 
     except RunCancelled:
+        if run_id and owner_id:
+            from app.services.run_control import acknowledge_cancellation
+            await acknowledge_cancellation(run_id, owner_id, "browser agent observed cancellation")
         return AgentResult(
             instruction=instruction,
             success=False,
@@ -442,6 +450,18 @@ async def run_browser_agent(
             final_url=evidence["url"],
         )
     except Exception as exc:
+        if session and session.cancelled:
+            if run_id and owner_id:
+                from app.services.run_control import acknowledge_cancellation
+                await acknowledge_cancellation(run_id, owner_id, "browser provider terminated after cancellation")
+            return AgentResult(
+                instruction=instruction,
+                success=False,
+                summary="Run stopped by the user. The browser session was terminated.",
+                error="cancelled",
+                final_screenshot=evidence["screenshot"],
+                final_url=evidence["url"],
+            )
         logger.error(f"[BrowserAgent] Failed step execution: {exc}")
         return AgentResult(
             instruction=instruction,
@@ -450,6 +470,10 @@ async def run_browser_agent(
             error=str(exc),
         )
     finally:
+        if cancellation_watch:
+            cancellation_watch.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await cancellation_watch
         await close_session(session)
 
 
@@ -511,6 +535,9 @@ async def stream_browser_agent(
         queue.put_nowait(event)
 
     session = await open_session(run_id, owner_id)
+    cancellation_watch: asyncio.Task | None = None
+    if run_id and owner_id:
+        cancellation_watch = asyncio.create_task(watch_durable_cancellation(session))
     if session.live_view_url:
         yield {"type": "live_view", "url": session.live_view_url}
 
@@ -522,6 +549,9 @@ async def stream_browser_agent(
             result.instruction = instruction
             queue.put_nowait({"type": "result", "result": result})
         except RunCancelled:
+            if run_id and owner_id:
+                from app.services.run_control import acknowledge_cancellation
+                await acknowledge_cancellation(run_id, owner_id, "browser stream observed cancellation")
             queue.put_nowait({"type": "error", "error": "cancelled", "message": "Run stopped by the user."})
         except OriginGuardError as exc:
             logger.warning("[BrowserAgent] Origin guard blocked run: %s", exc)
@@ -531,6 +561,12 @@ async def stream_browser_agent(
                 "message": "The agent was about to enter credentials on an origin it did not start on. No credentials were submitted.",
             })
         except Exception as exc:
+            if session.cancelled:
+                if run_id and owner_id:
+                    from app.services.run_control import acknowledge_cancellation
+                    await acknowledge_cancellation(run_id, owner_id, "browser provider terminated after cancellation")
+                queue.put_nowait({"type": "error", "error": "cancelled", "message": "Run stopped by the user."})
+                return
             logger.error(f"[BrowserAgent] Failed step execution: {exc}")
             queue.put_nowait({"type": "error", "error": "browser_agent_failed", "message": str(exc)})
 
@@ -556,6 +592,10 @@ async def stream_browser_agent(
             await task
         except asyncio.CancelledError:
             pass
+        if cancellation_watch:
+            cancellation_watch.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await cancellation_watch
         await close_session(session)
 
 

@@ -6,6 +6,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 
 	"tayari-backend/internal/models"
@@ -49,6 +51,8 @@ func (s *Server) RegisterBrowserRoutes(r chi.Router) {
 	r.Post("/api/browser/automation/stream", s.handleBrowserAutomationStream)
 	r.Post("/api/v1/browser/automation/cancel", s.handleBrowserAutomationCancel)
 	r.Post("/api/browser/automation/cancel", s.handleBrowserAutomationCancel)
+	r.Get("/api/v1/browser/automation/runs/{runID}/control", s.handleBrowserAutomationControl)
+	r.Get("/api/browser/automation/runs/{runID}/control", s.handleBrowserAutomationControl)
 }
 
 // auditBrowser emits a single-line audit record for browser-agent actions.
@@ -98,6 +102,60 @@ func decodeBrowserBody(w http.ResponseWriter, r *http.Request) (map[string]inter
 		return nil, false
 	}
 	return payload, true
+}
+
+// handleBrowserAutomationControl returns candidate-owned durable run state
+// and bounded event history. It is deliberately read-only: state changes
+// remain confined to the explicit start/cancel endpoints.
+func (s *Server) handleBrowserAutomationControl(w http.ResponseWriter, r *http.Request) {
+	userID, ok := s.requireBrowserUser(w, r, "control")
+	if !ok {
+		return
+	}
+	runID := chi.URLParam(r, "runID")
+	if runID == "" {
+		auditBrowser("control", userID, "", "rejected", "missing run_id")
+		http.Error(w, "run_id is required", http.StatusBadRequest)
+		return
+	}
+
+	eventLimit := 100
+	if raw := r.URL.Query().Get("event_limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 200 {
+			auditBrowser("control", userID, runID, "rejected", "invalid event_limit")
+			http.Error(w, "event_limit must be between 1 and 200", http.StatusBadRequest)
+			return
+		}
+		eventLimit = parsed
+	}
+
+	target := "/api/v1/browser/automation/runs/" + url.PathEscape(runID) + "/control?event_limit=" + strconv.Itoa(eventLimit)
+	result, err := s.AI.GetJSONWithHeaders(target, s.getXUserHeaders(r))
+	if err != nil {
+		auditBrowser("control", userID, runID, "error", err)
+		if status, found := extractAIStatus(err); found {
+			switch status {
+			case http.StatusForbidden:
+				s.respondError(w, http.StatusForbidden, "Run belongs to another candidate")
+				return
+			case http.StatusNotFound:
+				s.respondError(w, http.StatusNotFound, "Run control state not found")
+				return
+			case http.StatusServiceUnavailable:
+				s.respondError(w, http.StatusServiceUnavailable, "Durable run control is temporarily unavailable")
+				return
+			}
+		}
+		log.Printf("[BrowserAutomation] Control-state proxy error: %v", err)
+		http.Error(w, "failed to read browser run state", http.StatusBadGateway)
+		return
+	}
+
+	auditBrowser("control", userID, runID, "ok", nil)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(result)
 }
 
 // handleBrowserAutomationCancel is the WS-06 kill switch: it asks the AI
