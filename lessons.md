@@ -4,6 +4,26 @@ This document details key findings, architectural decisions, and lessons learned
 
 ---
 
+## 2026-08-12 — Self-hosted migration bundle CI gate: mirror 0002 + omnisave vector-dims, verifier script, live table check
+
+### What was done
+- CI workflow (.github/workflows/ci.yml, `docker-compose` job) now runs `python3 scripts/verify_self_hosted_migrations.py` right after checkout, and after the health checks a psql probe asserts the fresh self-hosted DB actually has `saved_sources` and `source_chunks` (via `to_regclass` + `bool_and` over the unnest array, piped through `grep -qx 'ok'`; fails on missing).
+- Created `scripts/verify_self_hosted_migrations.py` — hashes each canonical migration in `backend/db/migrations/` against its `supabase-local/volumes/db/init/NN-*` mirror and greps the supabase-local compose file for each mount line; exit 1 with the diff list on any mismatch.
+- Mirrored `0002_tayari_core_architecture.sql` → `25-0002_tayari_core_architecture.sql` and `20260812_01_omnisave_vector_dims.sql` → `26-20260812_omnisave_vector_dims.sql` into `supabase-local/volumes/db/init/` and added the two individual-file volume mounts (`zz-25-`, `zz-26-`) in `supabase-local/docker-compose.yml`.
+
+### Root causes
+- The Omnisave tables (`saved_sources`, `source_chunks`) were defined ONLY in the canonical `0002_tayari_core_architecture.sql` — a migration that had never been mirrored into the self-hosted init bundle. A fresh `supabase-local` stack (incl. CI) never created them, and the later omnisave vector-dims migration was also unmounted, so the whole feature silently lacked a DB in self-hosted mode. This is the documented "init bundle is not auto-synced" Gotcha, previously unguarded by CI.
+- A prepared CI guide referenced a `20260813_durable_run_control_plane.sql` migration and `run_events/run_controls/delivery_ledger` tables that do not exist in this repo, and a `scripts/verify_self_hosted_migrations.py` that was never pushed. Adapted the guide to repo reality rather than applying it verbatim (script, mirrors, mounts, and the live table list all corrected).
+
+### Fix applied
+- Mirrors are byte-identical copies of the canonical files (sha256-equality is the verifier's contract — convention: strip the `NN_` disambiguator in the mirror name, e.g. `20260811_01_audit_tables.sql` → `23-20260811_audit_tables.sql`). Verified: `python3 scripts/verify_self_hosted_migrations.py` exits 0, `git diff --check` clean, both YAML files parse.
+
+### Reusable lessons
+- When a CI "copy-paste guide" references migrations/tables/scripts that don't exist in the repo, adapt the gate to what the repo actually ships — a gate against nonexistent objects fails forever and teaches nothing.
+- The verifier's sha256-equality contract makes mirror drift a hard CI error; keep the mirror convention (byte-identical copy, `NN-` prefix, `NN_` disambiguator stripped, individual volume mount) consistent or the script itself becomes a second source of truth.
+
+---
+
 ## 2026-08-11 — Autopilot: receipt persistence made non-fatal + gate_blocked preserved across ATS tier branches
 
 ### What was done

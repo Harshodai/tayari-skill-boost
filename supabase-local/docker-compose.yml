@@ -277,6 +277,8 @@ services:
       - ./volumes/db/init/22-20260810_career_goal.sql:/docker-entrypoint-initdb.d/migrations/zz-22-20260810_career_goal.sql:Z
       - ./volumes/db/init/23-20260811_audit_tables.sql:/docker-entrypoint-initdb.d/migrations/zz-23-20260811_audit_tables.sql:Z
       - ./volumes/db/init/24-20260811_drop_dead_tables.sql:/docker-entrypoint-initdb.d/migrations/zz-24-20260811_drop_dead_tables.sql:Z
+      - ./volumes/db/init/25-0002_tayari_core_architecture.sql:/docker-entrypoint-initdb.d/migrations/zz-25-0002_tayari_core_architecture.sql:Z
+      - ./volumes/db/init/26-20260812_omnisave_vector_dims.sql:/docker-entrypoint-initdb.d/migrations/zz-26-20260812_omnisave_vector_dims.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:
