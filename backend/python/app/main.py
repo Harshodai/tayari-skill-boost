@@ -2,6 +2,7 @@
 Tayari AI Engine — FastAPI entry point.
 """
 import asyncio
+import io
 import logging
 import os
 from contextlib import asynccontextmanager

@@ -2,9 +2,10 @@
 Document parser supporting PDF, DOCX, and TXT.
 Extracts structured sections from resumes.
 """
-import re
-import json
 import io
+import json
+import logging
+import re
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, asdict
 
@@ -31,6 +32,9 @@ try:
     DOCX_AVAILABLE = True
 except ImportError:
     DOCX_AVAILABLE = False
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass

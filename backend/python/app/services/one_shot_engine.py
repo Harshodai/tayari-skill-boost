@@ -144,6 +144,7 @@ async def execute_one_shot_pipeline(req: OneShotRequest) -> OneShotResult:
     from app.services.candidate_answer_bank import get_answer_bank
     ats_sim = simulate_ats_parsing(tailored_text)
     answer_bank = get_answer_bank(req.user_id or "default_user")
+    missing_kws = score_res.get("missing_keywords", [])
 
     # Build Stealth Auto-Apply Payload with Candidate Answer Bank
     ats_parsability = ats_sim.get("parsability_score", 95)
@@ -168,7 +169,6 @@ async def execute_one_shot_pipeline(req: OneShotRequest) -> OneShotResult:
 
     # Generate skill gap learning path for missing keywords
     from app.services.learning_recommender import LearningRecommender
-    missing_kws = score_res.get("missing_keywords", [])
     learning_plan = LearningRecommender.get_recommendations(missing_kws)
 
     return OneShotResult(
