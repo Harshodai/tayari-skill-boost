@@ -33,6 +33,21 @@ RUN TYPST_ARCH=$(if [ "$TARGETARCH" = "arm64" ]; then echo "aarch64"; else echo 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# This image runs the FastAPI process directly — /api/v1/browser/automation,
+# /api/v1/browser/automation/stream, form_filler.py, and optimizer.py's
+# scrape_jd_url all launch Playwright/Chromium inline here (not only via the
+# Celery worker, which already had this step in Dockerfile.worker). Without
+# it, every one of those routes fails with a missing-executable error the
+# first time a request reaches BrowserOperator.initialize().
+RUN python -m playwright install --with-deps chromium
+
 COPY . .
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# --reload starts a file-watching reloader and forces single-process mode —
+# right for local dev (this is the compose `dev` profile's default, and the
+# image is unchanged for it), wrong for `prod`/`eval`: pure overhead with no
+# benefit, and it silently caps the whole service at one worker process.
+# UVICORN_RELOAD defaults to the historical "true" so behavior is unchanged
+# for anyone not setting it; set UVICORN_RELOAD=false (with UVICORN_WORKERS,
+# default 2) for prod/eval via docker-compose.yml's environment block.
+CMD ["sh", "-c", "if [ \"${UVICORN_RELOAD:-true}\" = \"true\" ]; then exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload; else exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers \"${UVICORN_WORKERS:-2}\"; fi"]

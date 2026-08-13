@@ -80,8 +80,9 @@ SENSITIVE_PATTERNS = [
 class FormFiller:
     """
     Tayari Computer Accessibility Snapshot Sandbox Executor.
-    Drives Playwright using Accessibility Snapshots (page.accessibility.snapshot())
-    to discover form input roles semantically without relying on brittle CSS selectors.
+    Drives Playwright through BrowserOperator observations. Each interactive
+    element is addressed by its current-DOM ref, never by a selector rebuilt
+    from accessible display text.
     Tokenizes candidate profile injections locally while redacting sensitive government identifiers.
     """
 
@@ -163,14 +164,26 @@ class FormFiller:
                 "form_url": form_url
             }
 
-        accessibility_nodes = []
-        if self.browser.page:
-            try:
-                snapshot = await self.browser.page.accessibility.snapshot()
-                if snapshot:
-                    accessibility_nodes = self._extract_input_roles(snapshot)
-            except Exception as e:
-                logger.warning(f"Accessibility snapshot warning: {e}")
+        # BrowserOperator.observe() builds a live ref -> Locator map for this DOM
+        # generation. Carry its refs through the entire fill loop; never
+        # reconstruct a selector from display text, which can match the wrong
+        # field when labels repeat or the markup differs from the accessible name.
+        accessibility_nodes: List[Dict[str, Any]] = []
+        observation_error: Optional[str] = None
+        observation = await self.browser.observe()
+        if not observation.get("success"):
+            observation_error = observation.get("error") or "browser observation failed"
+            logger.error("Form observation failed: %s", observation_error)
+        else:
+            observed_elements = observation.get("elements")
+            if not isinstance(observed_elements, list) or not observed_elements:
+                observation_error = "browser observation returned no interactive elements"
+                logger.error("Browser observation yielded no inputs for %s", form_url)
+            elif any(self._ref_for_node(node) is None for node in observed_elements):
+                observation_error = "browser observation returned an element without a valid ref"
+                logger.error("Browser observation yielded an unaddressable element for %s", form_url)
+            else:
+                accessibility_nodes = observed_elements
 
         # Role-to-field mapping with specific tokens evaluated before generic ones
         # Only map fields that have values in clean_profile
@@ -210,10 +223,10 @@ class FormFiller:
             if is_sensitive_field(label):
                 answer = known_answers.get(name.strip())
                 if answer:
-                    selector = self._selector_for_node(input_node)
-                    if self.browser.page and selector:
+                    ref = self._ref_for_node(input_node)
+                    if self.browser.page and ref:
                         try:
-                            fill_res = await self.browser.fill(selector, answer)
+                            fill_res = await self.browser.fill(ref, answer)
                             if fill_res.get("success"):
                                 actions.append(f"Filled {role} '{label}' from your saved answer")
                                 filled_labels.append(label)
@@ -230,12 +243,11 @@ class FormFiller:
                         # Only fill if the profile has this key
                         if profile_key in clean_profile and clean_profile[profile_key]:
                             val = clean_profile[profile_key]
-                            selector = self._selector_for_node(input_node)
-                            if self.browser.page:
+                            ref = self._ref_for_node(input_node)
+                            if self.browser.page and ref:
                                 try:
-                                    # ponytail: fill() takes a CSS selector, never the
-                                    # accessibility display name; only act when we derived one.
-                                    fill_res = await self.browser.fill(selector, val) if selector else {"success": False, "error": "no selector derivable"}
+                                    # BrowserOperator resolves only refs from the current observation.
+                                    fill_res = await self.browser.fill(ref, val)
                                     if fill_res.get("success"):
                                         actions.append(f"Filled {role} '{input_node.get('name')}'")
                                         filled_labels.append(label)
@@ -269,55 +281,27 @@ class FormFiller:
             # Do NOT claim "Simulated Submit Button Click" unless it actually occurred
 
         # ponytail: __aexit__ owns cleanup — do not double-close here.
+        # When observation failed we cannot know whether this form contains
+        # sensitive fields, so the run demands human review rather than
+        # reporting the all-clear that an empty node list would otherwise imply.
         return {
-            "success": any_real_action,
+            "success": any_real_action and observation_error is None,
             "form_url": form_url,
             "engine": "Tayari Computer Accessibility Sandbox",
             "redacted_profile": clean_profile,
             "accessibility_nodes_found": len(accessibility_nodes),
+            "observation_failed": observation_error is not None,
+            "observation_error": observation_error,
             "actions_executed": actions,
             "simulated": not any_real_action,
             "questions_queued": queued,
-            "needs_human": bool(questions),
+            "needs_human": bool(questions) or observation_error is not None,
         }
 
 
-    def _selector_for_node(self, node: Dict[str, Any]) -> Optional[str]:
-        """Derive a CSS selector for a snapshot node (fill() takes a selector, not a label).
 
-        Matches on aria-label first (case-insensitive substring). Returns None for
-        supported roles that carry no name so we don't target an unrelated field.
-        """
-        role = node.get("role", "")
-        name = node.get("name", "").strip()
-        if role == "textbox":
-            base = "input:not([type='hidden'])"
-        elif role == "searchbox":
-            base = "input[type='search']"
-        elif role == "combobox":
-            base = "input[role='combobox'], select"
-        else:
-            return None
-        if not name:
-            # ponytail: no aria-label to match on; broad role-only selectors risk the wrong field.
-            return None
-        escaped = name.replace("\\", "\\\\").replace('"', '\\"')
-        if role == "combobox":
-            # ponytail: aria-label must be applied to each comma-separated selector independently.
-            return ", ".join(f'{sel}[aria-label*="{escaped}" i]' for sel in base.split(","))
-        return f'{base}[aria-label*="{escaped}" i]'
-
-    def _extract_input_roles(self, node: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Recursively extract form input nodes from Accessibility Snapshot tree."""
-        results = []
-        role = node.get("role")
-        if role in ("textbox", "searchbox", "combobox", "button", "checkbox", "radio"):
-            results.append({
-                "role": role,
-                "name": node.get("name", "")
-            })
-
-        for child in node.get("children", []):
-            results.extend(self._extract_input_roles(child))
-
-        return results
+    @staticmethod
+    def _ref_for_node(node: Dict[str, Any]) -> Optional[str]:
+        """Return a current BrowserOperator ref, never a selector fallback."""
+        ref = node.get("ref")
+        return ref if isinstance(ref, str) and re.fullmatch(r"ref_[1-9]\d*", ref) else None

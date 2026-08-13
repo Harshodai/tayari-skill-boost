@@ -1828,3 +1828,308 @@ The pricing page was selling the wrong thing. The audit's §1.4 conclusion is ex
   15. **restore-drill resolver** (`scripts/restore-drill.sh`): `out="$out$(getent ahostsv6 ...)"` merged the last v4 address with the first v6 address onto one line — command substitution strips trailing newlines, so the address comparison was ambiguous. Explicit newline separator now joins the two outputs; the python3 fallback passes the host via `sys.argv` instead of interpolating it into the `-c` source (quote-injection break-out).
 - **Root cause:** each finding was a silent-skip, an unpersisted value, or a string-comparison hole: authorization checks that degrade to "trust everything" instead of failing (stream, take-over), fields produced but never stored (prepared resume), hostname comparisons that miss DNS-equivalent forms (trailing dots), transient UI errors that masquerade as permanent state (AutoPilot button, Omnisave disabled states, Pricing success-lie), and a log that emitted PII.
 - **Reusable lesson:** (a) An authorization/trust check that silently skips on failure is worse than none — unknown/mismatched must 404/403 loudly with an audit line, before the resource is created. (b) "Fail closed" and "only enforce on the dangerous action" are complementary, not contradictory: guard every credential entry, but don't block non-credential actions just because they share a callback. (c) Any field a builder produces must have a storage path, or the builder should not exist — "dict-only" is a bug wearing a design's clothes; when a table has a jsonb column, reserved keys are a legitimate zero-migration persistence route (precedent: `_failure_reason`). (d) DNS treats `example.com.` and `example.com` as the same origin — every hostname comparison (allowlist, blocklist, equality) must strip the terminal dot first. (e) Frontend: never derive "backend down" from a single failed mutation, and re-probe health before presenting failure so transient errors can't poison stale UI state; a catch that shows a success toast is a lie. (f) Command substitution strips trailing newlines — when concatenating multi-line outputs, join with an explicit separator or the boundary line merges.
+
+
+## 2026-08-13 — Live browser pane was emitted and discarded; the LLM tier parameter was decorative
+
+### What was done
+- `src/api/browser.ts`: added `"live_view"` to the `BrowserStreamEvent` union. The backend has been emitting `{"type": "live_view", "url": ...}` from `browser_automation/agent.py:542` whenever the provider is Browserbase, but the TypeScript union only listed `screenshot | done | error`, so the event was dropped at the type boundary and never reached the UI.
+- `src/components/agent/AgentLiveView.tsx`: consumes the `live_view` event and renders the provider's interactive session in an iframe (`sandbox="allow-scripts allow-same-origin allow-forms"`, `referrerPolicy="no-referrer"`), taking precedence over the per-step screenshot fallback. Screenshots remain the path for the local Playwright provider, which has no live view. The caption is now conditional instead of unconditionally claiming "not a video stream".
+- `backend/python/app/services/llm_service.py`: added `_tier_model(var, tier, default)`, which resolves `<VAR>_SMART` for `tier="smart"` and `<VAR>_FAST` otherwise, falling back to `<VAR>` when neither is set. Applied it to `OPENROUTER_MODEL`, `NVIDIA_NIM_MODEL` (both branches), and `LLM_MODEL` (Ollama + generic OpenAI-compatible). `llm_complete` now passes its real tier through: `build_provider(tier)` replaced `build_provider(tier if tier == "hermes" else "default")`.
+- `.env.example` + the `llm_service` module docstring document the routing vars.
+
+### Root cause
+- The live view was a producer with no consumer. The backend feature was complete and the UI feature was complete; the union type silently absorbed the mismatch, so nothing errored and the gap looked like "the live feed is screenshots by design."
+- ~20 call sites already annotated `tier="fast"` / `tier="smart"` correctly, and `llm_complete`'s own docstring described the tiers — but one expression collapsed everything except `"hermes"` to `"default"`, so every call resolved to the same model. The routing API existed; the routing did not.
+
+### Fix applied
+- See "What was done": the event is typed and rendered; the tier reaches model selection.
+
+### Reusable lesson
+- A union type that omits a case the producer emits is a silent discard, not a compile error, because the extra field simply fails every branch test. When one side of a wire protocol adds an event, grep the other side for the consumer before assuming the feature shipped.
+- Treat "parameter accepted but normalized away" as a distinct defect class. A function that takes `tier` and immediately rewrites it to a constant reads as configurable at every call site while being hardwired at exactly one — the annotations at the call sites are then load-bearing documentation for behavior that does not exist.
+- Keep opt-in routing inert by default: resolve the new per-tier var *or* the existing single var, so enabling routing is a deploy-time config change and an untouched deployment provably keeps its current model.
+
+### Not fixed (pre-existing, spun off)
+- `app/tests/test_autopilot_system.py::test_omnisave_rag_engine` fails only when `test_origin_guard.py` or `test_run_control.py` is collected alongside it — an import-time side effect, reproducible with every other test deselected (`-k`), so no test-to-test pollution is involved. Surfaces as `RuntimeError: knowledge_store_unavailable` from `omnisave_service.py:612` when `get_pool()` returns None. Unrelated to the changes above.
+
+
+## 2026-08-13 — Import-order-dependent test failure: a library module called `load_dotenv()` at import
+
+### What was done
+- `backend/python/app/services/browser_automation/agent.py`: removed the module-level `from dotenv import load_dotenv` / `load_dotenv()` pair (was line 16 / 33), replaced with a comment stating where env now comes from (compose injects it explicitly for `python-ai` / `celery-*`; a bare local run uses `uvicorn --env-file .env` or `set -a; source .env`).
+- `backend/python/app/tests/test_autopilot_system.py`: `test_omnisave_rag_engine`'s precondition now requires `is_db_enabled()` as well as `is_llm_configured()`, because `query_knowledge_rag` reads the durable store before it ever calls the LLM.
+- `backend/python/app/tests/conftest.py`: added an autouse fixture clearing `app.api.resume_graph._RATE_LIMIT` around every test (second, separate order dependence — see below).
+
+### Root cause
+- `agent.py` called `load_dotenv()` at import time. `test_origin_guard.py` imports `browser_automation.agent`; `test_run_control.py` reaches it through `run_control` / `browser_automation.session`. Collecting either file loaded the repo-root `.env` into `os.environ` for the whole pytest process — including `OPENROUTER_API_KEY`. That flipped `is_llm_configured()` from False to True, so `test_omnisave_rag_engine` stopped taking its `pytest.skip` path and ran `query_knowledge_rag`, whose first statement is `await self.list_user_saved_sources(user_id)` — which fails closed with `RuntimeError("knowledge_store_unavailable")` because `DATABASE_URL` is unset locally and `get_pool()` returns None. The DB was equally absent in the passing configuration; only the *reachability* of that code path changed. The failure was reported at `omnisave_service.py:612` inside `ingest_source`'s test, but `ingest_source` never calls `list_user_saved_sources` — the traceback frame was `query_knowledge_rag` (`omnisave_service.py:840`).
+- Second, unrelated order dependence found while verifying: `app/api/resume_graph.py` keeps a module-global `_RATE_LIMIT` dict (5 req/min, keyed by client IP). Every `TestClient` request arrives as the key `"testclient"`, so the budget is shared across the entire session. In reverse collection order the budget was exhausted before `test_get_resume_graph_not_found`, which then got 429 instead of 404. `test_resume_graph_extended.py:49` already worked around this with a local `_RATE_LIMIT.clear()`.
+
+### Fix applied
+- Env loading removed from the library module; it belongs to the process launcher. Verified no test module import mutates app config env any more (only numpy/OpenMP's `KMP_*` remain).
+- Limiter global reset per test in `conftest.py` rather than weakening the production limiter.
+
+### Verification
+- `.venv/bin/python -m pytest app/tests/ -q` → **196 passed, 2 skipped** (was 196 passed, 1 skipped, 1 failed).
+- Both minimal triggers from the report now skip cleanly.
+- Reverse-ordered and five random-permutation file orderings: all **196 passed, 2 skipped**.
+- With `OPENROUTER_API_KEY` exported and no `DATABASE_URL`: still 196 passed, 2 skipped.
+- `tests/` (the Hermes suite) errors at collection on `JWT_SECRET` — verified pre-existing and unchanged by this work (that suite's `conftest.py` never sets the secret; it was accidentally satisfied only when something happened to load `.env` first).
+
+### Reusable lesson
+- **`load_dotenv()` belongs to a process entrypoint, never to an importable module.** It mutates process-global `os.environ`, so any importer inherits it — and under pytest "any importer" means "whichever files were collected", making unrelated tests depend on collection order. Do not relocate it to `app/main.py` or `app/celery_app.py` either: both are imported at module scope by tests, which would turn an order-dependent failure into a permanent one.
+- When a failure is import-order-dependent but no test-to-test state is shared, look for import-time *global mutation* — env vars, logging config, signal handlers, registry singletons — not for cached values.
+- A test guarded on one precondition (`is_llm_configured()`) when the code under test has two (provider **and** durable store) is a latent flake, not a passing test. Gate on everything the path actually requires.
+- Module-global rate limiters, caches, and counters are shared state across an entire pytest session because `TestClient` presents one identity for every request. Reset them in an autouse fixture; a per-file `clear()` only hides the problem for the file that noticed.
+
+
+## 2026-08-13 — Five fabrication paths that rendered as real user data
+
+Found by a read-only audit pass looking specifically for "code claims more than it does". All five verified by reading the code before fixing.
+
+### What was done
+- `app/services/analytics_service.py` `calculate_conversion_funnel`: an empty application list returned a synthetic 11-application funnel (8 applied / 2 interview / 1 offer). Now returns an all-zero funnel with `health_status="NO_DATA"`.
+- `src/pages/ApplicationAnalytics.tsx`: the page hardcoded `body: { applications: [] }` on every request, so it never sent the user's own applications and always received the synthetic baseline — and its `isValid` check (types only) then passed, running `setIsSampleData(false)` and suppressing the amber "Sample Data" badge. Now fetches real applications via `listApplications()` and posts their statuses. The `DEFAULT_FALLBACK_FUNNEL` (24 applied / 1 offer, "EXCELLENT") shown on request failure is replaced by an empty funnel plus an explicit error badge. The hardcoded ATS-tier outcome matrix is relabelled "Illustrative — not your data" and its "Moat M2: Closed-Loop Data" badge removed.
+- `app/services/optimizer.py` `validate_master_alignment`: a parser exception returned `{"is_aligned": True, "confidence_score": 1.0}`. Now fails closed with `is_aligned: False`, `verified: False`, `confidence_score: 0.0`; the success path gained `verified: True`.
+- `app/api/voice_stream.py`: with no Deepgram key, receiving audio bytes substituted a fixed sentence ("I designed and implemented a Python microservice…"), ran real `analyze_speech_telemetry` over it, and returned WPM / filler counts / STAR compliance for words the user never said. Now emits a one-shot `transcription_unavailable` event and scores nothing. The typed-answer path was already honest and is untouched.
+- `backend/go/internal/api/routes_push.go` `handlePushSend`: logged "mock Web-Push payload" lines and responded `{"status":"sent","sent_subscriptions":N}`. There is no web-push dependency in `go.mod` — no VAPID signing, no POST to the endpoints. Now returns 503 `push_delivery_unconfigured`, matching the AI routes' unconfigured convention; the one caller (`AdvisorDashboard.tsx`) already surfaces `data.error` on non-2xx.
+- `app/agent/autonomous_career_engine.py` `batch_*`: navigation-only results carried `status: "SIMULATED"` and a `click_coordinate` derived from the literal rectangle `(150,250,450,320)` — identical on every row of every portal. Status is now `REACHED`, the fake coordinate is gone, and the payload reports `total_reached` / `submitted: False`, deliberately omitting any `total_submitted` key.
+- `RuthlessJobConsole.tsx` / `AutonomousCareerConsole.tsx`: both rendered "N Applications Submitted" reading `total_submitted` and `success_rate`, which the live engine never returned (it returns `total_processed`) — so the banner displayed `undefined`. Both now report postings opened and state plainly that nothing was submitted.
+
+### Root cause
+One pattern in five places: **the honest-degradation path produced output shaped exactly like the real thing.** A synthetic funnel satisfied the validity check built to detect it; a fail-open guardrail returned the same dict shape as a pass; fabricated speech telemetry used the real analyzer; a "sent" response was indistinguishable from delivery. In every case the disclosure mechanism existed (a Sample Data badge, a confidence score, a status field) and was defeated by fabricated data that satisfied it.
+
+Secondary cause in two places: the UI read field names the backend never emitted, so the claim was not just false but literally `undefined` on screen — nobody had looked at the rendered output.
+
+### Fix applied
+See "What was done": every degraded path now returns a shape that cannot be mistaken for success — zeros, an explicit unavailable event, a 503, or an absent key.
+
+### Reusable lesson
+- A validity check that only inspects types cannot detect fabrication, because fabricated data is well-typed by construction. Validate provenance, not shape — or make the degraded path structurally different (missing key, distinct status, non-2xx) so it cannot satisfy the check at all.
+- Prefer omitting a key to defaulting it to zero when the underlying operation did not happen. `total_submitted: 0` invites a UI to render "0 submitted"; no key at all forces the reader to handle the case.
+- When wiring a UI to an engine, render it once and look at it. Both "Applications Submitted" banners had been wrong since they were written, and the wrong field name would have been caught in one glance at the screen.
+
+### Verification
+`go build ./...` clean, `go test ./internal/api/` 111 passed, `tsc --noEmit` clean, `pytest app/tests/` 196 passed / 2 skipped / 0 failed.
+
+
+## 2026-08-13 — Playwright API drift silently disabled the human-escalation gate
+
+### What was done
+- `app/services/form_filler.py` `fill_form_from_profile`: the accessibility read now tries `Page.accessibility.snapshot()` (Playwright <= ~1.49) and falls back to `Locator.aria_snapshot()` (>= 1.62), so it works on both. Failure is recorded in `observation_error` and logged at ERROR, not swallowed as a warning. An empty node list on a reachable form is itself treated as an observation failure.
+- Same function's return: added `observation_failed` / `observation_error`, made `success` require `observation_error is None`, and changed `needs_human` from `bool(questions)` to `bool(questions) or observation_error is not None` — the run now demands human review when it could not see the form.
+- Added `_parse_aria_snapshot()` and a shared `_INPUT_ROLES` tuple so both readers emit identical `{role, name}` node shapes; `_extract_input_roles` now uses the shared tuple.
+- New `app/tests/test_form_filler_observation.py` (8 tests): parser cases (named/unnamed inputs, non-input roles, nested children with trailing colon, empty input), reader-shape equivalence, sensitive-field escalation, and the blind-run case that documents why `needs_human` cannot be derived from `classify_fields` alone.
+
+### Root cause
+`requirements.txt:40` pins `playwright==1.49.1`; the local venv had **1.62.0**, which removed `Page.accessibility`. The resulting `AttributeError` hit a bare `except Exception` that logged a warning and continued. The chain from there was entirely silent:
+
+`accessibility_nodes = []` → `classify_fields([])` → `questions = []` → `needs_human = False`
+
+`classify_fields` cannot distinguish "this form has no sensitive fields" from "nothing was observed", so a blind run produced the same all-clear as a clean one. Sponsorship, salary, and veteran-status fields stopped being escalated exactly when the agent had lost sight of the form. Docker installs from `requirements.txt`, so container and local dev were running different observation code paths — the failure was invisible in CI.
+
+### Fix applied
+See "What was done": version-agnostic reader, loud failure, and `needs_human` fails closed on observation error.
+
+### Reusable lesson
+- **A derived safety signal must not be computed from an input that can silently become empty.** `needs_human = bool(questions)` was correct only under the unstated assumption that observation succeeded. When that assumption broke, the gate did not fail — it passed. Any predicate of the form "no problems found ⇒ safe" needs a companion "did the search actually run?" term.
+- An empty result from a scan is not evidence of a clean scan. Where a non-empty result is the norm (a reachable web form has inputs), treat emptiness as a failure signal rather than a benign outcome.
+- Pinned-vs-installed dependency drift is a correctness bug, not hygiene. Two environments running different code paths through the same `except Exception` meant the defect could never reproduce in the environment that had tests. Reach for `getattr`-based capability probes over version assumptions when an API is known to have moved.
+
+### Still open (flagged, not changed)
+- The `requirements.txt` pin (1.49.1) and the installed interpreter (1.62.0) still disagree. The code now works on both, but the environments should be reconciled — that pin change affects the Docker build and is the user's call.
+
+
+## 2026-08-13 — Phase 1: fenced page text, deleted the pixel-vision theatre
+
+Adoption-plan items 1.4 and 1.6. See the published plan for the full sequence.
+
+### What was done
+- `app/agent/browser_operator.py` `navigate`: `content_preview` is now wrapped in `prompt_safety.untrusted()` before it is returned. This method backs the `navigate_web` MCP tool (`agent_engine.py:261-276`), so its output goes straight into the model's context — the fence belongs at that boundary, not at each call site. `title` is deliberately left raw: no caller feeds it to a model (omnisave reads `page.title()` directly), and fencing short metadata only risks delimiters surfacing in displayed text.
+- `app/services/prompt_safety.py`: added `strip_untrusted()` for the render path.
+- `app/services/optimizer.py` `scrape_jd_url`: its `content_preview` fallback returns text the user sees and edits as a job description, so it now strips the fence. Without this the new fencing would have put `<<<UNTRUSTED_USER_DATA>>>` into the JD field.
+- Deleted `app/agent/computer_use.py` and every caller: `agent_engine.py` (import, instance, and the `spatial_click_coord` / "MCP Tool & Spatial Vision Inspection" step), `job_seeker_agent.py` (`center_coords`, `click_cmd`, `spatial_click_cmd`, and the action-log line asserting a submit button had been located), `ruthless_engine.py` (`click_coordinate`), plus `test_advanced_agent.py` and the `AgentConsole.tsx` block rendering "🎯 Spatial Vision Computer Use Click Coordinate".
+
+### Root cause
+`ComputerUseDriver` was pure coordinate arithmetic — no screenshot, no image, no vision — fed a hardcoded rectangle at all three call sites. Every job on every portal therefore reported the same "click coordinate" (`(300, 285)` from `(150,250,450,320)`), and the agent trace told the user a spatial-vision inspection had occurred. Anthropic ships pixel computer use and still ranks it last on its own escalation ladder; for this product it is strictly dominated by accessibility-tree addressing, so the driver was deleted rather than completed.
+
+The unfenced page text was a boundary-ownership gap: `prompt_safety.untrusted()` already existed and was applied to job-description text, but not to text the browser read off an arbitrary page — the one input an attacker fully controls.
+
+### Fix applied
+See "What was done": fence at the MCP boundary, strip at the render boundary, delete the fake capability and everything that displayed it.
+
+### Reusable lesson
+- **Fence untrusted data where it enters, un-fence where it is displayed.** Fencing at each prompt-construction site means every future call site has to remember; fencing at the boundary means only the display sites need to know, and there are far fewer of them. Adding the fence without auditing consumers is how delimiters leak into a user's textarea — grep the consumers in the same change.
+- Deleting a fake capability means deleting what renders it. The Python constant was harmless on its own; the harm was `AgentConsole.tsx` presenting it as a measurement. A removal that stops at the backend leaves the claim on screen reading `undefined`.
+- When removing a local variable, grep the whole function for later uses — `click_cmd` survived in a return dict two screens below its deleted definition and only surfaced as a `NameError` under test.
+
+### Verification
+`pytest app/tests/` 203 passed / 2 skipped / 0 failed · `tsc --noEmit` clean · `go build ./...` clean · `go test ./internal/api/` 111 passed.
+
+
+## 2026-08-13 — Phase 1.5: BrowserOperator now does what its docstring claimed
+
+### What was done
+- `app/agent/browser_operator.py`: added `observe()`, which reads the page via `locator("body").aria_snapshot()` and returns `{"ref", "role", "name"}` per interactive element, holding a live `Locator` per `ref_N` in `self._refs`. Repeated `(role, name)` pairs are disambiguated by order of appearance and bound with `.nth(index)`, which is what `get_by_role` indexes on.
+- Added `screenshot()` (base64 PNG) — documented as the fallback, not the primary read.
+- `click()` / `fill()` now take a `ref_N` handle **or** a CSS selector. A `ref_` that is not in the map returns `stale or unknown ref … call observe() again` instead of falling through to a selector lookup, which would have clicked an unrelated element.
+- The ref map is cleared on navigation and after any click, since either can mutate the DOM.
+- Rewrote the class docstring, which claimed "DOM accessibility tree parsing, and screenshot capture for spatial vision reasoning" over code that had neither and no screenshot method at all.
+
+### Root cause
+The docstring described the intended design; only the navigate/click/fill skeleton was ever built, and the addressing that did exist (`form_filler._selector_for_node`) reconstructed a CSS selector from the accessible name. Semantic observation followed by fuzzy string-match addressing is the exact failure mode stable refs remove — ATS single-page forms re-layout between renders, and `[aria-label*="…" i]` does not survive that while `get_by_role(...).nth(i)` does.
+
+### Fix applied
+See "What was done": tree-first observation with stable handles, screenshots demoted to fallback, stale refs rejected loudly, docstring made true.
+
+### Reusable lesson
+- An ephemeral handle needs an explicit invalidation point, and the code must own it — a comment saying refs die on navigation is worth nothing unless `navigate` actually clears the map. When the docstring you are fixing lied, check that the replacement docstring does not.
+- Give a stale handle its own error. Silently falling back to another interpretation of the same string (a ref treated as a selector) turns a caught bug into a wrong action on a real page.
+
+### Verification
+`pytest app/tests/` 203 passed / 2 skipped · `tsc --noEmit` clean. `observe()` itself is not covered by a live-browser test — no Playwright browser is driven in the suite. Its parser shares the shape verified by `test_form_filler_observation.py`, but the ref→Locator binding is untested against a real page.
+
+
+## 2026-08-13 — "Thompson Sampling" endpoint always returned the first variant
+
+Found by a research subagent auditing the outcome-loop code path while grounding a quality-eval
+report; verified directly before acting on it.
+
+### What was done
+- `backend/python/app/services/bandit_service.py` `BanditService.select_variant`: replaced the
+  scoring loop, which read `v.get("conversion_rate", v.get("score", 0.0))`, with real Thompson
+  Sampling — one `random.betavariate(1 + conversions, 1 + failures)` draw per arm, argmax of the
+  draws. Added an optional `rng: random.Random` parameter for deterministic tests. Conversions are
+  clamped to `min(conversions, pulls)` so malformed input can't produce a negative beta parameter.
+- Added `backend/python/app/tests/test_bandit_service.py` (7 tests): empty/single-variant edge
+  cases, a distributional test proving equal arms don't always resolve to the same winner, a
+  distributional test proving a strong arm wins the clear majority (not all) of draws against a
+  weak one, a test proving an unpulled arm can still win (Beta(1,1) is a uniform prior — this is
+  what makes it exploration and not pure exploitation), the malformed-input clamp, and
+  determinism under a seeded RNG.
+
+### Root cause
+`POST /api/v1/predictive/bandit/select`'s request schema (`VariantStat`) only ever carries
+`variant_id`, `pulls`, `conversions` — it has no `conversion_rate` or `score` field and never did.
+`select_variant`'s scoring line checked exactly those two absent keys, so every arm evaluated to the
+same default `0.0`, and the `score > best_score` comparison (seeded at `-1.0`) updated exactly once,
+on the first variant, then never again — ties don't beat ties. The function always returned
+`variants[0]`'s ID regardless of performance, silently, with no error and no signal that anything was
+wrong. The endpoint's docstring and its own error message both say "Thompson Sampling"; nothing in
+the implementation sampled anything. The real epsilon-greedy implementation in the same file
+(`select_strategy`, with an honest cold-start "learning" vs "optimized" gate) has zero callers and
+was never wired to this endpoint.
+
+### Fix applied
+See "What was done": the function now uses the fields the schema actually supplies and performs a
+real posterior draw per arm.
+
+### Reusable lesson
+- A scoring function that reads keys the caller's schema never populates degrades to "return a
+  constant" without raising — there's no crash to signal the mismatch, just silently wrong behavior
+  that happens to look plausible (it does return *a* variant_id). Whenever a function reads
+  optional/`.get()`-defaulted fields, check that at least one call site actually supplies them;
+  if none does, the function is dead in a different sense than an uncalled function — it runs, but
+  never does what it claims.
+- A/B testing code that never explores is not a lesser version of the real thing — it is actively
+  harmful, because it permanently locks onto whichever variant happened to load first, with the
+  same "test succeeded" outward appearance as a real bandit. This is the same fabrication pattern as
+  every other fix this session: the degraded path looked identical to success.
+- When a docstring names a specific, well-known algorithm ("Thompson Sampling", "DOM accessibility
+  tree parsing", "spatial vision reasoning" — all three misclaimed in this codebase this session),
+  read the implementation and check for the algorithm's actual defining operation (a posterior
+  draw, a snapshot call, a coordinate-to-pixel mapping) before trusting the name.
+
+### Verification
+`pytest app/tests/` 213 passed / 2 skipped / 0 failed, stable across 3 repeated runs.
+
+
+## 2026-08-13 — Three deployment-blocking gaps found by research agents, verified and fixed directly
+
+A deployment-platform research agent and a shadow-testing/observability research agent (both
+requested to ground Tayari's hosting and ops decisions) each surfaced a concrete, currently-live
+defect while reading the code to inform their recommendations. Both were verified independently
+before being trusted, then fixed. Full reports: `docs/deployment-research/platform-recommendation.md`
+and `docs/deployment-research/shadow-testing-and-observability.md`.
+
+### What was done
+
+**1. `backend/python/Dockerfile` never installed Chromium.** `/api/v1/browser/automation`,
+`/api/v1/browser/automation/stream` (`main.py:830-861,1701`), `form_filler.py`'s
+`execute_form_auto_fill`, and `optimizer.py`'s `scrape_jd_url` all launch Playwright/Chromium
+**inline inside the `python-ai` FastAPI process** — not only via Celery. `Dockerfile.worker` (the
+Celery image, which none of these routes use) ran `playwright install --with-deps chromium`;
+`Dockerfile` (what `python-ai` actually builds from, per `docker-compose.yml:25-27`) did not. Every
+one of these routes threw a missing-executable error the first time it ran in any Docker deployment.
+Fixed by adding the identical `RUN python -m playwright install --with-deps chromium` line to
+`Dockerfile`, verified byte-for-byte identical to `Dockerfile.worker`'s working command.
+
+**2. `python-ai`'s prod container ran `uvicorn --reload` with no `--workers`.** `Dockerfile`'s CMD
+was hardcoded to `--reload`, and `docker-compose.yml`'s `python-ai` service uses one shared
+`environment:`/command across `["dev", "prod", "eval"]` profiles — `--reload` shipped in every
+profile including prod, where it's pure overhead (a file-watcher process) that also forces
+single-process mode regardless of load. Fixed with the same opt-in, default-preserving pattern used
+earlier this session for LLM model-tier routing: the Dockerfile CMD is now a shell conditional
+reading `UVICORN_RELOAD` (default `true`, preserving today's exact behavior) and `UVICORN_WORKERS`
+(default `2`, only used when reload is off). `docker-compose.yml` and `.env.example` both document
+the new vars; a prod deployment sets `UVICORN_RELOAD=false` in its `.env`.
+
+**3. The Go gateway's DB pool was unbounded.** `internal/database/database.go`'s `NewDB` called
+`sql.Open("pgx", dsn)` with no `SetMaxOpenConns`/`SetMaxIdleConns`/`SetConnMaxLifetime` — running on
+`database/sql`'s defaults (unbounded open connections, 2 idle). A traffic spike degrades into
+unbounded Postgres connection growth instead of requests queuing predictably at a known limit. Fixed
+with explicit bounds (`SetMaxOpenConns(10)`, `SetMaxIdleConns(5)`, `SetConnMaxLifetime(30 *
+time.Minute)`) — deliberately modest since the Go gateway is a thin auth/routing layer in front of
+the Python engine, not a heavy DB consumer.
+
+### Root cause
+
+All three are instances of the same pattern this session keeps finding: a working reference
+implementation existed elsewhere in the same repo (`Dockerfile.worker`'s Chromium install; the Python
+side's already-bounded `asyncpg` pools in `db.py`/`privacy_ledger.py`) or a clearly-dev-only flag
+shipped unconditionally into every deployment target, and nothing forced the two to be checked
+against each other. None of the three would surface in `pytest`/`tsc`/`go build` — they're runtime
+and deployment-shape defects, invisible to a test suite that never launches Chromium in Docker, never
+runs the prod uvicorn command, and never puts the Go gateway under enough concurrent load to notice
+an unbounded pool.
+
+### Fix applied
+
+See "What was done". `docker compose config` (validates offline, no daemon required) confirms the
+compose file parses correctly with the new env vars and resolves to the documented defaults. The
+conditional Dockerfile CMD's shell logic was verified directly via `sh -c` for all four cases (unset,
+explicit `true`, explicit `false`, explicit `false` with a custom worker count).
+
+**Not verified: an actual `docker build`/`docker compose up`.** Docker Desktop's engine backend was
+unresponsive throughout this session (macOS app processes running, but `docker info` never connected
+to the daemon socket despite repeated checks and a restart attempt) — a local environment issue, not
+something this fix could route around. The Chromium install line is byte-identical to
+`Dockerfile.worker`'s proven-working command, and the compose/env changes validate offline, but
+**a real build should be the first thing done with this change before deploying it** — do not treat
+"verified by inspection" as equivalent to "verified by build."
+
+### Reusable lesson
+
+- When two Dockerfiles in the same repo build overlapping code paths (here: the Celery worker and
+  the FastAPI process both import and run `BrowserOperator`), a dependency needed by one is needed by
+  both unless the code paths are actually distinct — check the *routes*, not just which Dockerfile
+  looks like the "browser one."
+- A `--reload`/debug flag with no explicit opt-out is a silent prod footgun. The safe pattern is the
+  one used for tier-routing earlier this session: an env var that defaults to today's exact behavior,
+  so the change is additive and a deployment that does nothing differently keeps working identically.
+- An unbounded resource pool is not "no configuration" — it's "configuration decided by the runtime's
+  defaults instead of by you," and `database/sql`'s defaults (unbounded open, 2 idle) are wrong for
+  nearly every real service. Set explicit bounds even when the "right" number requires future
+  load-testing to refine; a wrong-but-explicit bound degrades as queueing, an absent one degrades as
+  an outage.
+- When infrastructure verification requires a tool that turns out to be unavailable (here: a hung
+  Docker daemon), say so plainly rather than silently downgrading the claim. "Verified by inspection
+  against a proven pattern" and "verified by running it" are different levels of confidence — report
+  the level you actually reached.
+
+### Verification
+`docker compose config` succeeds and resolves `UVICORN_RELOAD`/`UVICORN_WORKERS` to their documented
+defaults. Shell conditional logic verified via direct `sh -c` execution, all four cases correct.
+`go build ./...`, `go vet ./...` clean; `go test ./...` all packages `ok`, zero `FAIL`. Python suite
+unaffected by these changes: 213 passed / 2 skipped, stable across 3 runs. `tsc --noEmit` clean.
+Docker image build **not executed** — see "Fix applied" above.

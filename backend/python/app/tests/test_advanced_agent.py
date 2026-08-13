@@ -3,7 +3,6 @@ import asyncio
 from app.agent.agent_memory import AgentMemory
 from app.agent.reflection_engine import ReflectionEngine
 from app.agent.subagent_orchestrator import SubagentOrchestrator
-from app.agent.computer_use import ComputerUseDriver
 from app.agent.agent_engine import GeneralistAgentEngine
 
 def test_agent_memory():
@@ -31,11 +30,6 @@ async def test_subagent_orchestrator():
     results = await orch.delegate_parallel(tasks)
     assert len(results) == 2
     assert results[0]["status"] == "completed"
-
-def test_computer_use_driver():
-    driver = ComputerUseDriver(1280, 800)
-    coord = driver.calculate_center_coordinates((100, 100, 300, 300))
-    assert coord == (200, 200)
 
 @pytest.mark.asyncio
 async def test_enterprise_agent_engine():

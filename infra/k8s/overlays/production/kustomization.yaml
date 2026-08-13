@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+namespace: tayari-production
+patches:
+  - path: namespace-patch.yaml
+    target:
+      kind: Namespace
+      name: tayari
+  - path: runtime-config-patch.yaml
+    target:
+      kind: ConfigMap
+      name: tayari-runtime-config
+  - path: ingress-patch.yaml
+  - path: production-resource-patch.yaml

@@ -104,18 +104,13 @@ print(f"ATS Match Score: {{match_score}}%")
 
     async def auto_fill_application_form(self, form_url: str, user_profile: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Auto-fill application form using Playwright Browser Operator & Computer Use Spatial Vision Driver.
+        Auto-fill application form using the Playwright Browser Operator.
         """
         nav_res = await self.engine.browser.navigate(form_url)
         
-        # Calculate spatial click coordinates for 'Apply Now' button using Computer Use
-        center_coords = self.engine.computer_use.calculate_center_coordinates((200, 300, 400, 350))
-        click_cmd = self.engine.computer_use.format_mouse_click(center_coords[0], center_coords[1])
-
         # Execute simulated form actions
         actions = [
             f"Navigated to {form_url}",
-            f"Computer Use spatial vision located submit button at X={center_coords[0]}, Y={center_coords[1]}",
             f"Filled Full Name: {user_profile.get('name', 'John Doe')}",
             f"Filled Email: {user_profile.get('email', 'john@example.com')}",
             "Uploaded Tailored Resume PDF",
@@ -125,7 +120,6 @@ print(f"ATS Match Score: {{match_score}}%")
         return {
             "form_url": form_url,
             "status": "simulated",
-            "spatial_click_cmd": click_cmd,
             "actions_taken": actions,
             "browser_preview": nav_res
         }

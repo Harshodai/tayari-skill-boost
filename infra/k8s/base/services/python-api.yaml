@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tayari-python-api
+  labels:
+    app.kubernetes.io/name: python-ai
+    app.kubernetes.io/component: ai-api
+    app.kubernetes.io/part-of: job-tayari
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: python-ai
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP

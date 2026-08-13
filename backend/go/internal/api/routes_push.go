@@ -106,19 +106,17 @@ func (s *Server) handlePushSend(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	log.Printf("[PUSH-SERVER] Triggering push notification for user %s. Title: %s, Body: %s. Active subscriptions: %d",
-		targetUserID, req.Title, req.Body, len(subs))
+	// There is no Web Push transport wired up here: no VAPID keys, no signing,
+	// and no HTTP POST to the subscription endpoints (nothing in go.mod
+	// provides it). This handler therefore cannot deliver anything, and must
+	// not answer "sent" — callers surface that to a user as a delivered alert.
+	// Fail closed with the same shape the AI routes use when unconfigured.
+	log.Printf("[PUSH-SERVER] Push requested for user %s (%d subscriptions) but Web Push delivery is not configured; nothing was sent.",
+		targetUserID, len(subs))
 
-	// Simulate push message payloads
-	for idx, sb := range subs {
-		log.Printf("[PUSH-SERVER] Dispatching mock Web-Push payload to endpoint [%d]: %s (p256dh: %s...)",
-			idx, sb.Endpoint, sb.P256dh[:10])
-	}
-
-	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"status":             "sent",
-		"sent_subscriptions": len(subs),
-		"title":              req.Title,
-		"body":               req.Body,
+	s.respondJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
+		"error":                 "push_delivery_unconfigured",
+		"message":               "Web Push delivery is not configured on this server, so no notification was sent.",
+		"matched_subscriptions": len(subs),
 	})
 }

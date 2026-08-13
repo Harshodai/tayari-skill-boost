@@ -1,170 +1,122 @@
 import { Link } from "react-router-dom";
+import { ArrowRight, Check, FileSearch, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Sparkles, FileText, CheckCircle2, TrendingUp } from "lucide-react";
-import { CountUp } from "@/components/ui/count-up";
-import { useState } from "react";
 
-const ROLES = [
-  {
-    company: "Stripe",
-    role: "Senior Frontend Engineer",
-    score: "94",
-    keywords: "47",
-    keywordsSuffix: "/50",
-    applied: "128",
-    hint: "3 missing — added inline",
-    keywordsHint: "Ready for submission",
-    appliedHint: "32 active conversations",
-    url: "stripe",
-  },
-  {
-    company: "Vercel",
-    role: "Staff Backend Engineer",
-    score: "87",
-    keywords: "41",
-    keywordsSuffix: "/50",
-    applied: "184",
-    hint: "9 missing — auto-adjusted",
-    keywordsHint: "Ready for submission",
-    appliedHint: "45 active conversations",
-    url: "vercel",
-  },
-  {
-    company: "Figma",
-    role: "Staff Product Designer",
-    score: "96",
-    keywords: "49",
-    keywordsSuffix: "/50",
-    applied: "96",
-    hint: "1 missing — perfect match",
-    keywordsHint: "Ready for submission",
-    appliedHint: "18 active conversations",
-    url: "figma",
-  },
+const CHECKPOINTS = [
+  "Choose the opportunities worth your time",
+  "Review the work before you move forward",
+  "Keep a visible record of each completed action",
 ];
 
 export function HeroSection() {
-  const [selectedRoleIdx, setSelectedRoleIdx] = useState(0);
-  const currentRole = ROLES[selectedRoleIdx];
-
   return (
-    <section className="relative pt-24 pb-20 lg:pt-32 lg:pb-28 overflow-hidden bg-mesh">
-      {/* Decorative grid */}
-      <div className="absolute inset-0 bg-grid opacity-60 pointer-events-none" />
+    <section className="relative overflow-hidden border-b border-slate-800 bg-[#080d1c] pb-16 pt-24 text-slate-100 sm:pb-20 sm:pt-28 lg:pb-28 lg:pt-32">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute left-1/2 top-[-18rem] h-[46rem] w-[46rem] -translate-x-1/2 rounded-full bg-indigo-500/18 blur-[120px]" />
+        <div className="absolute bottom-[-20rem] left-[-12rem] h-[34rem] w-[34rem] rounded-full bg-cyan-400/10 blur-[110px]" />
+        <div className="absolute right-[-12rem] top-[24%] h-[28rem] w-[28rem] rounded-full bg-violet-500/12 blur-[110px]" />
+        <div className="absolute inset-0 opacity-[0.32] [background-image:linear-gradient(rgba(148,163,184,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,.12)_1px,transparent_1px)] [background-size:52px_52px] [mask-image:radial-gradient(ellipse_72%_68%_at_50%_32%,black,transparent)]" />
+      </div>
 
-      <div className="container mx-auto px-4 relative z-10">
-        <div className="max-w-5xl mx-auto text-center">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-border/60 bg-card/40 backdrop-blur-sm text-sm font-medium text-muted-foreground mb-8 animate-fade-in">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-            </span>
-            <Sparkles className="w-3.5 h-3.5 text-primary" />
-            <span>Every submission comes with a receipt</span>
-          </div>
+      <div className="container relative z-10 mx-auto px-4 sm:px-6">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16">
+          <div className="max-w-2xl text-center lg:text-left">
+            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-indigo-300/20 bg-indigo-300/10 px-3.5 py-1.5 text-sm font-medium text-indigo-100 shadow-[0_0_0_1px_rgba(129,140,248,.08),0_12px_40px_rgba(79,70,229,.16)]">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-300 opacity-60 motion-reduce:hidden" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-300" />
+              </span>
+              <Sparkles className="h-3.5 w-3.5 text-cyan-200" />
+              Candidate-controlled career operations
+            </div>
 
-          {/* Headline — Apple/Stripe scale */}
-          <h1 className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-[5.5rem] font-bold text-foreground mb-8 tracking-tight leading-[1.02] animate-fade-in-up">
-            The career platform
-            <br />
-            <span className="text-gradient">built for outcomes.</span>
-          </h1>
+            <h1 className="font-display text-balance text-5xl font-bold leading-[0.98] tracking-[-0.055em] text-white sm:text-6xl lg:text-7xl">
+              A job search you can <span className="text-transparent [background:linear-gradient(110deg,#a5b4fc_0%,#67e8f9_52%,#5eead4_100%)] [background-clip:text]">inspect</span> before anything goes out.
+            </h1>
 
-          {/* Subheadline */}
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed animate-fade-in-up animation-delay-200">
-            Optimize your resume against any job description, prep with an AI interview coach,
-            and let agents handle the application grind — all in one workspace.
-          </p>
+            <p className="mx-auto mt-7 max-w-xl text-pretty text-base leading-7 text-slate-300 sm:text-lg lg:mx-0 lg:pr-6">
+              Tailor your materials, organise your opportunities, and move through every application with visible review steps—not promises you cannot verify.
+            </p>
 
-          {/* CTAs */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-12 animate-fade-in-up animation-delay-300">
-            <Button size="xl" variant="glow" asChild className="min-w-[200px] shadow-glow">
-              <Link to="/auth?mode=signup">
-                Start free
-                <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
-              </Link>
-            </Button>
-            <Button size="lg" variant="ghost" asChild className="text-foreground/80 hover:text-foreground">
-              <Link to="/resume">
-                Try Resume Optimizer →
-              </Link>
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground/70 animate-fade-in-up animation-delay-350">
-            No signup?{" "}
-            <Link to="/free-scan" className="text-primary hover:underline font-medium">
-              Try a free ATS scan
-            </Link>
-          </p>
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
+              <Button size="xl" asChild className="group min-w-[190px] bg-indigo-400 text-slate-950 shadow-[0_16px_46px_rgba(129,140,248,.3)] transition hover:bg-indigo-300">
+                <Link to="/auth?mode=signup">
+                  Build my review loop
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild className="border-slate-600 bg-slate-950/25 text-slate-100 hover:border-slate-400 hover:bg-slate-900">
+                <Link to="/free-scan">
+                  Try a free ATS scan
+                </Link>
+              </Button>
+            </div>
 
-          {/* Role selector tabs */}
-          <div className="flex justify-center gap-2.5 mb-6 animate-fade-in-up animation-delay-400">
-            {ROLES.map((role, idx) => (
-              <button
-                key={role.company}
-                onClick={() => setSelectedRoleIdx(idx)}
-                className={`px-4 py-2 rounded-full text-xs font-semibold border transition-all duration-300 ${
-                  selectedRoleIdx === idx
-                    ? "bg-primary text-primary-foreground border-primary shadow-glow scale-105"
-                    : "glass hover:bg-muted/80 text-muted-foreground border-border/60"
-                }`}
-              >
-                {role.company}
-              </button>
-            ))}
-          </div>
-
-          {/* Product preview card — Stripe-style floating mock */}
-          <div className="relative max-w-4xl mx-auto animate-fade-in-up animation-delay-500">
-            <div className="absolute -inset-x-8 -inset-y-4 bg-gradient-to-r from-primary/20 via-accent/10 to-secondary/20 blur-3xl opacity-50 pointer-events-none" />
-            <div className="relative rounded-2xl border border-border/60 bg-card/80 backdrop-blur-xl shadow-2xl overflow-hidden">
-              {/* Mock browser chrome */}
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-border/60 bg-muted/30">
-                <div className="flex gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-destructive/60" />
-                  <span className="w-3 h-3 rounded-full bg-warning/60" />
-                  <span className="w-3 h-3 rounded-full bg-success/60" />
+            <div className="mt-9 grid gap-3 text-left sm:grid-cols-3 lg:max-w-xl lg:grid-cols-1">
+              {CHECKPOINTS.map((checkpoint) => (
+                <div key={checkpoint} className="flex items-start gap-2.5 text-sm leading-5 text-slate-300">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-emerald-300/25 bg-emerald-400/10 text-emerald-200">
+                    <Check className="h-3 w-3" />
+                  </span>
+                  <span>{checkpoint}</span>
                 </div>
-                <div className="flex-1 mx-4 px-3 py-1 rounded-md bg-background/60 border border-border/40 text-xs text-muted-foreground text-center font-mono truncate transition-all">
-                  tayari.app / resume / {currentRole.url}
-                </div>
-              </div>
-              {/* Mock content */}
-              <div key={selectedRoleIdx} className="grid md:grid-cols-3 gap-4 p-6 text-left animate-fade-in">
-                <MockTile
-                  icon={<FileText className="w-4 h-4" />}
-                  label="Match Score"
-                  value={currentRole.score}
-                  suffix="%"
-                  hint={`vs. ${currentRole.role}`}
-                  accent="text-success"
-                />
-                <MockTile
-                  icon={<CheckCircle2 className="w-4 h-4" />}
-                  label="ATS Keywords"
-                  value={currentRole.keywords}
-                  suffix={currentRole.keywordsSuffix}
-                  hint={currentRole.hint}
-                  accent="text-primary"
-                />
-                <MockTile
-                  icon={<TrendingUp className="w-4 h-4" />}
-                  label="Roles Applied"
-                  value={currentRole.applied}
-                  suffix=""
-                  hint={currentRole.appliedHint}
-                  accent="text-accent"
-                />
-              </div>
+              ))}
             </div>
           </div>
 
-          {/* Stat strip */}
-          <div className="grid grid-cols-3 gap-8 mt-20 max-w-3xl mx-auto">
-            <Stat end={10} suffix="K+" label="Resumes Optimized" />
-            <Stat end={85} suffix="%" label="Interview Rate Lift" />
-            <Stat end={500} suffix="+" label="Offers Landed" />
+          <div className="relative mx-auto w-full max-w-[680px] lg:mx-0">
+            <div aria-hidden="true" className="absolute -inset-6 rounded-[2rem] bg-gradient-to-br from-indigo-400/25 via-cyan-300/10 to-emerald-300/15 blur-3xl" />
+            <div className="relative overflow-hidden rounded-[1.4rem] border border-slate-700/80 bg-slate-950/80 shadow-[0_28px_80px_rgba(0,0,0,.38)]">
+              <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/70 px-4 py-3 sm:px-5">
+                <div className="flex items-center gap-1.5" aria-hidden="true">
+                  <span className="h-2.5 w-2.5 rounded-full bg-rose-400/75" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-300/75" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-300/75" />
+                </div>
+                <div className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-[11px] font-medium text-slate-400">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
+                  Review loop active
+                </div>
+              </div>
+
+              <div className="relative aspect-video bg-[#0b1020]">
+                <video
+                  className="h-full w-full object-cover motion-reduce:hidden"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  aria-label="Animated workflow showing a matched role, candidate review, and recorded receipt"
+                >
+                  <source src="/animations/candidate-review-loop.mp4" type="video/mp4" />
+                </video>
+
+                <div className="absolute inset-0 hidden items-center justify-center p-6 motion-reduce:flex" aria-label="Candidate review workflow">
+                  <StaticWorkflow />
+                </div>
+              </div>
+
+              <div className="grid gap-3 border-t border-slate-800 bg-slate-950/95 p-4 sm:grid-cols-2 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-400/10 text-indigo-200"><FileSearch className="h-4 w-4" /></span>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-100">Fit before volume</p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-400">Start with relevant roles and materials you can stand behind.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-300/10 text-amber-200"><ShieldCheck className="h-4 w-4" /></span>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-100">Proof, not guesswork</p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-400">Keep the workflow visible instead of relying on a black box.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-3 text-center text-xs leading-5 text-slate-500">
+              Sensitive answers and final decisions stay with you.
+            </p>
           </div>
         </div>
       </div>
@@ -172,30 +124,21 @@ export function HeroSection() {
   );
 }
 
-function MockTile({
-  icon, label, value, suffix, hint, accent,
-}: { icon: React.ReactNode; label: string; value: string; suffix: string; hint: string; accent: string }) {
-  return (
-    <div className="rounded-xl border border-border/50 bg-background/60 p-4">
-      <div className="flex items-center gap-2 text-muted-foreground text-xs uppercase tracking-wider mb-3">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div className={`font-display text-3xl font-bold ${accent}`}>
-        {value}<span className="text-lg opacity-70">{suffix}</span>
-      </div>
-      <p className="text-xs text-muted-foreground mt-1">{hint}</p>
-    </div>
-  );
-}
+function StaticWorkflow() {
+  const steps = [
+    { label: "Match", tone: "border-indigo-300/40 bg-indigo-400/10 text-indigo-100" },
+    { label: "Review", tone: "border-cyan-300/40 bg-cyan-400/10 text-cyan-100" },
+    { label: "Receipt", tone: "border-amber-300/40 bg-amber-300/10 text-amber-100" },
+  ];
 
-function Stat({ end, suffix, label }: { end: number; suffix: string; label: string }) {
   return (
-    <div className="text-center">
-      <div className="font-display text-3xl md:text-4xl font-bold text-foreground flex justify-center items-center">
-        <CountUp end={end} suffix={suffix} duration={2.5} />
-      </div>
-      <div className="text-muted-foreground text-xs md:text-sm mt-1 tracking-wide">{label}</div>
+    <div className="grid w-full max-w-lg grid-cols-3 gap-3">
+      {steps.map((step, index) => (
+        <div key={step.label} className="relative">
+          <div className={`rounded-xl border p-3 text-center text-sm font-semibold ${step.tone}`}>{step.label}</div>
+          {index < steps.length - 1 && <ArrowRight className="absolute -right-4 top-1/2 hidden h-4 w-4 -translate-y-1/2 text-slate-500 sm:block" />}
+        </div>
+      ))}
     </div>
   );
 }

@@ -1,0 +1,28 @@
+appId: app.tayari.desktop
+productName: Tayari Desktop
+asar: true
+files:
+  - dist/**
+  - electron/**
+  - package.json
+extraResources:
+  - from: backend
+    to: tayari-runtime/backend
+  - from: supabase-local
+    to: tayari-runtime/supabase-local
+  - from: docker-compose.yml
+    to: tayari-runtime/docker-compose.yml
+  - from: Caddyfile
+    to: tayari-runtime/Caddyfile
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+    - target: zip
+      arch:
+        - arm64
+  category: public.app-category.productivity
+  artifactName: ${productName}-${version}-${arch}.${ext}
+dmg:
+  title: Tayari Desktop

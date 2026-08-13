@@ -13,8 +13,6 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable, List, Optional
 
-from dotenv import load_dotenv
-
 from app.services.browser_automation.origin_guard import (
     OriginGuardError,
     assert_origin_for_credential_entry,
@@ -30,7 +28,13 @@ from app.services.browser_automation.session import (
 
 logger = logging.getLogger(__name__)
 
-load_dotenv()
+# ponytail: no load_dotenv() here. Importing a library module must not mutate
+# process-wide os.environ — doing so made unrelated behaviour depend on which
+# modules pytest happened to collect (a run that imported this module picked up
+# the repo .env's OPENROUTER_API_KEY, flipping is_llm_configured() to True).
+# Environment is supplied by the process launcher: docker-compose injects it
+# explicitly for python-ai/celery-*, and a bare local run should use
+# `uvicorn --env-file .env` or `set -a; source .env`.
 
 DEFAULT_MAX_STEPS = int(os.getenv("AGENT_MAX_STEPS", "25"))
 

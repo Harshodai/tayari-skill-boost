@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tayari-runtime-config
+  labels:
+    app.kubernetes.io/part-of: job-tayari
+data:
+  APP_ENV: production
+  PORT: "8080"
+  PYTHON_AI_PORT: "8000"
+  AI_SERVICE_URL: http://tayari-python-api:8000
+  USE_SUPABASE: "true"
+  SENTRY_ENVIRONMENT: production
+  VITE_USE_SELF_HOSTED: "false"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tayari-worker-config
+  labels:
+    app.kubernetes.io/part-of: job-tayari
+data:
+  CELERY_WORKER_CONCURRENCY: "1"
+  CELERY_WORKER_QUEUE: tayari
+  CELERY_SHUTDOWN_TIMEOUT_SECONDS: "90"

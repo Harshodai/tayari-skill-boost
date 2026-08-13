@@ -1,31 +1,27 @@
-# Exclude all by default? No, explicit excludes are safer for existing setup.
-
 .git
-.gitignore
+.github
 .env
 .env.*
-.idea
-.vscode
-docker-compose.yml
-README.md
-
-# Directories to ignore
+!.env.example
 node_modules
 dist
+test-results
 coverage
-logs
-tmp
-temp
+playwright-report
+product-demo
+audio-output
+external_repos
 supabase-local
-supabase-temp
-
-# Backend directories (not needed for frontend build)
-backend
-apps
-packages
-
-# Ignore large media/artifacts not in public
+helm
+*.log
+*.tmp
 *.mp4
-*.mov
-*.zip
-*.tar.gz
+*.mp3
+*.wav
+.DS_Store
+__pycache__
+.pytest_cache
+.mypy_cache
+.venv
+backend/python/.venv
+backend/python/.pytest_cache

@@ -21,7 +21,6 @@ interface Step {
   result?: any;
   swarm_output?: SwarmResult[];
   mcp_output?: any;
-  spatial_click_coord?: [number, number];
   plan?: string[];
 }
 
@@ -208,12 +207,6 @@ export const AgentConsole: React.FC = () => {
                     <div className="bg-slate-900 p-3 rounded border border-slate-800 text-slate-300">
                       <div className="text-[10px] text-slate-500 uppercase mb-1"># Execution Result / Reflection Diagnosis</div>
                       <pre className="whitespace-pre-wrap">{JSON.stringify(st.result, null, 2)}</pre>
-                    </div>
-                  )}
-
-                  {st.spatial_click_coord && (
-                    <div className="text-[11px] text-purple-300 bg-purple-950/30 p-2 rounded border border-purple-800">
-                      🎯 Spatial Vision Computer Use Click Coordinate: [{st.spatial_click_coord[0]}, {st.spatial_click_coord[1]}]
                     </div>
                   )}
                 </div>

@@ -23,6 +23,7 @@ export default defineConfig(({ mode }) => {
     .slice(0, 12);
 
   return {
+    base: env.VITE_DESKTOP_BUILD === "true" ? "./" : "/",
     server: {
       host: "::",
       port: 8080,

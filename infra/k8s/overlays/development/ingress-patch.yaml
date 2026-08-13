@@ -1,0 +1,11 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tayari-public
+spec:
+  tls:
+    - hosts:
+        - development.job-tayari.example.invalid
+      secretName: dev-tayari-public-tls
+  rules:
+    - host: development.job-tayari.example.invalid

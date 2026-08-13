@@ -12,8 +12,9 @@
     "test": "vitest run --config vitest.config.ts",
     "test:e2e": "playwright test --reporter=list",
     "security:scan": "node scripts/security_scan.mjs",
-    "security:baseline": "node scripts/security_scan.mjs --update-baseline"
-
+    "security:baseline": "node scripts/security_scan.mjs --update-baseline",
+    "desktop:dev": "concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:8080 && ELECTRON_START_URL=http://127.0.0.1:8080 electron .\"",
+    "desktop:build": "VITE_DESKTOP_BUILD=true VITE_API_URL=http://127.0.0.1:8085/api VITE_USE_SELF_HOSTED=true vite build && electron-builder --mac --arm64"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -98,6 +99,9 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^10.0.4",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
@@ -110,6 +114,8 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
     "vite": "^5.4.19",
-    "vitest": "^4.1.10"
-  }
+    "vitest": "^4.1.10",
+    "wait-on": "^9.1.0"
+  },
+  "main": "electron/main.cjs"
 }

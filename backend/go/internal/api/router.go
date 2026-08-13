@@ -21,7 +21,7 @@ import (
 type contextKey string
 
 const (
-	contextKeyUser   = auth.ContextKeyUser
+	contextKeyUser              = auth.ContextKeyUser
 	contextKeyTenant contextKey = "tenant"
 )
 
@@ -102,6 +102,7 @@ func (s *Server) routes() {
 	s.registerCoreRoutes(s.Router)
 	s.RegisterOneStopRoutes(s.Router)
 	s.RegisterBillingRoutes(s.Router, s.Billing)
+	s.RegisterWaitlistRoutes(s.Router)
 	s.RegisterSSERoutes(s.Router)
 	s.RegisterMemoryRoutes(s.Router) // conversations + preferences + feedback (was dead)
 	s.routesMVP(s.Router)            // all 24 previously unregistered MVP handlers

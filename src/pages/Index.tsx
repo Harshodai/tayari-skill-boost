@@ -2,6 +2,7 @@
 import { Layout } from "@/components/layout";
 import {
   HeroSection,
+  CandidateControlSection,
   FeaturesSection,
   ProductsSection,
   SocialProofSection,
@@ -16,6 +17,7 @@ const Index = () => {
   return (
     <Layout>
       <HeroSection />
+      <CandidateControlSection />
 
       <FeaturesSection />
 

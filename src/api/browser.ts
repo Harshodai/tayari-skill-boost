@@ -75,7 +75,11 @@ export async function getBrowserRunControlState(runId: string, eventLimit = 100)
 }
 
 export interface BrowserStreamEvent {
-  type: "screenshot" | "done" | "error";
+  // `live_view` is emitted once, before the first step, when the browser
+  // provider exposes an interactive session URL (Browserbase). It is the
+  // embeddable pane the user watches and can click into; `screenshot` frames
+  // remain the fallback for providers that have no live view (local Playwright).
+  type: "screenshot" | "live_view" | "done" | "error";
   data?: string;
   step?: number;
   url?: string;

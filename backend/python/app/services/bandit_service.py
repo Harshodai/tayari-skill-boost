@@ -19,17 +19,38 @@ _ARM_STATS: Dict[str, Dict[str, Dict[str, Dict[str, int]]]] = {}
 
 class BanditService:
     @staticmethod
-    def select_variant(variants: List[Dict[str, Any]]) -> int:
+    def select_variant(variants: List[Dict[str, Any]], rng: Optional[random.Random] = None) -> int:
+        """Thompson Sampling over Bernoulli arms keyed by (pulls, conversions).
+
+        Draws one sample per arm from Beta(1 + conversions, 1 + failures) — the
+        Beta(1, 1) prior is uniform on [0, 1], so an unpulled arm draws
+        uniformly rather than losing by default. Returns the variant_id with
+        the highest draw.
+
+        This used to read `conversion_rate`/`score` keys that the caller's
+        request schema (`VariantStat`: variant_id/pulls/conversions) never
+        populates, so every arm scored the same default and the function
+        always returned the first variant in the list — an A/B test that
+        never explored and never adapted to real performance. `pulls` and
+        `conversions` are exactly what Thompson Sampling needs; use them
+        directly instead of fields that were never there.
+        """
         if not variants:
             return 0
-        best_variant = variants[0]
-        best_score = -1.0
+        r = rng if rng is not None else random
+        best_variant_id = variants[0].get("variant_id", 0)
+        best_draw = -1.0
         for v in variants:
-            score = v.get("conversion_rate", v.get("score", 0.0))
-            if score > best_score:
-                best_score = score
-                best_variant = v
-        return best_variant.get("variant_id", 0)
+            pulls = max(int(v.get("pulls", 0) or 0), 0)
+            conversions = max(int(v.get("conversions", 0) or 0), 0)
+            conversions = min(conversions, pulls)  # guard malformed input
+            alpha = 1 + conversions
+            beta = 1 + (pulls - conversions)
+            draw = r.betavariate(alpha, beta)
+            if draw > best_draw:
+                best_draw = draw
+                best_variant_id = v.get("variant_id", 0)
+        return best_variant_id
 
 
 def _get_arm_stats(role_family: str, strategy: str, user_id: str) -> Dict[str, int]:

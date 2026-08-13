@@ -1,0 +1,693 @@
+<title>Tayari — Anthropic Pattern Adoption Plan</title>
+<style>
+  :root {
+    --ground:        #F4F6F7;
+    --surface:       #FFFFFF;
+    --surface-sunk:  #EAEEF0;
+    --line:          #D3DBDF;
+    --line-soft:     #E3E9EC;
+    --ink:           #171E23;
+    --text:          #2E383F;
+    --muted:         #66757E;
+    --accent:        #0B6B75;
+    --accent-soft:   #E0F0F1;
+    --ok:            #2C6E49;
+    --ok-soft:       #E2EFE7;
+    --warn:          #97621A;
+    --warn-soft:     #F6EBDA;
+    --crit:          #A63A34;
+    --crit-soft:     #F7E4E2;
+    --shadow:        0 1px 2px rgba(23,30,35,.06), 0 8px 24px -16px rgba(23,30,35,.28);
+
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --serif: ui-serif, Charter, "Bitstream Charter", "Iowan Old Style", "Source Serif Pro", Georgia, serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:       #0F1417;
+      --surface:      #161D21;
+      --surface-sunk: #10161A;
+      --line:         #2B363C;
+      --line-soft:    #222C31;
+      --ink:          #EDF2F4;
+      --text:         #C2CDD3;
+      --muted:        #7E8D96;
+      --accent:       #46B8C2;
+      --accent-soft:  #103336;
+      --ok:           #6FC28D;
+      --ok-soft:      #142C1F;
+      --warn:         #D3A05A;
+      --warn-soft:    #302517;
+      --crit:         #E08279;
+      --crit-soft:    #331D1B;
+      --shadow:       0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:       #0F1417;
+    --surface:      #161D21;
+    --surface-sunk: #10161A;
+    --line:         #2B363C;
+    --line-soft:    #222C31;
+    --ink:          #EDF2F4;
+    --text:         #C2CDD3;
+    --muted:        #7E8D96;
+    --accent:       #46B8C2;
+    --accent-soft:  #103336;
+    --ok:           #6FC28D;
+    --ok-soft:      #142C1F;
+    --warn:         #D3A05A;
+    --warn-soft:    #302517;
+    --crit:         #E08279;
+    --crit-soft:    #331D1B;
+    --shadow:       0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3.5rem;
+  }
+
+  .prose { max-width: 40rem; display: flex; flex-direction: column; gap: 1rem; }
+
+  /* ---- masthead ---- */
+  .masthead { display: flex; flex-direction: column; gap: 1.25rem; }
+  .kicker {
+    font-family: var(--mono);
+    font-size: .7rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center;
+  }
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(1.9rem, 1.2rem + 2.6vw, 3rem);
+    line-height: 1.08;
+    letter-spacing: -.03em;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+    text-wrap: balance;
+  }
+  .standfirst { font-size: 1.15rem; color: var(--muted); max-width: 44rem; margin: 0; }
+  .rule { height: 1px; background: var(--line); border: 0; margin: 0; }
+
+  /* ---- sections ---- */
+  section { display: flex; flex-direction: column; gap: 1.5rem; scroll-margin-top: 2rem; }
+  h2 {
+    font-family: var(--mono);
+    font-size: 1.02rem;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+    padding-bottom: .7rem;
+    border-bottom: 2px solid var(--ink);
+    display: flex; align-items: baseline; gap: .8rem;
+  }
+  h2 .n { color: var(--accent); font-size: .82rem; letter-spacing: .06em; }
+  h3 {
+    font-family: var(--mono);
+    font-size: .92rem;
+    letter-spacing: .04em;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+  }
+  p { margin: 0; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  code, .mono { font-family: var(--mono); font-size: .855em; }
+  code {
+    background: var(--surface-sunk);
+    border: 1px solid var(--line-soft);
+    padding: .08em .34em;
+    border-radius: 3px;
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  pre {
+    font-family: var(--mono);
+    font-size: .82rem;
+    line-height: 1.6;
+    background: var(--surface-sunk);
+    border: 1px solid var(--line-soft);
+    border-left: 3px solid var(--accent);
+    padding: 1rem 1.1rem;
+    overflow-x: auto;
+    margin: 0;
+    color: var(--ink);
+    border-radius: 0 4px 4px 0;
+  }
+  pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+
+  /* ---- callout ---- */
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--crit);
+    padding: 1.25rem 1.35rem;
+    display: flex; flex-direction: column; gap: .8rem;
+    box-shadow: var(--shadow);
+  }
+  .callout.warn  { border-left-color: var(--warn); }
+  .callout.ok    { border-left-color: var(--ok); }
+  .callout .tag {
+    font-family: var(--mono); font-size: .66rem; letter-spacing: .15em;
+    text-transform: uppercase; color: var(--crit); font-weight: 600;
+  }
+  .callout.warn .tag { color: var(--warn); }
+  .callout.ok .tag   { color: var(--ok); }
+
+  /* ---- tables ---- */
+  .scroll { overflow-x: auto; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: .78rem; line-height: 1.5; }
+  th, td { text-align: left; padding: .7rem .85rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  th {
+    font-size: .66rem; letter-spacing: .11em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; white-space: nowrap;
+    background: var(--surface-sunk); border-bottom: 1px solid var(--line);
+    position: sticky; top: 0;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; white-space: nowrap; }
+  td .files { color: var(--muted); font-size: .95em; display: block; margin-top: .3rem; word-break: break-word; }
+  td strong { color: var(--ink); font-weight: 600; }
+
+  /* ---- chips ---- */
+  .chip {
+    display: inline-block; font-family: var(--mono);
+    font-size: .64rem; letter-spacing: .09em; text-transform: uppercase;
+    font-weight: 600; padding: .17em .5em; border-radius: 3px; white-space: nowrap;
+  }
+  .s    { background: var(--ok-soft);     color: var(--ok); }
+  .m    { background: var(--warn-soft);   color: var(--warn); }
+  .l    { background: var(--crit-soft);   color: var(--crit); }
+  .flag { background: var(--crit-soft);   color: var(--crit); }
+  .conf { background: var(--accent-soft); color: var(--accent); }
+
+  /* ---- verdict split ---- */
+  .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .split > div { background: var(--surface); padding: 1.15rem 1.25rem; display: flex; flex-direction: column; gap: .55rem; }
+  .split h4 { margin: 0; font-family: var(--mono); font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink); }
+  .split p { font-size: .93rem; }
+  .split .verdict { font-family: var(--mono); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+
+  /* ---- phase ---- */
+  .phase { display: flex; flex-direction: column; gap: 1rem; }
+  .phase-head { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; }
+  .phase-num {
+    font-family: var(--mono); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase;
+    font-weight: 600; color: var(--surface); background: var(--ink);
+    padding: .22em .6em; border-radius: 2px;
+  }
+  .phase-dep { font-family: var(--mono); font-size: .72rem; color: var(--muted); }
+
+  ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: .5rem; }
+  li::marker { color: var(--accent); }
+
+  .ledger { display: flex; flex-direction: column; gap: .9rem; }
+  .ledger > div { display: flex; gap: .8rem; align-items: flex-start; }
+  .ledger .lbl { flex: 0 0 auto; }
+
+  footer { font-family: var(--mono); font-size: .72rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 1.25rem; }
+
+  @media (max-width: 620px) {
+    body { font-size: 16px; }
+    .wrap { padding: 2.5rem 1.1rem 4rem; gap: 2.75rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker">
+      <span>Tayari Skill Boost</span>
+      <span>·</span>
+      <span>Engineering Plan</span>
+      <span>·</span>
+      <span>13 Aug 2026</span>
+    </div>
+    <h1>Adopting what Anthropic shipped</h1>
+    <p class="standfirst">
+      A grounded plan for the agent, browser, and safety layers — ranked by value over effort,
+      sequenced by dependency, and cited to the files that change. Every recommendation was
+      checked against the repository as it stands today.
+    </p>
+    <hr class="rule" />
+  </header>
+
+  <section>
+    <h2><span class="n">00</span> Read this first</h2>
+    <div class="callout">
+      <span class="tag">Fixed this session · was live</span>
+      <h3>The human-escalation gate failed open</h3>
+      <p>
+        <code>requirements.txt</code> pins Playwright <strong>1.49.1</strong>; the interpreter runs
+        <strong>1.62.0</strong>, which removed <code>Page.accessibility</code>. The resulting
+        <code>AttributeError</code> hit a bare <code>except</code> that logged a warning and continued:
+      </p>
+      <pre><code>accessibility_nodes = []
+  → classify_fields([])
+  → questions = []
+  → needs_human = False   # the all-clear</code></pre>
+      <p>
+        <code>classify_fields</code> cannot distinguish “no sensitive fields” from “nothing observed”,
+        so a blind run produced the same result as a clean one. Sponsorship, salary, and
+        veteran-status questions stopped reaching the human at exactly the moment the agent had lost
+        sight of the form. Docker installs from <code>requirements.txt</code>, so the container and
+        local development ran different observation paths and the defect never surfaced in CI.
+      </p>
+      <p>
+        Now fixed: the reader probes for both APIs, failure is logged at <code>ERROR</code> and
+        recorded in <code>observation_error</code>, an empty node list on a reachable form counts as
+        failure, and <code>needs_human</code> ORs in that error. Eight regression tests added.
+      </p>
+    </div>
+
+    <div class="callout warn">
+      <span class="tag">Still open · your call</span>
+      <p>
+        The pin mismatch itself is unresolved. The code now works on both versions, but
+        <code>requirements.txt</code> and the installed interpreter should be reconciled — that change
+        moves the Docker build.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">01</span> Corrections to the brief</h2>
+    <div class="prose">
+      <p>Three assumptions turned out to be wrong on inspection. They change the ranking, so they come first.</p>
+    </div>
+
+    <div class="split">
+      <div>
+        <h4>The a11y read already exists</h4>
+        <p>
+          <code>form_filler.py:169</code> already calls <code>page.accessibility.snapshot()</code>.
+          But <code>_extract_input_roles</code> keeps only <code>{role, name}</code> and discards the
+          node, so <code>_selector_for_node</code> rebuilds an address as
+          <code>[aria-label*="…" i]</code>.
+        </p>
+        <p class="verdict" style="color: var(--ok)">Observe semantically, act by fuzzy string match. Needs an identity map, not a subsystem.</p>
+      </div>
+      <div>
+        <h4><code>autopilot_graph.py</code> does not exist</h4>
+        <p>
+          Deleted. Only a docstring in <code>prompt_safety.py</code> and a stale pytest cache entry
+          still reference it. Nothing in this plan touches it.
+        </p>
+        <p class="verdict" style="color: var(--muted)">Carried forward from stale documentation.</p>
+      </div>
+      <div>
+        <h4><code>computer_use.py</code> is not dead</h4>
+        <p>
+          Three live callers remain — <code>agent_engine.py:399</code>,
+          <code>job_seeker_agent.py:112</code>, <code>ruthless_engine.py:58</code> — each feeding it a
+          hardcoded rectangle.
+        </p>
+        <p class="verdict" style="color: var(--warn)">Delete it rather than finish it. See item 3.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span> Ranked adoption</h2>
+    <div class="prose">
+      <p>
+        Ordered by user-visible value divided by effort.
+        <span class="chip s">S</span> under half a day ·
+        <span class="chip m">M</span> one to three days ·
+        <span class="chip l">L</span> a week or more.
+      </p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Pattern</th><th>In Tayari</th><th>Eff.</th><th>Why it matters</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="num">1</td>
+            <td><strong>Stable element refs</strong><br />Anthropic's <code>read_page</code> tags every element <code>ref_N</code> and acts on the ref, never a re-derived selector.</td>
+            <td>Build the tree with <code>locator.aria_snapshot()</code>, keep each node's live <code>Locator</code> in a <code>dict[str, Locator]</code>, act via <code>page.get_by_role()</code>. Delete <code>_selector_for_node</code>. Invalidate refs on navigation and after any mutating action.
+              <span class="files">form_filler.py:169, :254, :285–308, :310–323</span></td>
+            <td><span class="chip s">S–M</span></td>
+            <td>Workday and Greenhouse reflow between renders. <code>aria-label</code> substring CSS breaks on reflow; <code>get_by_role</code> does not.</td>
+          </tr>
+          <tr>
+            <td class="num">2</td>
+            <td><strong>Fence untrusted page text</strong><br />Routines label the fired payload untrusted while the stored prompt stays trusted.</td>
+            <td><code>browser_operator.py:133</code> returns raw <code>innerText</code> into the model unfenced. Tayari already owns <code>prompt_safety.untrusted()</code> and applies it to JD text but not to page reads. Wrap every page-derived string at the boundary.
+              <span class="files">browser_operator.py:133–140</span></td>
+            <td><span class="chip s">S</span></td>
+            <td>Resume PII sits in the agent's context on the same turn it reads an attacker-controlled careers page. Cheapest real reduction in injection surface available.</td>
+          </tr>
+          <tr>
+            <td class="num">3</td>
+            <td><strong>Screen control last</strong><br />Anthropic ranks pixel control last on its own escalation ladder and caps browsers at view-only.</td>
+            <td>Delete <code>computer_use.py</code> and its three hardcoded-rectangle call sites rather than finishing it.
+              <span class="files">agent/computer_use.py · agent_engine.py:14,79,399 · job_seeker_agent.py:112 · ruthless_engine.py:58</span></td>
+            <td><span class="chip s">S</span></td>
+            <td>Removes a fake capability from three engines' output. Nothing regresses — the coordinates were constants.</td>
+          </tr>
+          <tr>
+            <td class="num">4</td>
+            <td><strong>One provider abstraction</strong><br />Real fast/smart tiering used by every caller.</td>
+            <td><code>agent.py:177–246</code>'s <code>get_llm()</code> is a separate provider ladder that never touches <code>llm_service.build_provider()</code>. Route it through with <code>tier="fast"</code>.
+              <span class="files">browser_automation/agent.py:177–246 · llm_service.py</span></td>
+            <td><span class="chip s">S</span></td>
+            <td>The browser agent is the highest-volume LLM caller in the product — one call per step, up to 50 per run — and the tiering just built does not reach it.</td>
+          </tr>
+          <tr>
+            <td class="num">5</td>
+            <td><strong>Tree preferred, screenshot fallback</strong><br />The pane exposes both; <code>computer</code> takes either a ref or a coordinate.</td>
+            <td>Add <code>observe()</code> and <code>screenshot()</code> to <code>BrowserOperator</code>; make <code>click</code>/<code>fill</code> ref-first with a selector escape hatch. Rewrite the docstring, which claims a11y parsing and screenshot capture — it has neither, and no screenshot method exists at all.
+              <span class="files">browser_operator.py:8–12, :193, :203</span></td>
+            <td><span class="chip m">M</span></td>
+            <td>Prerequisite for item 1 generalizing beyond <code>form_filler</code>, and retires a docstring that has already misled one reader.</td>
+          </tr>
+          <tr>
+            <td class="num">6</td>
+            <td><strong>The identity split</strong><br />Clean profile for agent work; the user's own browser for acting as the user.</td>
+            <td>Encode the routing rule in code instead of leaving it implicit across two subsystems. See section 03.
+              <span class="files">extension/manifest.json · session.py:131–138 · agent.py:342–350</span></td>
+            <td><span class="chip m">M</span></td>
+            <td>Ends “the agent can't log in to Workday” dead ends and keeps the credential blast radius where it belongs.</td>
+          </tr>
+          <tr>
+            <td class="num">7</td>
+            <td><strong>Pre-action check in every mode</strong><br />Not only the permissive one.</td>
+            <td><code>_guard_credential_entry</code> is already this shape but guards only <code>input_text</code> — its own comment at <code>:130–132</code> says clicks and navigation are unguarded. Injection attacks via navigation and clicks. Extend with a deterministic policy: block navigation off the start-origin chain, uploads to non-allowlisted origins, and submit-like clicks.
+              <span class="files">agent.py:105–137, :396–414 · origin_guard.py</span></td>
+            <td><span class="chip m">M</span></td>
+            <td>The credential guard is good and currently protects the one action class an attacker does not need.</td>
+          </tr>
+          <tr>
+            <td class="num">8</td>
+            <td><strong>Hard budget ceiling</strong><br />Enforced between model requests, with its own stop reason.</td>
+            <td>Steps and wall-clock are capped; spend is not. Add a per-run cost accumulator, terminate with <code>budget_reached</code>, surface it beside <code>blocked_origin_guard</code>.
+              <span class="files">agent.py:396–414 · main.py:800–861 · AgentLiveView.tsx</span></td>
+            <td><span class="chip s">S–M</span></td>
+            <td>Predictable per-application cost and a user-legible reason when a run stops.</td>
+          </tr>
+          <tr>
+            <td class="num">9</td>
+            <td><strong>Progressive disclosure</strong><br />Description always in context, body loaded on use.</td>
+            <td>Give each auto-discovered plugin a short <code>description</code> + <code>when_to_use</code> as the only thing in the router prompt; load the body on selection.
+              <span class="files">app/plugins/__init__.py</span></td>
+            <td><span class="chip m">M</span></td>
+            <td>Token cost stops scaling with plugin count — the thing that makes a plugin system worth having.</td>
+          </tr>
+          <tr>
+            <td class="num">10</td>
+            <td><strong>Run receipt</strong><br />Artifacts publish work as a page with a capability declaration.</td>
+            <td>Per-application receipt: tree seen, fields filled, fields escalated, final URL, origin-guard verdict. <code>final_screenshot</code> and <code>final_url</code> are captured at <code>agent.py:152–154</code> and dropped at the API boundary. Static page only — no connectors.
+              <span class="files">agent.py:152–154 · main.py:841–853 · new RunReceipt.tsx + route pair</span></td>
+            <td><span class="chip m">M</span></td>
+            <td>Turns “trust me, I applied” into evidence, backing the human-in-the-loop promise the UI already makes.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span> Extension vs owned browser</h2>
+    <div class="prose">
+      <p>
+        Anthropic splits its two browser surfaces on a single axis: <em>does this task require the
+        user's identity?</em> The pane runs a clean profile with none of your logins; the extension
+        shares your browser's session so Claude can act as you. Everything else follows from that.
+      </p>
+      <p>Applied to Tayari, the risk profiles turn out <strong>inverted</strong>.</p>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th></th><th>Server path — Playwright / Browserbase</th><th>Extension — MV3, today</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Model reads page?</strong></td>
+            <td><span style="color:var(--crit)">Yes</span> — raw <code>innerText</code>, unfenced; browser-use feeds DOM state each step</td>
+            <td><span style="color:var(--ok)">No</span> — <code>autofill_engine.js</code> is regex + <code>querySelectorAll</code></td>
+          </tr>
+          <tr>
+            <td><strong>Injection likelihood</strong></td>
+            <td><span style="color:var(--crit)">High.</span> The page controls the text entering the model</td>
+            <td><span style="color:var(--ok)">≈ Zero.</span> No instruction channel exists</td>
+          </tr>
+          <tr>
+            <td><strong>In scope when it fires</strong></td>
+            <td>Resume PII; navigate / click / fill actions</td>
+            <td>Live authenticated sessions across six ATS domains + LinkedIn</td>
+          </tr>
+          <tr>
+            <td><strong>Blast radius</strong></td>
+            <td><span style="color:var(--ok)">Bounded</span> — clean profile, owner-checked kill switch, provider terminate API</td>
+            <td><span style="color:var(--crit)">Unbounded</span> — read/write as the user across <code>host_permissions</code></td>
+          </tr>
+          <tr>
+            <td><strong>Guarded today</strong></td>
+            <td>Credential fills only; clicks and navigation explicitly not</td>
+            <td>N/A</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <span class="tag">The rule that falls out</span>
+      <p style="font-family: var(--mono); font-size: .95rem; color: var(--ink); line-height: 1.55;">
+        Never put an LLM in the extension's decision loop.
+      </p>
+      <p>
+        The path that can be attacked has small consequences; the path with large consequences cannot
+        currently be attacked. The moment a model chooses what the extension clicks or types on a live
+        page, Tayari inherits the server path's injection likelihood <em>combined with</em> the
+        extension's blast radius — and every mitigation it owns sits on the wrong side of the boundary.
+      </p>
+      <p>
+        If the extension ever needs judgment: send structured fields to the server, get back values,
+        apply them locally. The model issues values, never actions.
+      </p>
+    </div>
+
+    <div class="prose">
+      <h3>Verdict</h3>
+      <p>
+        <strong>The server-side owned browser is primary for all agentic work. The extension is
+        primary for identity-bearing submission, and must stay LLM-free.</strong>
+      </p>
+      <ul>
+        <li><strong>No identity needed</strong> — discovering postings, reading a JD, opening a public Greenhouse/Lever/Ashby form, filling name/email/phone/links, producing the preview. The majority of the work and all of the risky autonomy.</li>
+        <li><strong>Identity needed</strong> — Workday candidate home, LinkedIn Easy Apply, any resume-your-application flow, and the final submit. The user's browser, session, and hands.</li>
+      </ul>
+      <p>
+        Three reasons this fits Tayari specifically rather than merely imitating Anthropic: all the
+        safety machinery already lives on the server path; the product invariant already says the human
+        submits, and the extension <em>is</em> that surface; and <code>origin_guard.py</code>'s rule —
+        never enter credentials on an origin it did not start on — is meaningful on a clean profile and
+        meaningless where credentials are already loaded as cookies.
+      </p>
+    </div>
+
+    <div class="callout warn">
+      <span class="tag">Two tightenings while you're here</span>
+      <ul>
+        <li><code>externally_connectable</code> wildcards <code>*.lovable.app</code> and <code>*.lovableproject.com</code> — any page on that shared multi-tenant domain can message the extension. Narrow to the exact production origin.</li>
+        <li><code>all_frames: true</code> runs content scripts inside third-party iframes embedded in Workday and LinkedIn pages. Scope to the top frame unless a specific ATS demands otherwise.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span> What not to adopt</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Pattern</th><th>Why not</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>LLM classifier as the permission boundary</strong></td>
+            <td>Anthropic's action space is open-ended — arbitrary shell, arbitrary files — so only a model can judge it. Tayari's is <em>enumerable</em>: navigate, click, fill, upload, submit, on known ATS domains. Deterministic rules are cheaper, faster, testable, and strictly more predictable. The guardrails already fail closed; don't dilute that with a probabilistic gate.</td>
+          </tr>
+          <tr>
+            <td><strong>Dynamic workflows / a JS orchestration runtime</strong></td>
+            <td>Built to coordinate hundreds of subagents. Tayari's ceiling is nine named roles — and that orchestrator doesn't work yet: <code>Subagent.execute</code> prints a string and returns <code>status: "completed"</code>. Fix or delete it before adding a layer above.</td>
+          </tr>
+          <tr>
+            <td><strong>An agents control-plane daemon</strong></td>
+            <td>Solves multi-session lifecycle on a developer laptop. Celery + Redis and durable owner-bound leases already cover this. A second supervisor is duplication.</td>
+          </tr>
+          <tr>
+            <td><strong>Plugin marketplaces and skill sync</strong></td>
+            <td>SHA pinning, Unicode collision handling, and a three-tier trust ladder exist because thousands of third parties author skills. Take progressive disclosure; leave the distribution machinery.</td>
+          </tr>
+          <tr>
+            <td><strong>Pixel computer use</strong></td>
+            <td>Anthropic ships it and still ranks it last. Strictly dominated by the ref path on accuracy, token cost, determinism, and debuggability.</td>
+          </tr>
+          <tr>
+            <td><strong>MCP statelessness as a rewrite</strong></td>
+            <td>MRTR and <code>server/discover</code> exist so servers can run serverless behind load balancers. Tayari's are stdio, single-tenant, low-QPS. The SDKs will deliver it. Only deterministic <code>tools/list</code> ordering is worth doing by hand, for prompt-cache hits.</td>
+          </tr>
+          <tr>
+            <td><strong>Artifact-style runtime capabilities</strong></td>
+            <td>Anthropic's version is safe because claude.ai brokers every connector call against the viewer's account. Building an equivalent means becoming a credential broker. A static receipt page is the entire requirement.</td>
+          </tr>
+          <tr>
+            <td><strong>A second browser-automation stack</strong></td>
+            <td><code>browser-use</code> is pinned and load-bearing. The gap is in Tayari's addressing and guard layers, not the driver.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">05</span> Sequence</h2>
+    <div class="prose">
+      <p>Phases are ordered by dependency, not calendar. Within a phase, items are independent.</p>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-num">Phase 1</span>
+        <h3>Make observation real, honest, and fenced</h3>
+      </div>
+      <p class="phase-dep">Nothing downstream can be trusted until the agent's picture of the page is correct and its provenance is labelled. No external dependencies.</p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Item</th><th>Files</th><th>Eff.</th></tr></thead>
+          <tbody>
+            <tr><td><strong>1.1</strong> Resolve the Playwright split — pin to match the interpreter and make snapshot failure loud <span class="chip conf">partly done</span></td><td>requirements.txt:40 · form_filler.py:166–173 · Dockerfile:33–34</td><td><span class="chip s">S</span></td></tr>
+            <tr><td><strong>1.2</strong> Ref-map addressing; delete <code>_selector_for_node</code></td><td>form_filler.py:169, :254, :285–323</td><td><span class="chip m">M</span></td></tr>
+            <tr><td><strong>1.3</strong> Regression test for the escalation queue <span class="chip conf">done</span></td><td>app/tests/test_form_filler_observation.py</td><td><span class="chip s">S</span></td></tr>
+            <tr><td><strong>1.4</strong> Fence page-derived text through <code>prompt_safety.untrusted()</code></td><td>browser_operator.py:133–140</td><td><span class="chip s">S</span></td></tr>
+            <tr><td><strong>1.5</strong> Honest <code>BrowserOperator</code> — add <code>observe()</code> / <code>screenshot()</code>, ref-first actions, truthful docstring</td><td>browser_operator.py:8–12, :193, :203</td><td><span class="chip m">M</span></td></tr>
+            <tr><td><strong>1.6</strong> Delete <code>computer_use.py</code> and its three callers</td><td>agent/computer_use.py + 3 call sites + 1 test</td><td><span class="chip s">S</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-num">Phase 2</span>
+        <h3>Set the trust boundary</h3>
+      </div>
+      <p class="phase-dep">Depends on Phase 1 — the action policy needs a reliable ref map to name what it blocks.</p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Item</th><th>Files</th><th>Eff.</th></tr></thead>
+          <tbody>
+            <tr><td><strong>2.1</strong> Provision Browserbase <span class="chip flag">paid · not provisioned</span></td><td>env only</td><td><span class="chip s">S</span></td></tr>
+            <tr><td><strong>2.2</strong> Encode the identity split as a routing function with a visible handoff step</td><td>session.py:131–138 · agent.py:342–350 · AgentLiveView.tsx · extension/background.js</td><td><span class="chip m">M</span></td></tr>
+            <tr><td><strong>2.3</strong> Extend the pre-action guard beyond <code>input_text</code></td><td>agent.py:105–137, :396–414 · origin_guard.py</td><td><span class="chip m">M</span></td></tr>
+            <tr><td><strong>2.4</strong> Lock the extension's LLM-free invariant with a CI check</td><td>extension/ · CI</td><td><span class="chip s">S</span></td></tr>
+            <tr><td><strong>2.5</strong> Tighten <code>externally_connectable</code> and frame scope</td><td>extension/manifest.json</td><td><span class="chip s">S</span></td></tr>
+            <tr><td><strong>2.6</strong> Per-run budget ceiling with a distinct stop reason</td><td>agent.py:396–414 · main.py:800–861 · AgentLiveView.tsx</td><td><span class="chip s">S–M</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-num">Phase 3</span>
+        <h3>Leverage</h3>
+      </div>
+      <p class="phase-dep">Optional and safe to reorder. Nothing blocks anything else.</p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Item</th><th>Files</th><th>Eff.</th></tr></thead>
+          <tbody>
+            <tr><td><strong>3.1</strong> Unify the browser agent's LLM onto <code>llm_service</code></td><td>browser_automation/agent.py:177–246</td><td><span class="chip s">S</span></td></tr>
+            <tr><td><strong>3.2</strong> Run receipt page (needs a <code>/api</code> + <code>/api/v1</code> route pair)</td><td>agent.py:152–154 · main.py:841–853 · RunReceipt.tsx</td><td><span class="chip m">M</span></td></tr>
+            <tr><td><strong>3.3</strong> Progressive disclosure for plugins</td><td>app/plugins/</td><td><span class="chip m">M</span></td></tr>
+            <tr><td><strong>3.4</strong> Repair or remove <code>subagent_orchestrator</code> — a stub that always reports success is worse than nothing</td><td>agent/subagent_orchestrator.py</td><td><span class="chip m">M</span> / <span class="chip s">S</span></td></tr>
+            <tr><td><strong>3.5</strong> Consolidate the two MCP registries onto FastMCP; sort <code>list_tools()</code></td><td>agent/mcp_manager.py · app/mcp/server.py</td><td><span class="chip m">M</span></td></tr>
+            <tr><td><strong>3.6</strong> Track MCP 2026-07-28 via SDK upgrades — no hand-rolling</td><td>app/mcp/ · integrations/</td><td>watch</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">06</span> External dependencies</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Need</th><th>Status</th><th>Blocks</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Browserbase</strong><br /><code>BROWSERBASE_API_KEY</code>, <code>BROWSERBASE_PROJECT_ID</code></td>
+            <td><span class="chip flag">Paid · code complete, keys absent</span><br />Without them <code>get_provider()</code> silently returns <code>LocalPlaywrightProvider</code>, which emits no <code>live_view_url</code> — so the interactive pane never renders and the kill switch degrades from a remote terminate API to a cooperative in-process flag.</td>
+            <td>2.1, and the primary path of the verdict</td>
+          </tr>
+          <tr>
+            <td><strong><code>langchain-anthropic</code></strong></td>
+            <td>Installed locally (0.3.3) but absent from <code>requirements.txt</code>. The <code>ChatAnthropic</code> branch sits inside <code>try/except ImportError: pass</code>, so in Docker it silently falls through to the next provider.</td>
+            <td>3.1</td>
+          </tr>
+          <tr>
+            <td><strong>Playwright version</strong></td>
+            <td>Pinned 1.49.1, installed 1.62.0. Not an account issue — the same class of problem: two environments running different code.</td>
+            <td>1.1</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">07</span> Confidence</h2>
+    <div class="ledger">
+      <div>
+        <span class="lbl chip s">Verified</span>
+        <p>Every <code>path:line</code> citation. <code>Page.accessibility</code> absent and <code>Locator.aria_snapshot</code> present on the installed Playwright 1.62.0, executed directly. The pin mismatch. <code>autopilot_graph.py</code> does not exist. <code>agent.py:177–246</code> bypasses <code>llm_service</code>. <code>_guard_credential_entry</code> covers only <code>input_text</code>, per its own comment. <code>LocalPlaywrightProvider</code> emits no <code>live_view_url</code>. <code>autofill_engine.js</code> contains no model call. <code>Subagent.execute</code> returns hardcoded success. Three live <code>ComputerUseDriver</code> call sites.</p>
+      </div>
+      <div>
+        <span class="lbl chip m">Inferred</span>
+        <p>That <code>page.accessibility.snapshot()</code> still functions on 1.49.1 inside the Docker image — deprecated but present in that era; the image was not built and tested. That Workday and Greenhouse reflow enough to break <code>[aria-label*=…]</code> matching between renders — the standard failure mode for ATS single-page apps, but no live test was run against those portals. All effort sizes are estimates against the code as read, not measured.</p>
+      </div>
+      <div>
+        <span class="lbl chip l">Not investigated</span>
+        <p><code>codeact_repl.py</code>, <code>reflection_engine.py</code>, <code>agent_memory.py</code>, the Go gateway's route surface for these paths, and <code>src/lib/mcp/tools/</code> beyond the file listing. Any recommendation touching those needs sizing again first.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Companion document: <em>What Anthropic Shipped</em> — the capability inventory this plan draws on.
+  </footer>
+
+</div>

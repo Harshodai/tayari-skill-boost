@@ -1,14 +1,26 @@
 import asyncio
+import base64
 import logging
-from typing import Dict, Any, Optional
+import re
+from typing import Dict, Any, List, Optional
+
+from app.services.prompt_safety import untrusted
 
 logger = logging.getLogger(__name__)
 
 class BrowserOperator:
-    """
-    Browser Operator & Cloud Browser Engine.
-    Implements Playwright-driven browser automation, DOM accessibility tree parsing,
-    and screenshot capture for spatial vision reasoning (Manus & Claude Computer Use paradigm).
+    """Playwright-driven browser automation with SSRF and redirect guards.
+
+    Observation is accessibility-tree first: :meth:`observe` returns a role/name
+    tree in which every interactive element carries a stable ``ref_N`` handle,
+    and :meth:`click` / :meth:`fill` accept either a ref or a raw CSS selector.
+    Refs address elements semantically, so they survive the re-layout that
+    breaks selectors on single-page ATS forms — but they are only valid until
+    the DOM changes, so the map is discarded on navigation and after any action
+    that mutates the page. Re-:meth:`observe` after either.
+
+    :meth:`screenshot` exists for the cases a tree cannot answer (visual layout,
+    rendering bugs). It is the fallback, not the primary read.
     """
 
     def __init__(self, headless: bool = True):
@@ -17,6 +29,9 @@ class BrowserOperator:
         self.context = None
         self.page = None
         self.playwright = None
+        # ref_N -> Locator for the current DOM generation. Invalidated on
+        # navigation and after any mutating action.
+        self._refs: Dict[str, Any] = {}
 
     async def initialize(self):
         """Initialize Playwright chromium instance."""
@@ -129,14 +144,26 @@ class BrowserOperator:
             if referer:
                 goto_kwargs["referer"] = referer
             response = await self.page.goto(url, **goto_kwargs)
+            # New document: every ref from the previous page is now stale.
+            self._refs = {}
             title = await self.page.title()
             content = await self.page.evaluate("() => document.body.innerText.slice(0, 3000)")
+            # `content_preview` is attacker-controlled page text, and this
+            # method backs the `navigate_web` MCP tool — so it flows straight
+            # into the model's context. Fence it here, at the boundary where the
+            # untrusted data enters, rather than trusting each call site to
+            # remember. `title` is left raw: no caller feeds it to a model
+            # (omnisave reads `page.title()` directly), and fencing short
+            # metadata only risks delimiters leaking into displayed text.
+            #
+            # Callers that render this to a user rather than to a model must
+            # strip the fence — see `prompt_safety.untrusted` for the markers.
             return {
                 "success": True,
                 "url": self.page.url,
                 "title": title,
                 "status": response.status if response else 200,
-                "content_preview": content
+                "content_preview": untrusted(content)
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -190,23 +217,130 @@ class BrowserOperator:
             except Exception:
                 pass
 
-    async def click(self, selector: str) -> Dict[str, Any]:
-        """Click element by selector or text content."""
+    # Roles that represent something an agent can act on.
+    _INTERACTIVE_ROLES = (
+        "textbox", "searchbox", "combobox", "button", "checkbox",
+        "radio", "link", "menuitem", "option", "slider", "switch",
+    )
+
+    _TREE_LINE_PATTERN = re.compile(
+        r'\s*-\s+(' + "|".join(_INTERACTIVE_ROLES) + r')(?:\s+"((?:[^"\\]|\\.)*)")?'
+    )
+
+    @classmethod
+    def _parse_accessibility_tree(cls, tree: str) -> List[Dict[str, Any]]:
+        """Pure parse of `Locator.aria_snapshot()` YAML into ordered elements.
+
+        Returns ``[{"role", "name", "index"}, …]``. ``index`` disambiguates
+        repeated ``(role, name)`` pairs by order of appearance — the same
+        count Playwright's ``.nth()`` uses — so the caller can build a
+        ``Locator`` without redoing this bookkeeping. Kept free of any
+        Playwright object so it is unit-testable without a real page.
+        """
+        elements: List[Dict[str, Any]] = []
+        role_seen: Dict[tuple, int] = {}
+        for line in (tree or "").splitlines():
+            match = cls._TREE_LINE_PATTERN.match(line)
+            if not match:
+                continue
+            role = match.group(1)
+            name = (match.group(2) or "").replace('\\"', '"')
+            index = role_seen.get((role, name), 0)
+            role_seen[(role, name)] = index + 1
+            elements.append({"role": role, "name": name, "index": index})
+        return elements
+
+    async def observe(self) -> Dict[str, Any]:
+        """Read the page as an accessibility tree with stable element refs.
+
+        Returns ``{"success", "url", "elements": [{"ref", "role", "name"}, …]}``.
+        Each ``ref`` is usable with :meth:`click` and :meth:`fill` until the DOM
+        changes. Prefer this over :meth:`screenshot` for locating and verifying
+        content: it is deterministic, costs no vision tokens, and does not
+        depend on pixel positions.
+        """
         if not self.page:
             return {"success": False, "error": "Browser page not open."}
         try:
-            await self.page.click(selector, timeout=5000)
-            return {"success": True, "action": f"Clicked '{selector}'"}
+            tree = await self.page.locator("body").aria_snapshot()
+        except Exception as e:
+            # Fail loudly. An empty element list is indistinguishable from a
+            # page with no controls, and callers gate on that.
+            logger.error("Accessibility snapshot failed: %s", e)
+            return {"success": False, "error": f"accessibility snapshot failed: {e}"}
+
+        self._refs = {}
+        elements = []
+        for parsed in self._parse_accessibility_tree(tree):
+            role, name, index = parsed["role"], parsed["name"], parsed["index"]
+            ref = f"ref_{len(elements) + 1}"
+            locator = (
+                self.page.get_by_role(role, name=name, exact=True).nth(index)
+                if name
+                else self.page.get_by_role(role).nth(index)
+            )
+            self._refs[ref] = locator
+            elements.append({"ref": ref, "role": role, "name": name})
+
+        return {"success": True, "url": self.page.url, "elements": elements}
+
+    async def screenshot(self, full_page: bool = False) -> Dict[str, Any]:
+        """Capture a PNG of the current page, base64-encoded.
+
+        The fallback read. Use :meth:`observe` for text and structure.
+        """
+        if not self.page:
+            return {"success": False, "error": "Browser page not open."}
+        try:
+            raw = await self.page.screenshot(full_page=full_page)
+            return {
+                "success": True,
+                "url": self.page.url,
+                "format": "png",
+                "data": base64.b64encode(raw).decode("ascii"),
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def fill(self, selector: str, text: str) -> Dict[str, Any]:
-        """Fill input element with text."""
+    def _resolve(self, target: str):
+        """Return a Locator for a ``ref_N`` handle, or None if it isn't one."""
+        return self._refs.get(target)
+
+    async def click(self, target: str) -> Dict[str, Any]:
+        """Click an element by ``ref_N`` handle, or by CSS selector.
+
+        A ref from a previous DOM generation is reported as stale rather than
+        silently retried as a selector — that would be an unrelated element.
+        """
         if not self.page:
             return {"success": False, "error": "Browser page not open."}
+        locator = self._resolve(target)
+        if locator is None and target.startswith("ref_"):
+            return {"success": False, "error": f"stale or unknown ref '{target}'; call observe() again"}
         try:
-            await self.page.fill(selector, text, timeout=5000)
-            return {"success": True, "action": f"Filled input at selector '{selector}'"}
+            if locator is not None:
+                await locator.click(timeout=5000)
+            else:
+                await self.page.click(target, timeout=5000)
+            # The click may have mutated or navigated the page.
+            self._refs = {}
+            return {"success": True, "action": f"Clicked '{target}'"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def fill(self, target: str, text: str) -> Dict[str, Any]:
+        """Fill an input by ``ref_N`` handle, or by CSS selector."""
+        if not self.page:
+            return {"success": False, "error": "Browser page not open."}
+        locator = self._resolve(target)
+        if locator is None and target.startswith("ref_"):
+            return {"success": False, "error": f"stale or unknown ref '{target}'; call observe() again"}
+        try:
+            if locator is not None:
+                await locator.fill(text, timeout=5000)
+            else:
+                await self.page.fill(target, text, timeout=5000)
+            return {"success": True, "action": f"Filled input at '{target}'"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

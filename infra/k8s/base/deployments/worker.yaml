@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tayari-worker
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/component: async-worker
+    app.kubernetes.io/part-of: job-tayari
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: worker
+        app.kubernetes.io/component: async-worker
+        app.kubernetes.io/part-of: job-tayari
+    spec:
+      serviceAccountName: tayari-worker
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 120
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: ghcr.io/job-tayari/tayari-worker:replace-me
+          imagePullPolicy: IfNotPresent
+          args:
+            - worker
+            - --loglevel=info
+            - --concurrency=1
+            - -Q
+            - tayari
+          envFrom:
+            - configMapRef:
+                name: tayari-runtime-config
+            - configMapRef:
+                name: tayari-worker-config
+            - secretRef:
+                name: tayari-runtime-secrets
+          startupProbe:
+            exec:
+              command: ["/bin/sh", "-c", "celery -A app.celery_app:celery_app inspect ping --destination celery@${HOSTNAME} >/dev/null"]
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "celery -A app.celery_app:celery_app inspect ping --destination celery@${HOSTNAME} >/dev/null"]
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1536Mi
+            limits:
+              cpu: "2"
+              memory: 3Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-cache
+              mountPath: /home/app/.cache
+            - name: app-config
+              mountPath: /home/app/.config
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: app-cache
+          emptyDir: {}
+        - name: app-config
+          emptyDir: {}

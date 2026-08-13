@@ -150,7 +150,8 @@ async def websocket_endpoint(websocket: WebSocket):
             # =================================================================
             # Mock mode: handle text or dummy audio loops
             # =================================================================
-            logger.warning("Deepgram API Key not set. Running in mock text-fallback mode.")
+            logger.warning("Deepgram API Key not set. Running in text-only fallback mode.")
+            transcription_unavailable_sent = False
             while True:
                 message = await websocket.receive()
                 if "text" in message:
@@ -189,31 +190,21 @@ async def websocket_endpoint(websocket: WebSocket):
                     except Exception as parse_err:
                         logger.error(f"Mock parser error: {parse_err}")
                 elif "bytes" in message:
-                    # Echo or mock VAD turn detection after receiving some bytes
-                    await asyncio.sleep(0.5)
-                    mock_user_text = "I designed and implemented a Python microservice that reduced API latency by 35 percent."
-                    duration = time.time() - turn_start_time
-                    telemetry = analyze_speech_telemetry(mock_user_text, duration)
-
-                    await websocket.send_json({
-                        "type": "telemetry",
-                        "wpm": telemetry["wpm"],
-                        "fillers": telemetry["fillers"],
-                        "star_compliance": telemetry["star_compliance"]
-                    })
-
-                    prompt = f"The candidate responded: '{mock_user_text}'. Ask the next interview question for {target_role}."
-                    next_q = await generate_llm_response(prompt, system_msg)
-                    current_question = next_q
-
-                    await websocket.send_json({
-                        "type": "llm_text",
-                        "text": next_q
-                    })
-                    audio_bytes = await synthesize_speech(next_q)
-                    if audio_bytes:
-                        await websocket.send_bytes(audio_bytes)
-                    turn_start_time = time.time()
+                    # No speech-to-text backend is configured, so this audio
+                    # cannot be transcribed. Previously this branch substituted
+                    # a fixed sentence and ran real telemetry over it, handing
+                    # the user WPM, filler counts, and a STAR score for words
+                    # they never said. Say so instead, and score nothing.
+                    if not transcription_unavailable_sent:
+                        transcription_unavailable_sent = True
+                        await websocket.send_json({
+                            "type": "transcription_unavailable",
+                            "message": (
+                                "Speech-to-text is not configured on this server, so your "
+                                "spoken answers can't be scored. Type your answer to get "
+                                "telemetry and a follow-up question."
+                            ),
+                        })
             return
 
         # =====================================================================

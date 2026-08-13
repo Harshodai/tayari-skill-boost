@@ -5,6 +5,7 @@ from app.services.form_filler import FormFiller as TayariComputerSandboxExecutor
 from app.services.omnisave_service import OmnisaveService
 from app.services.email_classifier import match_email_to_application
 import httpx
+from app.services.db import is_db_enabled
 from app.services.llm_service import is_llm_configured, LLMNotConfiguredError
 
 
@@ -40,8 +41,12 @@ async def test_omnisave_rag_engine():
     # LLMNotConfiguredError when none is set — no fabricated fallback text.
     # Skip the LLM portion when no real provider is configured; the ingest
     # assertions above still run.
-    if not is_llm_configured():
-        pytest.skip("No real LLM provider configured; skipping RAG answer assertions")
+    # query_knowledge_rag fails closed on an unreachable durable store by
+    # design (list_user_saved_sources raises knowledge_store_unavailable), so
+    # the precondition is both a live provider AND a configured database — not
+    # the provider alone.
+    if not is_llm_configured() or not is_db_enabled():
+        pytest.skip("Live LLM provider and DATABASE_URL both required for RAG answer assertions")
 
     try:
         rag_res = await omnisave.query_knowledge_rag("system architecture", user_id=test_user_id)

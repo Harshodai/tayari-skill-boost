@@ -395,7 +395,7 @@ const Pricing = () => {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  We'll respond within one business day with a tailored proposal.
+                  We’ll review your institutional interest request and contact you with next steps if it is a fit.
                 </p>
               </form>
             </div>

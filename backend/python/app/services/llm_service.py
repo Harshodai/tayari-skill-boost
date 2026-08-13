@@ -23,6 +23,13 @@ Environment variables:
   OPENROUTER_MODEL    = default: openai/gpt-4o-mini
   NVIDIA_NIM_API_KEY  = NVIDIA NIM specific key
   NVIDIA_NIM_MODEL    = default: meta/llama-3.1-70b-instruct
+
+Model routing (optional — per-tier model selection within the chosen provider):
+  <MODEL_VAR>_FAST / <MODEL_VAR>_SMART override <MODEL_VAR> for tier='fast'
+  (classification, ranking, drafting) and tier='smart' (the reflexion
+  optimizer) respectively — e.g. OPENROUTER_MODEL_FAST=openai/gpt-4o-mini
+  alongside OPENROUTER_MODEL_SMART=anthropic/claude-sonnet-5. Unset means every
+  tier uses <MODEL_VAR>, which is the pre-existing behaviour.
   NVIDIA_NIM_BASE_URL = default: https://integrate.api.nvidia.com/v1
   HERMES_AGENT_URL    / HERMES_API_KEY / HERMES_MODEL (from hermes config module)
 """
@@ -329,8 +336,27 @@ def _env(key: str, default: str = "") -> str:
     return os.environ.get(key, default)
 
 
+def _tier_model(var: str, tier: str, default: str) -> str:
+    """Resolve the model name for ``tier``, falling back to the single-model var.
+
+    Call sites already annotate cost/quality intent (``tier="fast"`` for
+    classification, ranking, and drafting; ``tier="smart"`` for the reflexion
+    optimizer). This maps that intent onto ``<VAR>_FAST`` / ``<VAR>_SMART``.
+
+    When neither suffixed var is set, every tier resolves to ``<VAR>`` exactly
+    as before — routing is opt-in per deployment and never silently changes the
+    model an existing install is using.
+    """
+    suffix = "SMART" if tier == "smart" else "FAST"
+    return _env(f"{var}_{suffix}") or _env(var, default)
+
+
 def build_provider(tier: str = "default") -> LLMProvider:
-    """Return the best available provider for the given tier."""
+    """Return the best available provider for the given tier.
+
+    ``tier`` selects the model within the chosen provider (see ``_tier_model``);
+    it does not switch providers, except for ``"hermes"``.
+    """
     # Hermes tier — always honoured when available
     if tier == "hermes" and hermes_config.HERMES_AGENT_URL:
         return HermesProvider()
@@ -339,14 +365,14 @@ def build_provider(tier: str = "default") -> LLMProvider:
 
     if provider_name == "openrouter":
         key = _env("OPENROUTER_API_KEY") or _env("LLM_API_KEY")
-        model = _env("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+        model = _tier_model("OPENROUTER_MODEL", tier, "openai/gpt-4o-mini")
         if key:
             return OpenRouterProvider(key, model)
         logger.warning("LLM_PROVIDER=openrouter but OPENROUTER_API_KEY not set; falling back")
 
     if provider_name == "nvidia_nim":
         key = _env("NVIDIA_NIM_API_KEY") or _env("LLM_API_KEY")
-        model = _env("NVIDIA_NIM_MODEL", "meta/llama-3.1-70b-instruct")
+        model = _tier_model("NVIDIA_NIM_MODEL", tier, "meta/llama-3.1-70b-instruct")
         base = _env("NVIDIA_NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
         if key:
             return NVIDIANIMProvider(key, model, base)
@@ -356,7 +382,7 @@ def build_provider(tier: str = "default") -> LLMProvider:
     if provider_name in ("", "auto"):
         nim_key = _env("NVIDIA_NIM_API_KEY")
         if nim_key:
-            nim_model = _env("NVIDIA_NIM_MODEL", "meta/llama-3.1-70b-instruct")
+            nim_model = _tier_model("NVIDIA_NIM_MODEL", tier, "meta/llama-3.1-70b-instruct")
             nim_base = _env("NVIDIA_NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
             logger.info("Auto-detected NVIDIA NIM (NVIDIA_NIM_API_KEY set) → using NVIDIANIMProvider")
             return NVIDIANIMProvider(nim_key, nim_model, nim_base)
@@ -364,14 +390,14 @@ def build_provider(tier: str = "default") -> LLMProvider:
     if provider_name in ("ollama", "") and _env("LLM_BASE_URL"):
         base = _env("LLM_BASE_URL")
         if "ollama" in base.lower() or "11434" in base:
-            return OllamaProvider(base, _env("LLM_MODEL", "llama3.1"))
+            return OllamaProvider(base, _tier_model("LLM_MODEL", tier, "llama3.1"))
 
     # Generic OpenAI-compatible (Groq, Together, local vLLM …)
     if _env("LLM_BASE_URL"):
         return OpenAICompatibleProvider(
             _env("LLM_BASE_URL"),
             _env("LLM_API_KEY"),
-            _env("LLM_MODEL", "default"),
+            _tier_model("LLM_MODEL", tier, "default"),
         )
 
     return MockProvider()
@@ -419,7 +445,7 @@ async def llm_complete(
             return an appropriate HTTP error (503).
     """
     import asyncio
-    provider = build_provider(tier if tier == "hermes" else "default")
+    provider = build_provider(tier)
     result = await provider.complete(system_message, user_message,
                                      max_tokens=max_tokens, temperature=temperature)
     if not result:

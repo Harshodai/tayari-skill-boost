@@ -36,6 +36,14 @@ asyncpg==0.30.0
 crawl4ai==0.4.0
 apify-client==1.8.0
 slowapi==0.1.9
+# NOTE 2026-08-13: local dev venvs commonly resolve a newer Playwright (seen:
+# 1.62.0) than this pin, which removed Page.accessibility (present here).
+# app/agent/browser_operator.py and app/services/form_filler.py both probe for
+# either API shape at runtime and fail closed on an unreadable page, so this
+# drift is no longer silently dangerous — but the pin itself is unresolved.
+# See handoff.md section "External dependencies" before changing this: it's a
+# human call (which version, whether the Docker image has been rebuilt and
+# tested against it) not a mechanical bump.
 browser-use==0.1.34
 playwright==1.49.1
 langchain-openai==0.3.1

@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tayari
+resources:
+  - namespace.yaml
+  - serviceaccounts.yaml
+  - configmap.yaml
+  - ingress.yaml
+  - deployments/frontend.yaml
+  - deployments/go-gateway.yaml
+  - deployments/python-api.yaml
+  - deployments/worker.yaml
+  - deployments/celery-beat.yaml
+  - services/frontend.yaml
+  - services/go-gateway.yaml
+  - services/python-api.yaml
+  - pod-disruption-budgets/customer-facing.yaml
+  - horizontal-pod-autoscalers/stateless.yaml
+  - network-policies/default-deny-ingress.yaml
+  - network-policies/application-ingress.yaml
+  - policies/resource-governance.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: job-tayari
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false

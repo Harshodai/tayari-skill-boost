@@ -510,8 +510,10 @@ export const AutonomousCareerConsole: React.FC = () => {
 
             {universalResult && (
               <div className="space-y-3 pt-4 font-mono text-xs">
-                <div className="text-emerald-400 font-bold">
-                  Submitted {universalResult.total_submitted} Applications across Portals: {universalResult.portals_covered.join(', ')}
+                {/* Navigation only — no form is filled and nothing is submitted. */}
+                <div className="text-amber-400 font-bold">
+                  Opened {universalResult.total_reached ?? 0} of {universalResult.total_processed ?? 0} postings
+                  across Portals: {universalResult.portals_covered.join(', ')} — nothing submitted
                 </div>
                 <div className="space-y-2">
                   {universalResult.applications.map((ap: any) => (

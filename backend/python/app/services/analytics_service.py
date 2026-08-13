@@ -28,14 +28,27 @@ class FunnelStats:
 
 
 def calculate_conversion_funnel(applications: List[Dict[str, Any]]) -> FunnelStats:
-    """Calculate conversion ratios and diagnostic recommendations."""
+    """Calculate conversion ratios and diagnostic recommendations.
+
+    An empty application list yields an all-zero funnel. It must NOT be
+    back-filled with a synthetic baseline: the caller renders this as the
+    user's own tracked funnel, so invented applications, interviews, and offers
+    would read as the user's real history.
+    """
     if not applications:
-        # Default baseline stats
-        applications = [
-            {"status": "applied"}, {"status": "applied"}, {"status": "applied"}, {"status": "applied"},
-            {"status": "applied"}, {"status": "applied"}, {"status": "applied"}, {"status": "applied"},
-            {"status": "interview"}, {"status": "interview"}, {"status": "offer"}
-        ]
+        return FunnelStats(
+            total_applied=0,
+            responses_received=0,
+            interviews_scheduled=0,
+            offers_received=0,
+            response_rate=0.0,
+            interview_rate=0.0,
+            offer_rate=0.0,
+            health_status="NO_DATA",
+            recommendations=[
+                "No applications tracked yet — apply to a few roles and this funnel will fill in.",
+            ],
+        )
 
     total_applied = len(applications)
     responses = 0

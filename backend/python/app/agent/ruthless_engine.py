@@ -55,14 +55,11 @@ class RuthlessJobEngine:
                 nav_ok = nav_res.get("success", False)
                 if nav_ok:
                     successful_count += 1
-                center = self.agent.computer_use.calculate_center_coordinates((150, 250, 450, 320))
-                
                 application_log.append({
                     "app_id": f"RUTHLESS-APP-{idx:03d}",
                     "url": url,
                     "portal": "Greenhouse/Lever" if "greenhouse" in url or "lever" in url else "Ashby/Workday",
                     "status": "SIMULATED" if nav_ok else "NAVIGATION_FAILED",
-                    "click_coordinate": center,
                     "timestamp": now_iso
                 })
             except Exception as e:

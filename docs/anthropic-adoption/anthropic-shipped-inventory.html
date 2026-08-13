@@ -1,0 +1,525 @@
+<title>What Anthropic Shipped — Capability Inventory, Aug 2026</title>
+<style>
+  :root {
+    --ground:        #F4F6F7;
+    --surface:       #FFFFFF;
+    --surface-sunk:  #EAEEF0;
+    --line:          #D3DBDF;
+    --line-soft:     #E3E9EC;
+    --ink:           #171E23;
+    --text:          #2E383F;
+    --muted:         #66757E;
+    --accent:        #0B6B75;
+    --accent-soft:   #E0F0F1;
+    --ok:            #2C6E49;
+    --ok-soft:       #E2EFE7;
+    --warn:          #97621A;
+    --warn-soft:     #F6EBDA;
+    --crit:          #A63A34;
+    --crit-soft:     #F7E4E2;
+    --shadow:        0 1px 2px rgba(23,30,35,.06), 0 8px 24px -16px rgba(23,30,35,.28);
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --serif: ui-serif, Charter, "Bitstream Charter", "Iowan Old Style", "Source Serif Pro", Georgia, serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0F1417; --surface: #161D21; --surface-sunk: #10161A;
+      --line: #2B363C; --line-soft: #222C31; --ink: #EDF2F4; --text: #C2CDD3; --muted: #7E8D96;
+      --accent: #46B8C2; --accent-soft: #103336;
+      --ok: #6FC28D; --ok-soft: #142C1F; --warn: #D3A05A; --warn-soft: #302517;
+      --crit: #E08279; --crit-soft: #331D1B;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0F1417; --surface: #161D21; --surface-sunk: #10161A;
+    --line: #2B363C; --line-soft: #222C31; --ink: #EDF2F4; --text: #C2CDD3; --muted: #7E8D96;
+    --accent: #46B8C2; --accent-soft: #103336;
+    --ok: #6FC28D; --ok-soft: #142C1F; --warn: #D3A05A; --warn-soft: #302517;
+    --crit: #E08279; --crit-soft: #331D1B;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--text);
+    font-family: var(--serif); font-size: 17px; line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 62rem; margin: 0 auto; padding: 4rem 1.5rem 6rem; display: flex; flex-direction: column; gap: 3.5rem; }
+  .prose { max-width: 40rem; display: flex; flex-direction: column; gap: 1rem; }
+
+  .masthead { display: flex; flex-direction: column; gap: 1.25rem; }
+  .kicker {
+    font-family: var(--mono); font-size: .7rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent); display: flex; flex-wrap: wrap; gap: .5rem 1rem;
+  }
+  h1 {
+    font-family: var(--mono); font-size: clamp(1.9rem, 1.2rem + 2.6vw, 3rem);
+    line-height: 1.08; letter-spacing: -.03em; font-weight: 600; color: var(--ink);
+    margin: 0; text-wrap: balance;
+  }
+  .standfirst { font-size: 1.15rem; color: var(--muted); max-width: 44rem; margin: 0; }
+  .rule { height: 1px; background: var(--line); border: 0; margin: 0; }
+
+  section { display: flex; flex-direction: column; gap: 1.5rem; }
+  h2 {
+    font-family: var(--mono); font-size: 1.02rem; letter-spacing: .11em; text-transform: uppercase;
+    font-weight: 600; color: var(--ink); margin: 0; padding-bottom: .7rem;
+    border-bottom: 2px solid var(--ink); display: flex; align-items: baseline; gap: .8rem;
+  }
+  h2 .n { color: var(--accent); font-size: .82rem; letter-spacing: .06em; }
+  h3 { font-family: var(--mono); font-size: .92rem; letter-spacing: .04em; font-weight: 600; color: var(--ink); margin: 0; }
+  p { margin: 0; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  code { font-family: var(--mono); font-size: .855em; background: var(--surface-sunk);
+    border: 1px solid var(--line-soft); padding: .08em .34em; border-radius: 3px;
+    color: var(--ink); word-break: break-word; }
+  blockquote {
+    margin: 0; padding: .9rem 1.15rem; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); color: var(--ink); font-size: 1rem;
+  }
+
+  .scroll { overflow-x: auto; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: .78rem; line-height: 1.5; }
+  th, td { text-align: left; padding: .7rem .85rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  th { font-size: .66rem; letter-spacing: .11em; text-transform: uppercase; color: var(--muted);
+    font-weight: 600; white-space: nowrap; background: var(--surface-sunk); border-bottom: 1px solid var(--line); }
+  tbody tr:last-child td { border-bottom: 0; }
+  td strong { color: var(--ink); font-weight: 600; }
+  td.date { white-space: nowrap; color: var(--accent); font-weight: 600; }
+  .nums td.v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+  .chip { display: inline-block; font-family: var(--mono); font-size: .64rem; letter-spacing: .09em;
+    text-transform: uppercase; font-weight: 600; padding: .17em .5em; border-radius: 3px; white-space: nowrap; }
+  .first { background: var(--ok-soft);     color: var(--ok); }
+  .press { background: var(--warn-soft);   color: var(--warn); }
+  .unver { background: var(--crit-soft);   color: var(--crit); }
+  .tier  { background: var(--accent-soft); color: var(--accent); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .cards > article { background: var(--surface); padding: 1.2rem 1.3rem; display: flex; flex-direction: column; gap: .6rem; }
+  .cards h3 { font-size: .82rem; }
+  .cards p { font-size: .95rem; }
+  .cards .meta { font-family: var(--mono); font-size: .68rem; color: var(--muted); letter-spacing: .04em; }
+
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    padding: 1.25rem 1.35rem; display: flex; flex-direction: column; gap: .8rem; box-shadow: var(--shadow); }
+  .callout .tag { font-family: var(--mono); font-size: .66rem; letter-spacing: .15em;
+    text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.warn .tag { color: var(--warn); }
+
+  ol.patterns { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 1px;
+    background: var(--line); border: 1px solid var(--line); counter-reset: p; }
+  ol.patterns > li { background: var(--surface); padding: 1rem 1.2rem; display: flex; gap: 1rem; align-items: baseline; counter-increment: p; }
+  ol.patterns > li::before {
+    content: counter(p, decimal-leading-zero); font-family: var(--mono); font-size: .72rem;
+    color: var(--accent); font-weight: 600; flex: 0 0 auto;
+  }
+  ol.patterns strong { color: var(--ink); }
+  ol.patterns p { font-size: .97rem; }
+
+  ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: .5rem; }
+  li::marker { color: var(--accent); }
+
+  footer { font-family: var(--mono); font-size: .72rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 1.25rem; }
+
+  @media (max-width: 620px) {
+    body { font-size: 16px; }
+    .wrap { padding: 2.5rem 1.1rem 4rem; gap: 2.75rem; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker">
+      <span>Reference</span><span>·</span><span>Through 13 Aug 2026</span><span>·</span><span>Companion to the Tayari adoption plan</span>
+    </div>
+    <h1>What Anthropic shipped</h1>
+    <p class="standfirst">
+      A capability inventory across Cowork, Claude Code, the browser surfaces, the Agent SDK, MCP,
+      Skills, and Artifacts — with the architectural idea behind each, and an explicit line between
+      what is first-party confirmed and what is press-sourced.
+    </p>
+    <hr class="rule" />
+    <p class="kicker" style="color: var(--muted)">
+      <span class="chip first">First-party</span>
+      <span class="chip press">Press-sourced</span>
+      <span class="chip unver">Unverified</span>
+    </p>
+  </header>
+
+  <section>
+    <h2><span class="n">01</span> Claude Cowork</h2>
+    <div class="prose">
+      <p>
+        An agentic surface for <strong>non-coding knowledge work</strong> — a third tab in the desktop
+        app beside Chat and Code, plus web, mobile, and a Chrome side panel. Give it a goal and a scope;
+        it plans, decomposes, runs code in a sandbox, coordinates parallel workstreams, and returns
+        finished artifacts. Built on the same Agent SDK harness as Claude Code.
+      </p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Date</th><th>Shipped</th><th>Availability</th></tr></thead>
+        <tbody>
+          <tr><td class="date">12 Jan 2026</td><td>Research preview, macOS only <span class="chip press">press</span></td><td>Max only, waitlist</td></tr>
+          <tr><td class="date">30 Jan 2026</td><td>Plugins research preview, 11 open-sourced</td><td>All paid</td></tr>
+          <tr><td class="date">24 Feb 2026</td><td>Private plugin marketplaces, connectors, OpenTelemetry</td><td>Enterprise</td></tr>
+          <tr><td class="date">9 Apr 2026</td><td><strong>GA</strong> macOS + Windows; RBAC, group spend limits, usage analytics <span class="chip press">press</span></td><td>All paid</td></tr>
+          <tr><td class="date">7 Jul 2026</td><td>Web + mobile beta; cloud sessions surviving a closed laptop; scheduled tasks; <strong>Dispatch</strong> <span class="chip press">press</span></td><td>Dispatch: Pro/Max only</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cards">
+      <article>
+        <h3>Execution moved off the machine, scope stayed on it</h3>
+        <p>
+          Work runs in an isolated environment on Anthropic's servers; the desktop app brokers access
+          to the local folders you connected. Sessions continue with the app closed.
+        </p>
+        <p class="meta">Decouple <em>where the agent runs</em> from <em>what it can touch</em>. Local access becomes a capability grant, not a colocation requirement — which is what buys cross-device continuity.</p>
+      </article>
+      <article>
+        <h3>A permission dial with a real middle</h3>
+        <p>
+          Manual / <strong>Auto</strong> / Skip. Auto approves read-only tools automatically and runs a
+          safety classifier before write or delete — and that check <em>costs more usage</em>.
+        </p>
+        <p class="meta">Most products ship a binary. Pricing the safety check as a real compute line item is the honest version.</p>
+      </article>
+      <article>
+        <h3>Dispatch: routing as conversation</h3>
+        <p>
+          One persistent thread decides whether a task is development work (spawns a Claude Code session)
+          or knowledge work (stays in Cowork). App approvals inside Dispatch-spawned sessions expire
+          after <strong>30 minutes</strong> rather than lasting the session.
+        </p>
+        <p class="meta">Approval scope shrinks with attention: unattended delegation gets a shorter trust window.</p>
+      </article>
+    </div>
+
+    <div class="callout warn">
+      <span class="tag">Constraints worth knowing</span>
+      <p>
+        Memory does not carry from Chat into Cowork except within projects. Sessions can't be shared.
+        Live artifacts and local MCP plugins are desktop-only. Web fetch and search run server-side and
+        are <strong>not</strong> subject to configured network egress restrictions.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span> Claude Code</h2>
+    <div class="cards">
+      <article>
+        <h3>Dynamic workflows</h3>
+        <p>
+          Claude <em>writes a JavaScript script</em> that orchestrates subagents; a runtime executes it
+          in the background. Primitives are <code>agent()</code> and <code>pipeline()</code>. Cap: 16
+          concurrent, 1000 agents per run.
+        </p>
+        <p class="meta">Move the plan out of the context window and into code. Intermediate results live in script variables, so the model's context holds only the answer — and the orchestration becomes a diffable, rerunnable artifact.</p>
+      </article>
+      <article>
+        <h3>Agent view — a control plane</h3>
+        <p>
+          <code>claude agents</code> groups background sessions by Needs input / Working / Completed.
+          Backed by a per-user supervisor daemon with pre-warmed workers; sessions outlive the terminal
+          and auto-move into git worktrees so parallel agents don't collide.
+        </p>
+        <p class="meta">The supervisor restarts itself into new versions automatically.</p>
+      </article>
+      <article>
+        <h3>Code review with a disproving agent</h3>
+        <p>
+          The managed service runs specialized agents in parallel, then a <strong>verification step
+          checks candidates against actual code behavior to filter false positives</strong>. Findings
+          rank by severity and post as a neutral check run that never blocks merges.
+        </p>
+        <p class="meta">A separate agent whose only job is to disprove the others. Feedback reactions are collected <em>after</em> the PR merges — outcome-conditioned, not immediate.</p>
+      </article>
+      <article>
+        <h3>Routines: stored prompt trusted, payload not</h3>
+        <p>
+          A fired trigger delivers the <em>stored</em> prompt as a trusted task, but the runtime
+          <code>text</code> arrives wrapped in a block labelled untrusted data. A leaked bearer token
+          yields data, not instructions.
+        </p>
+        <p class="meta">When this over-triggered, they fixed the trust model rather than loosening it.</p>
+      </article>
+      <article>
+        <h3>Auto mode becomes the default</h3>
+        <p>
+          From <strong>14 Aug 2026</strong>, auto mode is the default permission mode for new sessions
+          on Pro, Max, and Team. A separate classifier model reviews each action — and every
+          inter-agent message — before it runs.
+        </p>
+        <p class="meta"><code>defaultMode: "auto"</code> is ignored from repo-local settings, so a cloned repository cannot grant itself auto mode.</p>
+      </article>
+      <article>
+        <h3>Remote control</h3>
+        <p>
+          Drive a locally running session from the web or mobile. Outbound HTTPS only — never opens an
+          inbound port. Execution and filesystem stay local; the transcript is server-side, which is
+          why zero-retention orgs cannot use it.
+        </p>
+        <p class="meta">Multiple short-lived credentials, each scoped to one purpose and expiring independently.</p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span> The two browser surfaces</h2>
+    <div class="prose">
+      <p>
+        This is the split that matters most for anyone building an agent that touches the web. Anthropic
+        shipped both an extension and an in-app pane, and the line between them is drawn on exactly one
+        axis.
+      </p>
+    </div>
+
+    <blockquote>
+      “The Browser pane uses a <strong>clean browser profile, separate from your personal browser, with
+      none of your saved logins or history</strong>. Use it for building and testing your app and for
+      sites that don't need your identity. When you want Claude to <strong>act as you</strong> in your
+      logged-in sessions, use the Claude in Chrome extension instead, which shares your browser's login
+      state.”
+      <br /><span style="font-family: var(--mono); font-size: .72rem; letter-spacing: .05em;">— Claude Code desktop docs</span>
+    </blockquote>
+
+    <div class="cards">
+      <article>
+        <h3>Browser pane — identity-free</h3>
+        <p class="meta">Shipped 10 Jul 2026 <span class="chip press">press</span> · desktop app</p>
+        <p>
+          Tabbed Chromium inside the app. The agent reads pages as a <strong>YAML-style accessibility
+          tree</strong> where every interactive element is tagged <code>ref_N</code>; the docs say
+          plainly to prefer this over screenshots for verifying text and structure. The
+          <code>computer</code> action accepts <em>either</em> a <code>ref</code> or a pixel
+          <code>coordinate</code> — a hybrid with a documented preference order.
+        </p>
+        <p>
+          You drive it with your own mouse, sign in to sites yourself, and watch verification run in
+          front of you. <code>autoVerify</code> is on by default: after every file edit Claude
+          screenshots, checks for errors, and confirms the change works.
+        </p>
+        <p class="meta">Refs are ephemeral — valid until the next DOM mutation. Write-action safety classifiers run in <em>every</em> permission mode here, not just Auto.</p>
+      </article>
+      <article>
+        <h3>Claude in Chrome — identity-bearing</h3>
+        <p class="meta">Pro / Max / Team / Enterprise · Chrome + Edge only</p>
+        <p>
+          MV3 extension operating in your own logged-in profile. Multi-tab work, console and network
+          reads, form fill, file upload, screenshots, GIF recording, scheduled browser tasks, 1Password
+          with biometric approval. Connects to Claude Code over a native messaging host, not a network
+          port.
+        </p>
+        <p>
+          API keys and long-lived tokens are <strong>refused</strong> — it requires a real account
+          session.
+        </p>
+        <p class="meta">Hard refusals no approval unlocks: purchases, account creation, CAPTCHA bypass. Pauses for you at login pages.</p>
+      </article>
+    </div>
+
+    <h3 style="margin-top:.5rem">Prompt injection — the published record</h3>
+    <div class="scroll">
+      <table class="nums">
+        <thead><tr><th>Configuration</th><th class="v">Attack success</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td>Browser use, no mitigations (Aug 2025 pilot)</td><td class="v">23.6%</td><td><span class="chip first">first-party</span></td></tr>
+          <tr><td>Autonomous mode + mitigations</td><td class="v">11.2%</td><td><span class="chip first">first-party</span></td></tr>
+          <tr><td>Browser-specific attacks — hidden fields, URL manipulation</td><td class="v">35.7% → 0%</td><td><span class="chip first">first-party</span></td></tr>
+          <tr><td>Beta, Nov 2025, adaptive attacker, 100 attempts/env</td><td class="v">1%</td><td><span class="chip first">first-party</span></td></tr>
+          <tr><td>Opus 5 browser use, auto-mode safeguards</td><td class="v">0 / 129</td><td><span class="chip unver">unverified</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warn">
+      <span class="tag">Anthropic's own position</span>
+      <p style="font-family: var(--mono); font-size: .95rem; color: var(--ink);">
+        Prompt injection remains “far from a solved problem.”
+      </p>
+      <p>
+        Mitigations are three layers: reinforcement learning against simulated malicious web content
+        baked into the model; classifiers scanning untrusted content for adversarial commands in hidden
+        text, manipulated images, and deceptive UI; and continuous red teaming. Plus per-site
+        permissions — each subdomain separately — and admin allowlists.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span> Agent SDK &amp; Managed Agents</h2>
+    <div class="prose">
+      <p>
+        Managed Agents has been in public beta since <strong>April 2026</strong>. Pricing is standard
+        token rates plus <strong>$0.08 per session-hour</strong> of active runtime. Four resources:
+        Agent, Environment, Session, Events.
+      </p>
+    </div>
+    <div class="cards">
+      <article>
+        <h3>Versioned agents, non-merging overrides</h3>
+        <p>
+          An Agent is a versioned, immutable-by-default config; version increments on any real change,
+          and no-op updates create none. A Session can pass <code>agent_with_overrides</code> to replace
+          model, system prompt, tools, MCP servers, or skills for that session only.
+        </p>
+        <p>
+          Three uniform rules: <strong>omit</strong> → inherit, <strong>null</strong> → clear,
+          <strong>set</strong> → replace in full, never merge. The response returns a resolved snapshot
+          while <code>id</code>/<code>version</code> still point at the base agent.
+        </p>
+        <p class="meta">Staged rollouts and one-off experiments without config drift — and "replace, never merge" is what makes override behavior predictable at 3 a.m.</p>
+      </article>
+      <article>
+        <h3>Budget as a first-class stop reason</h3>
+        <p>
+          <code>max_list_cost</code> takes <strong>a string of whole US cents</strong>, so no float
+          rounding ever happens. The session pauses with stop reason <code>budget_reached</code>,
+          enforced <em>between</em> model requests.
+        </p>
+        <p class="meta">A ceiling that is checked at a defined boundary, not best-effort mid-flight.</p>
+      </article>
+      <article>
+        <h3>Self-hosted sandboxes</h3>
+        <p>
+          Orchestration stays with Anthropic; tool execution moves to your infrastructure, so code,
+          filesystem, and egress never leave your network.
+        </p>
+        <p class="meta">Managed Agents is not zero-retention eligible — it is stateful by design.</p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">05</span> MCP 2026-07-28</h2>
+    <div class="prose">
+      <p>
+        Released <strong>28 July 2026</strong> — final, not a candidate. The largest revision since
+        launch, with all four Tier-1 SDKs updated simultaneously.
+      </p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Change</th><th>What implementers do</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Stateless core</strong></td><td>The <code>initialize</code> handshake and <code>Mcp-Session-Id</code> are gone. Every request carries its own <code>_meta</code> with protocol version, client capabilities, and client info. Cross-call state uses server-minted handles passed as ordinary tool arguments.</td></tr>
+          <tr><td><strong>MRTR</strong> — multi round-trip requests</td><td>Replaces all server-initiated requests. The server returns <code>InputRequiredResult</code>; the client <em>retries the original request</em> with responses attached. <strong>This is the structural move that makes statelessness possible</strong> — the server never needs a channel back to a specific connection.</td></tr>
+          <tr><td><strong><code>server/discover</code></strong></td><td>Now a required RPC advertising supported versions, capabilities, and identity.</td></tr>
+          <tr><td><strong>Protocol-level caching</strong></td><td><code>ttlMs</code> and <code>cacheScope</code> required on list and read methods. Servers should return tools in deterministic order — explicitly to improve LLM prompt-cache hit rates.</td></tr>
+          <tr><td><strong>OAuth tightening</strong></td><td>Dynamic Client Registration deprecated in favour of Client ID Metadata Documents. Clients must validate <code>iss</code> before redeeming a code. Credentials bind to the issuing authorization server and are never reused across them.</td></tr>
+          <tr><td><strong>Extensions framework</strong></td><td>Thin core plus opt-in extensions, always disabled by default. Three official today: Tasks, MCP Apps, Enterprise-Managed Authorization.</td></tr>
+          <tr><td><strong>Deprecated</strong></td><td>Roots, Sampling, Logging, the HTTP+SSE transport. Twelve-month minimum window each.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <span class="tag">MCP Apps — the delegation argument</span>
+      <p>
+        A tool declares a <code>ui://</code> resource; the host renders it in a sandboxed iframe with no
+        parent DOM, cookies, or navigation, bridged by JSON-RPC over postMessage. The app
+        <strong>delegates actions to the host</strong>, which routes them through the user's already
+        connected capabilities — so it can request an outcome like “schedule this meeting” without
+        implementing a single provider integration.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">06</span> Skills &amp; Artifacts</h2>
+    <div class="cards">
+      <article>
+        <h3>Skills: progressive disclosure with a budget</h3>
+        <p>
+          A directory with a <code>SKILL.md</code>: frontmatter plus markdown. Only
+          <code>description</code> and <code>when_to_use</code> sit in the always-loaded listing, and
+          that text is <strong>truncated at 1,536 characters</strong>. The body loads on use — and then
+          stays in context, so every line is a recurring cost.
+        </p>
+        <p class="meta">Four precedence levels; <code>context: fork</code> runs a skill in its own subagent when even the loaded body is too much.</p>
+      </article>
+      <article>
+        <h3>Skills: a trust ladder by location</h3>
+        <p>
+          Whether a skill's executable parts run depends on <em>where the session lives</em>, not who
+          wrote it. Cloud session: full behavior. Cowork desktop: shell lines replaced with a
+          placeholder. Any other local session: shell, attachments, and placeholders arrive as literal
+          text.
+        </p>
+        <p class="meta">Name collisions are compared Unicode-normalized, so look-alike characters can't shadow a real skill.</p>
+      </article>
+      <article>
+        <h3>Artifacts: capability declared, identity resolved per viewer</h3>
+        <p>
+          A published page can call MCP connectors — but through <strong>the viewing account's own
+          connections</strong>, not the publisher's. Two people opening the same dashboard see different
+          data; the page never sees anyone's credentials. Actions with side effects also run under the
+          viewer's account.
+        </p>
+        <p class="meta">Which is exactly why a connector-backed artifact can never be shared to a public link on any plan.</p>
+      </article>
+      <article>
+        <h3>Artifacts: the sandbox</h3>
+        <p>
+          Strict CSP blocks all external hosts. Everything inlined, images as data URIs, single page,
+          16 MiB ceiling, served from a sandboxed origin. Persistent storage is 20 MB per artifact,
+          text-only, in personal or shared scope — and only works <em>after</em> publishing.
+        </p>
+        <p class="meta">Governance most products skip: audit-log events, separate retention for private vs shared, and a compliance API for listing and deleting.</p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">07</span> Patterns worth stealing</h2>
+    <ol class="patterns">
+      <li><p><strong>Two surfaces, split by identity.</strong> Clean profile for agent work, identity-bearing for acting as the user. Same tools, different trust boundary — and it generalizes well beyond browsers.</p></li>
+      <li><p><strong>A classifier model as the permission boundary</strong>, not a rule engine — priced as real compute and said out loud.</p></li>
+      <li><p><strong>Structured page reads beat pixels.</strong> Accessibility tree with stable refs; screenshots explicitly deprioritized. Cheaper, more deterministic, mutation-scoped.</p></li>
+      <li><p><strong>Move the plan out of context and into code.</strong> Script variables hold intermediate results; the model's window holds only the answer.</p></li>
+      <li><p><strong>Stored prompt trusted, runtime payload untrusted.</strong> Directly transferable to any webhook-triggered agent.</p></li>
+      <li><p><strong>Progressive disclosure with a hard character budget.</strong> Description always in context, body on demand, fork when that's still too much.</p></li>
+      <li><p><strong>Versioned definitions with non-merging overrides</strong> that return a resolved snapshot and keep lineage intact.</p></li>
+      <li><p><strong>Statelessness via retry, not sockets.</strong> Return “I need input”; let the client retry with the answer.</p></li>
+      <li><p><strong>Capability declarations resolved against the viewer</strong>, with the publisher's declaration as the ceiling.</p></li>
+      <li><p><strong>Approval scope shrinks with attention.</strong> Attended sessions get session-length approvals; unattended ones get thirty minutes.</p></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="n">08</span> Confidence</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Level</th><th>Covers</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="chip first">First-party</span></td>
+            <td>All Claude Code features and the browser pane; Cowork's current tiers, platform matrix, permission model, and cloud-sandbox architecture; Claude in Chrome capabilities and the 2025-era injection numbers; the whole MCP section; Skills; Artifacts; Managed Agents including <code>agent_with_overrides</code>; auto mode becoming default 14 Aug 2026.</td>
+          </tr>
+          <tr>
+            <td><span class="chip press">Press-sourced</span></td>
+            <td>Cowork's Jan / Apr / Jul milestone dates and the GA enterprise-feature list; Managed Agents' April beta date; the browser pane's 10 July date; self-hosted sandboxes in May.</td>
+          </tr>
+          <tr>
+            <td><span class="chip unver">Unverified</span></td>
+            <td>A January report of a local virtualization sandbox, contradicted by current docs describing an Anthropic-server sandbox — possibly a genuine architecture change, a reporting error, or both. The “built in ten days” story. May 2026 Cowork usage percentages. All Opus 5 prompt-injection figures, which come from press summaries of a system card that could not be opened directly.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Companion document: <em>Adopting what Anthropic shipped</em> — the Tayari engineering plan built on this inventory.
+  </footer>
+
+</div>

@@ -24,5 +24,21 @@ def untrusted(text: str) -> str:
     return f"{UNTRUSTED_DELIM}\n{text}\n{UNTRUSTED_DELIM}"
 
 
+def strip_untrusted(text: str) -> str:
+    """Remove fencing added by :func:`untrusted`, for display to a human.
+
+    Fenced text is safe to hand a model but must never reach a UI field with
+    the delimiters still in it. Use this at the point where fenced content is
+    rendered rather than un-fencing it earlier and losing the protection in
+    between.
+    """
+    text = text or ""
+    if UNTRUSTED_DELIM not in text:
+        return text
+    return "\n".join(
+        line for line in text.splitlines() if line.strip() != UNTRUSTED_DELIM
+    ).strip()
+
+
 # Backwards-compatible alias for existing call sites.
 _untrusted = untrusted

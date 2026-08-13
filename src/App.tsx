@@ -88,6 +88,7 @@ const AgentReachHub = lazy(() => import('./pages/AgentReachHub'));
 const LandingPage = lazy(() => import('./pages/Landing'));
 const Omnisave = lazy(() => import('./pages/Omnisave'));
 const TayariComputerControlRoom = lazy(() => import('./components/TayariComputerControlRoom'));
+const DesktopAgent = lazy(() => import('./pages/DesktopAgent'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 const queryClient = new QueryClient();
@@ -121,6 +122,7 @@ const App = () => (
               <Route path="/landing" element={<LandingPage />} />
               <Route path="/omnisave" element={<Omnisave />} />
               <Route path="/control-room" element={<ProtectedRoute><TayariComputerControlRoom /></ProtectedRoute>} />
+              <Route path="/desktop" element={<ProtectedRoute><DesktopAgent /></ProtectedRoute>} />
               {features.oneShotPipeline && (
                 <Route path="/one-shot" element={<OneShotPipeline />} />
               )}

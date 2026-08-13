@@ -105,6 +105,10 @@ export function AgentLiveView({ runId, browserInstruction }: { runId: string; br
 
 
   const latestScreenshot = [...feedEvents].reverse().find((e) => e.type === "screenshot" && e.data);
+  // Emitted once by the backend when the provider is Browserbase. This is the
+  // interactive pane — the user watches the real session and can click into it
+  // to unblock the agent — so it takes precedence over still frames.
+  const liveViewUrl = feedEvents.find((e) => e.type === "live_view" && e.url)?.url;
 
   const { data: run } = useQuery({
     queryKey: ["agent-run", runId],
@@ -253,7 +257,32 @@ export function AgentLiveView({ runId, browserInstruction }: { runId: string; br
               ) : null}
             </div>
             <div className="space-y-2">
-              {latestScreenshot ? (
+              {liveViewUrl ? (
+                <div className="overflow-hidden rounded-lg border bg-muted/40">
+                  {/* Interactive session pane. allow-same-origin + allow-scripts
+                      is required for the provider's live view to render and
+                      accept input; it is scoped to the provider origin, which
+                      is why no user credentials are ever typed by the agent —
+                      sensitive fields route to the take-over queue instead. */}
+                  <iframe
+                    src={liveViewUrl}
+                    title="Live browser session"
+                    className="h-[26rem] w-full border-0 bg-background"
+                    sandbox="allow-scripts allow-same-origin allow-forms"
+                    referrerPolicy="no-referrer"
+                    allow="clipboard-write"
+                  />
+                  <div className="flex items-center justify-between px-3 py-1.5 text-[11px] text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Live — you can click inside to help the agent
+                    </span>
+                    {latestScreenshot?.url ? (
+                      <span className="truncate max-w-[55%]">{latestScreenshot.url}</span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : latestScreenshot ? (
                 <div className="overflow-hidden rounded-lg border bg-muted/40">
                   <img
                     src={`data:image/png;base64,${latestScreenshot.data}`}
@@ -286,7 +315,9 @@ export function AgentLiveView({ runId, browserInstruction }: { runId: string; br
                 </p>
               ) : null}
               <p className="text-[11px] text-muted-foreground">
-                What the agent sees, per step — not a video stream.
+                {liveViewUrl
+                  ? "The agent's real browser session, live. Taking over here pauses the agent."
+                  : "What the agent sees, per step — not a video stream."}
               </p>
             </div>
           </div>

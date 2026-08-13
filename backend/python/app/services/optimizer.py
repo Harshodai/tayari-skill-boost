@@ -299,8 +299,17 @@ def validate_master_alignment(tailored_text: str, master_text: str) -> dict:
         tailored_parsed = ResumeParser.parse_text(tailored_text)
         master_parsed = ResumeParser.parse_text(master_text)
     except Exception as e:
+        # Fail closed. This check exists to catch a tailored resume inventing
+        # skills or credentials the master resume does not support; reporting a
+        # clean pass at full confidence when it could not run makes an
+        # unperformed check indistinguishable from a passed one.
         logger.warning("Parser failed in master alignment validation: %s", e)
-        return {"is_aligned": True, "violations": [], "confidence_score": 1.0}
+        return {
+            "is_aligned": False,
+            "verified": False,
+            "violations": [f"alignment could NOT be verified — resume parsing failed: {e}"],
+            "confidence_score": 0.0,
+        }
 
     violations = []
 
@@ -333,6 +342,7 @@ def validate_master_alignment(tailored_text: str, master_text: str) -> dict:
 
     return {
         "is_aligned": is_aligned,
+        "verified": True,
         "violations": violations,
         "confidence_score": confidence
     }
@@ -719,7 +729,12 @@ async def scrape_jd_url(url: str) -> str | None:
                 if full_content and full_content.strip():
                     return full_content
             if res.get("success") and res.get("content_preview"):
-                return res["content_preview"]
+                # `content_preview` arrives fenced for model consumption. This
+                # value is returned as job-description text that the user sees
+                # and edits, so the delimiters have to come off here.
+                from app.services.prompt_safety import strip_untrusted
+
+                return strip_untrusted(res["content_preview"])
         finally:
             await browser.close()
     except Exception as e:

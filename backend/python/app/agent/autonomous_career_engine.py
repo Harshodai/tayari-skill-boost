@@ -141,32 +141,38 @@ class AutonomousCareerEngine:
             except Exception:
                 pass
 
+            # No click_coordinate is reported. It used to be derived from a
+            # hardcoded rectangle, so every row on every portal carried the
+            # identical "click coordinate" — a spatial-vision inspection that
+            # never happened.
             try:
                 nav_res = await self.agent.browser.navigate(url)
                 success = nav_res.get("success", False)
-                center = self.agent.computer_use.calculate_center_coordinates((150, 250, 450, 320))
-                
+
                 application_log.append({
                     "app_id": f"EXEC-APP-{idx:03d}",
                     "url": url,
                     "portal": detected_portal,
-                    "status": "SIMULATED" if success else "NAVIGATION_FAILED",
-                    "click_coordinate": center,
+                    "status": "REACHED" if success else "NAVIGATION_FAILED",
                     "hitl_verified": False
                 })
             except Exception:
-                center = self.agent.computer_use.calculate_center_coordinates((150, 250, 450, 320))
                 application_log.append({
                     "app_id": f"EXEC-APP-{idx:03d}",
                     "url": url,
                     "portal": detected_portal,
                     "status": "FAILED",
-                    "click_coordinate": center,
                     "hitl_verified": False
                 })
 
+        # This routine only navigates to each posting — it fills no form and
+        # submits nothing — so it reports pages reached, never applications
+        # submitted. `total_submitted` is deliberately absent rather than 0:
+        # a key that does not exist cannot be rendered as a submission count.
         return {
             "total_processed": len(application_log),
+            "total_reached": sum(1 for a in application_log if a["status"] == "REACHED"),
+            "submitted": False,
             "portals_covered": list(set(a["portal"] for a in application_log)),
             "all_supported_portals": list(PORTAL_DOMAIN_MAP.values()),
             "applications": application_log

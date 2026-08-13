@@ -6,27 +6,29 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { BarChart3, TrendingUp, AlertTriangle, CheckCircle2, RefreshCw, ArrowRight, Target, Award } from "lucide-react";
 import { AppShell } from "@/components/layout";
 import { apiFetch } from "@/api";
+import { listApplications } from "@/api/autopilot";
 
-const DEFAULT_FALLBACK_FUNNEL = {
-  total_applied: 24,
-  responses_received: 6,
-  interviews_scheduled: 4,
-  offers_received: 1,
-  response_rate: 25.0,
-  interview_rate: 66.7,
-  offer_rate: 25.0,
-  health_status: "EXCELLENT",
+// An empty funnel is what a user with no tracked applications actually has.
+// This is a zero state, not sample data — nothing here is invented, so it is
+// safe to render as the user's own numbers.
+const EMPTY_FUNNEL = {
+  total_applied: 0,
+  responses_received: 0,
+  interviews_scheduled: 0,
+  offers_received: 0,
+  response_rate: 0,
+  interview_rate: 0,
+  offer_rate: 0,
+  health_status: "NO_DATA",
   recommendations: [
-    "Outstanding response rate! Keep leveraging Typst ATS PDFs.",
-    "Resumes tailored with 85%+ ATS scores significantly improve callback rates over generic submissions.",
-    "Consider using the Salary Negotiation Copilot to maximize your recent offer package.",
+    "No applications tracked yet — apply to a few roles and this funnel will fill in.",
   ],
 };
 
 export function ApplicationAnalytics() {
   const [loading, setLoading] = useState(false);
-  const [isSampleData, setIsSampleData] = useState(true);
-  const [funnel, setFunnel] = useState<any>(DEFAULT_FALLBACK_FUNNEL);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [funnel, setFunnel] = useState<any>(EMPTY_FUNNEL);
 
   const [outcomeMatrix, setOutcomeMatrix] = useState<any[]>([
     { tier: "90% - 100% ATS Match", applications: 12, responses: 4, interviews: 3, callback_rate: "33.3%", conversion_grade: "A+" },
@@ -37,10 +39,17 @@ export function ApplicationAnalytics() {
 
   const fetchAnalytics = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
+      // The funnel has to be computed over the user's OWN applications. Posting
+      // an empty list used to make the backend substitute a synthetic baseline,
+      // which then rendered as the user's real history.
+      const applications = await listApplications();
       const data = await apiFetch<any>("/v1/analytics/funnel", {
         method: "POST",
-        body: JSON.stringify({ applications: [] }),
+        body: JSON.stringify({
+          applications: applications.map((a) => ({ status: a.status })),
+        }),
       });
       const isValid =
         data &&
@@ -54,14 +63,14 @@ export function ApplicationAnalytics() {
 
       if (isValid) {
         setFunnel(data);
-        setIsSampleData(false);
       } else {
-        setFunnel(DEFAULT_FALLBACK_FUNNEL);
-        setIsSampleData(true);
+        // Malformed response: show nothing rather than plausible numbers.
+        setFunnel(EMPTY_FUNNEL);
+        setLoadError("Analytics returned an unreadable response.");
       }
-    } catch {
-      setFunnel(DEFAULT_FALLBACK_FUNNEL);
-      setIsSampleData(true);
+    } catch (err) {
+      setFunnel(EMPTY_FUNNEL);
+      setLoadError(err instanceof Error ? err.message : "Could not load your analytics.");
     } finally {
       setLoading(false);
     }
@@ -78,9 +87,9 @@ export function ApplicationAnalytics() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold tracking-tight">Application Conversion Analytics</h1>
-              {isSampleData && (
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-xs py-1 px-2.5">
-                  Sample Data
+              {loadError && (
+                <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-xs py-1 px-2.5">
+                  Couldn't load
                 </Badge>
               )}
             </div>
@@ -151,16 +160,15 @@ export function ApplicationAnalytics() {
                 Resume Tailoring Variant & Outcome Matrix
               </span>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
-                  Sample Data
-                </Badge>
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                  Moat M2: Closed-Loop Data
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                  Illustrative — not your data
                 </Badge>
               </div>
             </CardTitle>
             <CardDescription>
-              Correlation measuring recruiter response rates across different ATS match score ranges.
+              An example of how callback rate varies by ATS match tier. These are fixed
+              reference figures, not a measurement of your applications — per-tier outcome
+              tracking is not wired up yet.
             </CardDescription>
           </CardHeader>
           <CardContent>

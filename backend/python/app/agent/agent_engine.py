@@ -11,7 +11,6 @@ from app.agent.browser_operator import BrowserOperator
 from app.agent.agent_memory import AgentMemory
 from app.agent.reflection_engine import ReflectionEngine
 from app.agent.subagent_orchestrator import SubagentOrchestrator
-from app.agent.computer_use import ComputerUseDriver
 
 def _resolve_and_validate_url(url: str) -> Optional[Dict[str, Any]]:
     """
@@ -76,7 +75,6 @@ class GeneralistAgentEngine:
         self.memory = AgentMemory()
         self.reflection = ReflectionEngine()
         self.orchestrator = SubagentOrchestrator()
-        self.computer_use = ComputerUseDriver()
 
         self.session_history: List[Dict[str, Any]] = []
         self._register_default_mcp_tools()
@@ -392,24 +390,21 @@ class GeneralistAgentEngine:
         steps_log.append(step_2)
         self.memory.record_episode(2, "CodeAct REPL Execution", code_to_run, repl_result, repl_result.get("success", False))
 
-        # Step 3: MCP Tool Call & Spatial Vision Check
+        # Step 3: MCP Tool Call
         step_3_succeeded = True
         try:
             mcp_res = await self.mcp.call_tool("list_dir", {"dir_path": "."})
-            coord_sample = self.computer_use.calculate_center_coordinates((100, 100, 500, 400))
         except Exception as exc:
-            # ponytail: tolerate failures from optional vision/MCP tooling so a
+            # ponytail: tolerate failures from optional MCP tooling so a
             # sandbox-restricted environment does not abort the whole task.
-            mcp_res = {"error": f"MCP/vision step failed: {exc}"}
-            coord_sample = None
+            mcp_res = {"error": f"MCP step failed: {exc}"}
             step_3_succeeded = False
 
         step_3 = {
             "step": 3,
-            "action": "MCP Tool & Spatial Vision Inspection",
-            "thought": "Querying Model Context Protocol tools and calculating spatial vision coordinates.",
+            "action": "MCP Tool Inspection",
+            "thought": "Querying Model Context Protocol tools.",
             "mcp_output": mcp_res,
-            "spatial_click_coord": coord_sample,
             "plan": plan
         }
         steps_log.append(step_3)

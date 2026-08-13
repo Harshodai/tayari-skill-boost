@@ -1,0 +1,74 @@
+name: Kubernetes Delivery Validation
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - 'scripts/**'
+      - '.github/workflows/kubernetes.yml'
+      - 'backend/go/**'
+      - 'backend/python/**'
+      - 'Dockerfile*'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - 'scripts/**'
+      - '.github/workflows/kubernetes.yml'
+      - 'backend/go/**'
+      - 'backend/python/**'
+      - 'Dockerfile*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kubernetes-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render-and-validate:
+    name: Render Kubernetes overlays and validate scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v2.1.0
+
+      - name: Verify deploy scripts parse
+        run: |
+          set -euo pipefail
+          chmod +x scripts/*.sh
+          for script in scripts/build-images.sh scripts/render-manifests.sh scripts/deploy-environment.sh scripts/smoke-test.sh scripts/rollback.sh scripts/drain-workers.sh; do
+            bash -n "$script"
+          done
+
+      - name: Render each environment
+        run: |
+          set -euo pipefail
+          mkdir -p rendered
+          for environment in development staging production; do
+            scripts/render-manifests.sh "$environment" "rendered/${environment}.yaml" --allow-placeholders
+            test -s "rendered/${environment}.yaml"
+            grep -q 'kind: Deployment' "rendered/${environment}.yaml"
+            grep -q 'kind: NetworkPolicy' "rendered/${environment}.yaml"
+          done
+
+      - name: Check deployment safety invariants
+        run: |
+          set -euo pipefail
+          ! grep -R --line-number 'image: .*:latest' infra/k8s
+          ! grep -R --line-number 'privileged: true' infra/k8s
+          ! grep -R --line-number 'hostNetwork: true' infra/k8s
+          ! grep -R --line-number 'hostPID: true' infra/k8s
+          grep -R --line-number 'allowPrivilegeEscalation: false' infra/k8s/base/deployments
+          grep -R --line-number 'readOnlyRootFilesystem: true' infra/k8s/base/deployments
+
+      - name: Upload rendered manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-kubernetes-manifests
+          path: rendered/
+          retention-days: 14

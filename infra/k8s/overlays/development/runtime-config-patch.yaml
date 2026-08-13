@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tayari-runtime-config
+data:
+  APP_ENV: development
+  SENTRY_ENVIRONMENT: development

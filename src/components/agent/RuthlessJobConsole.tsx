@@ -256,8 +256,13 @@ export const RuthlessJobConsole: React.FC = () => {
 
             {batchResult && (
               <div className="space-y-3 pt-4 font-mono text-xs">
-                <div className="flex justify-between items-center text-emerald-400 font-bold">
-                  <span>Batch Status: {batchResult.success_rate} Success ({batchResult.total_submitted} Applications Submitted)</span>
+                {/* The batch engine navigates to each posting; it does not fill
+                    or submit any form. Report pages reached, never submissions. */}
+                <div className="flex justify-between items-center text-amber-400 font-bold">
+                  <span>
+                    Batch Status: {batchResult.total_reached ?? 0}/{batchResult.total_processed ?? 0} postings opened —
+                    nothing submitted, review each below
+                  </span>
                 </div>
                 <div className="space-y-2">
                   {batchResult.applications.map((ap: any) => (
