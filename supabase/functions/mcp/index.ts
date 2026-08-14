@@ -6,7 +6,7 @@
 import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.1";
 
 // src/lib/mcp/tools/get-profile.ts
-import { createClient } from "npm:@supabase/supabase-js@^2.90.1";
+import { createClient } from "npm:@supabase/supabase-js@^2.112.3";
 import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.1";
 function sb(ctx) {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
@@ -34,7 +34,7 @@ var get_profile_default = defineTool({
 });
 
 // src/lib/mcp/tools/search-jobs.ts
-import { createClient as createClient2 } from "npm:@supabase/supabase-js@^2.90.1";
+import { createClient as createClient2 } from "npm:@supabase/supabase-js@^2.112.3";
 import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z } from "npm:zod@^4.4.3";
 function sb2(ctx) {
@@ -67,7 +67,7 @@ var search_jobs_default = defineTool2({
 });
 
 // src/lib/mcp/tools/list-applications.ts
-import { createClient as createClient3 } from "npm:@supabase/supabase-js@^2.90.1";
+import { createClient as createClient3 } from "npm:@supabase/supabase-js@^2.112.3";
 import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z2 } from "npm:zod@^4.4.3";
 function sb3(ctx) {
@@ -101,7 +101,7 @@ var list_applications_default = defineTool3({
 });
 
 // src/lib/mcp/tools/save-job.ts
-import { createClient as createClient4 } from "npm:@supabase/supabase-js@^2.90.1";
+import { createClient as createClient4 } from "npm:@supabase/supabase-js@^2.112.3";
 import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z3 } from "npm:zod@^4.4.3";
 function sb4(ctx) {
@@ -269,7 +269,7 @@ var generate_cover_letter_default = defineTool7({
 });
 
 // src/lib/mcp/tools/get-pipeline.ts
-import { createClient as createClient5 } from "npm:@supabase/supabase-js@^2.90.1";
+import { createClient as createClient5 } from "npm:@supabase/supabase-js@^2.112.3";
 import { defineTool as defineTool8 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z7 } from "npm:zod@^4.4.3";
 function sb5(ctx) {
