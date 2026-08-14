@@ -2,7 +2,7 @@
 
 **Date:** 14 August 2026
 **Repository:** `Harshodai/tayari-skill-boost`
-**Current gate:** 113 critical/high findings remain in the production baseline: **41 critical database findings and 72 high database findings**. The scan also reports one low edge-function CORS finding. The findings are not 113 unrelated vulnerabilities: most are repeated migration-contract findings across the same classes of database controls.
+**Current gate:** The original baseline contained 113 critical/high findings: **41 critical database findings and 72 high database findings**. After the role-aware scanner fix, the production gate currently blocks on **111 critical/high findings: 41 critical and 70 high**; two high policy findings were correctly resolved as service-role-only policies. The scan also reports one low edge-function CORS finding. The findings are not 111 unrelated vulnerabilities: most are repeated migration-contract findings across the same classes of database controls.
 
 ## 1. Finding inventory
 
@@ -10,7 +10,7 @@
 |---|---:|---:|---|
 | Public tables created without RLS | Critical | 41 | A table may be reachable without a row-ownership policy. This is the highest-risk class for user-owned data. |
 | Public tables created without explicit grants | High | 68 | The migration does not declare the intended Data API privileges. Add least-privilege grants after RLS policies. |
-| Policies containing `USING (true)` | High | 4 | These are safe only for tightly restricted roles such as `service_role`; they must never be used for `anon` or general `authenticated` access. |
+| Policies containing `USING (true)` | High | 2 unresolved | The scanner now exempts service-role-only policies; any remaining finding must be restricted to `service_role` or replaced with an owner/public-read predicate. |
 | Other scanner-specific database repeats | High | Included above | The same table can produce both an RLS and a grant finding across multiple migration files. |
 | Edge-function CORS | Low | 1 | `supabase/functions/mcp/index.ts` lacks the scanner’s expected CORS header marker. This is currently an unrelated pre-existing working-tree change and was not included in the AWS package. |
 
@@ -208,4 +208,5 @@ The deployment is manual and commit-based. Before each deployment record `git re
 
 ## 8. Deployment readiness decision
 
-The AWS files can deploy a **canary**, but they do not override the production security gate. The GitHub Actions workflow intentionally runs `bun run security:production` before an SSM deployment. With 41 critical and 72 high findings, that job should fail until the RLS/grant/policy migration work is complete or the affected features are explicitly removed from the launch surface. The first live release should be manual-submit only, with human-controlled login, OTP/MFA, CAPTCHA, terms, legal declarations, and final submission.
+The AWS files can deploy a **canary**, but they do not override the production security gate. The GitHub Actions workflow intentionally runs `bun run security:production` before an SSM deployment. With 41 critical and 70 high findings after the scanner correction, that job should fail until the RLS/grant/policy migration work is complete or the affected features are explicitly removed from the launch surface.
+The first live release should be manual-submit only, with human-controlled login, OTP/MFA, CAPTCHA, terms, legal declarations, and final submission.
