@@ -18,7 +18,27 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+
+def rate_limit_key(request: Request) -> str:
+    """Use user-plus-IP for authenticated calls and IP for anonymous calls."""
+    user_id = (request.headers.get("X-User-Id") or "").strip()
+    ip = get_remote_address(request)
+    return f"user:{user_id}:ip:{ip}" if user_id else f"anon:ip:{ip}"
+
+
+_env_for_limits = os.getenv("ENV", "development").lower()
+_rate_limit_storage = os.getenv("RATELIMIT_STORAGE_URL") or os.getenv("REDIS_URL")
+if _env_for_limits == "production" and not _rate_limit_storage:
+    raise RuntimeError("REDIS_URL or RATELIMIT_STORAGE_URL must be set in production")
+
+limiter = Limiter(
+    key_func=rate_limit_key,
+    default_limits=["100/minute"],
+    storage_uri=_rate_limit_storage or "memory://",
+    # A production Redis outage must fail closed rather than silently reducing
+    # a multi-replica service to independent process-local buckets.
+    swallow_errors=False,
+)
 
 from app.schemas import (
     ATSAnalysisResponse,
@@ -64,6 +84,9 @@ from app.services.interview_ai import InterviewPrepGenerator
 from app.services.knowledge_graph import KnowledgeGraphExtractor
 from app.services.linkedin_analyzer import score_linkedin_profile
 from app.middleware.internal_gateway import InternalGatewayMiddleware
+from app.middleware.request_budget import RequestBudgetMiddleware
+from app.middleware.operation_budget import OperationBudgetMiddleware
+from app.auth.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +145,12 @@ app.state.limiter = limiter
 # The Go gateway is the only public API boundary in production. The middleware
 # below rejects direct calls before route code or expensive work runs.
 app.add_middleware(InternalGatewayMiddleware)
+# Reject oversized request bodies before multipart/Pydantic parsing can allocate
+# unbounded memory. Public ATS text has a much smaller model-level cap.
+app.add_middleware(RequestBudgetMiddleware)
+# Apply bounded per-operation quotas before expensive route work. The global
+# SlowAPI limiter remains the replica-shared coarse guard when Redis is present.
+app.add_middleware(OperationBudgetMiddleware)
 # Enforce the default limit for every route unless a narrower route policy
 # overrides it. Keeping this at the app boundary prevents expensive public
 # routes from silently bypassing the configured limiter.
@@ -200,7 +229,10 @@ app.include_router(adaptations_router)
 # ---------------------------------------------------------------------------
 
 @app.post("/api/v1/strategic/analyze", response_model=StrategicAnalysisResponse)
-async def strategic_analyze(payload: AnalyzeRequest):
+async def strategic_analyze(
+    payload: AnalyzeRequest,
+    _user_id: str = Depends(get_current_user),
+):
     """Strategic LLM analysis (hidden skills, templates, recommendations)."""
     try:
         return await strategic_analyzer.analyze(
@@ -212,7 +244,10 @@ async def strategic_analyze(payload: AnalyzeRequest):
 
 
 @app.post("/api/v1/strategic/entities", response_model=EntitiesResponse)
-async def strategic_entities(payload: AnalyzeRequest):
+async def strategic_entities(
+    payload: AnalyzeRequest,
+    _user_id: str = Depends(get_current_user),
+):
     """Extract entities from resume or JD."""
     try:
         text = payload.resume_text or payload.job_description or ""
@@ -228,7 +263,10 @@ class StrategicInjectRequest(BaseModel):
 
 
 @app.post("/api/v1/strategic/inject")
-async def strategic_inject(payload: StrategicInjectRequest):
+async def strategic_inject(
+    payload: StrategicInjectRequest,
+    _user_id: str = Depends(get_current_user),
+):
     """Suggest keyword injection points."""
     try:
         injector = KeywordInjector()
@@ -239,7 +277,10 @@ async def strategic_inject(payload: StrategicInjectRequest):
 
 
 @app.post("/api/v1/strategic/ai-proof", response_model=AIProofingAnalysis)
-async def ai_proof(payload: AnalyzeRequest):
+async def ai_proof(
+    payload: AnalyzeRequest,
+    _user_id: str = Depends(get_current_user),
+):
     """Analyze resume for AI-detection risks."""
     try:
         return ai_proofing.analyze(payload.resume_text or "")
@@ -253,7 +294,10 @@ async def ai_proof(payload: AnalyzeRequest):
 # ---------------------------------------------------------------------------
 
 @app.post("/api/v1/export/json")
-async def export_json(payload: ExportRequest):
+async def export_json(
+    payload: ExportRequest,
+    _user_id: str = Depends(get_current_user),
+):
     """Export resume as JSON."""
     try:
         data = JSONExporter.export(payload.resume_json)
@@ -413,7 +457,10 @@ class JobSearchRequest(BaseModel):
 
 
 @app.post("/api/v1/jobs/search")
-async def jobs_search(payload: JobSearchRequest):
+async def jobs_search(
+    payload: JobSearchRequest,
+    _user_id: str = Depends(get_current_user),
+):
     """Smart job search with agentic pipeline (PLAN→GATHER→PRERANK→RANK→REPORT).
 
     Optional ``scrape_enrich`` (default True) runs the Hermes tiered scraper
@@ -429,7 +476,7 @@ async def jobs_search(payload: JobSearchRequest):
             top_n=payload.top_n,
             scrape_enrich=payload.scrape_enrich,
             target_board=payload.target_board,
-            user_id=payload.user_id,
+            user_id=_user_id,
             conversation_id=payload.conversation_id,
         )
         return result
@@ -446,14 +493,19 @@ class AutopilotRunRequest(BaseModel):
 
 
 @app.post("/api/v1/autopilot/run")
-async def autopilot_run(payload: AutopilotRunRequest):
-    """Start an Auto-Pilot background run. Returns run_id immediately."""
+async def autopilot_run(
+    payload: AutopilotRunRequest,
+    _user_id: str = Depends(get_current_user),
+):
+    """Start a user-owned Auto-Pilot background run."""
     import asyncio
     run_id = str(__import__("uuid").uuid4())
+    run_config = dict(payload.run_config or {})
+    run_config["user_id"] = _user_id
     asyncio.create_task(
         automation_engine.run_autopilot(
             run_id,
-            payload.run_config,
+            run_config,
             payload.profile,
             payload.resume_text,
             payload.candidate_name,
@@ -463,17 +515,26 @@ async def autopilot_run(payload: AutopilotRunRequest):
 
 
 @app.get("/api/v1/autopilot/status/{run_id}")
-async def autopilot_status(run_id: str):
-    """Poll Auto-Pilot run status."""
+async def autopilot_status(
+    run_id: str,
+    _user_id: str = Depends(get_current_user),
+):
+    """Poll a user-owned Auto-Pilot run status."""
     status = automation_engine.get_run_status(run_id)
-    if not status:
+    if not status or str(status.get("user_id")) != str(_user_id):
         raise HTTPException(status_code=404, detail="Run not found")
     return status
 
 
 @app.get("/api/v1/autopilot/applications/{run_id}")
-async def autopilot_applications(run_id: str):
-    """Get applications generated by an Auto-Pilot run."""
+async def autopilot_applications(
+    run_id: str,
+    _user_id: str = Depends(get_current_user),
+):
+    """Get applications generated by a user-owned Auto-Pilot run."""
+    status = automation_engine.get_run_status(run_id)
+    if not status or str(status.get("user_id")) != str(_user_id):
+        raise HTTPException(status_code=404, detail="Run not found")
     apps = automation_engine.get_applications(run_id)
     return {"applications": apps}
 
@@ -612,7 +673,10 @@ class ProfileImportRequest(BaseModel):
 
 
 @app.post("/api/v1/profile/import-text")
-async def profile_import_text(payload: ProfileImportRequest):
+async def profile_import_text(
+    payload: ProfileImportRequest,
+    _user_id: str = Depends(get_current_user),
+):
     """Import profile fields from resume text (parsed from PDF/DOCX)."""
     try:
         kg = await KnowledgeGraphExtractor.extract(payload.resume_text)
@@ -840,11 +904,15 @@ def clamp_steps(value: Optional[int]) -> int:
 
 @app.post("/api/v1/browser/automation")
 @app.post("/api/browser/automation")
-async def browser_automation_endpoint(payload: BrowserAutomationRequest, request: Request):
+async def browser_automation_endpoint(
+    payload: BrowserAutomationRequest,
+    request: Request,
+    _user_id: str = Depends(get_current_user),
+):
     """Execute autonomous browser instruction via browser-use + Playwright."""
     from app.services.browser_automation import run_browser_agent
 
-    actor = browser_actor(request)
+    actor = _user_id
     steps = clamp_steps(payload.max_steps)
     logger.info("[Audit] component=browser-agent action=run actor=%s run=- outcome=started steps=%s", actor, steps)
     try:
@@ -1241,7 +1309,10 @@ async def privacy_check_endpoint():
 
 @app.post("/api/v1/one-shot/execute")
 @app.post("/api/one-shot/execute")
-async def one_shot_execute_endpoint(payload: OneShotRequest):
+async def one_shot_execute_endpoint(
+    payload: OneShotRequest,
+    _user_id: str = Depends(get_current_user),
+):
     """Execute the complete 6-stage one-shot jobseeker application pipeline."""
     from app.services.one_shot_engine import execute_one_shot_pipeline
     try:
@@ -1709,13 +1780,17 @@ async def live_copilot_stream_endpoint(payload: dict):
 
 
 @app.post("/api/v1/browser/automation/stream")
-async def browser_automation_stream_endpoint(payload: dict, request: Request):
+async def browser_automation_stream_endpoint(
+    payload: dict,
+    request: Request,
+    _user_id: str = Depends(get_current_user),
+):
     """SSE stream of per-step browser screenshots for the Glass-Box live feed."""
     import json as _json
     from app.services.browser_automation.agent import stream_browser_agent
     from app.services.db import load_agent_run
 
-    actor = browser_actor(request)
+    actor = _user_id
     instruction = str(payload.get("instruction", ""))
     max_steps = clamp_steps(payload.get("max_steps"))
     run_id = payload.get("run_id") or None
@@ -1773,7 +1848,12 @@ async def browser_automation_stream_endpoint(payload: dict, request: Request):
 
 
 @app.get("/api/v1/browser/automation/runs/{run_id}/control")
-async def browser_automation_control_endpoint(run_id: str, request: Request, event_limit: int = 100):
+async def browser_automation_control_endpoint(
+    run_id: str,
+    request: Request,
+    event_limit: int = 100,
+    _user_id: str = Depends(get_current_user),
+):
     """Return candidate-owned durable state for a browser-assisted run.
 
     This endpoint never fabricates progress from process memory.  It returns a
@@ -1786,7 +1866,7 @@ async def browser_automation_control_endpoint(run_id: str, request: Request, eve
         get_run_control_snapshot,
     )
 
-    actor = browser_actor(request)
+    actor = _user_id
     normalized_run_id = str(run_id or "").strip()
     if not normalized_run_id:
         raise HTTPException(status_code=400, detail="run_id is required")
@@ -1806,7 +1886,11 @@ async def browser_automation_control_endpoint(run_id: str, request: Request, eve
 
 
 @app.post("/api/v1/browser/automation/cancel")
-async def browser_automation_cancel_endpoint(payload: dict, request: Request):
+async def browser_automation_cancel_endpoint(
+    payload: dict,
+    request: Request,
+    _user_id: str = Depends(get_current_user),
+):
     """WS-06 kill switch: terminate the isolated browser session for a run.
 
     Authz: only the user that started the run may kill it. Bounded by a hard
@@ -1814,7 +1898,7 @@ async def browser_automation_cancel_endpoint(payload: dict, request: Request):
     """
     from app.services.browser_automation.session import BrowserAuthzError, cancel_run
 
-    actor = browser_actor(request)
+    actor = _user_id
     run_id = str(payload.get("run_id") or "").strip()
     if not run_id:
         raise HTTPException(status_code=400, detail="run_id is required")

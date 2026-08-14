@@ -48,9 +48,12 @@ def test_graph_visualizer():
 async def test_agent_squad_orchestrator():
     orchestrator = AgentSquadOrchestrator()
     res = await orchestrator.execute_squad_workflow("CV text", "JD text", "Acme", "Dev")
-    assert res["status"] == "pending"
-    assert res["agents_executed"] == []
-    assert res["outputs"] == {}
+    assert res["status"] == "completed"
+    assert res["agents_executed"] == ["OptimizerAgent", "TruthGateAgent"]
+    assert res["candidate_approval_required"] is True
+    assert res["submission_permitted"] is False
+    assert "optimizer" in res["outputs"]
+    assert "truth_gate" in res["outputs"]
 
 
 def test_domain_rules_engine():

@@ -1,9 +1,11 @@
 
 import os
 
-from fastapi import APIRouter, Form, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, Form, File, UploadFile, HTTPException
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.auth.dependencies import get_current_user
 
 from app.schemas import ATSAnalysisResponse, QuickScoreResponse
 from app.parsers.document_parser import ResumeParser, ParsedResume
@@ -19,7 +21,10 @@ ats_scorer = ATSScorer()
 
 # ponytail: env-tunable upload cap; magic bytes cover the two accepted formats.
 # Upgrade path: add mime whitelist + per-extension size knobs if new formats arrive.
-_MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
+_MAX_UPLOAD_BYTES = min(
+    int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024))),
+    10 * 1024 * 1024,
+)
 # ponytail: bounds the evaluate-5d regex/set workload (resume + JD combined); 413, not
 # silent truncation, so callers know their payload was rejected whole.
 MAX_REQUEST_TEXT_CHARS = int(os.getenv("MAX_REQUEST_TEXT_CHARS", str(100_000)))
@@ -33,7 +38,7 @@ _MAGIC = {
 def _validate_upload(upload: UploadFile, data: bytes) -> str:
     """Enforce size + extension whitelist + magic-byte check. Returns normalized extension."""
     if len(data) > _MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail="Uploaded file exceeds size limit")
+        raise HTTPException(status_code=413, detail="Uploaded file exceeds size limit")
     name = (upload.filename or "").lower()
     ext = name.rsplit(".", 1)[-1] if "." in name else ""
     if ext not in _ALLOWED_EXT:
@@ -44,8 +49,17 @@ def _validate_upload(upload: UploadFile, data: bytes) -> str:
 
 
 class AnalyzeRequest(BaseModel):
-    resume_text: Optional[str] = None
-    job_description: Optional[str] = None
+    # Authenticated analysis routes accept a larger but still finite payload;
+    # the five-dimension endpoint applies its combined-budget check below.
+    resume_text: Optional[str] = Field(None, max_length=100_000)
+    job_description: Optional[str] = Field(None, max_length=100_000)
+
+
+class PublicScanRequest(BaseModel):
+    """Strict text-only request for the unauthenticated acquisition endpoint."""
+
+    resume_text: Optional[str] = Field(None, max_length=20_000)
+    job_description: Optional[str] = Field(None, max_length=20_000)
 
 @router.post("/api/v1/ats/analyze", response_model=ATSAnalysisResponse)
 async def ats_analyze(
@@ -53,6 +67,7 @@ async def ats_analyze(
     job_description: Optional[str] = Form(None),
     resume_file: Optional[UploadFile] = File(None),
     jd_file: Optional[UploadFile] = File(None),
+    _user_id: str = Depends(get_current_user),
 ):
     """Full ATS analysis: parse (if files), score, and recommend."""
     # ingest resume
@@ -84,8 +99,8 @@ async def ats_analyze(
     return result
 
 @router.post("/api/v1/ats/score", response_model=QuickScoreResponse)
-async def ats_score(payload: AnalyzeRequest):
-    """Quick score with minimal metadata."""
+async def ats_score(payload: PublicScanRequest):
+    """Public, text-only, bounded ATS scan; no file parsing or stored data."""
     keywords = keyword_analyzer.analyze(payload.resume_text or "", payload.job_description or "")
     total = keywords.total_jd_keywords or 1
     return QuickScoreResponse(
@@ -96,15 +111,21 @@ async def ats_score(payload: AnalyzeRequest):
     )
 
 @router.post("/api/v1/ats/keywords")
-async def ats_keywords(payload: AnalyzeRequest):
-    """Extract and compare keywords."""
+async def ats_keywords(
+    payload: AnalyzeRequest,
+    _user_id: str = Depends(get_current_user),
+):
+    """Extract and compare private resume keywords."""
     keywords = keyword_analyzer.analyze(
         payload.resume_text or "", payload.job_description or ""
     )
     return keywords
 
 @router.post("/api/v1/parser/parse")
-async def parse_document(resume_file: UploadFile = File(...)):
+async def parse_document(
+    resume_file: UploadFile = File(...),
+    _user_id: str = Depends(get_current_user),
+):
     """Parse PDF or DOCX file and return raw text."""
     data = await resume_file.read()
     ext = _validate_upload(resume_file, data)
@@ -113,7 +134,10 @@ async def parse_document(resume_file: UploadFile = File(...)):
 
 
 @router.post("/api/v1/ats/evaluate-5d")
-async def ats_evaluate_5d(payload: AnalyzeRequest):
+async def ats_evaluate_5d(
+    payload: AnalyzeRequest,
+    _user_id: str = Depends(get_current_user),
+):
     """Evaluate 5-dimension fit (Technical, Experience, Culture, Compensation, Logistics)."""
     from app.services.ats_engine import evaluate_5d_fit
     if not payload.resume_text or not payload.job_description:

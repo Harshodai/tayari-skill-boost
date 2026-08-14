@@ -173,10 +173,15 @@ def test_score_range_invariants(resume, jd, skills):
 def test_evaluate_5d_route_rejects_oversized_payload():
     from fastapi.testclient import TestClient
     from app.main import app
+    from app.auth.dependencies import get_current_user
 
-    client = TestClient(app)
-    res = client.post(
-        "/api/v1/ats/evaluate-5d",
-        json={"resume_text": "x" * 60_000, "job_description": "y" * 60_000},
-    )
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    try:
+        client = TestClient(app)
+        res = client.post(
+            "/api/v1/ats/evaluate-5d",
+            json={"resume_text": "x" * 60_000, "job_description": "y" * 60_000},
+        )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
     assert res.status_code == 413

@@ -39,15 +39,15 @@
 - [x] **M1-01 / S0** Move Go voice WebSocket routes behind authentication. Reject unauthenticated upgrades before dialing Python AI.
 - [x] **M1-02 / S0** Add voice connection limits: per-user, global, duration, read/write deadlines, and an explicit close path.
 - [x] **M1-03 / S0** Add negative and positive WebSocket tests for auth, origin policy, quotas, timeout, and backend-dial ordering. Focused auth/origin/upgrade tests pass; live socket quota test remains.
-- [ ] **M1-04 / S0** Decide which Python ATS/AI routes are genuinely public. Make strategic AI, parser, importer, and automation routes authenticated or service-only.
-- [ ] **M1-05 / S0** Make the public ATS scan a narrow, bounded endpoint with explicit payload, file, CPU, and request budgets.
-- [x] **M1-06 / S0** Make Python rate limiting real: install the middleware or decorators, use a distributed store where replicas exist, and key expensive actions by authenticated user plus IP. Middleware is now installed; distributed storage and identity keying remain.
+- [x] **M1-04 / S0** Decide which Python ATS/AI routes are genuinely public. Make strategic AI, parser, importer, and automation routes authenticated or service-only. Strategic, parser, importer, export, job-search, autopilot, one-shot, and browser routes now require verified user identity; only the text-only quick score remains public.
+- [x] **M1-05 / S0** Make the public ATS scan a narrow, bounded endpoint with explicit payload, file, CPU, and request budgets. `/api/v1/ats/score` is text-only with 20,000-character field caps; file parsing is private and capped at 10 MiB; a 12 MiB application body cap runs before parsing.
+- [x] **M1-06 / S0** Make Python rate limiting real: install the middleware or decorators, use a distributed store where replicas exist, and key expensive actions by authenticated user plus IP. Production requires Redis-backed SlowAPI storage; keys are user-plus-IP for authenticated gateway calls and IP for anonymous calls.
 - [ ] **M1-07 / S1** Add per-operation quotas and cost budgets for LLM calls, browser minutes, imports, uploads, queue jobs, and WebSockets.
 - [ ] **M1-08 / S1** Add request-size, timeout, concurrency, retry, and queue-backpressure controls to all expensive routes.
 - [ ] **M1-09 / S1** Add tests proving anonymous flood requests fail before expensive work and that limits remain effective across two service replicas.
-- [ ] **M1-10 / S1** Add an outbound importer budget and per-origin concurrency limit while preserving private-IP, redirect, and DNS-pinning protections.
+- [x] **M1-10 / S1** Add an outbound importer budget and per-origin concurrency limit while preserving private-IP, redirect, and DNS-pinning protections. Import size is capped at 1 MiB, each fetch is capped at 5 seconds, global concurrency at 8, and per-origin concurrency at 2; proof test passes.
 
-**M1 exit gate:** unauthenticated voice upgrade returns 401/403 before the backend dial; public expensive routes enforce measured quotas; flood tests pass; authenticated happy paths remain green.
+**M1 exit gate:** unauthenticated voice upgrade returns 401/403 before the backend dial; public expensive routes enforce measured quotas; flood tests pass; authenticated happy paths remain green. Current evidence: Python suite 664 passed / 4 skipped, but M1-07 through M1-09 remain open pending cost-budget and two-replica flood proofs.
 
 ## M2 — Consent, automation, and tenant safety
 

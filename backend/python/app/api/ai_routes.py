@@ -3,6 +3,7 @@ AI Engine core API routes for strategic analysis, optimizer, exports, cover lett
 """
 import asyncio
 import http.client
+import os
 import ipaddress
 import json
 import logging
@@ -11,9 +12,10 @@ import socket
 import ssl
 from html.parser import HTMLParser
 from typing import Optional, List, Dict, Any, Union, Literal
+from collections import defaultdict
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -41,9 +43,12 @@ from app.services.knowledge_graph import KnowledgeGraphExtractor
 from app.services.linkedin_analyzer import score_linkedin_profile
 from app.services.offer_calculator import JobOfferInput, calculate_offer_comp
 from app.services.live_interview_copilot import LiveCopilotRequest, generate_live_copilot_hints
+from app.auth.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["ai"])
+# Every AI-router operation is authenticated. The only intentionally public AI
+# surface is the narrow text-only /api/v1/ats/score route in routes/ats.py.
+router = APIRouter(tags=["ai"], dependencies=[Depends(get_current_user)])
 
 entity_extractor = EntityExtractor()
 ai_proofing = AIProofingDetector()
@@ -59,8 +64,32 @@ class JobDescriptionImportRequest(BaseModel):
     url: str
 
 
-MAX_IMPORTED_JOB_DESCRIPTION_BYTES = 1_000_000
-JOB_DESCRIPTION_IMPORT_TIMEOUT_SECONDS = 5
+MAX_IMPORTED_JOB_DESCRIPTION_BYTES = min(
+    int(os.getenv("MAX_IMPORTED_JOB_DESCRIPTION_BYTES", "1000000")),
+    1_000_000,
+)
+JOB_DESCRIPTION_IMPORT_TIMEOUT_SECONDS = min(
+    float(os.getenv("JOB_DESCRIPTION_IMPORT_TIMEOUT_SECONDS", "5")),
+    5.0,
+)
+IMPORT_GLOBAL_CONCURRENCY = max(
+    1, min(int(os.getenv("IMPORT_GLOBAL_CONCURRENCY", "8")), 16)
+)
+IMPORT_ORIGIN_CONCURRENCY = max(
+    1, min(int(os.getenv("IMPORT_ORIGIN_CONCURRENCY", "2")), 4)
+)
+_import_global_slots = asyncio.Semaphore(IMPORT_GLOBAL_CONCURRENCY)
+_import_origin_slots: dict[str, asyncio.Semaphore] = defaultdict(
+    lambda: asyncio.Semaphore(IMPORT_ORIGIN_CONCURRENCY)
+)
+_import_origin_slots_lock = asyncio.Lock()
+
+
+async def _import_origin_slot(hostname: str) -> asyncio.Semaphore:
+    # Keep the origin map mutation serialized; the semaphore itself controls
+    # concurrent outbound work for that origin across this process.
+    async with _import_origin_slots_lock:
+        return _import_origin_slots[hostname.lower()]
 
 
 class _PinnedHTTPSConnection(http.client.HTTPSConnection):
@@ -247,9 +276,18 @@ def _fetch_public_job_description(url: str) -> tuple[Optional[str], str]:
 
 @router.post("/api/v1/job-descriptions/import")
 async def import_job_description(payload: JobDescriptionImportRequest):
-    """Retrieve a public, readable job post after strict SSRF validation."""
+    """Retrieve a public job post with strict SSRF and bounded origin budgets."""
     safe_url = _validate_public_url(payload.url)
-    title, job_description = await asyncio.to_thread(_fetch_public_job_description, safe_url)
+    hostname = (urlsplit(safe_url).hostname or "").lower()
+    origin_slot = await _import_origin_slot(hostname)
+    try:
+        async with _import_global_slots, origin_slot:
+            title, job_description = await asyncio.wait_for(
+                asyncio.to_thread(_fetch_public_job_description, safe_url),
+                timeout=JOB_DESCRIPTION_IMPORT_TIMEOUT_SECONDS + 1,
+            )
+    except asyncio.TimeoutError as exc:
+        raise HTTPException(status_code=504, detail="Job post import timed out") from exc
     return {"url": safe_url, "title": title, "job_description": job_description}
 
 

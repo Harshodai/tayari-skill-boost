@@ -7,9 +7,11 @@ instead of silently accepting unverifiable tokens, mirroring the Go gateway.
 """
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 from typing import Optional
+from uuid import UUID
 
 import jwt
 from fastapi import Depends, HTTPException, Header
@@ -80,8 +82,30 @@ def _verify_token(token: str) -> str:
     return subject.strip()
 
 
-async def get_current_user(authorization: Optional[str] = Header(None)) -> str:
-    """Extract and derive authenticated user identity from verified JWT Bearer token claims."""
+async def get_current_user(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_internal_token: Optional[str] = Header(None, alias="X-Internal-Token"),
+) -> str:
+    """Return a verified user from a Bearer token or the trusted Go gateway.
+
+    The gateway already verifies the user's JWT, then forwards the canonical
+    UUID in ``X-User-Id`` alongside the service-only internal token. Direct
+    callers still need a valid Bearer token; an arbitrary identity header never
+    grants access on its own.
+    """
+    if x_user_id and x_internal_token:
+        configured_token = os.getenv("AI_INTERNAL_TOKEN", "")
+        if configured_token and hmac.compare_digest(x_internal_token, configured_token):
+            try:
+                return str(UUID(x_user_id.strip()))
+            except (ValueError, AttributeError):
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid or missing authentication credentials",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(
             status_code=401,

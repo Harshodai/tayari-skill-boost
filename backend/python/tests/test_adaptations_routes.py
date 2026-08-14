@@ -167,5 +167,9 @@ def test_squad_run_endpoint():
     res = client.post("/api/v1/adaptations/squad-run", json={"resume_text": "CV", "jd_text": "JD", "company": "Acme", "role": "Dev"})
     assert res.status_code == 200
     data = res.json()
-    assert data["status"] == "pending"
-    assert data["agents_executed"] == []
+    assert data["status"] == "completed"
+    assert data["agents_executed"] == ["OptimizerAgent", "TruthGateAgent"]
+    assert data["candidate_approval_required"] is True
+    assert data["submission_permitted"] is False
+    assert "optimizer" in data["outputs"]
+    assert "truth_gate" in data["outputs"]

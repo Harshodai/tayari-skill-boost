@@ -116,9 +116,10 @@ async def test_stream_emits_error_when_browser_use_missing(monkeypatch):
 
 
 def _authz_endpoint_request(monkeypatch):
-    """Patch auth to a fixed actor and return the raw endpoint to call."""
-    monkeypatch.setattr(main_module, "browser_actor", lambda request: "u-test")
-    return browser_automation_stream_endpoint
+    """Return the endpoint with a synthetic verified actor for direct calls."""
+    async def call(payload, request):
+        return await browser_automation_stream_endpoint(payload, request, _user_id="u-test")
+    return call
 
 
 @pytest.mark.asyncio
