@@ -15,25 +15,21 @@ logger = logging.getLogger(__name__)
 
 
 class AnswerBank:
-    """Pre-populates common job application form fields."""
+    """Resolves only explicitly supplied application answers."""
 
-    DEFAULT_ANSWERS = {
-        "work_authorization": "Authorized to work in the US",
-        "requires_sponsorship": "No",
-        "years_experience": "5+",
-        "notice_period": "2 weeks",
-        "willing_to_relocate": "Open to remote or hybrid"
-    }
+    # Kept as a compatibility surface for callers, but intentionally empty.
+    # Sensitive answers must come from the authenticated candidate or queue.
+    DEFAULT_ANSWERS: Dict[str, str] = {}
 
     @staticmethod
     def get_answer(question_key: str, default: str = "") -> str:
-        """Get standard candidate answer for a common form question."""
+        """Get an explicit candidate answer, or return the caller's fallback."""
         key_clean = question_key.lower().replace(" ", "_")
         for k, v in AnswerBank.DEFAULT_ANSWERS.items():
             if k in key_clean or key_clean in k:
                 return v
-        # ponytail: never fabricate "Yes" — return caller's default, they decide
-        return default
+        # Never synthesize a legal, monetary, or self-identification answer.
+        return default or ""
 
 
 class SponsorshipChecker:

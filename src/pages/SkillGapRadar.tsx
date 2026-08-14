@@ -15,11 +15,14 @@ export function SkillGapRadar() {
   );
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
     setAnalyzing(true);
+    setError(null);
+    setResult(null);
 
     try {
       const resp = await apiFetchResponse("/v1/skill-gap/analyze", {
@@ -35,33 +38,12 @@ export function SkillGapRadar() {
         const data = await resp.json();
         setResult(data);
       } else {
-        // Fallback demo result
-        setResult({
-          match_percentage: 60.0,
-          matched_skills_count: 3,
-          missing_gaps_count: 4,
-          matched_skills: ["Go", "Docker", "Postgres"],
-          missing_gaps: [
-            { skill: "Kubernetes", category: "technical", importance: "HIGH", resource_name: "Kubernetes Official Docs & Tutorials", resource_url: "https://kubernetes.io/docs/tutorials/", resource_type: "Documentation" },
-            { skill: "Kafka", category: "technical", importance: "HIGH", resource_name: "Apache Kafka Developer Guide & Free Courses", resource_url: "https://developer.confluent.io/courses/", resource_type: "Official Academy" },
-            { skill: "Redis", category: "technical", importance: "MEDIUM", resource_name: "Redis University Free Certification", resource_url: "https://university.redis.com/", resource_type: "Free Course" },
-            { skill: "System Design", category: "technical", importance: "HIGH", resource_name: "System Design Primer (GitHub - 250k+ Stars)", resource_url: "https://github.com/donnemartin/system-design-primer", resource_type: "GitHub Repo" },
-          ],
-        });
+        const data = await resp.json().catch(() => null);
+        setError(data?.detail || "Skill-gap analysis could not be completed.");
       }
     } catch {
-      setResult({
-        match_percentage: 60.0,
-        matched_skills_count: 3,
-        missing_gaps_count: 4,
-        matched_skills: ["Go", "Docker", "Postgres"],
-        missing_gaps: [
-          { skill: "Kubernetes", category: "technical", importance: "HIGH", resource_name: "Kubernetes Official Docs & Tutorials", resource_url: "https://kubernetes.io/docs/tutorials/", resource_type: "Documentation" },
-          { skill: "Kafka", category: "technical", importance: "HIGH", resource_name: "Apache Kafka Developer Guide & Free Courses", resource_url: "https://developer.confluent.io/courses/", resource_type: "Official Academy" },
-          { skill: "Redis", category: "technical", importance: "MEDIUM", resource_name: "Redis University Free Certification", resource_url: "https://university.redis.com/", resource_type: "Free Course" },
-          { skill: "System Design", category: "technical", importance: "HIGH", resource_name: "System Design Primer (GitHub - 250k+ Stars)", resource_url: "https://github.com/donnemartin/system-design-primer", resource_type: "GitHub Repo" },
-        ],
-      });
+      setError("Skill-gap analysis is unavailable. Check your connection and retry.");
+      toast({ title: "Analysis unavailable", description: "No fallback analysis was shown." });
     } finally {
       setAnalyzing(false);
     }
@@ -114,8 +96,15 @@ export function SkillGapRadar() {
             </CardHeader>
             <CardContent className="space-y-6">
               {!result && !analyzing && (
-                <div className="py-12 text-center text-muted-foreground">
-                  Click "Analyze Skill Gaps" to evaluate your resume against target requirements.
+                <div className="py-12 text-center text-muted-foreground space-y-4">
+                  {error ? (
+                    <>
+                      <div role="alert" className="text-destructive">{error}</div>
+                      <Button type="button" variant="outline" onClick={() => void handleAnalyze({ preventDefault: () => undefined } as React.FormEvent)}>Retry</Button>
+                    </>
+                  ) : (
+                    <div>Click "Analyze Skill Gaps" to evaluate your resume against target requirements.</div>
+                  )}
                 </div>
               )}
 

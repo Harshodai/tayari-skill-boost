@@ -244,6 +244,92 @@ async def load_agent_run(run_id: str) -> dict | None:
         return None
 
 
+async def list_agent_runs_for_user(
+    user_id: str,
+    *,
+    run_type: str | None = None,
+    statuses: list[str] | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    """Return only runs owned by ``user_id``; fail closed without identity."""
+    if not user_id:
+        return []
+    pool = await get_pool()
+    if not pool:
+        return []
+    import json as _json
+    clauses = ["user_id = $1"]
+    args: list = [user_id]
+    idx = 2
+    if run_type:
+        clauses.append(f"run_type = ${idx}")
+        args.append(run_type)
+        idx += 1
+    if statuses:
+        clauses.append(f"status = ANY(${idx})")
+        args.append(list(statuses))
+        idx += 1
+    args.append(limit)
+    query = (
+        "SELECT run_id, user_id, run_type, parent_run_id, config, status, "
+        "progress, current_step, engine, celery_task_id, started_at, "
+        "completed_at, created_at, updated_at FROM agent_runs "
+        f"WHERE {' AND '.join(clauses)} ORDER BY created_at DESC LIMIT ${idx}"
+    )
+    try:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(query, *args)
+        result = []
+        for row in rows:
+            out = dict(row)
+            for key in ("config", "logs", "screenshots", "result"):
+                value = out.get(key)
+                if isinstance(value, str):
+                    try:
+                        out[key] = _json.loads(value)
+                    except (ValueError, TypeError):
+                        pass
+            result.append(out)
+        return result
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("app.services.db: list_agent_runs_for_user failed (%s)", exc)
+        return []
+
+
+async def load_agent_run_for_user(run_id: str, user_id: str) -> dict | None:
+    """Load one run only when it belongs to ``user_id``."""
+    if not run_id or not user_id:
+        return None
+    pool = await get_pool()
+    if not pool:
+        return None
+    import json as _json
+    try:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT run_id, user_id, run_type, parent_run_id, config,
+                       status, progress, current_step, logs, screenshots,
+                       result, error, engine, celery_task_id, started_at,
+                       completed_at, created_at, updated_at
+                FROM agent_runs WHERE run_id = $1 AND user_id = $2
+                """,
+                run_id,
+                user_id,
+            )
+        if not row:
+            return None
+        out = dict(row)
+        for key in ("config", "logs", "screenshots", "result"):
+            value = out.get(key)
+            if isinstance(value, str):
+                out[key] = _json.loads(value)
+        return out
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("app.services.db: load_agent_run_for_user failed (%s)", exc)
+        return None
+
+
 __all__ = [
     "get_pool",
     "is_db_enabled",
@@ -252,4 +338,6 @@ __all__ = [
     "update_agent_run",
     "append_log",
     "load_agent_run",
+    "list_agent_runs_for_user",
+    "load_agent_run_for_user",
 ]

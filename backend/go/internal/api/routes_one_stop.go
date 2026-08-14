@@ -59,6 +59,11 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 		r.Post("/api/v1/one-shot/execute", s.handleOneStopProxy("/api/v1/one-shot/execute"))
 		r.Post("/api/one-shot/execute", s.handleOneStopProxy("/api/v1/one-shot/execute"))
 
+		r.Get("/api/v1/agent/questions", s.handleOneStopProxyGET("/api/v1/agent/questions"))
+		r.Get("/api/agent/questions", s.handleOneStopProxyGET("/api/v1/agent/questions"))
+		r.Patch("/api/v1/agent/questions/{question_id}", s.handleQuestionProxyPATCH("/api/v1/agent/questions/"))
+		r.Patch("/api/agent/questions/{question_id}", s.handleQuestionProxyPATCH("/api/v1/agent/questions/"))
+
 		r.Get("/api/v1/agent-reach/doctor", s.handleOneStopProxyGET("/api/v1/agent-reach/doctor"))
 		r.Get("/api/agent-reach/doctor", s.handleOneStopProxyGET("/api/v1/agent-reach/doctor"))
 		r.Post("/api/v1/agent-reach/search", s.handleOneStopProxy("/api/v1/agent-reach/search"))
@@ -147,6 +152,35 @@ func (s *Server) handleOneStopProxyGET(endpoint string) http.HandlerFunc {
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(result)
+	}
+}
+
+func (s *Server) handleQuestionProxyPATCH(prefix string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		questionID := chi.URLParam(r, "question_id")
+		if questionID == "" {
+			http.Error(w, "missing question identifier", http.StatusBadRequest)
+			return
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		defer r.Body.Close()
+		headers := s.getXUserHeaders(r)
+		headers["Content-Type"] = "application/json"
+		result, err := s.AI.PatchJSONWithHeaders(prefix+questionID, json.RawMessage(body), headers)
+		if err != nil {
+			log.Printf("[QuestionProxy] AI service error: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(result)

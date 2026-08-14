@@ -1337,6 +1337,46 @@ async def privacy_check_endpoint():
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+class AgentQuestionUpdate(BaseModel):
+    answer: Optional[str] = None
+    status: str
+
+
+@app.get("/api/v1/agent/questions")
+async def agent_questions_list_endpoint(
+    status: Optional[str] = Query(None),
+    _user_id: str = Depends(get_current_user),
+):
+    """List the authenticated user's durable human-answer queue."""
+    from app.services.question_queue import list_questions_for_user
+    try:
+        return {"questions": await list_questions_for_user(_user_id, status=status)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.patch("/api/v1/agent/questions/{question_id}")
+async def agent_question_update_endpoint(
+    question_id: str,
+    payload: AgentQuestionUpdate,
+    _user_id: str = Depends(get_current_user),
+):
+    """Answer or skip one queue item only when it belongs to the caller."""
+    from app.services.question_queue import answer_question_for_user
+    try:
+        updated = await answer_question_for_user(
+            question_id,
+            _user_id,
+            answer=payload.answer,
+            status=payload.status,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not updated:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return updated
+
+
 @app.post("/api/v1/one-shot/execute")
 @app.post("/api/one-shot/execute")
 async def one_shot_execute_endpoint(
@@ -1346,7 +1386,7 @@ async def one_shot_execute_endpoint(
     """Execute the complete 6-stage one-shot jobseeker application pipeline."""
     from app.services.one_shot_engine import execute_one_shot_pipeline
     try:
-        res = await execute_one_shot_pipeline(payload)
+        res = await execute_one_shot_pipeline(payload, user_id=_user_id)
         return res.dict()
     except Exception as exc:
         logger.error("one-shot pipeline execution failed: %s", exc)
@@ -1371,10 +1411,12 @@ async def interview_copilot_hint_endpoint(payload: dict):
 
 
 @app.get("/api/v1/candidate/answers")
-async def candidate_answers_endpoint():
-    """Retrieve stored candidate answer bank."""
-    from app.services.candidate_answer_bank import DEFAULT_ANSWER_BANK
-    return DEFAULT_ANSWER_BANK.dict()
+async def candidate_answers_endpoint(
+    _user_id: str = Depends(get_current_user),
+):
+    """Retrieve only the authenticated user's explicitly supplied answer bank."""
+    from app.services.candidate_answer_bank import get_answer_bank
+    return get_answer_bank(_user_id).dict(exclude_none=True)
 
 
 

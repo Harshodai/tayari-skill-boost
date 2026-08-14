@@ -9,6 +9,7 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
 from app.services.ats_engine import heuristic_ats_score
+from app.services.candidate_answer_bank import get_answer_bank
 from app.services.optimizer import optimize_with_reflection
 from app.services.cover_letter import CoverLetterGenerator
 from app.services.interview_ai import InterviewPrepGenerator
@@ -19,12 +20,12 @@ from app.export.typst_exporter import generate_typst_code
 logger = logging.getLogger(__name__)
 
 class OneShotRequest(BaseModel):
-    user_id: Optional[str] = "default_user"
+    user_id: Optional[str] = None
     job_title: str
-    company_name: Optional[str] = "Target Enterprise"
+    company_name: Optional[str] = None
     job_description: str
     resume_text: str
-    target_url: Optional[str] = ""
+    target_url: Optional[str] = None
     tone: Optional[str] = "Confident"
 
 class OneShotResult(BaseModel):
@@ -37,7 +38,10 @@ class OneShotResult(BaseModel):
     interview_kit: Dict[str, Any]
     proof_vault: List[Dict[str, Any]]
 
-async def execute_one_shot_pipeline(req: OneShotRequest) -> OneShotResult:
+async def execute_one_shot_pipeline(
+    req: OneShotRequest,
+    user_id: Optional[str] = None,
+) -> OneShotResult:
     """
     Executes all 6 stages of the One-Shot Jobseeker pipeline synchronously or asynchronously.
     1. Fit Scoring & Audit
@@ -47,6 +51,10 @@ async def execute_one_shot_pipeline(req: OneShotRequest) -> OneShotResult:
     5. Recruiter Intelligence & Cold Outreach Draft
     6. Interview STAR Preparation Kit
     """
+    authenticated_user_id = user_id or req.user_id
+    if not authenticated_user_id or authenticated_user_id == "default_user":
+        raise ValueError("authenticated user_id is required for one-shot execution")
+    req.user_id = authenticated_user_id
     logger.info(f"[OneShotPipeline] Executing for role: {req.job_title} at {req.company_name}")
 
     # Stage 1: Initial Match Scoring & Audit
@@ -69,8 +77,8 @@ async def execute_one_shot_pipeline(req: OneShotRequest) -> OneShotResult:
 
     # Generate Typst ATS Typesetting Code
     typst_code = generate_typst_code({
-        "full_name": kg_res.get("entities", {}).get("name", "Applicant Name"),
-        "email": kg_res.get("entities", {}).get("email", "applicant@example.com"),
+        "full_name": kg_res.get("entities", {}).get("name"),
+        "email": kg_res.get("entities", {}).get("email"),
         "headline": req.job_title,
         "summary": tailored_text[:250],
         "skills": kg_res.get("skills", []),
@@ -82,14 +90,14 @@ async def execute_one_shot_pipeline(req: OneShotRequest) -> OneShotResult:
         resume_text=tailored_text,
         job_description=req.job_description,
         job_title=req.job_title,
-        company_name=req.company_name or "Target Enterprise",
+        company_name=req.company_name or "",
         tone=(req.tone or "Confident").lower()
     )
     cover_letter_text = cl_res.get("cover_letter", "") if isinstance(cl_res, dict) else str(cl_res)
 
     # Stage 5: Recruiter Intelligence & Outreach
     intel_res = find_recruiter_intel(
-        company_name=req.company_name or "Target Enterprise",
+        company_name=req.company_name or "",
         job_title=req.job_title,
     )
 
@@ -97,7 +105,7 @@ async def execute_one_shot_pipeline(req: OneShotRequest) -> OneShotResult:
     prep_materials = await InterviewPrepGenerator.generate(
         resume_text=tailored_text,
         job_title=req.job_title,
-        company_name=req.company_name or "Target Enterprise",
+        company_name=req.company_name or "",
         job_description=req.job_description,
         interview_type="behavioral"
     )
@@ -141,30 +149,48 @@ async def execute_one_shot_pipeline(req: OneShotRequest) -> OneShotResult:
 
     # Run ATS Plain-Text Simulator
     from app.services.ats_simulator import simulate_ats_parsing
-    from app.services.candidate_answer_bank import get_answer_bank
     ats_sim = simulate_ats_parsing(tailored_text)
-    answer_bank = get_answer_bank(req.user_id or "default_user")
+    answer_bank = get_answer_bank(authenticated_user_id)
     missing_kws = score_res.get("missing_keywords", [])
+    screening_answers = answer_bank.answers
+    sensitive_answer_fields = {
+        "work_authorization",
+        "requires_sponsorship",
+        "sponsorship_answer",
+        "target_salary_min",
+        "target_salary_max",
+        "salary_answer",
+        "notice_period_days",
+        "notice_period_answer",
+        "gender",
+        "race_ethnicity",
+        "veteran_status",
+        "disability_status",
+    }
+    unresolved_sensitive_fields = sorted(sensitive_answer_fields - set(screening_answers))
 
     # Build Stealth Auto-Apply Payload with Candidate Answer Bank
     ats_parsability = ats_sim.get("parsability_score", 95)
     shadow_approval = bool(
-        post_score < 70.0
+        unresolved_sensitive_fields
+        or post_score < 70.0
         or ats_parsability < 60
         or len(missing_kws) > 5
     )
     auto_apply_payload = {
-        "target_url": req.target_url or "https://jobs.example.com/apply",
+            "target_url": req.target_url,
         "stealth_readiness": "Needs Review" if shadow_approval else "100%",
         "field_mapping": {
             "full_name": kg_res.get("entities", {}).get("name", "Applicant"),
             "email": kg_res.get("entities", {}).get("email", "applicant@example.com"),
             "resume_text": tailored_text,
             "cover_letter_text": cover_letter_text,
-            "portfolio_url": f"https://tayari.app/p/{req.user_id}"
+            "portfolio_url": f"https://tayari.app/p/{req.user_id}" if req.user_id else None
         },
-        "screening_answers": answer_bank.answers,
-        "shadow_approval_required": shadow_approval
+        "screening_answers": screening_answers,
+        "unresolved_sensitive_fields": unresolved_sensitive_fields,
+        "shadow_approval_required": shadow_approval,
+        "submission_blocked": bool(unresolved_sensitive_fields),
     }
 
     # Generate skill gap learning path for missing keywords

@@ -134,8 +134,8 @@ async def enqueue_questions(
                 await conn.execute(
                     """
                     INSERT INTO agent_questions
-                        (user_id, run_id, job_title, company, field_label, field_type, options, status)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'pending')
+                        (user_id, run_id, job_title, company, field_label, field_type, options, status, handoff_state)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'pending', 'needs_human')
                     """,
                     user_id,
                     run_id,
@@ -149,6 +149,95 @@ async def enqueue_questions(
     except Exception as exc:  # noqa: BLE001 — the queue must never break a run
         logger.warning("question_queue: enqueue failed (%s)", exc)
     return written
+
+
+async def list_questions_for_user(
+    user_id: str | None,
+    *,
+    status: str | None = None,
+) -> list[dict[str, Any]]:
+    """List question rows owned by one user for self-hosted clients."""
+    if not user_id:
+        return []
+    pool = await get_pool()
+    if not pool:
+        return []
+    allowed_statuses = {"pending", "answered", "skipped"}
+    if status is not None and status not in allowed_statuses:
+        raise ValueError("invalid question status")
+    clauses = ["user_id = $1"]
+    args: list[Any] = [user_id]
+    if status:
+        clauses.append("status = $2")
+        args.append(status)
+    query = f"""
+        SELECT id, run_id, job_title, company, field_label, field_type,
+               options, answer, status, handoff_state, created_at, answered_at, updated_at
+        FROM agent_questions
+        WHERE {' AND '.join(clauses)}
+        ORDER BY created_at DESC
+    """
+    try:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(query, *args)
+        result = []
+        for row in rows:
+            item = dict(row)
+            options = item.get("options")
+            if isinstance(options, str):
+                item["options"] = json.loads(options)
+            result.append(item)
+        return result
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("question_queue: list failed (%s)", exc)
+        return []
+
+
+async def answer_question_for_user(
+    question_id: str,
+    user_id: str | None,
+    *,
+    answer: str | None,
+    status: str,
+) -> dict[str, Any] | None:
+    """Resolve one question only when it belongs to the authenticated user."""
+    if not question_id or not user_id or status not in {"answered", "skipped"}:
+        raise ValueError("invalid question update")
+    cleaned_answer = (answer or "").strip() or None
+    if status == "answered" and not cleaned_answer:
+        raise ValueError("an answer is required when status is answered")
+    pool = await get_pool()
+    if not pool:
+        return None
+    try:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                UPDATE agent_questions
+                SET answer = $1,
+                    status = $2,
+                    handoff_state = CASE WHEN $2 = 'answered' THEN 'resolved' ELSE 'skipped' END,
+                    answered_at = now(),
+                    updated_at = now()
+                WHERE id = $3 AND user_id = $4
+                RETURNING id, run_id, job_title, company, field_label, field_type,
+                          options, answer, status, handoff_state, created_at, answered_at, updated_at
+                """,
+                cleaned_answer,
+                status,
+                question_id,
+                user_id,
+            )
+        if not row:
+            return None
+        item = dict(row)
+        options = item.get("options")
+        if isinstance(options, str):
+            item["options"] = json.loads(options)
+        return item
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("question_queue: answer update failed (%s)", exc)
+        return None
 
 
 async def pending_answers(user_id: str | None) -> dict[str, str]:

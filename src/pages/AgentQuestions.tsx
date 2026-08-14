@@ -3,7 +3,7 @@ import { AppShell } from "@/components/layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { USE_SELF_HOSTED } from "@/api";
+import { apiFetch, USE_SELF_HOSTED } from "@/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ type AgentQuestion = {
   options: unknown;
   answer: string | null;
   status: string;
+  handoff_state?: "needs_human" | "resolved" | "skipped";
   created_at: string;
 };
 
@@ -63,7 +64,10 @@ export default function AgentQuestions() {
     queryKey: ["agent_questions", user?.id],
     enabled: !!user?.id,
     queryFn: async (): Promise<AgentQuestion[]> => {
-      if (USE_SELF_HOSTED) return [];
+      if (USE_SELF_HOSTED) {
+        const data = await apiFetch<{ questions: AgentQuestion[] }>("/v1/agent/questions");
+        return data.questions ?? [];
+      }
       const { data, error } = await supabase
         .from("agent_questions")
         .select("*")
@@ -83,6 +87,13 @@ export default function AgentQuestions() {
       answer: string | null;
       status: "answered" | "skipped";
     }) => {
+      if (USE_SELF_HOSTED) {
+        await apiFetch(`/v1/agent/questions/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ answer, status }),
+        });
+        return;
+      }
       const { error } = await supabase
         .from("agent_questions")
         .update({

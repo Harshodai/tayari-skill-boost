@@ -20,12 +20,15 @@ export function NegotiationCopilot() {
   const [location, setLocation] = useState("San Francisco, CA");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
+    setResult(null);
 
     try {
       const resp = await apiFetchResponse("/v1/negotiation/generate", {
@@ -45,31 +48,11 @@ export function NegotiationCopilot() {
         const data = await resp.json();
         setResult(data);
       } else {
-        // Fallback demo result
-        setResult({
-          company,
-          role,
-          current_offer: { base: 180000, equity: 50000, signon: 20000, total_first_year: 250000 },
-          recommended_counter: { base: 205000, equity: 65000, total_first_year: 290000 },
-          emails: {
-            warm_appreciation: `Dear Hiring Team,\n\nThank you for extending the offer for ${role} at ${company}! Based on market benchmarks in ${location}, I was hoping we could explore adjusting the base compensation closer to $205,000. I am eager to finalize details.\n\nWarmly,`,
-            data_backed: `Dear Hiring Manager,\n\nI reviewed industry benchmarks for ${role} in ${location}. Given my track record, I request:\n1. Base Salary: $205,000\n2. Equity: $65,000\n\nIf we meet this target, I will sign immediately.\n\nBest regards,`,
-          },
-          verbal_script: `"Hi, thank you for laying out the offer for ${company}! To make this an easy yes today, can we adjust the base salary to $205,000? If so, I am ready to sign today."`,
-        });
+        const data = await resp.json().catch(() => null);
+        setError(data?.detail || "Negotiation strategy could not be generated.");
       }
     } catch {
-      setResult({
-        company,
-        role,
-        current_offer: { base: 180000, equity: 50000, signon: 20000, total_first_year: 250000 },
-        recommended_counter: { base: 205000, equity: 65000, total_first_year: 290000 },
-        emails: {
-          warm_appreciation: `Dear Hiring Team,\n\nThank you for extending the offer for ${role} at ${company}! Based on market benchmarks in ${location}, I was hoping we could explore adjusting the base compensation closer to $205,000. I am eager to finalize details.\n\nWarmly,`,
-          data_backed: `Dear Hiring Manager,\n\nI reviewed industry benchmarks for ${role} in ${location}. Given my track record, I request:\n1. Base Salary: $205,000\n2. Equity: $65,000\n\nIf we meet this target, I will sign immediately.\n\nBest regards,`,
-        },
-        verbal_script: `"Hi, thank you for laying out the offer for ${company}! To make this an easy yes today, can we adjust the base salary to $205,000? If so, I am ready to sign today."`,
-      });
+      setError("Negotiation strategy is unavailable. Check your connection and retry.");
     } finally {
       setLoading(false);
     }
@@ -138,7 +121,16 @@ export function NegotiationCopilot() {
             </CardHeader>
             <CardContent className="space-y-6">
               {!result ? (
-                <div className="py-12 text-center text-muted-foreground">Enter your offer terms on the left to generate your counter-offer strategy.</div>
+                <div className="py-12 text-center text-muted-foreground space-y-4">
+                  {error ? (
+                    <>
+                      <div role="alert" className="text-destructive">{error}</div>
+                      <Button type="button" variant="outline" onClick={() => void handleGenerate({ preventDefault: () => undefined } as React.FormEvent)} disabled={loading}>Retry</Button>
+                    </>
+                  ) : (
+                    <div>Enter your offer terms on the left to generate your counter-offer strategy.</div>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-6">
                   {/* Comparison Card */}

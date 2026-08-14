@@ -38,13 +38,14 @@ def no_db(monkeypatch):
     monkeypatch.setattr("app.services.hermes.config.DATABASE_URL", "", raising=False)
 
 
-def _make_client() -> httpx.AsyncClient:
-    """Build a minimal FastAPI app with only the Hermes router and return an
-    httpx ASGI client. Avoids the scheduler lifespan in app.main."""
+def _make_client(user_id: str = "user-a") -> httpx.AsyncClient:
+    """Build an authenticated Hermes-only ASGI client without app.main lifespan."""
     from fastapi import FastAPI
+    from app.auth.dependencies import get_current_user
 
     app = FastAPI()
     app.include_router(hermes_router)
+    app.dependency_overrides[get_current_user] = lambda: user_id
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=True)
     return httpx.AsyncClient(transport=transport, base_url="http://test")
 
@@ -188,7 +189,8 @@ def test_runs_list_filters_pass_through(monkeypatch):
     captured: dict = {}
     fake_rows = [{"run_id": "r1", "run_type": "scrape", "status": "completed"}]
 
-    async def fake_list(run_type, status, limit):
+    async def fake_list(user_id, run_type, status, limit):
+        captured["user_id"] = user_id
         captured["run_type"] = run_type
         captured["status"] = status
         captured["limit"] = limit
@@ -203,6 +205,7 @@ def test_runs_list_filters_pass_through(monkeypatch):
             )
 
     resp = asyncio.run(run())
+    assert captured["user_id"] == "user-a"
     assert captured["run_type"] == "scrape"
     assert captured["limit"] == 10
     assert captured["status"] == ["completed"]
@@ -241,7 +244,7 @@ def test_run_detail_200_for_stubbed_row(monkeypatch):
         "completed_at": None,
     }
     monkeypatch.setattr(
-        db_service, "load_agent_run", AsyncMock(return_value=row),
+        db_service, "load_agent_run_for_user", AsyncMock(return_value=row),
     )
 
     async def run():
@@ -261,6 +264,23 @@ def test_run_detail_200_for_stubbed_row(monkeypatch):
     assert body["celery_task_id"] == "task-9"
     assert body["started_at"] == "2026-01-01T00:00:00Z"
     assert body["completed_at"] is None
+
+
+def test_run_detail_is_not_visible_to_another_user(monkeypatch):
+    """The same run id must not cross an owner boundary."""
+    async def owner_scoped_lookup(run_id, user_id):
+        if user_id == "user-a":
+            return {"run_id": run_id, "status": "running"}
+        return None
+
+    monkeypatch.setattr(db_service, "load_agent_run_for_user", owner_scoped_lookup)
+
+    async def run():
+        async with _make_client("user-b") as client:
+            return await client.get("/api/v1/hermes/runs/r-abc")
+
+    resp = asyncio.run(run())
+    assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------

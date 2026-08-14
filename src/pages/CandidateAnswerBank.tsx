@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,25 +7,38 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ShieldCheck, Zap, Database, CheckCircle2, AlertCircle, Search } from "lucide-react";
-import { matchCandidateBank } from "@/api";
+import { fetchCandidateAnswers, matchCandidateBank } from "@/api";
 import { toast } from "sonner";
 
 export default function CandidateAnswerBank() {
-  // Default Candidate Answers
-  const [answers, setAnswers] = useState({
-    work_authorization: "Authorized to work in the US without restriction",
-    requires_sponsorship: false,
-    sponsorship_answer: "No, I do not require sponsorship now or in the future.",
-    target_salary_min: "140000",
-    target_salary_max: "180000",
-    salary_answer: "$150,000 - $180,000 (negotiable based on total compensation)",
-    notice_period_answer: "2 weeks",
-    years_experience: "5",
-    gender: "Decline to Self-Identify",
-    race_ethnicity: "Decline to Self-Identify",
-    veteran_status: "I am not a protected veteran",
-    disability_status: "No, I do not have a disability",
-  });
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [isLoadingAnswers, setIsLoadingAnswers] = useState(true);
+  const [answersError, setAnswersError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchCandidateAnswers()
+      .then((data) => {
+        if (active && data && typeof data === "object") {
+          setAnswers(
+            Object.fromEntries(
+              Object.entries(data).map(([key, value]) => [key, value == null ? "" : String(value)])
+            )
+          );
+        }
+      })
+      .catch((err: Error) => {
+        if (!active) return;
+        setAnswersError(err.message || "Could not load your candidate answers.");
+        toast.error(err.message || "Could not load your candidate answers.");
+      })
+      .finally(() => {
+        if (active) setIsLoadingAnswers(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Tester state
   const [testQuestion, setTestQuestion] = useState("Are you legally authorized to work in the United States?");
@@ -66,7 +79,13 @@ export default function CandidateAnswerBank() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Answers Form */}
           <div className="lg:col-span-2 space-y-6">
-            <Tabs defaultValue="legal" className="w-full">
+            {isLoadingAnswers && (
+              <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">Loading your saved answers…</div>
+            )}
+            {answersError && (
+              <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{answersError}</div>
+            )}
+              <Tabs defaultValue="legal" className="w-full" aria-disabled={isLoadingAnswers}>
               <TabsList className="grid grid-cols-3 mb-4">
                 <TabsTrigger value="legal">Work Auth & Legal</TabsTrigger>
                 <TabsTrigger value="compensation">Salary & Notice</TabsTrigger>
@@ -89,7 +108,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="work_auth">US Work Authorization Status</Label>
                       <Input
                         id="work_auth"
-                        value={answers.work_authorization}
+                        value={answers.work_authorization ?? ""}
                         onChange={(e) => setAnswers({ ...answers, work_authorization: e.target.value })}
                       />
                     </div>
@@ -97,7 +116,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="sponsorship_ans">Visa Sponsorship Response</Label>
                       <Input
                         id="sponsorship_ans"
-                        value={answers.sponsorship_answer}
+                        value={answers.sponsorship_answer ?? ""}
                         onChange={(e) => setAnswers({ ...answers, sponsorship_answer: e.target.value })}
                       />
                     </div>
@@ -123,7 +142,7 @@ export default function CandidateAnswerBank() {
                         <Input
                           id="sal_min"
                           type="number"
-                          value={answers.target_salary_min}
+                          value={answers.target_salary_min ?? ""}
                           onChange={(e) => setAnswers({ ...answers, target_salary_min: e.target.value })}
                         />
                       </div>
@@ -132,7 +151,7 @@ export default function CandidateAnswerBank() {
                         <Input
                           id="sal_max"
                           type="number"
-                          value={answers.target_salary_max}
+                          value={answers.target_salary_max ?? ""}
                           onChange={(e) => setAnswers({ ...answers, target_salary_max: e.target.value })}
                         />
                       </div>
@@ -141,7 +160,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="sal_ans">Formatted Salary Response</Label>
                       <Input
                         id="sal_ans"
-                        value={answers.salary_answer}
+                        value={answers.salary_answer ?? ""}
                         onChange={(e) => setAnswers({ ...answers, salary_answer: e.target.value })}
                       />
                     </div>
@@ -149,7 +168,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="notice_ans">Notice Period / Earliest Start Date</Label>
                       <Input
                         id="notice_ans"
-                        value={answers.notice_period_answer}
+                        value={answers.notice_period_answer ?? ""}
                         onChange={(e) => setAnswers({ ...answers, notice_period_answer: e.target.value })}
                       />
                     </div>
@@ -171,7 +190,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="gender">Gender</Label>
                       <Input
                         id="gender"
-                        value={answers.gender}
+                        value={answers.gender ?? ""}
                         onChange={(e) => setAnswers({ ...answers, gender: e.target.value })}
                       />
                     </div>
@@ -179,7 +198,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="race">Race / Ethnicity</Label>
                       <Input
                         id="race"
-                        value={answers.race_ethnicity}
+                        value={answers.race_ethnicity ?? ""}
                         onChange={(e) => setAnswers({ ...answers, race_ethnicity: e.target.value })}
                       />
                     </div>
@@ -187,7 +206,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="veteran">Veteran Status</Label>
                       <Input
                         id="veteran"
-                        value={answers.veteran_status}
+                        value={answers.veteran_status ?? ""}
                         onChange={(e) => setAnswers({ ...answers, veteran_status: e.target.value })}
                       />
                     </div>

@@ -96,7 +96,7 @@ func (s *Server) routesHermes(r chi.Router) {
 // drops — upgrade to a direct agent_runs query if the chip undercounts.
 func (s *Server) handleHermesRunsActive(w http.ResponseWriter, r *http.Request) {
 	target := "/api/v1/hermes/runs?status=" + activeRunsStatusFilter + "&limit=" + strconv.Itoa(activeRunsLimit)
-	result, err := s.AI.GetJSON(target)
+	result, err := s.AI.GetJSONWithHeaders(target, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleHermesRunsActive: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to fetch active runs")
@@ -198,7 +198,7 @@ func (s *Server) handleHermesJobsBoard(w http.ResponseWriter, r *http.Request) {
 		limit = n
 	}
 	target := "/api/v1/hermes/jobs/" + url.PathEscape(board) + "?limit=" + strconv.Itoa(limit)
-	result, err := s.AI.GetJSON(target)
+	result, err := s.AI.GetJSONWithHeaders(target, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleHermesJobsBoard: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to fetch cached jobs")
@@ -243,7 +243,7 @@ func (s *Server) handleHermesRunsList(w http.ResponseWriter, r *http.Request) {
 	if enc := out.Encode(); enc != "" {
 		target += "?" + enc
 	}
-	result, err := s.AI.GetJSON(target)
+	result, err := s.AI.GetJSONWithHeaders(target, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleHermesRunsList: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to list Hermes runs")
@@ -260,7 +260,7 @@ func (s *Server) handleHermesRunDetail(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusBadRequest, "Invalid run id")
 		return
 	}
-	result, err := s.AI.GetJSON("/api/v1/hermes/runs/" + url.PathEscape(id))
+	result, err := s.AI.GetJSONWithHeaders("/api/v1/hermes/runs/"+url.PathEscape(id), s.getXUserHeaders(r))
 	if err != nil {
 		if isPythonNotFound(err) {
 			s.respondError(w, http.StatusNotFound, "Hermes run not found")

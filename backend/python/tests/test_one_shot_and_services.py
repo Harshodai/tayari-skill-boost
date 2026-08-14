@@ -5,7 +5,11 @@ import pytest
 
 pytest.importorskip("pydantic")
 
-from app.services.candidate_answer_bank import match_question_to_answer, CandidateAnswers
+from app.services.candidate_answer_bank import (
+    CandidateAnswers,
+    get_answer_bank,
+    match_question_to_answer,
+)
 from app.services.ats_detector import detect_ats_from_url
 from app.guardrails.truth_gate import verify_resume_truthfulness
 from app.services.recruiter_intelligence import generate_recruiter_intelligence
@@ -18,6 +22,20 @@ def test_candidate_answer_bank_sponsorship():
     assert res["matched"] is True
     assert res["category"] == "sponsorship"
     assert "No" in res["answer"]
+
+
+def test_candidate_answer_bank_missing_sensitive_value_requires_human():
+    bank = CandidateAnswers()
+    res = match_question_to_answer("Are you legally authorized to work in the United States?", bank)
+    assert res["matched"] is False
+    assert res["needs_human"] is True
+    assert res["category"] == "work_authorization"
+    assert bank.answers == {}
+
+
+def test_candidate_answer_bank_rejects_synthetic_identity():
+    with pytest.raises(ValueError):
+        get_answer_bank("default_user")
 
 
 def test_ats_detector_workday():

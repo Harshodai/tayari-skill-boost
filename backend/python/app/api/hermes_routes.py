@@ -17,9 +17,10 @@ import logging
 import uuid
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app.auth.dependencies import get_current_user
 from app.services import db as db_service
 from app.services.hermes import HermesScraper
 from app.services.hermes.cache import list_by_board
@@ -229,6 +230,7 @@ async def hermes_runs_list(
     run_type: Optional[str] = Query(None),
     status: Optional[List[str]] = Query(None),
     limit: int = Query(50, ge=1, le=500),
+    user_id: str = Depends(get_current_user),
 ):
     """List ``agent_runs`` rows, optionally filtered by run_type/status.
 
@@ -236,47 +238,25 @@ async def hermes_runs_list(
     the Go ``/runs/active`` proxy can fetch both live states in one call.
     Returns ``{"runs": []}`` when the DB is unavailable.
     """
-    runs = await _list_agent_runs(run_type, status, limit)
+    runs = await _list_agent_runs(user_id, run_type, status, limit)
     if runs is None:
         runs = []
     return {"runs": runs}
 
 
 async def _list_agent_runs(
-    run_type: Optional[str], status: Optional[List[str]], limit: int
+    user_id: str,
+    run_type: Optional[str],
+    status: Optional[List[str]],
+    limit: int,
 ) -> list[dict[str, Any]] | None:
-    """Load agent_runs rows with optional filters. None when DB is off."""
-    pool = await db_service.get_pool()
-    if not pool:
-        return []
-    clauses: list[str] = []
-    args: list[Any] = []
-    idx = 1
-    if run_type:
-        clauses.append(f"run_type = ${idx}")
-        args.append(run_type)
-        idx += 1
-    if status:
-        # ponytail: ANY($n) covers both single and repeated status values in
-        # one query — root fix so /runs/active gets running AND queued runs.
-        clauses.append(f"status = ANY(${idx})")
-        args.append(list(status))
-        idx += 1
-    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    query = (
-        "SELECT run_id, user_id, run_type, parent_run_id, status, progress, "
-        "current_step, engine, celery_task_id, started_at, completed_at, "
-        "created_at, updated_at FROM agent_runs "
-        f"{where} ORDER BY created_at DESC LIMIT ${idx}"
+    """Load only runs owned by the authenticated user."""
+    return await db_service.list_agent_runs_for_user(
+        user_id,
+        run_type=run_type,
+        statuses=status,
+        limit=limit,
     )
-    args.append(limit)
-    try:
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(query, *args)
-        return [_row_to_dict(r) for r in rows]
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("hermes.runs list failed (%s)", exc)
-        return []
 
 
 # ---------------------------------------------------------------------------
@@ -284,12 +264,15 @@ async def _list_agent_runs(
 # ---------------------------------------------------------------------------
 
 @hermes_router.get("/runs/{run_id}", response_model=HermesRunDetailResponse)
-async def hermes_run_detail(run_id: str):
+async def hermes_run_detail(
+    run_id: str,
+    user_id: str = Depends(get_current_user),
+):
     """Return a single ``agent_runs`` row with parsed logs/screenshots/result.
 
     404 when the run is not found or the DB is unavailable.
     """
-    row = await db_service.load_agent_run(run_id)
+    row = await db_service.load_agent_run_for_user(run_id, user_id)
     if not row:
         raise HTTPException(status_code=404, detail="Run not found")
     return HermesRunDetailResponse(

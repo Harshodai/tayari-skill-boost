@@ -5,6 +5,7 @@ metadata:
   labels:
     app.kubernetes.io/part-of: job-tayari
 data:
+  ENV: production
   APP_ENV: production
   PORT: "8080"
   PYTHON_AI_PORT: "8000"
