@@ -44,6 +44,8 @@ grep -q -- '--cov-fail-under=60' .github/workflows/ci.yml
 grep -q -- '--cov-fail-under=60' .github/workflows/deploy.yml
 grep -q 'PYTHONPATH:.*backend/python' .github/workflows/ci.yml
 grep -q 'PYTHONPATH:.*backend/python' .github/workflows/deploy.yml
+grep -q "pytest-asyncio==1.4.0" .github/workflows/ci.yml
+grep -q "pytest-asyncio==1.4.0" .github/workflows/deploy.yml
 grep -q -- '--select E4,E7,E9,F' .github/workflows/ci.yml
 grep -q 'E2E_TEST_PASSWORD' .github/workflows/ci.yml
 grep -q 'PLAYWRIGHT_REUSE_EXISTING_SERVER' .github/workflows/ci.yml

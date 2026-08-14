@@ -54,7 +54,7 @@ jobs:
         working-directory: backend/python
         run: |
           python -m pip install --upgrade pip
-          pip install 'ruff==0.9.2' pytest-cov bandit pip-audit
+          pip install 'ruff==0.9.2' 'pytest-asyncio==1.4.0' pytest-cov bandit pip-audit
           pip install -r requirements.txt
           pip install -r ../../integrations/jobtheory_mcp/requirements.txt
 
