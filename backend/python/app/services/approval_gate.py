@@ -1,64 +1,104 @@
-"""Human approval gate for autonomous job submissions (WS-01).
+"""Human approval gate for autonomous job submissions.
 
-Nothing may be submitted to an external ATS on a user's behalf unless that
-exact tailored resume was explicitly approved by a human. The gate is keyed on
-``sha256(tailored_resume_text)`` so approving one draft never silently
-authorises a *different* draft generated later in the same run.
-
-Design rules:
-- **Fail closed.** Any error, missing DB, or missing ``user_id`` returns
-  ``False``. A gate that cannot verify consent must never grant it.
-- **Config cannot grant consent.** ``auto_apply`` stored on a ``job_watches``
-  row is not consent; only a row in ``application_approvals`` with
-  ``decision='approved'`` is.
-
-All DB access degrades to a no-op when ``DATABASE_URL`` is unset (see
-``app.services.db.get_pool``), matching the rest of the Python engine.
+A submission is authorised only when the same user approved the same run, the
+same normalized job URL, and the same tailored resume. Approval expires and is
+consumed atomically immediately before the browser submit step.
 """
 from __future__ import annotations
 
 import hashlib
 import logging
 from typing import Any, Optional
+from urllib.parse import urlsplit, urlunsplit
 
 from app.services.db import get_pool
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["resume_fingerprint", "is_approved", "request_approval"]
+__all__ = ["resume_fingerprint", "job_fingerprint", "is_approved", "request_approval"]
 
 
 def resume_fingerprint(resume_text: str) -> str:
-    """Stable sha256 of the tailored resume that would be submitted.
-
-    Whitespace is normalised so cosmetic reflow does not invalidate an
-    approval the user already gave for the same content.
-    """
+    """Stable sha256 of the tailored resume content."""
     normalized = " ".join((resume_text or "").split())
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
-async def is_approved(user_id: Optional[str], run_id: str, resume_sha256: str) -> bool:
-    """True only when a human approved this exact resume for this run."""
-    if not user_id or not run_id or not resume_sha256:
+def job_fingerprint(job_url: str) -> str:
+    """Hash a normalized HTTP(S) job URL without fragment or cosmetic casing."""
+    raw = (job_url or "").strip()
+    parsed = urlsplit(raw)
+    normalized = urlunsplit(
+        (
+            parsed.scheme.lower(),
+            parsed.netloc.lower(),
+            parsed.path or "/",
+            parsed.query,
+            "",
+        )
+    )
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+async def is_approved(
+    user_id: Optional[str],
+    run_id: str,
+    resume_sha256: str,
+    job: dict[str, Any] | None = None,
+    *,
+    consume: bool = False,
+) -> bool:
+    """Check or atomically consume approval for one exact application target."""
+    job_url = (job or {}).get("url")
+    if not user_id or not run_id or not resume_sha256 or not job_url:
         return False
+
+    job_sha256 = job_fingerprint(str(job_url))
     try:
         pool = await get_pool()
         if pool is None:
-            # No database means no way to verify consent. Fail closed.
             return False
         async with pool.acquire() as conn:
+            if consume:
+                row = await conn.fetchrow(
+                    """
+                    UPDATE application_approvals
+                       SET decision = 'consumed', consumed_at = NOW(), updated_at = NOW()
+                     WHERE user_id = $1::uuid
+                       AND run_id = $2
+                       AND resume_sha256 = $3
+                       AND job_url_sha256 = $4
+                       AND decision = 'approved'
+                       AND consumed_at IS NULL
+                       AND expires_at > NOW()
+                    RETURNING id
+                    """,
+                    user_id,
+                    run_id,
+                    resume_sha256,
+                    job_sha256,
+                )
+                return row is not None
+
             row = await conn.fetchrow(
                 """
-                SELECT decision FROM application_approvals
-                 WHERE user_id = $1::uuid AND run_id = $2 AND resume_sha256 = $3
+                SELECT id
+                  FROM application_approvals
+                 WHERE user_id = $1::uuid
+                   AND run_id = $2
+                   AND resume_sha256 = $3
+                   AND job_url_sha256 = $4
+                   AND decision = 'approved'
+                   AND consumed_at IS NULL
+                   AND expires_at > NOW()
                 """,
                 user_id,
                 run_id,
                 resume_sha256,
+                job_sha256,
             )
-        return bool(row and row["decision"] == "approved")
-    except Exception:  # pragma: no cover - defensive
+        return row is not None
+    except Exception:  # pragma: no cover - defensive fail-closed path
         logger.exception("approval lookup failed for run %s", run_id)
         return False
 
@@ -69,15 +109,13 @@ async def request_approval(
     resume_text: str,
     job: dict[str, Any] | None = None,
 ) -> Optional[str]:
-    """Queue a pending approval and return its fingerprint.
-
-    Idempotent: re-requesting the same resume for the same run leaves the
-    existing row (and any decision already made on it) untouched.
-    """
+    """Queue a pending approval bound to the exact job and resume."""
     fingerprint = resume_fingerprint(resume_text)
-    if not user_id:
-        return fingerprint
     job = job or {}
+    job_url = (job.get("url") or "").strip()
+    if not user_id or not job_url:
+        return fingerprint
+
     try:
         pool = await get_pool()
         if pool is None:
@@ -87,17 +125,27 @@ async def request_approval(
                 """
                 INSERT INTO application_approvals
                     (user_id, run_id, job_url, job_title, company,
-                     resume_sha256, resume_preview, decision)
-                VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, 'pending')
-                ON CONFLICT (user_id, run_id, resume_sha256) DO NOTHING
+                     resume_sha256, resume_preview, job_url_sha256, decision,
+                     expires_at)
+                VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, 'pending', NOW() + INTERVAL '15 minutes')
+                ON CONFLICT (user_id, run_id, resume_sha256) DO UPDATE
+                    SET job_url = EXCLUDED.job_url,
+                        job_title = EXCLUDED.job_title,
+                        company = EXCLUDED.company,
+                        resume_preview = EXCLUDED.resume_preview,
+                        job_url_sha256 = EXCLUDED.job_url_sha256,
+                        expires_at = EXCLUDED.expires_at,
+                        updated_at = NOW()
+                    WHERE application_approvals.decision = 'pending'
                 """,
                 user_id,
                 run_id,
-                job.get("url"),
+                job_url,
                 job.get("title"),
                 job.get("company"),
                 fingerprint,
                 (resume_text or "")[:2000],
+                job_fingerprint(job_url),
             )
     except Exception:  # pragma: no cover - defensive
         logger.exception("could not queue approval for run %s", run_id)

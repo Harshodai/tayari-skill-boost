@@ -21,14 +21,41 @@ CREATE TABLE IF NOT EXISTS public.application_approvals (
     company         TEXT,
     resume_sha256   TEXT NOT NULL,
     resume_preview  TEXT,
+    job_url_sha256  TEXT NOT NULL,
     decision        TEXT NOT NULL DEFAULT 'pending'
-                    CHECK (decision IN ('pending', 'approved', 'rejected')),
+                    CHECK (decision IN ('pending', 'approved', 'rejected', 'consumed')),
     approved_by     UUID,
     approved_at     TIMESTAMPTZ,
+    expires_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '15 minutes'),
+    consumed_at     TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, run_id, resume_sha256)
 );
+
+-- Forward-compatible additions for installations created before the exact-job
+-- consent gate. Existing rows without a job hash remain unusable for submit,
+-- which is safer than silently widening their approval scope.
+ALTER TABLE public.application_approvals
+    ADD COLUMN IF NOT EXISTS job_url_sha256 TEXT;
+ALTER TABLE public.application_approvals
+    ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE public.application_approvals
+    ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMPTZ;
+UPDATE public.application_approvals
+   SET expires_at = COALESCE(expires_at, created_at + INTERVAL '15 minutes')
+ WHERE expires_at IS NULL;
+ALTER TABLE public.application_approvals
+    ALTER COLUMN expires_at SET DEFAULT (NOW() + INTERVAL '15 minutes');
+ALTER TABLE public.application_approvals
+    DROP CONSTRAINT IF EXISTS application_approvals_decision_check;
+ALTER TABLE public.application_approvals
+    ADD CONSTRAINT application_approvals_decision_check
+    CHECK (decision IN ('pending', 'approved', 'rejected', 'consumed'));
+
+CREATE INDEX IF NOT EXISTS idx_application_approvals_usable
+    ON public.application_approvals (user_id, run_id, resume_sha256, job_url_sha256)
+    WHERE decision = 'approved' AND consumed_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_application_approvals_user
     ON public.application_approvals (user_id);

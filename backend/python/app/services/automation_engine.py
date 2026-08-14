@@ -449,7 +449,7 @@ async def run_autopilot(
                 )
                 application["resume_sha256"] = fingerprint
                 approved = await _approval_granted(
-                    config.get("user_id"), run_id, fingerprint
+                    config.get("user_id"), run_id, fingerprint, job=job
                 )
                 # ---- ATS TIER GATE (P3 / Q8.7) -------------------------------
                 # Tier the URL before any submit decision. No major ATS offers a
@@ -524,6 +524,25 @@ async def run_autopilot(
                         f"{job['title']} @ {job['company']} — nothing was submitted.",
                     )
                 if config.get("auto_apply", False) and gate_ok and approved:
+                    # Consume the approval at the final submit boundary. The
+                    # UPDATE ... RETURNING in approval_gate makes this atomic,
+                    # so concurrent workers and retries cannot replay consent.
+                    approved = await _approval_granted(
+                        config.get("user_id"),
+                        run_id,
+                        fingerprint,
+                        job=job,
+                        consume=True,
+                    )
+                    if not approved:
+                        application["status"] = "approval_expired_or_replayed"
+                        _log(
+                            run_id,
+                            "APPROVAL",
+                            f"Approval expired or was already consumed for {job['title']} @ {job['company']} — nothing was submitted.",
+                        )
+                        applications.append(application)
+                        continue
                     # Defense-in-depth: the do_not_submit tier already skipped
                     # LinkedIn above; this keeps the legacy UA §8.2 guard for
                     # any future do_not_submit member that should also hard-block.
