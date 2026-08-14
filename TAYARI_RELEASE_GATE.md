@@ -2,49 +2,53 @@
 
 **Assessment date:** 2026-08-14  
 **Branch:** `main`  
-**Decision:** **NO-GO for public launch**  
-**Permitted scope:** Controlled internal demos only, with no real customer documents, credentials, or autonomous production submissions.
+**Decision:** **INTERNAL DEMO ONLY**
+**Permitted scope:** Controlled internal demonstrations with synthetic or disposable data. Do not enable public customer onboarding, real customer documents, autonomous external submissions, or macOS public distribution.
 
 ## Executive decision
 
-The remediation program materially reduced the highest-risk exposure paths. Voice routes are authenticated and rate-limited; the Python AI service is protected by an internal gateway token; approval, final-action signing, prompt-injection blocking, kill-switch, tenant isolation, and account-erasure controls have proof tests; release and production-Compose contracts are enforced; the Electron bridge and website have dedicated security contracts.
+The code-level remediation gates are now green. The dependency graph was remediated, the Python audit reports no known vulnerabilities, Go and Python regression suites pass, frontend tests/typecheck/build pass, the release contract passes, observability is protected and tested, public claims and privacy disclosures were hardened, and the macOS packaging contract now fails closed around artifact contents, arm64 policy, signing, Gatekeeper, and notarization evidence.
 
-The product is **not safe to expose publicly yet**. The blocking reason is not a missing polish item: the JavaScript release scanner reports **25 new high-severity dependency findings**. In addition, the connected Mac could not resolve the pinned `browser-use==0.1.34` requirement through pip-audit, live staging flood/SSRF/restore/rollback evidence was not run, and Apple signing/notarization was configured but not executed. These conditions prevent a defensible public-beta or production release decision.
+The product is **not approved for public launch** because several release proofs require real isolated infrastructure or Apple credentials that are not available in this repository-only run. The largest remaining risks are live hostile staging evidence, disposable backup-restore and rollback execution, a generated unauthenticated route inventory compared against the exposure registry, and credentialed macOS signing/notarization plus clean-machine installation tests. The appropriate current scope is internal demonstration only.
+
+> **Release rule:** Code gates being green does not substitute for production evidence. Do not promote a public image, accept real customer documents, enable autonomous external submissions, or distribute a macOS artifact until the remaining S0 evidence is attached to the release record.
 
 ## Proof evidence
 
 | Area | Evidence | Result | Release interpretation |
 |---|---|---:|---|
 | Go gateway | `go test ./...`; `go vet ./...` | Pass | Gateway regression and static-analysis gates are green. |
-| Python AI engine | `pytest app/tests tests -q` | **685 passed, 4 skipped** | Security and service regression suite is green; 38 deprecation warnings remain. |
-| Frontend | Typecheck, lint, 32 Vitest files / 95 tests | Pass | Frontend build gates are green; lint retains a legacy warning baseline. |
-| Production frontend | Disposable Supabase/API values; Vite build | Pass | Largest JavaScript asset was approximately 798 KiB, below the 900 KiB budget. |
-| Public browser routes | Playwright `e2e/public_routes.spec.ts` | **7 passed** | Public routes and `/free-ats-scan` redirect work without credentials. |
-| Release contract | `bash scripts/release_contract_test.sh` | Pass | Pinned actions, Bun lockfile, container configuration, desktop contract, and website contract pass. |
+| Python AI engine | `pytest app/tests tests -q` | **691 passed, 4 skipped** | Security, service, observability, and lifecycle regression suite is green; deprecation warnings remain non-blocking. |
+| Frontend unit suite | `bun run test` | **33 files, 100 tests passed** | Frontend behavior and the new truthfulness/accessibility contracts are green. |
+| Frontend typecheck | `bunx tsc --noEmit` | Pass | No TypeScript compilation errors. |
+| Frontend lint | `bun run lint` | Pass with legacy warnings | No lint errors; 383 pre-existing warning-level findings remain for later cleanup. |
+| Production frontend | `bun run build` | Pass | Largest JavaScript asset is approximately 799 KiB, below the 900 KiB budget; total budget contract passes. |
+| Public website | `node scripts/website_release_contract.mjs`; public-route E2E history | Pass | Routes, API boundaries, security headers, bundle conditions, and unsupported-claim scan pass. |
+| Observability | Go/Python observability proofs and `infra/observability/alerts.yml` | Pass | Structured request logs, correlation IDs, protected metrics, provider/budget counters, queue age, and alert thresholds are versioned and tested. |
+| Exposure safety | `backend/go/internal/api/exposure_contract_test.go`; `infra/endpoint-exposure.yml` | Targeted pass | Registered anonymous routes and representative protected routes are covered; complete generated route-to-registry comparison remains open. |
+| Backup/recovery safety | `scripts/staging_recovery_contract_test.sh` | Pass for fail-closed preflight | Same-target restore, missing restore mode, rollback approval, mutable-image rejection, and provenance/dry-run checks pass; live disposable restore and rollback are not executed. |
 | Migration contract | `python3 scripts/verify_self_hosted_migrations.py` | Pass | Required mirrored migrations, tenant-RLS presence, and order invariants pass. |
-| Backup safety | Same-target restore refusal path | Pass | Destructive same-target restore is refused; live disposable restore was not run. |
-| Secret scan | Gitleaks history scan | Pass | No secrets detected in the scanned history. |
-| JavaScript dependency gate | `bun run security:scan` | **Fail: 25 high findings** | Blocking. Findings include `minimatch`, `brace-expansion`, `js-yaml`, `flatted`, `fast-uri`, `ws`, `picomatch`, `nanoid`, `lodash`, `ip-address`, `glob`, and `form-data`. |
-| Python dependency gate | `python3 -m pip_audit -r backend/python/requirements.txt` | Inconclusive | The connected Mac’s package index could not resolve pinned `browser-use==0.1.34`; this is not a clean pass. |
-| macOS signing | Electron hardened-runtime/notarization configuration | Not executed | Developer ID signing, notarization, stapling, Gatekeeper, update, and clean-machine evidence remain release gates. |
+| Release contract | `bash scripts/release_contract_test.sh` | Pass | Lockfile, production configuration, desktop, website, observability, exposure, and staging-recovery contracts pass. |
+| JavaScript dependency gate | `bun run security:scan` | Pass | 114 findings are baselined, with no new high/critical findings. The prior 25 high-severity blockers were remediated through reviewed dependency overrides and tree removal. |
+| Python dependency gate | `uvx --python 3.12 --from pip-audit pip-audit -r backend/python/requirements.txt --strict` | Pass | No known vulnerabilities found. |
+| macOS static release contract | `bash scripts/mac_release_contract_test.sh` | Pass | Hardened runtime, entitlements, arm64-only targets, package exclusions, runbook, and artifact verifier are enforced. |
+| macOS credentialed release | `scripts/mac_artifact_contract.sh` on a signed artifact | Not executed | Developer ID signing, notarization, stapling, Gatekeeper, clean-machine install, update/downgrade, tamper, and offline-start evidence still block macOS distribution. |
 
-## Blocking residual risks and owners
+## Remaining blocking risks and owners
 
-| Risk | Severity | Owner | Required closure evidence | Expiry / scope |
+| Risk | Severity | Owner | Required closure evidence | Scope / expiry |
 |---|---|---|---|---|
-| 25 new high JavaScript dependency findings | S0 | Frontend/release owner | Upgrade or replace affected dependency chains; rerun `bun run security:scan` with zero new high/critical findings; review any unavoidable exception in writing | Blocks every public release; no baseline acceptance without security review |
-| Python dependency audit cannot resolve `browser-use==0.1.34` on the connected Mac | S1 | Python/release owner | Run pip-audit in the same Linux image used by CI, resolve or explicitly document the package source and vulnerability status | Must close before staging promotion |
-| No live staging flood, SSRF, rollback, or disposable backup-restore evidence | S0 | Platform owner | Execute hostile staging suite against an isolated environment, restore to a separate disposable target, and prove rollback | Must close before public beta |
-| Apple signing and notarization not executed | S0 for macOS distribution | Desktop release owner | Produce signed arm64 artifact, notarization result, stapled ticket, Gatekeeper verification, update and downgrade tests | Blocks macOS public distribution |
-| M5 truthfulness/privacy/accessibility follow-ups remain open | S1 | Product/privacy owner | Audit claims, document resume/browser-session/screenshot/provider retention and deletion behavior, and run accessibility conversion-path checks | Must close before public beta |
-| Complete unauthenticated endpoint inventory versus an explicit exposure registry is not yet recorded | S1 | API security owner | Generate route inventory, compare with the registry, and attach the diff to the release record | Must close before public beta |
+| No live hostile staging flood, SSRF, prompt-injection, cross-tenant, approval-replay, kill-switch, deletion, backup-restore, or rollback evidence | S0 | Platform owner | Execute the isolated staging suite, restore into a separate disposable target, prove rollback, and attach logs plus timestamps | Blocks public beta and autonomous external submissions |
+| Complete unauthenticated endpoint inventory versus the explicit exposure registry is not recorded | S1 | API security owner | Generate the route inventory from the running gateway and Python service, compare it to `infra/endpoint-exposure.yml`, and attach the diff | Close before public beta |
+| Apple signing, notarization, stapling, Gatekeeper, and clean-machine distribution are not executed | S0 for macOS distribution | Desktop release owner | Produce a signed arm64 DMG/ZIP, run `scripts/mac_artifact_contract.sh`, attach `codesign`, `spctl`, `stapler`, install, downgrade, tamper, and offline evidence | Blocks every macOS public download |
+| Production promotion has not been executed against a real registry and isolated cluster | S0 for public deployment | Platform/release owner | Build, scan, attest, push, render immutable digests, apply with server-side dry-run followed by promotion, wait for rollout, smoke-test, and retain rollback metadata | Blocks public production promotion |
+| Clean-machine macOS install/update/downgrade/corrupted-update/offline-start tests remain open | S1 | Desktop release owner | Execute the scenarios in `docs/MACOS_RELEASE_RUNBOOK.md` on a clean Apple Silicon account | Close before macOS beta |
+| Frontend lint retains a large legacy warning baseline | S2 | Frontend owner | Reduce or explicitly baseline warnings without introducing errors | Does not block internal demos; review before public beta |
 
 ## Required next release sequence
 
-First, remediate the dependency graph rather than baselining the findings. The remediation must be performed against production-relevant dependencies, followed by a fresh lockfile install and a clean security scan. Second, run the Python audit in the CI/Linux image with the exact locked requirements and resolve the `browser-use` source mismatch. Third, deploy an isolated staging environment and execute the hostile tests and disposable restore/rollback drills. Fourth, execute Developer ID signing and notarization on a controlled macOS runner, then verify the artifact on a clean Apple Silicon machine. Finally, close the endpoint-inventory, privacy/retention, claims, and accessibility gates.
-
-> **Release rule:** Do not promote a public image, enable autonomous external submissions, or distribute a macOS artifact until all S0 gates are green and the remaining S1 risks have an owner, evidence, and expiry.
+First, deploy a disposable isolated staging environment and run the hostile suite, backup restore, and rollback drills against non-customer data. Second, generate the complete route inventory and attach the registry comparison. Third, execute the credentialed macOS release runbook on a clean Apple Silicon runner and retain signed, notarized, stapled, Gatekeeper, and installation evidence. Fourth, execute immutable production promotion only after registry, backup, rollback, and observability evidence is available. Finally, rerun the full proof suite from a clean checkout and issue a fresh decision.
 
 ## Final decision
 
-**NO-GO for public launch.** The remediation work is suitable for continued engineering and controlled internal demonstrations, but not for public beta, paid customer onboarding, real customer documents, or production autonomous submissions. The next release candidate must carry forward this report and replace the failed or inconclusive evidence with fresh passing artifacts.
+**INTERNAL DEMO ONLY.** The repository is suitable for continued engineering and controlled internal demonstrations using synthetic or disposable data. It is not approved for public beta, paid customer onboarding, real customer documents, autonomous production submissions, or macOS distribution until the remaining infrastructure and Apple release gates are closed with attached evidence.
