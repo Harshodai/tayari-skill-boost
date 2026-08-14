@@ -31,7 +31,11 @@ grep -q 'KUBE_CONTEXT must be explicitly set' scripts/deploy-environment.sh
 grep -q 'OUTPUT_FILE="$ROOT_DIR/$OUTPUT_FILE"' scripts/render-manifests.sh
 
 # Dependency installation is deterministic and security scanning is blocking.
-grep -q 'pip-audit --requirement requirements.txt.*--strict' .github/workflows/ci.yml
+grep -q 'pip-audit --requirement requirements.txt.*--requirement ../../integrations/jobtheory_mcp/requirements.txt.*--strict' .github/workflows/ci.yml
+grep -q 'pip install -r ../../integrations/jobtheory_mcp/requirements.txt' .github/workflows/ci.yml
+grep -q 'mcp>=1.28.1' integrations/jobtheory_mcp/requirements.txt
+grep -q 'MCP URL and tool contract' .github/workflows/ci.yml
+test -f scripts/mcp_contract_test.py
 grep -q 'bun install --frozen-lockfile' .github/workflows/ci.yml
 # CI coverage and environment contracts must match the reproducible local gates.
 grep -q 'GO_COVERAGE_MIN=20 bash ../../scripts/check_go_coverage.sh' .github/workflows/ci.yml

@@ -40,6 +40,7 @@ jobs:
       APP_ENV: test
       JWT_SECRET: test-only-secret-please-change
       APPROVAL_SIGNING_KEY: test-approval-key
+      TAYARI_API_KEY: ci-placeholder
       PYTHONPATH: ${{ github.workspace }}/backend/python
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -55,10 +56,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install 'ruff==0.9.2' pytest-cov bandit pip-audit
           pip install -r requirements.txt
+          pip install -r ../../integrations/jobtheory_mcp/requirements.txt
 
       - name: Dependency Audit (blocking)
         working-directory: backend/python
-        run: pip-audit --requirement requirements.txt --progress-spinner off --strict
+        run: pip-audit --requirement requirements.txt --requirement ../../integrations/jobtheory_mcp/requirements.txt --progress-spinner off --strict
 
       - name: LLM Engine Sanity Check
         run: |
@@ -109,6 +111,9 @@ jobs:
       - name: MCP Server Import Smoke Test
         run: |
           python -c "import sys; sys.path.insert(0,'integrations/jobtheory_mcp'); import server; print(f'MCP Tools: {len(server.mcp._tool_manager.list_tools())}')"
+
+      - name: MCP URL and tool contract
+        run: python scripts/mcp_contract_test.py
 
       - name: Test
         working-directory: backend/python
