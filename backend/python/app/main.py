@@ -85,7 +85,7 @@ from app.services.knowledge_graph import KnowledgeGraphExtractor
 from app.services.linkedin_analyzer import score_linkedin_profile
 from app.middleware.internal_gateway import InternalGatewayMiddleware
 from app.middleware.request_budget import RequestBudgetMiddleware
-from app.middleware.operation_budget import OperationBudgetMiddleware
+from app.middleware.operation_budget import OperationBudget, OperationBudgetMiddleware
 from app.auth.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -150,7 +150,11 @@ app.add_middleware(InternalGatewayMiddleware)
 app.add_middleware(RequestBudgetMiddleware)
 # Apply bounded per-operation quotas before expensive route work. The global
 # SlowAPI limiter remains the replica-shared coarse guard when Redis is present.
-app.add_middleware(OperationBudgetMiddleware)
+operation_budget = OperationBudget(
+    redis_url=os.getenv("RATELIMIT_STORAGE_URL") or os.getenv("REDIS_URL"),
+    fail_closed=_env_for_limits == "production",
+)
+app.add_middleware(OperationBudgetMiddleware, budget=operation_budget)
 # Enforce the default limit for every route unless a narrower route policy
 # overrides it. Keeping this at the app boundary prevents expensive public
 # routes from silently bypassing the configured limiter.
@@ -492,6 +496,22 @@ class AutopilotRunRequest(BaseModel):
     candidate_name: str = "Candidate"
 
 
+_AUTOPILOT_QUEUE_CAPACITY = max(
+    1, min(int(os.getenv("AUTOPILOT_QUEUE_CAPACITY", "4")), 16)
+)
+_autopilot_active = 0
+_autopilot_active_lock = asyncio.Lock()
+
+
+async def _run_autopilot_with_capacity(*args):
+    global _autopilot_active
+    try:
+        await automation_engine.run_autopilot(*args)
+    finally:
+        async with _autopilot_active_lock:
+            _autopilot_active -= 1
+
+
 @app.post("/api/v1/autopilot/run")
 async def autopilot_run(
     payload: AutopilotRunRequest,
@@ -502,8 +522,13 @@ async def autopilot_run(
     run_id = str(__import__("uuid").uuid4())
     run_config = dict(payload.run_config or {})
     run_config["user_id"] = _user_id
+    global _autopilot_active
+    async with _autopilot_active_lock:
+        if _autopilot_active >= _AUTOPILOT_QUEUE_CAPACITY:
+            raise HTTPException(status_code=429, detail="autopilot queue is full")
+        _autopilot_active += 1
     asyncio.create_task(
-        automation_engine.run_autopilot(
+        _run_autopilot_with_capacity(
             run_id,
             run_config,
             payload.profile,

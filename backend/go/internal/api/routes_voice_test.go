@@ -76,6 +76,23 @@ func TestVoiceStreamRejectsUntrustedOriginBeforeDial(t *testing.T) {
 	}
 }
 
+func TestVoiceStreamQuotaBlocksThirdUpgradeBeforeBackendDial(t *testing.T) {
+	server := newVoiceTestServer(t)
+	for i := 0; i < 2; i++ {
+		w := httptest.NewRecorder()
+		server.Router.ServeHTTP(w, voiceRequest("http://localhost:5173", true))
+		if w.Code != http.StatusBadGateway {
+			t.Fatalf("expected backend dial failure for allowed attempt %d, got %d: %s", i+1, w.Code, w.Body.String())
+		}
+	}
+
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, voiceRequest("http://localhost:5173", true))
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected third voice upgrade to be rate limited before dialing, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestVoiceStreamRequiresWebsocketUpgradeAfterAuth(t *testing.T) {
 	server := newVoiceTestServer(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/interview/stream", nil)

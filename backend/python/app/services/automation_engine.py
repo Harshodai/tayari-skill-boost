@@ -266,6 +266,22 @@ async def run_autopilot(
 ) -> None:
     """Main background pipeline. State mirrored to in‑memory cache + agent_runs."""
     config = config or {}
+    user_id = config.get("user_id")
+    if user_id and not check_daily_llm_budget(str(user_id), estimated_tokens=10_000):
+        _autopilot_store[run_id] = {
+            "run_id": run_id,
+            "user_id": user_id,
+            "config": config,
+            "status": "failed",
+            "progress": 0,
+            "current_step": "BUDGET",
+            "logs": [],
+            "applications_created": 0,
+            "error": "daily LLM token budget exceeded",
+            "applications": [],
+        }
+        logger.warning("Autopilot run %s rejected by daily LLM budget for user %s", run_id, user_id)
+        return
     _autopilot_store[run_id] = {
         "run_id": run_id,
         "user_id": config.get("user_id"),

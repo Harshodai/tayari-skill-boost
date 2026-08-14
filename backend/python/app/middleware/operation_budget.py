@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -25,20 +26,58 @@ DEFAULT_RULES = {
 }
 
 
-class OperationBudget:
-    """Process-local bounded counter used when no shared quota backend exists."""
+class OperationBudgetUnavailable(RuntimeError):
+    """Raised when a required shared quota backend cannot be reached."""
 
-    def __init__(self, rules: dict[str, BudgetRule] | None = None, max_keys: int = 10_000):
+
+class OperationBudget:
+    """Shared Redis counter with a bounded process-local development fallback."""
+
+    def __init__(
+        self,
+        rules: dict[str, BudgetRule] | None = None,
+        max_keys: int = 10_000,
+        redis_url: str | None = None,
+        redis_client=None,
+        fail_closed: bool | None = None,
+    ):
         self.rules = rules or DEFAULT_RULES
         self.max_keys = max(100, max_keys)
         self._events: OrderedDict[tuple[str, str], list[float]] = OrderedDict()
         self._lock = asyncio.Lock()
+        self._redis = redis_client
+        if self._redis is None and redis_url:
+            try:
+                from redis.asyncio import Redis
+
+                self._redis = Redis.from_url(redis_url, decode_responses=True)
+            except Exception as exc:  # pragma: no cover - dependency is in production image
+                if fail_closed or os.getenv("ENV", "development").lower() == "production":
+                    raise OperationBudgetUnavailable("Redis quota backend unavailable") from exc
+        self.fail_closed = (
+            fail_closed
+            if fail_closed is not None
+            else os.getenv("ENV", "development").lower() == "production"
+        )
 
     async def consume(self, operation: str, identity: str, now: float | None = None) -> bool:
         rule = self.rules.get(operation)
         if rule is None:
             return True
-        current = now if now is not None else time.monotonic()
+        current = now if now is not None else time.time()
+        if self._redis is not None:
+            bucket = int(current // rule.window_seconds)
+            key = f"tayari:op-budget:{operation}:{identity}:{bucket}"
+            try:
+                pipe = self._redis.pipeline(transaction=True)
+                pipe.incr(key)
+                pipe.expire(key, rule.window_seconds + 1)
+                count, _ = await pipe.execute()
+                return int(count) <= rule.limit
+            except Exception as exc:
+                if self.fail_closed:
+                    raise OperationBudgetUnavailable("Redis quota backend unavailable") from exc
+
         key = (operation, identity)
         async with self._lock:
             events = self._events.setdefault(key, [])
@@ -105,7 +144,16 @@ class OperationBudgetMiddleware:
         if operation is None:
             await self.app(scope, receive, send)
             return
-        allowed = await self.budget.consume(operation, self._identity(scope))
+        try:
+            allowed = await self.budget.consume(operation, self._identity(scope))
+        except OperationBudgetUnavailable:
+            response = JSONResponse(
+                {"detail": "operation quota backend unavailable"},
+                status_code=503,
+                headers={"Retry-After": "30"},
+            )
+            await response(scope, receive, send)
+            return
         if not allowed:
             response = JSONResponse(
                 {"detail": f"{operation} quota exceeded"},
