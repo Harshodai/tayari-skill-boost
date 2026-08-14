@@ -59,6 +59,6 @@ All AI agents must strictly adhere to the continuous learnings, code review stan
 
 ## ✅ Release Gates and Git Discipline
 
-1. `bun run security:production` must pass with zero unresolved critical/high findings. Never update the baseline merely to make CI green; remediate with forward migrations or remove the affected feature from launch scope. The current scan has 41 critical and 72 high database findings.
+1. `bun run security:production` must pass with zero unresolved critical/high findings. Never update the baseline merely to make CI green; remediate with forward migrations or remove the affected feature from launch scope. The inherited gate started at 41 critical and 72 high database findings; after the forward-aware scanner and RLS/grant/policy migration, the current gate passes with zero unresolved critical/high findings.
 2. Before a launch decision, run Python tests with CI secrets, Go tests, frontend lint/build/tests, migration checks against disposable PostgreSQL/Supabase, two-user ownership negatives through Go, queue-outage tests, handoff expiry/replay tests, browser cancellation tests, redacted-log checks, and backup/restore drills.
 3. Stage only intended files. Inspect `git status`, `git diff --check`, staged names, test results, and remote state before pushing. If GitHub rejects a workflow push because the token lacks `workflows` permission, do not bypass the control or silently claim the workflow was pushed; push non-workflow files separately and record the limitation.

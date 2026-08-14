@@ -52,10 +52,11 @@ DROP POLICY IF EXISTS "Public profiles access" ON public.profiles;
 -- Requirement: "Add proper RLS policies for blog_posts"
 ALTER TABLE public.blog_posts ENABLE ROW LEVEL SECURITY;
 
--- Everyone can read blog posts
-CREATE POLICY "Public can read blog posts" ON public.blog_posts
+-- Everyone can read published blog posts; drafts and future posts stay private.
+DROP POLICY IF EXISTS "Public can read blog posts" ON public.blog_posts;
+CREATE POLICY "Public can read published blog posts" ON public.blog_posts
     FOR SELECT TO public
-    USING (true);
+    USING (published_at IS NOT NULL AND published_at <= now());
 
 -- Only admins can Create/Update/Delete blog posts
 CREATE POLICY "Admins can manage blog posts" ON public.blog_posts

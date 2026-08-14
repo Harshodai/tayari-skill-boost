@@ -107,3 +107,14 @@ Python tests passed at 695 with 4 skipped; Go tests passed; frontend lint/build/
 **Implementation-level reminder:** `AUTONOMOUS_SUBMIT_ENABLED` must be explicitly set to `false` in canary/production environments and checked by the server-side submission guard. A prose-only “manual submit” promise is insufficient.
 
 **Database security reminder:** every user-owned public table needs verified PostgreSQL RLS policies, least-privilege grants, and two-user negative tests; a security baseline is not launch approval.
+
+
+## 2026-08-15 — Forward-aware database security gate closure
+
+The production security gate was reduced from 113 critical/high findings to zero unresolved critical/high findings without changing the security baseline to force green. The remediation used a forward migration, `supabase/migrations/20260815120000_harden_critical_public_tables.sql`, because older migration files cannot be safely rewritten after deployment. The migration enables and forces RLS, revokes `anon`/`authenticated` table access by default, grants only the required service or owner access, and keeps service-only tables inaccessible to direct clients.
+
+The scanner was made forward-aware by collecting RLS and grant declarations across the complete migration history before evaluating earlier `CREATE TABLE` statements. It also strips SQL comments before parsing, which prevents prose such as `CREATE TABLE IF NOT EXISTS above` from becoming a finding. The final gate output was `No new security findings` with exit code 0. Two broad policies were remediated rather than baselined: blog posts now expose only published rows, and individual question-vote rows are no longer readable by every authenticated user; aggregate counts remain served by the backend.
+
+Verification evidence for this pass: Python `698 passed, 4 skipped`; Go tests passed; frontend `33 test files, 100 tests passed`; lint passed with warnings only; frontend build passed; and `bun run security:production` passed. Production Supabase application and Railway deployment remain separate operational steps requiring authenticated operator access and post-migration two-user negative tests.
+
+The scanner rule remains intentionally strict: a baseline is not launch approval, and service-only policies are accepted only when they are explicitly limited to `service_role`. Any future public table must ship with an owner or service access decision, RLS, grants, and a forward-aware migration test.

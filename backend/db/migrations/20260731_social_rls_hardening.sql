@@ -105,18 +105,10 @@ CREATE POLICY "question_upvotes_own" ON public.question_upvotes
     USING (auth.uid() = user_id)
     WITH CHECK (auth.uid() = user_id);
 
--- Separate FOR SELECT policy so aggregate upvote-count queries (COUNT(*)
--- grouped by question_id, e.g. for the feed's vote tallies) can see every
--- user's vote, not just the caller's own row. Postgres RLS: multiple
--- permissive policies for the same command combine with OR, and a FOR ALL
--- policy plus an additional FOR SELECT policy is a normal, correct pattern
--- — INSERT/UPDATE/DELETE stay governed solely by question_upvotes_own above.
--- Same fix applied to the Cloud-path schema (supabase/migrations/
--- 20260731_social_graph.sql) in the same round.
+-- Do not expose every user's vote row to authenticated clients. Aggregate
+-- counts are computed by the Go backend with an owner-checked request path;
+-- the only direct client policy is the caller's own row above.
 DROP POLICY IF EXISTS "question_upvotes_read_all" ON public.question_upvotes;
-CREATE POLICY "question_upvotes_read_all" ON public.question_upvotes
-    FOR SELECT TO authenticated
-    USING (true);
 
 -- ---- application_outcomes ----------------------------------------------
 ALTER TABLE public.application_outcomes ENABLE ROW LEVEL SECURITY;

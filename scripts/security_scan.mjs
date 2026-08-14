@@ -104,55 +104,64 @@ function scanDependencies() {
 const CREATE_TABLE = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?("?[a-zA-Z_][\w]*"?)/gi;
 const CREATE_POLICY = /create\s+policy\b[\s\S]*?(?=create\s+policy\b|$)/gi;
 
+function withoutSqlComments(sql) {
+  return sql.replace(/--[^\n]*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
 function scanMigrations() {
   const dirs = [
     path.join(ROOT, "supabase", "migrations"),
     path.join(ROOT, "backend", "db", "migrations"),
   ];
-  for (const dir of dirs) {
-    for (const file of walk(dir, (f) => f.endsWith(".sql"))) {
-      const sql = fs.readFileSync(file, "utf8");
-      const lower = sql.toLowerCase();
-      for (const match of sql.matchAll(CREATE_TABLE)) {
-        const table = match[1].replace(/"/g, "").toLowerCase();
-        if (!lower.includes(`enable row level security`) || !lower.includes(table)) {
-          add({
-            scanner: "database",
-            severity: "critical",
-            title: `Table "${table}" created without row level security`,
-            file: rel(file),
-            detail: "Every public table must enable RLS in the same migration.",
-          });
-        }
-        const grantsTable = new RegExp(
-          `grant\\s+[\\s\\S]*?\\bon\\s+(?:table\\s+)?(?:public\\.)?"?${table}"?\\b`,
-          "i",
-        );
-        if (!grantsTable.test(sql)) {
-          add({
-            scanner: "database",
-            severity: "high",
-            title: `Table "${table}" created without GRANT statements`,
-            file: rel(file),
-            detail: "The Data API needs explicit GRANTs or every request fails.",
-          });
-        }
+  const files = dirs.flatMap((dir) => walk(dir, (f) => f.endsWith(".sql")));
+  const rlsTables = new Set();
+  const grantTables = new Set();
+  for (const file of files) {
+    const sql = withoutSqlComments(fs.readFileSync(file, "utf8"));
+    for (const match of sql.matchAll(/alter\s+table\s+(?:if\s+exists\s+)?(?:public\.)?"?([a-zA-Z_]\w*)"?\s+enable\s+row\s+level\s+security/gi)) {
+      rlsTables.add(match[1].toLowerCase());
+    }
+    for (const match of sql.matchAll(/grant\s+[\s\S]*?\bon\s+(?:table\s+)?(?:public\.)?"?([a-zA-Z_]\w*)"?/gi)) {
+      grantTables.add(match[1].toLowerCase());
+    }
+  }
+  for (const file of files) {
+    const sql = withoutSqlComments(fs.readFileSync(file, "utf8"));
+    for (const match of sql.matchAll(CREATE_TABLE)) {
+      const table = match[1].replace(/"/g, "").toLowerCase();
+      if (!rlsTables.has(table)) {
+        add({
+          scanner: "database",
+          severity: "critical",
+          title: `Table "${table}" created without row level security`,
+          file: rel(file),
+          detail: "Every public table must be covered by an RLS migration before release.",
+        });
       }
-      for (const policy of sql.matchAll(CREATE_POLICY)) {
-        const block = policy[0];
-        if (!/using\s*\(\s*true\s*\)/i.test(block)) continue;
-        const roleClause = block.match(/\bto\s+([^\s]+(?:\s*,\s*[^\s]+)*)/i)?.[1] ?? "";
-        const roles = roleClause.toLowerCase().split(/\s*,\s*/).filter(Boolean);
-        const serviceOnly = roles.length > 0 && roles.every((role) => role === "service_role");
-        if (serviceOnly) continue;
+      if (!grantTables.has(table)) {
         add({
           scanner: "database",
           severity: "high",
-          title: "Policy grants unrestricted read access (USING true)",
+          title: `Table "${table}" created without GRANT statements`,
           file: rel(file),
-          detail: "Scope policies to auth.uid() or an explicit role check; service_role-only policies are allowed.",
+          detail: "The Data API needs explicit GRANTs or every request fails.",
         });
       }
+    }
+    for (const policy of sql.matchAll(CREATE_POLICY)) {
+      const block = policy[0];
+      if (!/using\s*\(\s*true\s*\)/i.test(block)) continue;
+      const roleClause = block.match(/\bto\s+([^\s]+(?:\s*,\s*[^\s]+)*)/i)?.[1] ?? "";
+      const roles = roleClause.toLowerCase().split(/\s*,\s*/).filter(Boolean);
+      const serviceOnly = roles.length > 0 && roles.every((role) => role === "service_role");
+      if (serviceOnly) continue;
+      add({
+        scanner: "database",
+        severity: "high",
+        title: "Policy grants unrestricted read access (USING true)",
+        file: rel(file),
+        detail: "Scope policies to auth.uid() or an explicit role check; service_role-only policies are allowed.",
+      });
     }
   }
 }
