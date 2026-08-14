@@ -26,7 +26,7 @@ CHUNK_SECONDS = 600  # 10 minute chunks
 _BLOCKED_HOSTS = {
     "localhost",
     "127.0.0.1",
-    "0.0.0.0",
+    "0.0.0.0",  # nosec B104 - outbound SSRF denylist, not a bind
     "metadata.google.internal",
     "169.254.169.254",
 }

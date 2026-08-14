@@ -1787,7 +1787,10 @@ register_plugins(app)
 if __name__ == "__main__":
     import uvicorn  # noqa: E402
 
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+    # Containers must listen on all interfaces by default; operators can
+    # narrow the bind with BIND_HOST for local or host-network deployments.
+    bind_host = os.getenv("BIND_HOST", "0.0.0.0")  # nosec B104 - container listener is explicitly configurable
+    uvicorn.run(app, host=bind_host, port=int(os.getenv("PORT", "8000")))
 
 
 @app.post("/api/v1/interview/copilot/stream")

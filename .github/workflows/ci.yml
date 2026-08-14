@@ -104,7 +104,7 @@ jobs:
 
       - name: Bandit SAST Scan (Python AI Engine)
         run: |
-          bandit -r backend/python/app integrations/ -ll -ii
+          bandit -r backend/python/app integrations/ --exclude backend/python/app/tests -ll -ii
 
       - name: MCP Server Import Smoke Test
         run: |

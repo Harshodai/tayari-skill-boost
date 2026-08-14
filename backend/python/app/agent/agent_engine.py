@@ -26,7 +26,7 @@ def _resolve_and_validate_url(url: str) -> Optional[Dict[str, Any]]:
             return None
 
         # Reject direct non-global hostnames
-        if hostname.lower() in ("localhost", "0.0.0.0", "broadcasthost"):
+        if hostname.lower() in ("localhost", "0.0.0.0", "broadcasthost"):  # nosec B104 - outbound SSRF denylist, not a bind
             return None
 
         port = parsed.port or (443 if parsed.scheme == "https" else 80)

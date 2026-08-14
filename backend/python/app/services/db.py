@@ -179,7 +179,7 @@ async def update_agent_run(run_id: str, **fields) -> bool:
     try:
         async with pool.acquire() as conn:
             await conn.execute(
-                f"UPDATE agent_runs SET {', '.join(sets)} WHERE run_id = $1",
+                f"UPDATE agent_runs SET {', '.join(sets)} WHERE run_id = $1",  # nosec B608 - sets contains only hardcoded allowlisted columns
                 *args,
             )
         return True

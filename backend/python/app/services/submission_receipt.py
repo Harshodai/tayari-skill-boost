@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -30,7 +31,10 @@ logger = logging.getLogger(__name__)
 
 # Where decoded confirmation screenshots land. Kept on local disk (or a mounted
 # volume) rather than the DB so receipts stay cheap to store and serve.
-RECEIPT_DIR = os.getenv("RECEIPT_SCREENSHOT_DIR", "/tmp/jobtayari/receipts")
+RECEIPT_DIR = os.getenv(
+    "RECEIPT_SCREENSHOT_DIR",
+    os.path.join(tempfile.gettempdir(), "jobtayari", "receipts"),
+)
 
 # Phrases an ATS prints once a submission is genuinely recorded. Deliberately
 # conservative: matching "we received your application" is proof, matching

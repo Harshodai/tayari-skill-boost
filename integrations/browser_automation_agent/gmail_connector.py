@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import urllib.parse
 import urllib.request
 import json
 from typing import Optional
@@ -39,9 +40,16 @@ def fetch_latest_verification_code(
         headers["Authorization"] = f"Bearer {token}"
 
     try:
+        parsed_base = urllib.parse.urlparse(base_url)
+        hostname = (parsed_base.hostname or "").lower()
+        local_http_hosts = {"localhost", "127.0.0.1", "::1", "go-backend"}
+        if parsed_base.scheme not in {"http", "https"} or not parsed_base.netloc or parsed_base.username or parsed_base.password:
+            raise ValueError("TAYARI_API_URL must be an http(s) URL without embedded credentials")
+        if parsed_base.scheme == "http" and hostname not in local_http_hosts:
+            raise ValueError("plain HTTP is allowed only for local/internal gateway hosts")
         url = f"{base_url.rstrip('/')}/api/v1/gmail/sync"
         req = urllib.request.Request(url, data=b"{}", headers=headers, method="POST")
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310 - scheme and local-HTTP host are validated above
             data = json.loads(resp.read().decode())
             logger.info("[GmailConnector] Synced inbox: %s", data)
     except Exception as exc:

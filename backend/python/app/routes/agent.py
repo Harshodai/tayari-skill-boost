@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import stat
+import tempfile
 import urllib.parse
 from collections import OrderedDict
 from fastapi import APIRouter, HTTPException, Depends
@@ -19,7 +20,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/ai/agent", tags=["agent"])
 
-AGENT_WORKSPACE_BASE = os.getenv("AGENT_WORKSPACE_DIR", "/tmp/tayari-agent-workspace")
+AGENT_WORKSPACE_BASE = os.getenv(
+    "AGENT_WORKSPACE_DIR",
+    os.path.join(tempfile.gettempdir(), "tayari-agent-workspace"),
+)
 
 
 def _ensure_workspace_base() -> None:

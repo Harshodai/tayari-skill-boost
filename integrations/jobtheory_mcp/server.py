@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import urllib.parse
 from typing import Optional, List, Dict, Any
 from mcp.server.fastmcp import FastMCP
 
@@ -15,7 +16,18 @@ mcp = FastMCP(
     )
 )
 
-TAYARI_API_URL = os.getenv("TAYARI_API_URL", "http://localhost:8085")
+def _validated_api_url(raw_url: str) -> str:
+    parsed = urllib.parse.urlparse(raw_url)
+    hostname = (parsed.hostname or "").lower()
+    local_http_hosts = {"localhost", "127.0.0.1", "::1", "go-backend"}
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:
+        raise RuntimeError("TAYARI_API_URL must be an http(s) URL without embedded credentials")
+    if parsed.scheme == "http" and hostname not in local_http_hosts:
+        raise RuntimeError("plain HTTP is allowed only for local/internal gateway hosts")
+    return raw_url.rstrip("/")
+
+
+TAYARI_API_URL = _validated_api_url(os.getenv("TAYARI_API_URL", "http://localhost:8085"))
 TAYARI_API_KEY = os.getenv("TAYARI_API_KEY")
 if not TAYARI_API_KEY:
     raise RuntimeError("TAYARI_API_KEY environment variable is required to start Tayari MCP Server.")
@@ -69,7 +81,7 @@ def _get(path: str, params: Optional[dict] = None) -> dict:
         }
     )
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310 - validated gateway URL
             return json.loads(resp.read().decode("utf-8"))
     except Exception as e:
         return _handle_api_error(e, path)
@@ -91,7 +103,7 @@ def _post(path: str, payload: dict) -> dict:
         method="POST"
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 - validated gateway URL
             return json.loads(resp.read().decode("utf-8"))
     except Exception as e:
         return _handle_api_error(e, path)

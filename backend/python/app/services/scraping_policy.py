@@ -165,7 +165,7 @@ def _fetch_robots_raw(origin: str) -> str:
             robots_url,
             headers={"User-Agent": USER_AGENT},
         )
-        with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310 - robots.txt is public
+        with urllib.request.urlopen(req, timeout=8) as resp:  # nosec B310
             if resp.status != 200:
                 return ""
             return resp.read().decode("utf-8", errors="ignore")

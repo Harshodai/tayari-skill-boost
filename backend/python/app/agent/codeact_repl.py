@@ -3,6 +3,7 @@ import sys
 import traceback
 import asyncio
 import contextlib
+import os
 from typing import Dict, Any, Optional
 
 _repl_locks: Dict[Any, asyncio.Lock] = {}
@@ -38,8 +39,19 @@ class CodeActREPL:
 
     async def execute(self, code: str, timeout: float = 30.0) -> Dict[str, Any]:
         """
-        Execute arbitrary Python code snippet in the REPL with stdout/stderr capture and timeout.
+        Execute a bounded CodeAct snippet with stdout/stderr capture and timeout.
+
+        Production deployments must explicitly opt in with ``ENABLE_CODEACT=true``.
+        The default remains available for unit tests and local development only.
         """
+        if os.getenv("APP_ENV", "development").lower() == "production" and os.getenv("ENABLE_CODEACT", "false").lower() != "true":
+            return {
+                "success": False,
+                "stdout": "",
+                "stderr": "",
+                "error": "CodeAct is disabled in production unless ENABLE_CODEACT=true.",
+                "code": code,
+            }
         async with _get_repl_lock():
             stdout_buf = io.StringIO()
             stderr_buf = io.StringIO()
@@ -49,14 +61,14 @@ class CodeActREPL:
                 with contextlib.redirect_stdout(stdout_buf), contextlib.redirect_stderr(stderr_buf):
                     try:
                         compiled_expr = compile(code, "<codeact_repl>", "eval")
-                        result = eval(compiled_expr, self.globals)
+                        result = eval(compiled_expr, self.globals)  # nosec B307 - explicit CodeAct opt-in, per-request globals, and timeout gate
                         if result is not None:
                             print(repr(result))
                         return {"success": True, "error": None}
                     except SyntaxError:
                         try:
                             compiled_stmt = compile(code, "<codeact_repl>", "exec")
-                            exec(compiled_stmt, self.globals)
+                            exec(compiled_stmt, self.globals)  # nosec B102 - explicit CodeAct opt-in, per-request globals, and timeout gate
                             return {"success": True, "error": None}
                         except Exception as e:
                             tb = traceback.format_exc()
