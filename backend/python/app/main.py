@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
@@ -117,6 +118,10 @@ app = FastAPI(
 app.include_router(a2a_router)
 app.include_router(agent_router)
 app.state.limiter = limiter
+# Enforce the default limit for every route unless a narrower route policy
+# overrides it. Keeping this at the app boundary prevents expensive public
+# routes from silently bypassing the configured limiter.
+app.add_middleware(SlowAPIMiddleware)
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Read CORS origins from environment variable (comma-separated)

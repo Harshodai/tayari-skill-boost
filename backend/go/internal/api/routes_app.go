@@ -107,9 +107,11 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		s.routesAPIKeys(r)
 		s.routesHermes(r)
 		s.RegisterBrowserRoutes(r)
+		s.routesVoice(r)
 
 		// Legacy alias fallback registrations
 		s.registerLegacyAliases(r)
+
 	})
 }
 

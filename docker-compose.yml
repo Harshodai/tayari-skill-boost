@@ -56,8 +56,10 @@ services:
       - UVICORN_WORKERS=${UVICORN_WORKERS:-2}
     volumes:
       - ./backend/python:/app
+    # The AI engine is an internal dependency of go-backend. Bind the optional
+    # developer port to loopback so prod never publishes it to the network.
     ports:
-      - "${PYTHON_AI_PORT:-8002}:8000"
+      - "127.0.0.1:${PYTHON_AI_PORT:-8002}:8000"
     restart: unless-stopped
     depends_on:
       db:

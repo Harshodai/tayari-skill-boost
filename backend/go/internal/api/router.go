@@ -36,6 +36,7 @@ type Server struct {
 	publicRateLimiter *rateLimiter
 	authRateLimiter   *rateLimiter
 	loginRateLimiter  *rateLimiter
+	voiceRateLimiter  *rateLimiter
 }
 
 func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB) *Server {
@@ -50,6 +51,9 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		publicRateLimiter: newRateLimiter(rate.Limit(10.0), 100, false),
 		authRateLimiter:   newRateLimiter(rate.Limit(50.0), 200, true),
 		loginRateLimiter:  newRateLimiter(rate.Limit(10.0), 100, false),
+		// Voice streams are expensive and long-lived: allow at most two initial
+		// connections per user, refilling at one connection every five seconds.
+		voiceRateLimiter: newRateLimiter(rate.Limit(0.2), 2, true),
 	}
 	s.routes()
 	return s
@@ -116,7 +120,7 @@ func (s *Server) routes() {
 	s.routesAnalytics(s.Router)
 	s.routesTenant(s.Router)
 	s.routesPush(s.Router)
-	s.routesVoice(s.Router)
+
 }
 
 // requireFeature checks billing entitlement for the given feature name.
