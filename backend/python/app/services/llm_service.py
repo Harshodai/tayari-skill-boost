@@ -47,6 +47,7 @@ from pydantic import BaseModel, ValidationError
 import httpx
 
 from app.services.hermes import config as hermes_config
+from app.telemetry import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -445,11 +446,25 @@ async def llm_complete(
             return an appropriate HTTP error (503).
     """
     import asyncio
-    provider = build_provider(tier)
-    result = await provider.complete(system_message, user_message,
-                                     max_tokens=max_tokens, temperature=temperature)
-    if not result:
-        raise LLMNotConfiguredError("LLM provider returned an empty response.")
+    try:
+        provider = build_provider(tier)
+    except Exception:
+        metrics.record_provider_error("factory")
+        raise
+
+    provider_name = "unknown"
+    try:
+        provider_name = provider.active_engine_label()
+    except Exception:
+        pass
+    try:
+        result = await provider.complete(system_message, user_message,
+                                         max_tokens=max_tokens, temperature=temperature)
+        if not result:
+            raise LLMNotConfiguredError("LLM provider returned an empty response.")
+    except Exception:
+        metrics.record_provider_error(provider_name)
+        raise
 
     # Privacy ledger — fire-and-forget, non-blocking
     if _user_id:

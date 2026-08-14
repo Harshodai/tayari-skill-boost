@@ -11,6 +11,7 @@ import (
 	"tayari-backend/internal/config"
 	"tayari-backend/internal/database"
 	"tayari-backend/internal/models"
+	"tayari-backend/internal/observability"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -37,6 +38,7 @@ type Server struct {
 	authRateLimiter   *rateLimiter
 	loginRateLimiter  *rateLimiter
 	voiceRateLimiter  *rateLimiter
+	metrics           *observability.Metrics
 }
 
 func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB) *Server {
@@ -54,6 +56,7 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		// Voice streams are expensive and long-lived: allow at most two initial
 		// connections per user, refilling at one connection every five seconds.
 		voiceRateLimiter: newRateLimiter(rate.Limit(0.2), 2, true),
+		metrics:          observability.NewMetrics(),
 	}
 	s.routes()
 	return s
@@ -103,6 +106,7 @@ func (s *Server) routes() {
 	}))
 
 	// Register Domain Routes
+	s.Router.Get("/metrics", s.handleMetrics)
 	s.registerCoreRoutes(s.Router)
 	s.RegisterOneStopRoutes(s.Router)
 	s.RegisterBillingRoutes(s.Router, s.Billing)

@@ -84,6 +84,7 @@ from app.services.interview_ai import InterviewPrepGenerator
 from app.services.knowledge_graph import KnowledgeGraphExtractor
 from app.services.linkedin_analyzer import score_linkedin_profile
 from app.middleware.internal_gateway import InternalGatewayMiddleware
+from app.middleware.request_telemetry import RequestTelemetryMiddleware
 from app.middleware.request_budget import RequestBudgetMiddleware
 from app.middleware.operation_budget import OperationBudget, OperationBudgetMiddleware
 from app.auth.dependencies import get_current_user
@@ -145,6 +146,8 @@ app.state.limiter = limiter
 # The Go gateway is the only public API boundary in production. The middleware
 # below rejects direct calls before route code or expensive work runs.
 app.add_middleware(InternalGatewayMiddleware)
+# Emit one structured JSON event per request and propagate X-Request-ID.
+app.add_middleware(RequestTelemetryMiddleware)
 # Reject oversized request bodies before multipart/Pydantic parsing can allocate
 # unbounded memory. Public ATS text has a much smaller model-level cap.
 app.add_middleware(RequestBudgetMiddleware)

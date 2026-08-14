@@ -1,9 +1,13 @@
 
+import hmac
 import os
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
+
 from pydantic import BaseModel
 from app.services.llm_service import active_engine, is_llm_configured
+from app.telemetry import metrics
 try:
     from fastapi_cache.decorator import cache
 except ImportError:
@@ -32,6 +36,21 @@ def health_check():
         version="1.0.0",
         model_status="loaded" if is_llm_configured() else "llm_not_configured",
     )
+
+
+@router.get("/metrics")
+async def metrics_snapshot(request: Request):
+    """Return internal counters only to an authenticated monitoring caller."""
+    expected = os.getenv("METRICS_TOKEN") or os.getenv("AI_INTERNAL_TOKEN", "")
+    if not expected:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "metrics authentication is not configured"},
+        )
+    provided = request.headers.get("X-Internal-Token", "")
+    if not provided or not hmac.compare_digest(provided, expected):
+        return JSONResponse(status_code=401, content={"detail": "metrics authentication required"})
+    return metrics.snapshot()
 
 
 @router.get("/readyz")

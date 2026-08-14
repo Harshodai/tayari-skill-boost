@@ -4,14 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"tayari-backend/internal/models"
 
+	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 )
 
@@ -24,37 +27,62 @@ type responseRecorder struct {
 	statusCode int
 }
 
+func (rr *responseRecorder) Unwrap() http.ResponseWriter { return rr.ResponseWriter }
+
 func (rr *responseRecorder) WriteHeader(code int) {
+	if rr.statusCode != 0 {
+		return
+	}
 	rr.statusCode = code
 	rr.ResponseWriter.WriteHeader(code)
 }
 
 func (rr *responseRecorder) Write(b []byte) (int, error) {
 	if rr.statusCode == 0 {
-		rr.statusCode = http.StatusOK
+		rr.WriteHeader(http.StatusOK)
 	}
 	return rr.ResponseWriter.Write(b)
+}
+
+var requestLogger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+func requestTraceID(r *http.Request) string {
+	traceID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+	if traceID == "" || len(traceID) > 128 || strings.ContainsAny(traceID, "\r\n") {
+		return uuid.NewString()
+	}
+	return traceID
 }
 
 func (s *Server) requestLoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		traceID := requestTraceID(r)
+		w.Header().Set("X-Request-ID", traceID)
 		rr := &responseRecorder{ResponseWriter: w}
 		next.ServeHTTP(rr, r)
 		duration := time.Since(start)
+		status := rr.statusCode
+		if status == 0 {
+			status = http.StatusOK
+		}
 
 		userID := "anonymous"
 		if user, ok := r.Context().Value(contextKeyUser).(*models.User); ok && user != nil {
 			userID = user.ID.String()
 		}
+		if s.metrics != nil {
+			s.metrics.ObserveRequest(r.Method, r.URL.Path, status, duration)
+		}
 
-		log.Printf("[REQUEST] %s %s %s %d %s user=%s",
-			start.Format(time.RFC3339),
-			r.Method,
-			r.URL.Path,
-			rr.statusCode,
-			duration,
-			userID,
+		requestLogger.Info("http_request",
+			"timestamp", start.UTC().Format(time.RFC3339Nano),
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", status,
+			"duration_ms", float64(duration.Microseconds())/1000,
+			"user_id", userID,
+			"trace_id", traceID,
 		)
 	})
 }

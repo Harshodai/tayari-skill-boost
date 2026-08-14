@@ -19,6 +19,7 @@ type Config struct {
 	FrontendURL            string
 	PythonAIURL            string
 	AIInternalToken        string
+	MetricsToken           string
 
 	// Social Auth Configs
 	GoogleClientID     string
@@ -53,6 +54,7 @@ func LoadConfig() *Config {
 		FrontendURL:            getEnv("FRONTEND_URL", "http://localhost:5173"),
 		PythonAIURL:            getEnv("PYTHON_AI_URL", getEnv("AI_SERVICE_URL", "http://localhost:8000")),
 		AIInternalToken:        getEnv("AI_INTERNAL_TOKEN", ""),
+		MetricsToken:           getEnv("METRICS_TOKEN", getEnv("AI_INTERNAL_TOKEN", "")),
 
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),

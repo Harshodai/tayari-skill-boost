@@ -10,6 +10,8 @@ from typing import Callable
 
 from starlette.responses import JSONResponse
 
+from app.telemetry import metrics
+
 
 @dataclass(frozen=True)
 class BudgetRule:
@@ -155,6 +157,7 @@ class OperationBudgetMiddleware:
             await response(scope, receive, send)
             return
         if not allowed:
+            metrics.increment("budget_exceeded_total")
             response = JSONResponse(
                 {"detail": f"{operation} quota exceeded"},
                 status_code=429,

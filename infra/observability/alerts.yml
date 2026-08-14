@@ -1,0 +1,33 @@
+# Tayari operational alert contract.
+# The /metrics endpoint is intentionally JSON so the deployment can use a
+# lightweight internal scraper or adapter without exposing Prometheus parsing
+# dependencies in the API images.
+version: 1
+endpoint: /metrics
+header: X-Internal-Token
+format: json
+alerts:
+  - name: TayariQueueAgeHigh
+    metric: queue_age_seconds
+    condition: "> 300"
+    for: 5m
+    severity: page
+    owner: platform
+  - name: TayariProviderErrors
+    metric: counters.llm_errors_total
+    condition: "increase > 5 in 5m"
+    for: 5m
+    severity: ticket
+    owner: ai-platform
+  - name: TayariBudgetRejections
+    metric: counters.budget_exceeded_total
+    condition: "increase > 10 in 5m"
+    for: 5m
+    severity: ticket
+    owner: platform
+  - name: TayariTaskFailures
+    metric: counters.task_failures_total
+    condition: "increase > 3 in 5m"
+    for: 5m
+    severity: page
+    owner: worker

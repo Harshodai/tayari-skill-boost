@@ -48,4 +48,17 @@ done < <(grep -E '^    image:' docker-compose.production.yml | sed -E 's/^    im
 bash scripts/mac_release_contract_test.sh
 node scripts/website_release_contract.mjs
 
+# Observability is a release contract: both services must expose protected
+# telemetry, and the alert thresholds must remain versioned in the repository.
+grep -q 'METRICS_TOKEN' .env.example
+grep -q 's.Router.Get("/metrics"' backend/go/internal/api/router.go
+grep -q 'X-Internal-Token' backend/go/internal/observability/metrics.go
+grep -q 'RequestTelemetryMiddleware' backend/python/app/main.py
+grep -q '"/metrics"' backend/python/app/middleware/internal_gateway.py
+grep -q 'llm_errors_total' backend/python/app/tests/test_observability.py
+test -f infra/observability/alerts.yml
+grep -q 'TayariQueueAgeHigh' infra/observability/alerts.yml
+grep -q 'TayariProviderErrors' infra/observability/alerts.yml
+grep -q 'TayariBudgetRejections' infra/observability/alerts.yml
+
 echo "release contract: PASS"
