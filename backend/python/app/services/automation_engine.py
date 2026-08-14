@@ -31,7 +31,12 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 
-from app.services.approval_gate import is_approved as _approval_granted, request_approval as _queue_approval
+from app.services.approval_gate import (
+    consume_approval as _consume_approval,
+    is_approved as _approval_granted,
+    request_approval as _queue_approval,
+)
+from app.services.submission_guard import application_fingerprint, sign_guard
 from app.services.ats_engine import heuristic_ats_score
 from app.services.grounding import claims_supported as _claims_supported
 from app.services.posting_screen import CLEARED as _SCREEN_CLEARED, screen_posting as _screen_posting
@@ -456,16 +461,29 @@ async def run_autopilot(
                     application["status"] = "gate_blocked"
 
                 # ---- APPLY ---------------------------------------------------
+                # Form-field values are a deterministic application payload,
+                # never instructions extracted from the ATS page.
+                form_fields = job.get("form_fields") or job.get("answers") or {}
                 # WS-01 approval gate: submission requires an explicit human
                 # approval of THIS exact tailored resume. `auto_apply` in the
                 # config is a request, never consent — a stored job_watches row
                 # can no longer submit on its own.
                 fingerprint = await _queue_approval(
-                    config.get("user_id"), run_id, tailored_text, job
+                    config.get("user_id"),
+                    run_id,
+                    tailored_text,
+                    job,
+                    cover_letter=cover,
+                    form_fields=form_fields,
                 )
                 application["resume_sha256"] = fingerprint
                 approved = await _approval_granted(
-                    config.get("user_id"), run_id, fingerprint, job=job
+                    config.get("user_id"),
+                    run_id,
+                    fingerprint,
+                    job=job,
+                    cover_letter=cover,
+                    form_fields=form_fields,
                 )
                 # ---- ATS TIER GATE (P3 / Q8.7) -------------------------------
                 # Tier the URL before any submit decision. No major ATS offers a
@@ -540,28 +558,8 @@ async def run_autopilot(
                         f"{job['title']} @ {job['company']} — nothing was submitted.",
                     )
                 if config.get("auto_apply", False) and gate_ok and approved:
-                    # Consume the approval at the final submit boundary. The
-                    # UPDATE ... RETURNING in approval_gate makes this atomic,
-                    # so concurrent workers and retries cannot replay consent.
-                    approved = await _approval_granted(
-                        config.get("user_id"),
-                        run_id,
-                        fingerprint,
-                        job=job,
-                        consume=True,
-                    )
-                    if not approved:
-                        application["status"] = "approval_expired_or_replayed"
-                        _log(
-                            run_id,
-                            "APPROVAL",
-                            f"Approval expired or was already consumed for {job['title']} @ {job['company']} — nothing was submitted.",
-                        )
-                        applications.append(application)
-                        continue
-                    # Defense-in-depth: the do_not_submit tier already skipped
-                    # LinkedIn above; this keeps the legacy UA §8.2 guard for
-                    # any future do_not_submit member that should also hard-block.
+                    # The atomic UPDATE ... RETURNING is the only operation that
+                    # turns review consent into a one-use server token.
                     try:
                         assert_not_linkedin_automation(job.get("url", ""), "submit")
                     except LinkedInAutomationBlocked:
@@ -574,6 +572,36 @@ async def run_autopilot(
                         )
                         applications.append(application)
                         continue
+                    approval_token = await _consume_approval(
+                        config.get("user_id"),
+                        run_id,
+                        fingerprint,
+                        job=job,
+                        cover_letter=cover,
+                        form_fields=form_fields,
+                    )
+                    guard = None
+                    if approval_token:
+                        guard = sign_guard(
+                            application_fingerprint(
+                                user_id=str(config.get("user_id") or ""),
+                                run_id=run_id,
+                                job=job,
+                                resume_text=tailored_text,
+                                cover_letter=cover,
+                                form_fields=form_fields,
+                            ),
+                            approval_token,
+                        )
+                    if not guard:
+                        application["status"] = "approval_expired_or_replayed"
+                        _log(
+                            run_id,
+                            "APPROVAL",
+                            f"Approval token unavailable or invalid for {job['title']} @ {job['company']} — nothing was submitted.",
+                        )
+                        applications.append(application)
+                        continue
                     try:
                         # WS-02: run the agent for its *evidence*, not a
                         # boolean. The status we write is derived from what the
@@ -581,7 +609,13 @@ async def run_autopilot(
                         # "submitted_unverified" instead of quietly becoming
                         # "applied". Self-reported success is the lie this
                         # whole product exists to stop telling.
-                        evidence = Browser.apply_job_with_evidence(job, tailored_text, cover)
+                        evidence = Browser.apply_job_with_evidence(
+                            job,
+                            tailored_text,
+                            cover,
+                            form_fields=form_fields,
+                            submission_guard=guard,
+                        )
                         receipt = build_receipt(
                             run_id=run_id,
                             user_id=config.get("user_id"),

@@ -49,6 +49,7 @@ services:
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
       - JWT_SECRET=${JWT_SECRET}
       - AI_INTERNAL_TOKEN=${AI_INTERNAL_TOKEN:-}
+      - APPROVAL_SIGNING_KEY=${APPROVAL_SIGNING_KEY:-}
       - ENV=${ENV:-development}
       # Defaults preserve the historical dev behavior (single-process, live
       # reload) for anyone not setting these. Set UVICORN_RELOAD=false in a
@@ -179,6 +180,7 @@ services:
       - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres?sslmode=disable
       - AI_SERVICE_URL=http://python-ai:8000
       - AI_INTERNAL_TOKEN=${AI_INTERNAL_TOKEN:-}
+      - APPROVAL_SIGNING_KEY=${APPROVAL_SIGNING_KEY:-}
       - USE_SUPABASE=${USE_SUPABASE:-true}
       - JWT_SECRET=${JWT_SECRET}
       - SUPABASE_URL=${SUPABASE_URL:-http://kong:8000}

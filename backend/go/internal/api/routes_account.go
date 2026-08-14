@@ -15,6 +15,11 @@ import (
 	"tayari-backend/internal/models"
 )
 
+const (
+	maxExportRows  = 1000
+	maxExportBytes = 10 << 20
+)
+
 // deleteSupabaseUser deletes the user through GoTrue's admin API, which also
 // revokes the user's sessions and refresh tokens. A 404 is fine (user already
 // gone); anything else is returned so the caller can fall back to SQL.
@@ -61,6 +66,17 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	uid := user.ID.String()
 
+	if s.AI != nil {
+		purgeCtx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+		err := s.AI.PurgeUserRuntime(purgeCtx, uid)
+		cancel()
+		if err != nil {
+			log.Printf("handleDeleteAccount: runtime purge failed: %v", err)
+			s.respondError(w, http.StatusBadGateway, "Runtime cleanup failed; account was not deleted")
+			return
+		}
+	}
+
 	tx, err := s.DB.Conn.BeginTx(r.Context(), nil)
 	if err != nil {
 		log.Printf("handleDeleteAccount: begin tx failed: %v", err)
@@ -70,6 +86,27 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	cascadeQueries := []string{
+		// Revoke durable worker-visible runs before deleting their parent
+		// records; queued workers then see no owned run and cannot continue.
+		`UPDATE agent_runs SET status='cancelled', completed_at=NOW(), updated_at=NOW() WHERE user_id=$1 AND status NOT IN ('completed','failed','cancelled')`,
+		`DELETE FROM run_events WHERE user_id=$1`,
+		`DELETE FROM run_controls WHERE user_id=$1`,
+		`DELETE FROM delivery_ledger WHERE user_id=$1`,
+		`DELETE FROM application_attempts WHERE user_id=$1`,
+		`DELETE FROM user_sessions WHERE user_id=$1`,
+		`DELETE FROM tailored_resumes WHERE user_id=$1`,
+		`DELETE FROM platform_configs WHERE user_id=$1`,
+		`DELETE FROM runtime_approvals WHERE user_id=$1`,
+		`DELETE FROM agent_router_events WHERE user_id=$1`,
+		`DELETE FROM agent_task_attempts WHERE user_id=$1`,
+		`DELETE FROM agent_tasks WHERE user_id=$1`,
+		`DELETE FROM digital_employees WHERE user_id=$1`,
+
+		`DELETE FROM application_approvals WHERE user_id=$1`,
+		`DELETE FROM submission_receipts WHERE user_id=$1`,
+		`DELETE FROM agent_questions WHERE user_id=$1`,
+		`DELETE FROM privacy_audit_log WHERE user_id=$1`,
+
 		`DELETE FROM autopilot_runs WHERE user_id=$1`,
 		`DELETE FROM autopilot_schedules WHERE user_id=$1`,
 		`DELETE FROM application_outcomes WHERE user_id=$1`,
@@ -91,6 +128,8 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 		`DELETE FROM shared_interview_questions WHERE user_id=$1`,
 		`DELETE FROM memberships WHERE user_id=$1`,
 		`DELETE FROM push_subscriptions WHERE user_id=$1`,
+		`DELETE FROM agent_runs WHERE user_id=$1`,
+
 		`DELETE FROM user_subscriptions WHERE user_id=$1`,
 		`DELETE FROM public.profiles WHERE id=$1`,
 		// auth.users is deliberately NOT in this list: when a GoTrue service
@@ -99,9 +138,8 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 		// sanctioned path, which also revokes the user's sessions/refresh
 		// tokens. Without a key, the direct delete below is appended instead.
 	}
-	// privacy_audit_log is deliberately NOT included above: it's an append-only
-	// retention log required for GDPR Article 30 accountability, kept even after
-	// account deletion. See DEPLOYMENT.md's GDPR section.
+	// The privacy ledger is user-scoped and is deleted with the account. Any
+	// aggregate compliance metrics must be stored without a user identifier.
 
 	// Without a GoTrue service role key the auth.users row must still die for
 	// deletion to be complete (auth.users is the FK parent of most tables
@@ -158,8 +196,9 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	export := map[string]interface{}{
-		"exported_at": time.Now().UTC().Format(time.RFC3339),
-		"user_id":     uid,
+		"schema_version": "2026-08-14",
+		"exported_at":    time.Now().UTC().Format(time.RFC3339),
+		"user_id":        uid,
 	}
 
 	// Profile
@@ -172,7 +211,8 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 
 	// Resumes
 	rows, err := s.DB.Conn.QueryContext(ctx,
-		`SELECT id, title, original_text, created_at FROM resumes WHERE user_id=$1 ORDER BY created_at DESC`, uid)
+		`SELECT id, title, original_text, created_at FROM resumes WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2`, uid, maxExportRows)
+
 	if err == nil {
 		defer rows.Close()
 		resumes := []map[string]interface{}{}
@@ -197,7 +237,8 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 
 	// Applications
 	appRows, err := s.DB.Conn.QueryContext(ctx,
-		`SELECT application_id, title, company, stage, status, created_at FROM applications WHERE user_id=$1 ORDER BY created_at DESC`, uid)
+		`SELECT application_id, title, company, stage, status, created_at FROM applications WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2`, uid, maxExportRows)
+
 	if err == nil {
 		defer appRows.Close()
 		apps := []map[string]interface{}{}
@@ -303,6 +344,11 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusInternalServerError, "Export generation failed")
 		return
 	}
+	if len(exportJSON) > maxExportBytes {
+		log.Printf("handleExportAccount: export for %s exceeded %d bytes", uid, maxExportBytes)
+		s.respondError(w, http.StatusRequestEntityTooLarge, "Export exceeds the maximum supported size")
+		return
+	}
 
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
@@ -325,6 +371,7 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="tayari_export.zip"`)
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", buf.Len()))
 	w.WriteHeader(http.StatusOK)
 	w.Write(buf.Bytes())
 }

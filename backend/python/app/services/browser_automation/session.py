@@ -219,7 +219,7 @@ async def watch_durable_cancellation(
         if await cancellation_requested(session.run_id, session.owner_id):
             session.cancelled = True
             try:
-                await get_provider().terminate(session)
+                await asyncio.wait_for(get_provider().terminate(session), timeout=5.0)
             except Exception as exc:  # noqa: BLE001 - loop must still surface cancellation
                 logger.warning("[BrowserSession] durable cancellation terminate failed for %s: %s", session.run_id, exc)
             logger.info(
@@ -247,9 +247,11 @@ async def cancel_run(run_id: str, owner_id: Optional[str] = None) -> bool:
         )
         raise BrowserAuthzError("run does not belong to caller")
     durable_requested = False
+    worker_revoked = False
     if owner_id:
-        from app.services.run_control import request_cancellation
+        from app.services.run_control import request_cancellation, revoke_worker_task
         durable_requested = await request_cancellation(run_id, owner_id)
+        worker_revoked = await revoke_worker_task(run_id, owner_id)
 
     if session is None:
         logger.info(
@@ -259,12 +261,16 @@ async def cancel_run(run_id: str, owner_id: Optional[str] = None) -> bool:
         return durable_requested
 
     session.cancelled = True
-    await close_session(session)
+    try:
+        await asyncio.wait_for(close_session(session), timeout=5.0)
+    except asyncio.TimeoutError:
+        _SESSIONS.pop(session.run_id, None)
+        logger.warning("[BrowserSession] kill switch cleanup exceeded 5 seconds for %s", run_id)
     if durable_requested and owner_id:
         from app.services.run_control import acknowledge_cancellation
         await acknowledge_cancellation(run_id, owner_id, "browser session terminated")
     logger.info(
-        "[Audit] component=browser-session action=cancel actor=%s run=%s outcome=terminated",
-        owner_id or "-", run_id,
+        "[Audit] component=browser-session action=cancel actor=%s run=%s outcome=terminated worker_revoked=%s",
+        owner_id or "-", run_id, worker_revoked,
     )
     return True

@@ -144,6 +144,9 @@ async def test_automation_engine_skips_linkedin_job() -> None:
     async def _queue(*_a: Any, **_k: Any) -> str:
         return "sha-fixed"
 
+    async def _consume(*_a: Any, **_k: Any) -> str:
+        return "approval-row-greenhouse"
+
     # Intercept the optimize step so we don't need an LLM.
     async def _optimize(*_a: Any, **_k: Any) -> dict:
         return {
@@ -204,6 +207,7 @@ async def test_automation_engine_skips_linkedin_job() -> None:
         return None
 
     with patch.object(ae, "_approval_granted", _approved), \
+         patch.object(ae, "_consume_approval", _consume), \
          patch.object(ae, "_queue_approval", _queue), \
          patch.object(ae, "optimize_with_reflection", _optimize), \
          patch.object(ae, "_cover_letter", _cover), \

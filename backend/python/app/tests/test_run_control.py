@@ -61,6 +61,33 @@ def test_cancellation_request_is_candidate_scoped_and_emits_a_durable_event(monk
     assert args[:2] == ("run-1", "candidate-1")
 
 
+def test_kill_switch_revokes_owned_worker_task(monkeypatch):
+    connection = _Connection(["celery-task-1"])
+    revoked: list[tuple[str, bool, str]] = []
+    events = []
+
+    async def fake_pool():
+        return _Pool(connection)
+
+    async def fake_emit(run_id, user_id, event_type, payload):
+        events.append((run_id, user_id, event_type, payload))
+        return True
+
+    monkeypatch.setattr(run_control, "get_pool", fake_pool)
+    monkeypatch.setattr(run_control, "emit_run_event", fake_emit)
+    from app.celery_app import celery_app
+    monkeypatch.setattr(
+        celery_app.control,
+        "revoke",
+        lambda task_id, terminate, signal: revoked.append((task_id, terminate, signal)),
+    )
+
+    assert asyncio.run(run_control.revoke_worker_task("run-1", "candidate-1")) is True
+    assert revoked == [("celery-task-1", True, "SIGTERM")]
+    assert events[0][2] == "worker_task_revoked"
+    assert "WHERE run_id = $1 AND user_id = $2" in connection.calls[0][0]
+
+
 def test_worker_lease_rejects_missing_or_foreign_runs(monkeypatch):
     connection = _Connection([None])
 
@@ -153,6 +180,38 @@ def test_live_browser_cancellation_persists_intent_then_acknowledges(monkeypatch
 
     asyncio.run(scenario())
     assert acknowledgements == [("run-1", "candidate-1", "browser session terminated")]
+
+
+def test_kill_switch_bounds_provider_cleanup(monkeypatch):
+    class HangingProvider(browser_session.LocalPlaywrightProvider):
+        async def terminate(self, session):
+            await asyncio.sleep(60)
+
+    provider = HangingProvider()
+    browser_session._SESSIONS.clear()
+    monkeypatch.setattr(browser_session, "get_provider", lambda: provider)
+
+    async def fake_request(*_args, **_kwargs):
+        return False
+
+    async def fake_revoke(*_args, **_kwargs):
+        return False
+
+    monkeypatch.setattr(run_control, "request_cancellation", fake_request)
+    monkeypatch.setattr(run_control, "revoke_worker_task", fake_revoke)
+    real_wait_for = asyncio.wait_for
+
+    async def short_wait(awaitable, timeout):
+        return await real_wait_for(awaitable, min(timeout, 0.01))
+
+    monkeypatch.setattr(browser_session.asyncio, "wait_for", short_wait)
+
+    async def scenario():
+        await browser_session.open_session("run-timeout", "candidate-1")
+        assert await browser_session.cancel_run("run-timeout", "candidate-1") is True
+        assert browser_session.get_session("run-timeout") is None
+
+    asyncio.run(scenario())
 
 
 def test_live_browser_cancellation_rejects_another_candidate(monkeypatch):

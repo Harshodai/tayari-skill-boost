@@ -11,7 +11,8 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
+from urllib.parse import urlsplit
 
 from app.services.browser_automation.origin_guard import (
     OriginGuardError,
@@ -37,6 +38,24 @@ logger = logging.getLogger(__name__)
 # `uvicorn --env-file .env` or `set -a; source .env`.
 
 DEFAULT_MAX_STEPS = int(os.getenv("AGENT_MAX_STEPS", "25"))
+
+_DEFAULT_ALLOWED_FIELD_LABELS = {
+    "full name",
+    "name",
+    "email",
+    "phone",
+    "phone number",
+    "work authorization",
+    "authorization",
+    "experience summary",
+    "resume",
+    "cover letter",
+}
+_SUBMIT_LABEL_RE = re.compile(r"\b(submit|apply|send application|finalize|finish application)\b", re.IGNORECASE)
+
+
+class PromptInjectionBlocked(RuntimeError):
+    """Raised before an untrusted page-directed action can execute."""
 
 
 def _allowed_origins() -> list[str]:
@@ -100,6 +119,55 @@ def _action_target_label(state, action_dump: dict) -> str:
     # label like "<input>" must NOT be returned — the heuristic would read it
     # as non-credential and let a fill on a foreign origin through.
     return ""
+
+
+def _guard_untrusted_actions(
+    state,
+    model_output,
+    start_url: str,
+    allowed_origins: list[str],
+    *,
+    allowed_field_labels: set[str] | None = None,
+    allow_submission: bool = False,
+) -> None:
+    """Reject action classes that page text cannot authorize.
+
+    Browser page text is data. It never grants permission to upload files,
+    navigate to a new origin, mutate an unknown field, or submit. Submission is
+    enabled only by the caller after the durable approval guard has passed.
+    """
+    current_url = getattr(state, "url", "") or ""
+    start_origin = urlsplit(start_url).netloc.lower()
+    field_labels = {
+        label.lower().strip()
+        for label in (allowed_field_labels or _DEFAULT_ALLOWED_FIELD_LABELS)
+    }
+    actions = getattr(model_output, "action", None) or []
+    for action in actions:
+        try:
+            dump = action.model_dump(exclude_none=True)
+        except Exception as exc:
+            raise PromptInjectionBlocked("action could not be validated") from exc
+        if not isinstance(dump, dict):
+            raise PromptInjectionBlocked("action payload is not an object")
+        for action_name, params in dump.items():
+            params = params if isinstance(params, dict) else {}
+            normalized_name = str(action_name).lower()
+            if any(token in normalized_name for token in ("upload", "attach", "file")):
+                raise PromptInjectionBlocked("file upload requires an explicit user-selected file")
+            if any(token in normalized_name for token in ("go_to_url", "navigate", "open_tab", "new_tab")):
+                target = str(params.get("url") or params.get("url_to_open") or "")
+                if target and urlsplit(target).netloc.lower() != start_origin:
+                    raise PromptInjectionBlocked("navigation outside the approved job origin")
+            label = _action_target_label(state, dump).strip().lower()
+            if "input_text" in normalized_name:
+                if not label or not any(allowed in label for allowed in field_labels):
+                    raise PromptInjectionBlocked("field is not part of the approved application payload")
+            if _SUBMIT_LABEL_RE.search(label) or any(
+                token in normalized_name for token in ("submit", "finalize", "send_application")
+            ):
+                if not allow_submission:
+                    raise PromptInjectionBlocked("submission requires the server-side approval guard")
 
 
 def _guard_credential_entry(state, model_output, start_url: str, allowed_origins: list[str]) -> None:
@@ -347,6 +415,8 @@ async def run_browser_agent(
     owner_id: Optional[str] = None,
     *,
     start_url: Optional[str] = None,
+    allow_submission: bool = False,
+    allowed_field_labels: Optional[set[str]] = None,
 ) -> AgentResult:
     """Run the browser-use agent for a single natural language instruction.
 
@@ -400,6 +470,14 @@ async def run_browser_agent(
         # Flow 6 tier 2: block credential entry on disallowed origins BEFORE
         # the action executes. Raising aborts the run; the guard runs first
         # so a credential leak never happens even if the kill switch is idle.
+        _guard_untrusted_actions(
+            state,
+            output,
+            start_url,
+            allowed,
+            allowed_field_labels=allowed_field_labels,
+            allow_submission=allow_submission,
+        )
         _guard_credential_entry(state, output, start_url, allowed)
         shot = getattr(state, "screenshot", None)
         if shot:
@@ -489,6 +567,8 @@ async def stream_browser_agent(
     owner_id: Optional[str] = None,
     *,
     start_url: Optional[str] = None,
+    allow_submission: bool = False,
+    allowed_field_labels: Optional[set[str]] = None,
 ):
     """Async generator of SSE events for the Glass-Box live browser feed.
 
@@ -525,6 +605,14 @@ async def stream_browser_agent(
     def on_step(state, output, step_number):
         if is_cancelled(run_id):
             raise RunCancelled(run_id or "")
+        _guard_untrusted_actions(
+            state,
+            output,
+            start_url,
+            allowed,
+            allowed_field_labels=allowed_field_labels,
+            allow_submission=allow_submission,
+        )
         _guard_credential_entry(state, output, start_url, allowed)
         event = {"type": "screenshot", "step": step_number}
         screenshot = getattr(state, "screenshot", None)

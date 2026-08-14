@@ -182,6 +182,8 @@ _env = os.getenv("ENV", "development").lower()
 if _env == "production":
     if not os.getenv("AI_INTERNAL_TOKEN", ""):
         raise RuntimeError("AI_INTERNAL_TOKEN must be set in production")
+    if not os.getenv("APPROVAL_SIGNING_KEY", ""):
+        raise RuntimeError("APPROVAL_SIGNING_KEY must be set in production")
     allowed_origins = [o for o in allowed_origins if o != "*"]
     if not allowed_origins:
         raise RuntimeError("CORS_ALLOWED_ORIGINS must be set in production")
@@ -1946,3 +1948,102 @@ async def browser_automation_cancel_endpoint(
     )
     return {"run_id": run_id, "terminated": terminated}
 
+
+
+class InternalRuntimePurgeRequest(BaseModel):
+    user_id: str
+
+
+@app.post("/api/v1/internal/account/purge")
+async def internal_account_runtime_purge(
+    payload: InternalRuntimePurgeRequest,
+    request: Request,
+):
+    """Purge runtime-only user state; callable only by the Go service boundary."""
+    import hmac
+    from uuid import UUID
+
+    expected = os.getenv("AI_INTERNAL_TOKEN", "")
+    supplied = request.headers.get("X-Internal-Token", "")
+    if not expected or not supplied or not hmac.compare_digest(supplied, expected):
+        raise HTTPException(status_code=401, detail="Internal service authentication required")
+    try:
+        user_id = str(UUID(payload.user_id))
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=422, detail="user_id must be a UUID") from exc
+
+    from app.services.browser_automation.session import _SESSIONS, cancel_run
+    from app.services.db import get_pool
+    from app.services.privacy_ledger import ledger
+
+    errors: list[str] = []
+    revoked = 0
+    screenshot_paths: list[str] = []
+    run_ids: list[str] = []
+    pool = await get_pool()
+    if pool is not None:
+        try:
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT run_id, celery_task_id FROM agent_runs WHERE user_id = $1::uuid",
+                    user_id,
+                )
+                run_ids = [str(row["run_id"]) for row in rows]
+                task_ids = [str(row["celery_task_id"]) for row in rows if row["celery_task_id"]]
+                receipts = await conn.fetch(
+                    "SELECT screenshot_path FROM submission_receipts WHERE user_id = $1::uuid AND screenshot_path IS NOT NULL LIMIT 1000",
+                    user_id,
+                )
+                screenshot_paths = [str(row["screenshot_path"]) for row in receipts]
+            if task_ids:
+                from app.celery_app import celery_app
+                for task_id in task_ids:
+                    celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+                    revoked += 1
+        except Exception as exc:  # noqa: BLE001 - report incomplete purge to caller
+            errors.append(f"worker/runtime lookup failed: {exc}")
+
+    for session in list(_SESSIONS.values()):
+        if session.owner_id == user_id:
+            try:
+                await asyncio.wait_for(cancel_run(session.run_id, user_id), timeout=5.0)
+            except Exception as exc:  # noqa: BLE001 - continue all cleanup targets
+                errors.append(f"browser session {session.run_id}: {exc}")
+
+    for path in screenshot_paths:
+        try:
+            if path and os.path.isfile(path):
+                os.remove(path)
+        except OSError as exc:
+            errors.append(f"screenshot cleanup failed: {exc}")
+
+    try:
+        from app.services import automation_engine
+        for run_id in run_ids:
+            automation_engine._autopilot_store.pop(run_id, None)
+            automation_engine._persisted_runs.discard(run_id)
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"process-local run cleanup failed: {exc}")
+
+    redis_url = os.getenv("REDIS_URL")
+    if redis_url:
+        try:
+            from redis.asyncio import Redis
+            redis = Redis.from_url(redis_url, decode_responses=True)
+            keys = []
+            async for key in redis.scan_iter(match=f"tayari:op-budget:*:*{user_id}:*"):
+                keys.append(key)
+            if keys:
+                await redis.delete(*keys)
+            await redis.aclose()
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"Redis cleanup failed: {exc}")
+
+    try:
+        await ledger.clear_user_log(user_id)
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"privacy ledger cleanup failed: {exc}")
+
+    if errors and os.getenv("ENV", "development").lower() == "production":
+        raise HTTPException(status_code=503, detail="Runtime purge incomplete; account deletion was not started")
+    return {"status": "purged", "revoked_tasks": revoked, "browser_runs": len(run_ids), "errors": errors}

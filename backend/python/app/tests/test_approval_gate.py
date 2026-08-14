@@ -71,7 +71,9 @@ async def test_expired_approval_is_rejected():
     assert allowed is False
     sql, args = conn.fetches[0]
     assert "expires_at > NOW()" in sql
-    assert args[-1] == gate.job_fingerprint(JOB["url"])
+    assert args[3] == gate.job_fingerprint(JOB["url"])
+    assert args[4] == gate.cover_fingerprint(None)
+    assert args[5] == gate.form_fields_fingerprint({})
 
 
 @pytest.mark.asyncio
@@ -89,6 +91,8 @@ async def test_wrong_job_url_is_rejected_even_when_resume_hash_matches():
     assert args[2] == gate.resume_fingerprint(RESUME)
     assert args[3] == gate.job_fingerprint(wrong_job["url"])
     assert args[3] != gate.job_fingerprint(JOB["url"])
+    assert args[4] == gate.cover_fingerprint(None)
+    assert args[5] == gate.form_fields_fingerprint({})
 
 
 @pytest.mark.asyncio
@@ -154,3 +158,5 @@ async def test_request_approval_persists_exact_job_binding_and_expiry():
     assert args[0:2] == (USER_ID, "run-6")
     assert args[2] == JOB["url"]
     assert args[7] == gate.job_fingerprint(JOB["url"])
+    assert args[8] == gate.cover_fingerprint(None)
+    assert args[9] == gate.form_fields_fingerprint({})

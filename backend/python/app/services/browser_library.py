@@ -7,8 +7,10 @@ submit tailored resumes and cover letters, and return status to `automation_engi
 import asyncio
 import logging
 import threading
+from urllib.parse import urlsplit
 
 from app.services.linkedin_policy import assert_not_linkedin_automation, LinkedInAutomationBlocked
+from app.services.submission_guard import verify_guard
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,7 @@ class Browser:
     """Browser class supporting autonomous user browser automation via browser-use."""
 
     @staticmethod
-    def _build_instruction(job: dict, resume_text: str, cover_letter: str) -> str:
+    def _build_instruction(job: dict, resume_text: str, cover_letter: str, form_fields: dict | None = None) -> str:
         title = job.get("title", "Position")
         company = job.get("company", "Company")
         url = job.get("url", "")
@@ -25,6 +27,7 @@ class Browser:
             f"Navigate to {url}. Fill out the job application for {title} at {company}.\n"
             f"Candidate Resume Data:\n{resume_text}\n\n"
             f"Cover Letter:\n{cover_letter}\n\n"
+            f"Approved Application Fields:\n{form_fields or {}}\n\n"
             f"Fill out all mandatory fields (Full Name, Email, Phone, Work Authorization, Experience summary) accurately from the provided candidate resume data. "
             f"If an upload field for resume or cover letter exists, attach or paste the tailored content. Reach the final review step or submit if ready.\n"
             f"After the final action, report the exact confirmation message the site displayed, "
@@ -32,7 +35,13 @@ class Browser:
         )
 
     @staticmethod
-    def _run_agent(instruction: str, start_url: str | None = None):
+    def _run_agent(
+        instruction: str,
+        start_url: str | None = None,
+        *,
+        allow_submission: bool = False,
+        allowed_field_labels: set[str] | None = None,
+    ):
         """Run the browser agent to completion and return its AgentResult."""
         from app.services.browser_automation import run_browser_agent
 
@@ -58,7 +67,14 @@ class Browser:
 
             def _run_in_thread() -> None:
                 try:
-                    result_box["result"] = asyncio.run(run_browser_agent(instruction, start_url=start_url))
+                    result_box["result"] = asyncio.run(
+                        run_browser_agent(
+                            instruction,
+                            start_url=start_url,
+                            allow_submission=allow_submission,
+                            allowed_field_labels=allowed_field_labels,
+                        )
+                    )
                 except Exception as thread_exc:  # noqa: BLE001 - re-raised on the caller's thread below
                     result_box["error"] = thread_exc
 
@@ -71,10 +87,24 @@ class Browser:
 
             return result_box["result"]
 
-        return asyncio.run(run_browser_agent(instruction, start_url=start_url))
+        return asyncio.run(
+            run_browser_agent(
+                instruction,
+                start_url=start_url,
+                allow_submission=allow_submission,
+                allowed_field_labels=allowed_field_labels,
+            )
+        )
 
     @staticmethod
-    def apply_job_with_evidence(job: dict, resume_text: str, cover_letter: str) -> dict:
+    def apply_job_with_evidence(
+        job: dict,
+        resume_text: str,
+        cover_letter: str,
+        *,
+        form_fields: dict | None = None,
+        submission_guard: dict | None = None,
+    ) -> dict:
         """Apply to a job and return the raw evidence the run produced.
 
         WS-02: the boolean-only variant below throws away everything needed to
@@ -89,6 +119,18 @@ class Browser:
         title = job.get("title", "Position")
         company = job.get("company", "Company")
         url = job.get("url", "")
+
+        if not verify_guard(
+            submission_guard,
+            user_id=str((submission_guard or {}).get("user_id") or ""),
+            run_id=str((submission_guard or {}).get("run_id") or ""),
+            job=job,
+            resume_text=resume_text,
+            cover_letter=cover_letter,
+            form_fields=form_fields,
+        ):
+            logger.warning("[Browser] Final-action guard rejected application for %s at %s", title, url)
+            return {"success": False, "error": "submission_guard_rejected", "summary": "Final submission guard rejected the application.", "actions": []}
 
         logger.info("[Browser] Starting application task for %s at %s (URL: %s)", title, company, url)
 
@@ -113,21 +155,30 @@ class Browser:
                 "actions": [],
             }
 
-        instruction = Browser._build_instruction(job, resume_text, cover_letter)
+        instruction = Browser._build_instruction(job, resume_text, cover_letter, form_fields)
 
         try:
             # ponytail: the caller-supplied job URL is the authoritative
             # credential-origin allowlist source; instruction text is never
             # trusted to change it (explicit start_url always wins over the
             # instruction-parsing fallback inside run_browser_agent).
-            result = Browser._run_agent(instruction, start_url=url)
+            result = Browser._run_agent(
+                instruction,
+                start_url=url,
+                allow_submission=True,
+                allowed_field_labels=set((form_fields or {}).keys()),
+            )
+            final_url = getattr(result, "final_url", None)
+            if final_url and urlsplit(final_url).netloc.lower() != urlsplit(url).netloc.lower():
+                logger.warning("[Browser] Final-action guard rejected cross-origin evidence: %s", final_url)
+                return {"success": False, "error": "final_origin_mismatch", "summary": "Browser evidence ended on an unapproved origin.", "actions": []}
             logger.info("[Browser] Application completed with status: %s", result.success)
             return {
                 "success": bool(result.success),
                 "summary": getattr(result, "summary", "") or "",
                 "actions": list(getattr(result, "actions", []) or []),
                 "visited_urls": list(getattr(result, "visited_urls", []) or []),
-                "final_url": getattr(result, "final_url", None),
+                "final_url": final_url,
                 "screenshot_b64": getattr(result, "final_screenshot", None),
                 "error": getattr(result, "error", None),
             }
@@ -142,7 +193,14 @@ class Browser:
             return {"success": False, "error": str(exc), "summary": "", "actions": []}
 
     @staticmethod
-    def apply_job(job: dict, resume_text: str, cover_letter: str) -> bool:
+    def apply_job(
+        job: dict,
+        resume_text: str,
+        cover_letter: str,
+        *,
+        form_fields: dict | None = None,
+        submission_guard: dict | None = None,
+    ) -> bool:
         """Apply to a job posting using browser-use autonomous navigation.
 
         Args:
@@ -156,5 +214,13 @@ class Browser:
             case - missing input, import/runtime failure, or automation
             failure. This method must never report success it hasn't verified.
         """
-        return bool(Browser.apply_job_with_evidence(job, resume_text, cover_letter).get("success"))
+        return bool(
+            Browser.apply_job_with_evidence(
+                job,
+                resume_text,
+                cover_letter,
+                form_fields=form_fields,
+                submission_guard=submission_guard,
+            ).get("success")
+        )
 

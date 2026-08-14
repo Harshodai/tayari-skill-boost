@@ -335,3 +335,15 @@ func (c *Client) PostJSONWithContext(ctx context.Context, endpoint string, paylo
 	}
 	return result, nil
 }
+
+// PurgeUserRuntime asks the private AI engine to revoke user-owned browser,
+// worker, Redis-budget, and process-local runtime state before account deletion.
+func (c *Client) PurgeUserRuntime(ctx context.Context, userID string) error {
+	_, err := c.PostJSONWithContext(
+		ctx,
+		"/api/v1/internal/account/purge",
+		map[string]string{"user_id": userID},
+		nil,
+	)
+	return err
+}

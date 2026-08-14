@@ -313,4 +313,32 @@ __all__ = [
     "get_run_control_snapshot",
     "release_worker_lease",
     "request_cancellation",
+    "revoke_worker_task",
 ]
+
+
+async def revoke_worker_task(run_id: str, user_id: str) -> bool:
+    """Revoke the owned Celery task for a run, including an active worker."""
+    pool = await get_pool()
+    if not pool:
+        return False
+    try:
+        async with pool.acquire() as conn:
+            task_id = await conn.fetchval(
+                """
+                SELECT celery_task_id
+                  FROM agent_runs
+                 WHERE run_id = $1 AND user_id = $2
+                """,
+                run_id,
+                user_id,
+            )
+        if not task_id:
+            return False
+        from app.celery_app import celery_app
+        celery_app.control.revoke(str(task_id), terminate=True, signal="SIGTERM")
+        await emit_run_event(run_id, user_id, "worker_task_revoked", {"task_id": str(task_id)})
+        return True
+    except Exception as exc:  # noqa: BLE001 - local kill path still remains available
+        logger.warning("run control: worker revoke failed for %s (%s)", run_id, exc)
+        return False

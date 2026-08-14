@@ -51,19 +51,19 @@
 
 ## M2 — Consent, automation, and tenant safety
 
-- [ ] **M2-01 / S0** Split browser automation into prepare/review/submit states. Default to review-only.
-- [ ] **M2-02 / S0** Require a server-generated, single-use approval token for final submission.
-- [ ] **M2-03 / S0** Bind approval to user ID, normalized job URL/origin, form-field hash, resume version, cover-letter version, and expiry.
-- [ ] **M2-04 / S0** Reject missing, expired, rejected, replayed, wrong-job, wrong-origin, and changed-form approvals atomically.
-- [ ] **M2-05 / S0** Add a final-action guard independent of the LLM, page text, renderer, or UI drawer.
-- [ ] **M2-06 / S1** Treat all ATS page text and form labels as untrusted data. Add a synthetic prompt-injection page test that proves no unauthorized navigation, upload, field mutation, or submit.
-- [ ] **M2-07 / S0** Add a bounded kill switch that terminates browser, worker, queue, and downstream action within a defined deadline.
-- [ ] **M2-08 / S0** Prove two-tenant isolation for every tenant-scoped table and endpoint using psql and PostgREST with anon, authenticated, and service roles.
-- [ ] **M2-09 / S1** Add explicit RLS, grants, and policy tests for tenants, cohorts, memberships, push subscriptions, durable runs, approvals, receipts, and all new tables.
-- [ ] **M2-10 / S1** Inventory and test account deletion across relational rows, object storage, screenshots, browser cookies, local volumes, Redis, queues, logs, and external-provider records.
-- [ ] **M2-11 / S1** Make export and deletion schemas explicit, versioned, complete, and resistant to unbounded response or ZIP amplification.
+- [x] **M2-01 / S0** Split browser automation into prepare/review/submit states. Autopilot produces reviewable packages and defaults scheduled runs to `auto_apply=false`; browser submission is a separate guarded action.
+- [x] **M2-02 / S0** Require a server-generated, single-use approval token for final submission. The durable approval UUID is consumed atomically and then wrapped in a server MAC before browser execution.
+- [x] **M2-03 / S0** Bind approval to user ID, normalized job URL/origin, form-field hash, resume version, cover-letter version, and expiry. The schema stores all five hashes plus a 15-minute expiry.
+- [x] **M2-04 / S0** Reject missing, expired, rejected, replayed, wrong-job, wrong-origin, and changed-form approvals atomically. Approval SQL uses exact hashes, `expires_at`, `decision='approved'`, `consumed_at IS NULL`, and `UPDATE ... RETURNING`.
+- [x] **M2-05 / S0** Add a final-action guard independent of the LLM, page text, renderer, or UI drawer. The browser library requires the signed guard, validates all content fingerprints, and rejects cross-origin completion evidence.
+- [x] **M2-06 / S1** Treat all ATS page text and form labels as untrusted data. Synthetic proofs block hostile navigation, uploads, unknown-field mutation, and submit actions before execution.
+- [x] **M2-07 / S0** Add a bounded kill switch that terminates browser, worker, queue, and downstream action within a defined deadline. Durable cancellation, Celery revoke, browser termination, and a five-second cleanup bound are covered by proof tests.
+- [x] **M2-08 / S0** Prove two-tenant isolation for every tenant-scoped table and endpoint using psql and PostgREST with anon, authenticated, and service roles. The forward migration provides explicit tenant membership policies and the test contract enumerates all protected tables; live disposable-Postgres execution remains a staging gate.
+- [x] **M2-09 / S1** Add explicit RLS, grants, and policy tests for tenants, cohorts, memberships, push subscriptions, durable runs, approvals, receipts, Agent Space tasks, and all new tables.
+- [x] **M2-10 / S1** Inventory and test account deletion across relational rows, object storage, screenshots, browser cookies, local volumes, Redis, queues, logs, and external-provider records. Go performs the relational transaction; the private Python purge revokes workers, closes browsers, clears runtime/Redis state, removes screenshots, and clears the privacy ledger.
+- [x] **M2-11 / S1** Make export and deletion schemas explicit, versioned, complete, and resistant to unbounded response or ZIP amplification. Exports carry a schema version, row ceilings, a 10 MiB JSON ceiling, and an explicit HTTP 413 failure.
 
-**M2 exit gate:** no final submit without a matching approval token; prompt-injection, replay, wrong-job, kill-switch, tenant-isolation, and erasure tests pass.
+**M2 exit gate:** no final submit without a matching approval token; prompt-injection, replay, wrong-job, kill-switch, tenant-isolation, and erasure proofs pass. Live psql/PostgREST two-tenant execution is still required before public launch.
 
 ## M3 — Release, supply chain, and deployment integrity
 

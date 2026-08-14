@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Optional
-from fastapi import APIRouter, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from pydantic import BaseModel, Field
 
+from app.auth.dependencies import get_current_user
 from app.services import agent_db
+from app.services.approval_gate import decide_approval, list_approvals
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +54,8 @@ def get_required_user_id(x_user_id: Optional[str]) -> str:
 # ---------------------------------------------------------------------------
 
 @router.get("/agents")
-async def get_agents(x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
-    user_id = get_required_user_id(x_user_id)
+async def get_agents(_user_id: str = Depends(get_current_user)):
+    user_id = _user_id
     agents = await agent_db.list_digital_employees(user_id)
     return {"agents": agents}
 
@@ -61,9 +63,9 @@ async def get_agents(x_user_id: Optional[str] = Header(None, alias="X-User-Id"))
 @router.post("/agents")
 async def create_agent(
     payload: AgentCreateRequest,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id")
+    _user_id: str = Depends(get_current_user)
 ):
-    user_id = get_required_user_id(x_user_id)
+    user_id = _user_id
     success = await agent_db.create_or_update_digital_employee(
         user_id=user_id,
         name=payload.name,
@@ -83,9 +85,9 @@ async def create_agent(
 async def update_agent_instructions(
     name: str,
     payload: AgentInstructionsUpdateRequest,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id")
+    _user_id: str = Depends(get_current_user)
 ):
-    user_id = get_required_user_id(x_user_id)
+    user_id = _user_id
     agent = await agent_db.get_digital_employee(user_id, name)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -108,9 +110,9 @@ async def update_agent_instructions(
 @router.delete("/agents/{name}")
 async def delete_agent(
     name: str,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id")
+    _user_id: str = Depends(get_current_user)
 ):
-    user_id = get_required_user_id(x_user_id)
+    user_id = _user_id
     success = await agent_db.delete_digital_employee(user_id, name)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete agent")
@@ -122,9 +124,9 @@ async def delete_agent(
 # ---------------------------------------------------------------------------
 
 @router.get("/approvals")
-async def get_approvals(x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
-    user_id = get_required_user_id(x_user_id)
-    approvals = await agent_db.list_runtime_approvals(user_id)
+async def get_approvals(_user_id: str = Depends(get_current_user)):
+    user_id = _user_id
+    approvals = await list_approvals(user_id)
     return {"approvals": approvals}
 
 
@@ -132,25 +134,22 @@ async def get_approvals(x_user_id: Optional[str] = Header(None, alias="X-User-Id
 async def update_approval(
     approval_id: str,
     payload: ApprovalUpdateRequest,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id")
+    _user_id: str = Depends(get_current_user)
 ):
-    user_id = get_required_user_id(x_user_id)
-    approval = await agent_db.get_runtime_approval(user_id, approval_id)
-    if not approval:
-        raise HTTPException(status_code=404, detail="Approval request not found")
-        
-    if approval["status"] != "pending":
-        raise HTTPException(status_code=400, detail=f"Approval is already in {approval['status']} state")
-
-    success = await agent_db.update_runtime_approval(
+    user_id = _user_id
+    if payload.status not in {"approved", "rejected"}:
+        raise HTTPException(status_code=422, detail="status must be approved or rejected")
+    success = await decide_approval(
         user_id=user_id,
         approval_id=approval_id,
-        status=payload.status,
-        reviewer_comment=payload.reviewer_comment
+        decision=payload.status,
+        reviewer_comment=payload.reviewer_comment,
     )
     if not success:
-        raise HTTPException(status_code=500, detail="Failed to update approval status")
-    return {"status": "ok"}
+        # Do not reveal whether a different tenant owns the approval or whether
+        # an expired/replayed row exists; all are unavailable to this caller.
+        raise HTTPException(status_code=404, detail="Approval request not found or no longer actionable")
+    return {"status": payload.status}
 
 
 # ---------------------------------------------------------------------------
@@ -158,8 +157,8 @@ async def update_approval(
 # ---------------------------------------------------------------------------
 
 @router.get("/hermes/config")
-async def get_hermes_config(x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
-    user_id = get_required_user_id(x_user_id)
+async def get_hermes_config(_user_id: str = Depends(get_current_user)):
+    user_id = _user_id
     
     # Generate the custom config.yaml contents for local Hermes Agent configuration.
     config_yaml = f"""# Tayari synced Hermes Agent Configuration
@@ -196,9 +195,9 @@ class TaskCreateRequest(BaseModel):
 async def enqueue_agent_task(
     agent_id: str,
     payload: TaskCreateRequest,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id")
+    _user_id: str = Depends(get_current_user)
 ):
-    user_id = get_required_user_id(x_user_id)
+    user_id = _user_id
     
     # Write to database in 'queued' status
     task_id = await agent_db.create_agent_task(
@@ -222,9 +221,9 @@ async def enqueue_agent_task(
 
 @router.get("/agents/tasks")
 async def get_all_agent_tasks(
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id")
+    _user_id: str = Depends(get_current_user)
 ):
-    user_id = get_required_user_id(x_user_id)
+    user_id = _user_id
     tasks = await agent_db.list_agent_tasks(user_id)
     return {"tasks": tasks}
 
@@ -232,9 +231,9 @@ async def get_all_agent_tasks(
 @router.get("/agents/{agent_id}/tasks")
 async def get_agent_tasks(
     agent_id: str,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id")
+    _user_id: str = Depends(get_current_user)
 ):
-    user_id = get_required_user_id(x_user_id)
+    user_id = _user_id
     tasks = await agent_db.list_agent_tasks(user_id, agent_id)
     return {"tasks": tasks}
 
@@ -242,9 +241,9 @@ async def get_agent_tasks(
 @router.get("/agents/tasks/{task_id}")
 async def get_task_details(
     task_id: str,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id")
+    _user_id: str = Depends(get_current_user)
 ):
-    user_id = get_required_user_id(x_user_id)
+    user_id = _user_id
     task = await agent_db.get_agent_task(user_id, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Agent task not found")
@@ -254,8 +253,8 @@ async def get_task_details(
 @router.get("/agents/tasks/{task_id}/events")
 async def get_task_events(
     task_id: str,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id")
+    _user_id: str = Depends(get_current_user)
 ):
-    user_id = get_required_user_id(x_user_id)
+    user_id = _user_id
     events = await agent_db.list_agent_router_events(user_id, task_id)
     return {"events": events}
