@@ -87,9 +87,9 @@
 - [x] **M4-03 / S0** Restrict external URLs to an allowlist and file reveals to user-selected session paths. External links require HTTPS and approved hosts; reveal IPC rejects paths not selected in the current session.
 - [x] **M4-04 / S1** Stop lifecycle processes safely on exit and add explicit local data retention/purge controls. Development services are stopped best-effort before quit; packaged builds cannot orchestrate local services and settings are written with mode 0600.
 - [x] **M4-05 / S0** Remove backend/source/dev virtual-environment payloads from the shipped app or replace them with a minimal, versioned runtime. Packaged electron-builder contents exclude backend, Supabase, Compose, and source-map payloads.
-- [x] **M4-06 / S0** Configure Developer ID signing, hardened runtime, entitlements, notarization, stapling, and update metadata in CI. Hardened runtime, entitlements, notarization team variable, and signed DMG metadata are configured; actual Apple signing/notarization evidence remains a release credential gate.
+- [x] **M4-06 / S0** Configure Developer ID signing, hardened runtime, entitlements, notarization, stapling, and update metadata in CI. Hardened runtime, entitlements, notarization team variable, signed DMG metadata, `docs/MACOS_RELEASE_RUNBOOK.md`, and `scripts/mac_artifact_contract.sh` are configured; actual Apple signing/notarization, Gatekeeper, and stapling evidence remains a release credential gate.
 - [x] **M4-07 / S1** Build and test arm64 and x64 artifacts, or document and enforce an Apple Silicon-only policy. The package explicitly enforces Apple Silicon arm64 targets; x64 is not claimed.
-- [ ] **M4-08 / S1** Add clean-machine install, Gatekeeper, update, downgrade, corrupted-update, and offline-start tests.
+- [ ] **M4-08 / S1** Add clean-machine install, Gatekeeper, update, downgrade, corrupted-update, and offline-start tests. The runbook defines the required evidence and the artifact verifier fails closed, but no credentialed clean-machine artifact execution has been performed.
 
 **M4 exit gate:** clean macOS installation passes Gatekeeper and notarization checks; updater is authenticated; package size and contents are reviewed; build leaves the worktree clean.
 

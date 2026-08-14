@@ -26,6 +26,13 @@ grep -q 'notarize:' electron-builder.yml
 grep -q 'APPLE_TEAM_ID' electron-builder.yml
 grep -Fq "!electron/**/*.test.cjs" electron-builder.yml
 grep -Fq "!electron/*.plist" electron-builder.yml
+test -x scripts/mac_artifact_contract.sh
+grep -q 'codesign --verify --deep --strict' scripts/mac_artifact_contract.sh
+grep -q 'spctl --assess --type execute' scripts/mac_artifact_contract.sh
+grep -q 'xcrun stapler validate' scripts/mac_artifact_contract.sh
+grep -q 'lipo -archs' scripts/mac_artifact_contract.sh
+test -f docs/MACOS_RELEASE_RUNBOOK.md
+grep -q 'external release gate' docs/MACOS_RELEASE_RUNBOOK.md
 ! grep -q 'to: tayari-runtime/backend' electron-builder.yml
 ! grep -q 'supabase-local' electron-builder.yml
 ! grep -q 'docker-compose.yml' electron-builder.yml
