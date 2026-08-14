@@ -4,10 +4,21 @@ const fs = require("node:fs/promises");
 const http = require("node:http");
 const path = require("node:path");
 const { promisify } = require("node:util");
+const {
+  SECURITY_CSP,
+  assertSettingsPayload,
+  normalizeApiBaseUrl,
+  validateExternalUrl,
+} = require("./security.cjs");
 
 const execFileAsync = promisify(execFile);
 const isDev = Boolean(process.env.ELECTRON_START_URL);
+const trustedOrigins = new Set();
+const selectedFilePaths = new Set();
 let staticServer;
+let shuttingDown = false;
+
+const execFileWithTimeout = (file, args, options) => execFileAsync(file, args, options);
 
 function runtimeDir() {
   return isDev ? path.resolve(__dirname, "..") : path.join(process.resourcesPath, "tayari-runtime");
@@ -21,19 +32,36 @@ function settingsPath() {
   return path.join(app.getPath("userData"), "tayari-desktop-settings.json");
 }
 
+function defaultApiBaseUrl() {
+  if (isDev) return "http://127.0.0.1:8085/api";
+  return process.env.TAYARI_DESKTOP_API_URL || "";
+}
+
 async function readSettings() {
   try {
-    return JSON.parse(await fs.readFile(settingsPath(), "utf8"));
+    const stored = JSON.parse(await fs.readFile(settingsPath(), "utf8"));
+    return { apiBaseUrl: normalizeApiBaseUrl(stored.apiBaseUrl, isDev) };
   } catch {
-    return { apiBaseUrl: "http://127.0.0.1:8085/api" };
+    return { apiBaseUrl: defaultApiBaseUrl() };
   }
 }
 
 async function writeSettings(next) {
   const current = await readSettings();
-  const merged = { ...current, ...next };
+  const merged = { ...current, apiBaseUrl: normalizeApiBaseUrl(next.apiBaseUrl, isDev) };
   await fs.writeFile(settingsPath(), JSON.stringify(merged, null, 2), { mode: 0o600 });
   return merged;
+}
+
+function assertTrustedSender(event) {
+  const senderUrl = event.senderFrame?.url || event.sender?.getURL?.() || "";
+  let origin;
+  try {
+    origin = new URL(senderUrl).origin;
+  } catch {
+    throw new Error("Untrusted IPC sender.");
+  }
+  if (!trustedOrigins.has(origin)) throw new Error("Untrusted IPC sender.");
 }
 
 function healthCheck(url) {
@@ -48,10 +76,11 @@ function healthCheck(url) {
 }
 
 async function compose(args) {
+  if (!isDev) throw new Error("Local service orchestration is disabled in packaged builds.");
   const root = runtimeDir();
   const composeFile = path.join(root, "docker-compose.yml");
   await fs.access(composeFile);
-  return execFileAsync("docker", ["compose", "--profile", "dev", ...args], {
+  return execFileWithTimeout("docker", ["compose", "--profile", "dev", ...args], {
     cwd: root,
     timeout: 120000,
     maxBuffer: 1024 * 1024,
@@ -60,11 +89,20 @@ async function compose(args) {
 
 async function desktopStatus() {
   const settings = await readSettings();
-  const healthUrl = settings.apiBaseUrl.replace(/\/api\/?$/, "/api/health");
-  const health = await healthCheck(healthUrl);
+  if (!settings.apiBaseUrl) {
+    return {
+      apiBaseUrl: "",
+      apiReachable: false,
+      apiStatus: null,
+      dockerAvailable: false,
+      runtimeDirectory: runtimeDir(),
+    };
+  }
+  const healthUrl = settings.apiBaseUrl.replace(/\/api\/?$/, "/healthz");
+  const health = healthUrl.startsWith("http://127.0.0.1") ? await healthCheck(healthUrl) : { reachable: false, statusCode: null };
   let dockerAvailable = true;
   try {
-    await execFileAsync("docker", ["--version"], { timeout: 5000 });
+    await execFileWithTimeout("docker", ["--version"], { timeout: 5000 });
   } catch {
     dockerAvailable = false;
   }
@@ -112,7 +150,13 @@ async function createStaticServer() {
         } catch {
           target = path.join(root, "index.html");
         }
-        response.writeHead(200, { "Content-Type": contentType(target), "Cache-Control": target.endsWith("index.html") ? "no-cache" : "public, max-age=31536000, immutable" });
+        response.writeHead(200, {
+          "Content-Type": contentType(target),
+          "Cache-Control": target.endsWith("index.html") ? "no-cache" : "public, max-age=31536000, immutable",
+          "Content-Security-Policy": SECURITY_CSP,
+          "X-Content-Type-Options": "nosniff",
+          "Referrer-Policy": "no-referrer",
+        });
         response.end(await fs.readFile(target));
       } catch {
         response.writeHead(500).end("Unable to load application assets");
@@ -125,6 +169,14 @@ async function createStaticServer() {
     });
   });
   return staticServer.url;
+}
+
+function isTrustedNavigation(url) {
+  try {
+    return trustedOrigins.has(new URL(url).origin);
+  } catch {
+    return false;
+  }
 }
 
 async function createWindow() {
@@ -140,20 +192,49 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      webSecurity: true,
     },
   });
 
-  if (isDev) {
-    await window.loadURL(`${process.env.ELECTRON_START_URL}/desktop`);
-  } else {
-    await window.loadURL(`${await createStaticServer()}/desktop`);
-  }
+  const loadUrl = isDev ? `${process.env.ELECTRON_START_URL}/desktop` : `${await createStaticServer()}/desktop`;
+  trustedOrigins.add(new URL(loadUrl).origin);
+
+  window.webContents.on("will-navigate", (event, url) => {
+    if (!isTrustedNavigation(url)) event.preventDefault();
+  });
+  window.webContents.on("will-redirect", (event, url) => {
+    if (!isTrustedNavigation(url)) event.preventDefault();
+  });
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      void shell.openExternal(validateExternalUrl(url));
+    } catch {
+      // Deny-by-default: unknown popup destinations never leave the app.
+    }
+    return { action: "deny" };
+  });
+  window.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [SECURITY_CSP],
+        "X-Content-Type-Options": ["nosniff"],
+        "Referrer-Policy": ["no-referrer"],
+      },
+    });
+  });
+
+  await window.loadURL(loadUrl);
 }
 
-app.whenReady().then(async () => {
-  ipcMain.handle("desktop:status", () => desktopStatus());
+function registerIpcHandlers() {
+  ipcMain.handle("desktop:status", (event) => {
+    assertTrustedSender(event);
+    return desktopStatus();
+  });
 
-  ipcMain.handle("desktop:pick-files", async () => {
+  ipcMain.handle("desktop:pick-files", async (event) => {
+    assertTrustedSender(event);
     const result = await dialog.showOpenDialog({
       title: "Choose files for Job Tayari",
       properties: ["openFile", "multiSelections"],
@@ -163,36 +244,56 @@ app.whenReady().then(async () => {
       ],
     });
     if (result.canceled) return [];
+    selectedFilePaths.clear();
+    for (const filePath of result.filePaths) selectedFilePaths.add(path.resolve(filePath));
     return result.filePaths.map((filePath) => ({ name: path.basename(filePath), path: filePath }));
   });
 
-  ipcMain.handle("desktop:reveal-file", async (_event, filePath) => {
+  ipcMain.handle("desktop:reveal-file", async (event, filePath) => {
+    assertTrustedSender(event);
     if (typeof filePath !== "string" || !path.isAbsolute(filePath)) throw new Error("A valid local file path is required.");
-    return shell.showItemInFolder(filePath);
+    const normalized = path.resolve(filePath);
+    if (!selectedFilePaths.has(normalized)) throw new Error("Only files selected in this session may be revealed.");
+    return shell.showItemInFolder(normalized);
   });
 
-  ipcMain.handle("desktop:open-external", async (_event, url) => {
-    if (typeof url !== "string" || !/^https?:\/\//i.test(url)) throw new Error("Only HTTP(S) links may be opened externally.");
-    await shell.openExternal(url);
+  ipcMain.handle("desktop:open-external", async (event, url) => {
+    assertTrustedSender(event);
+    await shell.openExternal(validateExternalUrl(url));
   });
 
-  ipcMain.handle("desktop:start-services", async () => {
+  ipcMain.handle("desktop:start-services", async (event) => {
+    assertTrustedSender(event);
     const { stdout, stderr } = await compose(["up", "-d", "--build"]);
     return { stdout, stderr };
   });
 
-  ipcMain.handle("desktop:stop-services", async () => {
+  ipcMain.handle("desktop:stop-services", async (event) => {
+    assertTrustedSender(event);
     const { stdout, stderr } = await compose(["down"]);
     return { stdout, stderr };
   });
 
-  ipcMain.handle("desktop:settings", async (_event, next) => {
-    if (next && typeof next.apiBaseUrl === "string" && /^http:\/\/127\.0\.0\.1(:\d+)?\/api\/?$/.test(next.apiBaseUrl)) {
-      return writeSettings({ apiBaseUrl: next.apiBaseUrl.replace(/\/$/, "") });
-    }
-    return readSettings();
+  ipcMain.handle("desktop:settings", async (event, next) => {
+    assertTrustedSender(event);
+    if (next === undefined) return readSettings();
+    assertSettingsPayload(next);
+    return writeSettings({ apiBaseUrl: next.apiBaseUrl });
   });
+}
 
+async function stopServicesBestEffort() {
+  if (!isDev || shuttingDown) return;
+  shuttingDown = true;
+  try {
+    await compose(["down"]);
+  } catch {
+    // Shutdown must not prevent the desktop process from exiting.
+  }
+}
+
+app.whenReady().then(async () => {
+  registerIpcHandlers();
   await createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
@@ -203,6 +304,14 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
-  staticServer?.server?.close();
+app.on("before-quit", (event) => {
+  if (!isDev || shuttingDown) {
+    staticServer?.server?.close();
+    return;
+  }
+  event.preventDefault();
+  void stopServicesBestEffort().finally(() => {
+    staticServer?.server?.close();
+    app.quit();
+  });
 });

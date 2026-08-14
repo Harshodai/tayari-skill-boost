@@ -45,4 +45,6 @@ while read -r image; do
   [[ "$image" =~ @sha256:[0-9a-fA-F]{64}$ ]]
 done < <(grep -E '^    image:' docker-compose.production.yml | sed -E 's/^    image: //; s/\$\{[^:}]+:\?[^}]+\}/example@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/g')
 
+bash scripts/mac_release_contract_test.sh
+
 echo "release contract: PASS"

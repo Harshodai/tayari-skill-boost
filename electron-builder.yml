@@ -1,20 +1,25 @@
 appId: app.tayari.desktop
 productName: Tayari Desktop
+copyright: Copyright © 2026 Tayari
+artifactName: ${productName}-${version}-${arch}.${ext}
 asar: true
+compression: maximum
 files:
   - dist/**
   - electron/**
   - package.json
-extraResources:
-  - from: backend
-    to: tayari-runtime/backend
-  - from: supabase-local
-    to: tayari-runtime/supabase-local
-  - from: docker-compose.yml
-    to: tayari-runtime/docker-compose.yml
-  - from: Caddyfile
-    to: tayari-runtime/Caddyfile
+  - '!**/*.map'
+  - '!electron/**/*.test.cjs'
+  - '!electron/*.plist'
+extraMetadata:
+  version: 0.1.0
 mac:
+  category: public.app-category.productivity
+  hardenedRuntime: true
+  gatekeeperAssess: true
+  strictVerify: true
+  entitlements: electron/entitlements.plist
+  entitlementsInherit: electron/entitlements.mac.plist
   target:
     - target: dmg
       arch:
@@ -22,7 +27,11 @@ mac:
     - target: zip
       arch:
         - arm64
-  category: public.app-category.productivity
   artifactName: ${productName}-${version}-${arch}.${ext}
+extendInfo:
+  NSMicrophoneUsageDescription: Tayari uses the microphone only when you start a voice-coaching session.
 dmg:
   title: Tayari Desktop
+  sign: true
+notarize:
+  teamId: ${env.APPLE_TEAM_ID}
