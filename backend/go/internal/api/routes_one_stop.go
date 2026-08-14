@@ -58,9 +58,23 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 
 		r.Post("/api/v1/one-shot/execute", s.handleOneStopProxy("/api/v1/one-shot/execute"))
 		r.Post("/api/one-shot/execute", s.handleOneStopProxy("/api/v1/one-shot/execute"))
+		r.Post("/api/v1/agent/runs/{run_id}/transition", s.handleRunActionPOST("/api/v1/agent/runs/", "transition"))
+		r.Post("/api/agent/runs/{run_id}/transition", s.handleRunActionPOST("/api/v1/agent/runs/", "transition"))
+		r.Post("/api/v1/agent/runs/{run_id}/handoff", s.handleRunActionPOST("/api/v1/agent/runs/", "handoff"))
+		r.Post("/api/v1/agent/runs/{run_id}/resume", s.handleRunActionPOST("/api/v1/agent/runs/", "resume"))
+		r.Post("/api/v1/agent/runs/{run_id}/cancel", s.handleRunActionPOST("/api/v1/agent/runs/", "cancel"))
+		r.Get("/api/v1/agent/runs/{run_id}/handoff", s.handleRunActionGET("/api/v1/agent/runs/", "handoff"))
+		r.Post("/api/agent/runs/{run_id}/handoff", s.handleRunActionPOST("/api/v1/agent/runs/", "handoff"))
+		r.Post("/api/agent/runs/{run_id}/resume", s.handleRunActionPOST("/api/v1/agent/runs/", "resume"))
+		r.Post("/api/agent/runs/{run_id}/cancel", s.handleRunActionPOST("/api/v1/agent/runs/", "cancel"))
+		r.Get("/api/agent/runs/{run_id}/handoff", s.handleRunActionGET("/api/v1/agent/runs/", "handoff"))
 
 		r.Get("/api/v1/agent/questions", s.handleOneStopProxyGET("/api/v1/agent/questions"))
 		r.Get("/api/agent/questions", s.handleOneStopProxyGET("/api/v1/agent/questions"))
+		r.Get("/api/v1/candidate/answers", s.handleOneStopProxyGET("/api/v1/candidate/answers"))
+		r.Get("/api/candidate/answers", s.handleOneStopProxyGET("/api/v1/candidate/answers"))
+		r.Put("/api/v1/candidate/answers", s.handleOneStopProxyPUT("/api/v1/candidate/answers"))
+		r.Put("/api/candidate/answers", s.handleOneStopProxyPUT("/api/v1/candidate/answers"))
 		r.Patch("/api/v1/agent/questions/{question_id}", s.handleQuestionProxyPATCH("/api/v1/agent/questions/"))
 		r.Patch("/api/agent/questions/{question_id}", s.handleQuestionProxyPATCH("/api/v1/agent/questions/"))
 
@@ -140,6 +154,9 @@ func (s *Server) handleTypstExport(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleOneStopProxyGET(endpoint string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		headers := s.getXUserHeaders(r)
+		if r.URL.RawQuery != "" {
+			endpoint += "?" + r.URL.RawQuery
+		}
 		result, err := s.AI.GetJSONWithHeaders(endpoint, headers)
 		if err != nil {
 			log.Printf("[OneStopProxyGET] AI service error for %s: %v", endpoint, err)
@@ -152,6 +169,74 @@ func (s *Server) handleOneStopProxyGET(endpoint string) http.HandlerFunc {
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(result)
+	}
+}
+
+func (s *Server) handleOneStopProxyPUT(endpoint string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		result, err := s.AI.PutJSONWithHeaders(endpoint, payload, s.getXUserHeaders(r))
+		if err != nil {
+			log.Printf("[OneStopProxyPUT] AI service error for %s: %v", endpoint, err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(result)
+	}
+}
+
+func (s *Server) handleRunActionGET(prefix string, action string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		runID := chi.URLParam(r, "run_id")
+		if runID == "" {
+			http.Error(w, "missing run identifier", http.StatusBadRequest)
+			return
+		}
+		result, err := s.AI.GetJSONWithHeaders(prefix+runID+"/"+action, s.getXUserHeaders(r))
+		if err != nil {
+			log.Printf("[RunActionGET] AI service error: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(result)
+	}
+}
+
+func (s *Server) handleRunActionPOST(prefix string, action string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		runID := chi.URLParam(r, "run_id")
+		if runID == "" {
+			http.Error(w, "missing run identifier", http.StatusBadRequest)
+			return
+		}
+		var payload map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		result, err := s.AI.PostJSONWithHeaders(prefix+runID+"/"+action, payload, s.getXUserHeaders(r))
+		if err != nil {
+			log.Printf("[RunActionProxy] AI service error: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(result)

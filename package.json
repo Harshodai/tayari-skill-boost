@@ -12,6 +12,7 @@
     "test": "vitest run --config vitest.config.ts",
     "test:e2e": "playwright test --reporter=list",
     "security:scan": "node scripts/security_scan.mjs",
+    "security:production": "SECURITY_BASELINE_ENFORCE=true node scripts/security_scan.mjs",
     "security:baseline": "node scripts/security_scan.mjs --update-baseline",
     "desktop:dev": "concurrently -k \"bun run dev\" \"wait-on http://127.0.0.1:8080 && ELECTRON_START_URL=http://127.0.0.1:8080 electron .\"",
     "desktop:build": "test -n \"$VITE_API_URL\" && test -n \"$VITE_SUPABASE_URL\" && test -n \"$VITE_SUPABASE_PUBLISHABLE_KEY\" && test \"$VITE_API_URL\" != \"http://127.0.0.1:8085/api\" && VITE_DESKTOP_BUILD=true VITE_USE_SELF_HOSTED=false vite build && electron-builder --mac --arm64"

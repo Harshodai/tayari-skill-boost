@@ -17,6 +17,7 @@ FIELDS = {"full_name": "Synthetic Candidate", "work_authorization": "yes"}
 
 def test_guard_binds_every_submission_dimension(monkeypatch):
     monkeypatch.setenv("APPROVAL_SIGNING_KEY", "test-approval-key")
+    monkeypatch.setenv("AUTONOMOUS_SUBMIT_ENABLED", "true")
     fingerprint = application_fingerprint(
         user_id=USER_ID,
         run_id="run-1",
@@ -79,8 +80,33 @@ def test_browser_submission_requires_guard_and_does_not_start_agent(monkeypatch)
     assert started["count"] == 0
 
 
+def test_autonomous_submission_is_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("AUTONOMOUS_SUBMIT_ENABLED", raising=False)
+    monkeypatch.setenv("APPROVAL_SIGNING_KEY", "test-approval-key")
+    fingerprint = application_fingerprint(
+        user_id=USER_ID,
+        run_id="run-disabled",
+        job=JOB,
+        resume_text=RESUME,
+        cover_letter=COVER,
+        form_fields=FIELDS,
+    )
+    guard = sign_guard(fingerprint, "approval-disabled")
+    assert guard is not None
+    assert verify_guard(
+        guard,
+        user_id=USER_ID,
+        run_id="run-disabled",
+        job=JOB,
+        resume_text=RESUME,
+        cover_letter=COVER,
+        form_fields=FIELDS,
+    ) is False
+
+
 def test_browser_submission_rejects_cross_origin_evidence(monkeypatch):
     monkeypatch.setenv("APPROVAL_SIGNING_KEY", "test-approval-key")
+    monkeypatch.setenv("AUTONOMOUS_SUBMIT_ENABLED", "true")
     fingerprint = application_fingerprint(
         user_id=USER_ID,
         run_id="run-2",

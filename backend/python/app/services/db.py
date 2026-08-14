@@ -95,6 +95,35 @@ async def close_pool() -> None:
 
 VALID_RUN_TYPES = ("autopilot", "scrape", "application_agent", "scheduled")
 VALID_STATUSES = ("queued", "running", "completed", "failed", "cancelled")
+HITL_STATES = (
+    "queued", "preparing", "needs_browser_handoff", "needs_user_login",
+    "needs_otp_or_mfa", "needs_captcha", "needs_terms_review",
+    "needs_sensitive_answer", "ready_for_final_review", "user_approved",
+    "submitting", "submitted_verified", "submitted_unverified",
+    "submission_failed", "paused", "cancelled",
+)
+ALLOWED_HITL_TRANSITIONS = {
+    "queued": {"preparing", "cancelled", "paused"},
+    "preparing": {
+        "needs_browser_handoff", "needs_user_login", "needs_otp_or_mfa",
+        "needs_captcha", "needs_terms_review", "needs_sensitive_answer",
+        "ready_for_final_review", "submission_failed", "paused", "cancelled",
+    },
+    "needs_browser_handoff": {"preparing", "paused", "cancelled"},
+    "needs_user_login": {"preparing", "paused", "cancelled"},
+    "needs_otp_or_mfa": {"preparing", "paused", "cancelled"},
+    "needs_captcha": {"preparing", "paused", "cancelled"},
+    "needs_terms_review": {"ready_for_final_review", "paused", "cancelled"},
+    "needs_sensitive_answer": {"preparing", "ready_for_final_review", "paused", "cancelled"},
+    "ready_for_final_review": {"user_approved", "paused", "cancelled"},
+    "user_approved": {"submitting", "paused", "cancelled"},
+    "submitting": {"submitted_verified", "submitted_unverified", "submission_failed", "paused"},
+    "paused": {"preparing", "cancelled"},
+    "submitted_verified": set(),
+    "submitted_unverified": {"paused", "cancelled"},
+    "submission_failed": {"preparing", "paused", "cancelled"},
+    "cancelled": set(),
+}
 
 
 async def create_agent_run(
@@ -127,10 +156,10 @@ async def create_agent_run(
                 INSERT INTO agent_runs
                     (run_id, user_id, run_type, parent_run_id, config,
                      status, progress, logs, screenshots, result,
-                     engine, celery_task_id, started_at)
+                     engine, celery_task_id, handoff_state, started_at)
                 VALUES ($1, $2, $3, $4, $5::jsonb, 'running', 0,
                         '[]'::jsonb, '[]'::jsonb, '{}'::jsonb,
-                        $6, $7, now())
+                        $6, $7, 'preparing', now())
                 ON CONFLICT (run_id) DO NOTHING
                 """,
                 run_id, user_id, run_type, parent_run_id,
@@ -139,6 +168,66 @@ async def create_agent_run(
         return True
     except Exception as exc:  # noqa: BLE001
         logger.warning("app.services.db: create_agent_run failed (%s)", exc)
+        return False
+
+
+async def transition_agent_run_for_user(
+    run_id: str,
+    user_id: str,
+    target_state: str,
+    *,
+    expected_state: str | None = None,
+    expected_version: int | None = None,
+    handoff_token_hash: str | None = None,
+    handoff_expires_at: Any = None,
+) -> bool:
+    """Atomically transition an owned run, rejecting stale or invalid updates."""
+    if not user_id or not run_id or target_state not in HITL_STATES:
+        return False
+    pool = await get_pool()
+    if not pool:
+        return False
+    try:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT handoff_state, state_version FROM agent_runs WHERE run_id = $1 AND user_id = $2",
+                run_id,
+                user_id,
+            )
+            if not row:
+                return False
+            current = row["handoff_state"] or "queued"
+            if target_state not in ALLOWED_HITL_TRANSITIONS.get(current, set()):
+                return False
+            if expected_state is not None and current != expected_state:
+                return False
+            if expected_version is not None and row["state_version"] != expected_version:
+                return False
+            updated = await conn.execute(
+                """
+                UPDATE agent_runs
+                SET handoff_state = $3,
+                    state_version = state_version + 1,
+                    status = CASE
+                        WHEN $3 IN ('submitted_verified', 'submitted_unverified') THEN 'completed'
+                        WHEN $3 IN ('submission_failed', 'cancelled') THEN $3
+                        ELSE status
+                    END,
+                    handoff_token_hash = $4,
+                    handoff_expires_at = $5,
+                    updated_at = now()
+                WHERE run_id = $1 AND user_id = $2 AND state_version = $6
+                """,
+                run_id,
+                user_id,
+                target_state,
+                handoff_token_hash,
+                handoff_expires_at,
+                row["state_version"],
+            )
+            return updated.endswith("1")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("app.services.db: transition_agent_run_for_user failed (%s)", exc)
         return False
 
 
@@ -159,6 +248,7 @@ async def update_agent_run(run_id: str, **fields) -> bool:
     scalar_cols = {
         "status", "progress", "current_step", "error", "engine",
         "celery_task_id", "started_at", "completed_at", "parent_run_id",
+        "handoff_state", "handoff_token_hash", "handoff_expires_at", "state_version",
     }
     sets: list[str] = []
     args: list = [run_id]
@@ -226,7 +316,8 @@ async def load_agent_run(run_id: str) -> dict | None:
                 SELECT run_id, user_id, run_type, parent_run_id, config,
                        status, progress, current_step, logs, screenshots,
                        result, error, engine, celery_task_id, started_at,
-                       completed_at, created_at, updated_at
+                       completed_at, state_version, handoff_state,
+                       handoff_expires_at, created_at, updated_at
                 FROM agent_runs WHERE run_id = $1
                 """,
                 run_id,
@@ -273,7 +364,8 @@ async def list_agent_runs_for_user(
     query = (
         "SELECT run_id, user_id, run_type, parent_run_id, config, status, "
         "progress, current_step, engine, celery_task_id, started_at, "
-        "completed_at, created_at, updated_at FROM agent_runs "
+        "completed_at, state_version, handoff_state, handoff_expires_at, "
+        "created_at, updated_at FROM agent_runs "
         f"WHERE {' AND '.join(clauses)} ORDER BY created_at DESC LIMIT ${idx}"
     )
     try:
@@ -311,7 +403,8 @@ async def load_agent_run_for_user(run_id: str, user_id: str) -> dict | None:
                 SELECT run_id, user_id, run_type, parent_run_id, config,
                        status, progress, current_step, logs, screenshots,
                        result, error, engine, celery_task_id, started_at,
-                       completed_at, created_at, updated_at
+                       completed_at, state_version, handoff_state,
+                       handoff_expires_at, created_at, updated_at
                 FROM agent_runs WHERE run_id = $1 AND user_id = $2
                 """,
                 run_id,
@@ -340,4 +433,6 @@ __all__ = [
     "load_agent_run",
     "list_agent_runs_for_user",
     "load_agent_run_for_user",
+    "transition_agent_run_for_user",
+    "HITL_STATES",
 ]

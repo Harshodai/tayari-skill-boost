@@ -193,8 +193,8 @@ async def test_form_fill_fails_closed_when_observation_has_no_valid_ref(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_saved_sensitive_answer_uses_observed_ref(monkeypatch):
-    """Previously approved human answers keep the same ref-only guarantee."""
+async def test_sensitive_answer_never_auto_fills_even_if_previously_saved(monkeypatch):
+    """A prior profile answer cannot silently complete a new application field."""
     filler = _observed_filler([
         {"ref": "ref_7", "role": "textbox", "name": "Desired salary"},
     ])
@@ -215,6 +215,7 @@ async def test_saved_sensitive_answer_uses_observed_ref(monkeypatch):
         {"name": "Ada Lovelace"},
     )
 
-    assert result["success"] is True
-    assert filler.browser.fill_calls == [("ref_7", "120000")]
+    assert result["success"] is False
+    assert result["needs_human"] is True
+    assert filler.browser.fill_calls == []
     assert "Desired salary" in result["actions_executed"][0]

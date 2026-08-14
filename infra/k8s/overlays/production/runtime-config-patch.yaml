@@ -3,5 +3,6 @@ kind: ConfigMap
 metadata:
   name: tayari-runtime-config
 data:
+  ENV: production
   APP_ENV: production
   SENTRY_ENVIRONMENT: production

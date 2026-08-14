@@ -117,6 +117,7 @@ export interface OneShotExecuteRequest {
   job_description: string;
   resume_text: string;
   target_url?: string;
+  application_id?: string;
   tone?: string;
 }
 
@@ -137,10 +138,14 @@ export interface OneShotExecuteResponse {
   };
   cover_letter: string;
   auto_apply_payload: {
-    target_url: string;
+    target_url: string | null;
     stealth_readiness: string;
-    field_mapping: Record<string, string>;
+    field_mapping: Record<string, string | null>;
+    answer_version?: number | null;
+    answer_records?: Array<Record<string, unknown>>;
+    unresolved_sensitive_fields?: string[];
     shadow_approval_required: boolean;
+    submission_blocked?: boolean;
   };
   recruiter_intel: {
     company_name: string;

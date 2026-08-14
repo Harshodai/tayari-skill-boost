@@ -15,11 +15,16 @@ from __future__ import annotations
 import json
 import logging
 import re
+import hashlib
 from typing import Any, Iterable
 
 from app.services.db import get_pool
 
 logger = logging.getLogger(__name__)
+
+
+class QuestionQueueUnavailable(RuntimeError):
+    """Raised when the queue cannot safely read or persist a human handoff."""
 
 # Fields that must ALWAYS be routed to the human, even when a plausible value
 # exists in the profile — the answer is legal, monetary, or self-identifying.
@@ -55,6 +60,43 @@ def is_sensitive_field(label: str) -> bool:
     return any(p.search(label) for p in _ALWAYS_ASK)
 
 
+def normalize_field_key(label: str) -> str:
+    """Map a portal label to a stable non-secret key for the current question."""
+    normalized = re.sub(r"[^a-z0-9]+", "_", (label or "").lower()).strip("_")
+    aliases = (
+        ("sponsor", "sponsorship"),
+        ("visa", "sponsorship"),
+        ("authoriz", "work_authorization"),
+        ("salary", "salary"),
+        ("compensation", "salary"),
+        ("notice_period", "notice_period"),
+        ("gender", "eeo_gender"),
+        ("race", "eeo_race"),
+        ("ethnic", "eeo_race"),
+        ("veteran", "eeo_veteran"),
+        ("disabil", "eeo_disability"),
+    )
+    for token, key in aliases:
+        if token in normalized:
+            return key
+    return normalized or "unlabeled_sensitive_field"
+
+
+def sensitivity_class(label: str) -> str:
+    lowered = (label or "").lower()
+    if any(token in lowered for token in ("salary", "compensation", "pay", "notice")):
+        return "compensation"
+    if any(token in lowered for token in ("gender", "race", "ethnic", "veteran", "disabil")):
+        return "eeo"
+    return "legal"
+
+
+def answer_hash(answer: str | None) -> str | None:
+    if not answer:
+        return None
+    return hashlib.sha256(answer.strip().encode("utf-8")).hexdigest()
+
+
 def classify_fields(
     nodes: Iterable[dict[str, Any]],
     *,
@@ -83,8 +125,11 @@ def classify_fields(
         questions.append(
             {
                 "field_label": label,
+                "field_key": normalize_field_key(label),
+                "sensitivity_class": sensitivity_class(label),
                 "field_type": "choice" if role in _CHOICE_ROLES else "text",
                 "options": node.get("options") or [],
+                "redacted_context": f"Human answer required for {sensitivity_class(label)} field.",
             }
         )
     return questions
@@ -97,6 +142,7 @@ async def enqueue_questions(
     run_id: str | None = None,
     job_title: str | None = None,
     company: str | None = None,
+    application_id: str | None = None,
 ) -> int:
     """Persist pending questions. Returns how many rows were written.
 
@@ -108,8 +154,7 @@ async def enqueue_questions(
         return 0
     pool = await get_pool()
     if not pool:
-        logger.info("question_queue: no DB pool, %d question(s) dropped", len(questions))
-        return 0
+        raise QuestionQueueUnavailable("question queue storage is unavailable")
     written = 0
     try:
         async with pool.acquire() as conn:
@@ -120,34 +165,44 @@ async def enqueue_questions(
                     """
                     SELECT 1 FROM agent_questions
                     WHERE user_id = $1
-                      AND field_label = $2
+                      AND normalized_field_key = $2
                       AND status = 'pending'
                       AND run_id IS NOT DISTINCT FROM $3
+                      AND application_id IS NOT DISTINCT FROM $4
                     LIMIT 1
                     """,
                     user_id,
-                    q["field_label"],
+                    q.get("field_key") or normalize_field_key(q["field_label"]),
                     run_id,
+                    application_id,
                 )
                 if exists:
                     continue
                 await conn.execute(
                     """
                     INSERT INTO agent_questions
-                        (user_id, run_id, job_title, company, field_label, field_type, options, status, handoff_state)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'pending', 'needs_human')
+                        (user_id, run_id, job_title, company, field_label, normalized_field_key,
+                         field_type, options, status, handoff_state, sensitivity_class,
+                         required_for_state, redacted_context, application_id, provenance_type)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 'pending', 'needs_human',
+                            $9, 'needs_sensitive_answer', $10, $11, 'unset')
                     """,
                     user_id,
                     run_id,
                     job_title,
                     company,
                     q["field_label"],
+                    q.get("field_key") or normalize_field_key(q["field_label"]),
                     q.get("field_type") or "text",
                     json.dumps(q.get("options") or []),
+                    q.get("sensitivity_class") or sensitivity_class(q["field_label"]),
+                    q.get("redacted_context") or "Human answer required.",
+                    application_id,
                 )
                 written += 1
-    except Exception as exc:  # noqa: BLE001 — the queue must never break a run
+    except Exception as exc:  # noqa: BLE001 — fail closed instead of dropping a handoff
         logger.warning("question_queue: enqueue failed (%s)", exc)
+        raise QuestionQueueUnavailable("question queue persistence failed") from exc
     return written
 
 
@@ -161,7 +216,7 @@ async def list_questions_for_user(
         return []
     pool = await get_pool()
     if not pool:
-        return []
+        raise QuestionQueueUnavailable("question queue storage is unavailable")
     allowed_statuses = {"pending", "answered", "skipped"}
     if status is not None and status not in allowed_statuses:
         raise ValueError("invalid question status")
@@ -171,8 +226,10 @@ async def list_questions_for_user(
         clauses.append("status = $2")
         args.append(status)
     query = f"""
-        SELECT id, run_id, job_title, company, field_label, field_type,
-               options, answer, status, handoff_state, created_at, answered_at, updated_at
+        SELECT id, run_id, job_title, company, field_label, normalized_field_key,
+               field_type, options, answer, status, handoff_state, sensitivity_class,
+               required_for_state, redacted_context, application_id, provenance_type,
+               answer_hash, answer_version, expires_at, created_at, answered_at, updated_at
         FROM agent_questions
         WHERE {' AND '.join(clauses)}
         ORDER BY created_at DESC
@@ -190,7 +247,7 @@ async def list_questions_for_user(
         return result
     except Exception as exc:  # noqa: BLE001
         logger.warning("question_queue: list failed (%s)", exc)
-        return []
+        raise QuestionQueueUnavailable("question queue read failed") from exc
 
 
 async def answer_question_for_user(
@@ -208,25 +265,30 @@ async def answer_question_for_user(
         raise ValueError("an answer is required when status is answered")
     pool = await get_pool()
     if not pool:
-        return None
+        raise QuestionQueueUnavailable("question queue storage is unavailable")
     try:
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
                 UPDATE agent_questions
-                SET answer = $1,
+                    SET answer = $1,
+                    answer_hash = $5,
+                    provenance_type = CASE WHEN $2 = 'answered' THEN 'user_entered' ELSE 'unset' END,
                     status = $2,
                     handoff_state = CASE WHEN $2 = 'answered' THEN 'resolved' ELSE 'skipped' END,
                     answered_at = now(),
                     updated_at = now()
                 WHERE id = $3 AND user_id = $4
-                RETURNING id, run_id, job_title, company, field_label, field_type,
-                          options, answer, status, handoff_state, created_at, answered_at, updated_at
+                RETURNING id, run_id, job_title, company, field_label, normalized_field_key,
+                          field_type, options, answer, status, handoff_state, sensitivity_class,
+                          required_for_state, redacted_context, application_id, provenance_type,
+                          answer_hash, answer_version, expires_at, created_at, answered_at, updated_at
                 """,
                 cleaned_answer,
                 status,
                 question_id,
                 user_id,
+                answer_hash(cleaned_answer),
             )
         if not row:
             return None
@@ -237,7 +299,7 @@ async def answer_question_for_user(
         return item
     except Exception as exc:  # noqa: BLE001
         logger.warning("question_queue: answer update failed (%s)", exc)
-        return None
+        raise QuestionQueueUnavailable("question queue update failed") from exc
 
 
 async def pending_answers(user_id: str | None) -> dict[str, str]:

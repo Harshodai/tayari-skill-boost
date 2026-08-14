@@ -7,22 +7,25 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ShieldCheck, Zap, Database, CheckCircle2, AlertCircle, Search } from "lucide-react";
-import { fetchCandidateAnswers, matchCandidateBank } from "@/api";
+import { fetchCandidateAnswers, matchCandidateBank, saveCandidateAnswers } from "@/api";
 import { toast } from "sonner";
 
 export default function CandidateAnswerBank() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isLoadingAnswers, setIsLoadingAnswers] = useState(true);
   const [answersError, setAnswersError] = useState<string | null>(null);
+  const [isSavingAnswers, setIsSavingAnswers] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     fetchCandidateAnswers()
       .then((data) => {
         if (active && data && typeof data === "object") {
+          const values = data.answers && typeof data.answers === "object" ? data.answers : {};
           setAnswers(
             Object.fromEntries(
-              Object.entries(data).map(([key, value]) => [key, value == null ? "" : String(value)])
+              Object.entries(values).map(([key, value]) => [key, value == null ? "" : String(value)])
             )
           );
         }
@@ -44,6 +47,21 @@ export default function CandidateAnswerBank() {
   const [testQuestion, setTestQuestion] = useState("Are you legally authorized to work in the United States?");
   const [matchResult, setMatchResult] = useState<any>(null);
   const [isMatching, setIsMatching] = useState(false);
+
+  const handleSaveAnswers = async () => {
+    setIsSavingAnswers(true);
+    setSaveError(null);
+    try {
+      await saveCandidateAnswers(answers);
+      toast.success("Answers saved to your private answer bank. They still require application-specific confirmation before submission.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Could not save your candidate answers.";
+      setSaveError(message);
+      toast.error(message);
+    } finally {
+      setIsSavingAnswers(false);
+    }
+  };
 
   const handleTestMatch = async () => {
     if (!testQuestion.trim()) return;
@@ -71,9 +89,13 @@ export default function CandidateAnswerBank() {
             </div>
             <h1 className="text-3xl font-bold tracking-tight">Candidate Answer QA Bank</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Store canonical answers for standard ATS portal questions. The auto-apply workflow can reuse these approved answers, but review every generated response before sending it.
+              Store your explicit answers for standard ATS questions. Saved values are private profile data and still require application-specific confirmation before any submission.
             </p>
+            {saveError && <div role="alert" className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{saveError}</div>}
           </div>
+          <Button onClick={handleSaveAnswers} disabled={isLoadingAnswers || isSavingAnswers}>
+            {isSavingAnswers ? "Saving…" : "Save private answers"}
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

@@ -152,6 +152,33 @@ func (c *Client) PostJSONWithHeaders(endpoint string, payload interface{}, heade
 	return result, nil
 }
 
+func (c *Client) PutJSONWithHeaders(endpoint string, payload interface{}, headers map[string]string) (map[string]interface{}, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodPut, c.BaseURL+endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	c.setHeaders(req, headers)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (c *Client) PatchJSONWithHeaders(endpoint string, payload interface{}, headers map[string]string) (map[string]interface{}, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {

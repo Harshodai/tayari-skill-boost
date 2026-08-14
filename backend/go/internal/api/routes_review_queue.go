@@ -583,7 +583,7 @@ func (s *Server) handleSubmitApplication(w http.ResponseWriter, r *http.Request)
 
 	res, err := s.DB.Conn.ExecContext(r.Context(), `
 		UPDATE applications 
-		SET status='applied', submission_mode=$1, reviewed_at=NOW(), reviewed_by='user', updated_at=NOW()
+		SET status='applied', submission_mode=$1, submission_verification_status='unverified', reviewed_at=NOW(), reviewed_by='user', updated_at=NOW()
 		WHERE application_id=$2 AND user_id=$3 AND status IN ('review', 'saved')
 	`, req.SubmissionMode, appIDStr, user.ID)
 	if err != nil {
@@ -596,9 +596,10 @@ func (s *Server) handleSubmitApplication(w http.ResponseWriter, r *http.Request)
 	}
 
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"application_id":  appIDStr,
-		"status":          "applied",
-		"submission_mode": req.SubmissionMode,
-		"message":         "Application recorded as candidate-confirmed. This is not an externally verified ATS submission receipt.",
+		"application_id":                 appIDStr,
+		"status":                         "applied",
+		"submission_mode":                req.SubmissionMode,
+		"submission_verification_status": "unverified",
+		"message":                        "Application recorded as candidate-confirmed. This is not an externally verified ATS submission receipt.",
 	})
 }

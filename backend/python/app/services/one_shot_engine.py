@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
 from app.services.ats_engine import heuristic_ats_score
-from app.services.candidate_answer_bank import get_answer_bank
+from app.services.answer_bank_store import load_candidate_answer_snapshot
 from app.services.optimizer import optimize_with_reflection
 from app.services.cover_letter import CoverLetterGenerator
 from app.services.interview_ai import InterviewPrepGenerator
@@ -26,6 +26,7 @@ class OneShotRequest(BaseModel):
     job_description: str
     resume_text: str
     target_url: Optional[str] = None
+    application_id: Optional[str] = None
     tone: Optional[str] = "Confident"
 
 class OneShotResult(BaseModel):
@@ -59,7 +60,9 @@ async def execute_one_shot_pipeline(
 
     # Stage 1: Initial Match Scoring & Audit
     score_res = heuristic_ats_score(req.resume_text, req.job_description)
-    initial_score = float(score_res.get("overall_score", 65.0))
+    if score_res.get("overall_score") is None:
+        raise ValueError("fit score was not produced by the deterministic scorer")
+    initial_score = float(score_res["overall_score"])
 
     # Stage 2: Reflective Resume Tailoring
     opt_res = await optimize_with_reflection(
@@ -68,7 +71,7 @@ async def execute_one_shot_pipeline(
         target_role=req.job_title
     )
     tailored_text = opt_res.get("optimized_text", req.resume_text)
-    post_score = float(opt_res.get("post_score", initial_score + 20.0))
+    post_score = float(opt_res.get("post_score", initial_score))
 
     # Stage 3: Knowledge Graph & Proof Vault Extraction
     kg_extractor = KnowledgeGraphExtractor()
@@ -138,36 +141,21 @@ async def execute_one_shot_pipeline(
             if len(proof_vault_items) >= 4:
                 break
 
+    # No evidence is better than an invented claim. The UI renders an explicit
+    # empty proof state and keeps the packet in review.
     if not proof_vault_items:
-        proof_vault_items = [
-            {
-                "claim": f"Demonstrated impact in {req.job_title} responsibilities with verified professional background.",
-                "metrics_detected": ["Verified"],
-                "status": "Verified (Grounding Source: Candidate Resume)"
-            }
-        ]
+        proof_vault_items = []
 
     # Run ATS Plain-Text Simulator
     from app.services.ats_simulator import simulate_ats_parsing
     ats_sim = simulate_ats_parsing(tailored_text)
-    answer_bank = get_answer_bank(authenticated_user_id)
+    answer_snapshot = await load_candidate_answer_snapshot(
+        authenticated_user_id,
+        application_id=req.application_id,
+    )
     missing_kws = score_res.get("missing_keywords", [])
-    screening_answers = answer_bank.answers
-    sensitive_answer_fields = {
-        "work_authorization",
-        "requires_sponsorship",
-        "sponsorship_answer",
-        "target_salary_min",
-        "target_salary_max",
-        "salary_answer",
-        "notice_period_days",
-        "notice_period_answer",
-        "gender",
-        "race_ethnicity",
-        "veteran_status",
-        "disability_status",
-    }
-    unresolved_sensitive_fields = sorted(sensitive_answer_fields - set(screening_answers))
+    screening_answers = answer_snapshot.answers
+    unresolved_sensitive_fields = answer_snapshot.unresolved_sensitive_fields
 
     # Build Stealth Auto-Apply Payload with Candidate Answer Bank
     ats_parsability = ats_sim.get("parsability_score", 95)
@@ -179,15 +167,17 @@ async def execute_one_shot_pipeline(
     )
     auto_apply_payload = {
             "target_url": req.target_url,
-        "stealth_readiness": "Needs Review" if shadow_approval else "100%",
+        "stealth_readiness": "Blocked" if unresolved_sensitive_fields else "Review Required",
         "field_mapping": {
-            "full_name": kg_res.get("entities", {}).get("name", "Applicant"),
-            "email": kg_res.get("entities", {}).get("email", "applicant@example.com"),
+            "full_name": kg_res.get("entities", {}).get("name"),
+            "email": kg_res.get("entities", {}).get("email"),
             "resume_text": tailored_text,
             "cover_letter_text": cover_letter_text,
-            "portfolio_url": f"https://tayari.app/p/{req.user_id}" if req.user_id else None
+            "portfolio_url": None,
         },
         "screening_answers": screening_answers,
+        "answer_version": answer_snapshot.version,
+        "answer_records": answer_snapshot.records,
         "unresolved_sensitive_fields": unresolved_sensitive_fields,
         "shadow_approval_required": shadow_approval,
         "submission_blocked": bool(unresolved_sensitive_fields),
@@ -198,21 +188,21 @@ async def execute_one_shot_pipeline(
     learning_plan = LearningRecommender.get_recommendations(missing_kws)
 
     return OneShotResult(
-        overall_fit_score=min(98.5, max(post_score, 88.0)),
+        overall_fit_score=max(0.0, min(float(post_score), 100.0)),
         audit={
             "initial_score": initial_score,
             "post_tailoring_score": post_score,
             "matched_keywords": score_res.get("matched_keywords", []),
             "missing_keywords": missing_kws,
             "relevance_level": "High Match" if post_score >= 80 else "Moderate Match",
-            "ats_parsability_score": ats_sim.get("parsability_score", 95),
+            "ats_parsability_score": ats_sim.get("parsability_score"),
             "ats_simulated_engines": ats_sim.get("simulated_ats_engines", {}),
             "learning_action_plan": learning_plan[:5]
         },
         tailored_resume={
             "optimized_text": tailored_text,
             "typst_code": typst_code,
-            "changes_made": opt_res.get("changes", ["ATS keyword optimization", "Metrics alignment"]),
+            "changes_made": opt_res.get("changes", []),
             "word_count": len(tailored_text.split()),
             "ats_warnings": ats_sim.get("warnings", [])
         },

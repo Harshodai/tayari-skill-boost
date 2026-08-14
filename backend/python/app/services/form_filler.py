@@ -9,7 +9,8 @@ from app.services.question_queue import (
     classify_fields,
     enqueue_questions,
     is_sensitive_field,
-    pending_answers,
+    QuestionQueueUnavailable,
+    pending_answers,  # compatibility export; sensitive values are never auto-filled
 )
 
 logger = logging.getLogger(__name__)
@@ -130,6 +131,7 @@ class FormFiller:
         run_id: Optional[str] = None,
         job_title: Optional[str] = None,
         company: Optional[str] = None,
+        application_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Execute semantic form auto-fill using Accessibility Snapshot.
@@ -208,10 +210,6 @@ class FormFiller:
         any_real_action = False
         filled_labels: List[str] = []
 
-        # Answers the user has already given for these fields on earlier runs —
-        # ask a human once, not once per application.
-        known_answers = await pending_answers(user_id)
-
         # Perform semantic mapping with actual fill operations
         for input_node in accessibility_nodes:
             role = input_node.get("role", "")
@@ -221,20 +219,7 @@ class FormFiller:
             # Never guess a legal/compensation/self-identification field, even
             # when the profile happens to contain something that looks right.
             if is_sensitive_field(label):
-                answer = known_answers.get(name.strip())
-                if answer:
-                    ref = self._ref_for_node(input_node)
-                    if self.browser.page and ref:
-                        try:
-                            fill_res = await self.browser.fill(ref, answer)
-                            if fill_res.get("success"):
-                                actions.append(f"Filled {role} '{label}' from your saved answer")
-                                filled_labels.append(label)
-                                any_real_action = True
-                                continue
-                        except Exception as e:
-                            actions.append(f"Could not fill '{label}' ({e})")
-                actions.append(f"Escalated '{label}' to you — the agent does not guess this field")
+                actions.append(f"Escalated '{label}' to you — the agent never auto-fills sensitive fields")
                 continue
 
             if role in role_field_map:
@@ -264,19 +249,38 @@ class FormFiller:
         # Queue everything the agent refused to answer. The run reports
         # `needs_human` so the caller can hold the submission.
         questions = classify_fields(accessibility_nodes, filled_labels=filled_labels)
-        queued = await enqueue_questions(
-            questions,
-            user_id=user_id,
-            run_id=run_id,
-            job_title=job_title,
-            company=company,
-        )
+        try:
+            queued = await enqueue_questions(
+                questions,
+                user_id=user_id,
+                run_id=run_id,
+                job_title=job_title,
+                company=company,
+                application_id=application_id,
+            )
+        except QuestionQueueUnavailable as exc:
+            logger.error("Question queue persistence failed; pausing form fill: %s", exc)
+            return {
+                "success": False,
+                "form_url": form_url,
+                "engine": "Tayari Computer Accessibility Sandbox",
+                "redacted_profile": clean_profile,
+                "accessibility_nodes_found": len(accessibility_nodes),
+                "observation_failed": observation_error is not None,
+                "observation_error": observation_error,
+                "actions_executed": actions,
+                "simulated": True,
+                "questions_queued": 0,
+                "needs_human": True,
+                "queue_persistence_failed": True,
+                "error": "question_queue_unavailable",
+            }
 
         # Fallback: if no accessibility nodes or no real actions, report discovery without claiming submit
         if not any_real_action:
             actions = actions + [
                 f"Discovered {len(accessibility_nodes)} semantic accessibility elements.",
-                f"Available profile: name={clean_profile.get('name', 'Candidate')}, email={clean_profile.get('email', 'candidate@tayariskillboost.com')}",
+                f"Available profile fields: {', '.join(sorted(clean_profile.keys())) or 'none'}",
             ]
             # Do NOT claim "Simulated Submit Button Click" unless it actually occurred
 

@@ -22,6 +22,7 @@ const BASELINE = path.join(ROOT, "security", "baseline.json");
 const args = process.argv.slice(2);
 const UPDATE = args.includes("--update-baseline");
 const JSON_OUT = args.includes("--json");
+const ENFORCE_PRODUCTION = process.env.SECURITY_BASELINE_ENFORCE === "true";
 
 const findings = [];
 
@@ -100,7 +101,8 @@ function scanDependencies() {
 /* ------------------------------------------------------------------ */
 /* 2. Database policy regressions in migrations                         */
 /* ------------------------------------------------------------------ */
-const CREATE_TABLE = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?("?[\w]+"?)/gi;
+const CREATE_TABLE = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?("?[a-zA-Z_][\w]*"?)/gi;
+const CREATE_POLICY = /create\s+policy\b[\s\S]*?(?=create\s+policy\b|$)/gi;
 
 function scanMigrations() {
   const dirs = [
@@ -122,7 +124,11 @@ function scanMigrations() {
             detail: "Every public table must enable RLS in the same migration.",
           });
         }
-        if (!new RegExp(`grant[\\s\\S]{0,120}${table}`, "i").test(sql)) {
+        const grantsTable = new RegExp(
+          `grant\\s+[\\s\\S]*?\\bon\\s+(?:table\\s+)?(?:public\\.)?"?${table}"?\\b`,
+          "i",
+        );
+        if (!grantsTable.test(sql)) {
           add({
             scanner: "database",
             severity: "high",
@@ -132,13 +138,19 @@ function scanMigrations() {
           });
         }
       }
-      if (/using\s*\(\s*true\s*\)/i.test(sql) && /create\s+policy/i.test(sql)) {
+      for (const policy of sql.matchAll(CREATE_POLICY)) {
+        const block = policy[0];
+        if (!/using\s*\(\s*true\s*\)/i.test(block)) continue;
+        const roleClause = block.match(/\bto\s+([^\s]+(?:\s*,\s*[^\s]+)*)/i)?.[1] ?? "";
+        const roles = roleClause.toLowerCase().split(/\s*,\s*/).filter(Boolean);
+        const serviceOnly = roles.length > 0 && roles.every((role) => role === "service_role");
+        if (serviceOnly) continue;
         add({
           scanner: "database",
           severity: "high",
           title: "Policy grants unrestricted read access (USING true)",
           file: rel(file),
-          detail: "Scope policies to auth.uid() or an explicit role check.",
+          detail: "Scope policies to auth.uid() or an explicit role check; service_role-only policies are allowed.",
         });
       }
     }
@@ -244,6 +256,15 @@ if (JSON_OUT) {
     console.log(`  NEW       [${f.severity}] ${f.title}${f.file ? ` (${f.file})` : ""}`);
     console.log(`            ${f.detail}`);
   }
+}
+
+const unresolvedCriticalOrHigh = findings.filter((finding) => ["critical", "high"].includes(finding.severity));
+if (ENFORCE_PRODUCTION && unresolvedCriticalOrHigh.length > 0) {
+  console.error(
+    `\nProduction security gate blocked: ${unresolvedCriticalOrHigh.length} critical/high finding(s) remain. ` +
+      "Remediate them or remove the affected feature from the production launch scope.",
+  );
+  process.exit(1);
 }
 
 if (added.length > 0) {

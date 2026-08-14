@@ -3,5 +3,6 @@ kind: ConfigMap
 metadata:
   name: tayari-runtime-config
 data:
+  ENV: staging
   APP_ENV: staging
   SENTRY_ENVIRONMENT: staging

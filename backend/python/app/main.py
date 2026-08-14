@@ -6,7 +6,7 @@ import io
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Depends
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -1342,17 +1342,141 @@ class AgentQuestionUpdate(BaseModel):
     status: str
 
 
+class CandidateAnswerSaveRequest(BaseModel):
+    answers: dict[str, Any]
+    application_id: Optional[str] = None
+    confirm_sensitive: bool = False
+
+
+class AgentRunTransitionRequest(BaseModel):
+    target_state: str
+    expected_state: Optional[str] = None
+    expected_version: Optional[int] = None
+
+
+class AgentHandoffRequest(BaseModel):
+    state: str
+    expected_state: Optional[str] = None
+    expected_version: Optional[int] = None
+    ttl_seconds: int = 900
+
+
+class AgentHandoffResumeRequest(BaseModel):
+    handoff_token: str
+    expected_state: Optional[str] = None
+    expected_version: Optional[int] = None
+
+
 @app.get("/api/v1/agent/questions")
 async def agent_questions_list_endpoint(
     status: Optional[str] = Query(None),
     _user_id: str = Depends(get_current_user),
 ):
     """List the authenticated user's durable human-answer queue."""
-    from app.services.question_queue import list_questions_for_user
+    from app.services.question_queue import QuestionQueueUnavailable, list_questions_for_user
     try:
         return {"questions": await list_questions_for_user(_user_id, status=status)}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except QuestionQueueUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/v1/agent/runs/{run_id}/transition")
+async def agent_run_transition_endpoint(
+    run_id: str,
+    payload: AgentRunTransitionRequest,
+    _user_id: str = Depends(get_current_user),
+):
+    """Transition an owned run through the durable HITL state machine."""
+    from app.services.db import transition_agent_run_for_user
+    transitioned = await transition_agent_run_for_user(
+        run_id,
+        _user_id,
+        payload.target_state,
+        expected_state=payload.expected_state,
+        expected_version=payload.expected_version,
+    )
+    if not transitioned:
+        raise HTTPException(status_code=409, detail="invalid, stale, unavailable, or unauthorized run transition")
+    return {"run_id": run_id, "state": payload.target_state}
+
+
+@app.post("/api/v1/agent/runs/{run_id}/handoff")
+async def agent_run_handoff_endpoint(
+    run_id: str,
+    payload: AgentHandoffRequest,
+    _user_id: str = Depends(get_current_user),
+):
+    from app.services.handoff_service import issue_handoff
+    try:
+        return await issue_handoff(
+            run_id,
+            _user_id,
+            payload.state,
+            expected_state=payload.expected_state,
+            expected_version=payload.expected_version,
+            ttl_seconds=payload.ttl_seconds,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/agent/runs/{run_id}/handoff")
+async def agent_run_handoff_status_endpoint(
+    run_id: str,
+    _user_id: str = Depends(get_current_user),
+):
+    from app.services.db import load_agent_run_for_user
+    run = await load_agent_run_for_user(run_id, _user_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return {
+        "run_id": run_id,
+        "state": run.get("handoff_state") or "queued",
+        "state_version": run.get("state_version", 0),
+        "handoff_expires_at": run.get("handoff_expires_at"),
+    }
+
+
+@app.post("/api/v1/agent/runs/{run_id}/resume")
+async def agent_run_resume_endpoint(
+    run_id: str,
+    payload: AgentHandoffResumeRequest,
+    _user_id: str = Depends(get_current_user),
+):
+    from app.services.handoff_service import resume_handoff
+    resumed = await resume_handoff(
+        run_id,
+        _user_id,
+        payload.handoff_token,
+        expected_state=payload.expected_state,
+        expected_version=payload.expected_version,
+    )
+    if not resumed:
+        raise HTTPException(status_code=409, detail="handoff token invalid, expired, stale, or unauthorized")
+    return {"run_id": run_id, "state": "preparing"}
+
+
+@app.post("/api/v1/agent/runs/{run_id}/cancel")
+async def agent_run_cancel_endpoint(
+    run_id: str,
+    payload: AgentRunTransitionRequest = AgentRunTransitionRequest(target_state="cancelled"),
+    _user_id: str = Depends(get_current_user),
+):
+    from app.services.db import transition_agent_run_for_user
+    cancelled = await transition_agent_run_for_user(
+        run_id,
+        _user_id,
+        "cancelled",
+        expected_state=payload.expected_state,
+        expected_version=payload.expected_version,
+    )
+    if not cancelled:
+        raise HTTPException(status_code=409, detail="run cancellation rejected")
+    return {"run_id": run_id, "state": "cancelled"}
 
 
 @app.patch("/api/v1/agent/questions/{question_id}")
@@ -1362,7 +1486,7 @@ async def agent_question_update_endpoint(
     _user_id: str = Depends(get_current_user),
 ):
     """Answer or skip one queue item only when it belongs to the caller."""
-    from app.services.question_queue import answer_question_for_user
+    from app.services.question_queue import QuestionQueueUnavailable, answer_question_for_user
     try:
         updated = await answer_question_for_user(
             question_id,
@@ -1372,6 +1496,8 @@ async def agent_question_update_endpoint(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except QuestionQueueUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     if not updated:
         raise HTTPException(status_code=404, detail="Question not found")
     return updated
@@ -1389,6 +1515,9 @@ async def one_shot_execute_endpoint(
         res = await execute_one_shot_pipeline(payload, user_id=_user_id)
         return res.dict()
     except Exception as exc:
+        from app.services.answer_bank_store import AnswerBankStoreUnavailable
+        if isinstance(exc, AnswerBankStoreUnavailable):
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         logger.error("one-shot pipeline execution failed: %s", exc)
         raise HTTPException(status_code=500, detail="One-shot pipeline execution failed") from exc
 
@@ -1412,11 +1541,46 @@ async def interview_copilot_hint_endpoint(payload: dict):
 
 @app.get("/api/v1/candidate/answers")
 async def candidate_answers_endpoint(
+    application_id: Optional[str] = Query(None),
     _user_id: str = Depends(get_current_user),
 ):
-    """Retrieve only the authenticated user's explicitly supplied answer bank."""
-    from app.services.candidate_answer_bank import get_answer_bank
-    return get_answer_bank(_user_id).dict(exclude_none=True)
+    """Retrieve only the authenticated user's versioned answer snapshot."""
+    from app.services.answer_bank_store import (
+        AnswerBankStoreUnavailable,
+        load_candidate_answer_snapshot,
+    )
+    try:
+        snapshot = await load_candidate_answer_snapshot(
+            _user_id,
+            application_id=application_id,
+        )
+    except AnswerBankStoreUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return snapshot.dict()
+
+
+@app.put("/api/v1/candidate/answers")
+async def candidate_answers_save_endpoint(
+    payload: CandidateAnswerSaveRequest,
+    _user_id: str = Depends(get_current_user),
+):
+    """Create a new owner-scoped answer version after explicit user save."""
+    from app.services.answer_bank_store import (
+        AnswerBankStoreUnavailable,
+        save_candidate_answer_snapshot,
+    )
+    try:
+        snapshot = await save_candidate_answer_snapshot(
+            _user_id,
+            payload.answers,
+            application_id=payload.application_id,
+            confirm_sensitive=payload.confirm_sensitive,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except AnswerBankStoreUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return snapshot.dict()
 
 
 

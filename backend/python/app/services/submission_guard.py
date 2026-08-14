@@ -71,6 +71,11 @@ def sign_guard(fingerprint: dict[str, str], approval_id: str) -> dict[str, str] 
     return payload
 
 
+def autonomous_submission_enabled() -> bool:
+    """Return true only when an operator explicitly enables final browser submit."""
+    return os.getenv("AUTONOMOUS_SUBMIT_ENABLED", "false").strip().lower() == "true"
+
+
 def verify_guard(
     guard: dict[str, Any] | None,
     *,
@@ -81,6 +86,8 @@ def verify_guard(
     cover_letter: str | None,
     form_fields: Any = None,
 ) -> bool:
+    if not autonomous_submission_enabled():
+        return False
     if not isinstance(guard, dict):
         return False
     signature = str(guard.get("signature") or "")

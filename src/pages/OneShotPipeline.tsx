@@ -58,10 +58,10 @@ export default function OneShotPipeline() {
     try {
       const response = await executeOneShotPipeline({
         job_title: jobTitle,
-        company_name: companyName || "Target Company",
+        company_name: companyName || undefined,
         job_description: jobDescription,
         resume_text: resumeText,
-        target_url: targetUrl,
+        target_url: targetUrl || undefined,
         tone: "Confident"
       });
 
@@ -216,7 +216,13 @@ export default function OneShotPipeline() {
               <Card className="border-border">
                 <CardContent className="p-4">
                   <p className="text-xs font-medium text-muted-foreground">Stealth Auto-Apply</p>
-                  <p className="text-2xl font-bold text-primary">{result.auto_apply_payload.stealth_readiness}</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {result.auto_apply_payload.submission_blocked
+                      ? "Blocked — human review required"
+                      : result.auto_apply_payload.shadow_approval_required
+                        ? "Needs review"
+                        : result.auto_apply_payload.stealth_readiness}
+                  </p>
                 </CardContent>
               </Card>
               <Card className="border-border">
@@ -328,21 +334,33 @@ export default function OneShotPipeline() {
                     <CardTitle className="text-base font-bold flex items-center gap-2">
                       <Send className="w-5 h-5 text-primary" /> Auto-Fill Extension Payload
                     </CardTitle>
-                    <CardDescription>Ready for Chrome Extension & Playwright automatic form entry.</CardDescription>
+                    <CardDescription>Review packet only. Final submission remains blocked until the exact application is explicitly reviewed and approved.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                       <div className="p-3 bg-muted/40 rounded-lg border">
                         <span className="font-bold block mb-1">Target Application URL:</span>
-                        <span className="text-primary break-all">{result.auto_apply_payload.target_url}</span>
+                        <span className="text-primary break-all">{result.auto_apply_payload.target_url || "No application URL supplied"}</span>
                       </div>
                       <div className="p-3 bg-muted/40 rounded-lg border">
                         <span className="font-bold block mb-1">Shadow Approval Gate:</span>
-                        <span className="text-emerald-600 font-semibold">Not Required (100% Ready)</span>
+                        <span className={result.auto_apply_payload.submission_blocked ? "text-amber-600 font-semibold" : "text-primary font-semibold"}>
+                          {result.auto_apply_payload.submission_blocked
+                            ? "Blocked — unresolved human answers"
+                            : result.auto_apply_payload.shadow_approval_required
+                              ? "Human review required"
+                              : "Review required before submission"}
+                        </span>
                       </div>
                     </div>
+                    {result.auto_apply_payload.unresolved_sensitive_fields && result.auto_apply_payload.unresolved_sensitive_fields.length > 0 && (
+                      <div role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700">
+                        <p className="font-semibold">Human answers required before any submission</p>
+                        <p className="mt-1">Unresolved fields: {result.auto_apply_payload.unresolved_sensitive_fields.join(", ")}</p>
+                      </div>
+                    )}
                     <div className="bg-muted/40 rounded-lg p-4 font-mono text-xs border">
-                      <p className="font-bold mb-2 text-muted-foreground">Mapped Form Fields:</p>
+                      <p className="font-bold mb-2 text-muted-foreground">Mapped Review Fields:</p>
                       <pre className="whitespace-pre-wrap">{JSON.stringify(result.auto_apply_payload.field_mapping, null, 2)}</pre>
                     </div>
                   </CardContent>

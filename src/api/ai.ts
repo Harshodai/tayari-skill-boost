@@ -146,8 +146,22 @@ export async function calculateOfferFinancials(offerData: any): Promise<any> {
   });
 }
 
-export async function fetchCandidateAnswers(): Promise<any> {
-  return apiFetch<any>("/v1/candidate/answers");
+export async function fetchCandidateAnswers(): Promise<{ answers: Record<string, unknown>; version?: number | null; unresolved_sensitive_fields?: string[] }> {
+  return apiFetch<{ answers: Record<string, unknown>; version?: number | null; unresolved_sensitive_fields?: string[] }>("/v1/candidate/answers");
+}
+
+export async function saveCandidateAnswers(
+  answers: Record<string, string>,
+  options: { applicationId?: string; confirmSensitive?: boolean } = {},
+): Promise<any> {
+  return apiFetch<any>("/v1/candidate/answers", {
+    method: "PUT",
+    body: JSON.stringify({
+      answers,
+      application_id: options.applicationId,
+      confirm_sensitive: options.confirmSensitive ?? false,
+    }),
+  });
 }
 
 export async function matchCandidateBank(questionText: string, customQa?: Record<string, string>): Promise<any> {
