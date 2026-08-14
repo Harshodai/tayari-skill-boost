@@ -167,7 +167,13 @@ async def query_knowledge_hub(
             }
             for index, citation in enumerate(result.get("citations", []))
         ]
-        return {"answer": result.get("answer", ""), "citations": citations}
+        return {
+            "query": result.get("query", payload.query),
+            "answer": result.get("answer", ""),
+            "citations": citations,
+            "retrieved_count": result.get("retrieved_count", len(citations)),
+            "has_evidence": result.get("has_evidence", bool(citations)),
+        }
     except LLMNotConfiguredError:
         return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"error": "ai_service_unavailable"})
     except RuntimeError as exc:

@@ -8,7 +8,7 @@ const buttonVariants = cva(
   // Base — shared across all variants
   [
     "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium",
-    "ring-offset-background transition-all duration-150",
+    "ring-offset-background transitis = transform,box-shadow,background-color,border-color] duration-150 ease-out will-change-transform",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
     "disabled:pointer-events-none disabled:opacity-50",
     "active:scale-[0.97]",
@@ -80,5 +80,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = "Button";
 
+// eslint-disable-next-line react-refresh/only-export-components
 export { Button, buttonVariants };
 

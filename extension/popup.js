@@ -296,7 +296,7 @@ function setupEventListeners() {
     $('autofill-status').className = 'autofill-status loading';
     
     try {
-      const result = await chrome.tabs.sendMessage(currentTab.id, { action: 'autofill' });
+      const result = await chrome.tabs.sendMessage(currentTab.id, { action: 'autofill', approved: true });
       if (result && result.success) {
         const filled = result.filled || 0;
         $('autofill-status').textContent = `✅ Filled ${filled} field(s)`;

@@ -4,6 +4,19 @@
 const STORAGE_KEY = 'tayari_config';
 const PROFILE_CACHE_KEY = 'tayari_profile_cache';
 const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const TRUSTED_APP_ORIGINS = new Set([
+  'https://tayari.app',
+  'https://www.tayari.app',
+  'https://tayari-skill-boost.lovable.app',
+  'http://localhost:5173',
+  'http://localhost:8080',
+  'http://localhost:8083',
+  'http://localhost:8085',
+]);
+function isTrustedAppSender(sender) {
+  try { return TRUSTED_APP_ORIGINS.has(new URL(sender?.url || '').origin); }
+  catch { return false; }
+}
 
 // ============================================================
 // CONFIGURATION
@@ -12,7 +25,7 @@ const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 async function getConfig() {
   return new Promise((resolve) => {
     chrome.storage.sync.get([STORAGE_KEY], (result) => {
-      resolve(result[STORAGE_KEY] || { apiUrl: 'http://localhost:8085/api', token: null });
+      resolve(result[STORAGE_KEY] || { apiUrl: 'https://api.tayari.app/api', appUrl: 'https://tayari.app', token: null });
     });
   });
 }
@@ -228,6 +241,26 @@ async function handleQueueForReview(data) {
 }
 
 // ============================================================
+// SIDE PANEL CONTEXT
+// ============================================================
+async function getActiveContext() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return { tab: null, job: { detected: false } };
+  try {
+    const job = await chrome.tabs.sendMessage(tab.id, { action: 'detect_job' });
+    return { tab: { id: tab.id, title: tab.title || '', url: tab.url || '' }, job: job || { detected: false } };
+  } catch {
+    return { tab: { id: tab.id, title: tab.title || '', url: tab.url || '' }, job: { detected: false } };
+  }
+}
+async function approvedAutofill(tabId) {
+  if (!Number.isInteger(tabId) || tabId <= 0) return { success: false, error: 'No active page selected.' };
+  try {
+    return await chrome.tabs.sendMessage(tabId, { action: 'autofill', approved: true });
+  } catch {
+    return { success: false, error: 'This page does not expose an application form.' };
+  }
+}
 // MESSAGE HANDLING
 // ============================================================
 
@@ -258,6 +291,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         break;
       }
       
+      case 'get_active_context': {
+        sendResponse(await getActiveContext());
+        break;
+      }
+      case 'approved_autofill': {
+        if (request.approved !== true) {
+          sendResponse({ success: false, error: 'Explicit approval is required before filling fields.' });
+          break;
+        }
+        const context = await getActiveContext();
+        sendResponse(await approvedAutofill(request.tabId || context.tab?.id));
+        break;
+      }
       case 'get_profile_data': {
         const profile = await getProfileData();
         sendResponse({ profile });
@@ -273,7 +319,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
       case 'open_tayari': {
         const config = await getConfig();
-        const url = `http://localhost:8083${request.path || ''}`;
+        const appUrl = config.appUrl || 'https://tayari.app';
+      const requestedPath = typeof request.path === 'string' && request.path.startsWith('/') ? request.path : '/';
+      const url = `${appUrl.replace(/\/$/, '')}${requestedPath}`;
         chrome.tabs.create({ url });
         sendResponse({ success: true });
         break;
@@ -310,6 +358,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // ============================================================
 
 chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
+  if (!isTrustedAppSender(sender)) {
+    sendResponse({ success: false, error: 'Untrusted application origin.' });
+    return false;
+  }
   (async () => {
     if (request.action === 'set_token' && request.token) {
       const config = await getConfig();
@@ -337,7 +389,7 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
     }
     
     if (request.action === 'get_version') {
-      sendResponse({ version: '2.0.0', features: ['job_detection', 'autofill', 'application_tracking', 'resume_optimization', 'cover_letter'] });
+      sendResponse({ version: '3.0.0', features: ['job_detection', 'autofill', 'application_tracking', 'resume_optimization', 'cover_letter'] });
       return;
     }
     
@@ -353,11 +405,13 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
 
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    console.log('Tayari Extension installed');
+    console.log('Job Tayari extension installed');
+    chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
     // Open onboarding page
     chrome.tabs.create({ url: 'http://localhost:8083/extension-onboarding' });
   } else if (details.reason === 'update') {
-    console.log('Tayari Extension updated from', details.previousVersion, 'to 2.0.0');
+    console.log('Job Tayari extension updated from', details.previousVersion, 'to 3.0.0');
+    chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
     // Invalidate caches on update
     invalidateProfileCache();
   }

@@ -54,7 +54,7 @@ export async function generateCommunication(payload: {
   application_id?: string;
   recipient_name?: string;
   discussion_points?: string[];
-  offer_details?: Record<string, any>;
+  offer_details?: Record<string, unknown>;
   days_since?: number;
 }): Promise<{
   subject: string;
@@ -112,7 +112,7 @@ export async function generateInterviewPrep(payload: {
     requirements?: string;
   }>;
   interview_type: string;
-  company_specific?: Record<string, any>;
+  company_specific?: Record<string, unknown>;
   skills_tested?: string[];
 }> {
   return apiFetch("/v1/interview/prep", {
@@ -122,9 +122,9 @@ export async function generateInterviewPrep(payload: {
 }
 
 export async function extractResumeKnowledgeGraph(resumeId: number | string): Promise<{
-  entities: Record<string, any>;
-  achievements: Array<Record<string, any>>;
-  timeline: Array<Record<string, any>>;
+  entities: Record<string, unknown>;
+  achievements: Array<Record<string, unknown>>;
+  timeline: Array<Record<string, unknown>>;
   llm_enhanced: boolean;
 }> {
   return apiFetch(`/v1/resumes/${resumeId}/knowledge-graph`, {
@@ -132,15 +132,15 @@ export async function extractResumeKnowledgeGraph(resumeId: number | string): Pr
   });
 }
 
-export async function fetchInterviewCopilotHint(interviewerTranscript: string, role?: string): Promise<any> {
-  return apiFetch<any>("/v1/interview/copilot-hint", {
+export async function fetchInterviewCopilotHint(interviewerTranscript: string, role?: string): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>("/v1/interview/copilot-hint", {
     method: "POST",
     body: JSON.stringify({ interviewer_transcript: interviewerTranscript, target_role: role }),
   });
 }
 
-export async function calculateOfferFinancials(offerData: any): Promise<any> {
-  return apiFetch<any>("/v1/offer/calculate", {
+export async function calculateOfferFinancials(offerData: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>("/v1/offer/calculate", {
     method: "POST",
     body: JSON.stringify(offerData),
   });
@@ -149,7 +149,6 @@ export async function calculateOfferFinancials(offerData: any): Promise<any> {
 export async function fetchCandidateAnswers(): Promise<{ answers: Record<string, unknown>; version?: number | null; unresolved_sensitive_fields?: string[] }> {
   return apiFetch<{ answers: Record<string, unknown>; version?: number | null; unresolved_sensitive_fields?: string[] }>("/v1/candidate/answers");
 }
-
 export async function saveCandidateAnswers(
   answers: Record<string, string>,
   options: { applicationId?: string; confirmSensitive?: boolean } = {},
@@ -163,12 +162,26 @@ export async function saveCandidateAnswers(
     }),
   });
 }
+}
 
-export async function matchCandidateBank(questionText: string, customQa?: Record<string, string>): Promise<any> {
-  return apiFetch<any>("/v1/candidate-bank/match", {
+export async function matchCandidateBank(questionText: string, customQa?: Record<string, string>): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>("/v1/candidate-bank/match", {
     method: "POST",
     body: JSON.stringify({ question_text: questionText, custom_qa: customQa || {} }),
   });
+}
+
+export interface NlpMetadata {
+  category: string;
+  topics: string[];
+  keyphrases: string[];
+  entities: string[];
+  summary: string | null;
+  confidence: number;
+  needs_review: boolean;
+  status: "ready" | "needs_review" | "unavailable" | string;
+  model: string;
+  version: string;
 }
 
 export interface SavedArticleItem {
@@ -180,6 +193,10 @@ export interface SavedArticleItem {
   summary: string[];
   url: string;
   saved_at: string;
+  nlp: NlpMetadata;
+  tags: string[];
+  keyphrases: string[];
+  entities: string[];
 }
 
 interface SavedSourceResponse {
@@ -189,20 +206,38 @@ interface SavedSourceResponse {
   author?: string;
   source_platform?: SavedArticleItem['platform'];
   primary_category?: string;
+  secondary_tags?: string[];
   summary_bullets?: string[];
+  nlp_metadata?: Partial<NlpMetadata>;
   saved_at?: string;
 }
 
 function formatSavedSource(source: SavedSourceResponse): SavedArticleItem {
+  const nlp: NlpMetadata = {
+    category: source.nlp_metadata?.category || source.primary_category || "Uncategorised",
+    topics: source.nlp_metadata?.topics || source.secondary_tags || [],
+    keyphrases: source.nlp_metadata?.keyphrases || [],
+    entities: source.nlp_metadata?.entities || [],
+    summary: source.nlp_metadata?.summary || source.summary_bullets?.[0] || null,
+    confidence: source.nlp_metadata?.confidence || 0,
+    needs_review: source.nlp_metadata?.needs_review ?? true,
+    status: source.nlp_metadata?.status || "needs_review",
+    model: source.nlp_metadata?.model || "unavailable",
+    version: source.nlp_metadata?.version || "nlp-v1",
+  };
   return {
     id: source.id || stableHash(source.canonical_url || source.title || "unknown"),
     title: source.title || "Saved Source",
     author: source.author || "Unknown",
     platform: source.source_platform || "custom_url",
-    category: source.primary_category || "Uncategorised",
-    summary: source.summary_bullets || [],
+    category: nlp.category,
+    summary: source.summary_bullets || (nlp.summary ? [nlp.summary] : []),
     url: source.canonical_url || "#",
     saved_at: source.saved_at || "Recently",
+    nlp,
+    tags: nlp.topics,
+    keyphrases: nlp.keyphrases,
+    entities: nlp.entities,
   };
 }
 
@@ -237,16 +272,21 @@ export async function syncSavedPosts(platforms?: string[], url?: string): Promis
   }));
 }
 
+export interface KnowledgeHubCitation {
+  tag: string;
+  source_id?: string;
+  title: string;
+  author: string;
+  url: string;
+  excerpt?: string;
+}
+
 export interface KnowledgeHubQueryResponse {
+  query?: string;
   answer: string;
-  citations: Array<{
-    tag: string;
-    source_id?: string;
-    title: string;
-    author: string;
-    url: string;
-    excerpt?: string;
-  }>;
+  citations: KnowledgeHubCitation[];
+  retrieved_count?: number;
+  has_evidence?: boolean;
 }
 
 export async function queryKnowledgeHub(query: string): Promise<KnowledgeHubQueryResponse> {
@@ -255,7 +295,6 @@ export async function queryKnowledgeHub(query: string): Promise<KnowledgeHubQuer
     body: JSON.stringify({ query }),
   });
 }
-
 
 export interface CopilotStreamEvent {
   type: "question_type" | "hints" | "star" | "metrics" | "done" | "error";

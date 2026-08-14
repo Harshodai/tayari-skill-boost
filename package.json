@@ -14,8 +14,14 @@
     "security:scan": "node scripts/security_scan.mjs",
     "security:production": "SECURITY_BASELINE_ENFORCE=true node scripts/security_scan.mjs",
     "security:baseline": "node scripts/security_scan.mjs --update-baseline",
-    "desktop:dev": "concurrently -k \"bun run dev\" \"wait-on http://127.0.0.1:8080 && ELECTRON_START_URL=http://127.0.0.1:8080 electron .\"",
-    "desktop:build": "test -n \"$VITE_API_URL\" && test -n \"$VITE_SUPABASE_URL\" && test -n \"$VITE_SUPABASE_PUBLISHABLE_KEY\" && test \"$VITE_API_URL\" != \"http://127.0.0.1:8085/api\" && VITE_DESKTOP_BUILD=true VITE_USE_SELF_HOSTED=false vite build && electron-builder --mac --arm64"
+    "desktop:dev": "concurrently -k \"pnpm dev\" \"wait-on http://127.0.0.1:8080 && cross-env ELECTRON_START_URL=http://127.0.0.1:8080 electron .\"",
+    "desktop:build": "node scripts/build-desktop.mjs --mac --arm64",
+    "desktop:build:mac": "node scripts/build-desktop.mjs --mac --arm64",
+    "desktop:build:mac:release": "node scripts/build-desktop.mjs --mac --arm64 --config.mac.notarize=true",
+    "desktop:build:win": "node scripts/build-desktop.mjs --win --x64",
+    "desktop:build:linux": "node scripts/build-desktop.mjs --linux --x64",
+    "desktop:build:all": "node scripts/build-desktop.mjs --mac --arm64 --win --x64 --linux --x64",
+    "extension:package": "node scripts/package-extension.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -102,6 +108,7 @@
     "@vitest/coverage-v8": "^4.1.10",
     "autoprefixer": "^10.5.4",
     "concurrently": "^10.0.4",
+    "cross-env": "^10.1.0",
     "electron": "^43.4.0",
     "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
@@ -133,5 +140,12 @@
     "nanoid": "3.3.18",
     "picomatch": "2.3.2",
     "ws": "8.21.1"
-  }
+  },
+  "description": "A deliberate, reviewable desktop workspace for job search operations.",
+  "author": {
+    "name": "Tayari",
+    "email": "support@tayari.app"
+  },
+  "desktopName": "tayari-desktop",
+  "packageManager": "pnpm@11.7.0"
 }

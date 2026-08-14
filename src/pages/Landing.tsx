@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { ArrowRight, BookOpen, CheckCircle2, FileText, ShieldCheck, Target } from 'lucide-react';
+import { ArrowRight, Download, BookOpen, CheckCircle2, FileText, ShieldCheck, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -63,6 +63,7 @@ export const LandingPage = () => {
           </p>
           <div className="flex flex-wrap justify-center gap-4 pt-4">
             <Link to="/onboarding"><Button size="lg" className="bg-indigo-600 px-8 font-semibold text-white shadow-lg shadow-indigo-900/40 hover:bg-indigo-500">Build my job-change plan <ArrowRight className="ml-2 h-5 w-5" /></Button></Link>
+            <Link to="/downloads"><Button size="lg" variant="outline" className="border-indigo-500/40 px-8 font-semibold text-indigo-200 hover:bg-indigo-500/10">Download desktop app <Download className="ml-2 h-5 w-5" /></Button></Link>
             <Link to="/resume"><Button size="lg" variant="outline" className="border-slate-800 px-8 font-semibold text-slate-300 hover:bg-slate-900">Try the resume optimizer</Button></Link>
           </div>
           <button onClick={() => setShowCapabilityNote((value) => !value)} className="text-xs text-slate-400 underline-offset-4 hover:text-slate-200 hover:underline" aria-expanded={showCapabilityNote}>

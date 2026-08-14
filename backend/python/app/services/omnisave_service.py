@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import asyncio
 import hashlib
+import json
 import logging
 import re
 import uuid as uuid_lib
@@ -18,43 +21,73 @@ logger = logging.getLogger(__name__)
 _INSUFFICIENT_ANSWER_RESPONSE = "The indexed knowledge does not contain enough information to answer this question."
 
 
-async def auto_tag(title: str, body: str) -> tuple[str, list[str], str | None]:
-    """WS-07: replace the hardcoded 'Career Strategy' category with a real
-    LLM call at ingest. Returns (category, topics[], one_line_summary).
+async def auto_enrich(title: str, body: str) -> Dict[str, Any]:
+    """Return validated, user-visible NLP metadata for one saved source.
 
-    Degrades honestly: when no LLM is configured, returns ('Uncategorised', [],
-    None) — NOT a fabricated specific category. Inventing 'Career Strategy'
-    for every article is worse than admitting we don't know.
+    The model output is intentionally schema-shaped and confidence-scored so the
+    UI can distinguish automatic suggestions from user edits. When the AI
+    service is unavailable, the fallback is explicit and never invents tags.
     """
+    fallback: Dict[str, Any] = {
+        "category": "Uncategorised",
+        "topics": [],
+        "keyphrases": [],
+        "entities": [],
+        "summary": None,
+        "confidence": 0.0,
+        "needs_review": True,
+        "status": "needs_review",
+        "model": "unavailable",
+        "version": "nlp-v1",
+    }
     if not active_engine() or active_engine() == "mock":
-        return ("Uncategorised", [], None)
+        return fallback
     try:
+        import json as _json
         prompt = (
-            "Read this saved article and respond ONLY in compact JSON:\n"
-            '{"category": "<one short label, 1-3 words>", '
-            '"topics": ["<=5 short topic tags"], '
-            '"one_line_summary": "<=140 chars or null>"}\n\n'
-            f"TITLE: {title[:200]}\n\nBODY (truncated):\n{(body or '')[:2000]}"
+            "Read this saved article and respond ONLY with compact JSON. "
+            "Never invent facts not present in the text.\n"
+            '{"category":"one short label", "topics":["up to 6 short tags"], '
+            '"keyphrases":["up to 8 phrases"], "entities":["people, companies, products or technologies"], '
+            '"one_line_summary":"<= 180 chars or null", "confidence":0.0, "needs_review":false}\n\n'
+            f"TITLE: {title[:240]}\n\nBODY (truncated):\n{(body or '')[:5000]}"
         )
         raw = await llm_complete(
-            "You are an honest tagging engine. Never invent details.",
+            "You are a precise information extraction and tagging engine. Output valid JSON only.",
             prompt,
             tier="fast",
-            max_tokens=200,
+            max_tokens=420,
             temperature=0.1,
         )
-        import json as _json
         parsed = _json.loads(raw.strip().strip("`").lstrip("json").strip())
-        category = (parsed.get("category") or "Uncategorised").strip()[:80]
-        topics = [t.strip()[:40] for t in (parsed.get("topics") or []) if t.strip()][:5]
-        summary = (parsed.get("one_line_summary") or None)
-        if summary:
-            summary = summary.strip()[:140]
-        return category, topics, summary
-    except Exception as exc:  # noqa: BLE001 — tagging never breaks ingest
-        logger.warning("auto_tag failed: %s", exc)
-        return ("Uncategorised", [], None)
+        def clean_list(value: Any, limit: int, width: int) -> list[str]:
+            if not isinstance(value, list):
+                return []
+            return [str(item).strip()[:width] for item in value if str(item).strip()][:limit]
+        confidence = float(parsed.get("confidence") or 0.0)
+        confidence = max(0.0, min(1.0, confidence))
+        needs_review = bool(parsed.get("needs_review")) or confidence < 0.62
+        return {
+            "category": str(parsed.get("category") or "Uncategorised").strip()[:80],
+            "topics": clean_list(parsed.get("topics"), 6, 40),
+            "keyphrases": clean_list(parsed.get("keyphrases"), 8, 60),
+            "entities": clean_list(parsed.get("entities"), 12, 80),
+            "summary": str(parsed.get("one_line_summary")).strip()[:180] if parsed.get("one_line_summary") else None,
+            "confidence": round(confidence, 3),
+            "needs_review": needs_review,
+            "status": "needs_review" if needs_review else "ready",
+            "model": str(active_engine() or "unknown"),
+            "version": "nlp-v1",
+        }
+    except Exception as exc:  # noqa: BLE001 — enrichment never breaks ingest
+        logger.warning("auto_enrich failed: %s", exc)
+        return fallback
 
+
+async def auto_tag(title: str, body: str) -> tuple[str, list[str], str | None]:
+    """Backward-compatible adapter for callers that only need category/topics/summary."""
+    enriched = await auto_enrich(title, body)
+    return enriched["category"], enriched["topics"], enriched["summary"]
 
 async def fetch_substack_rss(publication_url: str) -> list[dict]:
     """WS-07: real Substack RSS ingest. Substack exposes `/api/v1/archive` or
@@ -162,8 +195,8 @@ class OmnisaveService:
                         INSERT INTO public.saved_sources
                             (id, user_id, idempotency_hash, source_platform, canonical_url,
                              title, author, raw_content, clean_markdown, primary_category,
-                             secondary_tags, summary_bullets)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                             secondary_tags, summary_bullets, nlp_metadata)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                         ON CONFLICT (user_id, idempotency_hash) DO NOTHING
                         RETURNING id
                         """,
@@ -179,6 +212,7 @@ class OmnisaveService:
                         source_obj["primary_category"],
                         source_obj.get("secondary_tags") or [],
                         source_obj.get("summary_bullets") or [],
+                        json.dumps(source_obj.get("nlp_metadata") or {}),
                     )
                     # ponytail: ON CONFLICT DO NOTHING with no RETURNING row means a
                     # concurrent insert won. Resolve the canonical row by
@@ -189,7 +223,7 @@ class OmnisaveService:
                             """
                             SELECT id, user_id, idempotency_hash, source_platform, canonical_url,
                                    title, author, raw_content, clean_markdown, primary_category,
-                                   secondary_tags, summary_bullets, created_at
+                                   secondary_tags, summary_bullets, nlp_metadata, created_at
                             FROM public.saved_sources
                             WHERE user_id = $1 AND idempotency_hash = $2
                             """,
@@ -211,6 +245,7 @@ class OmnisaveService:
                             "primary_category": canonical["primary_category"],
                             "secondary_tags": canonical["secondary_tags"] or [],
                             "summary_bullets": canonical["summary_bullets"] or [],
+                            "nlp_metadata": canonical["nlp_metadata"] or {},
                             "saved_at": canonical["created_at"].isoformat() if canonical["created_at"] else None,
                         }
                         return {"inserted": False, "source": canonical_source, "chunks_created": 0}
@@ -274,7 +309,7 @@ class OmnisaveService:
                     """
                     SELECT id, user_id, idempotency_hash, source_platform, canonical_url,
                            title, author, raw_content, clean_markdown, primary_category,
-                           secondary_tags, summary_bullets, created_at
+                           secondary_tags, summary_bullets, nlp_metadata, created_at
                     FROM public.saved_sources
                     WHERE user_id = $1 AND idempotency_hash = $2
                     """,
@@ -296,6 +331,7 @@ class OmnisaveService:
                 "primary_category": row["primary_category"],
                 "secondary_tags": row["secondary_tags"] or [],
                 "summary_bullets": row["summary_bullets"] or [],
+                "nlp_metadata": row["nlp_metadata"] or {},
                 "saved_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
         except Exception as exc:
@@ -316,10 +352,11 @@ class OmnisaveService:
         # WS-07: real auto-tagging at ingest, replacing the hardcoded category.
         # Topics + one-line summary are retained so secondary_tags and
         # summary_bullets are no longer discarded.
-        auto_topics: List[str] = []
-        auto_summary: str | None = None
+        nlp_metadata = await auto_enrich(title, raw_content)
+        auto_topics: List[str] = nlp_metadata.get("topics") or []
+        auto_summary: str | None = nlp_metadata.get("summary")
         if not category:
-            category, auto_topics, auto_summary = await auto_tag(title, raw_content)
+            category = nlp_metadata.get("category") or "Uncategorised"
 
         idempotency_hash = self.compute_idempotency_hash(url, raw_content)
 
@@ -382,6 +419,7 @@ class OmnisaveService:
             # empty list is preserved (explicit "no summary"); the auto_summary
             # fallback fills in ONLY when summary_bullets is None (absent).
             "summary_bullets": summary_bullets if summary_bullets is not None else ([auto_summary] if auto_summary else []),
+            "nlp_metadata": nlp_metadata,
             "saved_at": datetime.now(timezone.utc).isoformat()
         }
         self.saved_sources.append(source_obj)
@@ -615,7 +653,7 @@ class OmnisaveService:
                     """
                     SELECT id, user_id, idempotency_hash, source_platform, canonical_url,
                            title, author, raw_content, clean_markdown, primary_category,
-                           secondary_tags, summary_bullets, created_at
+                           secondary_tags, summary_bullets, nlp_metadata, created_at
                     FROM public.saved_sources
                     WHERE user_id = $1
                     ORDER BY created_at DESC
@@ -640,6 +678,7 @@ class OmnisaveService:
                 "primary_category": row["primary_category"],
                 "secondary_tags": row["secondary_tags"] or [],
                 "summary_bullets": row["summary_bullets"] or [],
+                "nlp_metadata": row["nlp_metadata"] or {},
                 "saved_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
             for row in rows
@@ -843,7 +882,9 @@ class OmnisaveService:
                 "query": query,
                 "answer": "No indexed articles currently exist in your Omnisave AI Knowledge Base. Submit an article URL to ingest knowledge.",
                 "citations": [],
-                "context_snippets": []
+                "context_snippets": [],
+                "retrieved_count": 0,
+                "has_evidence": False,
             }
 
         matched_chunks = await self._load_relevant_chunks_db(query, user_id, top_k)
@@ -854,7 +895,9 @@ class OmnisaveService:
                 "query": query,
                 "answer": _INSUFFICIENT_ANSWER_RESPONSE,
                 "citations": [],
-                "context_snippets": []
+                "context_snippets": [],
+                "retrieved_count": 0,
+                "has_evidence": False,
             }
 
         sources_reference = []
@@ -908,7 +951,9 @@ class OmnisaveService:
             "query": query,
             "answer": answer,
             "citations": sources_reference,
-            "context_snippets": rag_context_snippets
+            "context_snippets": rag_context_snippets,
+            "retrieved_count": len(sources_reference),
+            "has_evidence": bool(sources_reference) and answer != _INSUFFICIENT_ANSWER_RESPONSE,
         }
 
     @staticmethod

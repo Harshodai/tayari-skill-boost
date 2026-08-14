@@ -12,6 +12,7 @@ export function Footer() {
       { label: "Interview Prep", href: "/interview", visible: features.interviewPrep },
       { label: "Job Search", href: "/jobs", visible: features.jobSearch },
       { label: "Pricing", href: "/pricing", visible: features.pricing },
+      { label: "Desktop downloads", href: "/downloads", visible: true },
       { label: "Careers", href: "/careers", visible: features.careers },
       { label: "Blog", href: "/blog", visible: features.blog },
       { label: "Help Center", href: "/help", visible: features.help },

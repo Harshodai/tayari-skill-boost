@@ -78,6 +78,7 @@ func (a *LocalAuth) SocialLogin(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Add state to request for Goth
+	setOAuthReturnToCookie(w, r.URL.Query().Get("return_to"), a.Config.FrontendURL)
 	q := r.URL.Query()
 	q.Set("state", state)
 	r.URL.RawQuery = q.Encode()
@@ -124,10 +125,10 @@ func (a *LocalAuth) SocialCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Authentication failed", http.StatusInternalServerError)
 		return
 	}
-	a.handleSocialCallback(w, r, user)
+	a.handleSocialCallback(w, r, user, consumeOAuthReturnTo(w, r, a.Config.FrontendURL))
 }
 
-func (a *LocalAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request, gothUser goth.User) {
+func (a *LocalAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request, gothUser goth.User, returnTo string) {
 	if !validateEmail(gothUser.Email) {
 		log.Printf("handleSocialCallback: invalid email from provider: %s", gothUser.Email)
 		http.Error(w, "Invalid email from provider", http.StatusBadRequest)
@@ -164,7 +165,7 @@ func (a *LocalAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request,
 	// SECURITY: Use URL fragment (#) instead of query string (?)
 	// Fragments are NOT sent to the server, preventing token leakage in logs
 	// ponytail: redirect target is config-bound (FrontendURL, no user input in URL) → no open redirect.
-	frontendURL := a.Config.FrontendURL + "/auth/callback#token=" + token
+	frontendURL := returnTo + "#token=" + token
 	http.Redirect(w, r, frontendURL, http.StatusFound)
 }
 

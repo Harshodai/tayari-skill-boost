@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Tayari Job Companion",
-  "version": "2.0.0",
-  "description": "Detect jobs, autofill applications, and track your job search journey with Tayari AI.",
+  "name": "Job Tayari Browser Companion",
+  "version": "3.0.0",
+  "description": "A candidate-controlled Job Tayari side panel for understanding job pages, preparing applications, and keeping reviewable career workflows in sync.",
   "options_page": "options.html",
   "externally_connectable": {
     "matches": [
+      "https://tayari.app/*",
+      "https://www.tayari.app/*",
       "https://tayari-skill-boost.lovable.app/*",
-      "https://*.lovable.app/*",
-      "https://*.lovableproject.com/*",
       "http://localhost:5173/*",
       "http://localhost:8080/*",
       "http://localhost:8083/*",
@@ -20,7 +20,10 @@
     "storage",
     "scripting",
     "tabs",
-    "notifications"
+    "notifications",
+    "sidePanel",
+    "contextMenus",
+    "alarms"
   ],
   "host_permissions": [
     "https://*.greenhouse.io/*",
@@ -28,7 +31,9 @@
     "https://*.lever.co/*",
     "https://*.ashbyhq.com/*",
     "https://www.linkedin.com/*",
-    "https://*.indeed.com/*"
+    "https://*.indeed.com/*",
+    "https://api.tayari.app/*",
+    "https://tayari.app/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -44,8 +49,12 @@
         "https://*.lever.co/*",
         "https://*.ashbyhq.com/*"
       ],
-      "js": ["content.js"],
-      "css": ["content.css"],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
       "run_at": "document_idle",
       "all_frames": true
     }
@@ -56,7 +65,8 @@
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
-    }
+    },
+    "default_title": "Open Job Tayari side panel"
   },
   "icons": {
     "16": "icons/icon16.png",
@@ -65,8 +75,16 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/*.png", "icons/*.svg"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "icons/*.png",
+        "icons/*.svg"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
-  ]
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  }
 }

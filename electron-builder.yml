@@ -1,6 +1,9 @@
+directories:
+  output: release
 appId: app.tayari.desktop
-productName: Tayari Desktop
-copyright: Copyright © 2026 Tayari
+productName: Job Tayari Desktop
+icon: build/icon.png
+copyright: Copyright © 2026 Job Tayari
 artifactName: ${productName}-${version}-${arch}.${ext}
 asar: true
 compression: maximum
@@ -20,6 +23,9 @@ mac:
   strictVerify: true
   entitlements: electron/entitlements.plist
   entitlementsInherit: electron/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: Tayari uses the microphone only when you start a voice-coaching session.
+  notarize: false
   target:
     - target: dmg
       arch:
@@ -28,10 +34,24 @@ mac:
       arch:
         - arm64
   artifactName: ${productName}-${version}-${arch}.${ext}
-extendInfo:
-  NSMicrophoneUsageDescription: Tayari uses the microphone only when you start a voice-coaching session.
 dmg:
-  title: Tayari Desktop
+  title: Job Tayari Desktop
   sign: true
-notarize:
-  teamId: ${env.APPLE_TEAM_ID}
+win:
+  target:
+    - nsis
+    - portable
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+linux:
+  category: Utility
+  synopsis: Job search operations workspace
+  description: A desktop workspace for deliberate, reviewable job search operations.
+  target:
+    - AppImage
+    - deb

@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/api/client";
 import { useBackendUnavailable } from "@/components/useBackendUnavailable";
@@ -33,6 +34,9 @@ export function useBackendHealth(): { unavailable: boolean; refetch: () => Promi
   // resolve == healthy. throwOnError makes react-query propagate the queryFn
   // error (BackendUnavailableError) through the returned promise instead of
   // swallowing it into the error state.
-  const refetchWithThrowOnError = () => refetch({ throwOnError: true });
+  const refetchWithThrowOnError = useCallback(
+    () => refetch({ throwOnError: true }),
+    [refetch],
+  );
   return { unavailable, refetch: refetchWithThrowOnError };
 }

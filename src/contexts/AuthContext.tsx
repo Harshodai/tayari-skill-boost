@@ -1,4 +1,4 @@
-import { apiFetchResponse } from "@/api";
+import { API_URL, apiFetchResponse } from "@/api";
 declare const chrome: any;
 declare const process: { env: Record<string, string | undefined> };
 
@@ -24,6 +24,7 @@ interface AuthContextType {
   signInWithLinkedin: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   setUserFromToken: (token: string, userData: any) => void;
+  completeAuthCallback: (callbackUrl: string) => Promise<{ error: string | null }>;
 }
 
 // Helper to create a mock session with all required fields
@@ -86,6 +87,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     syncTokenToExtension(token);
   };
 
+  const completeAuthCallback = useCallback(async (callbackUrl: string): Promise<{ error: string | null }> => {
+    try {
+      const parsed = new URL(callbackUrl, window.location.origin);
+      const desktopCallback = parsed.protocol === "tayari:" && parsed.hostname === "auth" && parsed.pathname === "/callback";
+      const webCallback = parsed.pathname === "/auth/callback" && parsed.origin === window.location.origin;
+      if (!desktopCallback && !webCallback) return { error: "Invalid authentication callback." };
+      const hashParams = new URLSearchParams(parsed.hash.replace(/^#/, ""));
+      const code = parsed.searchParams.get("code");
+      if (code && !USE_SELF_HOSTED) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        return { error: error ? getGenericAuthError(error.message) : null };
+      }
+      const token = hashParams.get("token") || hashParams.get("access_token");
+      if (!token) return { error: "No authentication token received." };
+      if (!USE_SELF_HOSTED && hashParams.get("access_token")) {
+        const { error } = await supabase.auth.setSession({
+          access_token: token,
+          refresh_token: hashParams.get("refresh_token") || "",
+        });
+        return { error: error ? getGenericAuthError(error.message) : null };
+      }
+      localStorage.setItem("auth_token", token);
+      const response = await apiFetchResponse("/me", { headers: { Authorization: `Bearer ${token}` } });
+      const userData = await response.json();
+      const mockUser = createMockUser(userData);
+      setUser(mockUser);
+      setSession(createMockSession(token, mockUser) as Session);
+      syncTokenToExtension(token);
+      return { error: null };
+    } catch (error) {
+      localStorage.removeItem("auth_token");
+      setUser(null);
+      setSession(null);
+      syncTokenToExtension(null);
+      return { error: error instanceof Error ? error.message : "Authentication failed." };
+    }
+  }, []);
   useEffect(() => {
     const onUnauthorized = () => {
       setUser(null);
@@ -93,6 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       syncTokenToExtension(null);
     };
     window.addEventListener("auth:unauthorized", onUnauthorized);
+    const removeDesktopAuthListener = window.tayariDesktop?.onAuthCallback((url) => {
+      void completeAuthCallback(url);
+    });
 
     if (USE_SELF_HOSTED) {
       const controller = new AbortController();
@@ -131,6 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return () => {
         controller.abort();
+        removeDesktopAuthListener?.();
         window.removeEventListener("auth:unauthorized", onUnauthorized);
       };
     } else {
@@ -167,6 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return () => {
         subscription.unsubscribe();
+        removeDesktopAuthListener?.();
         window.removeEventListener("auth:unauthorized", onUnauthorized);
       };
     }
@@ -286,32 +329,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signInWithGithub = async (): Promise<{ error: string | null }> => {
-    if (USE_SELF_HOSTED) {
-      window.location.href = `/auth/github`;
+  const isDesktop = () => Boolean(window.tayariDesktop);
+  const openSelfHostedOAuth = async (provider: "google" | "github" | "linkedin"): Promise<{ error: string | null }> => {
+    if (!isDesktop()) {
+      window.location.href = `/auth/${provider}`;
       return { error: null };
     }
-    return socialLogin('github');
-  };
-
-  const signInWithLinkedin = async (): Promise<{ error: string | null }> => {
-    if (USE_SELF_HOSTED) {
-      window.location.href = `/auth/linkedin`;
-      return { error: null };
-    }
-    return socialLogin('linkedin_oidc');
-  };
-
-  const signInWithGoogle = async (): Promise<{ error: string | null }> => {
-    if (USE_SELF_HOSTED) {
-      window.location.href = `/auth/google`;
-      return { error: null };
-    }
-    // Lovable Cloud managed Google OAuth — works in both preview and production
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
-      });
+      const oauthUrl = new URL(`${API_URL.replace(/\/$/, "")}/auth/${provider}`);
+      oauthUrl.searchParams.set("return_to", "tayari://auth/callback");
+      await window.tayariDesktop!.openAuth(oauthUrl.toString());
+      return { error: null };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Unable to open sign-in." };
+    }
+  };
+  const signInWithGithub = async (): Promise<{ error: string | null }> => {
+    if (USE_SELF_HOSTED) return openSelfHostedOAuth("github");
+    return socialLogin("github");
+  };
+  const signInWithLinkedin = async (): Promise<{ error: string | null }> => {
+    if (USE_SELF_HOSTED) return openSelfHostedOAuth("linkedin");
+    return socialLogin("linkedin_oidc");
+  };
+  const signInWithGoogle = async (): Promise<{ error: string | null }> => {
+    if (USE_SELF_HOSTED) return openSelfHostedOAuth("google");
+    if (isDesktop()) return socialLogin("google");
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
       if (result.error) {
         const msg = result.error instanceof Error ? result.error.message : String(result.error);
         return { error: getGenericAuthError(msg) };
@@ -321,20 +366,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: getGenericAuthError(err?.message || "Google sign-in failed") };
     }
   };
-
-  const socialLogin = async (provider: any): Promise<{ error: string | null }> => {
+  const socialLogin = async (provider: "google" | "github" | "linkedin_oidc"): Promise<{ error: string | null }> => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo: `${window.location.origin}/resume` },
-      });
+      const redirectTo = isDesktop() ? "tayari://auth/callback" : `${window.location.origin}/auth/callback`;
+      const { data, error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo, skipBrowserRedirect: isDesktop() } });
       if (error) return { error: getGenericAuthError(error.message) };
+      if (isDesktop() && data?.url) await window.tayariDesktop!.openAuth(data.url);
       return { error: null };
-    } catch (err: any) {
-      return { error: 'Social login failed' };
+    } catch {
+      return { error: "Social login failed" };
     }
-  }
-
+  };
   const signOut = async () => {
     if (USE_SELF_HOSTED) {
       localStorage.removeItem('auth_token');
@@ -348,7 +390,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, signIn, signUp, signInWithGoogle, signInWithGithub, signInWithLinkedin, signOut, setUserFromToken }}>
+    <AuthContext.Provider value={{ user, session, isLoading, signIn, signUp, signInWithGoogle, signInWithGithub, signInWithLinkedin, signOut, setUserFromToken, completeAuthCallback }}>
       {children}
     </AuthContext.Provider>
   );

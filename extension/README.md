@@ -209,3 +209,11 @@ After making changes to any extension file:
 ## License
 
 MIT — See LICENSE in repository root.
+
+## Side panel and agentic workflow
+
+Job Tayari 3.0 uses Chrome's side panel as the persistent browser workspace. Click the Job Tayari toolbar icon to open it beside the current page. The panel reads the current supported job page, keeps the same signed-in session as the Job Tayari web app, and exposes reviewable actions for saving a role, running fit analysis, opening the workspace, and queueing an application for human review.
+
+Autofill is approval-gated. The side panel shows an explicit approval checkbox before it can fill fields, and the content script rejects autofill messages that do not carry the approval flag. Job Tayari never clicks a final Submit button automatically; the user remains responsible for reviewing answers and completing submission.
+
+To load the unpacked extension during development, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this `extension/` directory. The release workflow also packages `Job-Tayari-Chrome-Extension.zip` alongside desktop installers.

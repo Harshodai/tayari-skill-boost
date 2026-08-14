@@ -1,0 +1,105 @@
+name: Desktop release builds
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macOS arm64
+            runner: macos-14
+            target: --mac --arm64
+            artifact_glob: "release/Job Tayari Desktop-*"
+          - platform: Windows x64
+            runner: windows-latest
+            target: --win --x64
+            artifact_glob: "release/Job Tayari Desktop-*"
+          - platform: Linux x64
+            runner: ubuntu-latest
+            target: --linux --x64
+            artifact_glob: "release/Job Tayari Desktop-*"
+
+    env:
+      VITE_API_URL: ${{ secrets.VITE_API_URL }}
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Package desktop application
+        run: pnpm exec node scripts/build-desktop.mjs ${{ matrix.target }}
+
+      - name: Upload unsigned artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tayari-desktop-${{ matrix.runner }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error
+
+
+  extension:
+    name: Package Chrome extension
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Package Chrome extension
+        run: node scripts/package-extension.mjs
+      - name: Upload Chrome extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: tayari-chrome-extension
+          path: release/Job-Tayari-Chrome-Extension.zip
+          if-no-files-found: error
+  publish:
+    name: Publish tagged desktop release
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: [package, extension]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tayari-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/Job Tayari Desktop-*
+            release-assets/Job-Tayari-Chrome-Extension.zip
+          fail_on_unmatched_files: true
+          generate_release_notes: true

@@ -11,6 +11,9 @@ const SAFE_EXTERNAL_HOSTS = new Set([
   "boards.greenhouse.io",
   "lever.co",
   "jobs.lever.co",
+  "supabase.co",
+  "github.com",
+  "www.github.com",
 ]);
 
 const SECURITY_CSP = [
@@ -63,6 +66,17 @@ function validateExternalUrl(value) {
   return parsed.toString();
 }
 
+function validateAuthUrl(value, isDev) {
+  if (typeof value !== "string" || value.length > 4096) throw new Error("A valid authentication URL is required.");
+  let parsed;
+  try { parsed = new URL(value); } catch { throw new Error("Authentication URL must be a valid URL."); }
+  const loopback = isDev && parsed.protocol === "http:" && (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost");
+  if (!loopback && (parsed.protocol !== "https:" || !hostMatchesAllowlist(parsed.hostname))) {
+    throw new Error("Authentication URL is not approved.");
+  }
+  if (parsed.hash) throw new Error("Authentication URL must not contain a fragment.");
+  return parsed.toString();
+}
 function assertSettingsPayload(next) {
   if (!next || typeof next !== "object" || Array.isArray(next) || Object.keys(next).some((key) => key !== "apiBaseUrl")) {
     throw new Error("Settings payload is invalid.");
@@ -77,5 +91,6 @@ module.exports = {
   assertSettingsPayload,
   hostMatchesAllowlist,
   normalizeApiBaseUrl,
+  validateAuthUrl,
   validateExternalUrl,
 };

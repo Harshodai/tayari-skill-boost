@@ -36,6 +36,21 @@ test("imports one candidate-selected public URL through the durable lifecycle en
       category: "Career Strategy",
       summary: ["Keep a review trail."],
       saved_at: "2026-08-12T00:00:00Z",
+      nlp: {
+        category: "Career Strategy",
+        topics: [],
+        keyphrases: [],
+        entities: [],
+        summary: "Keep a review trail.",
+        confidence: 0,
+        needs_review: true,
+        status: "needs_review",
+        model: "unavailable",
+        version: "nlp-v1",
+      },
+      tags: [],
+      keyphrases: [],
+      entities: [],
     },
   });
   expect(requests).toHaveLength(1);

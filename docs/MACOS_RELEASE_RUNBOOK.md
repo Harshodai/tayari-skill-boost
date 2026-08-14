@@ -1,6 +1,6 @@
 # Tayari macOS Release Runbook
 
-This runbook defines the release checks for the **Apple Silicon arm64** Tayari Desktop package. The repository intentionally does not contain Apple certificates, notarization credentials, customer data, or update-signing secrets. Ordinary CI runs the static desktop contract only; a release operator must complete the credentialed checks on a clean macOS runner before distribution.
+This runbook defines the release checks for the **Apple Silicon arm64** Job Tayari Desktop package. The repository intentionally does not contain Apple certificates, notarization credentials, customer data, or update-signing secrets. Ordinary CI runs the static desktop contract only; a release operator must complete the credentialed checks on a clean macOS runner before distribution.
 
 ## Release inputs
 
@@ -8,7 +8,7 @@ The release operator must provide the credentials through the CI secret store or
 
 ## Credentialed build
 
-Use a clean macOS 14 or newer arm64 runner. Install the pinned Bun dependencies with `bun install --frozen-lockfile`, export the release-only environment variables, and run:
+Use a clean macOS 14 or newer arm64 runner. Install the pinned Bun dependencies with `pnpm install --frozen-lockfile`, export the release-only environment variables, and run:
 
 ```sh
 VITE_DESKTOP_BUILD=true \
@@ -16,21 +16,21 @@ VITE_USE_SELF_HOSTED=false \
 VITE_API_URL=https://api.example.invalid/api \
 VITE_SUPABASE_URL=https://project.example.invalid \
 VITE_SUPABASE_PUBLISHABLE_KEY=release-publishable-key \
-bun run desktop:build
+pnpm desktop:build:mac:release
 ```
 
-The placeholder values above are examples only. Replace them with the approved production values in the runner environment. The configured build targets **arm64 only** and emits a signed DMG and ZIP using the versioned artifact name `Tayari Desktop-0.1.0-arm64.*`. x64 is not a supported release target until a separate build and test matrix exists.
+The placeholder values above are examples only. The local command produces unsigned internal artifacts unless Apple signing credentials are present. Public distribution still requires the credentialed Gatekeeper and notarization checks below. Replace them with the approved production values in the runner environment. The configured build targets **arm64 only** and emits a signed DMG and ZIP using the versioned artifact name `Job Tayari Desktop-0.1.0-arm64.*`. x64 is not a supported release target until a separate build and test matrix exists.
 
 ## Artifact verification
 
 For each produced artifact, run `bash scripts/mac_artifact_contract.sh path/to/artifact`. The script rejects missing artifacts, non-arm64 packages, source maps, test files, backend/runtime payloads, local Supabase files, development Compose files, and unsigned or unverified applications. On macOS, independently run the following checks against the extracted `.app` and DMG:
 
 ```sh
-codesign --verify --deep --strict --verbose=2 "Tayari Desktop.app"
-spctl --assess --type execute --verbose=4 "Tayari Desktop.app"
-xcrun stapler validate "Tayari Desktop.app"
-hdiutil verify "Tayari Desktop-0.1.0-arm64.dmg"
-shasum -a 256 "Tayari Desktop-0.1.0-arm64.dmg" "Tayari Desktop-0.1.0-arm64.zip"
+codesign --verify --deep --strict --verbose=2 "Job Tayari Desktop.app"
+spctl --assess --type execute --verbose=4 "Job Tayari Desktop.app"
+xcrun stapler validate "Job Tayari Desktop.app"
+hdiutil verify "Job Tayari Desktop-0.1.0-arm64.dmg"
+shasum -a 256 "Job Tayari Desktop-0.1.0-arm64.dmg" "Job Tayari Desktop-0.1.0-arm64.zip"
 ```
 
 `spctl` and `stapler validate` are release evidence, not optional diagnostics. If notarization is unavailable, the artifact is **not distributable**; it may be retained as an internal unsigned build only when clearly marked and isolated from public download channels.

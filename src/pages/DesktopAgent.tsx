@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { apiFetch, BackendUnavailableError } from "@/api";
 import tayAgentAvatar from "@/assets/tay-agent.png";
 
-type DesktopStatus = Awaited<NonNullable<typeof window.tayariDesktop>["status"]>;
+type DesktopStatus = Awaited<ReturnType<NonNullable<typeof window.tayariDesktop>["status"]>>;
 type LocalFile = { name: string; path: string };
 
 const ACTIONS = [
@@ -41,7 +41,7 @@ export default function DesktopAgent() {
 
   const chooseFiles = async () => {
     if (!desktop) {
-      setError("File selection is available in the macOS app. Open Job Tayari Desktop to attach local files.");
+      setError("File selection is available in the desktop app. Open Job Tayari Desktop to attach local files.");
       return;
     }
     setFiles(await desktop.pickFiles());
@@ -149,7 +149,7 @@ export default function DesktopAgent() {
           </section>
 
           <aside className="space-y-5">
-            <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 backdrop-blur-xl"><p className="text-sm font-semibold text-white">Local services</p><p className="mt-1.5 text-xs leading-5 text-slate-400">The desktop app launches the existing local service stack through Docker Desktop. It does not hide setup or permissions.</p><div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/70 p-3 text-xs"><p className="text-slate-500">API endpoint</p><p className="mt-1 break-all font-mono text-slate-200">{status?.apiBaseUrl ?? "Checking…"}</p></div><div className="mt-3 grid grid-cols-2 gap-2"><Button type="button" variant="outline" disabled={!desktop || serviceAction !== null || status?.apiReachable} onClick={() => void controlServices("start")} className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">{serviceAction === "start" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Start"}</Button><Button type="button" variant="outline" disabled={!desktop || serviceAction !== null || !status?.apiReachable} onClick={() => void controlServices("stop")} className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">{serviceAction === "stop" ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Square className="mr-1.5 h-3.5 w-3.5" />Stop</>}</Button></div></section>
+            <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 backdrop-blur-xl"><p className="text-sm font-semibold text-white">Local services</p><p className="mt-1.5 text-xs leading-5 text-slate-400">The desktop app launches the existing local service stack through Docker Desktop on macOS, Windows, and Linux. It does not hide setup or permissions.</p><div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/70 p-3 text-xs"><p className="text-slate-500">API endpoint</p><p className="mt-1 break-all font-mono text-slate-200">{status?.apiBaseUrl ?? "Checking…"}</p></div><div className="mt-3 grid grid-cols-2 gap-2"><Button type="button" variant="outline" disabled={!desktop || serviceAction !== null || status?.apiReachable} onClick={() => void controlServices("start")} className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">{serviceAction === "start" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Start"}</Button><Button type="button" variant="outline" disabled={!desktop || serviceAction !== null || !status?.apiReachable} onClick={() => void controlServices("stop")} className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">{serviceAction === "stop" ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Square className="mr-1.5 h-3.5 w-3.5" />Stop</>}</Button></div></section>
             <section className="rounded-2xl border border-amber-300/15 bg-amber-300/5 p-4"><p className="text-sm font-semibold text-amber-100">Before a browser action</p><ol className="mt-3 space-y-2 text-xs leading-5 text-slate-400"><li className="flex gap-2"><span className="font-semibold text-amber-200">01</span>Confirm the target site and role.</li><li className="flex gap-2"><span className="font-semibold text-amber-200">02</span>Watch the browser-review stream.</li><li className="flex gap-2"><span className="font-semibold text-amber-200">03</span>Use the stop control if the work no longer matches your intent.</li></ol><Link to="/control-room" className="mt-4 inline-flex items-center text-xs font-semibold text-amber-100 hover:text-white">Open browser review <ChevronRight className="ml-1 h-3.5 w-3.5" /></Link></section>
           </aside>
         </div>

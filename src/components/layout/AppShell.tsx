@@ -54,12 +54,12 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
     <SidebarProvider>
       <SkipToContent />
       <CommandPalette />
-      <div className="min-h-screen flex w-full bg-background">
+      <div className="app-shell min-h-screen flex w-full bg-background">
         <AppSidebar />
 
         <div className="flex-1 flex flex-col min-w-0">
           <DemoModeBanner />
-          <header className="sticky top-0 z-30 h-14 flex items-center gap-3 border-b border-border/60 bg-background/85 backdrop-blur px-3 md:px-5">
+          <header className="app-header sticky top-0 z-30 h-14 flex items-center gap-3 border-b border-border/60 bg-background/85 backdrop-blur px-3 md:px-5">
             <SidebarTrigger />
             <div className="flex-1 min-w-0">
               {title && (
@@ -163,7 +163,7 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
             </div>
           )}
 
-          <main id="main-content" className="flex-1 p-4 md:p-6 lg:p-8 pb-24 md:pb-8 max-w-[1600px] w-full mx-auto">
+          <main id="main-content" className="app-content flex-1 p-4 md:p-6 lg:p-8 pb-24 md:pb-8 max-w-[1600px] w-full mx-auto">
             {children}
           </main>
         </div>

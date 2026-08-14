@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  X,
+  Minimize2,
+  Maximize2,
   ChevronRight,
   Sparkles,
   Terminal,
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAsciiAnimation } from "./useAsciiAnimation";
 import { TayPet3D } from "./TayPet3D";
+import { TayPetMark } from "./TayPetMark";
 import { PET_TIPS } from "./petTips";
 import { PET_SKINS, skinFor, usePetState } from "./petStorage";
 import { PET_TOPICS, actionsForRoute, type PetTopic } from "./petKnowledge";
@@ -138,14 +140,14 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
 
   /* ---------------- greeting wave ---------------- */
   useEffect(() => {
-    if (saved.dismissed) return;
+    if (saved.minimized) return;
     setMood("wave");
     const id = window.setTimeout(() => {
       setGreeting(false);
       setMood("idle");
     }, GREET_MS);
     return () => window.clearTimeout(id);
-  }, [saved.dismissed]);
+  }, [saved.minimized]);
 
   // Persist mood + tip position so the next session resumes identically.
   useEffect(() => {
@@ -158,17 +160,17 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
 
   // Rotate tips only when the visitor left Tay chatty and the panel is closed.
   useEffect(() => {
-    if (saved.dismissed || leaving || open || greeting || !saved.chatty) return;
+    if (saved.minimized || leaving || open || greeting || !saved.chatty) return;
     const id = window.setInterval(() => {
       setTipIndex((i) => (i + 1) % tips.length);
       track("tip_shown");
     }, TIP_INTERVAL);
     return () => window.clearInterval(id);
-  }, [saved.dismissed, saved.chatty, leaving, open, greeting, tips.length, track]);
+  }, [saved.minimized, saved.chatty, leaving, open, greeting, tips.length, track]);
 
   // Blink, and doze off once the page has been quiet.
   useEffect(() => {
-    if (saved.dismissed || leaving) return;
+    if (saved.minimized || leaving) return;
     const id = window.setInterval(() => {
       if (Date.now() - lastInteraction.current > IDLE_SLEEP_MS) {
         setMood("sleep");
@@ -178,7 +180,17 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
       window.setTimeout(() => setMood((m) => (m === "blink" ? "idle" : m)), 320);
     }, 5200);
     return () => window.clearInterval(id);
-  }, [saved.dismissed, leaving]);
+  }, [saved.minimized, leaving]);
+
+  // Small, periodic movement keeps Tay feeling alive without stealing focus.
+  useEffect(() => {
+    if (saved.minimized || leaving || open || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const id = window.setInterval(() => {
+      setMood("wave");
+      window.setTimeout(() => setMood((current) => current === "wave" ? "idle" : current), 900);
+    }, 15000);
+    return () => window.clearInterval(id);
+  }, [saved.minimized, leaving, open]);
 
   const wake = useCallback(() => {
     lastInteraction.current = Date.now();
@@ -240,10 +252,17 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
     [askTopic, query, track],
   );
 
-  const dismiss = useCallback(() => {
-    track("pet_dismissed");
-    patch({ dismissed: true });
-  }, [patch, track]);
+  const minimize = useCallback(() => {
+    wake();
+    setOpen(false);
+    patch({ dismissed: false, minimized: true, mood: "idle" });
+    track("pet_minimized");
+  }, [patch, track, wake]);
+  const restore = useCallback(() => {
+    wake();
+    patch({ dismissed: false, minimized: false, mood: "wave" });
+    track("pet_restored");
+  }, [patch, track, wake]);
 
   const toggleRenderer = useCallback(() => {
     wake();
@@ -257,7 +276,7 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
     track(done ? "tour_completed" : "tour_step_started", { target: tourStep?.id, tab: "tour" });
   }, [patch, saved.tourStep, tour.length, track, tourStep?.id]);
 
-  // Keyboard rig: Esc closes and returns focus, "t" summons Tay.
+  // Keyboard rig: Esc closes the panel and returns focus, "t" summons Tay.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement;
@@ -272,7 +291,7 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key.toLowerCase() === "t") {
         wake();
-        if (saved.dismissed) patch({ dismissed: false });
+        if (saved.minimized) patch({ dismissed: false, minimized: false, mood: "wave" });
         setOpen((o) => {
           trackPetEvent(user?.id, o ? "pet_closed" : "pet_opened", { route: pathname });
           return !o;
@@ -281,7 +300,7 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [patch, saved.dismissed, wake, open, user?.id, pathname]);
+  }, [patch, saved.minimized, wake, open, user?.id, pathname]);
 
   // Move focus into the panel when it opens (dialog semantics).
   useEffect(() => {
@@ -309,11 +328,36 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
     }
   }, []);
 
-  if (saved.dismissed) return null;
 
   const petName = saved.name || "Tay";
   const skinStyle = skin.vars as React.CSSProperties;
   const left = saved.position === "bl";
+  if (saved.minimized) {
+    return (
+      <div
+        className={cn(
+          "fixed z-40 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] md:bottom-8",
+          left ? "left-3 md:left-6" : "right-3 md:right-6",
+          className,
+        )}
+        style={skinStyle}
+        role="complementary"
+      >
+        <button
+          type="button"
+          onClick={restore}
+          onMouseEnter={() => setMood("wave")}
+          onFocus={wake}
+          aria-label={`Restore ${petName}`}
+          className="group flex items-center gap-2 rounded-2xl border border-primary/30 bg-card/90 px-2 py-2 text-left shadow-xl shadow-primary/10 backdrop-blur-md transition-all duration-200 hover:-translate-y-1 hover:border-primary/70 hover:shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <TayPetMark state={mood} size={48} />
+          <span className="hidden pr-2 sm:block"><span className="block text-xs font-semibold text-foreground">{petName}</span><span className="block text-[10px] text-muted-foreground">Open companion</span></span>
+          <Maximize2 className="mr-1 h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-primary" aria-hidden />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -671,12 +715,12 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
             <button
               type="button"
               onClick={() => {
-                openPanel(false);
+                minimize();
                 triggerRef.current?.focus();
               }}
-              className="text-[10px] text-muted-foreground hover:text-foreground"
+              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
             >
-              Close
+              <Minimize2 className="h-3 w-3" aria-hidden /> Minimize
             </button>
           </div>
         </div>
@@ -756,14 +800,14 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
 
           <button
             type="button"
-            onClick={dismiss}
-            aria-label={`Hide ${petName}`}
+            onClick={minimize}
+            aria-label={`Minimize ${petName}`}
             className={cn(
-              "absolute -top-2 rounded-full border border-border/60 bg-background p-1 text-muted-foreground shadow-sm transition-colors hover:text-foreground",
+              "absolute -top-2 rounded-full border border-border/60 bg-background p-1 text-muted-foreground shadow-sm transition-colors hover:border-primary/50 hover:text-primary",
               left ? "-left-2" : "-right-2",
             )}
           >
-            <X className="h-3 w-3" aria-hidden />
+            <Minimize2 className="h-3 w-3" aria-hidden />
           </button>
         </div>
       </div>

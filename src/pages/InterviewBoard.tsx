@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { AppShell } from "@/components/layout";
+import { CandidateCommandCenter } from "@/components/interview/CandidateCommandCenter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -562,6 +563,15 @@ const InterviewBoard = () => {
   return (
     <AppShell>
       <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl space-y-8 animate-fade-in">
+        {/* Candidate command center */}
+        <CandidateCommandCenter
+          applicationCount={applications.length}
+          gmailEnabled={Boolean(gmailStatus?.enabled)}
+          gmailConnected={Boolean(gmailStatus?.connected)}
+          onSyncGmail={handleGmailSync}
+          syncingGmail={isSyncingGmail}
+        />
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-border/60">
           <div>

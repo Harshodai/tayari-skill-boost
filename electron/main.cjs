@@ -8,18 +8,41 @@ const {
   SECURITY_CSP,
   assertSettingsPayload,
   normalizeApiBaseUrl,
+  validateAuthUrl,
   validateExternalUrl,
 } = require("./security.cjs");
 
 const execFileAsync = promisify(execFile);
 const isDev = Boolean(process.env.ELECTRON_START_URL);
+const DESKTOP_PROTOCOL = "tayari";
 const trustedOrigins = new Set();
 const selectedFilePaths = new Set();
 let staticServer;
+let mainWindow;
+let pendingAuthCallback;
 let shuttingDown = false;
 
 const execFileWithTimeout = (file, args, options) => execFileAsync(file, args, options);
 
+function forwardAuthCallback(url) {
+  if (typeof url !== "string" || !url.startsWith(DESKTOP_PROTOCOL + "://")) return;
+  pendingAuthCallback = url;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("desktop:auth-callback", url);
+    pendingAuthCallback = undefined;
+  }
+}
+function registerDesktopProtocol() {
+  try {
+    if (process.defaultApp && process.argv[1]) {
+      app.setAsDefaultProtocolClient(DESKTOP_PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
+    } else {
+      app.setAsDefaultProtocolClient(DESKTOP_PROTOCOL);
+    }
+  } catch {
+    // Protocol registration can be unavailable in restricted development environments.
+  }
+}
 function runtimeDir() {
   return isDev ? path.resolve(__dirname, "..") : path.join(process.resourcesPath, "tayari-runtime");
 }
@@ -91,6 +114,7 @@ async function desktopStatus() {
   const settings = await readSettings();
   if (!settings.apiBaseUrl) {
     return {
+      platform: process.platform,
       apiBaseUrl: "",
       apiReachable: false,
       apiStatus: null,
@@ -107,6 +131,7 @@ async function desktopStatus() {
     dockerAvailable = false;
   }
   return {
+    platform: process.platform,
     apiBaseUrl: settings.apiBaseUrl,
     apiReachable: health.reachable,
     apiStatus: health.statusCode,
@@ -185,7 +210,7 @@ async function createWindow() {
     height: 920,
     minWidth: 1080,
     minHeight: 720,
-    titleBarStyle: "hiddenInset",
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     backgroundColor: "#080d1c",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -224,6 +249,13 @@ async function createWindow() {
     });
   });
 
+  mainWindow = window;
+  window.webContents.on("did-finish-load", () => {
+    if (pendingAuthCallback) {
+      window.webContents.send("desktop:auth-callback", pendingAuthCallback);
+      pendingAuthCallback = undefined;
+    }
+  });
   await window.loadURL(loadUrl);
 }
 
@@ -262,6 +294,10 @@ function registerIpcHandlers() {
     await shell.openExternal(validateExternalUrl(url));
   });
 
+  ipcMain.handle("desktop:open-auth", async (event, url) => {
+    assertTrustedSender(event);
+    await shell.openExternal(validateAuthUrl(url, isDev));
+  });
   ipcMain.handle("desktop:start-services", async (event) => {
     assertTrustedSender(event);
     const { stdout, stderr } = await compose(["up", "-d", "--build"]);
@@ -281,7 +317,6 @@ function registerIpcHandlers() {
     return writeSettings({ apiBaseUrl: next.apiBaseUrl });
   });
 }
-
 async function stopServicesBestEffort() {
   if (!isDev || shuttingDown) return;
   shuttingDown = true;
@@ -292,26 +327,45 @@ async function stopServicesBestEffort() {
   }
 }
 
-app.whenReady().then(async () => {
-  registerIpcHandlers();
-  await createWindow();
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.whenReady().then(async () => {
+    registerDesktopProtocol();
+    registerIpcHandlers();
+    await createWindow();
+    const initialCallback = process.argv.find((arg) => arg.startsWith(DESKTOP_PROTOCOL + "://"));
+    if (initialCallback) forwardAuthCallback(initialCallback);
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) void createWindow();
+    });
   });
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
-});
-
-app.on("before-quit", (event) => {
-  if (!isDev || shuttingDown) {
-    staticServer?.server?.close();
-    return;
+  if (process.platform === "darwin") {
+    app.on("open-url", (event, url) => {
+      event.preventDefault();
+      forwardAuthCallback(url);
+    });
   }
-  event.preventDefault();
-  void stopServicesBestEffort().finally(() => {
-    staticServer?.server?.close();
-    app.quit();
+  app.on("second-instance", (_event, commandLine) => {
+    const callbackUrl = commandLine.find((arg) => arg.startsWith(DESKTOP_PROTOCOL + "://"));
+    if (callbackUrl) forwardAuthCallback(callbackUrl);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
   });
-});
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") app.quit();
+  });
+  app.on("before-quit", (event) => {
+    if (!isDev || shuttingDown) {
+      staticServer?.server?.close();
+      return;
+    }
+    event.preventDefault();
+    void stopServicesBestEffort().finally(() => {
+      staticServer?.server?.close();
+      app.quit();
+    });
+  });
+}

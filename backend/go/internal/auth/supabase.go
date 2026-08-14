@@ -146,6 +146,7 @@ func (a *SupabaseAuth) SocialLogin(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Add state to request for Goth
+	setOAuthReturnToCookie(w, r.URL.Query().Get("return_to"), a.Config.FrontendURL)
 	q := r.URL.Query()
 	q.Set("state", state)
 	r.URL.RawQuery = q.Encode()
@@ -182,10 +183,10 @@ func (a *SupabaseAuth) SocialCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Authentication failed", http.StatusInternalServerError)
 		return
 	}
-	a.handleSocialCallback(w, r, user)
+	a.handleSocialCallback(w, r, user, consumeOAuthReturnTo(w, r, a.Config.FrontendURL))
 }
 
-func (a *SupabaseAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request, gothUser goth.User) {
+func (a *SupabaseAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request, gothUser goth.User, returnTo string) {
 	if !validateEmail(gothUser.Email) {
 		// Log sanitized email or generic message to avoid PII leak
 		log.Printf("handleSocialCallback: invalid email from provider (provider: %s)", gothUser.Provider)
@@ -224,7 +225,7 @@ func (a *SupabaseAuth) handleSocialCallback(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Redirect to frontend with token in fragment
-	frontendURL := a.Config.FrontendURL + "/auth/callback#token=" + token
+	frontendURL := returnTo + "#token=" + token
 	http.Redirect(w, r, frontendURL, http.StatusFound)
 }
 

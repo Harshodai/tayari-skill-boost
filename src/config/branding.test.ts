@@ -55,6 +55,7 @@ describe("branding: Job Tayari is the single product name (P0)", () => {
   // "Tayari" in a file not on this list fails the gate.
   const legacyBareTayariFiles = [
     "/App.tsx",
+    "/config/desktopDownloads.ts",
     "/config/activation.ts",
     "/components/pipeline/ChainStrip.tsx",
     "/components/landing/SocialProofSection.tsx",

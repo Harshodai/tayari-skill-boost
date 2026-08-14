@@ -51,7 +51,9 @@ export const PET_SKINS: PetSkin[] = [
 ];
 
 export interface PetPersistedState {
+  /** Legacy field kept for synced-state compatibility; Tay is never removed. */
   dismissed: boolean;
+  minimized: boolean;
   renderer: PetRenderer;
   /** Corner of the viewport Tay sits in. */
   position: PetPosition;
@@ -74,6 +76,7 @@ export interface PetPersistedState {
 
 export const DEFAULT_PET_STATE: PetPersistedState = {
   dismissed: false,
+  minimized: false,
   renderer: "3d",
   position: "br",
   mood: "wave",
@@ -99,12 +102,21 @@ function read(): PetPersistedState {
       const legacyRenderer = window.localStorage.getItem("tayari_pet_renderer");
       return {
         ...DEFAULT_PET_STATE,
-        dismissed: legacy,
+        dismissed: false,
+        minimized: legacy,
         renderer: legacyRenderer === "ascii" ? "ascii" : "3d",
       };
     }
     const parsed = JSON.parse(raw) as Partial<PetPersistedState>;
-    return { ...DEFAULT_PET_STATE, ...parsed, seenTopics: parsed.seenTopics ?? [] };
+    return {
+      ...DEFAULT_PET_STATE,
+      ...parsed,
+      // v2 used `dismissed` to remove Tay. Preserve that preference as a
+      // minimized pet so the companion is always recoverable with one click.
+      dismissed: false,
+      minimized: parsed.minimized ?? parsed.dismissed ?? false,
+      seenTopics: parsed.seenTopics ?? [],
+    };
   } catch {
     return DEFAULT_PET_STATE;
   }

@@ -33,6 +33,8 @@ const ResumeUpload = lazy(() => import('./pages/ResumeUpload'));
 const ResumeResults = lazy(() => import('./pages/ResumeResults'));
 const ResumeTemplates = lazy(() => import('./pages/ResumeTemplates'));
 const InterviewBoard = lazy(() => import('./pages/InterviewBoard'));
+const InterviewExperiences = lazy(() => import('./pages/InterviewExperiences'));
+const CodingPractice = lazy(() => import('./pages/CodingPractice'));
 const JobSearch = lazy(() => import('./pages/JobSearch'));
 const AutoPilot = lazy(() => import('./pages/AutoPilot'));
 const CareerRoadmap = lazy(() => import('./pages/CareerRoadmap'));
@@ -86,6 +88,7 @@ const TypstResumeStudio = lazy(() => import('./pages/TypstResumeStudio'));
 const CandidateAnswerBank = lazy(() => import('./pages/CandidateAnswerBank'));
 const AgentReachHub = lazy(() => import('./pages/AgentReachHub'));
 const LandingPage = lazy(() => import('./pages/Landing'));
+const Downloads = lazy(() => import('./pages/Downloads'));
 const Omnisave = lazy(() => import('./pages/Omnisave'));
 const TayariComputerControlRoom = lazy(() => import('./components/TayariComputerControlRoom'));
 const DesktopAgent = lazy(() => import('./pages/DesktopAgent'));
@@ -120,6 +123,7 @@ const App = () => (
               {/* Public Routes */}
               <Route path="/" element={<Index />} />
               <Route path="/landing" element={<LandingPage />} />
+              <Route path="/downloads" element={<Downloads />} />
               <Route path="/omnisave" element={<Omnisave />} />
               <Route path="/control-room" element={<ProtectedRoute><TayariComputerControlRoom /></ProtectedRoute>} />
               <Route path="/desktop" element={<ProtectedRoute><DesktopAgent /></ProtectedRoute>} />
@@ -142,6 +146,8 @@ const App = () => (
               <Route path="/interview" element={<ProtectedRoute><InterviewBoard /></ProtectedRoute>} />
               <Route path="/interview/kanban" element={<ProtectedRoute><InterviewBoard /></ProtectedRoute>} />
               <Route path="/applications" element={<ProtectedRoute><InterviewBoard /></ProtectedRoute>} />
+              <Route path="/interview/experiences" element={<ProtectedRoute><InterviewExperiences /></ProtectedRoute>} />
+              <Route path="/interview/coding" element={<ProtectedRoute><CodingPractice /></ProtectedRoute>} />
 
               {/* Conditionally Rendered Routes */}
               {features.careerRoadmap && (

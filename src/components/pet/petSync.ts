@@ -13,6 +13,7 @@ import type { PetPersistedState } from "./petStorage";
 export type SyncedPetState = Pick<
   PetPersistedState,
   | "dismissed"
+  | "minimized"
   | "renderer"
   | "mood"
   | "skinId"
@@ -27,6 +28,7 @@ export type SyncedPetState = Pick<
 
 const SYNCED_KEYS: (keyof SyncedPetState)[] = [
   "dismissed",
+  "minimized",
   "renderer",
   "mood",
   "skinId",
@@ -76,6 +78,8 @@ export type PetEventName =
   | "pet_opened"
   | "pet_closed"
   | "pet_dismissed"
+  | "pet_minimized"
+  | "pet_restored"
   | "tab_opened"
   | "tip_shown"
   | "action_clicked"

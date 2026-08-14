@@ -1042,6 +1042,10 @@
     }
     
     if (request.action === 'autofill' || request.action === 'autofill_form') {
+      if (request.approved !== true) {
+        sendResponse({ success: false, error: 'Explicit approval is required before filling fields.' });
+        return true;
+      }
       loadProfileData().then(() => {
         const result = autofillForm();
         sendResponse(result);
