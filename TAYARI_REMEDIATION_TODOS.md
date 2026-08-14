@@ -108,12 +108,12 @@
 
 ## M6 — Final proof and release decision
 
-- [ ] **M6-01** Run Go tests, vet, Python tests, frontend typecheck/lint/unit, E2E, dependency audit, secret scan, and container validation from a clean checkout.
-- [ ] **M6-02** Run unauthenticated endpoint inventory and compare every route to the explicit exposure registry.
-- [ ] **M6-03** Run hostile staging tests for flood, SSRF, prompt injection, cross-tenant access, approval replay, kill switch, deletion, backup restore, and rollback.
-- [ ] **M6-04** Verify the release artifact contains no localhost/dev placeholders, unapproved secrets, source mounts, or unsigned images/apps.
-- [ ] **M6-05** Record residual risks with owner, evidence, expiry date, and explicit launch scope.
-- [ ] **M6-06** Issue one of three decisions: `NO-GO`, `INTERNAL DEMO ONLY`, or `PUBLIC BETA GO`.
+- [ ] **M6-01** Run Go tests, vet, Python tests, frontend typecheck/lint/unit, E2E, dependency audit, secret scan, and container validation from a clean checkout. Go, Python, frontend, public-route E2E, secret scan, migrations, release contract, and build proofs pass; the JavaScript dependency scanner reports 25 new high findings and pip-audit could not resolve the pinned `browser-use==0.1.34` on the connected Mac.
+- [ ] **M6-02** Run unauthenticated endpoint inventory and compare every route to the explicit exposure registry. Existing targeted endpoint proofs pass, but a complete registry comparison has not been produced.
+- [ ] **M6-03** Run hostile staging tests for flood, SSRF, prompt injection, cross-tenant access, approval replay, kill switch, deletion, backup restore, and rollback. Unit and contract proofs exist; live staging flood/SSRF/restore/rollback evidence is still missing.
+- [ ] **M6-04** Verify the release artifact contains no localhost/dev placeholders, unapproved secrets, source mounts, or unsigned images/apps. Frontend, desktop, and production Compose contracts pass; Apple signing/notarization and immutable staging promotion were not executed, and the dependency gate is red.
+- [x] **M6-05** Record residual risks with owner, evidence, expiry date, and explicit launch scope. Residual risks and owners are recorded in `TAYARI_RELEASE_GATE.md`.
+- [x] **M6-06** Issue one of three decisions: `NO-GO`, `INTERNAL DEMO ONLY`, or `PUBLIC BETA GO`. Decision: **NO-GO for public launch**; allow only controlled internal demos until dependency, staging, signing, and privacy/claims gates close.
 
 ## Current execution order
 
