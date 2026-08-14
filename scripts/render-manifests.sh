@@ -34,6 +34,11 @@ if [[ -n "$ALLOW_PLACEHOLDERS" && "$ALLOW_PLACEHOLDERS" != "--allow-placeholders
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve relative output paths before entering the temporary overlay so the
+# rendered artifact is written to the caller’s repository, not the temp tree.
+if [[ "$OUTPUT_FILE" != /* ]]; then
+  OUTPUT_FILE="$ROOT_DIR/$OUTPUT_FILE"
+fi
 KUSTOMIZE_BIN="${KUSTOMIZE_BIN:-kustomize}"
 
 if ! command -v "$KUSTOMIZE_BIN" >/dev/null 2>&1; then

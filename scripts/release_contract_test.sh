@@ -28,6 +28,7 @@ grep -q 'VITE_SUPABASE_PUBLISHABLE_KEY:?Set VITE_SUPABASE_PUBLISHABLE_KEY' scrip
 grep -q '@sha256:\[0-9a-fA-F\]{64}' scripts/deploy-environment.sh
 grep -q 'RELEASE_ATTESTATION_VERIFIED' scripts/deploy-environment.sh
 grep -q 'KUBE_CONTEXT must be explicitly set' scripts/deploy-environment.sh
+grep -q 'OUTPUT_FILE="$ROOT_DIR/$OUTPUT_FILE"' scripts/render-manifests.sh
 
 # Dependency installation is deterministic and security scanning is blocking.
 grep -q 'pip-audit --requirement requirements.txt.*--strict' .github/workflows/ci.yml
