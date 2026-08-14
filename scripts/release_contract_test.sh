@@ -52,6 +52,8 @@ grep -q 'PLAYWRIGHT_REUSE_EXISTING_SERVER' .github/workflows/ci.yml
 grep -q 'PLAYWRIGHT_REUSE_EXISTING_SERVER' playwright.config.ts
 grep -q '"@vitest/coverage-v8"' package.json
 grep -q 'bun run test -- --coverage' .github/workflows/deploy.yml
+grep -q 'cp .env.example .env' .github/workflows/deploy.yml
+grep -q 'cp supabase-local/.env.example supabase-local/.env' .github/workflows/deploy.yml
 ! grep -RInE 'yarn (install|build|lint)|bun install --no-save|bun.lockb' .github/workflows Dockerfile* scripts --exclude='*.md'
 ! grep -q '"lint": "eslint \."' package.json
 

@@ -68,6 +68,11 @@ jobs:
         run: |
           bun run build
 
+      - name: Prepare Docker Compose build environment
+        run: |
+          cp .env.example .env
+          cp supabase-local/.env.example supabase-local/.env
+
       - name: Build Docker images
         run: |
           docker compose -f docker-compose.yml build
