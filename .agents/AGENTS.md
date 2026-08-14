@@ -40,3 +40,25 @@ All AI agents must strictly adhere to the continuous learnings, code review stan
 - **Explicit Error Banners**: Non-2xx backend errors must be rendered in styled UI alert banners (`AlertCircle`).
 - **Async Lock Hygiene**: Use lazy per-event-loop lock getters (`_get_repl_lock()`) to prevent event loop binding errors during pytest runs.
 
+
+## 🔐 Ruthless Production Security & HITL Rules
+
+1. **Manual-submit boundary is mandatory**: `AUTONOMOUS_SUBMIT_ENABLED` must default to `false` and be enforced server-side. The agent must never create accounts, enter passwords, OTP/MFA codes, CAPTCHA answers, legal declarations, work authorization, sponsorship, salary, EEO, or credentials. These fields must pause the run and create an owner-scoped durable human handoff.
+2. **A browser stop button must terminate the real resource**: client aborts are not enough. Server-side cancellation must terminate the browser session and the work loop must poll the cancellation state.
+3. **Identity must come from verified auth**: reject `default_user` and all synthetic identities. The Go gateway must forward the verified user ID to Python, and every database read/write/transition must include an owner predicate.
+4. **Sensitive answer storage must be persistent and fail closed**: answer snapshots require owner, version, provenance, sensitivity class, application context, expiry/confirmation rules, and auditability. A database outage must never appear as an empty safe queue. Previously stored sensitive answers must not silently auto-fill a new application.
+5. **RLS and grants are separate controls**: every public table needs verified owner-scoped RLS, least-privilege grants, and two-user negative tests. Secret tables such as API keys and password-reset tokens should be service-role-only. Never use `USING (true)` for `anon` or general `authenticated` access.
+6. **Truthful UI only**: no fabricated names, emails, scores, proof claims, URLs, compensation values, mock application payloads, or unconditional “ready” labels. A manually recorded submission is candidate-confirmed but externally unverified until a real receipt/evidence exists.
+
+## ☁️ AWS Canary and Cost Rules
+
+1. The low-cost AWS deployment is a single EC2 canary using `docker-compose.aws.yml`: Caddy is the only public reverse proxy; Go is public behind `/api`; Python and Redis remain private; Supabase/PostgreSQL/Auth stay external until the self-hosted database contract is verified.
+2. Use `deploy/aws/ec2-canary.yaml` and `deploy/aws/provision.sh`; create a budget before provisioning; restrict SSH to the operator CIDR; prefer SSM; encrypt the root volume; keep `deploy/aws/.env` outside Git with mode 600; never commit secrets or password-shaped database examples.
+3. Use `deploy/aws/deploy.sh config` before `deploy/aws/deploy.sh up`. Keep Playwright/Celery concurrency conservative on micro instances. Treat the host as a canary, not high availability.
+4. Back up PostgreSQL/Supabase as the system of record and treat Redis as recoverable queue/cache state. Verify restore into a disposable environment before launch. Do not create NAT Gateway, RDS, ElastiCache, or a load balancer merely to imitate production on a Free Tier experiment.
+
+## ✅ Release Gates and Git Discipline
+
+1. `bun run security:production` must pass with zero unresolved critical/high findings. Never update the baseline merely to make CI green; remediate with forward migrations or remove the affected feature from launch scope. The current scan has 41 critical and 72 high database findings.
+2. Before a launch decision, run Python tests with CI secrets, Go tests, frontend lint/build/tests, migration checks against disposable PostgreSQL/Supabase, two-user ownership negatives through Go, queue-outage tests, handoff expiry/replay tests, browser cancellation tests, redacted-log checks, and backup/restore drills.
+3. Stage only intended files. Inspect `git status`, `git diff --check`, staged names, test results, and remote state before pushing. If GitHub rejects a workflow push because the token lacks `workflows` permission, do not bypass the control or silently claim the workflow was pushed; push non-workflow files separately and record the limitation.

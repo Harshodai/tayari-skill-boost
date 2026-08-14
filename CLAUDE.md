@@ -39,3 +39,34 @@ React + TS + Vite + Tailwind + shadcn/ui (frontend) · Go + Chi (API gateway: au
 - `supabase-local/`'s minimal setup has no mail/SMTP service — `ENABLE_EMAIL_AUTOCONFIRM` must stay `true` in `supabase-local/.env` or every signup fails with "Error sending confirmation email" (500).
 - `src/contexts/AuthContext.tsx`'s Supabase branch must write the session's `access_token` into `localStorage['auth_token']` (both in `onAuthStateChange` and the initial `getSession()` call) — that's the key `src/api/index.ts`'s `apiFetch` reads for the Go backend's `Authorization` header. It's a different key than Supabase's own internal session storage, so this doesn't happen automatically.
 - `FLOWER_USER`/`FLOWER_PASSWORD` in root `.env` are required, not optional — `docker-compose.yml`'s `celery-flower` service refuses to start (fails fast with an error) if either is unset. `.env.example` ships both blank.
+
+
+# Ruthless Security, HITL, AWS, and Release Addendum
+
+## Safety boundary
+
+Treat Job Tayari as manual-submit only. `AUTONOMOUS_SUBMIT_ENABLED` must remain `false` by default and must be enforced by the server. Never create accounts, enter passwords, OTP/MFA codes, CAPTCHA answers, terms acceptance, legal declarations, work-authorization or sponsorship answers, salary expectations, EEO/self-identification answers, or credentials. These fields must pause execution and create a durable owner-scoped human handoff.
+
+A frontend stop button is not a kill switch. Cancellation must terminate the actual browser resource server-side and the work loop must observe it. Handoff tokens must be owner-bound, expiring, single-use, replay-resistant, and absent from logs. Never log session cookies, passwords, OTPs, CAPTCHA text, raw tokens, full accessibility snapshots, or unredacted resume/application data.
+
+## Ownership and database security
+
+Reject `default_user` and all synthetic identities. The Go gateway must forward verified identity to Python. Every user-owned database query, answer snapshot, question, browser run, audit row, and state transition must include an owner predicate. Sensitive answer data must be persistent, versioned, provenance-aware, application-aware, expiry-aware where appropriate, and fail closed on database errors. Previously stored sensitive answers must not silently autofill a new application.
+
+Every public table requires verified RLS, explicit least-privilege grants, and two-user negative tests. Secret-bearing tables such as API keys and password-reset tokens should be service-role-only. Never expose `USING (true)` to `anon` or general `authenticated` access. Add forward migrations; do not rewrite applied historical migrations. Verify every Python/Go query against the actual database schema before deployment.
+
+## Truthful product behavior
+
+No fabricated names, emails, URLs, scores, proof claims, compensation values, demo payloads, or unconditional readiness labels. A manually recorded submission is candidate-confirmed but externally unverified unless an actual portal receipt or evidence exists. All non-2xx API responses need visible UI error state. Frontend API calls go through the Go gateway and shared `apiFetch` helper, never directly to Python or raw `/api` fetches.
+
+## AWS canary contract
+
+The low-cost AWS path is one EC2 canary running `docker-compose.aws.yml`: Caddy is the public edge, Go is exposed through `/api`, Python and Redis remain private, Redis is self-hosted, and Supabase/PostgreSQL/Auth remain external until their security contract is verified. Use `deploy/aws/ec2-canary.yaml`, `deploy/aws/provision.sh`, `deploy/aws/deploy.sh`, and the runbook in `deploy/aws/README.md`. Create a budget before provisioning; prefer SSM; restrict SSH; encrypt storage; keep `deploy/aws/.env` mode 600 and outside Git; and never create NAT Gateway, RDS, ElastiCache, or a load balancer merely for a Free Tier canary.
+
+The host is not HA. Playwright/Chromium and Celery are memory-heavy, so keep concurrency conservative. PostgreSQL/Supabase is the system of record; Redis is recoverable queue/cache state. Backups and restore drills must be verified in a disposable environment.
+
+## Release gates and permissions
+
+`bun run security:production` must pass with zero unresolved critical/high findings. Never update the baseline to force green. The current repository still reports 41 critical and 72 high database findings. Before launch, run Python, Go, frontend, migration, two-user ownership, queue outage, handoff expiry/replay, browser cancellation, redacted-log, backup/restore, and staging smoke tests.
+
+Stage only intended files and inspect `git status`, `git diff --check`, staged names, tests, and remote state before pushing. If GitHub refuses a workflow update because the token lacks `workflows` permission, record the limitation and do not claim the workflow was pushed; push non-workflow files separately only when that is explicitly acceptable.
