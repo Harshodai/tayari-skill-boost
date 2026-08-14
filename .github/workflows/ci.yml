@@ -250,6 +250,9 @@ jobs:
           SUPABASE_URL=http://kong:8000
           FLOWER_USER=ci
           FLOWER_PASSWORD=ci-flower-password
+          # GitHub-hosted runners can have 8443 occupied by another service;
+          # keep the application container port 443 but use a disposable host port.
+          CADDY_HTTPS_PORT=18443
           EOF
 
           # Base off the real .env.example so every other required var (Kong
