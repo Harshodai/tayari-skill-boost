@@ -1,0 +1,42 @@
+# Tayari endpoint exposure registry.
+# Default policy: every route not explicitly listed here requires user auth.
+version: 1
+default_policy: authenticated
+anonymous:
+  - GET /healthz
+  - GET /readyz
+  - GET /api/health
+  - GET /api/health/detailed
+  - GET /api/v1/health
+  - GET /api/v1/health/detailed
+  - POST /api/auth/register
+  - POST /api/v1/auth/register
+  - POST /api/auth/login
+  - POST /api/v1/auth/login
+  - POST /api/auth/rate-limit
+  - POST /api/v1/auth/rate-limit
+  - POST /api/auth/forgot-password
+  - POST /api/v1/auth/forgot-password
+  - POST /api/auth/reset-password
+  - POST /api/v1/auth/reset-password
+  - GET /api/auth/{provider}
+  - GET /api/v1/auth/{provider}
+  - GET /api/auth/{provider}/callback
+  - GET /api/v1/auth/{provider}/callback
+  - GET /api/v1/tenants/branding
+  - POST /api/v1/analytics/performance
+  - POST /api/public/analyze-text
+  - POST /api/v1/public/analyze-text
+  - POST /api/security/check-breached-password
+  - POST /api/v1/security/check-breached-password
+  - GET /api/oauth/gmail/callback
+  - GET /api/v1/oauth/gmail/callback
+  - POST /api/gmail/webhook
+  - POST /api/v1/gmail/webhook
+api_key_protected:
+  - POST /api/public/optimize
+  - POST /api/v1/public/optimize
+internal_token_protected:
+  - GET /metrics
+python_not_public:
+  - ALL /
