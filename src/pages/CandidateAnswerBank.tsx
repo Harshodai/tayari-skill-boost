@@ -58,7 +58,7 @@ export default function CandidateAnswerBank() {
             </div>
             <h1 className="text-3xl font-bold tracking-tight">Candidate Answer QA Bank</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Store your canonical answers for standard ATS portal questions. The AI Auto-Applier pulls from this bank to ensure 100% precision with zero hallucinations.
+              Store canonical answers for standard ATS portal questions. The auto-apply workflow can reuse these approved answers, but review every generated response before sending it.
             </p>
           </div>
         </div>

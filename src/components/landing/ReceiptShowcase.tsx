@@ -1,26 +1,24 @@
 import { Badge } from "@/components/ui/badge";
 import { ShieldCheck, Receipt, Clock, CheckCircle2, FileText, Hash } from "lucide-react";
 
-// Showcase mock — a hardcoded sample receipt rendered on the landing page to
-// make the provenance/trust layer visible. NOT a live fetch: the frontend never
-// calls Python directly (per CLAUDE.md). Values are clearly-placeholder but
-// realistic-shaped so the reader recognises it as a captured receipt, not a
-// designed graphic. Re-verify the receipt shape against
+// Illustrative mock — this hardcoded card is not a live submission or customer
+// receipt. It demonstrates the fields a supported workflow may record after an
+// external system returns a confirmation. Re-verify the shape against
 // `PipelineReceipt` in `src/components/pipeline/types.ts` when that changes.
 const RECEIPT_SAMPLE = {
   jobTitle: "Senior Backend Engineer",
-  company: "Acme Corp",
-  atsVendor: "Greenhouse",
-  confirmationNumber: "REF-2026-0811-AB7K",
-  submittedAt: "2026-08-11 14:32:07 UTC",
-  resumeRef: "resume_4f9c2b1d.pdf",
-  answersRef: "answers_7e3a.json",
+  company: "Example Corp",
+  "atsVendor": "Example ATS",
+  "confirmationNumber": "EXAMPLE-ONLY",
+  "submittedAt": "Example timestamp — not a live submission",
+  "resumeRef": "example-resume.pdf",
+  "answersRef": "example-answers.json",
 };
 
 const DIFFERENTIATORS = [
-  "Verified = the ATS printed a confirmation. Unverified = we tell you, not hide it.",
-  "Failed = a distinct state, not a missing one. A missing receipt never looks like a pending one.",
-  "Your resume + answers are stored immutably per submission. You can prove what was sent on your behalf.",
+  "Verified means the external system returned a confirmation; otherwise the state remains unverified.",
+  "Failed and missing receipt are distinct states; a missing receipt is not presented as pending.",
+  "Receipt fields and retention depend on the enabled workflow and deployment configuration.",
 ];
 
 export function ReceiptShowcase() {
@@ -33,15 +31,18 @@ export function ReceiptShowcase() {
             Provenance, not promises
           </p>
           <h2 className="font-display text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4 tracking-tight">
-            The only tool that proves what it sent.
+            A receipt pattern you can inspect before you trust it.
           </h2>
         </div>
 
         {/* Receipt card — styled to look like a captured screenshot, not a designed card.
             Faint outer border + slight off-white "paper" tint + monospace meta to evoke a
             real confirmation page torn from the ATS. */}
-        <div className="max-w-2xl mx-auto">
-          <div className="rounded-lg border border-border/70 bg-muted/20 p-2 shadow-sm">
+        <div className="mx-auto max-w-2xl">
+          <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
+            Illustrative UI example — no application was submitted
+          </p>
+          <div className="rounded-lg border border-border/70 bg-muted/20 p-2 shadow-sm" aria-label="Illustrative submission receipt example; not a live receipt">
             <div className="rounded-md border border-border/50 bg-background/95 backdrop-blur-sm overflow-hidden">
               {/* Screenshot "window" header — like a browser/print capture chrome */}
               <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/50 bg-muted/40">
@@ -61,7 +62,7 @@ export function ReceiptShowcase() {
                 <div className="flex items-center justify-between mb-6">
                   <Badge variant="success" className="gap-1.5 px-2.5 py-1 text-xs">
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    Submission verified
+                    Illustrative receipt
                   </Badge>
                   <Badge variant="secondary" className="text-xs font-mono">
                     ATS: {RECEIPT_SAMPLE.atsVendor}
@@ -116,8 +117,8 @@ export function ReceiptShowcase() {
 
                 {/* Footer line — like a printed receipt's tail */}
                 <div className="pt-4 border-t border-dashed border-border/50 flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span className="font-mono">Captured by Job Tayari · immutable receipt</span>
-                  <span className="font-mono">SHA-256: 7f3a…b29c</span>
+                  <span className="font-mono">Example only · no submission made</span>
+                  <span className="font-mono">Digest: example-only</span>
                 </div>
               </div>
             </div>
@@ -125,8 +126,7 @@ export function ReceiptShowcase() {
 
           {/* Caption */}
           <p className="text-center text-sm text-muted-foreground mt-5 leading-relaxed">
-            Every submission produces an immutable receipt with a screenshot + confirmation number.
-            No silent failures, no dashboard lies.
+            Supported submission workflows can record a receipt when the external system returns a confirmation. Fields, screenshots, and retention depend on the workflow and deployment; this card is illustrative, not a live receipt.
           </p>
 
           {/* Differentiators */}

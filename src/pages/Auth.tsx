@@ -31,6 +31,8 @@ const Auth = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -41,6 +43,17 @@ const Auth = () => {
   const [isCheckingBreach, setIsCheckingBreach] = useState(false);
   const [breachResult, setBreachResult] = useState<BreachResult | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const onOnline = () => setOffline(false);
+    const onOffline = () => setOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -121,6 +134,11 @@ const Auth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+    if (offline) {
+      setFormError("You are offline. Reconnect before signing in or creating an account.");
+      return;
+    }
     setIsLoading(true);
 
     const { email, password, name } = formData;
@@ -131,6 +149,7 @@ const Auth = () => {
 
     if (!validationResult.success) {
       const errorMsg = validationResult.error.issues[0].message;
+      setFormError(errorMsg);
       toast({
         title: "Validation Error",
         description: errorMsg,
@@ -176,6 +195,7 @@ const Auth = () => {
       if (isLogin) {
         await recordFailedAttempt(email);
       }
+      setFormError(result.error);
       toast({
         title: "Authentication Error",
         description: result.error,
@@ -192,8 +212,9 @@ const Auth = () => {
       if (!isLogin) {
         // Auto-login after successful registration
         const loginResult = await signIn(email, password);
-        if (loginResult.error) {
-          toast({
+          if (loginResult.error) {
+            setFormError(loginResult.error);
+            toast({
             title: "Sign In Required",
             description: "Please sign in with your new account.",
           });
@@ -228,7 +249,7 @@ const Auth = () => {
 
     if (isCheckingBreach) {
       return (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse">
+        <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse">
           <Shield className="w-4 h-4" />
           <span>Checking password security...</span>
         </div>
@@ -237,7 +258,7 @@ const Auth = () => {
 
     if (breachResult?.breached) {
       return (
-        <div className="flex items-center gap-2 text-sm text-destructive">
+        <div role="alert" aria-live="assertive" className="flex items-center gap-2 text-sm text-destructive">
           <ShieldAlert className="w-4 h-4" />
           <span>
             ⚠️ This password was found in {breachResult.count?.toLocaleString()} data breaches.
@@ -290,13 +311,23 @@ const Auth = () => {
               </CardTitle>
               <CardDescription>
                 {isLogin
-                  ? "Sign in to continue your job preparation journey"
-                  : "Join thousands of engineers landing their dream jobs"}
+                  ? "Sign in to continue your job preparation workflow"
+                  : "Create an account to organize your preparation and applications"}
               </CardDescription>
             </CardHeader>
 
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} aria-describedby={formError ? "auth-form-error" : undefined} className="space-y-4">
+                {offline && (
+                  <div role="status" aria-live="polite" className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                    You are offline. Reconnect before submitting authentication details.
+                  </div>
+                )}
+                {formError && (
+                  <div id="auth-form-error" role="alert" aria-live="assertive" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                    {formError}
+                  </div>
+                )}
                 {!isLogin && (
                   <div>
                     <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
@@ -353,8 +384,10 @@ const Auth = () => {
                       required
                       minLength={8}
                     />
-                    <button
+                      <button
                       type="button"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-pressed={showPassword}
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
@@ -389,7 +422,7 @@ const Auth = () => {
                   type="submit"
                   className="w-full"
                   size="lg"
-                  disabled={isLoading || (!isLogin && (isCheckingBreach || breachResult?.breached))}
+                  disabled={offline || isLoading || (!isLogin && (isCheckingBreach || breachResult?.breached))}
                 >
                   {isLoading ? (
                     <>
@@ -417,11 +450,17 @@ const Auth = () => {
                 <Button
                   variant="outline"
                   type="button"
-                  disabled={isLoading}
+                  disabled={offline || isLoading}
                   onClick={async () => {
+                    if (offline) {
+                      setFormError("You are offline. Reconnect before using social sign-in.");
+                      return;
+                    }
+                    setFormError(null);
                     setIsLoading(true);
                     const result = await signInWithGoogle();
                     if (result.error) {
+                      setFormError(result.error);
                       toast({
                         title: "Google Sign-In Error",
                         description: result.error,
@@ -456,11 +495,17 @@ const Auth = () => {
                 <Button
                   variant="outline"
                   type="button"
-                  disabled={isLoading}
+                  disabled={offline || isLoading}
                   onClick={async () => {
+                    if (offline) {
+                      setFormError("You are offline. Reconnect before using social sign-in.");
+                      return;
+                    }
+                    setFormError(null);
                     setIsLoading(true);
                     const result = await signInWithGithub();
                     if (result.error) {
+                      setFormError(result.error);
                       toast({
                         title: "GitHub Sign-In Error",
                         description: result.error,
@@ -478,11 +523,17 @@ const Auth = () => {
                 <Button
                   variant="outline"
                   type="button"
-                  disabled={isLoading}
+                  disabled={offline || isLoading}
                   onClick={async () => {
+                    if (offline) {
+                      setFormError("You are offline. Reconnect before using social sign-in.");
+                      return;
+                    }
+                    setFormError(null);
                     setIsLoading(true);
                     const result = await signInWithLinkedin();
                     if (result.error) {
+                      setFormError(result.error);
                       toast({
                         title: "LinkedIn Sign-In Error",
                         description: result.error,

@@ -113,13 +113,13 @@ export const GmailConnectModal: React.FC<GmailConnectModalProps> = ({ isOpen, on
             <div className="space-y-4">
               <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 space-y-2 text-xs text-slate-400">
                 <div className="flex items-center gap-2 text-slate-200 font-semibold">
-                  <Lock className="w-4 h-4 text-emerald-400" /> Read-Only Permission Guarantee
+                  <Lock className="w-4 h-4 text-emerald-400" /> Review Gmail permissions
                 </div>
                 <p>
-                  Google&apos;s <code>gmail.readonly</code> permission is read-only, but it can allow the connected application to read mailbox messages. Tayari uses an interview-focused search after connection; it is not a mailbox-limited Google permission. Connect only if you accept the Google consent screen.
+                  Google&apos;s <code>gmail.readonly</code> scope permits the connected application to read mailbox messages. Tayari requests the scope shown on the Google consent screen; it is not a mailbox-limited permission. Connect only if you understand and accept that scope.
                 </p>
                 <p>
-                  This connector is beta. Before a broad release, it needs candidate-visible query and time-window controls, retention details, disconnect, and deletion controls. Do not connect a mailbox you are not comfortable granting read-only access to.
+                  This connector is beta. Message query scope, retention, disconnect, and deletion behavior depend on the deployment and must be reviewed before production use. Do not connect a mailbox you are not comfortable granting read-only access to.
                 </p>
               </div>
 

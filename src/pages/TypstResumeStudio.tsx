@@ -118,7 +118,7 @@ ${experienceText}
               </Badge>
             </div>
             <p className="text-muted-foreground text-sm mt-1">
-              Bulletproof single-page PDF generator using Typst — 100% ATS compliant with zero layout break.
+              Single-page PDF generation using Typst with structured, inspectable output. ATS behavior varies by vendor, so review the exported document before sending it.
             </p>
           </div>
           <div className="flex items-center gap-2">

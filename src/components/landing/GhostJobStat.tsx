@@ -17,18 +17,17 @@ export function GhostJobStat() {
             Ghost-job screening — measured, not promised
           </p>
           <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4 tracking-tight">
-            Measured screening: every ghost we flag is real — 87% of ghost postings caught.
+            Illustrative screening benchmark — not a production accuracy claim.
           </h2>
           <p className="text-lg text-muted-foreground leading-relaxed mb-8">
-            Measured: {pct(GHOST_JOB_STAT.precision)} precision, {pct(GHOST_JOB_STAT.recall)} recall on a{" "}
-            {GHOST_JOB_STAT.sampleSize}-posting hand-labeled set (fixture v2 — synthetic, not general performance). The
-            number is reproducible from a committed fixture — re-verify via{" "}
+            Synthetic fixture v2: {pct(GHOST_JOB_STAT.precision)} precision and {pct(GHOST_JOB_STAT.recall)} recall on a{" "}
+            {GHOST_JOB_STAT.sampleSize}-posting hand-labeled set. This is a reproducible development benchmark, not a promise about live listings or general model performance. Re-verify via{" "}
             <code className="text-foreground/80">/api/v1/screening/metrics</code> when{" "}
             <code className="text-foreground/80">posting_screen.py</code> changes.
           </p>
           <p className="text-xs text-muted-foreground inline-flex items-center gap-2">
             <ShieldCheck className="w-3.5 h-3.5" />
-            Source: 18–27% of online listings are ghost jobs (Green &amp; Stockton, 2025); 47% of candidates report chasing listings that don't exist.
+            Source: committed synthetic fixture v2. Do not use this card as a customer outcome or market statistic.
           </p>
         </div>
       </div>

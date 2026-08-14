@@ -28,6 +28,44 @@ for (const file of sourceFiles) {
   }
 }
 
+const publicClaimFiles = [
+  "src/components/landing/CTASection.tsx",
+  "src/components/landing/GhostJobStat.tsx",
+  "src/components/landing/ReceiptShowcase.tsx",
+  "src/components/landing/FAQSection.tsx",
+  "src/components/landing/ProductsSection.tsx",
+  "src/components/layout/Footer.tsx",
+  "src/components/GmailConnectModal.tsx",
+  "src/pages/Auth.tsx",
+  "src/pages/FreeAtsScan.tsx",
+  "src/pages/Privacy.tsx",
+  "src/pages/TypstResumeStudio.tsx",
+  "src/pages/CandidateAnswerBank.tsx",
+];
+const forbiddenPublicClaims = [
+  "join thousands of engineers",
+  "100% local self-hosting support",
+  "no public model training guarantee",
+  "every submission produces an immutable receipt",
+  "the only tool that proves what it sent",
+  "100% ats compliant",
+  "zero layout break",
+  "100% precision with zero hallucinations",
+  "read-only permission guarantee",
+  "sign up for unlimited scans",
+];
+for (const relative of publicClaimFiles) {
+  const file = path.join(root, relative);
+  if (!fs.existsSync(file)) {
+    failures.push(`${relative}: public claim contract file is missing`);
+    continue;
+  }
+  const text = fs.readFileSync(file, "utf8").toLowerCase();
+  for (const claim of forbiddenPublicClaims) {
+    if (text.includes(claim)) failures.push(`${relative}: unsupported public claim remains: ${claim}`);
+  }
+}
+
 const app = fs.readFileSync(path.join(src, "App.tsx"), "utf8");
 if (!app.includes('path="/free-scan"')) failures.push("App.tsx: canonical /free-scan route missing");
 if (!app.includes('path="/free-ats-scan"') || !app.includes('to="/free-scan"')) failures.push("App.tsx: /free-ats-scan compatibility redirect missing");

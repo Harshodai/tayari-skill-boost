@@ -15,17 +15,21 @@ export function PrivacyReadiness() {
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerLogs, setLedgerLogs] = useState<PrivacyLedgerEntry[]>([]);
   const [status, setStatus] = useState<any>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   const checkStatus = async () => {
     setLoading(true);
+    setStatusError(null);
     try {
       const resp = await apiFetchResponse("/v1/privacy/check", { method: "POST" });
-      if (resp.ok) {
-        const data = await resp.json();
-        setStatus(data);
+      if (!resp.ok) {
+        throw new Error(`Live diagnostics unavailable (${resp.status}).`);
       }
-    } catch {
-      // keep fallback
+      const data = await resp.json();
+      setStatus(data);
+    } catch (error) {
+      setStatus(null);
+      setStatusError(error instanceof Error ? error.message : "Live diagnostics unavailable.");
     } finally {
       setLoading(false);
     }
@@ -82,16 +86,16 @@ export function PrivacyReadiness() {
           <Card className="md:col-span-1">
             <CardHeader>
               <CardTitle className="text-lg">Privacy Status</CardTitle>
-              <CardDescription>Local-first data residency audit.</CardDescription>
+              <CardDescription>Reported data-residency and provider diagnostics for this deployment.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center space-y-2">
-                <Lock className="h-8 w-8 text-emerald-500 mx-auto" />
-                                  <div className="text-sm font-bold">Live privacy diagnostics</div>
-                  <Badge variant="outline" className="text-xs">
-                  {status?.privacy_mode || "Not checked"}
-
+              <div className={`p-4 rounded-lg border text-center space-y-2 ${statusError ? "bg-amber-500/10 border-amber-500/20" : "bg-muted/40 border-border"}`}>
+                <Lock className={`h-8 w-8 mx-auto ${statusError ? "text-amber-500" : "text-muted-foreground"}`} />
+                <div className="text-sm font-bold">Live privacy diagnostics</div>
+                <Badge variant="outline" className="text-xs">
+                  {statusError ? "Unavailable" : status?.privacy_mode || "Not checked"}
                 </Badge>
+                {statusError && <p role="alert" className="text-xs text-amber-700 dark:text-amber-300">{statusError}</p>}
               </div>
               <Button onClick={checkStatus} disabled={loading} className="w-full font-semibold">
                 <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh Diagnostics
@@ -148,7 +152,7 @@ export function PrivacyReadiness() {
                 "What Left Your Machine" — Privacy Audit Ledger
               </CardTitle>
               <CardDescription className="mt-1">
-                Append-only ledger logging every outgoing request, PII sanitization status, and model provider destination.
+                Account-scoped audit entries for outgoing requests, reported PII sanitization, and provider destinations. Missing fields remain explicitly unreported.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -201,25 +205,31 @@ export function PrivacyReadiness() {
                           {log.detail?.provider || "Provider not reported"}
                         </TableCell>
                         <TableCell>
-                          {log.detail?.pii_redacted && log.detail.pii_redacted.length > 0 ? (
-                            <div className="flex gap-1 flex-wrap">
-                              {log.detail.pii_redacted.map((item, i) => (
-                                <Badge key={i} variant="outline" className="bg-emerald-500/10 text-emerald-600 text-[10px]">
-                                  Scrubbed: {item}
+                              {log.detail?.pii_redacted === undefined ? (
+                                <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                  Redaction status not reported
                                 </Badge>
-                              ))}
-                            </div>
-                          ) : (
-                            <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                              No PII Passed
-                            </Badge>
-                          )}
+                              ) : log.detail.pii_redacted.length > 0 ? (
+                                <div className="flex gap-1 flex-wrap">
+                                  {log.detail.pii_redacted.map((item, i) => (
+                                    <Badge key={i} variant="outline" className="bg-emerald-500/10 text-emerald-600 text-[10px]">
+                                      Scrubbed: {item}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                  No redactions reported
+                                </Badge>
+                              )}
                         </TableCell>
                         <TableCell>
-                          {log.detail?.is_local !== false ? (
+                          {log.detail?.is_local === true ? (
                             <Badge className="bg-emerald-600 text-white text-[11px]">Local Device</Badge>
-                          ) : (
+                          ) : log.detail?.is_local === false ? (
                             <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 text-[11px]">Sanitized Remote API</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[11px]">Residency not reported</Badge>
                           )}
                         </TableCell>
                       </TableRow>

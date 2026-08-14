@@ -1,10 +1,10 @@
 import { apiFetchResponse } from "@/api";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Check, X, ArrowRight, Loader2, Zap } from "lucide-react";
+import { Check, X, ArrowRight, Loader2, Zap, WifiOff } from "lucide-react";
 import { Layout } from "@/components/layout";
 
 
@@ -14,12 +14,32 @@ export default function FreeAtsScan() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
+  const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const onOnline = () => setOffline(false);
+    const onOffline = () => setOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const handleScan = async () => {
-    if (!resumeText.trim() || !jobDescription.trim()) {
-      setError("Please fill in both fields");
+    if (offline) {
+      setError("You are offline. Reconnect before starting a scan.");
       return;
     }
+    if (!resumeText.trim() || !jobDescription.trim()) {
+      setError("Please fill in both fields before scanning.");
+      return;
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setError("");
     setResult(null);
@@ -31,18 +51,32 @@ export default function FreeAtsScan() {
           resume_text: resumeText,
           job_description: jobDescription,
         }),
+        signal: controller.signal,
       });
-      if (!res.ok) throw new Error("Analysis failed. Please try again.");
+      if (!res.ok) throw new Error(`Analysis failed (${res.status}). Please try again.`);
       const data = await res.json();
+      const returnedScore = data?.overall_score ?? data?.result?.overall_score;
+      if (typeof returnedScore !== "number" || !Number.isFinite(returnedScore)) {
+        throw new Error("The service returned no measurable score. Please try again.");
+      }
       setResult(data);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (caught: any) {
+      if (caught?.name !== "AbortError") {
+        setError(caught instanceof Error ? caught.message : "Analysis failed. Please try again.");
+      }
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setLoading(false);
     }
   };
 
-  const score = result?.overall_score ?? result?.result?.overall_score ?? 0;
+  const cancelScan = () => {
+    abortRef.current?.abort();
+    setLoading(false);
+    setError("Scan cancelled. Your pasted text remains in this form.");
+  };
+
+  const score = result?.overall_score ?? result?.result?.overall_score;
   const breakdown = result?.score_breakdown ?? result?.result?.section_scores ?? {};
   const matched = result?.matching_skills ?? result?.result?.matched_keywords ?? [];
   const missing = result?.missing_skills ?? result?.result?.missing_keywords ?? [];
@@ -63,20 +97,32 @@ export default function FreeAtsScan() {
             </p>
           </div>
 
+          {offline && (
+            <div role="status" aria-live="polite" className="mb-6 flex items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+              <WifiOff className="h-4 w-4" /> You are offline. Scans need a connection to the configured service.
+            </div>
+          )}
+
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             <div>
-              <label className="block text-sm font-medium mb-2">Your Resume</label>
+              <label htmlFor="resume-text" className="block text-sm font-medium mb-2">Your Resume</label>
               <textarea
+                id="resume-text"
+                aria-describedby="resume-help"
+                aria-invalid={Boolean(error && !resumeText.trim())}
                 value={resumeText}
                 onChange={(e) => setResumeText(e.target.value)}
                 placeholder="Paste your full resume text here..."
                 rows={12}
                 className="w-full px-4 py-3 rounded-xl border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-y"
               />
+              <p id="resume-help" className="mt-1 text-xs text-muted-foreground">Paste only the text needed for this scan; do not include secrets.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Job Description</label>
+              <label htmlFor="job-description" className="block text-sm font-medium mb-2">Job Description</label>
               <textarea
+                id="job-description"
+                aria-invalid={Boolean(error && !jobDescription.trim())}
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
                 placeholder="Paste the job description here..."
@@ -90,18 +136,27 @@ export default function FreeAtsScan() {
             <Button
               size="lg"
               onClick={handleScan}
-              disabled={loading}
+              disabled={loading || offline}
+              aria-busy={loading}
               className="px-8"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Zap className="w-5 h-5 mr-2" />}
               {loading ? "Scanning..." : "Scan My Resume"}
             </Button>
+            {loading && (
+              <Button type="button" size="lg" variant="outline" onClick={cancelScan}>
+                Cancel scan
+              </Button>
+            )}
           </div>
 
           {error && (
-            <Card className="border-destructive/50 mb-8">
-              <CardContent className="pt-6">
-                <p className="text-destructive text-center">{error}</p>
+            <Card role="alert" aria-live="assertive" className="border-destructive/50 mb-8">
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
+                <p className="text-destructive">{error}</p>
+                {!loading && !offline && resumeText.trim() && jobDescription.trim() && (
+                  <Button type="button" size="sm" variant="outline" onClick={handleScan}>Try again</Button>
+                )}
               </CardContent>
             </Card>
           )}
@@ -212,7 +267,7 @@ export default function FreeAtsScan() {
             <div className="text-center py-10 border-t border-border">
               <h2 className="text-2xl font-bold mb-3">Want the full picture?</h2>
               <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                Sign up for unlimited scans, detailed section analysis, AI cover letters, and personalized optimization.
+                Sign up for additional scans, deeper section analysis, AI-assisted drafting, and personalized optimization within the limits shown for your plan.
               </p>
               <div className="flex items-center justify-center gap-4">
                 <Button size="lg" asChild>

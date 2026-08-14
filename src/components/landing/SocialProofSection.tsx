@@ -4,7 +4,7 @@ import { Sparkles, Rocket, Star, ArrowRight, Quote, ShieldCheck } from "lucide-r
 import { Link } from "react-router-dom";
 import { CountUp } from "@/components/ui/count-up";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import { dashboardStats } from "@/api";
 import type { DashboardStats } from '@/api/types';
 
@@ -49,37 +49,29 @@ const aspirationalCards = [
   },
 ];
 
-const FALLBACK_STATS: DashboardStats = {
-  resumes_count: 0,
-  profile_completion_pct: 0,
-  applications_count: 0,
-  interviews_count: 0,
-  saved_jobs_count: 0,
-};
 
 export function SocialProofSection() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [statsError, setStatsError] = useState(false);
   useEffect(() => {
     dashboardStats()
       .then((data) => {
-        if (data && typeof data === 'object') {
+        if (data && typeof data === "object") {
           setStats(data);
         } else {
-          setStats(FALLBACK_STATS);
+          setStatsError(true);
         }
       })
       .catch(() => {
-        setStats(FALLBACK_STATS);
+        setStatsError(true);
       });
   }, []);
 
-  const activeStats = stats || FALLBACK_STATS;
-
   const liveStats = [
-    { value: activeStats.resumes_count ?? 0, suffix: "", label: "Resumes optimized" },
-    { value: activeStats.applications_count ?? 0, suffix: "", label: "Applications tracked" },
-    { value: activeStats.saved_jobs_count ?? 0, suffix: "", label: "Roles saved" },
-    { value: activeStats.interviews_count ?? 0, suffix: "", label: "Interview sessions" },
+    { value: stats?.resumes_count, suffix: "", label: "Resumes optimized" },
+    { value: stats?.applications_count, suffix: "", label: "Applications tracked" },
+    { value: stats?.saved_jobs_count, suffix: "", label: "Roles saved" },
+    { value: stats?.interviews_count, suffix: "", label: "Interview sessions" },
   ];
 
   return (
@@ -97,15 +89,18 @@ export function SocialProofSection() {
           {liveStats.map((s) => (
             <div key={s.label} className="bg-card/60 backdrop-blur-sm p-8 text-center">
               <div className="font-display text-4xl font-bold text-gradient mb-2 flex justify-center items-baseline">
-                <CountUp end={s.value} suffix={s.suffix} duration={2} />
+                {stats ? <CountUp end={s.value ?? 0} suffix={s.suffix} duration={2} /> : "—"}
               </div>
               <div className="text-sm text-muted-foreground">{s.label}</div>
             </div>
           ))}
         </div>
-        <p className="text-center text-xs text-muted-foreground mb-20">
-          Counters read directly from this deployment's database and update as the platform is used —
-          we don't publish numbers we can't show you the source of.
+        <p role={statsError ? "status" : undefined} className="text-center text-xs text-muted-foreground mb-20">
+          {statsError
+            ? "Live platform activity is unavailable; no customer figures are shown."
+            : stats
+              ? "Counters read directly from this deployment's database and update as the platform is used."
+              : "Loading live platform activity…"}
         </p>
 
         {/* Testimonials */}

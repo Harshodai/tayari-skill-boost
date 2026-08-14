@@ -8,7 +8,7 @@ import {
 const faqs = [
   {
     question: "What is Job Tayari?",
-    answer: "Job Tayari is an AI-powered job preparation platform designed specifically for software engineers. We help you optimize your resume, practice for interviews, and find personalized job matches to land your dream tech role.",
+    answer: "Job Tayari is an AI-assisted career preparation platform for software engineers. It helps you organize resumes, interview practice, job matching, and application review; it does not guarantee a particular interview or hiring outcome.",
   },
   {
     question: "How does the Resume Optimizer work?",
@@ -16,11 +16,11 @@ const faqs = [
   },
   {
     question: "Is Job Tayari free to use?",
-    answer: "We offer a free tier that includes basic resume analysis and limited interview practice. Premium features like advanced AI feedback, unlimited practice sessions, and priority job matching are available with a paid subscription.",
+    answer: "Available plans are shown on the pricing page. Free tools have rate and feature limits, and paid features may depend on the deployment and configured provider. We do not describe a feature as unlimited unless the active plan and backend enforce that limit.",
   },
   {
     question: "What types of interviews can I practice?",
-    answer: "Our platform offers mock behavioral interviews, system design discussions, and coding challenges. The AI adapts to your experience level and provides real-time feedback to help you improve.",
+    answer: "The platform offers supported mock interview workflows, including behavioral and technical practice. Availability, model behavior, and feedback latency depend on the enabled feature and provider configuration.",
   },
   {
     question: "How does the job matching work?",
@@ -29,7 +29,7 @@ const faqs = [
   },
   {
     question: "Can I export my optimized resume?",
-    answer: "Yes! You can export your resume in multiple formats including PDF and DOCX. We also offer professional templates that are ATS-friendly and designed to get noticed by recruiters.",
+    answer: "Supported resume workflows can export PDF and DOCX artifacts. ATS behavior differs by vendor, so exports are designed for readable structure but are not a guarantee of ranking or recruiter response.",
   },
   {
     question: "How do I get started?",
@@ -37,7 +37,7 @@ const faqs = [
   },
   {
     question: "Is my data secure?",
-    answer: "Absolutely. We use industry-standard encryption and never share your personal information with third parties without your consent. Your resume and interview data are kept private and secure.",
+    answer: "Security and data residency depend on the deployment mode and integrations you enable. The product uses access controls and protected service boundaries, but remote AI, Gmail, browser, and analytics integrations can process data under their own terms. Review the privacy page and ledger before connecting them.",
   },
 ];
 

@@ -43,7 +43,7 @@ export function Footer() {
             <div className="lg:col-span-2">
               <Logo className="mb-4" />
               <p className="text-muted-foreground text-sm max-w-xs mb-6">
-                AI-powered job preparation platform for software engineers. Land your dream job with optimized resumes, interview prep, and personalized job matching.
+                AI-assisted career preparation for software engineers, with visible review steps for resumes, interviews, applications, and job matching.
               </p>
               <div className="flex items-center gap-4">
                 {socialLinks.map((social) => (

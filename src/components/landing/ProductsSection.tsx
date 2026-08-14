@@ -112,7 +112,7 @@ export function ProductsSection() {
             Our Products
           </h2>
           <p className="text-muted-foreground text-lg">
-            A complete suite of tools designed specifically for software engineers to land their dream jobs.
+            A growing suite of tools for software engineers to organize preparation, applications, and reviewable career workflows.
           </p>
         </div>
 
