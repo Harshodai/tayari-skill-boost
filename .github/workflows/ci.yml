@@ -263,6 +263,30 @@ jobs:
           # the Compose default unless an operator explicitly sets the value.
           printf '\nRLIMIT_NOFILE=10000\n' >> supabase-local/.env
 
+          # Realtime validates the healthcheck bearer token with JWT_SECRET.
+          # Replace the example keys with disposable CI-only HS256 tokens so
+          # the healthcheck and GoTrue use the same signing secret.
+          CI_JWT_SECRET='test-jwt-secret-for-ci-only-change-me-32ch'
+          b64url() {
+            printf '%s' "$1" | openssl base64 -A | tr '+/' '-_' | tr -d '='
+          }
+          JWT_HEADER=$(b64url '{"alg":"HS256","typ":"JWT"}')
+          JWT_IAT=$(date +%s)
+          JWT_EXP=$((JWT_IAT + 31536000))
+          jwt_for_role() {
+            role="$1"
+            payload=$(b64url "{\"role\":\"${role}\",\"iss\":\"supabase-demo\",\"iat\":${JWT_IAT},\"exp\":${JWT_EXP}}")
+            signing_input="${JWT_HEADER}.${payload}"
+            signature=$(printf '%s' "$signing_input" | openssl dgst -sha256 -hmac "$CI_JWT_SECRET" -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+            printf '%s.%s' "$signing_input" "$signature"
+          }
+          ANON_KEY=$(jwt_for_role anon)
+          SERVICE_ROLE_KEY=$(jwt_for_role service_role)
+          sed -i \
+            -e "s#^ANON_KEY=.*#ANON_KEY=${ANON_KEY}#" \
+            -e "s#^SERVICE_ROLE_KEY=.*#SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}#" \
+            supabase-local/.env
+
           # Kong's key-auth plugin does exact-string matching against the
           # configured ANON_KEY (not JWT signature verification) — a
           # separately hardcoded literal here can silently drift from

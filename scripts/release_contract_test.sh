@@ -60,6 +60,10 @@ grep -q 'start_period: 30s' supabase-local/docker-compose.yml
 grep -q 'POSTGRES_HOST: ${POSTGRES_HOST}' supabase-local/docker-compose.yml
 grep -q 'RLIMIT_NOFILE: ${RLIMIT_NOFILE:-100000}' supabase-local/docker-compose.yml
 grep -q 'RLIMIT_NOFILE=10000' .github/workflows/ci.yml
+grep -q 'CI_JWT_SECRET=' .github/workflows/ci.yml
+grep -q 'openssl dgst -sha256 -hmac' .github/workflows/ci.yml
+grep -q 'jwt_for_role anon' .github/workflows/ci.yml
+grep -q 'jwt_for_role service_role' .github/workflows/ci.yml
 test "$(grep -c 'npm install --global --no-audit --no-fund bun@1.3.14' .github/workflows/ci.yml)" -eq 4
 grep -q 'npm install --global --no-audit --no-fund bun@1.3.14' .github/workflows/deploy.yml
 ! grep -RIn 'oven-sh/setup-bun' .github/workflows
