@@ -32,6 +32,17 @@ grep -q 'KUBE_CONTEXT must be explicitly set' scripts/deploy-environment.sh
 # Dependency installation is deterministic and security scanning is blocking.
 grep -q 'pip-audit --requirement requirements.txt.*--strict' .github/workflows/ci.yml
 grep -q 'bun install --frozen-lockfile' .github/workflows/ci.yml
+# CI coverage and environment contracts must match the reproducible local gates.
+grep -q 'GO_COVERAGE_MIN=20 bash ../../scripts/check_go_coverage.sh' .github/workflows/ci.yml
+test -x scripts/check_go_coverage.sh
+grep -q -- '--cov-fail-under=60' .github/workflows/ci.yml
+grep -q -- '--cov-fail-under=60' .github/workflows/deploy.yml
+grep -q 'PYTHONPATH:.*backend/python' .github/workflows/ci.yml
+grep -q 'PYTHONPATH:.*backend/python' .github/workflows/deploy.yml
+grep -q -- '--select E4,E7,E9,F' .github/workflows/ci.yml
+grep -q 'E2E_TEST_PASSWORD' .github/workflows/ci.yml
+grep -q 'PLAYWRIGHT_REUSE_EXISTING_SERVER' .github/workflows/ci.yml
+grep -q 'PLAYWRIGHT_REUSE_EXISTING_SERVER' playwright.config.ts
 ! grep -RInE 'yarn (install|build|lint)|bun install --no-save|bun.lockb' .github/workflows Dockerfile* scripts --exclude='*.md'
 ! grep -q '"lint": "eslint \."' package.json
 

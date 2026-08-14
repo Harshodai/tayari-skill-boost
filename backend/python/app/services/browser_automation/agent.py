@@ -106,8 +106,8 @@ def _action_target_label(state, action_dump: dict) -> str:
         if node is None:
             continue
         attrs = getattr(node, "attributes", None) or {}
-        for field in ("aria-label", "placeholder", "name", "id"):
-            val = attrs.get(field)
+        for attr_name in ("aria-label", "placeholder", "name", "id"):
+            val = attrs.get(attr_name)
             if val:
                 return str(val)
         # A password-type input with no label attributes must still count as

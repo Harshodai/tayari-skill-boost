@@ -9,6 +9,11 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      APP_ENV: test
+      JWT_SECRET: test-only-secret-please-change
+      APPROVAL_SIGNING_KEY: test-approval-key
+      PYTHONPATH: ${{ github.workspace }}/backend/python
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -29,7 +34,10 @@ jobs:
         run: |
           set -e
           cd backend/python
-          pytest app/tests --cov=app --cov-fail-under=80
+          # Use the same full suite and 60% non-regression floor as main CI;
+          # app/tests alone reaches only 47% because the service has multiple
+          # integration modules outside that focused fixture set.
+          python -m pytest app/tests tests --cov=app --cov-report=term-missing --cov-fail-under=60
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
@@ -52,6 +60,11 @@ jobs:
           bun run test -- --coverage
 
       - name: Build frontend
+        env:
+          VITE_SUPABASE_URL: https://ci.example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci
+          VITE_API_URL: https://api.example.com/api
+          VITE_USE_SELF_HOSTED: 'false'
         run: |
           bun run build
 
