@@ -258,6 +258,11 @@ jobs:
             -e 's#^JWT_SECRET=.*#JWT_SECRET=test-jwt-secret-for-ci-only-change-me-32ch#' \
             supabase-local/.env
 
+          # GitHub-hosted Docker cannot raise the Supavisor image's default
+          # RLIMIT_NOFILE=100000. Keep this override CI-only; production uses
+          # the Compose default unless an operator explicitly sets the value.
+          printf '\nRLIMIT_NOFILE=10000\n' >> supabase-local/.env
+
           # Kong's key-auth plugin does exact-string matching against the
           # configured ANON_KEY (not JWT signature verification) — a
           # separately hardcoded literal here can silently drift from

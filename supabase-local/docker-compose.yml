@@ -343,6 +343,7 @@ services:
         condition: service_healthy
     environment:
       PORT: 4000
+      RLIMIT_NOFILE: ${RLIMIT_NOFILE:-100000}
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT}
       POSTGRES_DB: ${POSTGRES_DB}
