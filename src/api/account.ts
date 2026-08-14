@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 /**
  * Account management API calls.
  *
@@ -17,7 +18,7 @@ export async function deleteUserAccount(): Promise<{ status: string; user_id: st
 export async function exportUserData(): Promise<Blob> {
   // handleExportAccount returns application/zip; use fetch directly
   // so we get a raw Blob rather than going through apiFetch's JSON decode.
-  const response = await fetch(`${API_URL}/v1/me/export`, {
+  const response = await apiFetchResponse(`/v1/me/export`, {
     method: "GET",
     headers: getHeaders(),
   });

@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -89,13 +90,11 @@ export default function ReviewQueue() {
   const [filter, setFilter] = useState<"all" | "dream" | "high-score">("all");
   const [approvals, setApprovals] = useState<RuntimeApproval[]>([]);
   const [activeQueueTab, setActiveQueueTab] = useState<"applications" | "approvals">("applications");
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
-
   const token = localStorage.getItem("auth_token");
 
   const fetchQueue = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/v1/review-queue`, {
+      const res = await apiFetchResponse(`/v1/review-queue`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch review queue");
@@ -107,11 +106,11 @@ export default function ReviewQueue() {
     } finally {
       setLoading(false);
     }
-  }, [API_URL, token]);
+  }, [token]);
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/v1/review-queue/stats`, {
+      const res = await apiFetchResponse(`/v1/review-queue/stats`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch stats");
@@ -120,11 +119,11 @@ export default function ReviewQueue() {
     } catch (e) {
       console.error("Error fetching stats:", e);
     }
-  }, [API_URL, token]);
+  }, [token]);
 
   const fetchApprovals = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/v1/approvals`, {
+      const res = await apiFetchResponse(`/v1/approvals`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch approvals");
@@ -133,7 +132,7 @@ export default function ReviewQueue() {
     } catch (e) {
       console.error("Error fetching approvals:", e);
     }
-  }, [API_URL, token]);
+  }, [token]);
 
   useEffect(() => {
     fetchQueue();
@@ -143,7 +142,7 @@ export default function ReviewQueue() {
 
   const handleActionApproval = async (id: string, status: "approved" | "rejected") => {
     try {
-      const res = await fetch(`${API_URL}/v1/approvals/${id}`, {
+      const res = await apiFetchResponse(`/v1/approvals/${id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -161,7 +160,7 @@ export default function ReviewQueue() {
 
   const handleApprove = async (id: string) => {
     try {
-      const res = await fetch(`${API_URL}/v1/review-queue/${id}/approve`, {
+      const res = await apiFetchResponse(`/v1/review-queue/${id}/approve`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ notes: "Approved by user" }),
@@ -177,7 +176,7 @@ export default function ReviewQueue() {
 
   const handleReject = async (id: string) => {
     try {
-      const res = await fetch(`${API_URL}/v1/review-queue/${id}/reject`, {
+      const res = await apiFetchResponse(`/v1/review-queue/${id}/reject`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ reason: "Rejected by user" }),
@@ -193,7 +192,7 @@ export default function ReviewQueue() {
 
   const handleSubmit = async (id: string) => {
     try {
-      const res = await fetch(`${API_URL}/v1/review-queue/${id}/submit`, {
+      const res = await apiFetchResponse(`/v1/review-queue/${id}/submit`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ submission_mode: "manual" }),
@@ -213,7 +212,7 @@ export default function ReviewQueue() {
       return;
     }
     try {
-      const res = await fetch(`${API_URL}/v1/review-queue/bulk-action`, {
+      const res = await apiFetchResponse(`/v1/review-queue/bulk-action`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import { useState } from "react";
 import { AppShell } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -57,7 +58,7 @@ ${experienceText}
   const handleCompilePdf = async () => {
     setIsCompiling(true);
     try {
-      const resp = await fetch("/api/v1/typst/compile", {
+      const resp = await apiFetchResponse("/v1/typst/compile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

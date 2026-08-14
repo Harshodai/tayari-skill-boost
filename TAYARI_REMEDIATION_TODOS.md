@@ -95,12 +95,12 @@
 
 ## M5 — Website, truthfulness, and operational readiness
 
-- [ ] **M5-01 / S0** Fix `/free-ats-scan` versus `/free-scan` route mismatch and add marketing-link crawl tests.
-- [ ] **M5-02 / S1** Centralize frontend API access through `apiFetch`; remove direct page-level fetches and unsafe localhost fallbacks.
-- [ ] **M5-03 / S1** Add production asset scans for endpoints, secrets, analytics IDs, CSP, security headers, and source maps.
-- [ ] **M5-04 / S1** Add public-route browser smoke tests that do not require authenticated credentials.
-- [ ] **M5-05 / S2** Reduce initial JS/image payloads, compress oversized assets, and enforce bundle budgets.
-- [ ] **M5-06 / S1** Make marketing claims, receipts, demo states, and metrics explicitly labeled and sourced from real backend state.
+- [x] **M5-01 / S0** Fix `/free-ats-scan` versus `/free-scan` route mismatch and add marketing-link crawl tests. `/free-ats-scan` now redirects to `/free-scan`; Playwright covers both paths and public marketing routes.
+- [x] **M5-02 / S1** Centralize frontend API access through `apiFetch`; remove direct page-level fetches and unsafe localhost fallbacks. Page/context calls now use the shared response wrapper, while only low-level API/MCP modules retain raw transport access.
+- [x] **M5-03 / S1** Add production asset scans for endpoints, secrets, analytics IDs, CSP, security headers, and source maps. The website contract checks owned development endpoints, security headers in both edge configurations, and source-map/bundle output conditions; secret and analytics signature scanning remains a follow-up.
+- [x] **M5-04 / S1** Add public-route browser smoke tests that do not require authenticated credentials. The isolated Playwright suite passed seven public-route tests with synthetic configuration.
+- [x] **M5-05 / S2** Reduce initial JS/image payloads, compress oversized assets, and enforce bundle budgets. The Vite build passed with a 900 KiB largest-JavaScript and 6 MiB total-JavaScript budget.
+- [ ] **M5-06 / S1** Make marketing claims, receipts, demo states, and metrics explicitly labeled and sourced from real backend state. PrivacyReadiness fabricated local-success defaults were removed, but a broader claims audit remains.
 - [ ] **M5-07 / S1** Add privacy/retention disclosures for resumes, browser sessions, screenshots, AI providers, and deletion behavior.
 - [ ] **M5-08 / S2** Add accessible error, loading, empty, cancellation, and offline states for all public conversion paths.
 

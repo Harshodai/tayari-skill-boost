@@ -33,7 +33,7 @@ import {
   ExternalLink
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { exportUserData, deleteUserAccount } from "@/api";
+import { API_URL, apiFetchResponse, exportUserData, deleteUserAccount } from "@/api";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { profileSchema, changePasswordSchema } from "@/lib/schemas";
@@ -106,8 +106,7 @@ const Settings = () => {
   useEffect(() => {
     const token = session?.access_token || localStorage.getItem('auth_token');
     if (!token) return;
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
-    fetch(`${API_URL}/gmail/status`, {
+    apiFetchResponse(`/gmail/status`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -121,7 +120,7 @@ const Settings = () => {
 
   const handleDownloadMcpConfig = () => {
     const token = session?.access_token || localStorage.getItem('auth_token') || "";
-    const backendUrl = (import.meta.env.VITE_API_URL || "http://localhost:8080/api").replace(/\/api$/, "");
+    const backendUrl = API_URL.replace(/\/api$/, "");
     const config = {
       mcpServers: {
         jobtheory: {
@@ -162,7 +161,7 @@ const Settings = () => {
 
   const handleOpenHermes = () => {
     const token = session?.access_token || localStorage.getItem('auth_token') || "";
-    const backendUrl = (import.meta.env.VITE_API_URL || "http://localhost:8080/api").replace(/\/api$/, "");
+    const backendUrl = API_URL.replace(/\/api$/, "");
     const deepLink = `hermes://mcp/register?name=JobTheory&url=${encodeURIComponent(backendUrl)}&token=${encodeURIComponent(token)}`;
     window.location.href = deepLink;
     toast({
@@ -788,10 +787,9 @@ const Settings = () => {
                       <Button
                         variant="outline"
                         onClick={async () => {
-                          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
-                          const token = session?.access_token || localStorage.getItem('auth_token');
+                                                const token = session?.access_token || localStorage.getItem('auth_token');
                           try {
-                            const res = await fetch(`${API_URL}/gmail/login`, {
+                            const res = await apiFetchResponse(`/gmail/login`, {
                               method: 'GET',
                               headers: {
                                 Authorization: `Bearer ${token}`,
@@ -900,7 +898,7 @@ const Settings = () => {
       "command": "python",
       "args": ["/absolute/path/to/tayari-skill-boost/integrations/jobtheory_mcp/server.py"],
       "env": {
-        "JOBTHEORY_URL": "${(import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace(/\/api$/, '')}",
+        "JOBTHEORY_URL": "${API_URL.replace(/\/api$/, '')}",
         "JOBTHEORY_TOKEN": "${(session?.access_token || localStorage.getItem('auth_token') || '').substring(0, 15)}..."
       }
     }

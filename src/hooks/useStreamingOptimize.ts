@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { API_URL } from '@/api';
+import { apiFetchResponse, API_URL } from "@/api";
 
 interface StreamState {
   text: string;
@@ -43,7 +43,7 @@ export function useStreamingOptimize() {
       if (jobDescription) formData.append('job_description', jobDescription);
       if (targetRole) formData.append('target_role', targetRole);
       
-      const response = await fetch(`${API_URL}/v1/optimize/stream`, {
+      const response = await apiFetchResponse(`/v1/optimize/stream`, {
         method: 'POST',
         body: formData,
         headers: {

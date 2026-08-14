@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
 export interface Tenant {
@@ -17,7 +18,6 @@ interface TenantContextValue {
 
 const TenantContext = createContext<TenantContextValue | undefined>(undefined);
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
 function hexToHsl(hex: string): string {
   // Clean up hex
@@ -72,7 +72,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const res = await fetch(`${API_URL}/v1/tenants/branding`, {
+      const res = await apiFetchResponse(`/v1/tenants/branding`, {
         headers: { "X-Tenant-Domain": window.location.host },
       });
       const ct = res.headers.get("content-type") || "";

@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import React, { useState, useEffect } from "react";
 import { 
   Users, 
@@ -36,7 +37,6 @@ interface Student {
   avg_interview_score: number;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
 export default function AdvisorDashboard() {
   const { session } = useAuth();
@@ -68,18 +68,18 @@ export default function AdvisorDashboard() {
       };
 
       // 1. Fetch Cohorts
-      const cohortsRes = await fetch(`${API_URL}/v1/advisor/cohorts`, { headers });
+      const cohortsRes = await apiFetchResponse(`/v1/advisor/cohorts`, { headers });
       if (cohortsRes.ok) {
         const cohortsData = await cohortsRes.json();
         setCohorts(cohortsData || []);
       }
 
       // 2. Fetch Students
-      let url = `${API_URL}/v1/advisor/students`;
+      let url = `/v1/advisor/students`;
       if (selectedCohort) {
         url += `?cohort_id=${selectedCohort}`;
       }
-      const studentsRes = await fetch(url, { headers });
+      const studentsRes = await apiFetchResponse(url, { headers });
       if (studentsRes.ok) {
         const studentsData = await studentsRes.json();
         setStudents(studentsData || []);
@@ -96,7 +96,7 @@ export default function AdvisorDashboard() {
     if (!newCohortName.trim()) return;
 
     try {
-      const res = await fetch(`${API_URL}/v1/advisor/cohorts`, {
+      const res = await apiFetchResponse(`/v1/advisor/cohorts`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -127,7 +127,7 @@ export default function AdvisorDashboard() {
 
     setIsSendingAlert(true);
     try {
-      const res = await fetch(`${API_URL}/v1/push/send`, {
+      const res = await apiFetchResponse(`/v1/push/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

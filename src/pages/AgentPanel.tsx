@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import { useState, useEffect, useCallback } from "react";
 import { AppShell } from "@/components/layout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -82,11 +83,9 @@ export default function AgentPanel() {
   const [submittingApproval, setSubmittingApproval] = useState(false);
 
   const token = localStorage.getItem("auth_token");
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
-
   const fetchTasks = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/v1/agents/tasks`, {
+      const res = await apiFetchResponse(`/v1/agents/tasks`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -96,11 +95,11 @@ export default function AgentPanel() {
     } catch (e) {
       console.error(e);
     }
-  }, [API_URL, token]);
+  }, [token]);
 
   const fetchAgents = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/v1/agents`, {
+      const res = await apiFetchResponse(`/v1/agents`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch agents");
@@ -112,11 +111,11 @@ export default function AgentPanel() {
     } finally {
       setLoading(false);
     }
-  }, [API_URL, token]);
+  }, [token]);
 
   const fetchAgentConfig = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/v1/agent/config`, {
+      const res = await apiFetchResponse(`/v1/agent/config`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -126,11 +125,11 @@ export default function AgentPanel() {
     } catch (e) {
       console.error(e);
     }
-  }, [API_URL, token]);
+  }, [token]);
 
   const fetchTaskEvents = useCallback(async (taskId: string) => {
     try {
-      const res = await fetch(`${API_URL}/v1/agents/tasks/${taskId}/events`, {
+      const res = await apiFetchResponse(`/v1/agents/tasks/${taskId}/events`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -140,11 +139,11 @@ export default function AgentPanel() {
     } catch (e) {
       console.error(e);
     }
-  }, [API_URL, token]);
+  }, [token]);
 
   const fetchTaskDetails = useCallback(async (taskId: string) => {
     try {
-      const res = await fetch(`${API_URL}/v1/agents/tasks/${taskId}`, {
+      const res = await apiFetchResponse(`/v1/agents/tasks/${taskId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -155,7 +154,7 @@ export default function AgentPanel() {
       console.error(e);
     }
     return null;
-  }, [API_URL, token]);
+  }, [token]);
 
   useEffect(() => {
     fetchAgents();
@@ -170,7 +169,7 @@ export default function AgentPanel() {
       return;
     }
     try {
-      const res = await fetch(`${API_URL}/v1/agents/${selectedAgentForTask}/tasks`, {
+      const res = await apiFetchResponse(`/v1/agents/${selectedAgentForTask}/tasks`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -222,7 +221,7 @@ export default function AgentPanel() {
   const handleActionApprovalInTerminal = async (approvalId: string, status: "approved" | "rejected") => {
     setSubmittingApproval(true);
     try {
-      const res = await fetch(`${API_URL}/v1/approvals/${approvalId}`, {
+      const res = await apiFetchResponse(`/v1/approvals/${approvalId}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -257,7 +256,7 @@ export default function AgentPanel() {
     }
     try {
       const traitList = traits.split(",").map((t) => t.trim()).filter(Boolean);
-      const res = await fetch(`${API_URL}/v1/agents`, {
+      const res = await apiFetchResponse(`/v1/agents`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -289,7 +288,7 @@ export default function AgentPanel() {
   const handleDeleteAgent = async (agentName: string) => {
     if (!confirm(`Are you sure you want to dismiss ${agentName}?`)) return;
     try {
-      const res = await fetch(`${API_URL}/v1/agents/${agentName}`, {
+      const res = await apiFetchResponse(`/v1/agents/${agentName}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

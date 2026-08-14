@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +28,7 @@ export function NegotiationCopilot() {
     setLoading(true);
 
     try {
-      const resp = await fetch("/api/v1/negotiation/generate", {
+      const resp = await apiFetchResponse("/v1/negotiation/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

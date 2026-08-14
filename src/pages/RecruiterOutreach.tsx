@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import React, { useState } from "react";
 import { AppShell } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,7 @@ export function RecruiterOutreach() {
     setGenerating(true);
 
     try {
-      const resp = await fetch("/api/v1/recruiter/patterns", {
+      const resp = await apiFetchResponse("/v1/recruiter/patterns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

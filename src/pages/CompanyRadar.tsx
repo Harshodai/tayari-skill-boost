@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,7 +52,7 @@ export function CompanyRadar() {
     const kwList = keywords.split(",").map((k) => k.trim()).filter(Boolean);
 
     try {
-      const resp = await fetch("/api/v1/radar/check", {
+      const resp = await apiFetchResponse("/v1/radar/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

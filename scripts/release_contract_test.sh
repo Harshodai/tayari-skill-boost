@@ -46,5 +46,6 @@ while read -r image; do
 done < <(grep -E '^    image:' docker-compose.production.yml | sed -E 's/^    image: //; s/\$\{[^:}]+:\?[^}]+\}/example@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/g')
 
 bash scripts/mac_release_contract_test.sh
+node scripts/website_release_contract.mjs
 
 echo "release contract: PASS"

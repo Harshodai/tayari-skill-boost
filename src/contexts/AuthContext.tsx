@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 declare const chrome: any;
 declare const process: { env: Record<string, string | undefined> };
 
@@ -10,7 +11,6 @@ import { checkRateLimit, recordFailedAttempt, resetRateLimit } from "@/lib/rate-
 
 // Configuration for Auth Mode
 const USE_SELF_HOSTED = import.meta.env.VITE_USE_SELF_HOSTED === 'true';
-const API_URL = import.meta.env.VITE_API_URL || '/api';
 const EXTENSION_ID = import.meta.env.VITE_EXTENSION_ID || "tayari-extension-id";
 
 interface AuthContextType {
@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = localStorage.getItem('auth_token');
       if (token) {
         // Verify token with backend
-        fetch(`${API_URL}/me`, {
+        apiFetchResponse(`/me`, {
           headers: { Authorization: `Bearer ${token}` },
           signal: controller.signal
         })
@@ -177,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (USE_SELF_HOSTED) {
         // Note: For self-hosted, we allow the server to handle rate limiting (429)
 
-        const res = await fetch(`${API_URL}/auth/login`, {
+        const res = await apiFetchResponse(`/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
@@ -211,7 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Fetch user data to set state properly
         try {
-          const userRes = await fetch(`${API_URL}/me`, {
+          const userRes = await apiFetchResponse(`/me`, {
             headers: { Authorization: `Bearer ${data.token}` }
           });
 
@@ -259,7 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, name: string): Promise<{ error: string | null }> => {
     try {
       if (USE_SELF_HOSTED) {
-        const res = await fetch(`${API_URL}/auth/register`, {
+        const res = await apiFetchResponse(`/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, name })
@@ -288,7 +288,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGithub = async (): Promise<{ error: string | null }> => {
     if (USE_SELF_HOSTED) {
-      window.location.href = `${API_URL}/auth/github`;
+      window.location.href = `/auth/github`;
       return { error: null };
     }
     return socialLogin('github');
@@ -296,7 +296,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithLinkedin = async (): Promise<{ error: string | null }> => {
     if (USE_SELF_HOSTED) {
-      window.location.href = `${API_URL}/auth/linkedin`;
+      window.location.href = `/auth/linkedin`;
       return { error: null };
     }
     return socialLogin('linkedin_oidc');
@@ -304,7 +304,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async (): Promise<{ error: string | null }> => {
     if (USE_SELF_HOSTED) {
-      window.location.href = `${API_URL}/auth/google`;
+      window.location.href = `/auth/google`;
       return { error: null };
     }
     // Lovable Cloud managed Google OAuth — works in both preview and production

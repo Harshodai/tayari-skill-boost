@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-import { getProfile, apiFetch } from '@/api';
+import { apiFetchResponse, getProfile, apiFetch } from "@/api";
 import { useToast } from '@/hooks/use-toast';
 
 export const AutonomousCareerConsole: React.FC = () => {
@@ -218,7 +218,7 @@ export const AutonomousCareerConsole: React.FC = () => {
     setLoading(true);
     setOutreachError(null);
     try {
-      const res = await fetch('/api/v1/ai/agent/career/outreach', {
+      const res = await apiFetchResponse('/v1/ai/agent/career/outreach', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -257,7 +257,7 @@ export const AutonomousCareerConsole: React.FC = () => {
     setCopilotError(null);
     setCopilotResult(null);
     try {
-      const res = await fetch('/api/v1/ai/agent/career/copilot', {
+      const res = await apiFetchResponse('/v1/ai/agent/career/copilot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import { apiFetch, getHeaders, checkResponse, API_URL } from "./client";
 import type {
   Resume,
@@ -36,7 +37,7 @@ export async function updateResume(
 }
 
 export async function deleteResume(id: number | string): Promise<void> {
-  const response = await fetch(`${API_URL}/v1/resumes/${id}`, {
+  const response = await apiFetchResponse(`/v1/resumes/${id}`, {
     method: "DELETE",
     headers: getHeaders(),
   });
@@ -160,7 +161,7 @@ export async function generateResumePdf(payload: GenerateResumePdfPayload): Prom
 }
 
 export async function exportResume(id: number | string): Promise<Blob> {
-  const response = await fetch(`${API_URL}/v1/resumes/${id}/export`, {
+  const response = await apiFetchResponse(`/v1/resumes/${id}/export`, {
     method: "POST",
     headers: getHeaders(),
   });

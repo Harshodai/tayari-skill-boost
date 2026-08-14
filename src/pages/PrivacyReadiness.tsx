@@ -7,28 +7,19 @@ import { ShieldCheck, Lock, Server, Cpu, CheckCircle2, RefreshCw, Trash2, Eye } 
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/layout";
-import { fetchPrivacyLedger, clearPrivacyLedger } from "@/api/client";
+import { apiFetchResponse, fetchPrivacyLedger, clearPrivacyLedger } from "@/api";
 import type { PrivacyLedgerEntry } from "@/api/types";
 
 export function PrivacyReadiness() {
   const [loading, setLoading] = useState(false);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerLogs, setLedgerLogs] = useState<PrivacyLedgerEntry[]>([]);
-  const [status, setStatus] = useState<any>({
-    privacy_mode: "LOCAL_FIRST_ZERO_DATA_LEAKAGE",
-    self_hosted: true,
-    local_llm_active: true,
-    ollama_endpoint: "http://localhost:11434",
-    typst_cli_installed: true,
-    local_playwright_installed: true,
-    data_residency: "100% On-Premise / Local Machine",
-    external_tracking: "DISABLED",
-  });
+  const [status, setStatus] = useState<any>(null);
 
   const checkStatus = async () => {
     setLoading(true);
     try {
-      const resp = await fetch("/api/v1/privacy/check", { method: "POST" });
+      const resp = await apiFetchResponse("/v1/privacy/check", { method: "POST" });
       if (resp.ok) {
         const data = await resp.json();
         setStatus(data);
@@ -83,7 +74,7 @@ export function PrivacyReadiness() {
             Self-Hosted Privacy & AI Audit Ledger
           </h1>
           <p className="text-muted-foreground">
-            Tayari operates with a zero-data-leakage architecture. Inspect every AI request, model destination, and PII sanitization ledger entry in real-time.
+            Review live privacy diagnostics, model destinations, and PII sanitization ledger entries for this account.
           </p>
         </div>
 
@@ -96,9 +87,10 @@ export function PrivacyReadiness() {
             <CardContent className="space-y-4">
               <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center space-y-2">
                 <Lock className="h-8 w-8 text-emerald-500 mx-auto" />
-                <div className="text-sm font-bold">Zero Data Leakage</div>
-                <Badge variant="outline" className="text-xs">
-                  {status.privacy_mode}
+                                  <div className="text-sm font-bold">Live privacy diagnostics</div>
+                  <Badge variant="outline" className="text-xs">
+                  {status?.privacy_mode || "Not checked"}
+
                 </Badge>
               </div>
               <Button onClick={checkStatus} disabled={loading} className="w-full font-semibold">
@@ -116,25 +108,30 @@ export function PrivacyReadiness() {
                 <div className="p-3.5 rounded bg-muted/50 border">
                   <div className="text-xs text-muted-foreground">Local Ollama LLM</div>
                   <div className="text-sm font-bold mt-1 flex items-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Active ({status.ollama_endpoint})
+                    {status?.local_llm_active ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
+                    {status ? (status.local_llm_active ? `Active${status.ollama_endpoint ? ` (${status.ollama_endpoint})` : ""}` : "Unavailable") : "Not checked"}
                   </div>
                 </div>
                 <div className="p-3.5 rounded bg-muted/50 border">
                   <div className="text-xs text-muted-foreground">Typst Rust PDF Compiler</div>
                   <div className="text-sm font-bold mt-1 flex items-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Ready
+                    {status?.typst_cli_installed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
+                    {status ? (status.typst_cli_installed ? "Ready" : "Unavailable") : "Not checked"}
                   </div>
                 </div>
                 <div className="p-3.5 rounded bg-muted/50 border">
                   <div className="text-xs text-muted-foreground">Playwright Chromium</div>
                   <div className="text-sm font-bold mt-1 flex items-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Installed & Isolated
+                    {status?.local_playwright_installed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
+                    {status ? (status.local_playwright_installed ? "Installed & Isolated" : "Unavailable") : "Not checked"}
                   </div>
                 </div>
                 <div className="p-3.5 rounded bg-muted/50 border">
                   <div className="text-xs text-muted-foreground">External Analytics & Tracking</div>
                   <div className="text-sm font-bold text-emerald-500 mt-1 flex items-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Disabled (0% Telemetry)
+                                            {status?.external_tracking === "DISABLED" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
+                        {status ? (status.external_tracking || "Not reported") : "Not checked"}
+
                   </div>
                 </div>
               </div>
@@ -171,7 +168,7 @@ export function PrivacyReadiness() {
             ) : ledgerLogs.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-sm border border-dashed rounded-lg">
                 <ShieldCheck className="h-8 w-8 text-emerald-500 mx-auto mb-2 opacity-80" />
-                No outgoing request entries in current session. All processing remained 100% on-device.
+                No outgoing request entries recorded for the current session.
               </div>
             ) : (
               <div className="overflow-x-auto border rounded-lg">
@@ -201,7 +198,7 @@ export function PrivacyReadiness() {
                           {log.resource}
                         </TableCell>
                         <TableCell className="text-xs font-medium">
-                          {log.detail?.provider || "Ollama (Local)"}
+                          {log.detail?.provider || "Provider not reported"}
                         </TableCell>
                         <TableCell>
                           {log.detail?.pii_redacted && log.detail.pii_redacted.length > 0 ? (

@@ -140,14 +140,16 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
         with:
-          bun-version: latest
+          bun-version: 1.3.14
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Build
-        run: bun run build
+        run: VITE_SUPABASE_URL=https://ci.example.supabase.co VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ci VITE_API_URL=https://api.example.com/api VITE_USE_SELF_HOSTED=false bun run build
 
+      - name: Website release contract
+        run: node scripts/website_release_contract.mjs
 
       - name: Unit Test Suite
         run: bun run test

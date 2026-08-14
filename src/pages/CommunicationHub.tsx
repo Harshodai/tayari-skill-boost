@@ -6,13 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  listApplications,
+import { apiFetchResponse, listApplications,
   listSavedJobs,
   updateCommunicationResponse,
   getCommunicationStats,
-  type CommTypeStat,
-} from "@/api";
+  type CommTypeStat, } from "@/api";
 import {
   Mail,
   Copy,
@@ -30,14 +28,13 @@ import {
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
 function getToken() {
   return localStorage.getItem("auth_token");
 }
 
 async function fetchCommunicationSuggestions() {
-  const res = await fetch(`${API_URL}/v1/communication/suggestions`, {
+  const res = await apiFetchResponse(`/v1/communication/suggestions`, {
     headers: { Authorization: getToken() ? `Bearer ${getToken()}` : "" },
   });
   if (!res.ok) throw new Error("Failed to fetch suggestions");
@@ -45,7 +42,7 @@ async function fetchCommunicationSuggestions() {
 }
 
 async function generateCommunication(payload: any) {
-  const res = await fetch(`${API_URL}/v1/communication/generate`, {
+  const res = await apiFetchResponse(`/v1/communication/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

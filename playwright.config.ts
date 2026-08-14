@@ -7,7 +7,12 @@ export default defineConfig({
   fullyParallel: false,
   retries: 0,
   use: {
-    baseURL: 'http://localhost:8083',
+    baseURL: 'http://127.0.0.1:8083',
   },
-  webServer: false,
+  webServer: {
+    command: 'VITE_SUPABASE_URL=https://ci.example.supabase.co VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ci VITE_API_URL=https://api.example.com/api VITE_USE_SELF_HOSTED=false bun run dev -- --host 127.0.0.1 --port 8083',
+    url: 'http://127.0.0.1:8083',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120000,
+  },
 });

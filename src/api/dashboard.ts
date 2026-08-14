@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import { apiFetch, getHeaders, checkResponse, API_URL } from "./client";
 import type { Profile, DashboardStats } from "./types";
 import type { PreferenceProfile } from "./jobs";
@@ -163,7 +164,7 @@ export async function updateCareerOpsPortal(portalId: number, payload: Partial<C
 }
 
 export async function deleteCareerOpsPortal(portalId: number): Promise<void> {
-  const response = await fetch(`${API_URL}/v1/career-ops/portals/${portalId}`, {
+  const response = await apiFetchResponse(`/v1/career-ops/portals/${portalId}`, {
     method: "DELETE",
     headers: getHeaders(),
   });
@@ -226,7 +227,7 @@ export async function importProfilePDF(file: File): Promise<{
 }> {
   const formData = new FormData();
   formData.append("file", file);
-  const response = await fetch(`${API_URL}/v1/profile/import-pdf`, {
+  const response = await apiFetchResponse(`/v1/profile/import-pdf`, {
     method: "POST",
     headers: {
       Authorization: getHeaders()["Authorization"] || "",
@@ -264,7 +265,7 @@ export async function createSave(payload: { url: string; note?: string; source?:
 }
 
 export async function deleteSave(id: string): Promise<void> {
-  const response = await fetch(`${API_URL}/saves/${id}`, {
+  const response = await apiFetchResponse(`/saves/${id}`, {
     method: "DELETE",
     headers: getHeaders(),
   });

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { listApplications, listSavedJobs } from "@/api";
+import { API_URL, apiFetchResponse, listApplications, listSavedJobs } from "@/api";
 import {
   Brain,
   Loader2,
@@ -38,14 +38,13 @@ import {
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
 function getToken() {
   return localStorage.getItem("auth_token");
 }
 
 async function fetchInterviewPrep(payload: any) {
-  const res = await fetch(`${API_URL}/v1/interview/prep`, {
+  const res = await apiFetchResponse(`/v1/interview/prep`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Mic, MicOff, Volume2, Play, RefreshCw, Award, Zap, AlertTriangle, CheckCircle, Radio } from "lucide-react";
 import { toast } from "sonner";
-import { apiFetch } from "@/api";
+import { apiFetchResponse, apiFetch } from "@/api";
 
 interface VoiceAnalysis {
   transcript: string;
@@ -155,7 +155,7 @@ export function InterviewVoiceCoach() {
         return;
       }
 
-      const resp = await fetch("/api/v1/interview/voice-feedback", {
+      const resp = await apiFetchResponse("/v1/interview/voice-feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,7 +62,7 @@ const Pricing = () => {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const response = await fetch("/api/v1/billing/create-checkout-session", {
+      const response = await apiFetchResponse("/v1/billing/create-checkout-session", {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -95,7 +96,7 @@ const Pricing = () => {
       return;
     }
     try {
-      const response = await fetch("/api/v1/waitlist/join", {
+      const response = await apiFetchResponse("/v1/waitlist/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: contactEmail.trim(), tier: "institutions" }),

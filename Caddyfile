@@ -3,7 +3,19 @@
 }
 
 {$CADDY_DOMAIN:http://localhost:8080} {
-  reverse_proxy /api/* go-backend:8080
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "no-referrer"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.tayari.app"
+    -Server
+  }
+
+  reverse_proxy /api/* go-backend:8080 {
+    header_up X-Request-ID {http.request.id}
+  }
   reverse_proxy /flower/* celery-flower:5555
   reverse_proxy frontend:80
 

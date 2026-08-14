@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { apiFetch } from "@/api";
+import { apiFetchResponse, apiFetch } from "@/api";
 
 export function DemoModeBanner() {
   const [isMockMode, setIsMockMode] = useState<boolean>(false);
@@ -9,7 +9,7 @@ export function DemoModeBanner() {
     let isMounted = true;
     const checkHealth = async () => {
       try {
-        const res = await apiFetch<any>("/v1/health").catch(() => null) || await fetch("/health").then(r => r.json()).catch(() => null);
+        const res = await apiFetch<any>("/v1/health").catch(() => null) || await apiFetchResponse("/healthz").then(r => r.json()).catch(() => null);
         if (res && isMounted) {
           const isMock =
             res.active_engine === "mock" ||

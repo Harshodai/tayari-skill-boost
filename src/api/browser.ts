@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import { API_URL, ApiError, apiFetch, getHeaders } from "./client";
 
 /**
@@ -11,7 +12,7 @@ export async function cancelBrowserRun(runId: string): Promise<boolean> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20_000);
   try {
-    const response = await fetch(`${API_URL}/v1/browser/automation/cancel`, {
+    const response = await apiFetchResponse(`/v1/browser/automation/cancel`, {
       method: "POST",
       headers: { ...getHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ run_id: runId }),
@@ -99,7 +100,7 @@ export async function streamBrowserAgent(
   maxSteps = 25,
   runId?: string
 ): Promise<void> {
-  const response = await fetch(`${API_URL}/v1/browser/automation/stream`, {
+  const response = await apiFetchResponse(`/v1/browser/automation/stream`, {
     method: "POST",
     headers: { ...getHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ instruction, max_steps: maxSteps, run_id: runId || null }),

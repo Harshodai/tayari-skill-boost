@@ -86,28 +86,33 @@ export async function clearPrivacyLedger(): Promise<Record<string, unknown>> {
   });
 }
 
+export async function apiFetchResponse(
+  path: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        ...getHeaders(isFormData),
+        ...(options.headers || {}),
+      },
+    });
+  } catch {
+    throw new BackendUnavailableError();
+  }
+  await checkResponse(response);
+  return response;
+}
+
 export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T> {
   const { asBlob, ...fetchOptions } = options;
-  const isFormData = typeof FormData !== "undefined" && fetchOptions.body instanceof FormData;
-  const defaultHeaders = getHeaders(isFormData);
-  let response: Response;
-  try {
-    response = await fetch(`${API_URL}${path}`, {
-      ...fetchOptions,
-      headers: {
-        ...defaultHeaders,
-        ...(fetchOptions.headers || {}),
-      },
-    });
-  } catch {
-    // Connection refused / DNS failure / offline: the gateway isn't there.
-    throw new BackendUnavailableError();
-  }
-
-  await checkResponse(response);
+  const response = await apiFetchResponse(path, fetchOptions);
   if (asBlob) {
     return (await response.blob()) as unknown as T;
   }

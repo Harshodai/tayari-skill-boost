@@ -129,6 +129,7 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/free-scan" element={<FreeAtsScan />} />
+              <Route path="/free-ats-scan" element={<Navigate to="/free-scan" replace />} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/terms" element={<Terms />} />

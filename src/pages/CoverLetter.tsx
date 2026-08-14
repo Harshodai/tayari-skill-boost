@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { listSavedJobs, getProfile, listResumes } from "@/api";
+import { apiFetchResponse, listSavedJobs, getProfile, listResumes } from "@/api";
 import {
   FileText,
   Copy,
@@ -27,14 +27,13 @@ import {
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
 function getToken() {
   return localStorage.getItem("auth_token");
 }
 
 async function generateCoverLetter(payload: any) {
-  const res = await fetch(`${API_URL}/v1/cover-letter/generate`, {
+  const res = await apiFetchResponse(`/v1/cover-letter/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

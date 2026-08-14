@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,6 @@ import { Progress } from "@/components/ui/progress";
 import { Check, X, ArrowRight, Loader2, Zap } from "lucide-react";
 import { Layout } from "@/components/layout";
 
-const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 export default function FreeAtsScan() {
   const [resumeText, setResumeText] = useState("");
@@ -24,7 +24,7 @@ export default function FreeAtsScan() {
     setError("");
     setResult(null);
     try {
-      const res = await fetch(`${API_URL}/v1/public/analyze-text`, {
+      const res = await apiFetchResponse(`/v1/public/analyze-text`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import { apiFetch, API_URL, getHeaders } from "./client";
 
 function stableHash(input: string): string {
@@ -256,7 +257,7 @@ export async function streamInterviewCopilotHints(
   onEvent: (event: CopilotStreamEvent) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  const response = await fetch(`${API_URL}/v1/interview/copilot/stream`, {
+  const response = await apiFetchResponse(`/v1/interview/copilot/stream`, {
     method: "POST",
     headers: { ...getHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(payload),

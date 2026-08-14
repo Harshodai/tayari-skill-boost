@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import { apiFetch, getHeaders, checkResponse, API_URL } from "./client";
 import type { JobDescription, CreateJDRequest, SavedJob } from "./types";
 
@@ -27,7 +28,7 @@ export async function updateJD(
 }
 
 export async function deleteJD(id: number | string): Promise<void> {
-  const response = await fetch(`${API_URL}/v1/job-descriptions/${id}`, {
+  const response = await apiFetchResponse(`/v1/job-descriptions/${id}`, {
     method: "DELETE",
     headers: getHeaders(),
   });

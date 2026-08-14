@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import React, { useState, useEffect } from "react";
 import { AppShell } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -106,7 +107,7 @@ export function AgentReachHub() {
 
   const fetchDoctorStatus = async () => {
     try {
-      const resp = await fetch("/api/v1/agent-reach/doctor", {
+      const resp = await apiFetchResponse("/v1/agent-reach/doctor", {
         headers: getAuthHeaders(),
       });
       if (resp.ok) {
@@ -123,7 +124,7 @@ export function AgentReachHub() {
   const fetchCookiesStatus = async () => {
     setCookiesLoading(true);
     try {
-      const resp = await fetch("/api/v1/agent-reach/cookies", {
+      const resp = await apiFetchResponse("/v1/agent-reach/cookies", {
         headers: getAuthHeaders(),
       });
       if (resp.ok) {
@@ -151,7 +152,7 @@ export function AgentReachHub() {
 
     setLoading(true);
     try {
-      const resp = await fetch("/api/v1/agent-reach/extract", {
+      const resp = await apiFetchResponse("/v1/agent-reach/extract", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -183,7 +184,7 @@ export function AgentReachHub() {
 
     setTranscribeLoading(true);
     try {
-      const resp = await fetch("/api/v1/agent-reach/transcribe", {
+      const resp = await apiFetchResponse("/v1/agent-reach/transcribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: transcribeUrl, provider: "auto" }),
@@ -210,7 +211,7 @@ export function AgentReachHub() {
 
     setSearchLoading(true);
     try {
-      const resp = await fetch("/api/v1/agent-reach/search", {
+      const resp = await apiFetchResponse("/v1/agent-reach/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: searchQuery }),

@@ -1,3 +1,4 @@
+import { apiFetchResponse } from "@/api";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,6 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
@@ -66,7 +66,7 @@ const ResetPassword = () => {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(`${API_URL}/v1/auth/reset-password`, {
+      const res = await apiFetchResponse(`/v1/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),
