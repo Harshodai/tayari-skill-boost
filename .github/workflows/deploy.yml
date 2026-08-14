@@ -40,9 +40,7 @@ jobs:
           python -m pytest app/tests tests --cov=app --cov-report=term-missing --cov-fail-under=60
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
-        with:
-          bun-version: 1.3.14
+        run: npm install --global --no-audit --no-fund bun@1.3.14
 
       - name: Install frontend dependencies
         run: |

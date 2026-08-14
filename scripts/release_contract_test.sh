@@ -55,6 +55,9 @@ grep -q 'bun run test -- --coverage' .github/workflows/deploy.yml
 grep -q 'cp .env.example .env' .github/workflows/deploy.yml
 grep -q 'cp supabase-local/.env.example supabase-local/.env' .github/workflows/deploy.yml
 grep -q 'CADDY_HTTPS_PORT=18443' .github/workflows/ci.yml
+test "$(grep -c 'npm install --global --no-audit --no-fund bun@1.3.14' .github/workflows/ci.yml)" -eq 4
+grep -q 'npm install --global --no-audit --no-fund bun@1.3.14' .github/workflows/deploy.yml
+! grep -RIn 'oven-sh/setup-bun' .github/workflows
 ! grep -RInE 'yarn (install|build|lint)|bun install --no-save|bun.lockb' .github/workflows Dockerfile* scripts --exclude='*.md'
 ! grep -q '"lint": "eslint \."' package.json
 
