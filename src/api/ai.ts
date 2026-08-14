@@ -162,7 +162,6 @@ export async function saveCandidateAnswers(
     }),
   });
 }
-}
 
 export async function matchCandidateBank(questionText: string, customQa?: Record<string, string>): Promise<Record<string, unknown>> {
   return apiFetch<Record<string, unknown>>("/v1/candidate-bank/match", {
