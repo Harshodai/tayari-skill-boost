@@ -317,7 +317,7 @@ services:
 
   supavisor:
     container_name: supabase-pooler
-    image: supabase/supavisor:2.7.4
+    image: supabase/supavisor:2.9.5
     restart: unless-stopped
     ports:
       - ${POOLER_PROXY_PORT_TRANSACTION}:6543
@@ -336,12 +336,14 @@ services:
         ]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy
     environment:
       PORT: 4000
+      POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT}
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

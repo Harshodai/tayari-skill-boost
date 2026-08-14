@@ -55,6 +55,9 @@ grep -q 'bun run test -- --coverage' .github/workflows/deploy.yml
 grep -q 'cp .env.example .env' .github/workflows/deploy.yml
 grep -q 'cp supabase-local/.env.example supabase-local/.env' .github/workflows/deploy.yml
 grep -q 'CADDY_HTTPS_PORT=18443' .github/workflows/ci.yml
+grep -q 'image: supabase/supavisor:2.9.5' supabase-local/docker-compose.yml
+grep -q 'start_period: 30s' supabase-local/docker-compose.yml
+grep -q 'POSTGRES_HOST: ${POSTGRES_HOST}' supabase-local/docker-compose.yml
 test "$(grep -c 'npm install --global --no-audit --no-fund bun@1.3.14' .github/workflows/ci.yml)" -eq 4
 grep -q 'npm install --global --no-audit --no-fund bun@1.3.14' .github/workflows/deploy.yml
 ! grep -RIn 'oven-sh/setup-bun' .github/workflows
