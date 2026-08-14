@@ -15,17 +15,26 @@ import (
 
 // Client communicates with the Python AI service.
 type Client struct {
-	BaseURL string
-	client  http.Client
+	BaseURL       string
+	internalToken string
+	client        http.Client
 }
 
-// NewClient is a constructor for ai.Client
+// NewClient is kept for callers that only need an unauthenticated health client.
 func NewClient(baseURL string) *Client {
+	return NewClientWithToken(baseURL, "")
+}
+
+// NewClientWithToken authenticates every Go-to-Python request with a private
+// service token. User identity headers remain caller-specific and are applied
+// after this helper, while the internal token cannot be overridden by callers.
+func NewClientWithToken(baseURL, internalToken string) *Client {
 	if baseURL == "" {
 		baseURL = "http://localhost:8000"
 	}
 	return &Client{
-		BaseURL: baseURL,
+		BaseURL:       baseURL,
+		internalToken: internalToken,
 		client: http.Client{
 			// 240s: the resume optimizer runs a 2-call reflection loop
 			// (optimize + re-prompt) against whatever LLM is configured —
@@ -36,6 +45,15 @@ func NewClient(baseURL string) *Client {
 			// logs while python-ai was still working).
 			Timeout: 240 * time.Second,
 		},
+	}
+}
+
+func (c *Client) setHeaders(req *http.Request, headers map[string]string) {
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	if c.internalToken != "" {
+		req.Header.Set("X-Internal-Token", c.internalToken)
 	}
 }
 
@@ -55,6 +73,7 @@ func (c *Client) ParseDocument(fileData []byte, fileType string) (map[string]int
 		return nil, err
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
+	c.setHeaders(req, nil)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -83,6 +102,7 @@ func (c *Client) AnalyzeResume(resumeText, jdText string) (map[string]interface{
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	c.setHeaders(req, nil)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -114,9 +134,7 @@ func (c *Client) PostJSONWithHeaders(endpoint string, payload interface{}, heade
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	c.setHeaders(req, headers)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -144,9 +162,7 @@ func (c *Client) PatchJSONWithHeaders(endpoint string, payload interface{}, head
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	c.setHeaders(req, headers)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -173,9 +189,7 @@ func (c *Client) GetJSONWithHeaders(endpoint string, headers map[string]string) 
 	if err != nil {
 		return nil, err
 	}
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	c.setHeaders(req, headers)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -197,9 +211,7 @@ func (c *Client) DeleteJSONWithHeaders(endpoint string, headers map[string]strin
 	if err != nil {
 		return nil, err
 	}
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	c.setHeaders(req, headers)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -224,9 +236,7 @@ func (c *Client) GetBlob(endpoint string, headers map[string]string) (*http.Resp
 	if err != nil {
 		return nil, err
 	}
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	c.setHeaders(req, headers)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -246,9 +256,7 @@ func (c *Client) DeleteNoContent(endpoint string, headers map[string]string) err
 	if err != nil {
 		return err
 	}
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	c.setHeaders(req, headers)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return err
@@ -286,9 +294,7 @@ func (c *Client) PostStream(ctx context.Context, endpoint string, payload interf
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	c.setHeaders(req, headers)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -313,9 +319,7 @@ func (c *Client) PostJSONWithContext(ctx context.Context, endpoint string, paylo
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	c.setHeaders(req, headers)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err

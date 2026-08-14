@@ -7,17 +7,18 @@ import (
 )
 
 type Config struct {
-	Port               string
-	AllowedOrigins     []string
-	CORSAllowedOrigins []string
-	DatabaseURL        string
-	UseSupabase        bool
-	JWTSecret          string
-	SupabaseURL        string
-	SupabaseKey        string
+	Port                   string
+	AllowedOrigins         []string
+	CORSAllowedOrigins     []string
+	DatabaseURL            string
+	UseSupabase            bool
+	JWTSecret              string
+	SupabaseURL            string
+	SupabaseKey            string
 	SupabaseServiceRoleKey string
-	FrontendURL        string
-	PythonAIURL        string
+	FrontendURL            string
+	PythonAIURL            string
+	AIInternalToken        string
 
 	// Social Auth Configs
 	GoogleClientID     string
@@ -40,17 +41,18 @@ func LoadConfig() *Config {
 		Port:               getEnv("PORT", "8080"),
 		AllowedOrigins:     parseAllowedOrigins(getEnv("ALLOWED_ORIGINS", "http://localhost:5173")),
 		CORSAllowedOrigins: parseAllowedOrigins(getEnv("CORS_ALLOWED_ORIGINS", "")),
-		DatabaseURL:    getEnv("DATABASE_URL", ""),
-		UseSupabase:    getEnv("USE_SUPABASE", "false") == "true",
-		JWTSecret:      jwtSecret,
-		SupabaseURL:    getEnv("SUPABASE_URL", ""),
-		SupabaseKey:    getEnv("SUPABASE_ANON_KEY", ""),
+		DatabaseURL:        getEnv("DATABASE_URL", ""),
+		UseSupabase:        getEnv("USE_SUPABASE", "false") == "true",
+		JWTSecret:          jwtSecret,
+		SupabaseURL:        getEnv("SUPABASE_URL", ""),
+		SupabaseKey:        getEnv("SUPABASE_ANON_KEY", ""),
 		// Optional: enables the GoTrue Admin-API account-deletion path
 		// (DELETE /auth/v1/admin/users/{id}) in handleDeleteAccount. Without
 		// it, deletion falls back to a direct `DELETE FROM auth.users`.
 		SupabaseServiceRoleKey: getEnv("SUPABASE_SERVICE_ROLE_KEY", ""),
-		FrontendURL:    getEnv("FRONTEND_URL", "http://localhost:5173"),
-		PythonAIURL:    getEnv("PYTHON_AI_URL", getEnv("AI_SERVICE_URL", "http://localhost:8000")),
+		FrontendURL:            getEnv("FRONTEND_URL", "http://localhost:5173"),
+		PythonAIURL:            getEnv("PYTHON_AI_URL", getEnv("AI_SERVICE_URL", "http://localhost:8000")),
+		AIInternalToken:        getEnv("AI_INTERNAL_TOKEN", ""),
 
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),

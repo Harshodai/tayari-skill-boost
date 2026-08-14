@@ -63,6 +63,7 @@ from app.services.communication import CommunicationGenerator
 from app.services.interview_ai import InterviewPrepGenerator
 from app.services.knowledge_graph import KnowledgeGraphExtractor
 from app.services.linkedin_analyzer import score_linkedin_profile
+from app.middleware.internal_gateway import InternalGatewayMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,9 @@ app = FastAPI(
 app.include_router(a2a_router)
 app.include_router(agent_router)
 app.state.limiter = limiter
+# The Go gateway is the only public API boundary in production. The middleware
+# below rejects direct calls before route code or expensive work runs.
+app.add_middleware(InternalGatewayMiddleware)
 # Enforce the default limit for every route unless a narrower route policy
 # overrides it. Keeping this at the app boundary prevents expensive public
 # routes from silently bypassing the configured limiter.
@@ -143,6 +147,8 @@ else:
 # Production safety: validate no wildcard in production
 _env = os.getenv("ENV", "development").lower()
 if _env == "production":
+    if not os.getenv("AI_INTERNAL_TOKEN", ""):
+        raise RuntimeError("AI_INTERNAL_TOKEN must be set in production")
     allowed_origins = [o for o in allowed_origins if o != "*"]
     if not allowed_origins:
         raise RuntimeError("CORS_ALLOWED_ORIGINS must be set in production")

@@ -45,7 +45,7 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		Auth:              authService,
 		Config:            cfg,
 		DB:                db,
-		AI:                ai.NewClient(cfg.PythonAIURL),
+		AI:                ai.NewClientWithToken(cfg.PythonAIURL, cfg.AIInternalToken),
 		Billing:           billing.NewBillingService(db),
 		startTime:         time.Now(),
 		publicRateLimiter: newRateLimiter(rate.Limit(10.0), 100, false),
