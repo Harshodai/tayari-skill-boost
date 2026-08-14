@@ -76,7 +76,7 @@
 - [x] **M3-07 / S1** Add standardized `/healthz` and `/readyz` endpoints and correct Compose/Kubernetes probes. Readiness fails closed without required dependencies.
 - [x] **M3-08 / S1** Add backup, restore, migration-order, rollback, and schema-compatibility tests in disposable staging. Local proof covers contract and migration order; disposable-Postgres execution remains required before launch.
 - [ ] **M3-09 / S1** Add structured logs, metrics, tracing, queue-age alerts, provider-error alerts, and budget alerts.
-- [x] **M3-10 / S1** Consolidate package manager/lockfile and restore dependency scanning as a blocking, reviewable gate. Bun is the sole frontend installer with a frozen `bun.lock`; Python `pip-audit --strict` and the corrected Bun audit parser run in CI. The gate is currently blocking on 27 high-severity transitive advisories and must remain red until remediated or explicitly risk-accepted.
+- [x] **M3-10 / S1** Consolidate package manager/lockfile and restore dependency scanning as a blocking, reviewable gate. Bun is the sole frontend installer with a frozen `bun.lock`; Python `pip-audit --strict` and the corrected Bun audit parser run in CI. The dependency gates now pass with zero new high/critical frontend findings and zero Python audit findings. Vulnerable transitive branches were upgraded through reviewed overrides; optional browser-use and Crawl4AI trees were removed from the core image and fail closed/require explicit opt-in.
 
 **M3 exit gate:** a clean commit produces a signed, scanned, immutable staging deployment with passing smoke tests and a tested rollback.
 
@@ -108,10 +108,10 @@
 
 ## M6 — Final proof and release decision
 
-- [ ] **M6-01** Run Go tests, vet, Python tests, frontend typecheck/lint/unit, E2E, dependency audit, secret scan, and container validation from a clean checkout. Go, Python, frontend, public-route E2E, secret scan, migrations, release contract, and build proofs pass; the JavaScript dependency scanner reports 25 new high findings and pip-audit could not resolve the pinned `browser-use==0.1.34` on the connected Mac.
+- [ ] **M6-01** Run Go tests, vet, Python tests, frontend typecheck/lint/unit, E2E, dependency audit, secret scan, and container validation from a clean checkout. Go, Python, frontend, public-route E2E, secret scan, migrations, release contract, and build proofs pass; the JavaScript and Python dependency gates now pass after remediation. A final clean-checkout proof remains after the outstanding staging and release work.
 - [ ] **M6-02** Run unauthenticated endpoint inventory and compare every route to the explicit exposure registry. Existing targeted endpoint proofs pass, but a complete registry comparison has not been produced.
 - [ ] **M6-03** Run hostile staging tests for flood, SSRF, prompt injection, cross-tenant access, approval replay, kill switch, deletion, backup restore, and rollback. Unit and contract proofs exist; live staging flood/SSRF/restore/rollback evidence is still missing.
-- [ ] **M6-04** Verify the release artifact contains no localhost/dev placeholders, unapproved secrets, source mounts, or unsigned images/apps. Frontend, desktop, and production Compose contracts pass; Apple signing/notarization and immutable staging promotion were not executed, and the dependency gate is red.
+- [ ] **M6-04** Verify the release artifact contains no localhost/dev placeholders, unapproved secrets, source mounts, or unsigned images/apps. Frontend, desktop, and production Compose contracts pass; dependency gates are green, but Apple signing/notarization and immutable staging promotion were not executed.
 - [x] **M6-05** Record residual risks with owner, evidence, expiry date, and explicit launch scope. Residual risks and owners are recorded in `TAYARI_RELEASE_GATE.md`.
 - [x] **M6-06** Issue one of three decisions: `NO-GO`, `INTERNAL DEMO ONLY`, or `PUBLIC BETA GO`. Decision: **NO-GO for public launch**; allow only controlled internal demos until dependency, staging, signing, and privacy/claims gates close.
 

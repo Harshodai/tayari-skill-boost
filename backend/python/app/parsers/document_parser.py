@@ -10,12 +10,6 @@ from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, asdict
 
 try:
-    import pdfplumber
-    PDFPLUMBER_AVAILABLE = True
-except ImportError:
-    PDFPLUMBER_AVAILABLE = False
-
-try:
     import pypdf
     PYPDF_AVAILABLE = True
 except ImportError:
@@ -84,23 +78,13 @@ class ResumeParser:
     @staticmethod
     def _parse_pdf(file_bytes: bytes) -> ParsedResume:
         text_parts = []
-        if PDFPLUMBER_AVAILABLE:
-            try:
-                with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-                    for page in pdf.pages:
-                        t = page.extract_text()
-                        if t:
-                            text_parts.append(t)
-            except Exception as exc:
-                logger.warning("pdfplumber parse failed, trying fallbacks: %s", exc)
-
-        if not text_parts and PYPDF_AVAILABLE:
+        if PYPDF_AVAILABLE:
             try:
                 reader = pypdf.PdfReader(io.BytesIO(file_bytes))
                 for page in reader.pages:
-                    t = page.extract_text()
-                    if t:
-                        text_parts.append(t)
+                    text = page.extract_text()
+                    if text:
+                        text_parts.append(text)
             except Exception as exc:
                 logger.warning("pypdf parse failed, trying PyPDF2: %s", exc)
 
@@ -108,16 +92,16 @@ class ResumeParser:
             try:
                 reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
                 for page in reader.pages:
-                    t = page.extract_text()
-                    if t:
-                        text_parts.append(t)
+                    text = page.extract_text()
+                    if text:
+                        text_parts.append(text)
             except Exception as exc:
                 logger.warning("PyPDF2 parse failed: %s", exc)
 
         if text_parts:
             full_text = "\n".join(text_parts)
             return ResumeParser._extract_from_text(full_text)
-        
+
         raise RuntimeError("PDF parsing failed: no valid text extracted with available PDF parsers")
 
     @staticmethod

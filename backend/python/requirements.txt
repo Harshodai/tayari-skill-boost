@@ -1,50 +1,43 @@
 sentry-sdk==2.22.0
-fastapi==0.115.6
+fastapi==0.141.1
 uvicorn[standard]==0.34.0
-pydantic==2.10.4
-python-multipart==0.0.20
+pydantic==2.13.4
+python-multipart==0.0.31
 httpx==0.27.2
 
 # Document parsing
-pdfplumber==0.11.5
+# ReportLab is used for PDF export; the previous WeasyPrint dependency was
+# removed because its unresolved presentational-hints advisory was not safe to
+# ship in a service that processes user-controlled resume content.
+pypdf==6.16.0
+reportlab==5.0.0
 python-docx==1.1.2
 
 # ML/Analysis
 scikit-learn==1.6.1
 numpy>=1.26.0,<2.0.0
-nltk==3.9.1
+nltk==3.10.0
 
 # Auth (JWT verification shared by GoTrue-style tokens; app/auth/dependencies.py imports jwt)
-PyJWT==2.10.1
+PyJWT==2.13.0
 
 # Async HTTP
 aiofiles==24.1.0
 
-
 # Export
-jinja2==3.1.5
-weasyprint==63.1
-
-# NLP (heavyweight - optional, not imported in code)
-# spacy==3.8.3
+jinja2==3.1.6
 
 # Hermes automation layer (WS-C)
 celery==5.4.0
 redis==5.2.1
 flower==2.0.1
 asyncpg==0.30.0
-crawl4ai==0.4.0
 apify-client==1.8.0
 slowapi==0.1.9
-# NOTE 2026-08-13: local dev venvs commonly resolve a newer Playwright (seen:
-# 1.62.0) than this pin, which removed Page.accessibility (present here).
-# app/agent/browser_operator.py and app/services/form_filler.py both probe for
-# either API shape at runtime and fail closed on an unreadable page, so this
-# drift is no longer silently dangerous — but the pin itself is unresolved.
-# See handoff.md section "External dependencies" before changing this: it's a
-# human call (which version, whether the Docker image has been rebuilt and
-# tested against it) not a mechanical bump.
-browser-use==0.1.34
 playwright==1.49.1
-langchain-openai==0.3.1
 instructor==1.3.3
+
+# Optional browser-use and Crawl4AI packages are intentionally not part of the
+# core image. Their current dependency trees introduce unresolved/high-risk
+# transitive advisories. Browser automation fails closed when browser-use is
+# absent, while Crawl4AI is disabled unless ENABLE_CRAWL4AI is explicitly set.

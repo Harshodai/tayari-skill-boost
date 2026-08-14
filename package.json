@@ -117,5 +117,19 @@
     "vitest": "^4.1.10",
     "wait-on": "^9.1.0"
   },
-  "main": "electron/main.cjs"
+  "main": "electron/main.cjs",
+  "overrides": {
+    "brace-expansion": "1.1.18",
+    "fast-uri": "3.1.5",
+    "flatted": "3.4.4",
+    "form-data": "4.0.6",
+    "glob": "10.5.0",
+    "ip-address": "10.5.0",
+    "js-yaml": "4.3.1",
+    "lodash": "4.18.1",
+    "minimatch": "3.1.5",
+    "nanoid": "3.3.18",
+    "picomatch": "2.3.2",
+    "ws": "8.21.1"
+  }
 }

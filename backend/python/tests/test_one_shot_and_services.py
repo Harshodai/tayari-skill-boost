@@ -107,45 +107,32 @@ async def test_typst_compile_endpoint_empty_bytes_fallback(monkeypatch):
     assert "pdf_data" not in res_none
 
 
-def test_pdf_exporter_autoescape(monkeypatch):
+def test_pdf_exporter_escapes_user_text(monkeypatch):
+    from app.export import pdf_exporter
     from app.export.pdf_exporter import PDFExporter
 
-    captured_html = []
+    captured = []
 
-    class DummyHTML:
-        def __init__(self, string=None):
-            captured_html.append(string)
+    def fake_write_pdf(**kwargs):
+        captured.append(kwargs)
+        return b"%PDF-1.4 mock pdf"
 
-        def write_pdf(self, target):
-            target.write(b"%PDF-1.4 mock pdf")
-
-    monkeypatch.setattr("app.export.pdf_exporter.WEASYPRINT_AVAILABLE", True)
-    monkeypatch.setattr("app.export.pdf_exporter.HTML", DummyHTML, raising=False)
+    monkeypatch.setattr(pdf_exporter, "_write_pdf", fake_write_pdf)
 
     exporter = PDFExporter()
-
-    # Exercise export_to_pdf
     script_payload = "<script>alert('xss')</script>"
     pdf_out = exporter.export_to_pdf(script_payload)
     assert pdf_out == b"%PDF-1.4 mock pdf"
+    assert captured[-1]["summary"] == script_payload
 
-    rendered_to_pdf = captured_html[-1]
-    assert rendered_to_pdf is not None
-    assert "&lt;script&gt;" in rendered_to_pdf
-    assert "<script>" not in rendered_to_pdf
-
-    # Exercise export
     resume_payload = {
         "contact": {"name": "<b>Jane</b>"},
         "summary": script_payload,
     }
     export_out = exporter.export(resume_payload)
     assert export_out == b"%PDF-1.4 mock pdf"
+    assert captured[-1]["contact"]["name"] == "<b>Jane</b>"
 
-    rendered_export = captured_html[-1]
-    assert rendered_export is not None
-    assert "&lt;script&gt;" in rendered_export
-    assert "<script>" not in rendered_export
-    assert "&lt;b&gt;" in rendered_export
-    assert "<b>" not in rendered_export
+    assert pdf_exporter._text("  unsafe\x00 value ") == "unsafe value"
+    assert pdf_exporter.escape("<script>") == "&lt;script&gt;"
 

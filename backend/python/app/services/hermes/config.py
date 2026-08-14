@@ -39,6 +39,7 @@ APIFY_API_TOKEN: str = _env("APIFY_API_TOKEN")
 SERPAPI_API_KEY: str = _env("SERPAPI_API_KEY")
 
 CRAWL4AI_BASE_URL: str = _env("CRAWL4AI_BASE_URL")  # blank => in-process
+ENABLE_CRAWL4AI: bool = _truthy(_env("ENABLE_CRAWL4AI"))
 
 HERMES_AGENT_URL: str = _env("HERMES_AGENT_URL")
 HERMES_API_KEY: str = _env("HERMES_API_KEY")
@@ -66,10 +67,9 @@ def serp_available() -> bool:
 
 
 def crawl4ai_available() -> bool:
-    # In-process Crawl4AI needs no key. Availability is confirmed at import
-    # time inside the provider; this stays True so the router can select it
-    # and the provider degrades to [] if the library is missing.
-    return True
+    # Crawl4AI is an optional heavyweight scraper. Keep it disabled unless an
+    # operator explicitly opts in after reviewing its separate dependency set.
+    return ENABLE_CRAWL4AI
 
 
 def hermes_llm_available() -> bool:
