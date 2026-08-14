@@ -8,6 +8,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PUSH="${PUSH:-false}"
 PLATFORMS="${PLATFORMS:-linux/amd64}"
 BUILDER="${BUILDER:-tayari-release-builder}"
+VITE_API_URL="${VITE_API_URL:-/api}"
+VITE_USE_SELF_HOSTED="${VITE_USE_SELF_HOSTED:-false}"
+: "${VITE_SUPABASE_URL:?Set VITE_SUPABASE_URL for the frontend release build}"
+: "${VITE_SUPABASE_PUBLISHABLE_KEY:?Set VITE_SUPABASE_PUBLISHABLE_KEY for the frontend release build}"
 
 if [[ "$PUSH" != "true" && "$PUSH" != "false" ]]; then
   echo "PUSH must be true or false." >&2
@@ -46,10 +50,10 @@ build_image() {
 }
 
 build_image tayari-frontend infra/containers/frontend.Dockerfile \
-  --build-arg VITE_API_URL="${VITE_API_URL:-/api}" \
-  --build-arg VITE_SUPABASE_URL="${VITE_SUPABASE_URL:-}" \
-  --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY:-}" \
-  --build-arg VITE_USE_SELF_HOSTED="${VITE_USE_SELF_HOSTED:-false}" \
+  --build-arg VITE_API_URL="$VITE_API_URL" \
+  --build-arg VITE_SUPABASE_URL="$VITE_SUPABASE_URL" \
+  --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="$VITE_SUPABASE_PUBLISHABLE_KEY" \
+  --build-arg VITE_USE_SELF_HOSTED="$VITE_USE_SELF_HOSTED" \
   --build-arg VITE_SUPABASE_PROJECT_ID="${VITE_SUPABASE_PROJECT_ID:-}" \
   --build-arg VITE_SENTRY_DSN="${VITE_SENTRY_DSN:-}" \
   --build-arg VITE_SENTRY_ENVIRONMENT="${VITE_SENTRY_ENVIRONMENT:-production}"

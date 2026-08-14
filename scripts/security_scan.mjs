@@ -77,7 +77,10 @@ function scanDependencies() {
   } catch {
     return;
   }
-  const advisories = report.vulnerabilities ?? report.advisories ?? {};
+  // npm-style reports nest advisories under `vulnerabilities`; Bun emits a
+  // package-keyed object at the top level. Treat both shapes as untrusted input
+  // and never convert a valid report into a clean result by accident.
+  const advisories = report.vulnerabilities ?? report.advisories ?? report;
   for (const [pkg, info] of Object.entries(advisories)) {
     const entries = Array.isArray(info) ? info : [info];
     for (const entry of entries) {

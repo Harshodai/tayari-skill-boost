@@ -36,6 +36,17 @@ def digest(path: Path) -> str:
 def main() -> int:
     compose_text = COMPOSE.read_text(encoding="utf-8")
     failures: list[str] = []
+    init_dir = ROOT / "supabase-local" / "volumes" / "db" / "init"
+    hardening = init_dir / "29-20260814_tenant_rls_hardening.sql"
+    if not hardening.is_file():
+        failures.append("missing tenant RLS hardening migration 29-20260814")
+    else:
+        text = hardening.read_text(encoding="utf-8")
+        if not text.startswith("-- M2-08/M2-09") or "BEGIN;" not in text or "COMMIT;" not in text:
+            failures.append("tenant RLS hardening migration is not a transactional, documented migration")
+    migration_names = [path.name for path in sorted(init_dir.glob("*.sql"))]
+    if migration_names != sorted(migration_names):
+        failures.append("self-hosted migrations are not in lexical execution order")
 
     for source_relative, (bundle_relative, target_name) in REQUIRED_MIRRORS.items():
         source = ROOT / source_relative

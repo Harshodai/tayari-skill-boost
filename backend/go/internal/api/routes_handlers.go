@@ -18,6 +18,20 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if s.DB == nil || s.DB.Conn == nil || s.AI == nil {
+		s.respondJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "not_ready", "service": "go-backend"})
+		return
+	}
+	if err := s.DB.Conn.PingContext(ctx); err != nil {
+		s.respondJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "not_ready", "service": "go-backend"})
+		return
+	}
+	s.respondJSON(w, http.StatusOK, map[string]string{"status": "ready", "service": "go-backend"})
+}
+
 func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
 	_, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
@@ -52,7 +66,7 @@ func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
 			"num_gc":         m.NumGC,
 		},
 		"dependencies": map[string]string{
-			"postgres": dbStatus,
+			"postgres":  dbStatus,
 			"python_ai": aiStatus,
 		},
 	})

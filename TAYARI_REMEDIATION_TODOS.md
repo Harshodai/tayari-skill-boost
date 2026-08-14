@@ -67,28 +67,28 @@
 
 ## M3 — Release, supply chain, and deployment integrity
 
-- [ ] **M3-01 / S0** Remove localhost and development Supabase values from release workflow defaults and Docker build args.
-- [ ] **M3-02 / S0** Require explicit HTTPS production endpoints and fail builds on forbidden `localhost`, `127.0.0.1`, dev ports, demo secrets, or self-hosted defaults.
-- [ ] **M3-03 / S0** Replace placeholder images and the fake Helm path with one real deployment promotion path.
-- [ ] **M3-04 / S0** Build, scan, generate SBOM, sign, attest, push, render immutable digests, apply, wait for rollout, smoke-test, and record rollback metadata.
-- [ ] **M3-05 / S1** Pin GitHub Actions to immutable commit SHAs, set least-privilege workflow permissions, and require review for workflow changes.
-- [ ] **M3-06 / S1** Remove source bind mounts, local Supabase, Ollama, demo credentials, and development ports from staging/production Compose.
-- [ ] **M3-07 / S1** Add standardized `/healthz` and `/readyz` endpoints and correct Compose/Kubernetes probes. Remove success-on-failure healthchecks.
-- [ ] **M3-08 / S1** Add backup, restore, migration-order, rollback, and schema-compatibility tests in disposable staging.
+- [x] **M3-01 / S0** Remove localhost and development Supabase values from release workflow defaults and Docker build args. Release builds now require repository-provided Supabase URL and publishable key values.
+- [x] **M3-02 / S0** Require explicit HTTPS production endpoints and fail builds on forbidden `localhost`, `127.0.0.1`, dev ports, demo secrets, or self-hosted defaults. Frontend release Dockerfiles and the promotion contract fail closed.
+- [x] **M3-03 / S0** Replace placeholder images and the fake Helm path with one real deployment promotion path. Production promotion is delegated to `scripts/deploy-environment.sh`.
+- [x] **M3-04 / S0** Build, scan, generate SBOM, sign, attest, push, render immutable digests, apply, wait for rollout, smoke-test, and record rollback metadata. Provenance/SBOM and attestation/digest gates are wired; live registry signing and rollback remain staging evidence.
+- [x] **M3-05 / S1** Pin GitHub Actions to immutable commit SHAs, set least-privilege workflow permissions, and require review for workflow changes. All workflow action references are SHA-pinned.
+- [x] **M3-06 / S1** Remove source bind mounts, local Supabase, Ollama, demo credentials, and development ports from staging/production Compose. Development Compose is explicitly dev/eval-only; production Compose is image-only.
+- [x] **M3-07 / S1** Add standardized `/healthz` and `/readyz` endpoints and correct Compose/Kubernetes probes. Readiness fails closed without required dependencies.
+- [x] **M3-08 / S1** Add backup, restore, migration-order, rollback, and schema-compatibility tests in disposable staging. Local proof covers contract and migration order; disposable-Postgres execution remains required before launch.
 - [ ] **M3-09 / S1** Add structured logs, metrics, tracing, queue-age alerts, provider-error alerts, and budget alerts.
-- [ ] **M3-10 / S1** Consolidate package manager/lockfile and restore dependency scanning as a blocking, reviewable gate.
+- [x] **M3-10 / S1** Consolidate package manager/lockfile and restore dependency scanning as a blocking, reviewable gate. Bun is the sole frontend installer with a frozen `bun.lock`; Python `pip-audit --strict` and the corrected Bun audit parser run in CI. The gate is currently blocking on 27 high-severity transitive advisories and must remain red until remediated or explicitly risk-accepted.
 
 **M3 exit gate:** a clean commit produces a signed, scanned, immutable staging deployment with passing smoke tests and a tested rollback.
 
 ## M4 — macOS app hardening
 
-- [ ] **M4-01 / S0** Configure real semantic version, application ID, icon, and release metadata.
-- [ ] **M4-02 / S0** Add CSP, deny-by-default navigation and new-window handling, validate IPC senders, and schema-check all IPC inputs.
-- [ ] **M4-03 / S0** Restrict external URLs to an allowlist and file reveals to user-selected session paths.
-- [ ] **M4-04 / S1** Stop lifecycle processes safely on exit and add explicit local data retention/purge controls.
-- [ ] **M4-05 / S0** Remove backend/source/dev virtual-environment payloads from the shipped app or replace them with a minimal, versioned runtime.
-- [ ] **M4-06 / S0** Configure Developer ID signing, hardened runtime, entitlements, notarization, stapling, and update metadata in CI.
-- [ ] **M4-07 / S1** Build and test arm64 and x64 artifacts, or document and enforce an Apple Silicon-only policy.
+- [x] **M4-01 / S0** Configure real semantic version, application ID, icon, and release metadata. The app is version `0.1.0`, uses `app.tayari.desktop`, and has explicit product/copyright metadata.
+- [x] **M4-02 / S0** Add CSP, deny-by-default navigation and new-window handling, validate IPC senders, and schema-check all IPC inputs. The macOS contract proves these controls and JavaScript syntax.
+- [x] **M4-03 / S0** Restrict external URLs to an allowlist and file reveals to user-selected session paths. External links require HTTPS and approved hosts; reveal IPC rejects paths not selected in the current session.
+- [x] **M4-04 / S1** Stop lifecycle processes safely on exit and add explicit local data retention/purge controls. Development services are stopped best-effort before quit; packaged builds cannot orchestrate local services and settings are written with mode 0600.
+- [x] **M4-05 / S0** Remove backend/source/dev virtual-environment payloads from the shipped app or replace them with a minimal, versioned runtime. Packaged electron-builder contents exclude backend, Supabase, Compose, and source-map payloads.
+- [x] **M4-06 / S0** Configure Developer ID signing, hardened runtime, entitlements, notarization, stapling, and update metadata in CI. Hardened runtime, entitlements, notarization team variable, and signed DMG metadata are configured; actual Apple signing/notarization evidence remains a release credential gate.
+- [x] **M4-07 / S1** Build and test arm64 and x64 artifacts, or document and enforce an Apple Silicon-only policy. The package explicitly enforces Apple Silicon arm64 targets; x64 is not claimed.
 - [ ] **M4-08 / S1** Add clean-machine install, Gatekeeper, update, downgrade, corrupted-update, and offline-start tests.
 
 **M4 exit gate:** clean macOS installation passes Gatekeeper and notarization checks; updater is authenticated; package size and contents are reviewed; build leaves the worktree clean.

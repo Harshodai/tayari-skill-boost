@@ -244,7 +244,7 @@ const InterviewBoard = () => {
       setRetroApp(app);
       setRetroTargetStage(nextStatus);
       setRetroText("");
-      if (retroAudioUrl) { try { URL.revokeObjectURL(retroAudioUrl); } catch {} }
+      if (retroAudioUrl) { try { URL.revokeObjectURL(retroAudioUrl); } catch { /* best-effort cleanup */ } }
       setRetroAudioUrl(null);
       setRetroAudioBlob(null);
       setRetroTab("text");
@@ -340,7 +340,7 @@ const InterviewBoard = () => {
     setRetroOpen(false);
     setRetroApp(null);
     setRetroText("");
-    if (retroAudioUrl) { try { URL.revokeObjectURL(retroAudioUrl); } catch {} }
+    if (retroAudioUrl) { try { URL.revokeObjectURL(retroAudioUrl); } catch { /* best-effort cleanup */ } }
     setRetroAudioUrl(null);
     setRetroAudioBlob(null);
 
@@ -1299,10 +1299,10 @@ const InterviewBoard = () => {
                 retroMediaRecorderRef.current.onstop = null;
                 retroMediaRecorderRef.current.stop();
                 retroMediaRecorderRef.current.stream?.getTracks().forEach((t) => t.stop());
-              } catch {}
+              } catch { /* recorder may already be stopped */ }
             }
             if (retroAudioUrl) {
-              try { URL.revokeObjectURL(retroAudioUrl); } catch {}
+              try { URL.revokeObjectURL(retroAudioUrl); } catch { /* best-effort cleanup */ }
             }
             setRetroRecording(false);
             setRetroAudioUrl(null);

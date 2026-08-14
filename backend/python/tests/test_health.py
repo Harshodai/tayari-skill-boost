@@ -64,12 +64,22 @@ def test_health_check_reports_loaded_when_configured(unconfigured_env, monkeypat
     assert resp.model_status == "loaded"
 
 
-@pytest.mark.parametrize("path", ["/health", "/api/health", "/api/v1/health"])
+@pytest.mark.parametrize("path", ["/health", "/api/health", "/api/v1/health", "/healthz"])
 def test_health_route_returns_200(path):
     resp = client.get(path)
     assert resp.status_code == 200
 
 
+def test_readyz_fails_closed_without_database(monkeypatch):
+    async def no_pool():
+        return None
+
+    import app.services.db as db
+    monkeypatch.setattr(db, "get_pool", no_pool)
+    response = client.get("/readyz")
+    assert response.status_code == 503
+
+
 def test_health_routes_have_identical_bodies():
-    bodies = [client.get(p).json() for p in ("/health", "/api/health", "/api/v1/health")]
-    assert bodies[0] == bodies[1] == bodies[2]
+    bodies = [client.get(p).json() for p in ("/health", "/api/health", "/api/v1/health", "/healthz")]
+    assert all(body == bodies[0] for body in bodies[1:])

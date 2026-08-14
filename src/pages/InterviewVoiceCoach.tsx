@@ -45,7 +45,7 @@ export function InterviewVoiceCoach() {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
-        } catch {}
+        } catch { /* recognition may already be stopped */ }
       }
     };
   }, []);
@@ -107,7 +107,7 @@ export function InterviewVoiceCoach() {
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch {}
+      } catch { /* recognition may already be stopped */ }
     }
 
     const currentText = transcriptRef.current || transcript;

@@ -1,5 +1,7 @@
 # Database is the self-hosted Supabase stack in supabase-local/ (db, kong,
 # auth/GoTrue, rest/PostgREST, realtime, storage, meta, studio, supavisor) --
+# This file is for local development/evaluation only. Production must use
+# docker-compose.production.yml with immutable image digests and external state.
 # not a bare Postgres image. `include:` merges it into this project so one
 # `docker compose --profile dev up` still brings up everything; its services
 # have no `profiles:` of their own, so they're always active regardless of
@@ -72,7 +74,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    profiles: ["dev", "prod", "eval"]
+    profiles: ["dev", "eval"]
 
   redis:
     image: redis:7-alpine
@@ -87,7 +89,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    profiles: ["dev", "prod"]
+    profiles: ["dev"]
 
   celery-worker:
     build:
@@ -122,7 +124,7 @@ services:
       interval: 15s
       timeout: 12s
       retries: 3
-    profiles: ["dev", "prod"]
+    profiles: ["dev"]
 
   celery-flower:
     build:
@@ -209,7 +211,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    profiles: ["dev", "prod", "eval"]
+    profiles: ["dev", "eval"]
 
   ollama:
     image: ollama/ollama:0.32.5
@@ -226,7 +228,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
-    profiles: ["dev", "prod"]
+    profiles: ["dev"]
 
   frontend:
     build:
@@ -250,7 +252,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-    profiles: ["dev", "prod"]
+    profiles: ["dev"]
 
   caddy:
     image: caddy:2.7.6-alpine
@@ -279,7 +281,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
-    profiles: ["dev", "prod"]
+    profiles: ["dev"]
 
   celery-beat:
     build:
@@ -307,7 +309,7 @@ services:
       interval: 20s
       timeout: 10s
       retries: 3
-    profiles: ["dev", "prod"]
+    profiles: ["dev"]
 
 volumes:
   ollama_data:

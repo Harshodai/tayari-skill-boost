@@ -20,6 +20,8 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Use(s.publicRateLimiter.Middleware)
 		r.Get("/api/v1/health", s.handleHealth)
 		r.Get("/api/v1/health/detailed", s.handleHealthDetailed)
+		r.Get("/healthz", s.handleHealth)
+		r.Get("/readyz", s.handleReady)
 
 		r.With(s.loginRateLimiter.Middleware).Post("/api/v1/auth/register", s.handleRegister)
 		r.With(s.loginRateLimiter.Middleware).Post("/api/auth/register", s.handleRegister)
