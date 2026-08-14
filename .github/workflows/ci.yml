@@ -294,6 +294,8 @@ jobs:
           # Pull the real value out instead.
           ANON_KEY=$(grep '^ANON_KEY=' supabase-local/.env | cut -d= -f2-)
           cat >> .env << EOF
+          ANON_KEY=${ANON_KEY}
+          SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
           VITE_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}
           SUPABASE_ANON_KEY=${ANON_KEY}
           EOF
