@@ -89,42 +89,35 @@ BEGIN
         'digital_employees', 'agent_tasks', 'agent_task_attempts',
         'agent_router_events'
     ] LOOP
-        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', table_name);
-        EXECUTE format('GRANT SELECT ON public.%I TO authenticated', table_name);
-        EXECUTE format('GRANT ALL ON public.%I TO service_role', table_name);
+        IF to_regclass(format('public.%I', table_name)) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', table_name);
+            EXECUTE format('GRANT SELECT ON public.%I TO authenticated', table_name);
+            EXECUTE format('GRANT ALL ON public.%I TO service_role', table_name);
+        END IF;
     END LOOP;
 END $$;
 
-DROP POLICY IF EXISTS agent_runs_owner_select ON public.agent_runs;
-CREATE POLICY agent_runs_owner_select ON public.agent_runs
-    FOR SELECT TO authenticated USING (auth.uid() = user_id);
-DROP POLICY IF EXISTS application_attempts_owner_select ON public.application_attempts;
-CREATE POLICY application_attempts_owner_select ON public.application_attempts
-    FOR SELECT TO authenticated USING (auth.uid() = user_id);
-DROP POLICY IF EXISTS user_sessions_owner_select ON public.user_sessions;
-CREATE POLICY user_sessions_owner_select ON public.user_sessions
-    FOR SELECT TO authenticated USING (auth.uid() = user_id);
-DROP POLICY IF EXISTS tailored_resumes_owner_select ON public.tailored_resumes;
-CREATE POLICY tailored_resumes_owner_select ON public.tailored_resumes
-    FOR SELECT TO authenticated USING (auth.uid() = user_id);
-DROP POLICY IF EXISTS platform_configs_owner_select ON public.platform_configs;
-CREATE POLICY platform_configs_owner_select ON public.platform_configs
-    FOR SELECT TO authenticated USING (auth.uid() = user_id);
-DROP POLICY IF EXISTS runtime_approvals_owner_select ON public.runtime_approvals;
-CREATE POLICY runtime_approvals_owner_select ON public.runtime_approvals
-    FOR SELECT TO authenticated USING (auth.uid() = user_id);
-DROP POLICY IF EXISTS digital_employees_owner_select ON public.digital_employees;
-CREATE POLICY digital_employees_owner_select ON public.digital_employees
-    FOR SELECT TO authenticated USING (auth.uid() = user_id);
-DROP POLICY IF EXISTS agent_tasks_owner_select ON public.agent_tasks;
-CREATE POLICY agent_tasks_owner_select ON public.agent_tasks
-    FOR SELECT TO authenticated USING (auth.uid() = user_id);
-DROP POLICY IF EXISTS agent_task_attempts_owner_select ON public.agent_task_attempts;
-CREATE POLICY agent_task_attempts_owner_select ON public.agent_task_attempts
-    FOR SELECT TO authenticated USING (auth.uid() = user_id);
-DROP POLICY IF EXISTS agent_router_events_owner_select ON public.agent_router_events;
-CREATE POLICY agent_router_events_owner_select ON public.agent_router_events
-    FOR SELECT TO authenticated USING (auth.uid() = user_id);
+DO $$
+DECLARE
+    table_name TEXT;
+    policy_name TEXT;
+BEGIN
+    FOREACH table_name IN ARRAY ARRAY[
+        'agent_runs', 'application_attempts', 'user_sessions',
+        'tailored_resumes', 'platform_configs', 'runtime_approvals',
+        'digital_employees', 'agent_tasks', 'agent_task_attempts',
+        'agent_router_events'
+    ] LOOP
+        IF to_regclass(format('public.%I', table_name)) IS NOT NULL THEN
+            policy_name := table_name || '_owner_select';
+            EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', policy_name, table_name);
+            EXECUTE format(
+                'CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (auth.uid() = user_id)',
+                policy_name, table_name
+            );
+        END IF;
+    END LOOP;
+END $$;
 
 -- Application approval decisions are made through the authenticated API, which
 -- uses the service role after checking the caller. Do not grant direct client
