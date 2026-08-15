@@ -9,21 +9,47 @@ import { Globe, Code, Download, ExternalLink, Sparkles, Copy, Check } from "luci
 import { useToast } from "@/components/ui/use-toast";
 
 import { AppShell } from "@/components/layout";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiFetch } from "@/api";
 
 export function PortfolioGenerator() {
-  const [fullName, setFullName] = useState("Harshodai Kolluru");
-  const [headline, setHeadline] = useState("Full Stack AI Engineer & Systems Architect");
-  const [skills, setSkills] = useState("Go, Python, React, TypeScript, Docker, Kubernetes, PostgreSQL, AWS");
-  const [summary, setSummary] = useState(
-    "Building high-concurrency cloud microservices, autonomous AI agents, and production-grade web applications. Experienced in optimizing LLM inference, WebSockets, and real-time data pipelines."
-  );
+  const { user } = useAuth();
+  const [fullName, setFullName] = useState("");
+  const [headline, setHeadline] = useState("");
+  const [skills, setSkills] = useState("");
+  const [summary, setSummary] = useState("");
   const [generating, setGenerating] = useState(false);
   const [htmlOutput, setHtmlOutput] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
+  React.useEffect(() => {
+    async function loadProfile() {
+      try {
+        const profile = await apiFetch("/v1/profile").catch(() => null);
+        if (profile) {
+          if (profile.full_name) setFullName(profile.full_name);
+          if (profile.headline) setHeadline(profile.headline);
+          if (profile.summary) setSummary(profile.summary);
+          if (profile.skills && Array.isArray(profile.skills)) {
+            setSkills(profile.skills.join(", "));
+          }
+        } else if (user?.user_metadata?.full_name) {
+          setFullName(user.user_metadata.full_name);
+        }
+      } catch {
+        // profile load optional
+      }
+    }
+    loadProfile();
+  }, [user]);
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!fullName.trim() || !headline.trim()) {
+      toast({ title: "Incomplete details", description: "Please enter your name and headline." });
+      return;
+    }
     setGenerating(true);
 
     try {
@@ -34,7 +60,7 @@ export function PortfolioGenerator() {
           full_name: fullName,
           headline,
           summary,
-          skills: skills.split(",").map((s) => s.trim()),
+          skills: skills ? skills.split(",").map((s) => s.trim()).filter(Boolean) : [],
         }),
       });
 
@@ -42,11 +68,10 @@ export function PortfolioGenerator() {
         const data = await resp.json();
         setHtmlOutput(data.html || data);
       } else {
-        // Fallback default HTML
-        setHtmlOutput(`<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-950 text-white p-12"><h1 class="text-4xl font-bold">${fullName}</h1><p class="text-blue-400 text-lg mt-2">${headline}</p><p class="text-slate-300 mt-4">${summary}</p></body></html>`);
+        toast({ title: "Portfolio Generation Failed", description: "AI service is currently unavailable." });
       }
     } catch {
-      setHtmlOutput(`<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-950 text-white p-12"><h1 class="text-4xl font-bold">${fullName}</h1><p class="text-blue-400 text-lg mt-2">${headline}</p><p class="text-slate-300 mt-4">${summary}</p></body></html>`);
+      toast({ title: "Generation Error", description: "Could not generate portfolio HTML." });
     } finally {
       setGenerating(false);
     }

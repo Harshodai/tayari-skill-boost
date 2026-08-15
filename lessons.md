@@ -2189,3 +2189,56 @@ See "What was done". Key design choices: provenance touch is best-effort upsert 
 
 ### Verification
 `python -m py_compile` all changed files · `pytest test_prompt_injection_guard_edges.py` 8 passed · `import app.main` clean (JWT_SECRET set) · `go build ./...` + `go vet ./...` + `go test ./...` all `ok` · `bun run lint` 0 errors · `bun run build` succeeds · `node --test message-policy.test.mjs` 16/16 pass + `node --check` on all changed extension JS · puller `--help` and `--render-only` both run without the sandbox runtime.
+
+---
+
+## 2026-08-16 — Ruthless Evidence Map & Candidate Journey Production Hardening
+
+### What was done
+1. **Scope & Navigation Gating**:
+   - Gated off out-of-scope interview prep (`interviewPrep: [false, false]`, `interviewAI: [false, false]`) in `src/config/features.ts`.
+   - Updated primary navigation in `AppSidebar.tsx` from "Interviews" (`/interview/prep`) to "Applications" (`/applications`).
+2. **Calibrated Fit Card & AutoPilot Cleanup**:
+   - Eliminated magic `{score}%` and default `70%` radial progress rings in `src/pages/JobSearch.tsx`.
+   - Shipped `CalibratedFitCard.tsx` rendering qualitative fit bands (`Strong Fit`, `Moderate Fit`, `Transferable Match`, `Skill Gap Heavy`, `Unranked (AI offline)`), verified skill chips, missing requirement gaps with direct roadmap deep-links, live-at-source integrity badges, and transition context.
+   - Removed fake 4-step AutoPilot preview animation; routed "Queue for Review" to the real Application Pipeline with `auto_apply: false`.
+3. **Truth in Long-Tail UI Surfaces**:
+   - `RecruiterOutreach.tsx`: Removed hardcoded seed state (Alex Mercer / Sarah Jenkins / Stripe); implemented an honest empty state prompting user input.
+   - `SkillGapRadar.tsx`: Replaced static `["Go", "Python", ...]` array with dynamic profile skill extraction from `useAuth()` / `/v1/profile`.
+   - `PortfolioGenerator.tsx`: Replaced static founder profile with dynamic candidate profile extraction.
+   - `Pipeline.tsx` & `Outcomes.tsx`: Replaced Supabase-only bypasses with `apiFetch("/v1/jobs/saved")` so self-hosted Docker and cloud modes load saved jobs and stages reliably.
+4. **Directed Asymmetric Transfer Graph**:
+   - Implemented `ASYMMETRIC_TRANSFER` directed graph in `backend/python/app/services/skill_taxonomy.py` modeling directional mobility (e.g. C++ → Go weight 0.85 vs Go → C++ weight 0.45; Python → ML weight 0.75; React → Vue weight 0.80).
+   - Added `compute_asymmetric_transfer` to calculate directed transfer bonuses, direct matches, and gap closure.
+   - Integrated asymmetric transfer scoring into career transition reranking in `job_agent.py` and added calibrated `fit_band` annotations.
+5. **Source-Locked Claim Ledger & Guardrails**:
+   - Created `backend/python/app/services/claim_ledger.py` extracting metrics, employers, and credentials from optimized bullets and validating grounding against candidate source text.
+   - Wired `build_claim_ledger` into `truthfulness.py` guardrail to hard-reject hallucinated metrics and ungrounded claims.
+6. **Match-Quality Evaluation Suite**:
+   - Added `backend/python/eval/datasets/match_quality_v1.yaml` and `eval/test_match_quality.py` validating asymmetric transfer discrimination, claim ledger grounding, and unranked degradation contracts.
+
+### Root causes
+- UI defaulting missing numeric scores to `70%` or `{score}%` obscured whether the AI scoring model had run, failed, or was offline.
+- Simulated multi-step UI animations without server-side execution created a false sense of autonomous submission.
+- Hardcoded demo constants in long-tail pages (e.g., recruiter outreach templates, radar skills) leaked into production flows.
+- Subscriptions/queries checking only Supabase bypassed self-hosted PostgreSQL routes.
+
+### Fix applied
+- Replaced magic percentage fallbacks with calibrated qualitative bands and unranked indicators;
+- Enforced human-in-the-loop boundaries (`auto_apply: false`) across all review queues;
+- Used `apiFetch` throughout frontend components for universal self-hosted / cloud persistence;
+- Bound resume optimization to a source-locked claim ledger;
+- Established asymmetric directed graphs for cross-domain pivots.
+
+### Reusable lessons
+- **Never render a fallback number as if it were a real calculation:** If an LLM scoring model fails or is offline, the UI must render `Unranked (AI offline)`, never `70%` or `0%`.
+- **Directional mobility is asymmetric:** In technical recruiting, transferring from low-level systems (C++/Rust) to high-level backend (Go/Python) is fundamentally different from the reverse; skill graphs must be directed and weighted.
+- **Claim Ledgers prevent LLM hallucination in optimization:** Bullet-point rewrites must be verified against source resume spans with regex metric extraction; any invented metric (e.g., "generated $15M ARR") must fail the guardrail closed.
+- **Unified Gateway Calls (`apiFetch`):** Direct Supabase table queries break in self-hosted modes if not dual-routed; always use `apiFetch` against Go gateway endpoints (`/v1/jobs/saved`, `/v1/profile`).
+
+### Verification
+- **Python**: `pytest` passed (717 passed, 0 failed, 4 skipped); `eval/test_match_quality.py` (6/6 passed).
+- **Go**: `go test ./...` passed (100% passed, 0 failed).
+- **Frontend Vitest**: `vitest run` passed (110 passed across 35 test files).
+- **Security Scan**: `SECURITY_BASELINE_ENFORCE=true node scripts/security_scan.mjs` passed with 0 unresolved findings.
+- **Production Build**: `npm run build` completed cleanly in 4.30s.

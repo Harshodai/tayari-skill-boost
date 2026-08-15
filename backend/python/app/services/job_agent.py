@@ -396,15 +396,10 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
                 j["match_score"] = min(j["match_score"] + int(boost), 100)
                 j["match_reason"] = (j.get("match_reason") or "") + f" (Boosted by {int(boost)}% based on your feedback)"
 
-    # WS-04: career-transition-aware rerank. A cross-domain pivot and a
-    # same-domain promotion want opposite rankings for the same candidate:
-    # the pivot needs skill-overlap to dominate (titles lie across domains),
-    # the promotion needs title-overlap to dominate (titles track seniority
-    # within one). Without this branch the two modes got byte-identical order,
-    # which is the audit's Q3 finding. We reweight the existing match_score
-    # in place — no extra LLM call.
+    # WS-04: career-transition-aware rerank using directed Asymmetric Transfer Graph.
     transition_kind = (profile or {}).get("transition_type", "") if isinstance(profile, dict) else ""
     if transition_kind in ("cross_domain", "same_domain"):
+        from app.services.skill_taxonomy import compute_asymmetric_transfer
         transferable = {
             s.strip().lower()
             for s in (profile or {}).get("transferable_skills", []) or []
@@ -417,8 +412,13 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
             matched = [s.lower() for s in (j.get("matched_skills") or [])]
             matched_set = set(matched)
             title = (j.get("title") or "").lower()
-            # How strongly the candidate's stated desired roles/titles match
-            # this job's title. Used as the same-domain signal.
+            job_desc = (j.get("description") or "")[:800]
+
+            # Directed asymmetric transfer analysis
+            cand_skills_source = transferable or _candidate_tokens(profile, resume_text)
+            asym = compute_asymmetric_transfer(cand_skills_source, f"{title} {job_desc}")
+            asym_transfer_bonus = asym.get("asymmetric_transfer_ratio", 0.0) * 100
+
             desired = [
                 r.lower() for r in (profile or {}).get("desired_roles", []) or []
                 if isinstance(r, str) and r.strip()
@@ -434,15 +434,12 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
                     skill_overlap = min(len(matched_set) / 5.0, 1.0)
 
             if transition_kind == "cross_domain":
-                # De-emphasise title (lies across domains), emphasise skill
-                # overlap — especially transferable skills the user flagged.
-                adj = 0.7 * base + 0.3 * (skill_overlap * 100)
-                # Small penalty when title_overlap is high but skill_overlap is
-                # low: that's a same-domain trap, not a pivot target.
+                # De-emphasise title (lies across domains), emphasise directed skill transfer
+                adj = 0.65 * base + 0.25 * (skill_overlap * 100) + 0.10 * asym_transfer_bonus
                 if title_overlap > 0.5 and skill_overlap < 0.2:
                     adj -= 5.0
                 j["match_score"] = max(0, min(100, int(round(adj))))
-                j["match_reason"] = (j.get("match_reason") or "") + " (Reweighted for cross-domain pivot: skills over titles)"
+                j["match_reason"] = (j.get("match_reason") or "") + " (Reweighted for cross-domain pivot: directed skill transfer)"
             else:  # same_domain
                 adj = 0.7 * base + 0.3 * (title_overlap * 100)
                 if title_overlap > 0.5:
@@ -453,9 +450,22 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
         ranked.sort(key=lambda x: (x.get("match_score") is None, -(x.get("match_score") or 0)))
         log_step(
             "RANK",
-            f"Transition-aware rerank applied ({transition_kind}) — "
-            f"{'skill-overlap boosted, title-overlap dampened' if transition_kind == 'cross_domain' else 'title-overlap boosted'}",
+            f"Transition-aware rerank applied ({transition_kind}) via Asymmetric Transfer Graph",
         )
+
+    # Assign calibrated fit bands
+    for j in ranked:
+        score = j.get("match_score")
+        if score is None:
+            j["fit_band"] = "unranked"
+        elif score >= 80:
+            j["fit_band"] = "strong"
+        elif score >= 65:
+            j["fit_band"] = "moderate"
+        elif score >= 50:
+            j["fit_band"] = "transferable"
+        else:
+            j["fit_band"] = "gap_heavy"
 
     scored = [j for j in ranked if j.get("match_score") is not None]
     log_step("RANK", f"AI scored {len(scored)} jobs against your profile")

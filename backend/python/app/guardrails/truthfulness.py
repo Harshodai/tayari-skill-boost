@@ -97,4 +97,16 @@ def check_truthfulness(original_text: str, optimized_text: str) -> dict:
         )
         passed = False
 
-    return {"passed": passed, "violations": violations}
+    # 7. Source-Locked Claim Ledger check (zero hallucination of bullet metrics)
+    from app.services.claim_ledger import build_claim_ledger
+    ledger_result = build_claim_ledger(original_text, optimized_text)
+    if not ledger_result["all_grounded"]:
+        for v in ledger_result["violations"][:3]:
+            violations.append(f"Claim Ledger: {v}")
+        passed = False
+
+    return {
+        "passed": passed,
+        "violations": violations,
+        "claim_ledger": ledger_result,
+    }

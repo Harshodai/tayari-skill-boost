@@ -1,4 +1,5 @@
 import pytest
+import socket
 from unittest import mock
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -140,8 +141,9 @@ def test_validate_public_url_rejects_loopback():
 
 
 def test_validate_public_url_accepts_public_host():
-    safe = _validate_public_url("https://boards.greenhouse.io/jobs/123")
-    assert safe == "https://boards.greenhouse.io/jobs/123"
+    with mock.patch("socket.getaddrinfo", return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))]):
+        safe = _validate_public_url("https://boards.greenhouse.io/jobs/123")
+        assert safe == "https://boards.greenhouse.io/jobs/123"
 
 
 @pytest.mark.asyncio

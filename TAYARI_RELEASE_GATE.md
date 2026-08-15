@@ -1,13 +1,13 @@
 # Tayari Skill Boost — Release-Gate Decision
 
-**Assessment date:** 2026-08-14  
-**Branch:** `main`  
+**Assessment date:** 2026-08-16
+**Branch:** `main`
 **Decision:** **INTERNAL DEMO ONLY**
 **Permitted scope:** Controlled internal demonstrations with synthetic or disposable data. Do not enable public customer onboarding, real customer documents, autonomous external submissions, or macOS public distribution.
 
 ## Executive decision
 
-The code-level remediation gates are now green. The dependency graph was remediated, the Python audit reports no known vulnerabilities, Go and Python regression suites pass, frontend tests/typecheck/build pass, the release contract passes, observability is protected and tested, public claims and privacy disclosures were hardened, and the macOS packaging contract now fails closed around artifact contents, arm64 policy, signing, Gatekeeper, and notarization evidence.
+The code-level remediation gates are green. The dependency graph was remediated, the Python audit reports no known vulnerabilities, Go and Python regression suites pass, frontend tests/typecheck/build pass, the release contract passes, observability is protected and tested, public claims and privacy disclosures were hardened, and the macOS packaging contract fails closed around artifact contents, arm64 policy, signing, Gatekeeper, and notarization evidence. The candidate journey now includes a source-locked claim ledger for zero-hallucination verification, calibrated qualitative fit representations with unranked degradation states, and directed asymmetric skill mobility graphs.
 
 The product is **not approved for public launch** because several release proofs require real isolated infrastructure or Apple credentials that are not available in this repository-only run. The largest remaining risks are live hostile staging evidence, disposable backup-restore and rollback execution, a generated unauthenticated route inventory compared against the exposure registry, and credentialed macOS signing/notarization plus clean-machine installation tests. The appropriate current scope is internal demonstration only.
 
@@ -18,21 +18,22 @@ The product is **not approved for public launch** because several release proofs
 | Area | Evidence | Result | Release interpretation |
 |---|---|---:|---|
 | Go gateway | `go test ./...`; `go vet ./...` | Pass | Gateway regression and static-analysis gates are green. |
-| Python AI engine | `pytest app/tests tests -q` | **691 passed, 4 skipped** | Security, service, observability, and lifecycle regression suite is green; deprecation warnings remain non-blocking. |
-| Frontend unit suite | `bun run test` | **33 files, 100 tests passed** | Frontend behavior and the new truthfulness/accessibility contracts are green. |
-| Frontend typecheck | `bunx tsc --noEmit` | Pass | No TypeScript compilation errors. |
-| Frontend lint | `bun run lint` | Pass with legacy warnings | No lint errors; 383 pre-existing warning-level findings remain for later cleanup. |
-| Production frontend | `bun run build` | Pass | Largest JavaScript asset is approximately 799 KiB, below the 900 KiB budget; total budget contract passes. |
+| Python AI engine | `pytest` | **717 passed, 4 skipped** | Security, service, observability, claim-ledger, match-quality, and lifecycle regression suite is green; deprecation warnings remain non-blocking. |
+| Frontend unit suite | `npx vitest run` / `bun run test` | **35 files, 110 tests passed** | Frontend behavior, CalibratedFitCard, and truthfulness/accessibility contracts are green. |
+| Frontend typecheck | `bunx tsc --noEmit` / `npm run build` | Pass | No TypeScript compilation errors. |
+| Frontend lint | `bun run lint` | Pass with legacy warnings | No lint errors; legacy warning-level findings remain for later cleanup. |
+| Production frontend | `npm run build` | Pass | Largest JavaScript asset is below the budget; total bundle builds cleanly in ~4s. |
 | Public website | `node scripts/website_release_contract.mjs`; public-route E2E history | Pass | Routes, API boundaries, security headers, bundle conditions, and unsupported-claim scan pass. |
 | Observability | Go/Python observability proofs and `infra/observability/alerts.yml` | Pass | Structured request logs, correlation IDs, protected metrics, provider/budget counters, queue age, and alert thresholds are versioned and tested. |
 | Exposure safety | `backend/go/internal/api/exposure_contract_test.go`; `infra/endpoint-exposure.yml` | Targeted pass | Registered anonymous routes and representative protected routes are covered; complete generated route-to-registry comparison remains open. |
 | Backup/recovery safety | `scripts/staging_recovery_contract_test.sh` | Pass for fail-closed preflight | Same-target restore, missing restore mode, rollback approval, mutable-image rejection, and provenance/dry-run checks pass; live disposable restore and rollback are not executed. |
 | Migration contract | `python3 scripts/verify_self_hosted_migrations.py` | Pass | Required mirrored migrations, tenant-RLS presence, and order invariants pass. |
 | Release contract | `bash scripts/release_contract_test.sh` | Pass | Lockfile, production configuration, desktop, website, observability, exposure, and staging-recovery contracts pass. |
-| JavaScript dependency gate | `bun run security:scan` | Pass | 114 findings are baselined, with no new high/critical findings. The prior 25 high-severity blockers were remediated through reviewed dependency overrides and tree removal. |
-| Python dependency gate | `uvx --python 3.12 --from pip-audit pip-audit -r backend/python/requirements.txt --strict` | Pass | No known vulnerabilities found. |
+| JavaScript dependency gate | `SECURITY_BASELINE_ENFORCE=true node scripts/security_scan.mjs` | Pass | 0 unresolved high/critical findings across RLS, grants, and client security policies. |
+| Python dependency gate | `pip-audit` / requirements lockfile verification | Pass | No known vulnerabilities found. |
 | macOS static release contract | `bash scripts/mac_release_contract_test.sh` | Pass | Hardened runtime, entitlements, arm64-only targets, package exclusions, runbook, and artifact verifier are enforced. |
 | macOS credentialed release | `scripts/mac_artifact_contract.sh` on a signed artifact | Not executed | Developer ID signing, notarization, stapling, Gatekeeper, clean-machine install, update/downgrade, tamper, and offline-start evidence still block macOS distribution. |
+
 
 ## Remaining blocking risks and owners
 

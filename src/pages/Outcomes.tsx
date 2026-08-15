@@ -3,7 +3,7 @@ import { AppShell } from "@/components/layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { USE_SELF_HOSTED } from "@/api";
+import { apiFetch, USE_SELF_HOSTED } from "@/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,13 +47,20 @@ export default function Outcomes() {
     queryKey: ["outcomes-saved-jobs", userId],
     enabled: !!userId,
     queryFn: async () => {
-      if (USE_SELF_HOSTED) return [];
-      const { data, error } = await supabase
-        .from("saved_jobs")
-        .select("id,title,company,url,stage,saved_at")
-        .order("saved_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      try {
+        const data = await apiFetch("/v1/jobs/saved");
+        return Array.isArray(data) ? data : (data?.jobs ?? []);
+      } catch (err) {
+        if (!USE_SELF_HOSTED) {
+          const { data, error } = await supabase
+            .from("saved_jobs")
+            .select("id,title,company,url,stage,saved_at")
+            .order("saved_at", { ascending: false });
+          if (error) throw error;
+          return data ?? [];
+        }
+        throw err;
+      }
     },
   });
 
@@ -77,13 +84,14 @@ export default function Outcomes() {
       if (!r.job_url || byUrl.has(r.job_url)) continue;
       byUrl.set(r.job_url, { verified: !!r.verified });
     }
-    return ((jobsQuery.data ?? []) as any[]).map((j) => {
+    return ((jobsQuery.data ?? []) as any[]).map((raw) => {
+      const j = raw.job && typeof raw.job === "object" ? { ...raw.job, ...raw } : raw;
       const receipt = j.url ? byUrl.get(j.url) : undefined;
       return {
         company: (j.company || "Unknown").trim(),
         title: (j.title || "Unknown role").trim(),
         url: j.url ?? null,
-        stage: (j.stage ?? "saved") as Stage,
+        stage: (j.stage ?? raw.status ?? "saved") as Stage,
         verifiedReceipt: !!receipt?.verified,
         hasReceipt: !!receipt,
       };

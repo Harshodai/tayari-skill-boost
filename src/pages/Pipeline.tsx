@@ -3,7 +3,7 @@ import { AppShell } from "@/components/layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { USE_SELF_HOSTED } from "@/api";
+import { apiFetch, USE_SELF_HOSTED } from "@/api";
 import { ApplicationPipeline } from "@/components/pipeline/ApplicationPipeline";
 import type { PipelineJob, PipelineStage } from "@/components/pipeline/types";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,13 +22,20 @@ export default function Pipeline() {
     queryKey: ["saved-jobs", userId],
     enabled: !!userId,
     queryFn: async () => {
-      if (USE_SELF_HOSTED) return [];
-      const { data, error } = await supabase
-        .from("saved_jobs")
-        .select("*")
-        .order("saved_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      try {
+        const data = await apiFetch("/v1/jobs/saved");
+        return Array.isArray(data) ? data : (data?.jobs ?? []);
+      } catch (err) {
+        if (!USE_SELF_HOSTED) {
+          const { data, error: supaErr } = await supabase
+            .from("saved_jobs")
+            .select("*")
+            .order("saved_at", { ascending: false });
+          if (supaErr) throw supaErr;
+          return data ?? [];
+        }
+        throw err;
+      }
     },
   });
 
@@ -65,12 +72,20 @@ export default function Pipeline() {
 
   const stageMutation = useMutation({
     mutationFn: async ({ id, stage }: { id: string; stage: PipelineStage }) => {
-      if (USE_SELF_HOSTED) return;
-      const { error } = await supabase
-        .from("saved_jobs")
-        .update({ stage })
-        .eq("id", id);
-      if (error) throw error;
+      try {
+        await apiFetch("/v1/jobs/save", {
+          method: "POST",
+          body: JSON.stringify({ dedupe_key: id, status: stage, stage }),
+        });
+      } catch {
+        if (!USE_SELF_HOSTED) {
+          const { error } = await supabase
+            .from("saved_jobs")
+            .update({ stage })
+            .eq("id", id);
+          if (error) throw error;
+        }
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["saved-jobs", userId] }),
     onError: (e: any) => toast.error(e?.message || "Could not update stage"),
@@ -78,16 +93,19 @@ export default function Pipeline() {
 
   const jobs = useMemo<PipelineJob[]>(
     () =>
-      (savedJobs as any[]).map((j) => ({
-        id: String(j.id),
-        title: j.title,
-        company: j.company,
-        location: j.location ?? null,
-        url: j.url ?? null,
-        stage: (j.stage as PipelineStage) ?? "saved",
-        savedAt: j.saved_at,
-        receipt: j.url ? receiptByUrl.get(j.url) : undefined,
-      })),
+      (savedJobs as any[]).map((raw) => {
+        const j = raw.job && typeof raw.job === "object" ? { ...raw.job, ...raw } : raw;
+        return {
+          id: String(raw.id || raw.dedupe_key),
+          title: j.title || "Untitled Role",
+          company: j.company || "Unknown Company",
+          location: j.location ?? null,
+          url: j.url ?? null,
+          stage: (j.stage as PipelineStage) ?? (raw.status as PipelineStage) ?? "saved",
+          savedAt: raw.saved_at || j.saved_at,
+          receipt: j.url ? receiptByUrl.get(j.url) : undefined,
+        };
+      }),
     [savedJobs, receiptByUrl]
   );
 

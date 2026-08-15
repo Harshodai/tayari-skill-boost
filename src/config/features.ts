@@ -20,8 +20,8 @@ const CONFIG = {
     resumeOptimizer: [true, true],
     // Career roadmap visual planning tool
     careerRoadmap: [true, true],
-    // Interactive interview preparation module
-    interviewPrep: [true, true],
+    // Interactive interview preparation module (disabled for current release scope)
+    interviewPrep: [false, false],
     // Job search interface and autopilot integration
     jobSearch: [true, true],
     // Blog content section
@@ -36,8 +36,8 @@ const CONFIG = {
     coverLetter: [true, true],
     // Communication hub for messaging templates
     communicationHub: [true, true],
-    // AI-powered interview coaching
-    interviewAI: [true, true],
+    // AI-powered interview coaching (disabled for current release scope)
+    interviewAI: [false, false],
     // Voice interview coach with live metrics
     voiceCoach: [false, false],
     // Salary negotiation copilot with H1B benchmarks

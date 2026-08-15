@@ -8,28 +8,49 @@ import { Target, BookOpen, ExternalLink, CheckCircle, AlertTriangle, Sparkles } 
 import { useToast } from "@/components/ui/use-toast";
 
 import { AppShell } from "@/components/layout";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiFetch } from "@/api";
 
 export function SkillGapRadar() {
-  const [jobDescription, setJobDescription] = useState(
-    "We are seeking a Senior Backend Engineer to build high-throughput microservices using Go, Kubernetes, Kafka, and Redis. Experience with System Design and AWS cloud infrastructure is required."
-  );
+  const { user } = useAuth();
+  const [jobDescription, setJobDescription] = useState("");
+  const [userSkills, setUserSkills] = useState<string[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  React.useEffect(() => {
+    async function loadSkills() {
+      try {
+        const profile = await apiFetch("/v1/profile").catch(() => null);
+        if (profile?.skills && Array.isArray(profile.skills) && profile.skills.length > 0) {
+          setUserSkills(profile.skills);
+        }
+      } catch {
+        // user profile skills optional
+      }
+    }
+    loadSkills();
+  }, []);
+
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!jobDescription.trim()) {
+      setError("Please paste a target job description.");
+      return;
+    }
     setAnalyzing(true);
     setError(null);
     setResult(null);
 
     try {
+      const skillsToSend = userSkills.length > 0 ? userSkills : ["General Technical Skills"];
       const resp = await apiFetchResponse("/v1/skill-gap/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          resume_skills: ["Go", "Python", "Docker", "React", "PostgreSQL", "REST APIs"],
+          resume_skills: skillsToSend,
           job_description: jobDescription,
         }),
       });

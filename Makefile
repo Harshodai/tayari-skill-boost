@@ -139,3 +139,16 @@ lint: ## Run linter checks for frontend and Go code
 	npm run lint || true
 	@echo "$(BLUE)Linting Go code...$(RESET)"
 	cd backend/go && go vet ./...
+
+audit: ## Run complete security scan, typecheck, unit, integration, and build verification
+	@echo "$(BLUE)Running production security scan...$(RESET)"
+	SECURITY_BASELINE_ENFORCE=true node scripts/security_scan.mjs
+	@echo "$(BLUE)Running frontend Vitest suite...$(RESET)"
+	npx vitest run
+	@echo "$(BLUE)Running Go backend test suite...$(RESET)"
+	cd backend/go && go test ./... && go vet ./...
+	@echo "$(BLUE)Running Python AI test suite...$(RESET)"
+	cd backend/python && .venv/bin/pytest
+	@echo "$(BLUE)Running frontend production build...$(RESET)"
+	npm run build
+	@echo "$(GREEN)All audit checks and test suites passed successfully!$(RESET)"

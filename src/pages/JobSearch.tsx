@@ -39,8 +39,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes, isBackendUnavailable } from "@/api";
 import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
+import { ATS_NAMES, ATS_LOGOS } from "@/components/jobs/atsMeta";
 import { useAutomation } from "@/contexts/AutomationContext";
 import { SkillGapWidget } from "@/components/jobs/SkillGapWidget";
+import { CalibratedFitCard, getFitBand } from "@/components/jobs/CalibratedFitCard";
 import { JobFeedbackButtons } from "@/components/jobs/JobFeedbackButtons";
 import { SavedSearches } from "@/components/jobs/SavedSearches";
 import { buildApplyChain } from "@/lib/automation/applyChain";
@@ -294,13 +296,16 @@ const JobSearch = () => {
     else toast.error("AutoPilot stopped — open Activity for the reason");
   };
 
-  const handleQueueAutoPilot = (job: Job) => {
-    startRun({
-      title: `AutoPilot preview: ${job.title}`,
-      context: job.company,
-      steps: ["Verifying eligibility", "Filling application", "Submitting", "Logging to pipeline"],
-    });
-    toast.info("AutoPilot is a preview — nothing was submitted");
+  const handleQueueForReview = (job: Job) => {
+    const dedupeKey = job.dedupe_key || `${job.company}-${job.title}-${job.location}`;
+    saveMutation.mutate(
+      { dedupe_key: dedupeKey, job: { ...job, auto_apply: false }, status: "saved" } as any,
+      {
+        onSuccess: () => {
+          toast.success("Queued for review in your Application Pipeline (human submission required)");
+        },
+      }
+    );
   };
 
 
@@ -583,7 +588,8 @@ const JobSearch = () => {
 
                 {!isSearching &&
                   filtered.map((job, i) => {
-                    const score = job.score || job.fit_score || 0;
+                    const score = job.match_score ?? job.score ?? job.fit_score ?? null;
+                    const band = getFitBand(score);
                     const active = i === selectedIdx;
                     const dedupeKey =
                       job.dedupe_key || `${job.company}-${job.title}-${job.location}`;
@@ -611,11 +617,11 @@ const JobSearch = () => {
                               <h4 className="text-sm font-semibold truncate">{job.title}</h4>
                               <span
                                 className={cn(
-                                  "text-xs font-bold tabular-nums shrink-0",
-                                  scoreColor(score)
+                                  "text-[11px] font-semibold tabular-nums shrink-0 px-2 py-0.5 rounded border",
+                                  band.className
                                 )}
                               >
-                                {score}%
+                                {score !== null ? `${score}%` : "Unranked"}
                               </span>
                             </div>
                             <p className="text-xs text-muted-foreground truncate">
@@ -683,8 +689,10 @@ const JobSearch = () => {
                   <div className="flex items-start gap-4">
                     <div
                       className={cn(
-                        "w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center ring-4",
-                        scoreRing(selected.score || selected.fit_score || 0)
+                        "w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center ring-2",
+                        (selected.match_score ?? selected.score ?? selected.fit_score) !== null && (selected.match_score ?? selected.score ?? selected.fit_score) !== undefined
+                          ? scoreRing(selected.match_score ?? selected.score ?? selected.fit_score ?? 0)
+                          : "ring-muted"
                       )}
                     >
                       <Building2 className="w-6 h-6 text-primary" />
@@ -721,20 +729,32 @@ const JobSearch = () => {
                       <div
                         className={cn(
                           "text-2xl font-bold tabular-nums",
-                          scoreColor(selected.score || selected.fit_score || 0)
+                          (selected.match_score ?? selected.score ?? selected.fit_score) !== null && (selected.match_score ?? selected.score ?? selected.fit_score) !== undefined
+                            ? scoreColor(selected.match_score ?? selected.score ?? selected.fit_score ?? 0)
+                            : "text-muted-foreground"
                         )}
                       >
-                        {selected.score || selected.fit_score || 0}%
+                        {(selected.match_score ?? selected.score ?? selected.fit_score) !== null && (selected.match_score ?? selected.score ?? selected.fit_score) !== undefined
+                          ? `${selected.match_score ?? selected.score ?? selected.fit_score}%`
+                          : "—"}
                       </div>
                       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        AI match
+                        {(selected.match_score ?? selected.score ?? selected.fit_score) !== null && (selected.match_score ?? selected.score ?? selected.fit_score) !== undefined
+                          ? "Calibrated Fit"
+                          : "Unranked"}
                       </div>
                     </div>
                   </div>
 
-                  <Progress
-                    value={selected.score || selected.fit_score || 0}
-                    className="h-1.5"
+                  {/* Calibrated Fit Card with Evidence Chips */}
+                  <CalibratedFitCard
+                    score={selected.match_score ?? selected.score ?? selected.fit_score ?? null}
+                    matchedSkills={selected.matched_skills || []}
+                    missingSkills={selected.missing_skills || []}
+                    matchReason={selected.match_reasons?.[0] || selected.match_reason}
+                    atsProvider={selected.ats_provider}
+                    isLiveAtSource={true}
+                    transitionType={userProfile?.transition_type}
                   />
 
                   {/* Action bar */}
@@ -744,9 +764,9 @@ const JobSearch = () => {
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => handleQueueAutoPilot(selected)}
+                      onClick={() => handleQueueForReview(selected)}
                     >
-                      <Zap className="w-4 h-4 mr-2" /> Queue AutoPilot
+                      <Zap className="w-4 h-4 mr-2" /> Queue for Review
                     </Button>
                     <Button
                       variant="outline"
@@ -826,50 +846,18 @@ const JobSearch = () => {
                       )}
                       {selected.missing_skills && selected.missing_skills.length > 0 && (
                         <div className="rounded-lg border border-border bg-card p-4 col-span-2">
-                          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4 pb-4 border-b border-border/50">
-                            <div className="flex items-center gap-3">
-                              {/* Radial progress ring */}
-                              <div className="relative w-12 h-12 shrink-0 flex items-center justify-center">
-                                <svg className="w-full h-full transform -rotate-90">
-                                  <circle
-                                    cx="24"
-                                    cy="24"
-                                    r="20"
-                                    className="stroke-muted"
-                                    strokeWidth="3.5"
-                                    fill="transparent"
-                                  />
-                                  <circle
-                                    cx="24"
-                                    cy="24"
-                                    r="20"
-                                    className={cn(
-                                      "stroke-primary transition-all duration-500",
-                                      (selected.fit_score ?? selected.score ?? 70) >= 80 ? "stroke-success" : 
-                                      (selected.fit_score ?? selected.score ?? 70) >= 60 ? "stroke-warning" : 
-                                      "stroke-destructive"
-                                    )}
-                                    strokeWidth="3.5"
-                                    fill="transparent"
-                                    strokeDasharray={2 * Math.PI * 20}
-                                    strokeDashoffset={2 * Math.PI * 20 * (1 - (selected.fit_score ?? selected.score ?? 70) / 100)}
-                                    strokeLinecap="round"
-                                  />
-                                </svg>
-                                <span className="absolute text-[10px] font-bold font-mono text-foreground">
-                                  {selected.fit_score ?? selected.score ?? 70}%
-                                </span>
-                              </div>
-                              <div>
-                                <h4 className="font-semibold text-xs text-foreground uppercase tracking-wider">Skills Match Rate</h4>
-                                <p className="text-[10px] text-muted-foreground leading-normal">
-                                  Based on your resume skills vs job requirements
-                                </p>
-                              </div>
+                          <div className="flex items-center justify-between gap-4 mb-3 pb-2 border-b border-border/50">
+                            <div>
+                              <h4 className="font-semibold text-xs text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                                Skill Gaps to Close ({selected.missing_skills.length})
+                              </h4>
+                              <p className="text-[10px] text-muted-foreground leading-normal">
+                                Missing requirements detected from target job description
+                              </p>
                             </div>
                             <Button size="sm" variant="outline" className="h-7 text-xs px-2.5" asChild>
                               <Link to="/roadmap">
-                                View Roadmap
+                                View Learning Roadmap
                               </Link>
                             </Button>
                           </div>

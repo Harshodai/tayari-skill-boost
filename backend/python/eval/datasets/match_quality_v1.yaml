@@ -1,0 +1,45 @@
+dataset:
+  name: match_quality_v1
+  description: Evaluation dataset for asymmetric skill transfer, domain pivot ranking, and claim ledger grounding.
+  cases:
+    - id: match_cpp_to_go_pivot
+      candidate_skills: ["C++", "Systems Programming", "Linux", "Multi-threading"]
+      target_job_skills: ["Go", "Microservices", "Backend", "Linux"]
+      expected_min_transfer_score: 0.60
+      description: C++ to Go transition has strong asymmetric mobility (0.85 transfer weight).
+
+    - id: match_go_to_cpp_pivot
+      candidate_skills: ["Go", "REST APIs", "Microservices"]
+      target_job_skills: ["C++", "Systems Programming", "Low-level", "Kernel"]
+      expected_max_transfer_score: 0.50
+      description: Go to C++ systems transition has steep asymmetric barrier (0.45 transfer weight).
+
+    - id: match_react_frontend_pivot
+      candidate_skills: ["React", "JavaScript", "CSS", "Frontend"]
+      target_job_skills: ["Vue", "Frontend", "Web Development"]
+      expected_min_transfer_score: 0.70
+      description: React to Vue transition has high transferability (0.80+ weight).
+
+    - id: claim_ledger_clean
+      original_text: |
+        Alex Mercer
+        Senior Backend Engineer
+        Led migration of payment service to Go, reducing API latency by 45% for 2M daily requests.
+        Built Redis caching layer and orchestrated deployments on AWS ECS.
+      optimized_text: |
+        Alex Mercer
+        Senior Backend Engineer
+        • Engineered high-performance Go microservices for payment processing, cutting API latency by 45% across 2M daily transactions.
+        • Designed distributed Redis caching architectures and automated CI/CD pipelines on AWS.
+      expected_all_grounded: true
+
+    - id: claim_ledger_invented_metrics
+      original_text: |
+        Alex Mercer
+        Backend Engineer
+        Maintained payment service in Python.
+      optimized_text: |
+        Alex Mercer
+        Senior Backend Engineer
+        • Scaled payment infrastructure achieving 99.999% uptime and generated $15M in ARR.
+      expected_all_grounded: false

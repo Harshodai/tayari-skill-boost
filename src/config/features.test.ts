@@ -9,8 +9,8 @@ import { features, isProductionMode, getNavLinks } from '@/config/features';
 // But we definitely can test `getNavLinks` and `features` derivation.
 
 describe('Feature Flags Configuration', () => {
-    it('should have interviewPrep enabled (live in Header/Footer)', () => {
-        expect(features.interviewPrep).toBe(true);
+    it('should have interviewPrep gated off for current release scope', () => {
+        expect(features.interviewPrep).toBe(false);
     });
 
     it('should have verification enabled (V3 badge is live)', () => {

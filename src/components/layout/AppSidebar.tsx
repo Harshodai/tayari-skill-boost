@@ -61,7 +61,7 @@ const primaryItems = (): Item[] => [
   { title: "Find jobs", url: "/jobs", icon: Search, enabled: features.jobSearch },
   { title: "My resume", url: "/resume", icon: FileText, enabled: features.resumeOptimizer },
   { title: "Saved jobs", url: "/pipeline", icon: Bookmark, enabled: features.jobSearch },
-  { title: "Interviews", url: "/interview/prep", icon: Mic, enabled: features.interviewAI },
+  { title: "Applications", url: "/applications", icon: KanbanSquare, enabled: true },
 ];
 
 /**

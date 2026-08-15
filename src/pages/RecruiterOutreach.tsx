@@ -11,36 +11,21 @@ import { Mail, Linkedin, Copy, Check, Sparkles, Send, ExternalLink, ShieldCheck 
 import { toast } from "sonner";
 
 export function RecruiterOutreach() {
-  const [recruiterName, setRecruiterName] = useState("Sarah Jenkins");
-  const [company, setCompany] = useState("Stripe");
-  const [targetRole, setTargetRole] = useState("Senior Backend Engineer");
-  const [proofPoints, setProofPoints] = useState(
-    "Built high-throughput payment webhook microservices handling 10M+ daily events with 45% lower latency using Go & Redis."
-  );
+  const [recruiterName, setRecruiterName] = useState("");
+  const [company, setCompany] = useState("");
+  const [targetRole, setTargetRole] = useState("");
+  const [proofPoints, setProofPoints] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [result, setResult] = useState<any>({
-    company: "Stripe",
-    role: "Senior Backend Engineer",
-    recruiter_name: "Sarah Jenkins",
-    cold_email: {
-      subject: "Application for Senior Backend Engineer — Quick question re: Stripe tech stack",
-      body: `Hi Sarah,\n\nI recently submitted my application for the Senior Backend Engineer role at Stripe.\n\nHaving led engineering projects that scaled systems to 2M+ daily requests while maintaining 99.99% uptime, I was particularly drawn to Stripe's recent work in resilient microservices.\n\nI've attached my ATS-optimized resume for your quick review. Would you be open to a brief 5-minute chat next Tuesday regarding your team's immediate priorities?\n\nBest regards,\nAlex Mercer\nhttps://alexmercer.dev`,
-    },
-    followup_1: {
-      subject: "Re: Application for Senior Backend Engineer — Brief insight",
-      body: `Hi Sarah,\n\nFollowing up on my note from earlier this week regarding the Senior Backend Engineer role. I came across a recent technical post on Stripe's engineering blog and thought of a similar Redis caching optimization we implemented that cut API latency by 45%.\n\nI'd love to share the brief case study if useful for your team.\n\nBest,\nAlex Mercer`,
-    },
-    followup_2: {
-      subject: "Final check — Senior Backend Engineer role at Stripe",
-      body: `Hi Sarah,\n\nI know your schedule is extremely busy. I'll make this my final check-in regarding the Senior Backend Engineer position.\n\nIf the role has been filled or priorities have shifted, no worries at all! If you're still interviewing candidates, I'd welcome 5 minutes to introduce myself.\n\nThanks again,\nAlex Mercer`,
-    },
-    linkedin_note: `Hi Sarah, I saw Stripe is hiring for a Senior Backend Engineer. Given my background in building high-throughput microservices, I'd love to connect!`,
-  });
+  const [result, setResult] = useState<any>(null);
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!company.trim() || !targetRole.trim()) {
+      toast.error("Please enter company name and target role.");
+      return;
+    }
     setGenerating(true);
 
     try {
@@ -164,63 +149,73 @@ export function RecruiterOutreach() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">
-                <Tabs defaultValue="touch1" className="w-full">
-                  <TabsList className="mb-4">
-                    <TabsTrigger value="touch1">Touch 1: Initial Pitch (Day 0)</TabsTrigger>
-                    <TabsTrigger value="touch2">Touch 2: Follow-up (Day 3)</TabsTrigger>
-                    <TabsTrigger value="touch3">Touch 3: Breakaway (Day 7)</TabsTrigger>
-                    <TabsTrigger value="linkedin">LinkedIn Note</TabsTrigger>
-                  </TabsList>
+                {!result ? (
+                  <div className="py-16 text-center text-muted-foreground space-y-2">
+                    <Mail className="w-10 h-10 mx-auto text-muted-foreground/40 mb-2" />
+                    <p className="font-medium text-foreground">No Campaign Generated Yet</p>
+                    <p className="text-xs max-w-sm mx-auto">
+                      Enter the target recruiter/company and your metric achievement on the left, then click "Generate Outreach Sequence".
+                    </p>
+                  </div>
+                ) : (
+                  <Tabs defaultValue="touch1" className="w-full">
+                    <TabsList className="mb-4">
+                      <TabsTrigger value="touch1">Touch 1: Initial Pitch (Day 0)</TabsTrigger>
+                      <TabsTrigger value="touch2">Touch 2: Follow-up (Day 3)</TabsTrigger>
+                      <TabsTrigger value="touch3">Touch 3: Breakaway (Day 7)</TabsTrigger>
+                      <TabsTrigger value="linkedin">LinkedIn Note</TabsTrigger>
+                    </TabsList>
 
-                  {/* Touch 1 */}
-                  <TabsContent value="touch1" className="space-y-3">
-                    <div className="flex items-center justify-between bg-muted/40 p-2 rounded border text-xs font-mono">
-                      <span>Subject: {result?.cold_email?.subject}</span>
-                      <Button variant="ghost" size="sm" onClick={() => copyText(result?.cold_email?.subject, "sub1")}>
-                        {copiedKey === "sub1" ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    {/* Touch 1 */}
+                    <TabsContent value="touch1" className="space-y-3">
+                      <div className="flex items-center justify-between bg-muted/40 p-2 rounded border text-xs font-mono">
+                        <span>Subject: {result?.cold_email?.subject}</span>
+                        <Button variant="ghost" size="sm" onClick={() => copyText(result?.cold_email?.subject, "sub1")}>
+                          {copiedKey === "sub1" ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                        </Button>
+                      </div>
+                      <Textarea readOnly value={result?.cold_email?.body} rows={8} className="font-mono text-xs" />
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" onClick={() => openGmail(result?.cold_email?.subject, result?.cold_email?.body)} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
+                          <Mail className="w-4 h-4" /> Open in Gmail
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => copyText(result?.cold_email?.body, "body1")} className="gap-2">
+                          <Copy className="w-4 h-4" /> Copy Email Body
+                        </Button>
+                      </div>
+                    </TabsContent>
+
+                    {/* Touch 2 */}
+                    <TabsContent value="touch2" className="space-y-3">
+                      <div className="flex items-center justify-between bg-muted/40 p-2 rounded border text-xs font-mono">
+                        <span>Subject: {result?.followup_1?.subject || "Re: Application follow-up"}</span>
+                      </div>
+                      <Textarea readOnly value={result?.followup_1?.body} rows={6} className="font-mono text-xs" />
+                      <Button size="sm" variant="outline" onClick={() => copyText(result?.followup_1?.body, "body2")} className="gap-2">
+                        <Copy className="w-4 h-4" /> Copy Follow-up 1
                       </Button>
-                    </div>
-                    <Textarea readOnly value={result?.cold_email?.body} rows={8} className="font-mono text-xs" />
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" onClick={() => openGmail(result?.cold_email?.subject, result?.cold_email?.body)} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
-                        <Mail className="w-4 h-4" /> Open in Gmail
+                    </TabsContent>
+
+                    {/* Touch 3 */}
+                    <TabsContent value="touch3" className="space-y-3">
+                      <div className="flex items-center justify-between bg-muted/40 p-2 rounded border text-xs font-mono">
+                        <span>Subject: {result?.followup_2?.subject || "Final check-in"}</span>
+                      </div>
+                      <Textarea readOnly value={result?.followup_2?.body} rows={6} className="font-mono text-xs" />
+                      <Button size="sm" variant="outline" onClick={() => copyText(result?.followup_2?.body, "body3")} className="gap-2">
+                        <Copy className="w-4 h-4" /> Copy Breakaway Check
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => copyText(result?.cold_email?.body, "body1")} className="gap-2">
-                        <Copy className="w-4 h-4" /> Copy Email Body
+                    </TabsContent>
+
+                    {/* LinkedIn */}
+                    <TabsContent value="linkedin" className="space-y-3">
+                      <Textarea readOnly value={result?.linkedin_note} rows={4} className="font-mono text-xs" />
+                      <Button size="sm" variant="outline" onClick={() => copyText(result?.linkedin_note, "li")} className="gap-2">
+                        <Copy className="w-4 h-4" /> Copy LinkedIn Note (Under 300 chars)
                       </Button>
-                    </div>
-                  </TabsContent>
-
-                  {/* Touch 2 */}
-                  <TabsContent value="touch2" className="space-y-3">
-                    <div className="flex items-center justify-between bg-muted/40 p-2 rounded border text-xs font-mono">
-                      <span>Subject: {result?.followup_1?.subject || "Re: Application follow-up"}</span>
-                    </div>
-                    <Textarea readOnly value={result?.followup_1?.body} rows={6} className="font-mono text-xs" />
-                    <Button size="sm" variant="outline" onClick={() => copyText(result?.followup_1?.body, "body2")} className="gap-2">
-                      <Copy className="w-4 h-4" /> Copy Follow-up 1
-                    </Button>
-                  </TabsContent>
-
-                  {/* Touch 3 */}
-                  <TabsContent value="touch3" className="space-y-3">
-                    <div className="flex items-center justify-between bg-muted/40 p-2 rounded border text-xs font-mono">
-                      <span>Subject: {result?.followup_2?.subject || "Final check-in"}</span>
-                    </div>
-                    <Textarea readOnly value={result?.followup_2?.body} rows={6} className="font-mono text-xs" />
-                    <Button size="sm" variant="outline" onClick={() => copyText(result?.followup_2?.body, "body3")} className="gap-2">
-                      <Copy className="w-4 h-4" /> Copy Breakaway Check
-                    </Button>
-                  </TabsContent>
-
-                  {/* LinkedIn */}
-                  <TabsContent value="linkedin" className="space-y-3">
-                    <Textarea readOnly value={result?.linkedin_note} rows={4} className="font-mono text-xs" />
-                    <Button size="sm" variant="outline" onClick={() => copyText(result?.linkedin_note, "li")} className="gap-2">
-                      <Copy className="w-4 h-4" /> Copy LinkedIn Note (Under 300 chars)
-                    </Button>
-                  </TabsContent>
-                </Tabs>
+                    </TabsContent>
+                  </Tabs>
+                )}
               </CardContent>
             </Card>
           </div>

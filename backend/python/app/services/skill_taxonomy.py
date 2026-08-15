@@ -147,14 +147,111 @@ def expand_skills(skills: set) -> set:
     return expanded
 
 
-def taxonomy_overlap(candidate_text: str, job_text: str) -> dict:
-    """Weighted overlap: exact canonical matches count 1.0, adjacency 0.4."""
-    cand = extract_skills(candidate_text)
-    job = extract_skills(job_text)
+# Directed Asymmetric Transfer Graph: (source_skill -> {target_skill: transfer_weight})
+# Captures real-world domain mobility where learning B from A is easier than learning A from B.
+ASYMMETRIC_TRANSFER: dict[str, dict[str, float]] = {
+    "c++": {"go": 0.85, "rust": 0.80, "c#": 0.85, "systems programming": 0.95, "backend": 0.75},
+    "rust": {"go": 0.85, "c++": 0.80, "systems programming": 0.95, "backend": 0.80},
+    "go": {"c++": 0.45, "rust": 0.50, "backend": 0.90, "microservices": 0.90, "distributed systems": 0.75},
+    "java": {"c#": 0.90, "go": 0.75, "kotlin": 0.90, "backend": 0.90, "spring": 0.85},
+    "c#": {"java": 0.90, "go": 0.75, "backend": 0.90},
+    "python": {"data analysis": 0.85, "data science": 0.80, "machine learning": 0.75, "backend": 0.85, "fastapi": 0.90, "django": 0.90, "scripting": 0.95},
+    "javascript": {"typescript": 0.90, "nodejs": 0.85, "frontend": 0.90, "react": 0.80},
+    "typescript": {"javascript": 0.95, "nodejs": 0.90, "frontend": 0.90, "react": 0.85, "angular": 0.85},
+    "react": {"nextjs": 0.90, "vue": 0.80, "frontend": 0.95},
+    "vue": {"react": 0.80, "frontend": 0.95},
+    "angular": {"typescript": 0.90, "frontend": 0.95, "react": 0.75},
+    "nodejs": {"backend": 0.85, "rest api": 0.85, "javascript": 0.95, "typescript": 0.85},
+    "docker": {"kubernetes": 0.70, "devops": 0.80, "ci/cd": 0.75},
+    "kubernetes": {"docker": 0.95, "devops": 0.90, "cloud": 0.85},
+    "aws": {"gcp": 0.85, "azure": 0.85, "cloud": 0.95, "devops": 0.75},
+    "gcp": {"aws": 0.85, "azure": 0.85, "cloud": 0.95},
+    "azure": {"aws": 0.85, "gcp": 0.85, "cloud": 0.95},
+    "postgresql": {"mysql": 0.90, "sql": 0.95, "databases": 0.90},
+    "mysql": {"postgresql": 0.85, "sql": 0.95, "databases": 0.90},
+    "machine learning": {"deep learning": 0.80, "data science": 0.85, "ai": 0.90, "nlp": 0.75, "computer vision": 0.75},
+    "deep learning": {"machine learning": 0.90, "ai": 0.95, "llm": 0.85, "nlp": 0.85, "computer vision": 0.85},
+    "ai": {"llm": 0.80, "machine learning": 0.90},
+    "llm": {"nlp": 0.85, "ai": 0.90, "machine learning": 0.80},
+    "data science": {"data analysis": 0.95, "machine learning": 0.80, "statistics": 0.90, "python": 0.85},
+    "data engineering": {"data analysis": 0.75, "databases": 0.90, "big data": 0.85, "sql": 0.90},
+    "testing": {"automation": 0.80, "ci/cd": 0.65},
+    "automation": {"testing": 0.85, "scripting": 0.85, "devops": 0.70},
+    "distributed systems": {"microservices": 0.95, "backend": 0.90, "scalability": 0.95},
+    "microservices": {"distributed systems": 0.75, "backend": 0.90, "rest api": 0.90},
+    "frontend": {"web development": 0.90, "ui": 0.85, "ux": 0.70, "fullstack": 0.75},
+    "backend": {"web development": 0.85, "rest api": 0.90, "microservices": 0.85, "fullstack": 0.75},
+    "web development": {"frontend": 0.85, "backend": 0.85},
+    "devops": {"cloud": 0.90, "ci/cd": 0.90, "linux": 0.85, "monitoring": 0.85},
+}
+
+
+def compute_asymmetric_transfer(candidate_source: str | set | list, job_target: str | set | list) -> dict:
+    """Compute asymmetric, directed skill transfer from candidate to job requirements.
+
+    Distinguishes direct overlap from directed mobility paths (e.g. C++ -> Go vs Go -> C++).
+    """
+    if isinstance(candidate_source, str):
+        cand = extract_skills(candidate_source)
+    else:
+        cand = {s.lower().strip() for s in candidate_source if s}
+
+    if isinstance(job_target, str):
+        job = extract_skills(job_target)
+    else:
+        job = {s.lower().strip() for s in job_target if s}
+
     if not job:
-        return {"score": 0.0, "exact": [], "adjacent": []}
-    exact = cand & job
-    cand_expanded = expand_skills(cand)
-    adjacent = (cand_expanded & job) - exact
-    score = (len(exact) + 0.4 * len(adjacent)) / len(job)
-    return {"score": min(score, 1.0), "exact": sorted(exact), "adjacent": sorted(adjacent)}
+        return {
+            "score": 0.0,
+            "direct_matches": [],
+            "transfer_matches": [],
+            "missing_skills": [],
+            "asymmetric_transfer_ratio": 0.0,
+        }
+
+    direct = cand & job
+    remaining_job = job - direct
+    transfers = []
+    transfer_score_sum = 0.0
+
+    for target_skill in remaining_job:
+        best_source = None
+        best_weight = 0.0
+        for source_skill in cand:
+            weight = ASYMMETRIC_TRANSFER.get(source_skill, {}).get(target_skill, 0.0)
+            if weight > best_weight:
+                best_weight = weight
+                best_source = source_skill
+        if best_weight >= 0.4:
+            transfers.append({
+                "source": best_source,
+                "target": target_skill,
+                "weight": best_weight,
+            })
+            transfer_score_sum += best_weight
+
+    total_matched_weight = len(direct) * 1.0 + transfer_score_sum
+    score = min(total_matched_weight / max(len(job), 1), 1.0)
+    transfer_targets = {t["target"] for t in transfers}
+    missing = sorted(remaining_job - transfer_targets)
+
+    return {
+        "score": round(score, 3),
+        "direct_matches": sorted(direct),
+        "transfer_matches": transfers,
+        "missing_skills": missing,
+        "asymmetric_transfer_ratio": round(transfer_score_sum / max(len(job), 1), 3),
+    }
+
+
+def taxonomy_overlap(candidate_text: str, job_text: str) -> dict:
+    """Weighted overlap: exact canonical matches count 1.0, directed transfer weights [0.4, 0.95]."""
+    asym = compute_asymmetric_transfer(candidate_text, job_text)
+    adjacent = [t["target"] for t in asym["transfer_matches"]]
+    return {
+        "score": asym["score"],
+        "exact": asym["direct_matches"],
+        "adjacent": sorted(adjacent),
+        "asymmetric": asym,
+    }
