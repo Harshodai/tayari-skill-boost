@@ -46,3 +46,9 @@ Open-source projects were reviewed for reusable architecture ideas rather than c
 ## First-hand video research
 
 A public Comet demonstration was reviewed for workflow structure, plan visibility, action confirmation, multi-tab context, background monitoring, self-correction, uncertainty handling, and privacy controls: [Perplexity Comet agent demonstrations](https://www.youtube.com/watch?v=lqAHw6TwLsk). The video was used to identify interaction patterns only; it is not treated as ground truth for implementation or security claims.
+
+## End-to-end execution and desktop handoff
+
+After the user approves a proposed plan, the extension invokes the authenticated `/v1/agent/page-answer` route. The route accepts only explicitly supplied HTTPS page context, wraps all page text with the existing untrusted-data delimiter, and returns a read-only answer with source metadata. It cannot navigate, fill, send, submit, or alter a page.
+
+The extension can open `/desktop/tasks/:taskId` in the shared control room. The desktop app now validates `tayari://desktop/tasks/<uuid>` links, forwards them through the isolated preload bridge, and navigates the trusted React renderer to a live task view. That view polls task state and events, exposes durable plan approval, action proposal decisions, takeover, and stop controls, and keeps submission disabled.

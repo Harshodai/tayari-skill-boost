@@ -1,3 +1,31 @@
+function normalizeTaskDeepLink(url) {
+  try {
+    const parsed = new URL(url);
+    const match = parsed.protocol === `${DESKTOP_PROTOCOL}:` ? parsed.pathname.match(/^\/desktop\/tasks\/([0-9a-f-]{36})$/i) : null;
+    return match ? `/desktop/tasks/${match[1]}` : null;
+  } catch {
+    return null;
+  }
+}
+function forwardTaskDeepLink(url) {
+  const taskPath = normalizeTaskDeepLink(url);
+  if (!taskPath) return;
+  pendingTaskDeepLink = taskPath;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("desktop:task-deeplink", taskPath);
+    pendingTaskDeepLink = undefined;
+  }
+}
+function forwardDesktopUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== `${DESKTOP_PROTOCOL}:`) return;
+    if (parsed.pathname === "/auth/callback") forwardAuthCallback(url);
+    else forwardTaskDeepLink(url);
+  } catch {
+    // Ignore malformed desktop URLs.
+  }
+}
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const { execFile } = require("node:child_process");
 const fs = require("node:fs/promises");
@@ -21,6 +49,7 @@ const selectedFilePaths = new Set();
 let staticServer;
 let mainWindow;
 let pendingAuthCallback;
+let pendingTaskDeepLink;
 let shuttingDown = false;
 const secureStorage = createSecureStorage();
 
@@ -34,6 +63,7 @@ function forwardAuthCallback(url) {
     pendingAuthCallback = undefined;
   }
 }
+
 function registerDesktopProtocol() {
   try {
     if (process.defaultApp && process.argv[1]) {
@@ -257,6 +287,10 @@ async function createWindow() {
       window.webContents.send("desktop:auth-callback", pendingAuthCallback);
       pendingAuthCallback = undefined;
     }
+    if (pendingTaskDeepLink) {
+      window.webContents.send("desktop:task-deeplink", pendingTaskDeepLink);
+      pendingTaskDeepLink = undefined;
+    }
   });
   await window.loadURL(loadUrl);
 }
@@ -353,7 +387,7 @@ if (!app.requestSingleInstanceLock()) {
     registerIpcHandlers();
     await createWindow();
     const initialCallback = process.argv.find((arg) => arg.startsWith(DESKTOP_PROTOCOL + "://"));
-    if (initialCallback) forwardAuthCallback(initialCallback);
+    if (initialCallback) forwardDesktopUrl(initialCallback);
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) void createWindow();
     });
@@ -361,12 +395,12 @@ if (!app.requestSingleInstanceLock()) {
   if (process.platform === "darwin") {
     app.on("open-url", (event, url) => {
       event.preventDefault();
-      forwardAuthCallback(url);
+      forwardDesktopUrl(url);
     });
   }
   app.on("second-instance", (_event, commandLine) => {
     const callbackUrl = commandLine.find((arg) => arg.startsWith(DESKTOP_PROTOCOL + "://"));
-    if (callbackUrl) forwardAuthCallback(callbackUrl);
+    if (callbackUrl) forwardDesktopUrl(callbackUrl);
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();

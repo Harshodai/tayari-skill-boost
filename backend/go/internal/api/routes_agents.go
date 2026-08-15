@@ -20,6 +20,8 @@ func (s *Server) routesAgents(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(s.authMiddleware)
 
+		r.Post("/api/v1/agent/page-answer", s.handleExtensionPageAnswer)
+		r.Post("/api/agent/page-answer", s.handleExtensionPageAnswer)
 		r.Get("/api/v1/agents", s.handleListAgents)
 		r.Post("/api/v1/agents", s.handleCreateAgent)
 		r.Put("/api/v1/agents/{name}/instructions", s.handleUpdateAgentInstructions)

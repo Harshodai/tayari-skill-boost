@@ -11,6 +11,11 @@ contextBridge.exposeInMainWorld("tayariDesktop", {
     ipcRenderer.on("desktop:auth-callback", listener);
     return () => ipcRenderer.removeListener("desktop:auth-callback", listener);
   },
+  onTaskDeepLink: (callback) => {
+    const listener = (_event, path) => callback(path);
+    ipcRenderer.on("desktop:task-deeplink", listener);
+    return () => ipcRenderer.removeListener("desktop:task-deeplink", listener);
+  },
   startServices: () => ipcRenderer.invoke("desktop:start-services"),
   stopServices: () => ipcRenderer.invoke("desktop:stop-services"),
   settings: (next) => ipcRenderer.invoke("desktop:settings", next),

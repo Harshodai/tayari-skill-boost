@@ -227,3 +227,5 @@ The Evidence shelf stores bounded, locally redacted notes with source URLs and c
 A context-menu command, “Ask Job Tayari about this selection,” opens the side panel and inserts selected text into the prompt. Existing job detection, fit analysis, queueing, and approval-gated autofill remain available. Final application submission is not exposed by the extension.
 
 The workspace intentionally does not provide arbitrary shell execution, password or MFA entry, CAPTCHA bypass, unrestricted cookie manipulation, silent message sending, or automatic final submission. Native messaging remains limited to the typed methods documented in `native-host/policy.go`.
+
+Approved plans can now run the bounded read-only page-answer path through the authenticated gateway. The answer is rendered with its source list in the side panel. The “Open control room” action hands the durable task to `/desktop/tasks/:taskId`; the desktop protocol accepts only UUID task links and forwards them through the isolated preload bridge.

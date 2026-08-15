@@ -36,3 +36,6 @@ DROP POLICY IF EXISTS interview_question_reports_reader ON public.interview_ques
 CREATE POLICY interview_question_reports_reader ON public.interview_question_reports
   FOR SELECT TO authenticated
   USING (reporter_id = auth.uid());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.interview_question_reports TO authenticated;
+GRANT ALL ON public.interview_question_reports TO service_role;

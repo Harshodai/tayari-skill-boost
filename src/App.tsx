@@ -1,9 +1,8 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { RouteAnalytics } from "@/components/analytics/RouteAnalytics";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -17,7 +16,7 @@ import { useMigrateAutomationRuns } from "@/hooks/useMigrateAutomationRuns";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { LoadingFallback } from "@/components/LoadingFallback";
 
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 const Index = lazy(() => import('./pages/Index'));
 
 const Onboarding = lazy(() => import('./pages/Onboarding'));
@@ -92,9 +91,17 @@ const Downloads = lazy(() => import('./pages/Downloads'));
 const Omnisave = lazy(() => import('./pages/Omnisave'));
 const TayariComputerControlRoom = lazy(() => import('./components/TayariComputerControlRoom'));
 const DesktopAgent = lazy(() => import('./pages/DesktopAgent'));
+const TaskControlRoom = lazy(() => import('./pages/TaskControlRoom'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 const queryClient = new QueryClient();
+const DesktopTaskDeepLinkBridge = () => {
+  const navigate = useNavigate();
+  useEffect(() => window.tayariDesktop?.onTaskDeepLink((path) => {
+    if (/^\/desktop\/tasks\/[0-9a-f-]{36}$/i.test(path)) navigate(path);
+  }), [navigate]);
+  return null;
+};
 
 // ponytail: one-time localStorage→server migration flag guard (M4 §6).
 // Null-rendering component so the hook runs inside the provider tree.
@@ -115,6 +122,7 @@ const App = () => (
         <ActivityDrawer />
         <BrowserRouter>
           <ScrollToTopHandler />
+          <DesktopTaskDeepLinkBridge />
           <RouteAnalytics />
           <PageTransition>
           <Suspense fallback={<LoadingFallback />}>
@@ -127,6 +135,8 @@ const App = () => (
               <Route path="/omnisave" element={<Omnisave />} />
               <Route path="/control-room" element={<ProtectedRoute><TayariComputerControlRoom /></ProtectedRoute>} />
               <Route path="/desktop" element={<ProtectedRoute><DesktopAgent /></ProtectedRoute>} />
+              <Route path="/desktop/tasks/:taskId" element={<ProtectedRoute><TaskControlRoom /></ProtectedRoute>} />
+              <Route path="/control-room/tasks/:taskId" element={<ProtectedRoute><TaskControlRoom /></ProtectedRoute>} />
               {features.oneShotPipeline && (
                 <Route path="/one-shot" element={<OneShotPipeline />} />
               )}

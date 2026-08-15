@@ -21,3 +21,6 @@ textarea { resize: vertical; min-height: 72px; }
 }
 .warning-list { color: #9a5b00; background: #fff6df; border-radius: 8px; padding: 8px 8px 8px 25px; font-size: 12px; }
 @media (prefers-color-scheme: dark) { .warning-list { background: #382b16; color: #ffd388; } }
+.answer-text { white-space: pre-wrap; line-height: 1.45; }
+.source-list { padding-left: 20px; }
+.source-list a { color: #5a45d6; font-size: 12px; }

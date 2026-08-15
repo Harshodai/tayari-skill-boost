@@ -50,3 +50,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_source_context_link
 
 COMMENT ON TABLE public.source_highlights IS 'Candidate-owned excerpts and annotations that can be reused as grounded evidence.';
 COMMENT ON TABLE public.source_context_links IS 'Candidate-owned links between saved sources and career preparation contexts.';
+
+BEGIN;
+ALTER TABLE public.source_highlights ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.source_context_links ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS source_highlights_owner_access ON public.source_highlights;
+CREATE POLICY source_highlights_owner_access ON public.source_highlights
+  FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS source_context_links_owner_access ON public.source_context_links;
+CREATE POLICY source_context_links_owner_access ON public.source_context_links
+  FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.source_highlights, public.source_context_links TO authenticated;
+GRANT ALL ON public.source_highlights, public.source_context_links TO service_role;
+COMMIT;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.source_context_links TO authenticated;
+GRANT ALL ON public.source_context_links TO service_role;

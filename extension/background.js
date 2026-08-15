@@ -1,3 +1,14 @@
+async function answerApprovedPageTask(request) {
+  const task = await taskMutation(request.taskId, '', { method: 'GET' });
+  if (!['queued', 'running', 'awaiting_takeover'].includes(task.status)) throw new Error(`Task is not approved for read-only execution (${task.status}).`);
+  const page = request.page || await getPageSnapshot(request.tabId);
+  if (!page || !String(page.url || '').startsWith('https://')) throw new Error('An HTTPS page context is required.');
+  const config = await getConfig();
+  const response = await TayariSession.fetchJson(config, 'v1/agent/page-answer', { method: 'POST', body: JSON.stringify({ prompt: boundedText(request.prompt, 2000), page_title: boundedText(page.title, 180), page_url: boundedText(page.url, 2000), selection: boundedText(page.selection, 4000), visible_text: boundedText(page.visibleText, 12000), mode: ['ask', 'research', 'draft'].includes(request.mode) ? request.mode : 'ask', sources: (request.sources || []).slice(0, 8).map((source) => ({ title: boundedText(source.title, 180), url: boundedText(source.url, 2000) })) }) });
+  if (!response.ok) throw new Error('Read-only page answer failed.');
+  const result = await response.json();
+  return { success: true, task, answer: boundedText(result.answer, 12000), sources: result.sources || [], readOnly: result.read_only === true };
+}
 function detectInjectionIndicators(value) {
   const text = boundedText(value, 12000).toLowerCase();
   const patterns = [/ignore (all|any|previous|the) instructions/, /system message/, /developer message/, /reveal (the )?prompt/, /send .*password/, /upload .*credential/, /click .*approve/];
@@ -513,6 +524,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         } catch (error) {
           sendResponse({ success: false, error: error.message || 'OmniSaveAI sync failed.' });
         }
+        break;
+      }
+      case 'answer_approved_page': {
+        try { sendResponse(await answerApprovedPageTask(request)); } catch (error) { sendResponse({ success: false, error: error.message || 'Read-only answer failed.' }); }
         break;
       }
       case 'get_agent_task_status': {
