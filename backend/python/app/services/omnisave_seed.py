@@ -272,9 +272,8 @@ class OmniSaveSeedStore:
                     COUNT(*) FILTER (WHERE status = 'skipped')::int AS skipped_count,
                     COUNT(*) FILTER (WHERE status = 'failed' AND attempts >= 3)::int AS failed_count,
                     COUNT(*) FILTER (
-                        WHERE status IN ('pending')
+                        WHERE status IN ('pending', 'running')
                            OR (status = 'failed' AND attempts < 3)
-                           OR (status = 'running' AND updated_at >= NOW() - INTERVAL '5 minutes')
                     )::int AS pending_count
                 FROM public.omnisave_seed_import_items
                 WHERE job_id = $1 AND user_id = $2

@@ -1,3 +1,4 @@
+import * as React from 'react';
 import {
   ToastProvider,
   ToastViewport,
@@ -9,10 +10,13 @@ import {
 } from '@/components/ui/toast';
 
 export function SuccessAndDestructive() {
+  const [openSuccess, setOpenSuccess] = React.useState(true);
+  const [openDestructive, setOpenDestructive] = React.useState(true);
+
   return (
     <ToastProvider>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 380, position: 'relative' }}>
-        <Toast open style={{ position: 'static', transform: 'none' }}>
+        <Toast open={openSuccess} onOpenChange={setOpenSuccess} style={{ position: 'static', transform: 'none' }}>
           <div style={{ display: 'grid', gap: 4 }}>
             <ToastTitle>Application submitted</ToastTitle>
             <ToastDescription>
@@ -21,7 +25,7 @@ export function SuccessAndDestructive() {
           </div>
           <ToastClose />
         </Toast>
-        <Toast open variant="destructive" style={{ position: 'static', transform: 'none' }}>
+        <Toast open={openDestructive} onOpenChange={setOpenDestructive} variant="destructive" style={{ position: 'static', transform: 'none' }}>
           <div style={{ display: 'grid', gap: 4 }}>
             <ToastTitle>Failed to save changes</ToastTitle>
             <ToastDescription>
@@ -37,10 +41,12 @@ export function SuccessAndDestructive() {
 }
 
 export function WithAction() {
+  const [openAction, setOpenAction] = React.useState(true);
+
   return (
     <ToastProvider>
       <div style={{ width: 380, position: 'relative' }}>
-        <Toast open style={{ position: 'static', transform: 'none' }}>
+        <Toast open={openAction} onOpenChange={setOpenAction} style={{ position: 'static', transform: 'none' }}>
           <div style={{ display: 'grid', gap: 4 }}>
             <ToastTitle>New job match found</ToastTitle>
             <ToastDescription>

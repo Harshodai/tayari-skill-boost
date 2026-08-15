@@ -245,6 +245,8 @@ async def sync_agent_reach_saves(
             captured_items.append(item_data)
     captured_urls = {str(item.get("url")) for item in captured_items if item.get("url")}
     requested_count = len(captured_urls | set(requested_urls))
+    if requested_count == 0:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="url_required")
     try:
         sync_store = get_omnisave_sync_store()
         trigger_type = payload.trigger_type if payload.trigger_type in {"manual", "automatic", "extension", "import"} else "manual"

@@ -23,7 +23,7 @@
     try {
       const parsed = new URL(url);
       const path = parsed.pathname;
-      if (platform === 'linkedin') return parsed.hostname.endsWith('linkedin.com') && (/\/posts\//i.test(path) || /\/feed\/update\//i.test(path));
+      if (platform === 'linkedin') return (parsed.hostname === 'linkedin.com' || parsed.hostname.endsWith('.linkedin.com')) && (/\/posts\//i.test(path) || /\/feed\/update\//i.test(path));
       if (platform === 'medium') return parsed.hostname === 'medium.com' && (/^\/p\//i.test(path) || /^\/@[^/]+\/[^/]+/i.test(path));
       if (platform === 'substack') {
         const isSubstackHost = parsed.hostname === 'substack.com' || parsed.hostname.endsWith('.substack.com');
@@ -37,7 +37,7 @@
         }
         return /^\/p\/[^/]+/i.test(path) || /^\/[^/]+\/[^/]+/i.test(path);
       }
-      if (platform === 'instagram') return parsed.hostname.endsWith('instagram.com') && (/^\/p\//i.test(path) || /^\/reel\//i.test(path));
+      if (platform === 'instagram') return (parsed.hostname === 'instagram.com' || parsed.hostname.endsWith('.instagram.com')) && (/^\/p\//i.test(path) || /^\/reel\//i.test(path));
       return false;
     } catch {
       return false;

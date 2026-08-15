@@ -19,6 +19,7 @@ class OmniSaveBriefService:
             source_ids = {source.get("id") for source in sources}
             highlights = [item for item in highlights if item.get("source_id") in source_ids]
             questions = [item for item in questions if item.get("source_id") in source_ids]
+            context_links = [item for item in context_links if item.get("source_id") in source_ids]
         evidence_coverage = len(highlights)
         def freshness_key(source: Dict[str, Any]) -> str:
             return str(source.get("last_seen_at") or source.get("created_at") or "")

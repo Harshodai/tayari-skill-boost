@@ -42,12 +42,14 @@ export function SettingsRow() {
       }}
     >
       <div>
-        <p style={{ fontSize: 14, fontWeight: 500 }}>Weekly ATS digest</p>
-        <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+        <Label htmlFor="weekly-digest" style={{ fontSize: 14, fontWeight: 500, display: 'block', cursor: 'pointer' }}>
+          Weekly ATS digest
+        </Label>
+        <p id="weekly-digest-desc" style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
           Summary of resume score changes, sent Mondays
         </p>
       </div>
-      <Switch id="weekly-digest" defaultChecked />
+      <Switch id="weekly-digest" aria-describedby="weekly-digest-desc" defaultChecked />
     </div>
   );
 }

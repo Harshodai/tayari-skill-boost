@@ -12,6 +12,7 @@ from typing import Dict, Any, List, Optional
 from app.services.prompt_safety import untrusted as _untrusted
 from app.services.db import get_pool
 from app.services.llm_service import llm_complete, active_engine, LLMNotConfiguredError
+from app.services.omnisave_sync import calculate_freshness_score
 
 logger = logging.getLogger(__name__)
 
@@ -323,8 +324,8 @@ class OmnisaveService:
                 await conn.execute(
                     """
                     INSERT INTO public.omnisave_source_provenance
-                        (source_id, user_id, capture_origin, sync_status, first_captured_at, last_seen_at, last_attempt_at, attempt_count)
-                    VALUES ($1, $2, $3, 'unchanged', NOW(), NOW(), NOW(), 1)
+                        (source_id, user_id, capture_origin, content_hash, sync_status, first_captured_at, last_seen_at, last_attempt_at, attempt_count)
+                    VALUES ($1, $2, $3, $4, 'unchanged', NOW(), NOW(), NOW(), 1)
                     ON CONFLICT (source_id) DO UPDATE SET
                         last_seen_at = NOW(), last_attempt_at = NOW(),
                         attempt_count = public.omnisave_source_provenance.attempt_count + 1, updated_at = NOW()
@@ -332,6 +333,7 @@ class OmnisaveService:
                     uuid_lib.UUID(source_id),
                     user_uuid,
                     capture_origin,
+                    content_hash,
                 )
         except Exception as exc:
             logger.warning("[Omnisave] Provenance touch failed for %s: %s", source_id, exc)
@@ -748,7 +750,11 @@ class OmnisaveService:
                 imported_sources.append(result.get("source") or {})
             else:
                 errors.append({"url": url, "error": result.get("error", "import_failed")})
-        sources = await self.list_user_saved_sources(user_id)
+        try:
+            sources = await self.list_user_saved_sources(user_id)
+        except RuntimeError as exc:
+            logger.warning("[Omnisave] Failed to list user saved sources after sync: %s", exc)
+            sources = []
         return {
             "success": bool(imported_sources),
             "count": len(imported_sources),
@@ -832,21 +838,7 @@ class OmnisaveService:
     @staticmethod
     def _freshness_score(row: Any) -> int:
         """Return a deterministic 0-100 freshness score for review ordering."""
-        now = datetime.now(timezone.utc)
-        seen = row.get("last_seen_at") or row.get("created_at")
-        if seen is None:
-            age_days = 365
-        else:
-            if seen.tzinfo is None:
-                seen = seen.replace(tzinfo=timezone.utc)
-            age_days = max(0, (now - seen).days)
-        score = max(0, 100 - min(100, age_days * 3))
-        status = str(row.get("sync_status") or "").lower()
-        if status in {"failed", "blocked", "error"}:
-            score = max(0, score - 35)
-        elif status in {"pending", "running"}:
-            score = max(0, score - 10)
-        return int(score)
+        return calculate_freshness_score(row)
 
     async def delete_user_source(self, user_id: str, source_id: str) -> bool:
         """Delete one durable source owned by the requesting candidate.

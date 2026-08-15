@@ -261,14 +261,25 @@ export default function Omnisave() {
   useEffect(() => { void loadBriefSuggestions(); }, [loadBriefSuggestions]);
 
   const loadSyncState = useCallback(async () => {
-    try {
-      const [settings, runs, jobs] = await Promise.all([fetchOmniSaveSyncSettings(), fetchOmniSaveSyncRuns(10), fetchOmniSaveSeedJobs(10)]);
-      setSyncSettings(settings);
-      setSyncRuns(runs);
-      setSeedJobs(jobs);
-    } catch {
+    const [settingsResult, runsResult, jobsResult] = await Promise.allSettled([
+      fetchOmniSaveSyncSettings(),
+      fetchOmniSaveSyncRuns(10),
+      fetchOmniSaveSeedJobs(10),
+    ]);
+    if (settingsResult.status === "fulfilled") {
+      setSyncSettings(settingsResult.value);
+    } else {
       setSyncSettings(null);
+    }
+    if (runsResult.status === "fulfilled") {
+      setSyncRuns(runsResult.value);
+    } else {
       setSyncRuns([]);
+    }
+    if (jobsResult.status === "fulfilled") {
+      setSeedJobs(jobsResult.value);
+    } else {
+      setSeedJobs([]);
     }
   }, []);
 
@@ -389,7 +400,13 @@ export default function Omnisave() {
           `\n${source.clean_markdown || source.raw_content || ""}`,
         ]),
       ].filter(Boolean).join("\n");
-      const csvEscape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+      const csvEscape = (value: unknown) => {
+        let str = String(value ?? "");
+        if (/^[=+\-@\t\r]/.test(str)) {
+          str = `'${str}`;
+        }
+        return `"${str.replace(/"/g, '""')}"`;
+      };
       const csv = [
         ["source_id", "platform", "title", "author", "url", "category", "tags", "capture_origin", "sync_status", "evidence_excerpt", "evidence_note", "context_type", "context_label"].join(","),
         ...bundle.sources.flatMap((source) => {
@@ -404,8 +421,10 @@ export default function Omnisave() {
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = `omnisave-export-${new Date().toISOString().slice(0, 10)}.${format === "json" ? "json" : format === "csv" ? "csv" : "md"}`;
+      document.body.appendChild(anchor);
       anchor.click();
-      URL.revokeObjectURL(url);
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (exportError) {
       setError(exportError instanceof Error ? exportError.message : "Export failed.");
     } finally {

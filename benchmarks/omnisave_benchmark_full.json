@@ -14,7 +14,7 @@
   "metrics": {
     "linkedmash.com": {
       "global_rank": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_global_rank",
         "query": {},
         "attempt_count": 1,
@@ -25,10 +25,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "visits_total": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_visits_total",
         "query": {
           "country": "world",
@@ -42,10 +42,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "unique_visit": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_unique_visit",
         "query": {
           "country": "world",
@@ -59,10 +59,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "bounce_rate": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_bounce_rate",
         "query": {
           "country": "world",
@@ -76,10 +76,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_desktop": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_desktop",
         "query": {
           "country": "world",
@@ -93,10 +93,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_mobile": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_mobile",
         "query": {
           "country": "world",
@@ -110,10 +110,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_by_country": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_total_traffic_by_country",
         "query": {
           "limit": "10"
@@ -126,12 +126,12 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       }
     },
     "linkedin.com": {
       "global_rank": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_global_rank",
         "query": {},
         "attempt_count": 1,
@@ -142,10 +142,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "visits_total": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_visits_total",
         "query": {
           "country": "world",
@@ -159,10 +159,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "unique_visit": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_unique_visit",
         "query": {
           "country": "world",
@@ -176,10 +176,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "bounce_rate": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_bounce_rate",
         "query": {
           "country": "world",
@@ -193,10 +193,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_desktop": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_desktop",
         "query": {
           "country": "world",
@@ -210,10 +210,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_mobile": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_mobile",
         "query": {
           "country": "world",
@@ -227,10 +227,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_by_country": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_total_traffic_by_country",
         "query": {
           "limit": "10"
@@ -243,12 +243,12 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       }
     },
     "medium.com": {
       "global_rank": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_global_rank",
         "query": {},
         "attempt_count": 1,
@@ -259,10 +259,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "visits_total": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_visits_total",
         "query": {
           "country": "world",
@@ -276,10 +276,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "unique_visit": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_unique_visit",
         "query": {
           "country": "world",
@@ -293,10 +293,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "bounce_rate": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_bounce_rate",
         "query": {
           "country": "world",
@@ -310,10 +310,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_desktop": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_desktop",
         "query": {
           "country": "world",
@@ -327,10 +327,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_mobile": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_mobile",
         "query": {
           "country": "world",
@@ -344,10 +344,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_by_country": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_total_traffic_by_country",
         "query": {
           "limit": "10"
@@ -360,12 +360,12 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       }
     },
     "substack.com": {
       "global_rank": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_global_rank",
         "query": {},
         "attempt_count": 1,
@@ -376,10 +376,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "visits_total": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_visits_total",
         "query": {
           "country": "world",
@@ -393,10 +393,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "unique_visit": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_unique_visit",
         "query": {
           "country": "world",
@@ -410,10 +410,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "bounce_rate": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_bounce_rate",
         "query": {
           "country": "world",
@@ -427,10 +427,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_desktop": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_desktop",
         "query": {
           "country": "world",
@@ -444,10 +444,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_mobile": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_mobile",
         "query": {
           "country": "world",
@@ -461,10 +461,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_by_country": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_total_traffic_by_country",
         "query": {
           "limit": "10"
@@ -477,12 +477,12 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       }
     },
     "readwise.io": {
       "global_rank": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_global_rank",
         "query": {},
         "attempt_count": 1,
@@ -493,10 +493,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "visits_total": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_visits_total",
         "query": {
           "country": "world",
@@ -510,10 +510,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "unique_visit": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_unique_visit",
         "query": {
           "country": "world",
@@ -527,10 +527,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "bounce_rate": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_bounce_rate",
         "query": {
           "country": "world",
@@ -544,10 +544,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_desktop": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_desktop",
         "query": {
           "country": "world",
@@ -561,10 +561,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_mobile": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_mobile",
         "query": {
           "country": "world",
@@ -578,10 +578,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_by_country": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_total_traffic_by_country",
         "query": {
           "limit": "10"
@@ -594,12 +594,12 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       }
     },
     "raindrop.io": {
       "global_rank": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_global_rank",
         "query": {},
         "attempt_count": 1,
@@ -610,10 +610,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "visits_total": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_visits_total",
         "query": {
           "country": "world",
@@ -627,10 +627,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "unique_visit": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_unique_visit",
         "query": {
           "country": "world",
@@ -644,10 +644,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "bounce_rate": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_bounce_rate",
         "query": {
           "country": "world",
@@ -661,10 +661,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_desktop": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_desktop",
         "query": {
           "country": "world",
@@ -678,10 +678,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_mobile": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_mobile",
         "query": {
           "country": "world",
@@ -695,10 +695,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_by_country": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_total_traffic_by_country",
         "query": {
           "limit": "10"
@@ -711,12 +711,12 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       }
     },
     "pocket.com": {
       "global_rank": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_global_rank",
         "query": {},
         "attempt_count": 1,
@@ -727,10 +727,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "visits_total": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_visits_total",
         "query": {
           "country": "world",
@@ -744,10 +744,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "unique_visit": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_unique_visit",
         "query": {
           "country": "world",
@@ -761,10 +761,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "bounce_rate": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_bounce_rate",
         "query": {
           "country": "world",
@@ -778,10 +778,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_desktop": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_desktop",
         "query": {
           "country": "world",
@@ -795,10 +795,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_mobile": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_mobile",
         "query": {
           "country": "world",
@@ -812,10 +812,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_by_country": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_total_traffic_by_country",
         "query": {
           "limit": "10"
@@ -828,12 +828,12 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       }
     },
     "instagram.com": {
       "global_rank": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_global_rank",
         "query": {},
         "attempt_count": 1,
@@ -844,10 +844,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "visits_total": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_visits_total",
         "query": {
           "country": "world",
@@ -861,10 +861,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "unique_visit": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_unique_visit",
         "query": {
           "country": "world",
@@ -878,10 +878,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "bounce_rate": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_bounce_rate",
         "query": {
           "country": "world",
@@ -895,10 +895,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_desktop": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_desktop",
         "query": {
           "country": "world",
@@ -912,10 +912,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_sources_mobile": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_traffic_sources_mobile",
         "query": {
           "country": "world",
@@ -929,10 +929,10 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       },
       "traffic_by_country": {
-        "status": "unavailable",
+        "status": "blocked",
         "api_name": "SimilarWeb/get_total_traffic_by_country",
         "query": {
           "limit": "10"
@@ -945,7 +945,7 @@
           "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
         },
         "primary_value": null,
-        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+        "availability_note": "SimilarWeb returned a credit/prerequisite response (account-level limitation)."
       }
     }
   },
@@ -956,7 +956,8 @@
       "finished_at": "2026-08-15T04:08:36.365797+00:00",
       "counts": {
         "success": 0,
-        "unavailable": 56,
+        "unavailable": 0,
+        "blocked": 56,
         "error": 0,
         "pending": 0
       }

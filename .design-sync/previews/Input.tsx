@@ -15,12 +15,12 @@ export function WithIcon() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 320 }}>
       <div style={{ position: 'relative' }}>
-        <Search style={{ position: 'absolute', left: 10, top: 11, width: 16, height: 16, color: 'hsl(var(--muted-foreground))' }} />
-        <Input placeholder="Search 2,400 open roles" style={{ paddingLeft: 32 }} />
+        <Search aria-hidden="true" style={{ position: 'absolute', left: 10, top: 11, width: 16, height: 16, color: 'hsl(var(--muted-foreground))', pointerEvents: 'none' }} />
+        <Input aria-label="Search open roles" placeholder="Search 2,400 open roles" style={{ paddingLeft: 32 }} />
       </div>
       <div style={{ position: 'relative' }}>
-        <Mail style={{ position: 'absolute', left: 10, top: 11, width: 16, height: 16, color: 'hsl(var(--muted-foreground))' }} />
-        <Input type="email" placeholder="you@example.com" style={{ paddingLeft: 32 }} />
+        <Mail aria-hidden="true" style={{ position: 'absolute', left: 10, top: 11, width: 16, height: 16, color: 'hsl(var(--muted-foreground))', pointerEvents: 'none' }} />
+        <Input type="email" aria-label="Email address" placeholder="you@example.com" style={{ paddingLeft: 32 }} />
       </div>
     </div>
   );

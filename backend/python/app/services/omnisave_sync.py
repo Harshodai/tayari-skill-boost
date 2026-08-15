@@ -56,6 +56,25 @@ def _settings(row: Any, user_id: str) -> Dict[str, Any]:
     }
 
 
+def calculate_freshness_score(row: Any) -> int:
+    """Return a deterministic 0-100 freshness score for review ordering."""
+    now = datetime.now(timezone.utc)
+    seen = row.get("last_seen_at") or row.get("created_at")
+    if seen is None:
+        age_days = 365
+    else:
+        if seen.tzinfo is None:
+            seen = seen.replace(tzinfo=timezone.utc)
+        age_days = max(0, (now - seen).days)
+    score = max(0, 100 - min(100, age_days * 3))
+    status = str(row.get("sync_status") or "").lower()
+    if status in {"failed", "blocked", "error"}:
+        score = max(0, score - 35)
+    elif status in {"pending", "running"}:
+        score = max(0, score - 10)
+    return int(score)
+
+
 class OmniSaveSyncStore:
     async def _pool(self) -> Any:
         pool = await get_pool()
@@ -215,22 +234,8 @@ class OmniSaveSyncStore:
 
     @staticmethod
     def _freshness_score(row: Any) -> int:
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc)
-        seen = row.get("last_seen_at") or row.get("created_at")
-        if seen is None:
-            age_days = 365
-        else:
-            if seen.tzinfo is None:
-                seen = seen.replace(tzinfo=timezone.utc)
-            age_days = max(0, (now - seen).days)
-        score = max(0, 100 - min(100, age_days * 3))
-        status = str(row.get("sync_status") or "").lower()
-        if status in {"failed", "blocked", "error"}:
-            score = max(0, score - 35)
-        elif status in {"pending", "running"}:
-            score = max(0, score - 10)
-        return int(score)
+        return calculate_freshness_score(row)
+
 
     async def export_bundle(self, user_id: str) -> Dict[str, Any]:
         user_uuid = uuid_lib.UUID(user_id)

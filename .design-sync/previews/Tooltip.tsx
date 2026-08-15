@@ -42,7 +42,7 @@ export function AtsScoreTooltip() {
       <div style={{ paddingTop: 24 }}>
         <Tooltip defaultOpen>
           <TooltipTrigger asChild>
-            <span style={{ cursor: 'help' }}>
+            <span tabIndex={0} style={{ cursor: 'help' }}>
               <Badge variant="success">91% match</Badge>
             </span>
           </TooltipTrigger>

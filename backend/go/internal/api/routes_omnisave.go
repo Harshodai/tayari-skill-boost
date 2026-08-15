@@ -28,6 +28,7 @@ func (s *Server) routesOmniSave(r chi.Router) {
 			r.Get(prefix+"/saves/import/jobs", s.handleOmniSaveProxyGET(omniSaveUpstreamPrefix+"/saves/import/jobs"))
 			r.Get(prefix+"/saves/import/jobs/{job_id}", s.handleOmniSaveProxyGETPath(omniSaveUpstreamPrefix+"/saves/import/jobs/", "job_id", ""))
 			r.Post(prefix+"/saves/import/jobs/{job_id}/hydrate", s.handleOmniSaveProxyPostPath(omniSaveUpstreamPrefix+"/saves/import/jobs/", "job_id", "/hydrate"))
+			r.Post(prefix+"/saves/sync", s.handleOmniSaveProxyPostOK(omniSaveUpstreamPrefix+"/saves/sync"))
 			r.Get(prefix+"/saves/sync/settings", s.handleOmniSaveProxyGET(omniSaveUpstreamPrefix+"/saves/sync/settings"))
 			r.Put(prefix+"/saves/sync/settings", s.handleOmniSaveProxyBody(omniSaveUpstreamPrefix+"/saves/sync/settings"))
 			r.Get(prefix+"/saves/sync/runs", s.handleOmniSaveProxyGET(omniSaveUpstreamPrefix+"/saves/sync/runs"))
@@ -100,6 +101,22 @@ func (s *Server) handleOmniSaveProxyPost(endpoint string) http.HandlerFunc {
 			return
 		}
 		writeOmniSaveProxyJSON(w, http.StatusCreated, result)
+	}
+}
+
+func (s *Server) handleOmniSaveProxyPostOK(endpoint string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		body, ok := readOmniSaveBody(w, r)
+		if !ok {
+			return
+		}
+		result, err := s.AI.PostJSONWithHeaders(endpoint, json.RawMessage(body), s.getXUserHeaders(r))
+		if err != nil {
+			log.Printf("[OmniSaveProxy] POST %s failed: %v", endpoint, err)
+			writeOmniSaveProxyError(w)
+			return
+		}
+		writeOmniSaveProxyJSON(w, http.StatusOK, result)
 	}
 }
 

@@ -83,10 +83,12 @@ export function OmniSaveCapturePanel({
   const save = async (nextEnabled = enabled, nextPlatforms = selectedPlatforms, nextInterval = interval) => {
     setSaving(true);
     setMessage(null);
+    const clampedInterval = Math.max(5, Math.min(1440, Number(nextInterval) || 60));
+    setInterval(clampedInterval);
     try {
       // Explicitly re-enabling after "Keep paused" is itself consent.
       if (nextEnabled) window.localStorage.removeItem("omnisave-consent-paused");
-      await onSettingsChange({ enabled: nextEnabled, platforms: nextPlatforms, interval_minutes: Math.max(5, Math.min(1440, Number(nextInterval) || 60)) });
+      await onSettingsChange({ enabled: nextEnabled, platforms: nextPlatforms, interval_minutes: clampedInterval });
       setMessage(nextEnabled ? "Automatic capture is on." : "Automatic capture is paused.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save capture settings.");
@@ -97,7 +99,11 @@ export function OmniSaveCapturePanel({
 
   const togglePlatform = (platform: string) => {
     const next = selectedPlatforms.includes(platform) ? selectedPlatforms.filter((item) => item !== platform) : [...selectedPlatforms, platform];
-    if (next.length) void save(enabled, next, interval);
+    if (next.length) {
+      void save(enabled, next, interval);
+    } else {
+      setMessage("Select at least one platform to capture.");
+    }
   };
 
   return (

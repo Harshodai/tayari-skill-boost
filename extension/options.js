@@ -1,6 +1,24 @@
 const STORAGE_KEY = "tayari_config";
 const DEFAULT_CONFIG = { apiUrl: "http://localhost:8085/api", appUrl: "http://localhost:8083" };
-const normalizeUrl = (value, fallback) => (String(value || "").trim() || fallback).replace(/\/+$/, "");
+const normalizeUrl = (value, fallback) => {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) {
+    return fallback ? normalizeUrl(fallback) : "";
+  }
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return fallback ? normalizeUrl(fallback) : "";
+    }
+    if (url.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
+      return fallback ? normalizeUrl(fallback) : "";
+    }
+    const cleanedPath = url.pathname.replace(/\/+$/, "");
+    return `${url.origin}${cleanedPath}${url.search}`;
+  } catch {
+    return fallback ? normalizeUrl(fallback) : "";
+  }
+};
 const storageGet = (key) => new Promise((resolve) => {
   if (typeof chrome === "undefined" || !chrome.storage?.local) return resolve({});
   chrome.storage.local.get([key], resolve);
@@ -32,3 +50,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     catch (error) { statusDiv.textContent = `Connection failed: ${error?.message || "Network error"}`; statusDiv.className = "status error"; }
   });
 });
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { normalizeUrl, DEFAULT_CONFIG };
+}

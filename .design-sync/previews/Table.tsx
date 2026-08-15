@@ -19,11 +19,11 @@ const statusVariant: Record<string, 'success' | 'info' | 'warning' | 'destructiv
 };
 
 const applications = [
+  { company: 'Vercel', role: 'Developer Experience Engineer', status: 'Applied', applied: 'Aug 12, 2026', ats: '88%' },
+  { company: 'Figma', role: 'Design Systems Engineer', status: 'Screening', applied: 'Aug 9, 2026', ats: '84%' },
   { company: 'Stripe', role: 'Senior Frontend Engineer', status: 'Interview', applied: 'Aug 2, 2026', ats: '91%' },
   { company: 'Anthropic', role: 'Staff Product Designer', status: 'Offer', applied: 'Jul 21, 2026', ats: '96%' },
-  { company: 'Figma', role: 'Design Systems Engineer', status: 'Screening', applied: 'Aug 9, 2026', ats: '84%' },
   { company: 'Notion', role: 'Full-stack Engineer', status: 'Rejected', applied: 'Jul 15, 2026', ats: '78%' },
-  { company: 'Vercel', role: 'Developer Experience Engineer', status: 'Applied', applied: 'Aug 12, 2026', ats: '88%' },
 ];
 
 export function ApplicationsList() {

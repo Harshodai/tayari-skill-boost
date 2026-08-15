@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 # High-confidence instruction/safety markers: any match blocks the payload.
@@ -36,7 +37,8 @@ class GuardResult:
 
 
 def inspect_untrusted_text(text: str) -> GuardResult:
-    value = str(text or "")
+    normalized = unicodedata.normalize("NFKC", str(text or ""))
+    value = "".join(ch for ch in normalized if unicodedata.category(ch) != "Cf")
     matches = tuple(pattern for pattern in HIGH_CONFIDENCE_PATTERNS if re.search(pattern, value, re.I | re.S))
     warnings = tuple(pattern for pattern in ACTION_PATTERNS if re.search(pattern, value, re.I | re.S))
     if matches:

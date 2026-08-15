@@ -119,8 +119,18 @@ export function useExtension() {
   const sendOmniSaveMessage = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (!status.installed) return { success: false, error: "Browser companion is not installed." };
     return new Promise<Record<string, unknown>>((resolve) => {
+      let settled = false;
+      const timer = window.setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        resolve({ success: false, error: "Browser companion request timed out." });
+      }, 1500);
+
       try {
         chrome.runtime.sendMessage(EXTENSION_ID, { action, ...payload }, (response) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
           if (chrome.runtime.lastError) {
             resolve({ success: false, error: chrome.runtime.lastError.message || "Browser companion did not respond." });
             return;
@@ -128,6 +138,9 @@ export function useExtension() {
           resolve(response || { success: false, error: "Browser companion did not respond." });
         });
       } catch (error) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
         resolve({ success: false, error: error instanceof Error ? error.message : "Browser companion is unavailable." });
       }
     });

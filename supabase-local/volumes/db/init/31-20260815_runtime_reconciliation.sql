@@ -93,16 +93,6 @@ CREATE POLICY task_events_owner_access ON public.task_events
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.task_runs, public.task_plans, public.task_permissions, public.action_proposals, public.task_events TO authenticated;
 GRANT ALL ON public.task_runs, public.task_plans, public.task_permissions, public.action_proposals, public.task_events TO service_role;
 
-COMMIT;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.task_plans TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.task_permissions TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.action_proposals TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.task_events TO authenticated;
-GRANT ALL ON public.task_plans TO service_role;
-GRANT ALL ON public.task_permissions TO service_role;
-GRANT ALL ON public.action_proposals TO service_role;
-GRANT ALL ON public.task_events TO service_role;
-
 -- Runtime reconciliation: verified owner-scoped answer snapshots.
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -187,3 +177,5 @@ ALTER TABLE IF EXISTS public.agent_questions
   ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 ALTER TABLE IF EXISTS public.applications
   ADD COLUMN IF NOT EXISTS submission_verification_status TEXT NOT NULL DEFAULT 'unverified';
+
+COMMIT;

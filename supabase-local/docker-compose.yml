@@ -284,6 +284,8 @@ services:
       - ./volumes/db/init/29-20260814_tenant_rls_hardening.sql:/docker-entrypoint-initdb.d/migrations/zz-29-20260814_tenant_rls_hardening.sql:Z
       - ./volumes/db/init/30-20260815_omnisave_auto_sync.sql:/docker-entrypoint-initdb.d/migrations/zz-30-20260815_omnisave_auto_sync.sql:Z
       - ./volumes/db/init/31-20260815_runtime_reconciliation.sql:/docker-entrypoint-initdb.d/migrations/zz-31-20260815_runtime_reconciliation.sql:Z
+      - ./volumes/db/init/32-20260815_05_omnisave_seed_import.sql:/docker-entrypoint-initdb.d/migrations/zz-32-20260815_05_omnisave_seed_import.sql:Z
+      - ./volumes/db/init/33-20260815_06_omnisave_capture_provenance.sql:/docker-entrypoint-initdb.d/migrations/zz-33-20260815_06_omnisave_capture_provenance.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:
