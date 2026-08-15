@@ -59,20 +59,31 @@ test.describe.serial('Tayari Skill Boost — End-to-End API & UI Verification Su
   // -------------------------------------------------------------------------
   // 3. Candidate QA Answer Bank (API)
   // -------------------------------------------------------------------------
-  test('3. Candidate Answer Bank Match (API)', async ({ request }) => {
-    expect(userToken).toBeTruthy();
-    const res = await request.post(`${API_URL}/v1/candidate-bank/match`, {
-      headers: { Authorization: `Bearer ${userToken}` },
-      data: {
-        question_text: 'Are you legally authorized to work in the United States?',
-      },
-    });
-    expect(res.status()).toBe(200);
-    const data = await res.json();
-    expect(data.matched).toBe(true);
-    expect(data.category).toBe('work_authorization');
-    expect(data.value).toBe('Yes');
+test('3. Candidate Answer Bank Match (API)', async ({ request }) => {
+  expect(userToken).toBeTruthy();
+  const applicationId = `e2e-answer-bank-${Date.now()}`;
+  const save = await request.put(`${API_URL}/v1/candidate/answers`, {
+    headers: { Authorization: `Bearer ${userToken}` },
+    data: {
+      answers: { work_authorization: 'Yes' },
+      application_id: applicationId,
+      confirm_sensitive: true,
+    },
   });
+  expect(save.status()).toBe(200);
+  const res = await request.post(`${API_URL}/v1/candidate-bank/match`, {
+    headers: { Authorization: `Bearer ${userToken}` },
+    data: {
+      question_text: 'Are you legally authorized to work in the United States?',
+      application_id: applicationId,
+    },
+  });
+  expect(res.status()).toBe(200);
+  const data = await res.json();
+  expect(data.matched).toBe(true);
+  expect(data.category).toBe('work_authorization');
+  expect(data.value).toBe('Yes');
+});
 
   // -------------------------------------------------------------------------
   // 4. ATS Signature Detection (API)

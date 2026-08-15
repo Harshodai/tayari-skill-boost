@@ -61,7 +61,7 @@ export function FloatingParticles({
 }
 
 // Animated gradient orbs for hero backgrounds
-interface GradientOrbProps {
+interface ParticleOrbProps {
   className?: string;
   color1?: string;
   color2?: string;
@@ -70,14 +70,14 @@ interface GradientOrbProps {
   animate?: boolean;
 }
 
-export function GradientOrb({
+function ParticleOrb({
   className,
   color1 = "hsl(var(--primary))",
   color2 = "hsl(var(--secondary))",
   size = "400px",
   blur = "100px",
   animate = true,
-}: GradientOrbProps) {
+}: ParticleOrbProps) {
   return (
     <div
       className={cn(
@@ -104,19 +104,19 @@ interface OrbBackgroundProps {
 export function OrbBackground({ className }: OrbBackgroundProps) {
   return (
     <div className={cn("absolute inset-0 overflow-hidden pointer-events-none", className)}>
-      <GradientOrb
+      <ParticleOrb
         className="top-0 -left-48 animate-blob"
         color1="hsl(var(--primary) / 0.3)"
         color2="transparent"
         size="600px"
       />
-      <GradientOrb
+      <ParticleOrb
         className="top-1/4 -right-32 animate-blob-delayed"
         color1="hsl(var(--secondary) / 0.25)"
         color2="transparent"
         size="500px"
       />
-      <GradientOrb
+      <ParticleOrb
         className="bottom-0 left-1/4 animate-blob-delayed-2"
         color1="hsl(var(--accent) / 0.2)"
         color2="transparent"

@@ -109,12 +109,15 @@ def test_blocked_action_message_cites_ua() -> None:
 
 
 @pytest.mark.asyncio
-async def test_automation_engine_skips_linkedin_job() -> None:
+async def test_automation_engine_skips_linkedin_job(monkeypatch: pytest.MonkeyPatch) -> None:
     """Integration: a LinkedIn job in the selected set is marked
     skipped_linkedin_policy and Browser.apply_job_with_evidence is
     never called for it.
     """
     from app.services import automation_engine as ae
+    # The production guard fails closed unless a signing key is configured.
+    # Provide a test-only key so the non-LinkedIn branch can reach the browser.
+    monkeypatch.setenv("APPROVAL_SIGNING_KEY", "test-approval-key")
 
     # Clear the module-level run store so prior tests' applications don't
     # dedupe our jobs out (the store persists across tests in the same session).

@@ -177,8 +177,10 @@ async function loadStats() {
 function setupEventListeners() {
   // Authentication
   $('btn-open-tayari').addEventListener('click', () => {
-    sendMessage('open_tayari', { path: '/login' });
+    sendMessage('open_tayari', { path: '/auth?next=%2Fextension-onboarding' });
   });
+
+  $('btn-create-account').addEventListener('click', () => sendMessage('open_tayari', { path: '/auth?mode=signup&next=%2Fextension-onboarding' }));
 
   // Job actions
   $('btn-save').addEventListener('click', async () => {

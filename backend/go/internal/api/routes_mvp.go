@@ -1125,10 +1125,10 @@ func (s *Server) handleDeepATS(w http.ResponseWriter, r *http.Request) {
 	if err := DecodeAndValidate(r, &req); err != nil {
 		req.JobDescription = ""
 	}
-	result, err := s.AI.PostJSON("/api/v1/ats/deep", map[string]interface{}{
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/ats/deep", map[string]interface{}{
 		"resume_text":     resumeText,
 		"job_description": req.JobDescription,
-	})
+	}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleDeepATS: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Deep ATS analysis failed")
@@ -1711,13 +1711,13 @@ func (s *Server) handleInterviewPrep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/interview/prep", map[string]interface{}{
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/interview/prep", map[string]interface{}{
 		"resume_text":     resumeText,
 		"job_title":       jobTitle,
 		"company_name":    companyName,
 		"job_description": jobDescription,
 		"interview_type":  interviewType,
-	})
+	}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleInterviewPrep: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Interview prep generation failed")
@@ -2031,7 +2031,7 @@ func (s *Server) handleCandidateBankMatch(w http.ResponseWriter, r *http.Request
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
 	}
-	result, err := s.AI.PostJSON("/api/v1/candidate-bank/match", body)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/candidate-bank/match", body, s.getXUserHeaders(r))
 	if err != nil {
 		s.respondError(w, http.StatusBadGateway, "Candidate bank match failed")
 		return
@@ -2044,7 +2044,7 @@ func (s *Server) handleATSDetect(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
 	}
-	result, err := s.AI.PostJSON("/api/v1/ats/detect", body)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/ats/detect", body, s.getXUserHeaders(r))
 	if err != nil {
 		s.respondError(w, http.StatusBadGateway, "ATS detection failed")
 		return
@@ -2060,7 +2060,7 @@ func (s *Server) handleTruthCheck(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
 	}
-	result, err := s.AI.PostJSON("/api/v1/guardrails/truth-check", body)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/guardrails/truth-check", body, s.getXUserHeaders(r))
 	if err != nil {
 		s.respondError(w, http.StatusBadGateway, "Truth check failed")
 		return
@@ -2076,7 +2076,7 @@ func (s *Server) handleRecruiterLookup(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
 	}
-	result, err := s.AI.PostJSON("/api/v1/recruiter/lookup", body)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/recruiter/lookup", body, s.getXUserHeaders(r))
 	if err != nil {
 		s.respondError(w, http.StatusBadGateway, "Recruiter lookup failed")
 		return
@@ -2092,7 +2092,7 @@ func (s *Server) handleOfferCalculate(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
 	}
-	result, err := s.AI.PostJSON("/api/v1/offer/calculate", body)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/offer/calculate", body, s.getXUserHeaders(r))
 	if err != nil {
 		s.respondError(w, http.StatusBadGateway, "Offer calculation failed")
 		return
@@ -2108,7 +2108,7 @@ func (s *Server) handleInterviewCopilot(w http.ResponseWriter, r *http.Request) 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
 	}
-	result, err := s.AI.PostJSON("/api/v1/interview/copilot", body)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/interview/copilot", body, s.getXUserHeaders(r))
 	if err != nil {
 		s.respondError(w, http.StatusBadGateway, "Live interview copilot failed")
 		return

@@ -280,6 +280,10 @@ services:
       - ./volumes/db/init/25-0002_tayari_core_architecture.sql:/docker-entrypoint-initdb.d/migrations/zz-25-0002_tayari_core_architecture.sql:Z
       - ./volumes/db/init/26-20260812_omnisave_vector_dims.sql:/docker-entrypoint-initdb.d/migrations/zz-26-20260812_omnisave_vector_dims.sql:Z
       - ./volumes/db/init/27-20260813_durable_run_control_plane.sql:/docker-entrypoint-initdb.d/migrations/zz-27-20260813_durable_run_control_plane.sql:Z
+      - ./volumes/db/init/28-20260813_waitlist_leads.sql:/docker-entrypoint-initdb.d/migrations/zz-28-20260813_waitlist_leads.sql:Z
+      - ./volumes/db/init/29-20260814_tenant_rls_hardening.sql:/docker-entrypoint-initdb.d/migrations/zz-29-20260814_tenant_rls_hardening.sql:Z
+      - ./volumes/db/init/30-20260815_omnisave_auto_sync.sql:/docker-entrypoint-initdb.d/migrations/zz-30-20260815_omnisave_auto_sync.sql:Z
+      - ./volumes/db/init/31-20260815_runtime_reconciliation.sql:/docker-entrypoint-initdb.d/migrations/zz-31-20260815_runtime_reconciliation.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:

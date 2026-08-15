@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, List
 from fastapi import APIRouter, HTTPException, Header, Body
 from pydantic import BaseModel, Field, ConfigDict
@@ -163,7 +163,7 @@ async def action_followup(payload: FollowupActionRequest, x_user_id: Optional[st
                 
         # Append new follow-up sent note
         notes.append({
-            "date": datetime.utcnow().strftime("%Y-%m-%d"),
+            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "text": f"Follow-up sent to {payload.contact}. Notes: {payload.notes}"
         })
         

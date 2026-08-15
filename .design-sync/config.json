@@ -1,0 +1,21 @@
+{
+  "projectId": "df95bfac-5441-4ef0-9349-1ed68b18e5a9",
+  "pkg": "job-tayari-ui",
+  "globalName": "JobTayariUI",
+  "shape": "package",
+  "srcDir": "src/components/ui",
+  "tsconfig": "tsconfig.app.json",
+  "cssEntry": ".design-sync/tailwind-compiled.css",
+  "componentSrcMap": {
+    "GradientOrb": null,
+    "ScrollToTop": null,
+    "Toaster": null
+  },
+  "guidelinesGlob": [],
+  "docsDir": ".design-sync/.no-docs",
+  "overrides": {
+    "Button": { "cardMode": "column" },
+    "Card": { "cardMode": "column" },
+    "JobCard": { "cardMode": "column" }
+  }
+}

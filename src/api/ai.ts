@@ -196,6 +196,20 @@ export interface SavedArticleItem {
   tags: string[];
   keyphrases: string[];
   entities: string[];
+  thread_context?: {
+    reply_count?: number | null;
+    top_comments?: string[];
+    captured_from_visible_card?: boolean;
+  };
+  freshness_score?: number;
+  highlight_count?: number;
+  context_count?: number;
+  content?: string;
+  capture_origin?: string;
+  sync_status?: string;
+  last_seen_at?: string;
+  attempt_count?: number;
+  last_sync_error?: string;
 }
 
 interface SavedSourceResponse {
@@ -213,6 +227,15 @@ interface SavedSourceResponse {
   context_count?: number;
   raw_content?: string;
   clean_markdown?: string;
+  capture_origin?: string;
+  sync_status?: string;
+  first_captured_at?: string;
+  last_seen_at?: string;
+  last_attempt_at?: string;
+  attempt_count?: number;
+  last_sync_error?: string;
+  thread_context?: SavedArticleItem['thread_context'];
+  freshness_score?: number;
 }
 
 function formatSavedSource(source: SavedSourceResponse): SavedArticleItem {
@@ -228,7 +251,7 @@ function formatSavedSource(source: SavedSourceResponse): SavedArticleItem {
     model: source.nlp_metadata?.model || "unavailable",
     version: source.nlp_metadata?.version || "nlp-v1",
   };
-  return {
+  const formatted: SavedArticleItem = {
     id: source.id || stableHash(source.canonical_url || source.title || "unknown"),
     title: source.title || "Saved Source",
     author: source.author || "Unknown",
@@ -242,6 +265,17 @@ function formatSavedSource(source: SavedSourceResponse): SavedArticleItem {
     keyphrases: nlp.keyphrases,
     entities: nlp.entities,
   };
+  if (source.highlight_count !== undefined) formatted.highlight_count = source.highlight_count;
+  if (source.context_count !== undefined) formatted.context_count = source.context_count;
+  if (source.raw_content !== undefined || source.clean_markdown !== undefined) formatted.content = source.raw_content || source.clean_markdown || "";
+  if (source.capture_origin !== undefined) formatted.capture_origin = source.capture_origin;
+  if (source.sync_status !== undefined) formatted.sync_status = source.sync_status;
+  if (source.last_seen_at !== undefined) formatted.last_seen_at = source.last_seen_at;
+  if (source.attempt_count !== undefined) formatted.attempt_count = source.attempt_count;
+  if (source.last_sync_error !== undefined) formatted.last_sync_error = source.last_sync_error;
+  if (source.thread_context !== undefined) formatted.thread_context = source.thread_context;
+  if (source.freshness_score !== undefined) formatted.freshness_score = source.freshness_score;
+  return formatted;
 }
 
 export async function fetchSavedArticles(): Promise<{ success: boolean; sources: SavedArticleItem[] }> {
@@ -478,4 +512,181 @@ export async function fetchCareerContextGraph(filters: { skill?: string; role?: 
   if (filters.role?.trim()) params.set("role", filters.role.trim());
   const suffix = params.toString() ? `?${params.toString()}` : "";
   return apiFetch<CareerContextGraph>(`/v1/context/graph${suffix}`);
+}
+
+
+export interface OmniSaveSyncSettings {
+  user_id?: string;
+  enabled: boolean;
+  platforms: Array<"linkedin" | "medium" | "substack" | "instagram" | string>;
+  interval_minutes: number;
+  last_started_at?: string | null;
+  last_completed_at?: string | null;
+  last_status: "never" | "running" | "completed" | "partial" | "failed" | "paused" | string;
+  last_error?: string | null;
+  updated_at?: string | null;
+}
+
+export interface OmniSaveSyncRun {
+  id: string;
+  trigger_type: "manual" | "automatic" | "import" | "extension" | string;
+  status: "running" | "completed" | "partial" | "failed" | string;
+  requested_count: number;
+  imported_count: number;
+  skipped_count: number;
+  failed_count: number;
+  errors: Array<Record<string, unknown>>;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+export interface OmniSaveExportSource {
+  id: string;
+  platform: string;
+  url: string;
+  title: string;
+  author?: string | null;
+  publication_name?: string | null;
+  raw_content?: string | null;
+  clean_markdown?: string | null;
+  category?: string | null;
+  tags: string[];
+  summary: string[];
+  nlp: Partial<NlpMetadata>;
+  saved_at?: string | null;
+  highlights: Array<Record<string, unknown>>;
+  context_links: Array<Record<string, unknown>>;
+  capture_origin?: string | null;
+  sync_status?: string | null;
+  first_captured_at?: string | null;
+  last_seen_at?: string | null;
+  attempt_count?: number;
+  last_sync_error?: string | null;
+  thread_context?: SavedArticleItem['thread_context'];
+  freshness_score?: number;
+}
+
+export interface OmniSaveExportBundle {
+  schema_version: string;
+  exported_at: string;
+  source_count: number;
+  sources: OmniSaveExportSource[];
+}
+
+export async function fetchOmniSaveSyncSettings(): Promise<OmniSaveSyncSettings> {
+  const response = await apiFetch<{ success: boolean; settings: OmniSaveSyncSettings }>("/v1/saves/sync/settings");
+  return response.settings;
+}
+
+export async function updateOmniSaveSyncSettings(input: {
+  enabled: boolean;
+  platforms: string[];
+  interval_minutes: number;
+}): Promise<OmniSaveSyncSettings> {
+  const response = await apiFetch<{ success: boolean; settings: OmniSaveSyncSettings }>("/v1/saves/sync/settings", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+  return response.settings;
+}
+
+export async function fetchOmniSaveSyncRuns(limit = 20): Promise<OmniSaveSyncRun[]> {
+  const response = await apiFetch<{ success: boolean; runs: OmniSaveSyncRun[] }>(`/v1/saves/sync/runs?limit=${Math.max(1, Math.min(limit, 100))}`);
+  return response.runs || [];
+}
+
+export interface OmniSaveActivityEvent {
+  occurred_at: string | null;
+  event_type: string;
+  entity_id: string;
+  label: string;
+  detail: Record<string, unknown>;
+}
+
+export async function fetchOmniSaveActivity(limit = 50): Promise<OmniSaveActivityEvent[]> {
+  const response = await apiFetch<{ success: boolean; events: OmniSaveActivityEvent[] }>(`/v1/saves/activity?limit=${Math.max(1, Math.min(limit, 100))}`);
+  return response.events || [];
+}
+
+export async function fetchOmniSaveExport(): Promise<OmniSaveExportBundle> {
+  const response = await apiFetch<{ success: boolean; bundle: OmniSaveExportBundle }>("/v1/saves/export");
+  return response.bundle;
+}
+
+
+export interface OmniSaveSeedJob {
+  id: string;
+  file_name: string;
+  source_platform: "linkedin" | string;
+  status: "pending" | "running" | "completed" | "partial" | "failed" | string;
+  total_count: number;
+  hydrated_count: number;
+  imported_count: number;
+  skipped_count: number;
+  failed_count: number;
+  next_cursor: number;
+  last_error?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  completed_at?: string | null;
+}
+
+export async function createOmniSaveSeedImport(fileName: string, csvText: string): Promise<OmniSaveSeedJob> {
+  const response = await apiFetch<{ success: boolean; job: OmniSaveSeedJob }>("/v1/saves/import/seed", {
+    method: "POST",
+    body: JSON.stringify({ file_name: fileName, csv_text: csvText }),
+  });
+  return response.job;
+}
+
+export async function fetchOmniSaveSeedJobs(limit = 20): Promise<OmniSaveSeedJob[]> {
+  const response = await apiFetch<{ success: boolean; jobs: OmniSaveSeedJob[] }>(`/v1/saves/import/jobs?limit=${Math.max(1, Math.min(limit, 100))}`);
+  return response.jobs || [];
+}
+
+export async function hydrateOmniSaveSeedJob(jobId: string, limit = 20): Promise<OmniSaveSeedJob> {
+  const response = await apiFetch<{ success: boolean; job: OmniSaveSeedJob }>(`/v1/saves/import/jobs/${encodeURIComponent(jobId)}/hydrate?limit=${Math.max(1, Math.min(limit, 100))}`, {
+    method: "POST",
+  });
+  return response.job;
+}
+
+
+export interface OmniSaveBrief {
+  generated_at: string;
+  filters: { role?: string | null; company?: string | null; skill?: string | null };
+  headline: string;
+  summary: string;
+  stats: { sources: number; evidence_cards: number; questions: number; context_links: number };
+  next_actions: string[];
+  sources: Array<Record<string, unknown>>;
+  new_since_last_brief?: Array<Record<string, unknown>>;
+  highlights: Array<Record<string, unknown>>;
+  questions: Array<Record<string, unknown>>;
+}
+
+export async function fetchOmniSaveBrief(filters: { role?: string; company?: string; skill?: string } = {}): Promise<OmniSaveBrief> {
+  const query = new URLSearchParams();
+  if (filters.role?.trim()) query.set("role", filters.role.trim());
+  if (filters.company?.trim()) query.set("company", filters.company.trim());
+  if (filters.skill?.trim()) query.set("skill", filters.skill.trim());
+  const response = await apiFetch<{ success: boolean; brief: OmniSaveBrief }>(`/v1/brief${query.toString() ? `?${query.toString()}` : ""}`);
+  return response.brief;
+}
+
+
+export async function fetchOmniSaveAgentLibrary(query = "", limit = 20): Promise<{ read_only: true; sources: SavedArticleItem[] }> {
+  const params = new URLSearchParams({ limit: String(Math.max(1, Math.min(limit, 100))) });
+  if (query.trim()) params.set("query", query.trim());
+  const response = await apiFetch<{ success: boolean; read_only: true; sources: SavedSourceResponse[] }>(`/v1/agent/omnisave/library?${params.toString()}`);
+  return { read_only: true, sources: (response.sources || []).map(formatSavedSource) };
+}
+
+export async function fetchOmniSaveAgentBrief(filters: { role?: string; company?: string; skill?: string } = {}): Promise<OmniSaveBrief> {
+  const query = new URLSearchParams();
+  if (filters.role?.trim()) query.set("role", filters.role.trim());
+  if (filters.company?.trim()) query.set("company", filters.company.trim());
+  if (filters.skill?.trim()) query.set("skill", filters.skill.trim());
+  const response = await apiFetch<{ success: boolean; read_only: true; brief: OmniSaveBrief }>(`/v1/agent/omnisave/brief${query.toString() ? `?${query.toString()}` : ""}`);
+  return response.brief;
 }

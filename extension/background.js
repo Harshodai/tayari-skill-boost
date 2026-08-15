@@ -106,7 +106,7 @@ async function listResearchNotes() {
 }
 // Tayari Browser Extension — Background Service Worker (v3.2.0)
 
-importScripts('auth/pkce.js', 'auth/session.js', 'auth/oauth.js', 'nativeBridge.js');
+importScripts('auth/pkce.js', 'auth/session.js', 'auth/oauth.js', 'nativeBridge.js', 'messagePolicy.js');
 // Agentic Browser Automation MVP: Profile caching, autofill support, application tracking
 
 const STORAGE_KEY = 'tayari_config';
@@ -116,7 +116,7 @@ const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const OMNISAVE_SYNC_KEY = 'omnisave_sync_preferences';
 const OMNISAVE_ALARM = 'omnisave-auto-sync';
 const DEFAULT_OMNISAVE_SYNC = { enabled: false, platforms: ['linkedin', 'medium', 'substack', 'instagram'], intervalMinutes: 60 }
-const TRUSTED_APP_ORIGINS = new Set([
+const TRUSTED_APP_ORIGINS = globalThis.TayariMessagePolicy?.TRUSTED_APP_ORIGINS || new Set([
   'https://tayari.app',
   'https://www.tayari.app',
   'https://tayari-skill-boost.lovable.app',
@@ -459,6 +459,10 @@ async function approvedAutofill(tabId) {
 // ============================================================
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (!globalThis.TayariMessagePolicy?.isAuthorized(request, sender, chrome.runtime.id)) {
+    sendResponse({ success: false, error: "Unauthorized extension message sender." });
+    return false;
+  }
   (async () => {
     switch (request.action) {
       case 'sign_in_pkce': {
@@ -688,6 +692,24 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
   if (request.action === 'get_version') {
     sendResponse({ version: '3.1.0', features: ['pkce_auth', 'job_detection', 'autofill', 'native_bridge', 'omnisave_auto_capture', 'omnisave_export'] });
     return false;
+  }
+  // Frontend OmniSaveAI control plane: only the policy's WEB_APP_ACTIONS may be
+  // invoked by the web app, and only from TRUSTED_APP_ORIGINS (checked above).
+  if (request.action === 'omnisave_preferences_get' || request.action === 'omnisave_preferences_set' || request.action === 'omnisave_sync_now') {
+    (async () => {
+      try {
+        if (request.action === 'omnisave_preferences_get') {
+          sendResponse({ success: true, preferences: await getOmniSavePreferences() });
+        } else if (request.action === 'omnisave_preferences_set') {
+          sendResponse({ success: true, preferences: await saveOmniSavePreferences(request.preferences || {}) });
+        } else {
+          sendResponse(await collectOmniSaveSources(true));
+        }
+      } catch (error) {
+        sendResponse({ success: false, error: error.message || 'OmniSaveAI sync failed.' });
+      }
+    })();
+    return true;
   }
   sendResponse({ error: 'Unknown external action' });
   return false;

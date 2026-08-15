@@ -4,6 +4,36 @@ This document details key findings, architectural decisions, and lessons learned
 
 ---
 
+## 2026-08-15 — Fixed corrupted Tailwind transition class in buttonVariants (silently inert JIT class)
+
+### What was done
+- Fixed `src/components/ui/button.tsx:11` — `"ring-offset-background transitis = transform,box-shadow,background-color,border-color] duration-150 ease-out will-change-transform"` had a garbled `transition-[` (read `transitis = transform`), so Tailwind's JIT scanner never matched it to any real utility. Corrected to `transition-[transform,box-shadow,background-color,border-color]`.
+- Verified via `bun run dev` (on an override port, 8080 was occupied by an unrelated app) + browser: computed `transitionProperty` on the "Get Started" button now resolves to `transform, box-shadow, background-color, border-color` with `transitionDuration: 0.15s`, confirming hover/active/focus states animate instead of snapping.
+
+### Root cause
+- Malformed arbitrary-value Tailwind class (typo corrupted `transition-[...]` into `transitis = ...]`). Tailwind's JIT scanner does exact-string matching against known utility patterns — a class string that doesn't parse as a recognized utility is silently dropped with zero build error or warning. Since this was in the shared `buttonVariants` base array, every `Button` in the app (most-used component) was missing its transition, invisibly.
+
+### Reusable lessons
+- Malformed Tailwind arbitrary-value classes (`transition-[...]`, `grid-cols-[...]`, etc.) fail silently — no lint/build error, just a dead string. When a component's hover/transition/animation looks like it "should" work but doesn't, check the literal class string for typos before assuming a config or JIT-scanning issue.
+- Verify computed style via `getComputedStyle(el).transitionProperty` (or similar) in the browser rather than eyeballing — visual snapping vs. easing is hard to confirm by screenshot alone, especially at 150ms.
+
+---
+
+## 2026-08-15 — Removed dead duplicate ScrollToTop file + resolved GradientOrb name collision
+
+### What was done
+- Deleted `src/components/ui/scroll-to-top.tsx` (lowercase) — a near-duplicate of `src/components/ui/ScrollToTop.tsx` that also exported `ScrollToTop`. Confirmed dead via repo-wide grep (case-sensitive and case-insensitive) before deleting; only `ScrollToTop.tsx` is imported, by `src/App.tsx:11`.
+- Renamed the internal `GradientOrb` in `src/components/ui/floating-particles.tsx` to `ParticleOrb` and dropped its `export` (it's private to `OrbBackground`, not public API) — it collided by name with the real public `GradientOrb` in `src/components/ui/gradient-orb.tsx`.
+
+### Root cause
+- Two files independently exported the same symbol name (`ScrollToTop` and `GradientOrb` respectively). Harmless under normal named imports, but breaks `export * from` barrel-style re-exports and is generally an ESM ambiguous-export trap.
+
+### Reusable lessons
+- Before deleting a file believed dead, grep both case-sensitive and case-insensitive for its path/name — this repo has shown case-duplicate files coexisting before (macOS case-insensitive FS masks the collision locally, CI on Linux won't).
+- A same-named local helper doesn't need `export` just because the "real" component of that name is exported elsewhere — keep private helpers unexported to avoid shadowing/collision with the public API surface.
+
+---
+
 ## 2026-08-12 — Self-hosted migration bundle CI gate: mirror 0002 + omnisave vector-dims, verifier script, live table check
 
 ### What was done
@@ -2133,3 +2163,29 @@ defaults. Shell conditional logic verified via direct `sh -c` execution, all fou
 `go build ./...`, `go vet ./...` clean; `go test ./...` all packages `ok`, zero `FAIL`. Python suite
 unaffected by these changes: 213 passed / 2 skipped, stable across 3 runs. `tsc --noEmit` clean.
 Docker image build **not executed** — see "Fix applied" above.
+
+## 2026-08-15 — 25 finding sweep: prompt-injection guard split, OmniSave proxy/dedup/seed/export hardening, extension message policy, benchmark puller
+
+### What was done
+Verified all 25 security/robustness findings against current code (2 invalid: benchmark chart path — artifact exists and is a valid PNG; `csvEscape` — already RFC-4180 correct; skipped with reasons). Fixed the other 23:
+- **Python**: `prompt_injection_guard.py` split into `HIGH_CONFIDENCE_PATTERNS` (blocking) + `ACTION_PATTERNS` (warnings) — action-shaped page copy like "Click approve…"/"Enter the OTP…" no longer 422s; tests updated (8 pass). `main.py` `extension_page_answer` gained `_safe_https_url()` (https + control-char rejection) and the PAGE URL prompt line is `_untrusted(...)`-wrapped. `omnisave_service.py`: dedup early-return now touches `omnisave_source_provenance` (upsert, best-effort); `sync_agent_reach_posts` returns `imported_sources`. `omnisave_seed.py` `hydrate` rewritten: stale-`running` rows reclaimed (5-min age), one batched call instead of per-row N+1, per-item outcome mapped from `imported_sources`/`errors` via `canonical_url`. `omnisave_sync.py` `export_bundle` capped at 500 sources + 100 KB per text field. `knowledge_hub.py` sync handler normalizes all URLs via `_normalise_url` before dedup.
+- **Go**: `routes_omnisave.go` upstream endpoints now always `/api/v1/...` via `omniSaveUpstreamPrefix` (was inconsistently `prefix+...` when mounted at `/api`); all 5 path params validated as UUIDs via `omniSavePathID` (400 on malformed, never concatenated into upstream URL).
+- **DB**: `20260815_04_omnisave_auto_sync.sql` — both `user_id` columns now `REFERENCES auth.users(id) ON DELETE CASCADE`; copied to `supabase-local/volumes/db/init/30-…` + individual-file volume mount added to the Supabase `db:` service (per the migrate.sh non-recursive glob gotcha).
+- **Frontend**: `SavedArticleItem` gained the optional fields `formatSavedSource` assigns; redundant export casts removed (the cast referenced a type that was never imported — esbuild stripped it silently); seed-import errors surface via `setError`; sync-settings saves extension-first so a refused companion can't leave server/extension diverged; OmniSaveCapturePanel "Keep paused" now actually pauses (persists `omnisave-consent-paused`, forces switch off, re-enabling clears it); seed-import card has a stale-read token guard + Import disabled while reading.
+- **Extension**: `messagePolicy.js` now carries `TRUSTED_APP_ORIGINS` + `WEB_APP_ACTIONS` and `isAuthorized` accepts trusted frontend-origin senders for web-app actions *before* the extension-id gate (background.js dedupes to the policy's set); `onMessageExternal` finally handles `omnisave_preferences_get/set` + `omnisave_sync_now` (previously "Unknown external action" — the frontend's sync controls never reached the extension); `omnisave_capture.js` substack branch restricted to article-shaped paths (`/p/…`, two-segment, deep `/home/<id>`), feed/utility paths excluded. 4 new policy tests (16 total pass).
+- **Puller**: `data_api` import deferred (sandbox runtime only needed for `collect()`), `looks_unavailable` split from `looks_prerequisite` → new `blocked` status (distinct from unavailable) threaded through STATUS_ORDER/run history/chart colormap+legend/report, defaults moved under `benchmarks/`.
+
+### Root cause
+Review data listed real gaps, but several needed on-code verification to pin the actual shape: the guard's action patterns over-matched benign page copy; the Go proxy's upstream prefix silently 404'd when mounted at `/api`; the seed hydrator trusted the full-list `sources` key and hit per-row N+1; the frontend's extension messages were routed to a listener that never handled them; the puller imported a sandbox-only module at module scope, breaking `--help`.
+
+### Fix applied
+See "What was done". Key design choices: provenance touch is best-effort upsert (never raises on dedup path); stale-running reclaim uses a fixed 5-minute age (consistent with `_refresh_job`'s pending/failed rollup); UUID validation mirrors the `uuid.Parse` pattern already in routes_social.go/routes_agents.go; web-app actions are a closed allowlist — trusted origin ≠ trusted action set.
+
+### Reusable lesson
+- When a "security finding" describes a guard, verify the *caller's* behavior too: the guard was consumed by exactly one route, which is what made the split safe to make.
+- A content script / web page / extension page can send the same action name through two different listeners (`onMessage` vs `onMessageExternal`); an allowlist that lives in one place while dispatch happens in the other silently 404s the frontend. Policy (who may send what) and dispatch (where it lands) must be written against the same table.
+- Lazy-import heavy/optional dependencies so every CLI mode works without the full runtime; module-scope imports turn `--help` into a crash on machines without the sandbox.
+- Migrations require three edits, not one: source SQL, the `NN-`-prefixed copy, and the individual-file volume mount — the non-recursive `migrate.sh` glob makes the directory mount silently invisible.
+
+### Verification
+`python -m py_compile` all changed files · `pytest test_prompt_injection_guard_edges.py` 8 passed · `import app.main` clean (JWT_SECRET set) · `go build ./...` + `go vet ./...` + `go test ./...` all `ok` · `bun run lint` 0 errors · `bun run build` succeeds · `node --test message-policy.test.mjs` 16/16 pass + `node --check` on all changed extension JS · puller `--help` and `--render-only` both run without the sandbox runtime.

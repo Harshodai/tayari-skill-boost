@@ -5,7 +5,7 @@ import logging
 import time
 from typing import Any, Dict, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.services import automation_engine, resume_parser
 from app.services.resume_graph_storage import store_graph, load_graph, delete_graph
@@ -52,35 +52,14 @@ class GraphData(BaseModel):
     page: int
     size: int
 
-    class Config:
-        schema_extra = {
-            "example": {
-                "nodes": [{"id": 1, "label": "Skill"}],
-                "links": [],
-                "total_nodes": 1,
-                "page": 1,
-                "size": 10,
-            }
-        }
+    model_config = ConfigDict(json_schema_extra={"example": {"nodes": [{"id": 1, "label": "Skill"}], "links": [], "total_nodes": 1, "page": 1, "size": 10}})
 
 
 class GraphResponse(BaseModel):
     run_id: str
     graph: GraphData
 
-    class Config:
-        schema_extra = {
-            "example": {
-                "run_id": "example-run",
-                "graph": {
-                    "nodes": [{"id": 1, "label": "Skill"}],
-                    "links": [],
-                    "total_nodes": 1,
-                    "page": 1,
-                    "size": 10,
-                },
-            }
-        }
+    model_config = ConfigDict(json_schema_extra={"example": {"run_id": "example-run", "graph": {"nodes": [{"id": 1, "label": "Skill"}], "links": [], "total_nodes": 1, "page": 1, "size": 10}}})
 
 
 @router.get("/v1/resume-graph/{run_id}", response_model=GraphResponse)
@@ -90,7 +69,7 @@ async def get_resume_graph(
     response: Response,
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1),
-    format: str | None = Query(None, regex="^raw$"),
+    format: str | None = Query(None, pattern="^raw$"),
 ) -> GraphResponse | dict:
     """Retrieve stored resume knowledge‑graph for the given run.
 

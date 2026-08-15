@@ -3,7 +3,7 @@ Pydantic v2 Models for Agent-to-Agent (A2A) Protocol Specification.
 Compliant with Linux Foundation A2A Open Architecture.
 """
 from typing import List, Optional, Dict, Any, Union, Literal
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -48,7 +48,7 @@ class Artifact(BaseModel):
     name: str
     mime_type: str = "application/json"
     data: Dict[str, Any] = Field(default_factory=dict)
-    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class Task(BaseModel):
@@ -60,7 +60,7 @@ class Task(BaseModel):
     input_data: Dict[str, Any] = Field(default_factory=dict)
     artifacts: List[Artifact] = Field(default_factory=list)
     error: Optional[str] = None
-    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     completed_at: Optional[str] = None
 
 
@@ -74,7 +74,7 @@ class A2AMessage(BaseModel):
     method: str  # e.g., "task.delegate", "task.status", "agent.capability"
     params: Dict[str, Any] = Field(default_factory=dict)
     trace_id: str = Field(default_factory=lambda: str(uuid4()))
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class A2AResponse(BaseModel):

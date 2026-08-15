@@ -109,6 +109,7 @@ func (s *Server) routes() {
 	s.Router.Get("/metrics", s.handleMetrics)
 	s.registerCoreRoutes(s.Router)
 	s.RegisterOneStopRoutes(s.Router)
+	s.routesOmniSave(s.Router)
 	s.RegisterBillingRoutes(s.Router, s.Billing)
 	s.RegisterWaitlistRoutes(s.Router)
 	s.RegisterSSERoutes(s.Router)

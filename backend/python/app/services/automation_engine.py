@@ -799,7 +799,7 @@ def check_daily_llm_budget(user_id: str, estimated_tokens: int = 1000) -> bool:
     """Check if the user has remaining daily LLM token budget, keyed by user and UTC date."""
     if estimated_tokens < 0:
         return False
-    date_key = datetime.utcnow().strftime("%Y-%m-%d")
+    date_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     key = f"{user_id}:{date_key}"
     used = _DAILY_TOKEN_USAGE.get(key, 0)
     if used + estimated_tokens > DEFAULT_DAILY_LLM_TOKEN_BUDGET:

@@ -38,7 +38,7 @@ adaptations_router = APIRouter(prefix="/api/v1/adaptations", tags=["adaptations"
 
 
 class ProfileExpandRequest(BaseModel):
-    github_username: str = Field(..., example="octocat")
+    github_username: str = Field(..., json_schema_extra={"example": "octocat"})
 
 
 class FollowupCheckRequest(BaseModel):
@@ -47,8 +47,8 @@ class FollowupCheckRequest(BaseModel):
 
 
 class CodeGraphIndexRequest(BaseModel):
-    filename: str = Field(..., example="main.py")
-    code_content: str = Field(..., example="def main(): pass")
+    filename: str = Field(..., json_schema_extra={"example": "main.py"})
+    code_content: str = Field(..., json_schema_extra={"example": "def main(): pass"})
     target_symbol: Optional[str] = None
 
 
@@ -182,9 +182,9 @@ async def squad_run_endpoint(req: SquadRunRequest):
 
 
 class SemanticRoleMatchRequest(BaseModel):
-    target_role: str = Field(..., example="Data Engineer")
-    job_title: str = Field(..., example="Analytics Platform Wrangler")
-    job_description: str = Field(..., example="Building PySpark, Airflow, and Snowflake pipelines.")
+    target_role: str = Field(..., json_schema_extra={"example": "Data Engineer"})
+    job_title: str = Field(..., json_schema_extra={"example": "Analytics Platform Wrangler"})
+    job_description: str = Field(..., json_schema_extra={"example": "Building PySpark, Airflow, and Snowflake pipelines."})
 
 
 @adaptations_router.post("/semantic-role-match")
@@ -195,9 +195,9 @@ def semantic_role_match_endpoint(req: SemanticRoleMatchRequest):
 
 
 class HybridJobSearchRequest(BaseModel):
-    query_role: str = Field(..., example="Data Engineer")
-    job_postings: List[Dict[str, Any]] = Field(..., example=[{"title": "Analytics Platform Wrangler", "description": "ETL pipelines using PySpark and Airflow"}])
-    candidate_skills: Optional[List[str]] = Field(None, example=["Python", "SQL", "Airflow"])
+    query_role: str = Field(..., json_schema_extra={"example": "Data Engineer"})
+    job_postings: List[Dict[str, Any]] = Field(..., json_schema_extra={"example": [{"title": "Analytics Platform Wrangler", "description": "ETL pipelines using PySpark and Airflow"}]})
+    candidate_skills: Optional[List[str]] = Field(None, json_schema_extra={"example": ["Python", "SQL", "Airflow"]})
 
 
 @adaptations_router.post("/hybrid-job-search")

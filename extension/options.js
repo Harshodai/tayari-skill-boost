@@ -1,62 +1,34 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const backendUrlInput = document.getElementById("backendUrl");
-  const apiKeyInput = document.getElementById("apiKey");
+const STORAGE_KEY = "tayari_config";
+const DEFAULT_CONFIG = { apiUrl: "http://localhost:8085/api", appUrl: "http://localhost:8083" };
+const normalizeUrl = (value, fallback) => (String(value || "").trim() || fallback).replace(/\/+$/, "");
+const storageGet = (key) => new Promise((resolve) => {
+  if (typeof chrome === "undefined" || !chrome.storage?.local) return resolve({});
+  chrome.storage.local.get([key], resolve);
+});
+const storageSet = (value) => new Promise((resolve, reject) => {
+  if (typeof chrome === "undefined" || !chrome.storage?.local) return resolve();
+  chrome.storage.local.set(value, () => chrome.runtime?.lastError ? reject(chrome.runtime.lastError) : resolve());
+});
+document.addEventListener("DOMContentLoaded", async () => {
+  const apiUrlInput = document.getElementById("apiUrl");
+  const appUrlInput = document.getElementById("appUrl");
   const saveBtn = document.getElementById("saveBtn");
   const testBtn = document.getElementById("testBtn");
   const statusDiv = document.getElementById("status");
-
-  // Load existing options
-  if (typeof chrome !== "undefined" && chrome.storage) {
-    if (chrome.storage.sync) {
-      chrome.storage.sync.get(["backendUrl"], (items) => {
-        if (items.backendUrl) backendUrlInput.value = items.backendUrl;
-      });
-    }
-    if (chrome.storage.local) {
-      chrome.storage.local.get(["apiKey"], (items) => {
-        if (items.apiKey) apiKeyInput.value = items.apiKey;
-      });
-    }
-  }
-
-  saveBtn.addEventListener("click", () => {
-    const backendUrl = (backendUrlInput.value || "http://localhost:8085").replace(/\/$/, "");
-    const apiKey = apiKeyInput.value.trim();
-
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      if (chrome.storage.sync) {
-        chrome.storage.sync.set({ backendUrl });
-      }
-      if (chrome.storage.local) {
-        chrome.storage.local.set({ apiKey });
-      }
-      statusDiv.textContent = "Settings saved successfully! (API Key stored locally)";
-      statusDiv.className = "status success";
-      setTimeout(() => { statusDiv.textContent = ""; }, 3000);
-    } else {
-      statusDiv.textContent = "Saved (local mode)";
-      statusDiv.className = "status success";
-    }
+  const stored = await storageGet(STORAGE_KEY);
+  const config = { ...DEFAULT_CONFIG, ...(stored[STORAGE_KEY] || {}) };
+  apiUrlInput.value = normalizeUrl(config.apiUrl, DEFAULT_CONFIG.apiUrl);
+  appUrlInput.value = normalizeUrl(config.appUrl, DEFAULT_CONFIG.appUrl);
+  saveBtn.addEventListener("click", async () => {
+    const apiUrl = normalizeUrl(apiUrlInput.value, DEFAULT_CONFIG.apiUrl);
+    const appUrl = normalizeUrl(appUrlInput.value, DEFAULT_CONFIG.appUrl);
+    try { await storageSet({ [STORAGE_KEY]: { ...config, apiUrl, appUrl } }); apiUrlInput.value = apiUrl; appUrlInput.value = appUrl; statusDiv.textContent = "Settings saved successfully."; statusDiv.className = "status success"; setTimeout(() => { statusDiv.textContent = ""; }, 3000); }
+    catch (error) { statusDiv.textContent = `Could not save settings: ${error?.message || "storage error"}`; statusDiv.className = "status error"; }
   });
-
   testBtn.addEventListener("click", async () => {
-    const backendUrl = (backendUrlInput.value || "http://localhost:8085").replace(/\/$/, "");
-    statusDiv.textContent = "Testing connection...";
-    statusDiv.className = "status";
-
-    try {
-      const res = await fetch(`${backendUrl}/api/v1/health`);
-      if (res.ok) {
-        const data = await res.json();
-        statusDiv.textContent = `Connection successful! Service: ${data.status || "healthy"}`;
-        statusDiv.className = "status success";
-      } else {
-        statusDiv.textContent = `Server responded with status: ${res.status}`;
-        statusDiv.className = "status error";
-      }
-    } catch (err) {
-      statusDiv.textContent = `Connection failed: ${err.message || "Network error"}`;
-      statusDiv.className = "status error";
-    }
+    const apiUrl = normalizeUrl(apiUrlInput.value, DEFAULT_CONFIG.apiUrl);
+    statusDiv.textContent = "Testing connection..."; statusDiv.className = "status";
+    try { const response = await fetch(`${apiUrl}/health`); if (!response.ok) throw new Error(`server status ${response.status}`); const data = await response.json(); statusDiv.textContent = `Connection successful! Service: ${data.status || "healthy"}`; statusDiv.className = "status success"; }
+    catch (error) { statusDiv.textContent = `Connection failed: ${error?.message || "Network error"}`; statusDiv.className = "status error"; }
   });
 });

@@ -76,32 +76,7 @@ export const ResumePreviewModal = ({
     }
   };
 
-  // Create a fallback parsed resume if none is provided
-  const displayResume: ParsedResume = parsedResume || {
-    name: "Your Name",
-    email: "email@example.com",
-    phone: "(555) 123-4567",
-    summary: "Professional summary will appear here based on your resume content.",
-    experience: [
-      {
-        title: "Job Title",
-        company: "Company Name",
-        startDate: "Start",
-        endDate: "Present",
-        description: "Your experience details will appear here.",
-        achievements: ["Achievement 1", "Achievement 2"],
-      },
-    ],
-    education: [
-      {
-        degree: "Your Degree",
-        institution: "Your Institution",
-        year: "Year",
-      },
-    ],
-    skills: ["Skill 1", "Skill 2", "Skill 3"],
-    projects: [],
-  };
+  const displayResume = parsedResume;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -114,10 +89,19 @@ export const ResumePreviewModal = ({
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden">
-          <ResumePreviewContent
-            parsedResume={displayResume}
-            template={template}
-          />
+          {displayResume ? (
+            <ResumePreviewContent
+              parsedResume={displayResume}
+              template={template}
+            />
+          ) : (
+            <div className="flex h-full min-h-48 items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 p-8 text-center">
+              <div className="max-w-md space-y-2">
+                <p className="font-medium text-foreground">No resume content to preview</p>
+                <p className="text-sm text-muted-foreground">Upload or select a resume before opening a template preview. We will not display placeholder candidate data.</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions Footer */}
@@ -125,7 +109,7 @@ export const ResumePreviewModal = ({
           <Button
             variant="glow"
             onClick={handleDownloadPDF}
-            disabled={isDownloading}
+            disabled={isDownloading || !displayResume}
           >
             {isDownloading ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />

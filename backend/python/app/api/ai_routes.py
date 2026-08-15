@@ -549,15 +549,26 @@ async def extract_knowledge_graph_endpoint(payload: KnowledgeGraphInput):
 
 
 @router.post("/api/v1/candidate-bank/match")
-async def match_candidate_bank_endpoint(payload: dict):
-    """Match ATS form label against candidate answer bank."""
-    from app.services.candidate_answer_bank import match_question_to_answer, CandidateAnswers
+async def match_candidate_bank_endpoint(
+    payload: dict,
+    user_id: str = Depends(get_current_user),
+):
+    """Match an ATS form label against the caller's persisted answer bank."""
+    from app.services.answer_bank_store import (
+        AnswerBankStoreUnavailable,
+        load_candidate_answer_snapshot,
+    )
+    from app.services.candidate_answer_bank import CandidateAnswers, match_question_to_answer
+
     question = payload.get("question_text", "")
+    application_id = payload.get("application_id")
     custom_qa = payload.get("custom_qa", {})
-    bank = CandidateAnswers(custom_qa=custom_qa)
+    try:
+        snapshot = await load_candidate_answer_snapshot(user_id, application_id=application_id)
+    except AnswerBankStoreUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    bank = CandidateAnswers(**snapshot.answers, custom_qa=custom_qa)
     return match_question_to_answer(question, bank)
-
-
 @router.post("/api/v1/ats/detect")
 async def detect_ats_endpoint(payload: dict):
     """Detect ATS vendor from URL or HTML snippet."""

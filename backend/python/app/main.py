@@ -1677,15 +1677,26 @@ async def agent_reach_cookies_endpoint():
 
 
 @app.post("/api/v1/candidate-bank/match")
-async def match_candidate_bank_endpoint(payload: dict):
-    """Match ATS form label against deterministic candidate answer bank."""
-    from app.services.candidate_answer_bank import match_question_to_answer, CandidateAnswers
+async def match_candidate_bank_endpoint(
+    payload: dict,
+    user_id: str = Depends(get_current_user),
+):
+    """Match an ATS form label against the caller's persisted answer bank."""
+    from app.services.answer_bank_store import (
+        AnswerBankStoreUnavailable,
+        load_candidate_answer_snapshot,
+    )
+    from app.services.candidate_answer_bank import CandidateAnswers, match_question_to_answer
+
     question = payload.get("question_text", "")
+    application_id = payload.get("application_id")
     custom_qa = payload.get("custom_qa", {})
-    bank = CandidateAnswers(custom_qa=custom_qa)
+    try:
+        snapshot = await load_candidate_answer_snapshot(user_id, application_id=application_id)
+    except AnswerBankStoreUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    bank = CandidateAnswers(**snapshot.answers, custom_qa=custom_qa)
     return match_question_to_answer(question, bank)
-
-
 @app.post("/api/v1/ats/detect")
 async def detect_ats_endpoint(payload: dict):
     """Detect ATS vendor from job post URL or HTML snippet and return tailored formatting rules."""
@@ -2012,16 +2023,27 @@ async def extension_page_answer(
     mode = payload.mode if payload.mode in {'ask', 'research', 'draft'} else 'ask'
     if len(prompt) < 3:
         raise HTTPException(status_code=400, detail='prompt is required')
-    if not (payload.page_url or '').startswith('https://'):
+    def _safe_https_url(value: str) -> bool:
+        if not value.startswith('https://'):
+            return False
+        # ponytail: reject control characters outright — they let a crafted
+        # "URL" smuggle delimiter text past the HTTPS check into the prompt.
+        return not any(ord(char) < 32 or ord(char) == 127 for char in value)
+    if not _safe_https_url(payload.page_url or ''):
         raise HTTPException(status_code=400, detail='an HTTPS page source is required')
     from app.services.llm_service import _untrusted
+    from app.services.prompt_injection_guard import inspect_untrusted_text
     page_text = (payload.visible_text or '')[:12000]
     selection = (payload.selection or '')[:4000]
     sources = [
         {'title': str(item.get('title', ''))[:180], 'url': str(item.get('url', ''))[:2000]}
         for item in (payload.sources or [])[:8]
-        if str(item.get('url', '')).startswith('https://')
+        if _safe_https_url(str(item.get('url', '')))
     ]
+    guard_input = "\n".join([(payload.page_title or "")[:180], payload.page_url[:2000], selection, page_text, json.dumps(sources)])
+    guard_result = inspect_untrusted_text(guard_input)
+    if guard_result.blocked:
+        raise HTTPException(status_code=422, detail="page context contains instruction-like content")
     system = (
         "You are Job Tayari's read-only career research assistant. "
         "Use only the supplied page context and sources. "
@@ -2033,7 +2055,7 @@ async def extension_page_answer(
     user = (
         f'MODE: {mode}\nREQUEST:\n{_untrusted(prompt)}\n\n'
         f'PAGE TITLE: {_untrusted((payload.page_title or "")[:180])}\n'
-        f'PAGE URL: {payload.page_url[:2000]}\n'
+        f'PAGE URL: {_untrusted(payload.page_url[:2000])}\n'
         f'SELECTION:\n{_untrusted(selection)}\n\n'
         f'VISIBLE PAGE TEXT:\n{_untrusted(page_text)}\n\n'
         f'OTHER APPROVED SOURCES:\n{_untrusted(json.dumps(sources))}'

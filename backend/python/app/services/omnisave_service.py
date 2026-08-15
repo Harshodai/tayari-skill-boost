@@ -248,7 +248,36 @@ class OmnisaveService:
                             "nlp_metadata": canonical["nlp_metadata"] or {},
                             "saved_at": canonical["created_at"].isoformat() if canonical["created_at"] else None,
                         }
+                        await conn.execute(
+                            """
+                            INSERT INTO public.omnisave_source_provenance
+                                (source_id, user_id, capture_origin, content_hash, sync_status, first_captured_at, last_seen_at, last_attempt_at, attempt_count)
+                            VALUES ($1, $2, $3, $4, 'unchanged', NOW(), NOW(), NOW(), 1)
+                            ON CONFLICT (source_id) DO UPDATE SET
+                                last_seen_at = NOW(), last_attempt_at = NOW(), attempt_count = public.omnisave_source_provenance.attempt_count + 1, updated_at = NOW()
+                            """,
+                            uuid_lib.UUID(canonical_source["id"]),
+                            user_uuid,
+                            source_obj.get("capture_origin", "url_import"),
+                            source_obj.get("content_hash"),
+                        )
                         return {"inserted": False, "source": canonical_source, "chunks_created": 0}
+                    await conn.execute(
+                        """
+                        INSERT INTO public.omnisave_source_provenance
+                            (source_id, user_id, capture_origin, content_hash, sync_status, first_captured_at, last_seen_at, last_attempt_at, attempt_count)
+                        VALUES ($1, $2, $3, $4, 'hydrated', NOW(), NOW(), NOW(), 1)
+                        ON CONFLICT (source_id) DO UPDATE SET
+                            capture_origin = EXCLUDED.capture_origin,
+                            content_hash = EXCLUDED.content_hash,
+                            sync_status = CASE WHEN public.omnisave_source_provenance.content_hash = EXCLUDED.content_hash THEN 'unchanged' ELSE 'hydrated' END,
+                            last_seen_at = NOW(), last_attempt_at = NOW(), attempt_count = public.omnisave_source_provenance.attempt_count + 1, last_error = NULL, updated_at = NOW()
+                        """,
+                        uuid_lib.UUID(source_obj["id"]),
+                        user_uuid,
+                        source_obj.get("capture_origin", "url_import"),
+                        source_obj.get("content_hash"),
+                    )
                     for chunk in chunks:
                         # WS-07: persist the real embedding so retrieval can be
                         # semantic. NULL only when the embedding model is absent.
@@ -276,6 +305,36 @@ class OmnisaveService:
         except Exception as exc:
             logger.error("[Omnisave] Failed to persist source to DB: %s", exc)
             return None
+
+    async def _touch_source_provenance(self, source_id: str, user_id: str, capture_origin: str = "url_import", content_hash: Optional[str] = None) -> None:
+        """Best-effort provenance heartbeat for an already-known source.
+
+        Record that the source was seen/captured again without changing its
+        identity: bump last_seen_at / last_attempt_at / attempt_count and keep
+        the existing sync_status. Never raises — provenance is best-effort and
+        must not break an idempotent ingest.
+        """
+        try:
+            pool = await get_pool()
+            if pool is None:
+                return
+            user_uuid = uuid_lib.UUID(user_id)
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO public.omnisave_source_provenance
+                        (source_id, user_id, capture_origin, sync_status, first_captured_at, last_seen_at, last_attempt_at, attempt_count)
+                    VALUES ($1, $2, $3, 'unchanged', NOW(), NOW(), NOW(), 1)
+                    ON CONFLICT (source_id) DO UPDATE SET
+                        last_seen_at = NOW(), last_attempt_at = NOW(),
+                        attempt_count = public.omnisave_source_provenance.attempt_count + 1, updated_at = NOW()
+                    """,
+                    uuid_lib.UUID(source_id),
+                    user_uuid,
+                    capture_origin,
+                )
+        except Exception as exc:
+            logger.warning("[Omnisave] Provenance touch failed for %s: %s", source_id, exc)
 
     def compute_idempotency_hash(self, url: str, content: str) -> str:
         """Compute unique SHA-256 hash for source deduplication."""
@@ -344,7 +403,7 @@ class OmnisaveService:
             logger.warning("[Omnisave] Failed to look up existing source in DB: %s", exc)
             return None
 
-    async def ingest_source(self, platform: str, url: str, title: str, author: str, raw_content: str, user_id: str, category: str | None = None, summary_bullets: Optional[List[str]] = None, topics: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def ingest_source(self, platform: str, url: str, title: str, author: str, raw_content: str, user_id: str, category: str | None = None, summary_bullets: Optional[List[str]] = None, topics: Optional[List[str]] = None, capture_origin: str = "url_import", thread_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Ingest source from Substack, Medium, LinkedIn, or custom URL.
 
         WS-07: when ``category`` is not provided we run a real LLM auto-tag
@@ -359,6 +418,28 @@ class OmnisaveService:
         # Topics + one-line summary are retained so secondary_tags and
         # summary_bullets are no longer discarded.
         nlp_metadata = await auto_enrich(title, raw_content)
+        # Preserve the legacy auto_tag seam for integrations and tests that
+        # override that adapter, while the default path still keeps the richer
+        # structured metadata returned by auto_enrich.
+        if nlp_metadata.get("status") == "needs_review" and not nlp_metadata.get("topics") and not nlp_metadata.get("summary"):
+            compatibility_category, compatibility_topics, compatibility_summary = await auto_tag(title, raw_content)
+            if compatibility_category != "Uncategorised" or compatibility_topics or compatibility_summary:
+                nlp_metadata = {
+                    **nlp_metadata,
+                    "category": compatibility_category or nlp_metadata.get("category"),
+                    "topics": compatibility_topics or nlp_metadata.get("topics") or [],
+                    "summary": compatibility_summary or nlp_metadata.get("summary"),
+                }
+        if thread_context:
+            safe_comments = [str(item).strip()[:500] for item in (thread_context.get("top_comments") or []) if str(item).strip()][:3]
+            nlp_metadata = {
+                **nlp_metadata,
+                "thread_context": {
+                    "reply_count": thread_context.get("reply_count"),
+                    "top_comments": safe_comments,
+                    "captured_from_visible_card": bool(thread_context.get("captured_from_visible_card")),
+                },
+            }
         auto_topics: List[str] = nlp_metadata.get("topics") or []
         auto_summary: str | None = nlp_metadata.get("summary")
         if not category:
@@ -371,6 +452,7 @@ class OmnisaveService:
         # instead of generating a fresh source_id.
         existing = await self._find_existing_source_db(user_id, idempotency_hash)
         if existing is not None:
+            await self._touch_source_provenance(existing["id"], user_id)
             if not any(s.get("id") == existing["id"] for s in self.saved_sources):
                 self.saved_sources.append(existing)
                 chunks = await self._load_source_chunks_db(existing["id"], user_id)
@@ -391,6 +473,7 @@ class OmnisaveService:
         # when the DB is unavailable.
         for source in self.saved_sources:
             if source.get("user_id") == user_id and source.get("idempotency_hash") == idempotency_hash:
+                await self._touch_source_provenance(source.get("id") or "", user_id)
                 return {
                     "success": True,
                     "source_id": source.get("id"),
@@ -426,6 +509,8 @@ class OmnisaveService:
             # fallback fills in ONLY when summary_bullets is None (absent).
             "summary_bullets": summary_bullets if summary_bullets is not None else ([auto_summary] if auto_summary else []),
             "nlp_metadata": nlp_metadata,
+            "capture_origin": capture_origin if capture_origin in {"url_import", "browser_capture", "seed_csv", "manual"} else "url_import",
+            "content_hash": hashlib.sha256((raw_content or "").encode("utf-8")).hexdigest(),
             "saved_at": datetime.now(timezone.utc).isoformat()
         }
         self.saved_sources.append(source_obj)
@@ -510,7 +595,7 @@ class OmnisaveService:
             if not (chunk.get("source_id") == source_id and chunk.get("user_id") == user_id)
         ]
 
-    async def import_public_url(self, user_id: str, url: str) -> Dict[str, Any]:
+    async def import_public_url(self, user_id: str, url: str, capture_origin: str = "url_import") -> Dict[str, Any]:
         """Import one explicitly selected public article URL into durable storage.
 
         This is deliberately not a private saved-list synchroniser. It performs
@@ -537,6 +622,7 @@ class OmnisaveService:
             user_id=user_id,
             summary_bullets=extracted.get("summary"),
             topics=extracted.get("topics"),
+            capture_origin=capture_origin,
         )
         if not result.get("success"):
             return result
@@ -601,16 +687,31 @@ class OmnisaveService:
         user_id: str,
         platforms: Optional[List[str]] = None,
         target_urls: Optional[List[str]] = None,
+        source_items: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
-        """Compatibility adapter for explicit public-URL imports.
+        """Ingest candidate-authorized saved-page items with URL fallback.
 
-        It does not enumerate any private saved-post list. ``platforms`` is
-        retained only for clients that already send it; source classification is
-        derived from each URL server-side. Every URL is handled independently so
-        one blocked article cannot make successful imports disappear.
+        The browser companion may provide a visible title, author, and excerpt
+        from the user's explicitly opened saved-content page. When an excerpt is
+        unavailable, the service falls back to public URL extraction. It never
+        enumerates a third-party private saved list server-side.
         """
-        requested_urls = list(dict.fromkeys(url.strip() for url in (target_urls or []) if url and url.strip()))
-        if not requested_urls:
+        normalised_items: List[Dict[str, Any]] = []
+        seen_urls = set()
+        for item in source_items or []:
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("url") or "").strip()
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            normalised_items.append({**item, "url": url})
+        for url in target_urls or []:
+            clean_url = str(url or "").strip()
+            if clean_url and clean_url not in seen_urls:
+                seen_urls.add(clean_url)
+                normalised_items.append({"url": clean_url})
+        if not normalised_items:
             return {
                 "success": False,
                 "error": "url_required",
@@ -618,25 +719,44 @@ class OmnisaveService:
                 "sources": [],
                 "errors": [{"error": "url_required"}],
             }
-
         imported_sources: List[Dict[str, Any]] = []
         errors: List[Dict[str, str]] = []
-        for url in requested_urls:
-            result = await self.import_public_url(user_id=user_id, url=url)
+        for item in normalised_items:
+            url = item["url"]
+            captured_content = str(item.get("content") or "").strip()[:12000]
+            capture_origin = str(item.get("capture_origin") or ("browser_capture" if captured_content else "url_import"))
+            try:
+                if captured_content:
+                    ingest_kwargs = {
+                        "platform": str(item.get("platform") or self._platform_for_url(url)),
+                        "url": url,
+                        "title": str(item.get("title") or url)[:240],
+                        "author": str(item.get("author") or "Unknown")[:160],
+                        "raw_content": captured_content,
+                        "user_id": user_id,
+                        "capture_origin": capture_origin,
+                    }
+                    if item.get("thread_context"):
+                        ingest_kwargs["thread_context"] = item["thread_context"]
+                    result = await self.ingest_source(**ingest_kwargs)
+                else:
+                    result = await self.import_public_url(user_id=user_id, url=url, capture_origin=capture_origin)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("OmniSaveAI captured-item ingest failed for %s: %s", url, exc)
+                result = {"success": False, "error": str(exc)[:500]}
             if result.get("success"):
                 imported_sources.append(result.get("source") or {})
             else:
                 errors.append({"url": url, "error": result.get("error", "import_failed")})
-
-        # This read proves the response reflects the durable store, not a
-        # worker-local cache. Let the route map a storage outage to 503.
         sources = await self.list_user_saved_sources(user_id)
         return {
             "success": bool(imported_sources),
             "count": len(imported_sources),
             "sources": sources,
+            "imported_sources": imported_sources,
             "errors": errors,
             "synced_platforms": platforms or [],
+            "requested_count": len(normalised_items),
         }
 
     def get_user_saved_sources(self, user_id: str) -> List[Dict[str, Any]]:
@@ -659,12 +779,16 @@ class OmnisaveService:
             async with pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
-                    SELECT id, user_id, idempotency_hash, source_platform, canonical_url,
-                           title, author, raw_content, clean_markdown, primary_category,
-                           secondary_tags, summary_bullets, nlp_metadata, created_at
-                    FROM public.saved_sources
-                    WHERE user_id = $1
-                    ORDER BY created_at DESC
+                    SELECT s.id, s.user_id, s.idempotency_hash, s.source_platform, s.canonical_url,
+                           s.title, s.author, s.raw_content, s.clean_markdown, s.primary_category,
+                           s.secondary_tags, s.summary_bullets, s.nlp_metadata, s.created_at,
+                           p.capture_origin, p.sync_status, p.content_hash, p.first_captured_at,
+                           p.last_seen_at, p.last_attempt_at, p.attempt_count, p.last_error
+                    FROM public.saved_sources AS s
+                    LEFT JOIN public.omnisave_source_provenance AS p
+                      ON p.source_id = s.id AND p.user_id = s.user_id
+                    WHERE s.user_id = $1
+                    ORDER BY s.created_at DESC
                     """,
                     user_uuid,
                 )
@@ -687,6 +811,16 @@ class OmnisaveService:
                 "secondary_tags": row["secondary_tags"] or [],
                 "summary_bullets": row["summary_bullets"] or [],
                 "nlp_metadata": row["nlp_metadata"] or {},
+                "capture_origin": row.get("capture_origin"),
+                "sync_status": row.get("sync_status"),
+                "content_hash": row.get("content_hash"),
+                "first_captured_at": row["first_captured_at"].isoformat() if row.get("first_captured_at") else None,
+                "last_seen_at": row["last_seen_at"].isoformat() if row.get("last_seen_at") else None,
+                "last_attempt_at": row["last_attempt_at"].isoformat() if row.get("last_attempt_at") else None,
+                "attempt_count": int(row.get("attempt_count", 0) or 0),
+                "last_sync_error": row.get("last_error"),
+                "thread_context": (row.get("nlp_metadata") or {}).get("thread_context"),
+                "freshness_score": self._freshness_score(row),
                 "saved_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
             for row in rows
@@ -694,6 +828,25 @@ class OmnisaveService:
         # Keep worker cache warm only with records already confirmed durable.
         self.saved_sources = [s for s in self.saved_sources if s.get("user_id") != user_id] + sources
         return sources
+
+    @staticmethod
+    def _freshness_score(row: Any) -> int:
+        """Return a deterministic 0-100 freshness score for review ordering."""
+        now = datetime.now(timezone.utc)
+        seen = row.get("last_seen_at") or row.get("created_at")
+        if seen is None:
+            age_days = 365
+        else:
+            if seen.tzinfo is None:
+                seen = seen.replace(tzinfo=timezone.utc)
+            age_days = max(0, (now - seen).days)
+        score = max(0, 100 - min(100, age_days * 3))
+        status = str(row.get("sync_status") or "").lower()
+        if status in {"failed", "blocked", "error"}:
+            score = max(0, score - 35)
+        elif status in {"pending", "running"}:
+            score = max(0, score - 10)
+        return int(score)
 
     async def delete_user_source(self, user_id: str, source_id: str) -> bool:
         """Delete one durable source owned by the requesting candidate.

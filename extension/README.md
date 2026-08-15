@@ -28,7 +28,7 @@ Coming in Week 4-5 of the roadmap.
 
 ## Setup
 
-1. **Sign in to Tayari** — Open the extension popup and click "Open Tayari" to sign in
+1. **Sign in to Tayari** — Open the extension popup and click "Sign in to Tayari". New users should choose "Create an account"; signup happens in the JobTayari web app, never inside the extension.
 2. **Complete your profile** — Fill in your profile at http://localhost:5173/profile so autofill has data to work with
 3. **Enable autofill** — In the extension settings, ensure "Enable Autofill" is checked
 

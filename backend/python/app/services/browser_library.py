@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Browser automation library powered by browser-use & Playwright.
 
 Wraps headless browser automation (`browser-use` + Playwright) to interact with job application forms,

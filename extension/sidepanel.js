@@ -57,6 +57,7 @@ async function refresh() {
 async function run(action, payload) { setStatus('Working...'); const result = await send(action, payload); setStatus(result?.success ? (result.message || 'Done.') : (result?.error || 'Action failed.'), result?.success ? 'ok' : 'error'); return result; }
 $('refresh').addEventListener('click', () => void refresh());
 $('sign-in').addEventListener('click', async () => { const result = await send('sign_in_pkce', { provider: 'google' }); if (!result?.success) setAgentStatus(result?.error || 'Secure sign-in failed.', 'error'); await refresh(); });
+$('create-account').addEventListener('click', () => void send('open_tayari', { path: '/auth?mode=signup&next=%2Fextension-onboarding' }));
 $('sign-out').addEventListener('click', async () => { await send('sign_out'); activeTask = null; activeTaskRequest = null; $('plan-card').classList.add('hidden'); await refresh(); });
 $('open-app').addEventListener('click', () => void send('open_tayari', { path: '/desktop' }));
 $('save-job').addEventListener('click', () => void run('save_job', { job: current.job }));

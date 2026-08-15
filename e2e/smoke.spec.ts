@@ -4,9 +4,7 @@ const FRONTEND_URL = 'http://127.0.0.1:8083';
 const API_URL = 'http://127.0.0.1:8085/api';
 
 const TEST_PASS = process.env.E2E_TEST_PASSWORD;
-if (!TEST_PASS) {
-  throw new Error('E2E_TEST_PASSWORD environment variable is required');
-}
+test.skip(!TEST_PASS, "E2E_TEST_PASSWORD is required for authenticated smoke checks");
 const TEST_EMAIL = `e2e-test-suite-${Date.now()}@example.com`;
 
 test.describe('Tayari Skill Boost — End to End Smoke', () => {

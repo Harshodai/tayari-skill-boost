@@ -1,0 +1,966 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-15T04:07:52.795396+00:00",
+  "domains": [
+    "linkedmash.com",
+    "linkedin.com",
+    "medium.com",
+    "substack.com",
+    "readwise.io",
+    "raindrop.io",
+    "pocket.com",
+    "instagram.com"
+  ],
+  "metrics": {
+    "linkedmash.com": {
+      "global_rank": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_global_rank",
+        "query": {},
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:07:52.797014+00:00",
+        "finished_at": "2026-08-15T04:07:53.528783+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "visits_total": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_visits_total",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:07:53.530844+00:00",
+        "finished_at": "2026-08-15T04:07:54.272445+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "unique_visit": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_unique_visit",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:07:54.275262+00:00",
+        "finished_at": "2026-08-15T04:07:55.076026+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "bounce_rate": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_bounce_rate",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:07:55.078053+00:00",
+        "finished_at": "2026-08-15T04:07:55.830016+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_desktop": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_desktop",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:07:55.832158+00:00",
+        "finished_at": "2026-08-15T04:07:56.576704+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_mobile": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_mobile",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:07:56.579527+00:00",
+        "finished_at": "2026-08-15T04:07:57.319803+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_by_country": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_total_traffic_by_country",
+        "query": {
+          "limit": "10"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:07:57.322008+00:00",
+        "finished_at": "2026-08-15T04:07:58.106666+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      }
+    },
+    "linkedin.com": {
+      "global_rank": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_global_rank",
+        "query": {},
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:07:58.108597+00:00",
+        "finished_at": "2026-08-15T04:07:58.858175+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "visits_total": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_visits_total",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:07:58.860331+00:00",
+        "finished_at": "2026-08-15T04:07:59.683454+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "unique_visit": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_unique_visit",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:07:59.685943+00:00",
+        "finished_at": "2026-08-15T04:08:00.488157+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "bounce_rate": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_bounce_rate",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:00.490884+00:00",
+        "finished_at": "2026-08-15T04:08:01.300397+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_desktop": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_desktop",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:01.302435+00:00",
+        "finished_at": "2026-08-15T04:08:02.042479+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_mobile": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_mobile",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:02.044909+00:00",
+        "finished_at": "2026-08-15T04:08:02.809972+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_by_country": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_total_traffic_by_country",
+        "query": {
+          "limit": "10"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:02.811992+00:00",
+        "finished_at": "2026-08-15T04:08:03.550904+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      }
+    },
+    "medium.com": {
+      "global_rank": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_global_rank",
+        "query": {},
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:03.552953+00:00",
+        "finished_at": "2026-08-15T04:08:04.300361+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "visits_total": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_visits_total",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:04.302401+00:00",
+        "finished_at": "2026-08-15T04:08:05.026607+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "unique_visit": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_unique_visit",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:05.029470+00:00",
+        "finished_at": "2026-08-15T04:08:05.794890+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "bounce_rate": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_bounce_rate",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:05.796981+00:00",
+        "finished_at": "2026-08-15T04:08:06.592652+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_desktop": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_desktop",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:06.594765+00:00",
+        "finished_at": "2026-08-15T04:08:07.374642+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_mobile": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_mobile",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:07.377022+00:00",
+        "finished_at": "2026-08-15T04:08:08.148912+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_by_country": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_total_traffic_by_country",
+        "query": {
+          "limit": "10"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:08.151592+00:00",
+        "finished_at": "2026-08-15T04:08:08.972867+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      }
+    },
+    "substack.com": {
+      "global_rank": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_global_rank",
+        "query": {},
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:08.975373+00:00",
+        "finished_at": "2026-08-15T04:08:09.722206+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "visits_total": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_visits_total",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:09.724794+00:00",
+        "finished_at": "2026-08-15T04:08:10.488518+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "unique_visit": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_unique_visit",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:10.491157+00:00",
+        "finished_at": "2026-08-15T04:08:11.284909+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "bounce_rate": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_bounce_rate",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:11.287617+00:00",
+        "finished_at": "2026-08-15T04:08:12.098223+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_desktop": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_desktop",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:12.102346+00:00",
+        "finished_at": "2026-08-15T04:08:12.881837+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_mobile": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_mobile",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:12.884260+00:00",
+        "finished_at": "2026-08-15T04:08:13.607042+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_by_country": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_total_traffic_by_country",
+        "query": {
+          "limit": "10"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:13.609279+00:00",
+        "finished_at": "2026-08-15T04:08:14.391212+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      }
+    },
+    "readwise.io": {
+      "global_rank": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_global_rank",
+        "query": {},
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:14.394287+00:00",
+        "finished_at": "2026-08-15T04:08:15.150798+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "visits_total": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_visits_total",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:15.153981+00:00",
+        "finished_at": "2026-08-15T04:08:15.998195+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "unique_visit": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_unique_visit",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:16.000461+00:00",
+        "finished_at": "2026-08-15T04:08:16.783507+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "bounce_rate": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_bounce_rate",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:16.785821+00:00",
+        "finished_at": "2026-08-15T04:08:17.578958+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_desktop": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_desktop",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:17.581152+00:00",
+        "finished_at": "2026-08-15T04:08:18.376125+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_mobile": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_mobile",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:18.379587+00:00",
+        "finished_at": "2026-08-15T04:08:19.207659+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_by_country": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_total_traffic_by_country",
+        "query": {
+          "limit": "10"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:19.211094+00:00",
+        "finished_at": "2026-08-15T04:08:20.001003+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      }
+    },
+    "raindrop.io": {
+      "global_rank": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_global_rank",
+        "query": {},
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:20.003904+00:00",
+        "finished_at": "2026-08-15T04:08:20.785118+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "visits_total": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_visits_total",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:20.787492+00:00",
+        "finished_at": "2026-08-15T04:08:21.570177+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "unique_visit": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_unique_visit",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:21.572486+00:00",
+        "finished_at": "2026-08-15T04:08:22.303375+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "bounce_rate": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_bounce_rate",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:22.305777+00:00",
+        "finished_at": "2026-08-15T04:08:23.045287+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_desktop": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_desktop",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:23.047604+00:00",
+        "finished_at": "2026-08-15T04:08:23.825346+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_mobile": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_mobile",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:23.828049+00:00",
+        "finished_at": "2026-08-15T04:08:24.619595+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_by_country": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_total_traffic_by_country",
+        "query": {
+          "limit": "10"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:24.622501+00:00",
+        "finished_at": "2026-08-15T04:08:25.384912+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      }
+    },
+    "pocket.com": {
+      "global_rank": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_global_rank",
+        "query": {},
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:25.389155+00:00",
+        "finished_at": "2026-08-15T04:08:26.153561+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "visits_total": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_visits_total",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:26.156317+00:00",
+        "finished_at": "2026-08-15T04:08:26.936420+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "unique_visit": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_unique_visit",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:26.938933+00:00",
+        "finished_at": "2026-08-15T04:08:27.709760+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "bounce_rate": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_bounce_rate",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:27.713312+00:00",
+        "finished_at": "2026-08-15T04:08:28.475922+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_desktop": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_desktop",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:28.478577+00:00",
+        "finished_at": "2026-08-15T04:08:29.259517+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_mobile": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_mobile",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:29.262272+00:00",
+        "finished_at": "2026-08-15T04:08:30.032216+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_by_country": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_total_traffic_by_country",
+        "query": {
+          "limit": "10"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:30.034982+00:00",
+        "finished_at": "2026-08-15T04:08:30.839207+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      }
+    },
+    "instagram.com": {
+      "global_rank": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_global_rank",
+        "query": {},
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:30.842991+00:00",
+        "finished_at": "2026-08-15T04:08:31.648895+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "visits_total": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_visits_total",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:31.652461+00:00",
+        "finished_at": "2026-08-15T04:08:32.454844+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "unique_visit": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_unique_visit",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:32.457313+00:00",
+        "finished_at": "2026-08-15T04:08:33.201699+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "bounce_rate": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_bounce_rate",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:33.204162+00:00",
+        "finished_at": "2026-08-15T04:08:33.985399+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_desktop": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_desktop",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:33.987930+00:00",
+        "finished_at": "2026-08-15T04:08:34.832575+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_sources_mobile": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_traffic_sources_mobile",
+        "query": {
+          "country": "world",
+          "granularity": "monthly"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:34.835245+00:00",
+        "finished_at": "2026-08-15T04:08:35.624474+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      },
+      "traffic_by_country": {
+        "status": "unavailable",
+        "api_name": "SimilarWeb/get_total_traffic_by_country",
+        "query": {
+          "limit": "10"
+        },
+        "attempt_count": 1,
+        "started_at": "2026-08-15T04:08:35.627192+00:00",
+        "finished_at": "2026-08-15T04:08:36.365739+00:00",
+        "raw_response": {
+          "code": "failed_precondition",
+          "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+        },
+        "primary_value": null,
+        "availability_note": "SimilarWeb returned an unavailable-metric or credit/prerequisite response."
+      }
+    }
+  },
+  "errors": [],
+  "runs": [
+    {
+      "started_at": "2026-08-15T04:07:52.795434+00:00",
+      "finished_at": "2026-08-15T04:08:36.365797+00:00",
+      "counts": {
+        "success": 0,
+        "unavailable": 56,
+        "error": 0,
+        "pending": 0
+      }
+    }
+  ],
+  "updated_at": "2026-08-15T04:08:36.368571+00:00"
+}

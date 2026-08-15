@@ -47,3 +47,14 @@ describe("ResumeTemplates.tsx stale LaTeX-era surface removal", () => {
     expect(source).toContain("buildGenerateResumePdfPayload");
   });
 });
+
+describe("ResumePreviewModal truthfulness", () => {
+  const source = readFileSync(resolve(currentDirectory, "../components/resume/ResumePreviewModal.tsx"), "utf8");
+  it("does not fabricate candidate data when no parsed resume exists", () => {
+    expect(source).not.toContain("Your Name");
+    expect(source).not.toContain("email@example.com");
+    expect(source).not.toContain("(555) 123-4567");
+    expect(source).toContain("No resume content to preview");
+    expect(source).toContain("placeholder candidate data");
+  });
+});

@@ -1,3 +1,5 @@
+// Chrome runtime is injected by the browser extension; its ambient typings are not available in the web build.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const chrome: any;
 declare const process: { env: Record<string, string | undefined> };
 
@@ -113,6 +115,26 @@ export function useExtension() {
     }
   }, [status.installed]);
 
+
+  const sendOmniSaveMessage = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
+    if (!status.installed) return { success: false, error: "Browser companion is not installed." };
+    return new Promise<Record<string, unknown>>((resolve) => {
+      try {
+        chrome.runtime.sendMessage(EXTENSION_ID, { action, ...payload }, (response) => {
+          if (chrome.runtime.lastError) {
+            resolve({ success: false, error: chrome.runtime.lastError.message || "Browser companion did not respond." });
+            return;
+          }
+          resolve(response || { success: false, error: "Browser companion did not respond." });
+        });
+      } catch (error) {
+        resolve({ success: false, error: error instanceof Error ? error.message : "Browser companion is unavailable." });
+      }
+    });
+  }, [status.installed]);
+  const getOmniSavePreferences = useCallback(() => sendOmniSaveMessage("omnisave_preferences_get"), [sendOmniSaveMessage]);
+  const setOmniSavePreferences = useCallback((preferences: Record<string, unknown>) => sendOmniSaveMessage("omnisave_preferences_set", { preferences }), [sendOmniSaveMessage]);
+  const omnisaveSyncNow = useCallback(() => sendOmniSaveMessage("omnisave_sync_now"), [sendOmniSaveMessage]);
   useEffect(() => {
     checkExtension();
   }, [checkExtension]);
@@ -123,5 +145,8 @@ export function useExtension() {
     checkExtension,
     syncToken,
     getExtensionToken,
+    getOmniSavePreferences,
+    setOmniSavePreferences,
+    omnisaveSyncNow,
   };
 }

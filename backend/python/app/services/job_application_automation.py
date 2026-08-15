@@ -1,7 +1,7 @@
 import logging
 from .browser_library import Browser
 from typing import Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -11,10 +11,10 @@ class JobApplicationInput(BaseModel):
     url: str
     description: Optional[str] = None
 
-    class Config:
-        frozen = True  # enforce immutability
+    model_config = ConfigDict(frozen=True)
 
-    @validator('url')
+    @field_validator('url')
+    @classmethod
     def url_must_be_valid(cls, v: str) -> str:
         if not v.startswith('http'):
             raise ValueError('url must be a valid http URL')
@@ -40,7 +40,7 @@ def apply_job(job: dict, resume_text: str, cover_letter: str) -> str:
         raise
 
     try:
-        success = Browser.apply_job(validated_job.dict(), resume_text, cover_letter)
+        success = Browser.apply_job(validated_job.model_dump(), resume_text, cover_letter)
         if success:
             logger.info("Job applied successfully: %s at %s", validated_job.title, validated_job.company)
             return "applied"

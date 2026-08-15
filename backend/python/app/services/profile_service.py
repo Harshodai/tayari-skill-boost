@@ -38,7 +38,7 @@ def patch_profile(user_id: str, updates: Dict[str, Any]) -> UserCareerProfile:
     """Patch user profile fields inside thread lock critical section."""
     with _PROFILE_LOCK:
         profile = get_profile(user_id)
-        data = profile.dict()
+        data = profile.model_dump()
         for k, v in updates.items():
             if k in data and v is not None:
                 data[k] = v

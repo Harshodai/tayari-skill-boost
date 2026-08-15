@@ -84,3 +84,13 @@ hyperresearch_vault/
 
 # Electron release output
 release/
+
+# design-sync
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+
+# Playwright test artifacts
+/test-results/

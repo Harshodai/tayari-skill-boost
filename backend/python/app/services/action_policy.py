@@ -26,7 +26,8 @@ WRITE_ACTIONS = {'click_element', 'select_option', 'input_text', 'upload_file', 
 
 def allowed_origins() -> set[str]:
     configured = os.getenv('TAYARI_ALLOWED_ORIGINS', '')
-    if configured.strip(): return {item.strip().lower().rstrip('/') for item in configured.split(',') if item.strip()}
+    if configured.strip():
+        return {item.strip().lower().rstrip('/') for item in configured.split(',') if item.strip()}
     return {'linkedin.com', 'indeed.com', 'greenhouse.io', 'lever.co', 'ashbyhq.com', 'workday.com', 'smartrecruiters.com'}
 
 def origin(url: str) -> str:
@@ -46,13 +47,17 @@ def evaluate_action(action: str, payload: dict | None = None, page_url: str = ''
         return PolicyDecision(False, True, RiskTier.SUBMISSION, 'Final application submission is disabled; the candidate must submit manually.')
     if action in {'go_to_url', 'navigate'}:
         target = str(payload.get('url') or '')
-        if not target or not origin_allowed(target): return PolicyDecision(False, True, RiskTier.NAVIGATION, 'Navigation target is outside the approved job-site allowlist.')
+        if not target or not origin_allowed(target):
+            return PolicyDecision(False, True, RiskTier.NAVIGATION, 'Navigation target is outside the approved job-site allowlist.')
         return PolicyDecision(True, False, RiskTier.NAVIGATION, 'Approved job-site navigation.')
     if action in {'read_page', 'extract_text', 'get_accessibility_tree'}:
         return PolicyDecision(True, False, RiskTier.READ, 'Read-only action.')
     if action in WRITE_ACTIONS:
-        if action == 'upload_file': return PolicyDecision(False, True, RiskTier.SENSITIVE, 'Local file access requires explicit desktop approval.')
-        if any(term in _label(payload) for term in SENSITIVE_TERMS): return PolicyDecision(False, True, RiskTier.SENSITIVE, 'Sensitive fields always require explicit approval.')
-        if explicit_approval: return PolicyDecision(True, False, RiskTier.DRAFT, 'Explicit candidate approval recorded.')
+        if action == 'upload_file':
+            return PolicyDecision(False, True, RiskTier.SENSITIVE, 'Local file access requires explicit desktop approval.')
+        if any(term in _label(payload) for term in SENSITIVE_TERMS):
+            return PolicyDecision(False, True, RiskTier.SENSITIVE, 'Sensitive fields always require explicit approval.')
+        if explicit_approval:
+            return PolicyDecision(True, False, RiskTier.DRAFT, 'Explicit candidate approval recorded.')
         return PolicyDecision(False, True, RiskTier.EXTERNAL_WRITE, 'Browser writes require explicit candidate approval.')
     return PolicyDecision(False, True, RiskTier.EXTERNAL_WRITE, 'Unknown browser action is denied by default.')

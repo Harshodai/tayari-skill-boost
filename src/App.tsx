@@ -365,14 +365,19 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/interview/voice-coach"
-                element={
-                  <ProtectedRoute>
-                    <InterviewVoiceCoach />
-                  </ProtectedRoute>
-                }
-              />
+              {features.voiceCoach && (
+                <Route
+                  path="/interview/voice-coach"
+                  element={
+                    <ProtectedRoute>
+                      <InterviewVoiceCoach />
+                    </ProtectedRoute>
+                  }
+                />
+              )}
+              {!features.voiceCoach && (
+                <Route path="/interview/voice-coach" element={<Navigate to="/interview/prep" replace />} />
+              )}
               <Route
                 path="/negotiation"
                 element={
