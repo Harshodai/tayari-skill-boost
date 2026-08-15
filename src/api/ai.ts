@@ -152,8 +152,8 @@ export async function fetchCandidateAnswers(): Promise<{ answers: Record<string,
 export async function saveCandidateAnswers(
   answers: Record<string, string>,
   options: { applicationId?: string; confirmSensitive?: boolean } = {},
-): Promise<any> {
-  return apiFetch<any>("/v1/candidate/answers", {
+): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>("/v1/candidate/answers", {
     method: "PUT",
     body: JSON.stringify({
       answers,
