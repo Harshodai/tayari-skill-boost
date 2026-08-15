@@ -46,6 +46,15 @@ export default defineConfig(({ mode }) => {
       // handle chunking automatically.
       chunkSizeWarningLimit: 1200,
       cssCodeSplit: true,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes("node_modules/@sentry/")) return "sentry";
+            if (id.includes("node_modules/@supabase/")) return "supabase";
+            return undefined;
+          },
+        },
+      },
     },
   };
 });

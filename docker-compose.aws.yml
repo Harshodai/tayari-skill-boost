@@ -112,7 +112,7 @@ services:
       dockerfile: Dockerfile.frontend
       args:
         VITE_API_URL: /api
-        VITE_USE_SELF_HOSTED: "true"
+        VITE_USE_SELF_HOSTED: "false"
         VITE_SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
         VITE_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY is required}
         VITE_SUPABASE_PROJECT_ID: ${SUPABASE_PROJECT_ID:-}

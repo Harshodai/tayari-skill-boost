@@ -25,6 +25,8 @@ mac:
   entitlementsInherit: electron/entitlements.mac.plist
   extendInfo:
     NSMicrophoneUsageDescription: Tayari uses the microphone only when you start a voice-coaching session.
+  # Public release overrides this with --config.mac.notarize=true and supplies APPLE_TEAM_ID plus Apple notarization credentials from the runner environment.
+
   notarize: false
   target:
     - target: dmg

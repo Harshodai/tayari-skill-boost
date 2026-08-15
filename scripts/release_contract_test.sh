@@ -69,7 +69,7 @@ grep -q 'SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}' .github/workflows/ci.yml
 test "$(grep -c 'npm install --global --no-audit --no-fund bun@1.3.14' .github/workflows/ci.yml)" -eq 4
 grep -q 'npm install --global --no-audit --no-fund bun@1.3.14' .github/workflows/deploy.yml
 ! grep -RIn 'oven-sh/setup-bun' .github/workflows
-! grep -RInE 'yarn (install|build|lint)|bun install --no-save|bun.lockb' .github/workflows Dockerfile* scripts --exclude='*.md'
+! grep -RInE 'yarn (install|build|lint)|bun install --no-save|bun.lockb' .github/workflows Dockerfile* scripts --exclude='*.md' --exclude='release_contract_test.sh'
 ! grep -q '"lint": "eslint \."' package.json
 
 # Production Compose is image-only and must not carry local development services.
@@ -102,3 +102,7 @@ grep -q 'TayariProviderErrors' infra/observability/alerts.yml
 grep -q 'TayariBudgetRejections' infra/observability/alerts.yml
 
 echo "release contract: PASS"
+# AWS canary uses Supabase GoTrue in the gateway, so the frontend must use the
+# Supabase client path rather than the legacy Go-issued self-hosted JWT path.
+grep -q 'USE_SUPABASE: "true"' docker-compose.aws.yml
+grep -q 'VITE_USE_SELF_HOSTED: "false"' docker-compose.aws.yml

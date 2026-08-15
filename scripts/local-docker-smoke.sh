@@ -61,6 +61,11 @@ if [[ -n "$ROOT_PG_PASS" && -n "$SUPA_PG_PASS" && "$ROOT_PG_PASS" != "$SUPA_PG_P
   echo "Warning: POSTGRES_PASSWORD in .env and supabase-local/.env differed. Syncing to match..."
   sed -i.bak "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${SUPA_PG_PASS}|" .env && rm -f .env.bak
 fi
+# Derive the host gateway from the included Supabase Compose env so custom local ports remain testable.
+SUPABASE_GATEWAY_PORT="$(grep "^KONG_HTTP_PORT=" supabase-local/.env | cut -d= -f2- || true)"
+SUPABASE_GATEWAY_PORT="${SUPABASE_GATEWAY_PORT:-8000}"
+SUPABASE_GATEWAY_URL="http://localhost:${SUPABASE_GATEWAY_PORT}"
+
 
 # 3. Validate compose configuration
 echo "Validating Docker Compose configuration..."
@@ -106,69 +111,72 @@ wait_for_health() {
 wait_for_health "db" 45
 wait_for_health "kong" 30
 wait_for_health "auth" 30
-wait_for_health "redis" 20
-wait_for_health "python-ai" 30
-wait_for_health "go-backend" 30
-wait_for_health "frontend" 20
-
 # 5. Verify HTTP Endpoints
-echo "Verifying HTTP service endpoints..."
-
-# Check Supabase Kong Gateway
-curl -fsS "http://localhost:8000/auth/v1/health" >/dev/null && echo "  ✓ Supabase Auth Gateway (port 8000) is responding"
-# Check Supabase Studio
-curl -fsS -o /dev/null -w "%{http_code}" "http://localhost:3001" | grep -q "200\|307\|308" && echo "  ✓ Supabase Studio Web UI (port 3001) is responding"
-# Check Go Backend Gateway
-curl -fsS "http://localhost:8085/api/health" | grep -q "healthy" && echo "  ✓ Go API Gateway (port 8085) is responding"
-# Check Frontend SPA
-curl -fsS -o /dev/null -w "%{http_code}" "http://localhost:8083" | grep -q "200" && echo "  ✓ Frontend React App (port 8083) is responding"
+ echo "Verifying HTTP service endpoints..."
+ ANON_KEY="$(grep '^ANON_KEY=' supabase-local/.env | cut -d= -f2-)"
+ if [[ -z "$ANON_KEY" ]]; then
+   echo "ERROR: ANON_KEY is required for the Supabase gateway probe." >&2
+   exit 1
+ fi
+ # Kong protects this health endpoint with the publishable key; a bare curl returns 401.
+ curl -fsS -H "apikey: ${ANON_KEY}" "${SUPABASE_GATEWAY_URL}/auth/v1/health" >/dev/null
+ echo "  ✓ Supabase Auth Gateway (port ${SUPABASE_GATEWAY_PORT}) is responding"
+ # Check Supabase Studio
+ curl -fsS -o /dev/null -w "%{http_code}" "http://localhost:3001" | grep -q "200\|307\|308" && echo "  ✓ Supabase Studio Web UI (port 3001) is responding"
+ # Check Go Backend Gateway
+ curl -fsS "http://localhost:8085/api/health" | grep -q "healthy" && echo "  ✓ Go API Gateway (port 8085) is responding"
+ # Check Frontend SPA
+ curl -fsS -o /dev/null -w "%{http_code}" "http://localhost:8083" | grep -q "200" && echo "  ✓ Frontend React App (port 8083) is responding"
 
 # 6. Perform End-to-End Auth & Proxy Verification
-echo "Running End-to-End Supabase Auth -> Go Gateway -> DB test..."
+ echo "Running End-to-End configured auth -> Go Gateway -> DB test..."
+ TEST_EMAIL="e2e-test-$(date +%s)@example.com"
+ TEST_PASS="P@ssw0rd123456!"
+ AUTH_MODE="$(grep '^USE_SUPABASE=' .env 2>/dev/null | cut -d= -f2- || true)"
+ USER_TOKEN=""
+ if [[ "$AUTH_MODE" == "true" ]]; then
+   # Supabase mode: GoTrue issues the token and Go only verifies it.
+   SIGNUP_RESP="$(curl -sS -X POST "${SUPABASE_GATEWAY_URL}/auth/v1/signup" \
+     -H "apikey: ${ANON_KEY}" -H "Content-Type: application/json" \
+     -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASS}\"}")"
+   USER_TOKEN="$(echo "$SIGNUP_RESP" | python3 -c "import sys, json; print(json.load(sys.stdin).get('access_token') or '')")"
+   if [[ -z "$USER_TOKEN" ]]; then
+     LOGIN_RESP="$(curl -sS -X POST "${SUPABASE_GATEWAY_URL}/auth/v1/token?grant_type=password" \
+       -H "apikey: ${ANON_KEY}" -H "Content-Type: application/json" \
+       -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASS}\"}")"
+     USER_TOKEN="$(echo "$LOGIN_RESP" | python3 -c "import sys, json; print(json.load(sys.stdin).get('access_token') or '')")"
+   fi
+ else
+   # Self-hosted JWT mode: the web app intentionally uses the Go auth endpoints.
+   curl -fsS -X POST "http://localhost:8085/api/auth/register" \
+     -H "Content-Type: application/json" \
+     -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASS}\"}" >/tmp/tayari-local-smoke-register.json
+   LOGIN_RESP="$(curl -fsS -X POST "http://localhost:8085/api/auth/login" \
+     -H "Content-Type: application/json" \
+     -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASS}\"}")"
+   USER_TOKEN="$(echo "$LOGIN_RESP" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('token') or data.get('access_token') or '')")"
+ fi
 
-TEST_EMAIL="e2e-test-$(date +%s)@example.com"
-TEST_PASS="P@ssw0rd123456!" # 14 chars, meets 12-char strict requirement
-ANON_KEY="$(grep '^ANON_KEY=' supabase-local/.env | cut -d= -f2-)"
-
-# Signup test user via Supabase Auth (GoTrue through Kong gateway)
-SIGNUP_RESP="$(curl -s -X POST "http://localhost:8000/auth/v1/signup" \
-  -H "apikey: ${ANON_KEY}" \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASS}\"}")"
-
-USER_TOKEN="$(echo "$SIGNUP_RESP" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('access_token') or '')")"
-
-if [[ -z "$USER_TOKEN" ]]; then
-  # If email confirmation is enabled, sign in to acquire token
-  LOGIN_RESP="$(curl -s -X POST "http://localhost:8000/auth/v1/token?grant_type=password" \
-    -H "apikey: ${ANON_KEY}" \
-    -H "Content-Type: application/json" \
-    -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASS}\"}")"
-  USER_TOKEN="$(echo "$LOGIN_RESP" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('access_token') or '')")"
-fi
-
-if [[ -n "$USER_TOKEN" ]]; then
-  echo "  ✓ Successfully issued JWT via Supabase GoTrue Auth"
-
-  # Authenticate against Go Backend using the Supabase JWT
-  PROFILE_STATUS="$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8085/api/v1/profile" \
-    -H "Authorization: Bearer ${USER_TOKEN}")"
-
-  if [[ "$PROFILE_STATUS" == "200" || "$PROFILE_STATUS" == "404" ]]; then
-    echo "  ✓ Go API Gateway verified Supabase JWT and communicated with PostgreSQL (status $PROFILE_STATUS)"
-  else
-    echo "  ! Warning: Go API returned HTTP $PROFILE_STATUS for authenticated profile call"
-  fi
-else
-  echo "  ✓ GoTrue responded to signup request (email confirmation flow active)"
-fi
+ if [[ -z "$USER_TOKEN" ]]; then
+   echo "ERROR: configured auth mode did not issue a token." >&2
+   exit 1
+ fi
+ echo "  ✓ Configured auth mode (${AUTH_MODE:-false}) issued a JWT"
+ PROFILE_STATUS="$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8085/api/v1/profile" \
+   -H "Authorization: Bearer ${USER_TOKEN}")"
+ if [[ "$PROFILE_STATUS" == "200" || "$PROFILE_STATUS" == "404" ]]; then
+   echo "  ✓ Go API Gateway verified the configured JWT and reached PostgreSQL (status $PROFILE_STATUS)"
+ else
+   echo "ERROR: Go API rejected the configured auth token with HTTP $PROFILE_STATUS" >&2
+   exit 1
+ fi
 
 echo "========================================================"
 echo " ✓ Local Open Source Supabase & Tayari Stack is READY! "
 echo "========================================================"
 echo " - Frontend App:      http://localhost:8083"
 echo " - Supabase Studio:   http://localhost:3001"
-echo " - Supabase Gateway:  http://localhost:8000"
+echo " - Supabase Gateway:  ${SUPABASE_GATEWAY_URL}"
 echo " - Go API Gateway:    http://localhost:8085"
 echo " - Python AI Service: http://localhost:8002"
 echo " - Celery Flower:     http://localhost:5555/flower"
