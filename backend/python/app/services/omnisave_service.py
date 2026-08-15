@@ -309,7 +309,11 @@ class OmnisaveService:
                     """
                     SELECT id, user_id, idempotency_hash, source_platform, canonical_url,
                            title, author, raw_content, clean_markdown, primary_category,
-                           secondary_tags, summary_bullets, nlp_metadata, created_at
+                           secondary_tags, summary_bullets, nlp_metadata, created_at,
+                           (SELECT count(*) FROM public.source_highlights h
+                            WHERE h.source_id = saved_sources.id AND h.user_id = saved_sources.user_id) AS highlight_count,
+                           (SELECT count(*) FROM public.source_context_links l
+                            WHERE l.source_id = saved_sources.id AND l.user_id = saved_sources.user_id) AS context_count
                     FROM public.saved_sources
                     WHERE user_id = $1 AND idempotency_hash = $2
                     """,
@@ -332,6 +336,8 @@ class OmnisaveService:
                 "secondary_tags": row["secondary_tags"] or [],
                 "summary_bullets": row["summary_bullets"] or [],
                 "nlp_metadata": row["nlp_metadata"] or {},
+                "highlight_count": int(row.get("highlight_count", 0) or 0),
+                "context_count": int(row.get("context_count", 0) or 0),
                 "saved_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
         except Exception as exc:
@@ -487,6 +493,8 @@ class OmnisaveService:
             return "medium"
         if host == "linkedin.com" or host.endswith(".linkedin.com"):
             return "linkedin"
+        if host == "instagram.com" or host.endswith(".instagram.com") or host == "instagr.am":
+            return "instagram"
         return "custom_url"
 
     def _discard_cached_source(self, source_id: str | None, user_id: str) -> None:
@@ -775,6 +783,64 @@ class OmnisaveService:
             logger.warning("[Omnisave] Embedding failed: %s", exc)
             return None
 
+    async def _load_highlighted_evidence_db(
+        self, query: str, user_id: str, top_k: int
+    ) -> List[Dict[str, Any]]:
+        """Prefer candidate-authored evidence cards when grounding an answer."""
+        try:
+            pool = await get_pool()
+            if pool is None:
+                return []
+            user_uuid = uuid_lib.UUID(user_id)
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT h.id AS highlight_id, h.source_id, h.text_excerpt, h.note,
+                           s.title, s.author, s.canonical_url
+                    FROM public.source_highlights h
+                    JOIN public.saved_sources s ON s.id = h.source_id AND s.user_id = h.user_id
+                    WHERE h.user_id = $1
+                      AND (h.text_excerpt ILIKE '%' || $2 || '%' OR h.note ILIKE '%' || $2 || '%')
+                    ORDER BY h.created_at DESC
+                    LIMIT $3
+                    """,
+                    user_uuid,
+                    query.strip(),
+                    top_k,
+                )
+                if not rows:
+                    rows = await conn.fetch(
+                        """
+                        SELECT h.id AS highlight_id, h.source_id, h.text_excerpt, h.note,
+                               s.title, s.author, s.canonical_url
+                        FROM public.source_highlights h
+                        JOIN public.saved_sources s ON s.id = h.source_id AND s.user_id = h.user_id
+                        WHERE h.user_id = $1
+                        ORDER BY h.created_at DESC
+                        LIMIT $2
+                        """,
+                        user_uuid,
+                        top_k,
+                    )
+        except Exception as exc:  # noqa: BLE001 — migration may not be applied yet
+            logger.info("[Omnisave] Highlight retrieval unavailable: %s", exc)
+            return []
+        return [
+            {
+                "id": str(row["highlight_id"]),
+                "highlight_id": str(row["highlight_id"]),
+                "source_id": str(row["source_id"]),
+                "chunk_index": -1,
+                "chunk_content": row["text_excerpt"],
+                "note": row["note"] or "",
+                "evidence_type": "highlight",
+                "title": row["title"],
+                "author": row["author"],
+                "canonical_url": row["canonical_url"],
+            }
+            for row in rows
+        ]
+
     async def _load_relevant_chunks_db(
         self, query: str, user_id: str, top_k: int
     ) -> List[Dict[str, Any]]:
@@ -887,7 +953,15 @@ class OmnisaveService:
                 "has_evidence": False,
             }
 
-        matched_chunks = await self._load_relevant_chunks_db(query, user_id, top_k)
+        highlighted_chunks = await self._load_highlighted_evidence_db(query, user_id, top_k)
+        matched_chunks = highlighted_chunks
+        if len(matched_chunks) < top_k:
+            retrieved_chunks = await self._load_relevant_chunks_db(query, user_id, top_k)
+            existing_ids = {chunk.get("id") for chunk in matched_chunks}
+            matched_chunks.extend(
+                chunk for chunk in retrieved_chunks if chunk.get("id") not in existing_ids
+            )
+            matched_chunks = matched_chunks[:top_k]
         if not matched_chunks:
             matched_chunks = await self._load_user_chunks_db(user_id, top_k)
         if not matched_chunks:
@@ -911,6 +985,8 @@ class OmnisaveService:
             sources_reference.append({
                 "citation": citation_tag,
                 "source_id": chk.get("source_id"),
+                "highlight_id": chk.get("highlight_id"),
+                "evidence_type": chk.get("evidence_type", "source_chunk"),
                 "title": src_info.get("title", "Saved Article"),
                 "author": src_info.get("author", "Unknown"),
                 "url": src_info.get("canonical_url", "#"),
@@ -918,7 +994,8 @@ class OmnisaveService:
                 # for inspection without exposing the entire imported document.
                 "excerpt": re.sub(r"\s+", " ", chk.get("chunk_content", "")).strip()[:320],
             })
-            rag_context_snippets.append(f"{citation_tag} ({src_info.get('title')}): {chk['chunk_content']}")
+            evidence_label = "Evidence card" if chk.get("evidence_type") == "highlight" else "Indexed excerpt"
+            rag_context_snippets.append(f"{citation_tag} ({evidence_label}; {src_info.get('title')}): {chk['chunk_content']}")
 
         context_str = "\n\n".join(rag_context_snippets)
         prompt = (

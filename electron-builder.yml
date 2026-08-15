@@ -55,3 +55,8 @@ linux:
   target:
     - AppImage
     - deb
+extraResources:
+  - from: native-host/bin/${os}-${arch}
+    to: native-host
+  - from: native-host/installers
+    to: native-host/installers

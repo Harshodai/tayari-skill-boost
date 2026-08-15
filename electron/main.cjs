@@ -11,6 +11,7 @@ const {
   validateAuthUrl,
   validateExternalUrl,
 } = require("./security.cjs");
+const { createSecureStorage } = require("./secure-storage.cjs");
 
 const execFileAsync = promisify(execFile);
 const isDev = Boolean(process.env.ELECTRON_START_URL);
@@ -21,6 +22,7 @@ let staticServer;
 let mainWindow;
 let pendingAuthCallback;
 let shuttingDown = false;
+const secureStorage = createSecureStorage();
 
 const execFileWithTimeout = (file, args, options) => execFileAsync(file, args, options);
 
@@ -263,6 +265,22 @@ function registerIpcHandlers() {
   ipcMain.handle("desktop:status", (event) => {
     assertTrustedSender(event);
     return desktopStatus();
+  });
+
+  ipcMain.handle("desktop:session:get", async (event) => {
+    assertTrustedSender(event);
+    return secureStorage.get("session");
+  });
+  ipcMain.handle("desktop:session:set", async (event, value) => {
+    assertTrustedSender(event);
+    if (typeof value !== "string" || value.length > 128000) throw new Error("Invalid desktop session payload.");
+    await secureStorage.set("session", value);
+    return { ok: true };
+  });
+  ipcMain.handle("desktop:session:clear", async (event) => {
+    assertTrustedSender(event);
+    await secureStorage.delete("session");
+    return { ok: true };
   });
 
   ipcMain.handle("desktop:pick-files", async (event) => {

@@ -14,4 +14,7 @@ contextBridge.exposeInMainWorld("tayariDesktop", {
   startServices: () => ipcRenderer.invoke("desktop:start-services"),
   stopServices: () => ipcRenderer.invoke("desktop:stop-services"),
   settings: (next) => ipcRenderer.invoke("desktop:settings", next),
+  sessionGet: () => ipcRenderer.invoke("desktop:session:get"),
+  sessionSet: (value) => ipcRenderer.invoke("desktop:session:set", value),
+  sessionClear: () => ipcRenderer.invoke("desktop:session:clear"),
 });

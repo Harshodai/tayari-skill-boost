@@ -52,25 +52,10 @@ function createMockUser(userData: any): User {
   } as User;
 }
 
-// Helper to sync auth token to browser extension
-function syncTokenToExtension(token: string | null) {
-  try {
-    if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) return;
-    chrome.runtime.sendMessage(
-      EXTENSION_ID,
-      { action: token ? "set_token" : "clear_token", token },
-      () => {
-        // Ignore errors - extension may not be installed
-        if (chrome.runtime.lastError) {
-          console.log("Extension not available:", chrome.runtime.lastError.message);
-        }
-      }
-    );
-  } catch (e) {
-    // Extension not available
-  }
+// Extension sessions are established only by the extension-owned PKCE flow.
+function syncTokenToExtension(_token: string | null) {
+  // Deliberately disabled: web pages must never push bearer tokens to the extension.
 }
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {

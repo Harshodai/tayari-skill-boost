@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Job Tayari Browser Companion",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "A candidate-controlled Job Tayari side panel for understanding job pages, preparing applications, and keeping reviewable career workflows in sync.",
   "options_page": "options.html",
   "externally_connectable": {
@@ -23,7 +23,9 @@
     "notifications",
     "sidePanel",
     "contextMenus",
-    "alarms"
+    "alarms",
+    "identity",
+    "nativeMessaging"
   ],
   "host_permissions": [
     "https://*.greenhouse.io/*",

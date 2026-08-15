@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertCircle, ArrowRight, Bot, CheckCircle2, ChevronRight, FileText, FolderOpen, Globe2, Loader2, Play, RefreshCw, ShieldCheck, Square, TerminalSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { apiFetch, BackendUnavailableError } from "@/api";
+import { apiFetch, BackendUnavailableError, createTask, createTaskPlan } from "@/api";
 import tayAgentAvatar from "@/assets/tay-agent.png";
 
 type DesktopStatus = Awaited<ReturnType<NonNullable<typeof window.tayariDesktop>["status"]>>;
@@ -57,11 +57,16 @@ export default function DesktopAgent() {
     setResult(null);
     setRunning(true);
     try {
-      const response = await apiFetch<{ success: boolean; data: unknown }>("/v1/ai/agent/run", {
-        method: "POST",
-        body: JSON.stringify({ goal, max_steps: 8 }),
+      const created = await createTask({
+        title: goal.slice(0, 80),
+        objective: goal,
       });
-      setResult(response.data);
+      await createTaskPlan(created.id, [
+        { id: "review_goal", title: "Review the requested objective", requires_approval: false },
+        { id: "prepare_materials", title: "Prepare a draft using approved files", requires_approval: true },
+        { id: "human_review", title: "Pause for your approval before browser actions", requires_approval: true },
+      ]);
+      setResult(created);
     } catch (caught) {
       setError(caught instanceof BackendUnavailableError
         ? "The local agent service is not reachable. Start local services, then retry."

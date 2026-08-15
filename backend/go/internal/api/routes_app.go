@@ -38,6 +38,8 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Get("/api/v1/tenants/branding", s.handleGetTenantBranding)
 		r.Post("/api/v1/analytics/performance", s.handleAnalyticsPerformance)
 
+		r.Get("/api/v1/auth/extension/config", s.handleExtensionAuthConfig)
+		r.Get("/api/auth/extension/config", s.handleExtensionAuthConfig)
 		s.routesPasswordReset(r)
 
 		// Social Auth Routes

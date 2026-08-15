@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -40,6 +41,8 @@ func (s *Server) routesSocial(r chi.Router) {
 		r.Get("/api/feed/interview-questions", s.handleFeedInterviewQuestions)
 		r.Post("/api/v1/interview-questions/{id}/upvote", s.handleUpvoteInterviewQuestion)
 		r.Post("/api/interview-questions/{id}/upvote", s.handleUpvoteInterviewQuestion)
+		r.Post("/api/v1/interview-questions/{id}/report", s.handleReportInterviewQuestion)
+		r.Post("/api/interview-questions/{id}/report", s.handleReportInterviewQuestion)
 
 		// Application outcomes (M2 funnel)
 		r.Post("/api/v1/applications/{id}/outcome", s.handleUpsertOutcome)
@@ -289,7 +292,7 @@ func (s *Server) handleCreateInterviewQuestion(w http.ResponseWriter, r *http.Re
 		Category     string `json:"category"`
 		Visibility   string `json:"visibility"`
 	}
-	if err := DecodeAndValidate(r, &req); err != nil || req.QuestionText == "" {
+	if err := DecodeAndValidate(r, &req); err != nil || strings.TrimSpace(req.QuestionText) == "" {
 		s.respondError(w, http.StatusBadRequest, "question_text is required")
 		return
 	}
@@ -307,19 +310,23 @@ func (s *Server) handleCreateInterviewQuestion(w http.ResponseWriter, r *http.Re
 		s.respondError(w, http.StatusBadRequest, "invalid visibility")
 		return
 	}
+	moderationStatus, moderationReason := moderateInterviewContent(req.Company, req.Role, req.QuestionText, req.AnswerText)
+	if req.Visibility == "private" && moderationStatus == "pending" {
+		moderationStatus = "approved"
+	}
 	var id string
 	err := s.DB.Conn.QueryRowContext(r.Context(),
 		`INSERT INTO shared_interview_questions
-		 (user_id, company, role, question_text, answer_text, category, visibility)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-		user.ID, req.Company, req.Role, req.QuestionText, req.AnswerText, req.Category, req.Visibility,
+		 (user_id, company, role, question_text, answer_text, category, visibility, moderation_status, moderation_reason)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+		user.ID, strings.TrimSpace(req.Company), strings.TrimSpace(req.Role), strings.TrimSpace(req.QuestionText), strings.TrimSpace(req.AnswerText), req.Category, req.Visibility, moderationStatus, moderationReason,
 	).Scan(&id)
 	if err != nil {
 		log.Printf("handleCreateInterviewQuestion: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to create question")
 		return
 	}
-	s.respondJSON(w, http.StatusCreated, map[string]string{"id": id})
+	s.respondJSON(w, http.StatusCreated, map[string]string{"id": id, "moderation_status": moderationStatus, "moderation_reason": moderationReason})
 }
 
 func (s *Server) handleFeedInterviewQuestions(w http.ResponseWriter, r *http.Request) {

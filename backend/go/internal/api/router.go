@@ -121,6 +121,7 @@ func (s *Server) routes() {
 	s.routesReviewQueue(s.Router)
 	s.routesExtensionExtra(s.Router)
 	s.routesAgents(s.Router)
+	s.routesTasks(s.Router)
 	s.routesAnalytics(s.Router)
 	s.routesTenant(s.Router)
 	s.routesPush(s.Router)

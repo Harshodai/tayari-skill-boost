@@ -1,7 +1,7 @@
 -- Interview experience moderation and abuse reporting.
 -- Public/connections posts are held pending until an admin approves them.
 ALTER TABLE public.shared_interview_questions
-  ADD COLUMN IF NOT EXISTS moderation_status TEXT NOT NULL DEFAULT 'approved'
+  ADD COLUMN IF NOT EXISTS moderation_status TEXT NOT NULL DEFAULT 'pending'
     CHECK (moderation_status IN ('pending', 'approved', 'rejected')),
   ADD COLUMN IF NOT EXISTS moderation_reason TEXT,
   ADD COLUMN IF NOT EXISTS moderated_at TIMESTAMPTZ,

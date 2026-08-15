@@ -7,3 +7,4 @@ export * from "./autopilot";
 export * from "./dashboard";
 export * from "./ai";
 export * from "./verification";
+export * from "./tasks";

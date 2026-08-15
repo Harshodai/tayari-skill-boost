@@ -1,7 +1,10 @@
-// Tayari Browser Extension — Background Service Worker (v2.0.0)
+// Tayari Browser Extension — Background Service Worker (v3.1.0)
+
+importScripts('auth/pkce.js', 'auth/session.js', 'auth/oauth.js', 'nativeBridge.js');
 // Agentic Browser Automation MVP: Profile caching, autofill support, application tracking
 
 const STORAGE_KEY = 'tayari_config';
+const DEFAULT_CONFIG = { apiUrl: 'https://api.tayari.app/api', appUrl: 'https://tayari.app' };
 const PROFILE_CACHE_KEY = 'tayari_profile_cache';
 const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const TRUSTED_APP_ORIGINS = new Set([
@@ -17,23 +20,41 @@ function isTrustedAppSender(sender) {
   try { return TRUSTED_APP_ORIGINS.has(new URL(sender?.url || '').origin); }
   catch { return false; }
 }
-
 // ============================================================
 // CONFIGURATION
 // ============================================================
-
 async function getConfig() {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get([STORAGE_KEY], (result) => {
-      resolve(result[STORAGE_KEY] || { apiUrl: 'https://api.tayari.app/api', appUrl: 'https://tayari.app', token: null });
-    });
-  });
+  const result = await chrome.storage.local.get([STORAGE_KEY]);
+  let config = result[STORAGE_KEY];
+  if (!config) {
+    const legacy = await chrome.storage.sync.get([STORAGE_KEY]);
+    config = legacy[STORAGE_KEY] || DEFAULT_CONFIG;
+    await chrome.storage.local.set({ [STORAGE_KEY]: { ...DEFAULT_CONFIG, ...config, token: undefined } });
+    if (legacy[STORAGE_KEY]) await chrome.storage.sync.remove(STORAGE_KEY);
+  }
+  config = { ...DEFAULT_CONFIG, ...config };
+  const session = await TayariSession.getValid(config);
+  return { ...config, token: session?.access_token || null, session: session || null };
 }
-
 async function saveConfig(config) {
-  return new Promise((resolve) => {
-    chrome.storage.sync.set({ [STORAGE_KEY]: config }, resolve);
-  });
+  const safeConfig = {
+    apiUrl: config?.apiUrl || DEFAULT_CONFIG.apiUrl,
+    appUrl: config?.appUrl || DEFAULT_CONFIG.appUrl,
+    supabaseUrl: config?.supabaseUrl,
+    supabaseKey: config?.supabaseKey,
+  };
+  await chrome.storage.local.set({ [STORAGE_KEY]: safeConfig });
+  return safeConfig;
+}
+async function getAuthConfig() {
+  const current = await getConfig();
+  if (current.supabaseUrl && current.supabaseKey) return current;
+  const response = await fetch(`${current.apiUrl}/v1/auth/extension/config`);
+  if (!response.ok) throw new Error('Job Tayari authentication configuration is unavailable.');
+  const remote = await response.json();
+  const next = { ...current, supabaseUrl: remote.supabase_url, supabaseKey: remote.supabase_publishable_key, apiUrl: remote.api_url || current.apiUrl };
+  await saveConfig(next);
+  return next;
 }
 
 // ============================================================
@@ -55,9 +76,7 @@ async function getProfileData() {
   if (!config.token) return null;
   
   try {
-    const res = await fetch(`${config.apiUrl}/v1/profile`, {
-      headers: { Authorization: `Bearer ${config.token}` }
-    });
+    const res = await TayariSession.fetchJson(config, "v1/profile");
     if (!res.ok) return null;
     
     const profile = await res.json();
@@ -267,6 +286,54 @@ async function approvedAutofill(tabId) {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   (async () => {
     switch (request.action) {
+      case 'sign_in_pkce': {
+        try {
+          const authConfig = await getAuthConfig();
+          const session = await TayariOAuth.begin(authConfig, request.provider || 'google');
+          await invalidateProfileCache();
+          sendResponse({ success: true, user: session.user || null });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message || 'Sign-in failed.' });
+        }
+        break;
+      }
+      case 'sign_out': {
+        try {
+          await TayariOAuth.signOut(await getConfig());
+          await invalidateProfileCache();
+          sendResponse({ success: true });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message || 'Sign-out failed.' });
+        }
+        break;
+      }
+      case 'session_status': {
+        const session = await TayariSession.read();
+        sendResponse({ authenticated: Boolean(session?.access_token), user: session?.user || null });
+        break;
+      }
+      case 'native_status': {
+        sendResponse({ status: TayariNativeBridge.getStatus() });
+        break;
+      }
+      case 'native_connect': {
+        try {
+          TayariNativeBridge.ensure();
+          sendResponse({ success: true, status: TayariNativeBridge.getStatus() });
+        } catch (error) {
+          sendResponse({ success: false, status: TayariNativeBridge.getStatus(), error: error.message });
+        }
+        break;
+      }
+      case 'native_request': {
+        try {
+          const result = await TayariNativeBridge.request(request.method, request.params || {}, request.capability || null);
+          sendResponse({ success: true, result });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message || 'Native bridge request failed.' });
+        }
+        break;
+      }
       case 'save_job': {
         const result = await handleSaveJob(request.job);
         sendResponse(result);
@@ -357,46 +424,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // EXTERNAL MESSAGE HANDLING (from Tayari web app)
 // ============================================================
 
+// ============================================================
+// EXTERNAL MESSAGE HANDLING (from Tayari web app)
+// ============================================================
 chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
   if (!isTrustedAppSender(sender)) {
     sendResponse({ success: false, error: 'Untrusted application origin.' });
     return false;
   }
-  (async () => {
-    if (request.action === 'set_token' && request.token) {
-      const config = await getConfig();
-      config.token = request.token;
-      await saveConfig(config);
-      await invalidateProfileCache(); // Refresh profile with new token
-      sendResponse({ success: true });
-      return;
-    }
-    
-    // SECURITY: get_token removed. The web app pushes tokens to the
-    // extension via set_token/clear_token but must not be allowed to
-    // pull them back — that would let any whitelisted origin (and any
-    // page, if externally_connectable were misconfigured) exfiltrate
-    // the user's Bearer token.
-    
-    
-    if (request.action === 'clear_token') {
-      const config = await getConfig();
-      config.token = null;
-      await saveConfig(config);
-      await invalidateProfileCache();
-      sendResponse({ success: true });
-      return;
-    }
-    
-    if (request.action === 'get_version') {
-      sendResponse({ version: '3.0.0', features: ['job_detection', 'autofill', 'application_tracking', 'resume_optimization', 'cover_letter'] });
-      return;
-    }
-    
-    sendResponse({ error: 'Unknown external action' });
-  })();
-  
-  return true;
+  if (request.action === 'set_token') {
+    sendResponse({ success: false, error: 'Token push is disabled. Use secure extension sign-in.' });
+    return false;
+  }
+  if (request.action === 'clear_token') {
+    void TayariOAuth.signOut(getConfig()).then(() => invalidateProfileCache());
+    sendResponse({ success: true });
+    return false;
+  }
+  if (request.action === 'get_version') {
+    sendResponse({ version: '3.1.0', features: ['pkce_auth', 'job_detection', 'autofill', 'native_bridge'] });
+    return false;
+  }
+  sendResponse({ error: 'Unknown external action' });
+  return false;
 });
 
 // ============================================================

@@ -187,7 +187,7 @@ export interface SavedArticleItem {
   id: string;
   title: string;
   author: string;
-  platform: 'substack' | 'medium' | 'linkedin' | 'custom_url';
+  platform: 'substack' | 'medium' | 'linkedin' | 'instagram' | 'custom_url';
   category: string;
   summary: string[];
   url: string;
@@ -209,6 +209,10 @@ interface SavedSourceResponse {
   summary_bullets?: string[];
   nlp_metadata?: Partial<NlpMetadata>;
   saved_at?: string;
+  highlight_count?: number;
+  context_count?: number;
+  raw_content?: string;
+  clean_markdown?: string;
 }
 
 function formatSavedSource(source: SavedSourceResponse): SavedArticleItem {
@@ -278,6 +282,8 @@ export interface KnowledgeHubCitation {
   author: string;
   url: string;
   excerpt?: string;
+  highlight_id?: string;
+  evidence_type?: "highlight" | "source_chunk" | string;
 }
 
 export interface KnowledgeHubQueryResponse {
@@ -346,4 +352,130 @@ export async function streamInterviewCopilotHints(
     }
   }
   parseFrame(buffer);
+}
+
+
+export type OmniSaveHighlightAction = "evidence" | "question" | "flashcard" | "application";
+
+export interface SourceHighlight {
+  id: string;
+  source_id: string;
+  user_id?: string;
+  text_excerpt: string;
+  start_offset?: number | null;
+  end_offset?: number | null;
+  note: string;
+  color: string;
+  action_type: OmniSaveHighlightAction;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export type CareerContextType = "role" | "company" | "skill" | "application" | "practice" | "interview_stage";
+
+export interface ContextLink {
+  id: string;
+  source_id: string;
+  user_id?: string;
+  context_type: CareerContextType;
+  context_id?: string | null;
+  context_label: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface CareerContextGraphSource {
+  id: string;
+  title: string;
+  author?: string | null;
+  platform: SavedArticleItem["platform"] | string;
+  url: string;
+  category?: string | null;
+  tags: string[];
+  nlp: Partial<NlpMetadata>;
+  saved_at?: string | null;
+  highlight_count: number;
+}
+
+export interface CareerContextGraphNode {
+  id: string;
+  type: "source" | CareerContextType | string;
+  label: string;
+  source?: CareerContextGraphSource;
+}
+
+export interface CareerContextGraphEdge {
+  source: string;
+  target: string;
+  type: CareerContextType | string;
+}
+
+export interface CareerContextGraph {
+  filters: { skill?: string | null; role?: string | null };
+  sources: CareerContextGraphSource[];
+  context_links: ContextLink[];
+  highlights: SourceHighlight[];
+  questions: SourceHighlight[];
+  practice_sessions: Array<Record<string, unknown>>;
+  nodes: CareerContextGraphNode[];
+  edges: CareerContextGraphEdge[];
+}
+
+export interface CreateSourceHighlightInput {
+  text_excerpt: string;
+  start_offset?: number;
+  end_offset?: number;
+  note?: string;
+  color?: string;
+  action_type?: OmniSaveHighlightAction;
+}
+
+export async function createSourceHighlight(
+  sourceId: string,
+  input: CreateSourceHighlightInput,
+): Promise<SourceHighlight> {
+  const response = await apiFetch<{ success: boolean; highlight: SourceHighlight }>(
+    `/v1/saves/${encodeURIComponent(sourceId)}/highlights`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+  return response.highlight;
+}
+
+export async function listSourceHighlights(sourceId: string): Promise<SourceHighlight[]> {
+  const response = await apiFetch<{ success: boolean; highlights: SourceHighlight[] }>(
+    `/v1/saves/${encodeURIComponent(sourceId)}/highlights`,
+  );
+  return response.highlights || [];
+}
+
+export async function deleteSourceHighlight(sourceId: string, highlightId: string): Promise<void> {
+  await apiFetch(`/v1/saves/${encodeURIComponent(sourceId)}/highlights/${encodeURIComponent(highlightId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function linkSourceContext(
+  sourceId: string,
+  input: { context_type: CareerContextType; context_id?: string; context_label: string },
+): Promise<ContextLink> {
+  const response = await apiFetch<{ success: boolean; context: ContextLink }>(
+    `/v1/saves/${encodeURIComponent(sourceId)}/context`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+  return response.context;
+}
+
+export async function listSourceContext(sourceId: string): Promise<ContextLink[]> {
+  const response = await apiFetch<{ success: boolean; context: ContextLink[] }>(
+    `/v1/saves/${encodeURIComponent(sourceId)}/context`,
+  );
+  return response.context || [];
+}
+
+export async function fetchCareerContextGraph(filters: { skill?: string; role?: string } = {}): Promise<CareerContextGraph> {
+  const params = new URLSearchParams();
+  if (filters.skill?.trim()) params.set("skill", filters.skill.trim());
+  if (filters.role?.trim()) params.set("role", filters.role.trim());
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch<CareerContextGraph>(`/v1/context/graph${suffix}`);
 }

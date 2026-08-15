@@ -9,12 +9,13 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, HttpUrl
 
 from app.auth.dependencies import get_current_user
 from app.services.llm_service import LLMNotConfiguredError, summarize_saved_post
+from app.services.omnisave_evidence import get_omnisave_evidence_store
 from app.services.omnisave_service import get_omnisave_service
 
 logger = logging.getLogger(__name__)
@@ -184,3 +185,123 @@ async def query_knowledge_hub(
     except Exception as exc:  # noqa: BLE001
         logger.error("Knowledge query failed", exc_info=exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="knowledge_query_failed") from exc
+
+
+class HighlightCreateRequest(BaseModel):
+    text_excerpt: str = Field(min_length=1, max_length=5_000)
+    start_offset: Optional[int] = Field(default=None, ge=0)
+    end_offset: Optional[int] = Field(default=None, ge=0)
+    note: str = Field(default="", max_length=2_000)
+    color: str = Field(default="amber", min_length=1, max_length=24)
+    action_type: str = Field(default="evidence", min_length=1, max_length=32)
+
+
+class ContextLinkRequest(BaseModel):
+    context_type: str = Field(min_length=1, max_length=32)
+    context_id: Optional[str] = Field(default=None, max_length=128)
+    context_label: str = Field(min_length=1, max_length=240)
+
+
+def _evidence_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, RuntimeError) and str(exc) == "knowledge_store_unavailable":
+        return _storage_unavailable()
+    if isinstance(exc, LookupError):
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="source_not_found")
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    logger.error("OmniSaveAI evidence operation failed", exc_info=exc)
+    return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="evidence_operation_failed")
+
+
+@router.post("/saves/{source_id}/highlights", status_code=status.HTTP_201_CREATED)
+async def create_source_highlight(
+    source_id: str,
+    payload: HighlightCreateRequest,
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        highlight = await get_omnisave_evidence_store().create_highlight(
+            user_id,
+            source_id,
+            text_excerpt=payload.text_excerpt,
+            note=payload.note,
+            color=payload.color,
+            action_type=payload.action_type,
+            start_offset=payload.start_offset,
+            end_offset=payload.end_offset,
+        )
+        return {"success": True, "highlight": highlight}
+    except Exception as exc:  # noqa: BLE001
+        raise _evidence_error(exc) from exc
+
+
+@router.get("/saves/{source_id}/highlights")
+async def list_source_highlights(
+    source_id: str,
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        highlights = await get_omnisave_evidence_store().list_highlights(user_id, source_id)
+        return {"success": True, "highlights": highlights}
+    except Exception as exc:  # noqa: BLE001
+        raise _evidence_error(exc) from exc
+
+
+@router.delete("/saves/{source_id}/highlights/{highlight_id}")
+async def delete_source_highlight(
+    source_id: str,
+    highlight_id: str,
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        deleted = await get_omnisave_evidence_store().delete_highlight(user_id, source_id, highlight_id)
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="highlight_not_found")
+        return {"success": True, "deleted": True, "highlight_id": highlight_id}
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise _evidence_error(exc) from exc
+
+
+@router.post("/saves/{source_id}/context", status_code=status.HTTP_201_CREATED)
+async def link_source_context(
+    source_id: str,
+    payload: ContextLinkRequest,
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        link = await get_omnisave_evidence_store().link_context(
+            user_id,
+            source_id,
+            context_type=payload.context_type,
+            context_id=payload.context_id,
+            context_label=payload.context_label,
+        )
+        return {"success": True, "context": link}
+    except Exception as exc:  # noqa: BLE001
+        raise _evidence_error(exc) from exc
+
+
+@router.get("/saves/{source_id}/context")
+async def list_source_context(
+    source_id: str,
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        context = await get_omnisave_evidence_store().list_context_links(user_id, source_id)
+        return {"success": True, "context": context}
+    except Exception as exc:  # noqa: BLE001
+        raise _evidence_error(exc) from exc
+
+
+@router.get("/context/graph")
+async def get_context_graph(
+    skill: Optional[str] = Query(default=None, max_length=160),
+    role: Optional[str] = Query(default=None, max_length=160),
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        return await get_omnisave_evidence_store().context_graph(user_id, skill=skill, role=role)
+    except Exception as exc:  # noqa: BLE001
+        raise _evidence_error(exc) from exc

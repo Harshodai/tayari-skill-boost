@@ -44,6 +44,7 @@ if (builderArgs.length === 0) {
   fail("Pass an electron-builder target, for example --win --x64 or --linux --x64.");
 }
 
+run("Preparing the native messaging host", ["node", "scripts/prepare-native-host.mjs"], env);
 run("Building the Vite renderer", ["vite", "build"], env);
 run("Packaging the Electron application", ["electron-builder", ...builderArgs], env);
 console.log("[desktop-build] Completed successfully.");
