@@ -21,7 +21,8 @@
     "desktop:build:win": "node scripts/build-desktop.mjs --win --x64",
     "desktop:build:linux": "node scripts/build-desktop.mjs --linux --x64",
     "desktop:build:all": "node scripts/build-desktop.mjs --mac --arm64 --win --x64 --linux --x64",
-    "extension:package": "node scripts/package-extension.mjs"
+    "extension:package": "node scripts/package-extension.mjs",
+    "extension:validate": "node scripts/validate-extension.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

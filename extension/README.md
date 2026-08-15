@@ -217,3 +217,13 @@ Job Tayari 3.0 uses Chrome's side panel as the persistent browser workspace. Cli
 Autofill is approval-gated. The side panel shows an explicit approval checkbox before it can fill fields, and the content script rejects autofill messages that do not carry the approval flag. Job Tayari never clicks a final Submit button automatically; the user remains responsible for reviewing answers and completing submission.
 
 To load the unpacked extension during development, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this `extension/` directory. The release workflow also packages `Job-Tayari-Chrome-Extension.zip` alongside desktop installers.
+
+## Page-aware agent workspace
+
+Version 3.2 adds a review-first agent workspace to the side panel. Users can ask about the active page, use selected text, research across up to eight approved open tabs, or create a draft-only task. Every durable task is created in `awaiting_plan_approval`, and the side panel renders the proposed steps before the user can approve, reject, take over, or stop the task.
+
+The Evidence shelf stores bounded, locally redacted notes with source URLs and capture timestamps. Email addresses, phone-like values, credential-like strings, and long numeric values are redacted before local persistence. Users can clear the shelf at any time. Page text is treated as untrusted content and cannot expand the task scope or authorize a browser action.
+
+A context-menu command, “Ask Job Tayari about this selection,” opens the side panel and inserts selected text into the prompt. Existing job detection, fit analysis, queueing, and approval-gated autofill remain available. Final application submission is not exposed by the extension.
+
+The workspace intentionally does not provide arbitrary shell execution, password or MFA entry, CAPTCHA bypass, unrestricted cookie manipulation, silent message sending, or automatic final submission. Native messaging remains limited to the typed methods documented in `native-host/policy.go`.

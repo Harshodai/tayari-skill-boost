@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Job Tayari Browser Companion",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "A candidate-controlled Job Tayari side panel for understanding job pages, preparing applications, and keeping reviewable career workflows in sync.",
   "options_page": "options.html",
   "externally_connectable": {
@@ -12,7 +12,9 @@
       "http://localhost:5173/*",
       "http://localhost:8080/*",
       "http://localhost:8083/*",
-      "http://localhost:8085/*"
+      "http://localhost:8085/*",
+      "http://localhost:8081/*",
+      "http://127.0.0.1:8081/*"
     ]
   },
   "permissions": [
@@ -35,7 +37,11 @@
     "https://www.linkedin.com/*",
     "https://*.indeed.com/*",
     "https://api.tayari.app/*",
-    "https://tayari.app/*"
+    "https://tayari.app/*",
+    "https://medium.com/*",
+    "https://*.substack.com/*",
+    "https://substack.com/*",
+    "https://www.instagram.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -59,10 +65,23 @@
       ],
       "run_at": "document_idle",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "https://www.linkedin.com/my-items/saved-posts/*",
+        "https://medium.com/me/list*",
+        "https://medium.com/me/readinglist*",
+        "https://substack.com/home*",
+        "https://www.instagram.com/your_activity/saved*"
+      ],
+      "js": [
+        "omnisave_capture.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

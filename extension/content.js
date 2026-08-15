@@ -1,3 +1,21 @@
+  function normalizePageText(value, limit = 12000) {
+    return String(value || '').replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, limit);
+  }
+  function getPageContext() {
+    const selection = normalizePageText(window.getSelection?.()?.toString?.() || '', 4000);
+    const main = document.querySelector('main, article, [role="main"]');
+    const visibleText = normalizePageText(main?.innerText || document.body?.innerText || '', 12000);
+    return {
+      url: location.href,
+      origin: location.origin,
+      title: document.title,
+      selection,
+      visibleText,
+      job: currentJob || detectJob() || { detected: false },
+      capturedAt: new Date().toISOString(),
+      contentTrust: 'untrusted',
+    };
+  }
 // Tayari Browser Extension — Content Script (Job Detection + Autofill + Application Tracking)
 // v2.0.0 — Agentic Browser Automation MVP
 
@@ -1053,6 +1071,10 @@
       return true;
     }
     
+    if (request.action === 'get_page_context') {
+      sendResponse(getPageContext());
+      return true;
+    }
     if (request.action === 'get_job_data') {
       sendResponse(currentJob || { detected: false });
       return true;
