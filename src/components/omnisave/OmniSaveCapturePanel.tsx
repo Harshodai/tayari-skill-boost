@@ -85,7 +85,7 @@ export function OmniSaveCapturePanel({
     setSaving(true);
     setMessage(null);
     const clampedInterval = Math.max(5, Math.min(1440, Number(nextInterval) || 60));
-    setInterval(clampedInterval);
+    setInterval(String(clampedInterval));
     try {
       // Explicitly re-enabling after "Keep paused" is itself consent.
       if (nextEnabled) window.localStorage.removeItem("omnisave-consent-paused");
