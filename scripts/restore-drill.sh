@@ -114,10 +114,7 @@ $v6"
             out="$v4$v6"
         fi
     fi
-    if [ -z "$out" ] && command -v host >/dev/null 2>&1; then
-        out="$(host "$host" 2>/dev/null | awk '/has (IPv4|IPv6) address/ {print $NF}' | sort -u)"
-    fi
-    if [ -z "$out" ]; then
+    if [ -z "$out" ] && command -v python3 >/dev/null 2>&1; then
         # Python stdlib resolves /etc/hosts + DNS (covers macOS where `host`
         # only queries DNS and misses localhost). The host is passed via
         # argv, never interpolated into the script source — a host containing
@@ -135,7 +132,10 @@ for fam, _stype, _proto, _canon, sockaddr in infos:
         addr = addr.split('%')[0]
     seen.add(addr)
 print(' '.join(sorted(seen)))
-" "$host" 2>/dev/null)" || return 1
+" "$host" 2>/dev/null)" || true
+    fi
+    if [ -z "$out" ] && command -v host >/dev/null 2>&1; then
+        out="$(host "$host" 2>/dev/null | awk '/has (IPv4|IPv6) address/ {print $NF}' | sort -u)"
     fi
     if [ -z "$out" ]; then
         return 1

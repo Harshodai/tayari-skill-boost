@@ -85,6 +85,7 @@ done < <(grep -E '^    image:' docker-compose.production.yml | sed -E 's/^    im
 bash scripts/mac_release_contract_test.sh
 node scripts/website_release_contract.mjs
 bash scripts/staging_recovery_contract_test.sh
+bash scripts/production_promotion_gate.sh
 
 # Observability is a release contract: both services must expose protected
 # telemetry, and the alert thresholds must remain versioned in the repository.

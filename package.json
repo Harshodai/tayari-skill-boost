@@ -14,6 +14,7 @@
     "security:scan": "node scripts/security_scan.mjs",
     "security:production": "SECURITY_BASELINE_ENFORCE=true node scripts/security_scan.mjs",
     "security:baseline": "node scripts/security_scan.mjs --update-baseline",
+    "promotion:gate": "bash scripts/production_promotion_gate.sh",
     "desktop:dev": "concurrently -k \"pnpm dev\" \"wait-on http://127.0.0.1:8080 && cross-env ELECTRON_START_URL=http://127.0.0.1:8080 electron .\"",
     "desktop:build": "node scripts/build-desktop.mjs --mac --arm64",
     "desktop:build:mac": "node scripts/build-desktop.mjs --mac --arm64",

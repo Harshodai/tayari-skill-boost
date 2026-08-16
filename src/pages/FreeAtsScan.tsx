@@ -53,7 +53,6 @@ export default function FreeAtsScan() {
         }),
         signal: controller.signal,
       });
-      if (!res.ok) throw new Error(`Analysis failed (${res.status}). Please try again.`);
       const data = await res.json();
       const returnedScore = data?.overall_score ?? data?.result?.overall_score;
       if (typeof returnedScore !== "number" || !Number.isFinite(returnedScore)) {
@@ -62,7 +61,13 @@ export default function FreeAtsScan() {
       setResult(data);
     } catch (caught: any) {
       if (caught?.name !== "AbortError") {
-        setError(caught instanceof Error ? caught.message : "Analysis failed. Please try again.");
+        if (caught?.status === 429) {
+          setError("Rate limit reached. Please wait a moment before trying again, or create a free account for higher limits.");
+        } else if (caught?.status === 400 || caught?.status === 422) {
+          setError("Invalid input. Please check your resume and job description text and try again.");
+        } else {
+          setError(caught instanceof Error ? caught.message : "Analysis failed. Please try again.");
+        }
       }
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
@@ -152,11 +157,19 @@ export default function FreeAtsScan() {
 
           {error && (
             <Card role="alert" aria-live="assertive" className="border-destructive/50 mb-8">
-              <CardContent className="flex items-center justify-between gap-4 pt-6">
-                <p className="text-destructive">{error}</p>
-                {!loading && !offline && resumeText.trim() && jobDescription.trim() && (
-                  <Button type="button" size="sm" variant="outline" onClick={handleScan}>Try again</Button>
-                )}
+              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-6">
+                <p className="text-destructive text-sm">{error}</p>
+                <div className="flex items-center gap-2 shrink-0">
+                  {error.toLowerCase().includes("rate limit") ? (
+                    <Button size="sm" asChild>
+                      <Link to="/auth?redirect=/pricing">Create Free Account</Link>
+                    </Button>
+                  ) : (
+                    !loading && !offline && resumeText.trim() && jobDescription.trim() && (
+                      <Button type="button" size="sm" variant="outline" onClick={handleScan}>Try again</Button>
+                    )
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}

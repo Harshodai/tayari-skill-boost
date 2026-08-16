@@ -12,6 +12,14 @@
         reverse_proxy go-backend:8080
     }
 
+    handle /healthz {
+        reverse_proxy go-backend:8080
+    }
+
+    handle /readyz {
+        reverse_proxy go-backend:8080
+    }
+
     handle {
         reverse_proxy frontend:80
     }

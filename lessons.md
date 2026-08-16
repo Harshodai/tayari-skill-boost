@@ -2242,3 +2242,50 @@ See "What was done". Key design choices: provenance touch is best-effort upsert 
 - **Frontend Vitest**: `vitest run` passed (110 passed across 35 test files).
 - **Security Scan**: `SECURITY_BASELINE_ENFORCE=true node scripts/security_scan.mjs` passed with 0 unresolved findings.
 - **Production Build**: `npm run build` completed cleanly in 4.30s.
+
+---
+
+## 2026-08-16 — Phase 1-3 Remediation: Staging Hostile Suite, Recovery Drill, Exposure Verification & Production Promotion Gate
+
+### What was done
+1. **Hostile Staging Penetration Suite (`scripts/run_staging_hostile_suite.py`)**:
+   - Built and executed comprehensive hostile test suite (34/34 tests passed, 0 failures).
+   - Validated:
+     - Rate-limit flood rejection returning HTTP 429 with `Retry-After` on `/api/v1/ats/score` and `/api/v1/auth/login`.
+     - SSRF fail-closed rejection for AWS IMDS (`169.254.169.254`), `127.0.0.1`, RFC-1918 CIDRs (`10.0.0.1`, `172.16.0.1`, `192.168.1.1`), and non-HTTP schemes.
+     - Prompt injection instruction overrides and Typst code escapes.
+     - Two-tenant RLS isolation (Tenant A unable to read or mutate Tenant B resources).
+     - Bounded kill-switch cancellation (<5s bound; measured 0.08ms).
+     - Account deletion cascade across relational rows, object storage, and privacy ledger.
+   - Raw output preserved in `test-results/staging_hostile_evidence.json`.
+
+2. **Staging Recovery & Rollback Drill (`scripts/staging_backup_restore_drill.py`)**:
+   - Built and executed 5-phase recovery and rollback drill (5/5 phases passed, 0 failures).
+   - Validated pre-fault snapshot creation with SHA-256 checksums, deliberate fault injection (table truncation, JSON corruption, broken foreign keys), target database restoration with zero data loss, and configuration/image rollback safety contracts.
+   - Raw output preserved in `test-results/staging_recovery_evidence.json`.
+
+3. **Dynamic Route Exposure Scanner (`scripts/generate_route_inventory.py` & `backend/go/cmd/route_inventory`)**:
+   - Built automated route walker inspecting all 553 Go Chi routes and 96 Python FastAPI routes.
+   - Compared against `infra/endpoint-exposure.yml` and verified **0 unauthenticated exposed routes** outside the explicit allowlist.
+
+4. **Production Promotion Gate (`scripts/production_promotion_gate.sh`)**:
+   - Built and verified 46-point automated promotion gate checking Git commit SHA immutability, zero dev ports/demo secrets, fail-closed environment syntax, immutable `@sha256:...` container digests, and standardized `/healthz` and `/readyz` probes.
+   - Passed with 100% compliance (46 passed, 0 failed).
+
+5. **Desktop App Explicit Scope Decision (`docs/DESKTOP_STATUS.md`)**:
+   - Formally recorded decision to shelve desktop macOS distribution in favor of frictionless web launch and B2B2C bootcamp distribution.
+   - Maintained all static security sandboxing and packaging invariants (`scripts/mac_release_contract_test.sh` passing).
+
+6. **B2B2C Bootcamp Outreach Sequences (`docs/distribution/bootcamp_outreach_campaign.md`)**:
+   - Created 20 customized 3-touch outreach sequences for major software engineering bootcamps and career transition programs with honest `/free-scan` CTA.
+   - Audited and verified `FreeAtsScan.tsx` and created test suite `src/test/FreeAtsScan.test.tsx` (115 tests passing across 36 test files).
+
+### Reusable lessons
+- **Hostile Staging Tests Must Generate Persisted JSON Evidence:** Automated regression reports with timestamps and exact payloads prevent false confidence and prove compliance during security audits.
+- **Fail-Closed Backup & Restore Drills:** A backup is merely a hypothesis until restored into an isolated target target under deliberate fault injection; automated restore verification proves recovery SLAs.
+- **Automated Route Walkers Outperform Hand-Maintained Lists:** Static lists drift silently; walking the runtime router (`chi.Walk` in Go and `app.routes` in FastAPI) catches unauthenticated route leaks before deployment.
+- **Immutable Digests over Mutable Tags:** Production containers must mandate `@sha256:...` pinned digests and fail closed on mutable tags (`:latest`) to ensure reproducible rollbacks.
+
+### Verification
+- `make audit`: **100% Passed** across all 5 verification layers.
+- `scripts/release_contract_test.sh`: **PASS** across macOS, website, recovery, and promotion gates (46/46 checks).

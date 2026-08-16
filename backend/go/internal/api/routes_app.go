@@ -55,6 +55,7 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		// Public legacy aliases
 		r.Get("/api/health", s.handleHealth)
 		r.Get("/api/health/detailed", s.handleHealthDetailed)
+		r.Get("/health", s.handleHealth)
 
 		// Public no-signup ATS scan
 		r.Post("/api/v1/public/analyze-text", s.handleAnalyzeText)

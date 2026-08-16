@@ -11,6 +11,7 @@ import (
 func TestExposureRegistryAnonymousRoutesAreRegistered(t *testing.T) {
 	routes := collectRoutes(t)
 	anonymous := []string{
+		"GET /health",
 		"GET /healthz",
 		"GET /readyz",
 		"GET /api/health",
