@@ -116,9 +116,12 @@ export default function Onboarding() {
         target_industry: targetIndustry,
         transferable_skills: transferableSkills,
       });
-    } catch {
-      setSaveError("Failed to save your career goal. Please try again.");
-      return;
+    } catch (err) {
+      // Gateway absent: keep going with local + Cloud persistence below.
+      if (!isBackendUnavailable(err)) {
+        setSaveError("Failed to save your career goal. Please try again.");
+        return;
+      }
     }
     setSaveError(null);
     try {
