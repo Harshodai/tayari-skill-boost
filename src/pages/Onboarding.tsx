@@ -67,10 +67,14 @@ export default function Onboarding() {
         if (profile.transferable_skills?.length) setTransferableSkills(profile.transferable_skills);
         setHydration("loaded");
       })
-      .catch(() => {
-        setHydration("error");
+      .catch((err) => {
+        // ponytail: the Go gateway simply isn't deployed in hosted-only
+        // environments. That must not dead-end the landing-page CTA — fall
+        // back to local + Cloud persistence instead of blocking finish().
+        setHydration(isBackendUnavailable(err) ? "unavailable" : "error");
       });
   }, [retryHydration]);
+
 
   const finish = async () => {
     // ponytail: never submit before hydration settles, and never treat a
