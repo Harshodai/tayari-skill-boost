@@ -57,7 +57,8 @@ export function OmniSaveCapturePanel({
   const selectedCount = useMemo(() => selectedPlatforms.length, [selectedPlatforms]);
   const platformHealth = useMemo(() => platforms.map((platform) => {
     const platformSources = sources.filter((source) => source.platform === platform.id);
-    const lastSeen = platformSources.map((source) => source.last_seen_at).filter(Boolean).sort().at(-1);
+    const sortedSeen = platformSources.map((source) => source.last_seen_at).filter(Boolean).sort();
+    const lastSeen = sortedSeen.length ? sortedSeen[sortedSeen.length - 1] : undefined;
     const pending = platformSources.filter((source) => !source.sync_status || !["synced", "completed", "ready"].includes(source.sync_status.toLowerCase())).length;
     const lastError = platformSources.find((source) => source.last_sync_error)?.last_sync_error;
     return { ...platform, lastSeen, pending, lastError };
@@ -84,7 +85,7 @@ export function OmniSaveCapturePanel({
     setSaving(true);
     setMessage(null);
     const clampedInterval = Math.max(5, Math.min(1440, Number(nextInterval) || 60));
-    setInterval(clampedInterval);
+    setInterval(String(clampedInterval));
     try {
       // Explicitly re-enabling after "Keep paused" is itself consent.
       if (nextEnabled) window.localStorage.removeItem("omnisave-consent-paused");

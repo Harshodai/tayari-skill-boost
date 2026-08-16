@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getProfile, updateProfile } from "@/api";
+import { isBackendUnavailable } from "@/api/client";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,9 @@ export default function Onboarding() {
   const [currentIndustry, setCurrentIndustry] = useState("");
   const [targetIndustry, setTargetIndustry] = useState("");
   const [transferableSkills, setTransferableSkills] = useState<string[]>([]);
-  const [hydration, setHydration] = useState<"pending" | "empty" | "loaded" | "error">("pending");
+  const [hydration, setHydration] = useState<
+    "pending" | "empty" | "loaded" | "error" | "unavailable"
+  >("pending");
   const [retryHydration, setRetryHydration] = useState(0);
 
   // ponytail: hydrate from the canonical profile so re-running onboarding
@@ -65,10 +68,14 @@ export default function Onboarding() {
         if (profile.transferable_skills?.length) setTransferableSkills(profile.transferable_skills);
         setHydration("loaded");
       })
-      .catch(() => {
-        setHydration("error");
+      .catch((err) => {
+        // ponytail: the Go gateway simply isn't deployed in hosted-only
+        // environments. That must not dead-end the landing-page CTA — fall
+        // back to local + Cloud persistence instead of blocking finish().
+        setHydration(isBackendUnavailable(err) ? "unavailable" : "error");
       });
   }, [retryHydration]);
+
 
   const finish = async () => {
     // ponytail: never submit before hydration settles, and never treat a
@@ -109,9 +116,12 @@ export default function Onboarding() {
         target_industry: targetIndustry,
         transferable_skills: transferableSkills,
       });
-    } catch {
-      setSaveError("Failed to save your career goal. Please try again.");
-      return;
+    } catch (err) {
+      // Gateway absent: keep going with local + Cloud persistence below.
+      if (!isBackendUnavailable(err)) {
+        setSaveError("Failed to save your career goal. Please try again.");
+        return;
+      }
     }
     setSaveError(null);
     try {
