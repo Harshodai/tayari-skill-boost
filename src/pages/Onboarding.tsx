@@ -31,7 +31,9 @@ export default function Onboarding() {
   const [currentIndustry, setCurrentIndustry] = useState("");
   const [targetIndustry, setTargetIndustry] = useState("");
   const [transferableSkills, setTransferableSkills] = useState<string[]>([]);
-  const [hydration, setHydration] = useState<"pending" | "empty" | "loaded" | "error">("pending");
+  const [hydration, setHydration] = useState<
+    "pending" | "empty" | "loaded" | "error" | "unavailable"
+  >("pending");
   const [retryHydration, setRetryHydration] = useState(0);
 
   // ponytail: hydrate from the canonical profile so re-running onboarding
