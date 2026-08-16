@@ -331,3 +331,79 @@ async def test_save_receipt_none_prepared_resume_drops_stale_reserved_keys():
     persisted = json.loads(conn.executed[1][13])
     assert "_prepared_resume_sha256" not in persisted
     assert "_prepared_resume_text" not in persisted
+
+
+@pytest.mark.asyncio
+async def test_debit_submission_credit_verified():
+    with mock.patch("httpx.AsyncClient.post", new_callable=mock.AsyncMock) as mock_post:
+        mock_resp = mock.Mock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"status": "success", "debited": 1, "balance": {"balance": 9}}
+        mock_post.return_value = mock_resp
+
+        result = await sr.debit_submission_credit(
+            user_id="user_123",
+            run_id="run_456",
+            job_title="Software Engineer",
+            company="Acme Corp",
+            verified=True,
+        )
+
+        assert result["status"] == "debited"
+        assert result["charged"] == 1
+        assert mock_post.call_count == 1
+        call_kwargs = mock_post.call_args[1]
+        payload = call_kwargs["json"]
+        assert payload["user_id"] == "user_123"
+        assert payload["amount"] == 1
+        assert payload["verified"] is True
+
+
+@pytest.mark.asyncio
+async def test_debit_submission_credit_unverified_zero_charge():
+    with mock.patch("httpx.AsyncClient.post", new_callable=mock.AsyncMock) as mock_post:
+        result = await sr.debit_submission_credit(
+            user_id="user_123",
+            run_id="run_456",
+            job_title="Software Engineer",
+            company="Acme Corp",
+            verified=False,
+        )
+
+        assert result["status"] == "no_charge"
+        assert result["charged"] == 0
+        assert mock_post.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_save_receipt_triggers_debit_when_verified():
+    conn = _FakeConn()
+    pool = _FakePool(conn)
+
+    verified_receipt = {
+        "run_id": "r_ver_1",
+        "user_id": "u_ver_1",
+        "job_url": JOB["url"],
+        "job_title": JOB["title"],
+        "company": JOB["company"],
+        "ats_vendor": "greenhouse",
+        "submitted_at": "2026-08-16T12:00:00Z",
+        "verified": True,
+        "confirmation_text": "Thank you for applying",
+        "confirmation_number": "CONF-12345",
+        "screenshot_path": "/tmp/screenshot.png",
+        "submitted_resume_sha256": "sha256...",
+        "submitted_resume_text": "resume content",
+        "answers": {},
+        "outcome": "submitted",
+    }
+
+    with mock.patch("app.services.submission_receipt.get_pool", new=mock.AsyncMock(return_value=pool)), \
+         mock.patch("app.services.submission_receipt.debit_submission_credit", new_callable=mock.AsyncMock) as mock_debit:
+        mock_debit.return_value = {"status": "debited", "charged": 1}
+        saved = await sr.save_receipt(verified_receipt)
+
+    assert saved is True
+    assert mock_debit.call_count == 1
+    assert mock_debit.call_args[1]["user_id"] == "u_ver_1"
+    assert mock_debit.call_args[1]["verified"] is True

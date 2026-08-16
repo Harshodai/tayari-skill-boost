@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { apiFetch, USE_SELF_HOSTED } from "@/api";
 import { ApplicationPipeline } from "@/components/pipeline/ApplicationPipeline";
-import type { PipelineJob, PipelineStage } from "@/components/pipeline/types";
+import type { PipelineJob, PipelineStage, ReceiptStatus } from "@/components/pipeline/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Briefcase, AlertCircle } from "lucide-react";
@@ -46,10 +46,17 @@ export default function Pipeline() {
     queryKey: ["submission-receipts", userId],
     enabled: !!userId,
     queryFn: async () => {
+      try {
+        const res = await apiFetch("/v1/jobs/receipts");
+        if (Array.isArray(res)) return res;
+        if (Array.isArray(res?.receipts)) return res.receipts;
+      } catch {
+        // Fallback to Supabase when not on self-hosted or endpoint not available
+      }
       if (USE_SELF_HOSTED) return [];
       const { data, error } = await supabase
         .from("submission_receipts")
-        .select("job_url,verified,confirmation_number,submitted_at,outcome")
+        .select("job_url,verified,confirmation_number,confirmation_text,submitted_at,outcome,ats_vendor")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -60,11 +67,25 @@ export default function Pipeline() {
     const map = new Map<string, PipelineJob["receipt"]>();
     for (const r of receipts as any[]) {
       if (!r.job_url || map.has(r.job_url)) continue;
+
+      let status: ReceiptStatus = "unverifiable";
+      if (r.outcome === "failed" || (!r.verified && r.outcome?.includes("fail"))) {
+        status = "failed";
+      } else if (r.verified || r.outcome === "verified") {
+        status = "verified";
+      } else {
+        status = "unverifiable";
+      }
+
       map.set(r.job_url, {
-        verified: !!r.verified,
-        failed: r.outcome === "failed",
+        verified: status === "verified",
+        failed: status === "failed",
+        status,
         confirmationNumber: r.confirmation_number,
+        confirmationCode: r.confirmation_number,
         submittedAt: r.submitted_at,
+        failureReason: status === "failed" ? r.confirmation_text || "Submission failed" : null,
+        atsVendor: r.ats_vendor,
       });
     }
     return map;
@@ -103,12 +124,11 @@ export default function Pipeline() {
           url: j.url ?? null,
           stage: (j.stage as PipelineStage) ?? (raw.status as PipelineStage) ?? "saved",
           savedAt: raw.saved_at || j.saved_at,
-          receipt: j.url ? receiptByUrl.get(j.url) : undefined,
+          receipt: raw.receipt || (j.url ? receiptByUrl.get(j.url) : undefined),
         };
       }),
     [savedJobs, receiptByUrl]
   );
-
 
   return (
     <AppShell title="Pipeline" subtitle="Track every application from saved to offer">

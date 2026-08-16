@@ -1,18 +1,15 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ExternalLink, GripVertical, MapPin, MessageSquare, ShieldAlert, ShieldCheck, XCircle } from "lucide-react";
+import { ExternalLink, GripVertical, MapPin, MessageSquare, CheckCheck, XCircle, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import type { PipelineJob, PipelineStage } from "./types";
+import type { PipelineJob, PipelineStage, ReceiptStatus } from "./types";
 
 interface Props {
   job: PipelineJob;
   isOverlay?: boolean;
 }
 
-// ponytail: stage → suggested comms template. Dragging a card to a stage is
-// the trigger (audit action #6); the deep-link pre-selects the matching
-// template in CommunicationHub. saved = nothing to message yet → null.
 const STAGE_COMM_TYPE: Record<PipelineStage, string | null> = {
   saved: null,
   applied: "follow-up",
@@ -34,12 +31,29 @@ export function PipelineCard({ job, isOverlay }: Props) {
 
   const commType = STAGE_COMM_TYPE[job.stage];
 
+  // Determine receipt status accurately
+  let receiptStatus: ReceiptStatus | null = null;
+  if (job.receipt) {
+    if (job.receipt.status) {
+      receiptStatus = job.receipt.status;
+    } else if (job.receipt.failed) {
+      receiptStatus = "failed";
+    } else if (job.receipt.verified) {
+      receiptStatus = "verified";
+    } else {
+      receiptStatus = "unverifiable";
+    }
+  }
+
+  const confirmationCode = job.receipt?.confirmationCode || job.receipt?.confirmationNumber;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
+      data-testid={`pipeline-card-${job.id}`}
       className={cn(
         "group rounded-md border bg-card p-3 text-left shadow-sm cursor-grab active:cursor-grabbing",
         "hover:border-primary/40 hover:shadow transition-all",
@@ -57,37 +71,54 @@ export function PipelineCard({ job, isOverlay }: Props) {
               <MapPin className="w-3 h-3 shrink-0" /> {job.location}
             </p>
           )}
-          {job.receipt && (
-            <p
-              className={cn(
-                "text-[11px] mt-1.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5",
-                job.receipt.failed
-                  ? "bg-destructive/10 text-destructive"
-                  : job.receipt.verified
-                    ? "bg-success/10 text-success"
-                    : "bg-muted text-muted-foreground"
-              )}
-              title={
-                job.receipt.failed
-                  ? "The agent could not complete the submission — nothing was sent. Check the run log."
-                  : job.receipt.verified
-                    ? `Confirmed by the job site${job.receipt.confirmationNumber ? ` — ref ${job.receipt.confirmationNumber}` : ""}`
-                    : "Submitted, but the site returned no confirmation we could capture"
-              }
+
+          {/* Submission Receipts with Visually Distinct Verified, Failed, and Unverifiable states */}
+          {receiptStatus === "verified" && (
+            <div
+              data-testid="receipt-verified"
+              className="mt-2 p-1.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-600 dark:text-emerald-400 space-y-0.5"
             >
-              {job.receipt.failed ? (
-                <XCircle className="w-3 h-3 shrink-0" />
-              ) : job.receipt.verified ? (
-                <ShieldCheck className="w-3 h-3 shrink-0" />
-              ) : (
-                <ShieldAlert className="w-3 h-3 shrink-0" />
-              )}
-              {job.receipt.failed
-                ? "Submission failed"
-                : job.receipt.verified
-                  ? "Submission verified"
-                  : "Unverified submission"}
-            </p>
+              <div className="flex items-center gap-1 font-semibold">
+                <CheckCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span>VERIFIED RECEIPT</span>
+                {confirmationCode && (
+                  <span className="font-mono text-[10px] opacity-90 truncate">#{confirmationCode}</span>
+                )}
+              </div>
+              <div className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
+                1 Credit Debited
+              </div>
+            </div>
+          )}
+
+          {receiptStatus === "failed" && (
+            <div
+              data-testid="receipt-failed"
+              className="mt-2 p-1.5 rounded bg-rose-500/10 border border-rose-500/30 text-[11px] text-rose-600 dark:text-rose-400 space-y-0.5"
+            >
+              <div className="flex items-center gap-1 font-semibold">
+                <XCircle className="w-3.5 h-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
+                <span>SUBMISSION FAILED</span>
+              </div>
+              <p className="text-[10px] text-rose-700 dark:text-rose-300 truncate">
+                {job.receipt?.failureReason || "Portal error · 0 Credits Charged (Free)"}
+              </p>
+            </div>
+          )}
+
+          {receiptStatus === "unverifiable" && (
+            <div
+              data-testid="receipt-unverifiable"
+              className="mt-2 p-1.5 rounded bg-slate-500/10 border border-slate-500/30 text-[11px] text-slate-700 dark:text-slate-300 space-y-0.5"
+            >
+              <div className="flex items-center gap-1 font-semibold">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                <span className="truncate">UNVERIFIABLE / CANDIDATE CONFIRMED</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Missing External ATS Confirmation. 0 Credits Charged.
+              </p>
+            </div>
           )}
         </div>
 

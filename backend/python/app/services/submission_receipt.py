@@ -25,6 +25,8 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
+import httpx
+
 from app.services.db import get_pool
 
 logger = logging.getLogger(__name__)
@@ -354,8 +356,77 @@ def build_prepared_receipt(
     }
 
 
+async def debit_submission_credit(
+    user_id: str,
+    *,
+    receipt_id: str | None = None,
+    run_id: str | None = None,
+    job_title: str | None = None,
+    company: str | None = None,
+    verified: bool = True,
+    go_backend_url: str | None = None,
+) -> dict[str, Any]:
+    """Debits 1 credit for a verified submission receipt via the Go billing service.
+
+    When ``verified`` is False (e.g. failed or unverifiable submissions), does NOT
+    debit and returns a 0 charge status.
+    """
+    if not verified:
+        logger.info("submission_receipt: 0 charge/no debit on unverified or failed receipt (user_id=%s)", user_id)
+        return {"status": "no_charge", "charged": 0, "verified": False}
+
+    if not user_id:
+        logger.warning("submission_receipt: cannot debit credit without user_id")
+        return {"status": "skipped_no_user", "charged": 0, "verified": True}
+
+    base_url = go_backend_url or os.getenv("GO_BACKEND_URL", os.getenv("TAYARI_GO_URL", "http://127.0.0.1:8080"))
+    url = f"{base_url.rstrip('/')}/api/v1/billing/credits/debit"
+    token = os.getenv("AI_INTERNAL_TOKEN", os.getenv("INTERNAL_GATEWAY_TOKEN", ""))
+
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["X-Internal-Token"] = token
+        headers["Authorization"] = f"Bearer {token}"
+
+    payload = {
+        "user_id": user_id,
+        "amount": 1,
+        "reference_id": receipt_id or run_id or f"sub_{uuid.uuid4().hex[:12]}",
+        "description": f"Verified submission receipt: {job_title or 'Job'} at {company or 'Company'}",
+        "verified": True,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                logger.info("submission_receipt: debited 1 credit for user %s: %s", user_id, data)
+                return {"status": "debited", "charged": 1, "data": data, "verified": True}
+            else:
+                logger.warning("submission_receipt: debit returned status %s: %s", resp.status_code, resp.text)
+                return {"status": "debit_failed", "charged": 0, "error": resp.text, "status_code": resp.status_code, "verified": True}
+    except Exception as exc:
+        logger.warning("submission_receipt: billing client error (%s)", exc)
+        return {"status": "client_error", "charged": 0, "error": str(exc), "verified": True}
+
+
 async def save_receipt(receipt: dict[str, Any]) -> bool:
-    """Persist a receipt. Degrades to a no-op when no database is configured."""
+    """Persist a receipt and debit 1 credit only when verified=True."""
+    # Trigger credit debit hook for verified submissions
+    if receipt.get("verified") and receipt.get("user_id"):
+        try:
+            await debit_submission_credit(
+                user_id=receipt["user_id"],
+                receipt_id=receipt.get("run_id"),
+                run_id=receipt.get("run_id"),
+                job_title=receipt.get("job_title"),
+                company=receipt.get("company"),
+                verified=True,
+            )
+        except Exception as exc:
+            logger.warning("submission_receipt: credit debit hook failed non-fatally: %s", exc)
+
     pool = await get_pool()
     if not pool:
         logger.info("submission_receipt: no DB pool, receipt not persisted")

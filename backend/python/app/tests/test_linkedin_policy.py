@@ -108,6 +108,73 @@ def test_blocked_action_message_cites_ua() -> None:
         assert exc.action == "connect"
 
 
+def test_linkedin_easy_apply_raises() -> None:
+    from app.services.linkedin_policy import assert_not_linkedin_easy_apply
+
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_easy_apply("https://www.linkedin.com/jobs/view/123")
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_automation("https://www.linkedin.com/jobs/view/123", "easy_apply")
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_automation("https://www.linkedin.com/jobs/view/123", "easy-apply")
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_automation("https://www.linkedin.com/jobs/view/123", "easyapply")
+
+
+def test_linkedin_messaging_raises() -> None:
+    from app.services.linkedin_policy import assert_not_linkedin_messaging
+
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_messaging("https://www.linkedin.com/in/recruiter")
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_automation("https://www.linkedin.com/in/recruiter", "message")
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_automation("https://www.linkedin.com/in/recruiter", "inmail")
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_automation("https://www.linkedin.com/in/recruiter", "messaging")
+
+
+def test_linkedin_scraping_raises() -> None:
+    from app.services.linkedin_policy import assert_not_linkedin_scrape
+
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_scrape("https://www.linkedin.com/in/someone")
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_automation("https://www.linkedin.com/in/someone", "scrape")
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_automation("https://www.linkedin.com/jobs/search", "scraping")
+    with pytest.raises(LinkedInAutomationBlocked):
+        assert_not_linkedin_automation("https://www.linkedin.com/in/someone", "profile_scrape")
+
+
+def test_linkedin_write_actions_raise() -> None:
+    from app.services.linkedin_policy import assert_not_linkedin_write
+
+    write_actions = ["write", "fill_form", "input_text", "endorse", "post", "comment", "like", "share", "follow"]
+    for act in write_actions:
+        with pytest.raises(LinkedInAutomationBlocked):
+            assert_not_linkedin_write("https://www.linkedin.com/feed", act)
+        with pytest.raises(LinkedInAutomationBlocked):
+            assert_not_linkedin_automation("https://www.linkedin.com/feed", act)
+
+
+def test_linkedin_read_only_allowed() -> None:
+    from app.services.linkedin_policy import is_linkedin_read_only
+
+    assert is_linkedin_read_only("view") is True
+    assert is_linkedin_read_only("save") is True
+    assert is_linkedin_read_only("read") is True
+    assert is_linkedin_read_only("apply") is False
+    assert is_linkedin_read_only("submit") is False
+    assert is_linkedin_read_only("scrape") is False
+
+    # Asserts should not raise for read-only actions
+    assert_not_linkedin_automation("https://www.linkedin.com/jobs/view/123", "read")
+    assert_not_linkedin_automation("https://www.linkedin.com/jobs/view/123", "view")
+    assert_not_linkedin_automation("https://www.linkedin.com/jobs/view/123", "save")
+
+
+
 @pytest.mark.asyncio
 async def test_automation_engine_skips_linkedin_job(monkeypatch: pytest.MonkeyPatch) -> None:
     """Integration: a LinkedIn job in the selected set is marked

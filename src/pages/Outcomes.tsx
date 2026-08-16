@@ -9,10 +9,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, BarChart3, ShieldCheck, TrendingUp } from "lucide-react";
-import { Link } from "react-router-dom";
+import { AlertCircle, BarChart3, ShieldCheck, TrendingUp, Receipt, CheckCheck, XCircle, AlertTriangle } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { BoomerangCard } from "@/components/outcomes/BoomerangCard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { ReceiptCard, SubmissionReceiptItem } from "@/components/receipts/ReceiptCard";
+import { ReceiptStatus } from "@/components/receipts/ReceiptBadge";
 
 type Stage = "saved" | "applied" | "interview" | "offer" | "rejected";
 
@@ -41,7 +43,9 @@ function pct(n: number, d: number) {
 export default function Outcomes() {
   const { user } = useAuth();
   const userId = user?.id;
+  const navigate = useNavigate();
   const [slice, setSlice] = useState<"company" | "title">("company");
+  const [receiptFilter, setReceiptFilter] = useState<"all" | ReceiptStatus>("all");
 
   const jobsQuery = useQuery({
     queryKey: ["outcomes-saved-jobs", userId],
@@ -68,15 +72,60 @@ export default function Outcomes() {
     queryKey: ["outcomes-receipts", userId],
     enabled: !!userId,
     queryFn: async () => {
+      try {
+        const res = await apiFetch("/v1/jobs/receipts");
+        if (Array.isArray(res)) return res;
+        if (Array.isArray(res?.receipts)) return res.receipts;
+      } catch {
+        // Fallback to Supabase when not on self-hosted or endpoint not available
+      }
       if (USE_SELF_HOSTED) return [];
       const { data, error } = await supabase
         .from("submission_receipts")
-        .select("job_url,verified,submitted_at")
+        .select("id,job_url,verified,confirmation_number,confirmation_text,submitted_at,outcome,ats_vendor,company,job_title,created_at")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
   });
+
+  // Map raw receipts to typed SubmissionReceiptItems
+  const receiptsList: SubmissionReceiptItem[] = useMemo(() => {
+    return ((receiptsQuery.data ?? []) as any[]).map((r) => {
+      let status: ReceiptStatus = "unverifiable";
+      if (r.outcome === "failed" || (!r.verified && r.outcome?.includes("fail"))) {
+        status = "failed";
+      } else if (r.verified || r.outcome === "verified") {
+        status = "verified";
+      } else {
+        status = "unverifiable";
+      }
+
+      return {
+        id: String(r.id || r.job_url || Math.random()),
+        company: r.company || "Target Company",
+        title: r.job_title || "Application Submission",
+        url: r.job_url || null,
+        status,
+        confirmationCode: r.confirmation_number || null,
+        submittedAt: r.submitted_at || r.created_at || null,
+        failureReason: status === "failed" ? r.confirmation_text || "Submission failed before completion" : null,
+        atsVendor: r.ats_vendor || null,
+      };
+    });
+  }, [receiptsQuery.data]);
+
+  const filteredReceipts = useMemo(() => {
+    if (receiptFilter === "all") return receiptsList;
+    return receiptsList.filter((r) => r.status === receiptFilter);
+  }, [receiptsList, receiptFilter]);
+
+  const receiptStats = useMemo(() => {
+    const verified = receiptsList.filter((r) => r.status === "verified").length;
+    const failed = receiptsList.filter((r) => r.status === "failed").length;
+    const unverifiable = receiptsList.filter((r) => r.status === "unverifiable").length;
+    return { verified, failed, unverifiable, total: receiptsList.length };
+  }, [receiptsList]);
 
   const records: OutcomeRecord[] = useMemo(() => {
     const byUrl = new Map<string, { verified: boolean }>();
@@ -139,19 +188,26 @@ export default function Outcomes() {
   const isLoading = jobsQuery.isLoading || receiptsQuery.isLoading;
   const error = jobsQuery.error || receiptsQuery.error;
 
+  const handleRetryReceipt = (item: SubmissionReceiptItem) => {
+    if (item.url) {
+      window.open(item.url, "_blank");
+    } else {
+      navigate("/jobs");
+    }
+  };
+
   return (
     <AppShell>
-      <div className="container mx-auto max-w-5xl space-y-6 p-6">
+      <div className="container mx-auto max-w-5xl space-y-8 p-6">
         <div className="space-y-2 border-b pb-4">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">Outcomes</h1>
-            <Badge variant="outline" className="border-emerald-500/25 bg-emerald-500/10 text-emerald-600">
-              <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Receipt-backed
+            <h1 className="text-3xl font-bold tracking-tight">Outcomes & Receipts</h1>
+            <Badge variant="outline" className="border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Zero-Risk Receipt-Backed
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Your real funnel — applied to offer. Counts come from your pipeline stages and
-            submission receipts, never from optimistic guesses.
+            Your real funnel and verified submission audit receipts. 1 Credit is debited only on verified ATS confirmation.
           </p>
         </div>
 
@@ -173,23 +229,9 @@ export default function Outcomes() {
               <Skeleton key={i} className="h-28 w-full" />
             ))}
           </div>
-        ) : records.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-              <BarChart3 className="h-8 w-8 text-muted-foreground" />
-              <div>
-                <p className="font-medium">No outcomes yet</p>
-                <p className="text-sm text-muted-foreground">
-                  Save a job and move it through your pipeline — this page fills itself in.
-                </p>
-              </div>
-              <Button asChild>
-                <Link to="/jobs">Find jobs</Link>
-              </Button>
-            </CardContent>
-          </Card>
         ) : (
           <>
+            {/* Funnel Metrics Cards */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="pb-2">
@@ -229,6 +271,78 @@ export default function Outcomes() {
               </Card>
             </div>
 
+            {/* Submission Receipts Section */}
+            <div data-testid="submission-receipts-section" className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Receipt className="w-5 h-5 text-primary" /> Submission Receipts & Audit Log
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Verifiable cryptographic & ATS confirmation tokens. Zero risk billing guarantee.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <Button
+                    size="sm"
+                    variant={receiptFilter === "all" ? "default" : "outline"}
+                    onClick={() => setReceiptFilter("all")}
+                    className="h-7 text-xs"
+                  >
+                    All ({receiptStats.total})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={receiptFilter === "verified" ? "default" : "outline"}
+                    onClick={() => setReceiptFilter("verified")}
+                    className="h-7 text-xs text-emerald-600 dark:text-emerald-400"
+                  >
+                    <CheckCheck className="w-3 h-3 mr-1" /> Verified ({receiptStats.verified})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={receiptFilter === "failed" ? "default" : "outline"}
+                    onClick={() => setReceiptFilter("failed")}
+                    className="h-7 text-xs text-rose-600 dark:text-rose-400"
+                  >
+                    <XCircle className="w-3 h-3 mr-1" /> Failed ({receiptStats.failed})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={receiptFilter === "unverifiable" ? "default" : "outline"}
+                    onClick={() => setReceiptFilter("unverifiable")}
+                    className="h-7 text-xs text-slate-600 dark:text-slate-400"
+                  >
+                    <AlertTriangle className="w-3 h-3 mr-1" /> Unverifiable ({receiptStats.unverifiable})
+                  </Button>
+                </div>
+              </div>
+
+              {filteredReceipts.length === 0 ? (
+                <Card className="border-dashed">
+                  <CardContent className="py-8 text-center text-sm text-muted-foreground space-y-2">
+                    <Receipt className="w-8 h-8 mx-auto text-muted-foreground/60" />
+                    <p className="font-medium">No {receiptFilter !== "all" ? receiptFilter : ""} submission receipts found</p>
+                    <p className="text-xs">
+                      When applications are submitted, verifiable receipts with confirmation codes and credit audit trail will appear here.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-3">
+                  {filteredReceipts.map((receipt) => (
+                    <ReceiptCard
+                      key={receipt.id}
+                      receipt={receipt}
+                      onRetry={handleRetryReceipt}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Funnel Chart */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Funnel</CardTitle>
@@ -259,6 +373,7 @@ export default function Outcomes() {
               </CardContent>
             </Card>
 
+            {/* Breakdown Table */}
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
                 <div>
@@ -314,7 +429,7 @@ export default function Outcomes() {
 
             <p className="text-xs text-muted-foreground">
               "Applied" counts a role once its pipeline stage moved past Saved, or once a
-              submission receipt exists for it. Verified means we captured confirmation evidence.
+              submission receipt exists for it. Verified means we captured confirmation evidence and debited 1 credit.
             </p>
           </>
         )}

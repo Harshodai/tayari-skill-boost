@@ -1,5 +1,7 @@
 export type PipelineStage = "saved" | "applied" | "interview" | "offer" | "rejected";
 
+export type ReceiptStatus = "verified" | "failed" | "unverifiable";
+
 export interface PipelineJob {
   id: string;
   title: string;
@@ -11,22 +13,21 @@ export interface PipelineJob {
   /**
    * Submission proof, when a receipt exists for this job.
    * `undefined` = never submitted through the agent.
-   * `verified: true` = the ATS printed a confirmation phrase (and optional
-   *   reference number) — the submission is provable.
-   * `verified: false, failed: false` = the agent finished but the site showed
-   *   no confirmation. Deliberately shown rather than rounded up to "Applied".
-   * `failed: true` = the run died before reaching submit (network error,
-   *   agent blocked, site rejected). Distinct from "no confirmation" so a
-   *   missing receipt never looks like a pending one (audit Q8.2 / WS-02).
+   * `status: "verified"` (or `verified: true`) = the ATS returned a confirmation code — 1 credit debited.
+   * `status: "failed"` (or `failed: true`) = submission error/portal rejected — 0 credits charged.
+   * `status: "unverifiable"` = manual/candidate confirmed without ATS confirmation — 0 credits charged.
    */
   receipt?: {
     verified: boolean;
     failed?: boolean;
+    status?: ReceiptStatus;
     confirmationNumber?: string | null;
+    confirmationCode?: string | null;
     submittedAt?: string | null;
+    failureReason?: string | null;
+    atsVendor?: string | null;
   };
 }
-
 
 export const PIPELINE_STAGES: { key: PipelineStage; label: string; tint: string }[] = [
   { key: "saved", label: "Saved", tint: "text-muted-foreground" },

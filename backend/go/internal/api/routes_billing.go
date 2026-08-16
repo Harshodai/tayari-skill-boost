@@ -12,7 +12,7 @@ import (
 )
 
 func (s *Server) RegisterBillingRoutes(r chi.Router, b *billing.BillingService) {
-	// Protected Billing Status, Checkout & Portal Creation
+	// Protected Billing Status, Checkout, Portal & Credit Operations
 	r.Group(func(r chi.Router) {
 		r.Use(s.authMiddleware)
 		r.Use(s.authRateLimiter.Middleware)
@@ -23,7 +23,23 @@ func (s *Server) RegisterBillingRoutes(r chi.Router, b *billing.BillingService) 
 		r.Post("/api/billing/create-checkout-session", s.handleCreateCheckoutSession(b))
 		r.Post("/api/v1/billing/create-portal-session", s.handleCreatePortalSession(b))
 		r.Post("/api/billing/create-portal-session", s.handleCreatePortalSession(b))
+
+		// Credit balances & purchases
+		r.Get("/api/v1/billing/credits", s.handleGetCredits(b))
+		r.Get("/api/billing/credits", s.handleGetCredits(b))
+		r.Post("/api/v1/billing/credits/purchase", s.handlePurchaseCredits(b))
+		r.Post("/api/billing/credits/purchase", s.handlePurchaseCredits(b))
 	})
+
+	// Public Credit Packs list
+	r.Get("/api/v1/billing/credits/packs", s.handleGetCreditPacks(b))
+	r.Get("/api/billing/credits/packs", s.handleGetCreditPacks(b))
+
+	// Service/Client debit and refund endpoints (support auth token or payload user_id)
+	r.Post("/api/v1/billing/credits/debit", s.handleDebitCredits(b))
+	r.Post("/api/billing/credits/debit", s.handleDebitCredits(b))
+	r.Post("/api/v1/billing/credits/refund", s.handleRefundCredits(b))
+	r.Post("/api/billing/credits/refund", s.handleRefundCredits(b))
 
 	// Public Webhook Endpoint (Stripe Signature Verified)
 	r.Post("/api/v1/billing/webhook", s.handleStripeWebhook(b))
@@ -158,5 +174,187 @@ func (s *Server) handleStripeWebhook(b *billing.BillingService) http.HandlerFunc
 
 		b.ProcessStripeWebhook(payload.ID, payload.Type, customerID, subID, userID, plan)
 		s.respondJSON(w, http.StatusOK, map[string]string{"status": "processed"})
+	}
+}
+
+func (s *Server) handleGetCredits(b *billing.BillingService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := auth.UserFromContext(r.Context())
+		if !ok || user == nil || user.ID == [16]byte{} {
+			s.respondError(w, http.StatusUnauthorized, "unauthorized - valid authentication required")
+			return
+		}
+
+		bal, err := b.GetCreditBalance(user.ID.String())
+		if err != nil {
+			s.respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		s.respondJSON(w, http.StatusOK, bal)
+	}
+}
+
+func (s *Server) handleGetCreditPacks(b *billing.BillingService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		packs := b.GetCreditPacks()
+		s.respondJSON(w, http.StatusOK, map[string]interface{}{
+			"packs": packs,
+		})
+	}
+}
+
+func (s *Server) handlePurchaseCredits(b *billing.BillingService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := auth.UserFromContext(r.Context())
+		if !ok || user == nil || user.ID == [16]byte{} {
+			s.respondError(w, http.StatusUnauthorized, "unauthorized - valid authentication required")
+			return
+		}
+
+		var req struct {
+			PackID      string `json:"pack_id"`
+			Amount      int    `json:"amount"`
+			ReferenceID string `json:"reference_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			s.respondError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+
+		var bal *billing.UserCreditBalance
+		var err error
+
+		if req.PackID != "" {
+			bal, err = b.PurchaseCreditPack(user.ID.String(), req.PackID, req.ReferenceID)
+		} else if req.Amount > 0 {
+			bal, err = b.AddCredits(user.ID.String(), req.Amount, req.ReferenceID, "Direct credit purchase")
+		} else {
+			s.respondError(w, http.StatusBadRequest, "pack_id or positive amount required")
+			return
+		}
+
+		if err != nil {
+			s.respondError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		s.respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":  "success",
+			"balance": bal,
+		})
+	}
+}
+
+func (s *Server) handleDebitCredits(b *billing.BillingService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			UserID      string `json:"user_id"`
+			Amount      int    `json:"amount"`
+			ReferenceID string `json:"reference_id"`
+			Description string `json:"description"`
+			Verified    *bool  `json:"verified"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			s.respondError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+
+		userID := req.UserID
+		if userID == "" {
+			if user, ok := auth.UserFromContext(r.Context()); ok && user != nil && user.ID != [16]byte{} {
+				userID = user.ID.String()
+			}
+		}
+		if userID == "" {
+			s.respondError(w, http.StatusBadRequest, "user_id is required")
+			return
+		}
+
+		// If explicitly marked as unverified/failed, 0 charge
+		if req.Verified != nil && !*req.Verified {
+			bal, _ := b.GetCreditBalance(userID)
+			s.respondJSON(w, http.StatusOK, map[string]interface{}{
+				"status":  "no_charge",
+				"debited": 0,
+				"balance": bal,
+				"message": "unverified or failed submissions are not charged",
+			})
+			return
+		}
+
+		amount := req.Amount
+		if amount <= 0 {
+			amount = 1
+		}
+
+		desc := req.Description
+		if desc == "" {
+			desc = "Verified submission debit"
+		}
+
+		success, bal, err := b.DebitCredit(userID, amount, req.ReferenceID, desc)
+		if !success || err != nil {
+			s.respondJSON(w, http.StatusPaymentRequired, map[string]interface{}{
+				"error":   "insufficient credit balance - purchase a credit pack at /pricing",
+				"status":  "insufficient_credits",
+				"balance": bal,
+			})
+			return
+		}
+
+		s.respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":  "success",
+			"debited": amount,
+			"balance": bal,
+		})
+	}
+}
+
+func (s *Server) handleRefundCredits(b *billing.BillingService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			UserID      string `json:"user_id"`
+			Amount      int    `json:"amount"`
+			ReferenceID string `json:"reference_id"`
+			Description string `json:"description"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			s.respondError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+
+		userID := req.UserID
+		if userID == "" {
+			if user, ok := auth.UserFromContext(r.Context()); ok && user != nil && user.ID != [16]byte{} {
+				userID = user.ID.String()
+			}
+		}
+		if userID == "" {
+			s.respondError(w, http.StatusBadRequest, "user_id is required")
+			return
+		}
+
+		amount := req.Amount
+		if amount <= 0 {
+			amount = 1
+		}
+
+		desc := req.Description
+		if desc == "" {
+			desc = "Submission credit refund"
+		}
+
+		bal, err := b.RefundCredit(userID, amount, req.ReferenceID, desc)
+		if err != nil {
+			s.respondError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		s.respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":   "success",
+			"refunded": amount,
+			"balance":  bal,
+		})
 	}
 }

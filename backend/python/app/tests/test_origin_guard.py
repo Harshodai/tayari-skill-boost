@@ -217,3 +217,113 @@ def test_no_start_url_blocks_all_credential_entry_fail_closed():
             start_url="",
             allowed_origins=[],
         )
+
+
+def test_credential_field_heuristic_expanded_security_and_captcha_fields():
+    """Test all required security, credential, and captcha field patterns."""
+    # Password variants
+    assert credential_field_heuristic("Password") is True
+    assert credential_field_heuristic("Enter Password") is True
+    assert credential_field_heuristic("Passcode") is True
+    assert credential_field_heuristic("passwd") is True
+
+    # OTP / MFA / 2FA
+    assert credential_field_heuristic("OTP") is True
+    assert credential_field_heuristic("OTP code") is True
+    assert credential_field_heuristic("MFA") is True
+    assert credential_field_heuristic("MFA token") is True
+    assert credential_field_heuristic("2FA code") is True
+    assert credential_field_heuristic("Verification code") is True
+    assert credential_field_heuristic("Auth code") is True
+    assert credential_field_heuristic("Authentication code") is True
+    assert credential_field_heuristic("Authenticator") is True
+
+    # PIN
+    assert credential_field_heuristic("PIN") is True
+    assert credential_field_heuristic("PIN code") is True
+    assert credential_field_heuristic("Enter your PIN") is True
+
+    # SSN / National ID
+    assert credential_field_heuristic("SSN") is True
+    assert credential_field_heuristic("Social Security") is True
+    assert credential_field_heuristic("Social Security Number") is True
+    assert credential_field_heuristic("National ID") is True
+    assert credential_field_heuristic("Tax ID") is True
+
+    # Secret / Security Questions
+    assert credential_field_heuristic("Secret question") is True
+    assert credential_field_heuristic("Security question") is True
+    assert credential_field_heuristic("Mother's maiden name") is True
+    assert credential_field_heuristic("Mothers maiden name") is True
+
+    # CAPTCHA variants
+    assert credential_field_heuristic("CAPTCHA") is True
+    assert credential_field_heuristic("reCAPTCHA") is True
+    assert credential_field_heuristic("hCaptcha") is True
+    assert credential_field_heuristic("Turnstile") is True
+    assert credential_field_heuristic("Cloudflare challenge") is True
+    assert credential_field_heuristic("Bot verification") is True
+
+
+def test_credential_entry_blocked_error_subclasses_origin_guard_error():
+    from app.services.browser_automation.origin_guard import CredentialEntryBlockedError
+    assert issubclass(CredentialEntryBlockedError, OriginGuardError)
+
+
+def test_approved_ats_domain_validation():
+    from app.services.browser_automation.origin_guard import (
+        APPROVED_ATS_DOMAINS,
+        assert_strict_ats_origin,
+        is_approved_ats_domain,
+    )
+
+    # All approved ATS providers
+    assert is_approved_ats_domain("https://boards.greenhouse.io/company/jobs/1") is True
+    assert is_approved_ats_domain("https://jobs.lever.co/company/2") is True
+    assert is_approved_ats_domain("https://company.myworkdayjobs.com/apply") is True
+    assert is_approved_ats_domain("https://workday.com/login") is True
+    assert is_approved_ats_domain("https://jobs.ashbyhq.com/company") is True
+    assert is_approved_ats_domain("https://jobs.smartrecruiters.com/company") is True
+    assert is_approved_ats_domain("https://company.icims.com") is True
+    assert is_approved_ats_domain("https://company.taleo.net") is True
+    assert is_approved_ats_domain("https://company.successfactors.com") is True
+    assert is_approved_ats_domain("https://company.bamboohr.com") is True
+    assert is_approved_ats_domain("https://jobs.jobvite.com") is True
+    assert is_approved_ats_domain("https://company.workable.com") is True
+    assert is_approved_ats_domain("https://company.recruitee.com") is True
+    assert is_approved_ats_domain("https://company.rippling.com") is True
+
+    # Hostname strings directly
+    assert is_approved_ats_domain("greenhouse.io") is True
+    assert is_approved_ats_domain("lever.co") is True
+
+    # Malicious lookalikes
+    assert is_approved_ats_domain("https://evil-greenhouse.io") is False
+    assert is_approved_ats_domain("https://workday.com.evil.com") is False
+    assert is_approved_ats_domain("https://phish.example.com") is False
+
+    # Strict ATS origin assertion
+    assert_strict_ats_origin("https://boards.greenhouse.io/acme")
+    with pytest.raises(OriginGuardError):
+        assert_strict_ats_origin("https://evil.example.com/login")
+
+
+@pytest.mark.asyncio
+async def test_route_to_human_handoff_enqueues_question():
+    from unittest.mock import AsyncMock, patch
+    from app.services.browser_automation.origin_guard import route_to_human_handoff
+
+    with patch("app.services.question_queue.enqueue_questions", new=AsyncMock(return_value=1)) as mock_enqueue:
+        res = await route_to_human_handoff(
+            "Enter OTP code",
+            user_id="user_123",
+            run_id="run_456",
+            job_title="Software Engineer",
+            company="Acme Corp",
+        )
+        assert res["status"] == "human_handoff_enqueued"
+        assert res["enqueued"] is True
+        assert mock_enqueue.call_count == 1
+        call_args = mock_enqueue.call_args[0][0]
+        assert call_args[0]["field_label"] == "Enter OTP code"
+        assert call_args[0]["sensitivity_class"] == "credential"

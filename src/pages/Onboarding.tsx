@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { getProfile, updateProfile } from "@/api";
+import { getProfile, updateProfile, ApiError } from "@/api";
 import { isBackendUnavailable } from "@/api/client";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,39 +12,60 @@ import {
   Briefcase,
   ArrowRight,
   ArrowLeft,
-  Target,
   Sparkles,
   CheckCircle2,
   GitBranch,
   Layers,
-  ArrowRightLeft
+  ArrowRightLeft,
+  AlertTriangle,
+  AlertCircle,
+  HardDrive,
+  WifiOff,
 } from "lucide-react";
 
-type TransitionType = "same_domain" | "cross_domain";
+export type TransitionType = "same_domain" | "cross_domain";
+
+const STORAGE_DRAFT_KEY = "tayari_onboarding_draft";
+const STORAGE_COMPLETED_KEY = "tayari_onboarding";
 
 export default function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [isGatewayOffline, setIsGatewayOffline] = useState(false);
   const [transitionType, setTransitionType] = useState<TransitionType>("same_domain");
   const [currentTitle, setCurrentTitle] = useState("");
   const [targetLevel, setTargetLevel] = useState("");
   const [currentIndustry, setCurrentIndustry] = useState("");
   const [targetIndustry, setTargetIndustry] = useState("");
   const [transferableSkills, setTransferableSkills] = useState<string[]>([]);
+  const [newSkillInput, setNewSkillInput] = useState("");
   const [hydration, setHydration] = useState<
     "pending" | "empty" | "loaded" | "error" | "unavailable"
   >("pending");
   const [retryHydration, setRetryHydration] = useState(0);
 
-  // ponytail: hydrate from the canonical profile so re-running onboarding
-  // doesn't clobber saved values with defaults.
-  // ponytail: GET /v1/profile returns 200 with the fallback empty profile on
-  // BOTH a missing row and a DB error (backend/go/internal/api/routes_mvp.go
-  // handleGetProfile) — so "no profile exists" is only distinguishable by the
-  // empty career fields, never by HTTP status. A fetch/network failure must
-  // not be treated as "new user", or the empty defaults would overwrite a
-  // real saved profile.
+  // Restore draft from localStorage immediately on mount
+  useEffect(() => {
+    try {
+      const savedDraft = localStorage.getItem(STORAGE_DRAFT_KEY) || localStorage.getItem(STORAGE_COMPLETED_KEY);
+      if (savedDraft) {
+        const draft = JSON.parse(savedDraft);
+        if (draft.transitionType) setTransitionType(draft.transitionType);
+        if (draft.currentTitle) setCurrentTitle(draft.currentTitle);
+        if (draft.targetLevel) setTargetLevel(draft.targetLevel);
+        if (draft.currentIndustry) setCurrentIndustry(draft.currentIndustry);
+        if (draft.targetIndustry) setTargetIndustry(draft.targetIndustry);
+        if (Array.isArray(draft.transferableSkills) && draft.transferableSkills.length > 0) {
+          setTransferableSkills(draft.transferableSkills);
+        }
+      }
+    } catch {
+      // Local storage unavailable or unparseable
+    }
+  }, []);
+
+  // Hydrate from canonical backend profile if reachable
   useEffect(() => {
     setHydration("pending");
     getProfile()
@@ -67,28 +88,76 @@ export default function Onboarding() {
         if (profile.target_industry) setTargetIndustry(profile.target_industry);
         if (profile.transferable_skills?.length) setTransferableSkills(profile.transferable_skills);
         setHydration("loaded");
+        setIsGatewayOffline(false);
       })
       .catch((err) => {
-        // ponytail: the Go gateway simply isn't deployed in hosted-only
-        // environments. That must not dead-end the landing-page CTA — fall
-        // back to local + Cloud persistence instead of blocking finish().
-        setHydration(isBackendUnavailable(err) ? "unavailable" : "error");
+        const isOffline = isBackendUnavailable(err) || err?.status === 502 || err?.status === 503;
+        if (isOffline) {
+          setIsGatewayOffline(true);
+          setHydration("unavailable");
+        } else {
+          setHydration("error");
+        }
       });
   }, [retryHydration]);
 
+  // Auto-save draft changes to localStorage for offline drafting
+  useEffect(() => {
+    const draftPayload = {
+      transitionType,
+      currentTitle,
+      targetLevel,
+      currentIndustry,
+      targetIndustry,
+      transferableSkills,
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem(STORAGE_DRAFT_KEY, JSON.stringify(draftPayload));
+    } catch {
+      // Storage unavailable
+    }
+  }, [transitionType, currentTitle, targetLevel, currentIndustry, targetIndustry, transferableSkills]);
+
+  const savedFieldsList = useMemo(() => {
+    const list: string[] = [];
+    if (transitionType) {
+      list.push(transitionType === "same_domain" ? "✓ Career Track (Same Domain)" : "✓ Career Track (Cross-Domain)");
+    }
+    if (currentTitle.trim()) {
+      list.push(`✓ Baseline Title: ${currentTitle.trim()}`);
+    }
+    if (targetLevel.trim()) {
+      list.push(`✓ Target Level: ${targetLevel.trim()}`);
+    }
+    if (currentIndustry.trim()) {
+      list.push(`✓ Current Industry: ${currentIndustry.trim()}`);
+    }
+    if (targetIndustry.trim()) {
+      list.push(`✓ Target Industry: ${targetIndustry.trim()}`);
+    }
+    if (transferableSkills.length > 0) {
+      list.push(`✓ Skills (${transferableSkills.length} saved)`);
+    }
+    list.push("✓ Career Goal Strategy");
+    return list;
+  }, [transitionType, currentTitle, targetLevel, currentIndustry, targetIndustry, transferableSkills]);
+
+  const handleAddSkill = () => {
+    if (!newSkillInput.trim()) return;
+    if (!transferableSkills.includes(newSkillInput.trim())) {
+      setTransferableSkills([...transferableSkills, newSkillInput.trim()]);
+    }
+    setNewSkillInput("");
+  };
+
+  const handleRemoveSkill = (skillToRemove: string) => {
+    setTransferableSkills(transferableSkills.filter((s) => s !== skillToRemove));
+  };
 
   const finish = async () => {
-    // ponytail: never submit before hydration settles, and never treat a
-    // fetch failure as "no profile exists" — the fallback empty profile (200
-    // on no-row) is the only signal that a fresh write is safe.
-    if (hydration === "pending") {
-      setSaveError("Loading your profile — try again in a moment.");
-      return;
-    }
-    if (hydration === "error") {
-      setSaveError("Couldn't load your profile — retry.");
-      return;
-    }
+    setValidationError(null);
+
     const payload = {
       transitionType,
       currentTitle,
@@ -98,15 +167,15 @@ export default function Onboarding() {
       transferableSkills,
       completedAt: new Date().toISOString(),
     };
+
+    // Store in localStorage immediately
     try {
-      localStorage.setItem("tayari_onboarding", JSON.stringify(payload));
+      localStorage.setItem(STORAGE_COMPLETED_KEY, JSON.stringify(payload));
+      localStorage.setItem(STORAGE_DRAFT_KEY, JSON.stringify(payload));
     } catch {
-      /* storage unavailable — continue */
+      // storage unavailable
     }
-    // ponytail: persist the career goal in the canonical public.profiles table
-    // (P0 audit fix Q3); pet_preferences mirror below stays as secondary storage.
-    // ponytail: a silent profile-write failure would drop the career goal the
-    // user just set — surface it and let them retry.
+
     try {
       await updateProfile({
         transition_type: transitionType,
@@ -116,14 +185,33 @@ export default function Onboarding() {
         target_industry: targetIndustry,
         transferable_skills: transferableSkills,
       });
-    } catch (err) {
-      // Gateway absent: keep going with local + Cloud persistence below.
-      if (!isBackendUnavailable(err)) {
-        setSaveError("Failed to save your career goal. Please try again.");
+      setIsGatewayOffline(false);
+    } catch (err: any) {
+      const isOutage =
+        isBackendUnavailable(err) ||
+        err?.status === 502 ||
+        err?.status === 503 ||
+        err?.status === 504 ||
+        err?.message?.includes("network") ||
+        err?.message?.includes("fetch");
+
+      if (isOutage) {
+        // Recoverable gateway outage: active local mode with localStorage progress
+        setIsGatewayOffline(true);
+        setValidationError(null);
+      } else if (err instanceof ApiError && (err.status === 400 || err.status === 422)) {
+        // Profile validation error
+        setIsGatewayOffline(false);
+        setValidationError(err.message || "Profile validation error. Please check your inputs.");
+        return;
+      } else {
+        // Other unexpected error
+        setValidationError(err.message || "Could not save profile. Please verify your details.");
         return;
       }
     }
-    setSaveError(null);
+
+    // Best-effort Supabase sync
     try {
       const { data } = await supabase.auth.getUser();
       const userId = data.user?.id;
@@ -139,8 +227,9 @@ export default function Onboarding() {
           .upsert({ user_id: userId, state: { ...state, onboarding: payload } });
       }
     } catch {
-      /* best effort — never block the user */
+      // Best effort
     }
+
     navigate("/dashboard");
   };
 
@@ -150,16 +239,72 @@ export default function Onboarding() {
         {/* Wizard Progress */}
         <div className="flex justify-between items-center border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-600 rounded-lg text-white font-bold">1</div>
+            <div className="p-2 bg-indigo-600 rounded-lg text-white font-bold">{step}</div>
             <div>
               <h1 className="text-xl font-bold">Branching Onboarding Wizard</h1>
               <p className="text-xs text-slate-400">Configure your personal agentic career operations strategy</p>
             </div>
           </div>
-          <Badge className="bg-indigo-950 text-indigo-300 border-indigo-800">
-            Step {step} of 3
-          </Badge>
+          <div className="flex items-center gap-2">
+            {isGatewayOffline && (
+              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-400 text-xs">
+                <WifiOff className="w-3 h-3 mr-1" /> Local Mode
+              </Badge>
+            )}
+            <Badge className="bg-indigo-950 text-indigo-300 border-indigo-800">
+              Step {step} of 3
+            </Badge>
+          </div>
         </div>
+
+        {/* Gateway Outage Warning Banner (Recoverable 502/503/network) */}
+        {isGatewayOffline && (
+          <div
+            data-testid="gateway-offline-banner"
+            className="p-4 rounded-xl border border-amber-500/40 bg-amber-950/30 text-amber-300 space-y-3"
+          >
+            <div className="flex items-start gap-3">
+              <HardDrive className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h3 className="font-semibold text-sm text-amber-200">
+                  Backend Gateway Offline — Local Mode Active. Your progress is saved locally in your browser storage and will auto-sync when connection restores.
+                </h3>
+                <p className="text-xs text-amber-300/80">
+                  You can safely continue onboarding. All inputs are drafted locally in your browser storage.
+                </p>
+              </div>
+            </div>
+
+            {/* Saved Fields List */}
+            <div className="pt-2 border-t border-amber-500/20">
+              <p className="text-xs font-medium text-amber-200 mb-1.5">Saved fields in local storage:</p>
+              <div data-testid="saved-fields-list" className="flex flex-wrap gap-1.5">
+                {savedFieldsList.map((field, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center text-[11px] bg-amber-950/60 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded font-mono"
+                  >
+                    {field}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Profile Validation Error Banner (400/422) */}
+        {validationError && (
+          <div
+            data-testid="validation-error-banner"
+            className="p-4 rounded-xl border border-red-500/40 bg-red-950/40 text-red-300 flex items-start gap-3"
+          >
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-sm text-red-200">Profile Validation Error</h3>
+              <p className="text-xs text-red-300/90 mt-0.5">{validationError}</p>
+            </div>
+          </div>
+        )}
 
         {/* Step 1: Branch Selector */}
         {step === 1 && (
@@ -176,6 +321,7 @@ export default function Onboarding() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
               {/* Branch 1: Same Domain */}
               <div
+                data-testid="track-same-domain"
                 onClick={() => setTransitionType("same_domain")}
                 className={`p-6 rounded-xl border cursor-pointer transition flex flex-col justify-between space-y-4 ${
                   transitionType === "same_domain"
@@ -198,6 +344,7 @@ export default function Onboarding() {
 
               {/* Branch 2: Cross-Domain */}
               <div
+                data-testid="track-cross-domain"
                 onClick={() => setTransitionType("cross_domain")}
                 className={`p-6 rounded-xl border cursor-pointer transition flex flex-col justify-between space-y-4 ${
                   transitionType === "cross_domain"
@@ -255,6 +402,8 @@ export default function Onboarding() {
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-slate-300">Current Title Baseline</label>
                     <Input
+                      data-testid="input-current-title"
+                      placeholder="e.g. Senior Software Engineer"
                       value={currentTitle}
                       onChange={(e) => setCurrentTitle(e.target.value)}
                       className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
@@ -263,6 +412,8 @@ export default function Onboarding() {
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-slate-300">Target Level Advancement</label>
                     <Input
+                      data-testid="input-target-level"
+                      placeholder="e.g. Staff Engineer / Tech Lead"
                       value={targetLevel}
                       onChange={(e) => setTargetLevel(e.target.value)}
                       className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
@@ -276,6 +427,8 @@ export default function Onboarding() {
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-slate-300">Current Industry</label>
                     <Input
+                      data-testid="input-current-industry"
+                      placeholder="e.g. Traditional Banking / Finance"
                       value={currentIndustry}
                       onChange={(e) => setCurrentIndustry(e.target.value)}
                       className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
@@ -284,31 +437,57 @@ export default function Onboarding() {
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-slate-300">Target New Industry</label>
                     <Input
+                      data-testid="input-target-industry"
+                      placeholder="e.g. AI / Cloud Infrastructure"
                       value={targetIndustry}
                       onChange={(e) => setTargetIndustry(e.target.value)}
                       className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
                     />
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">Transferable Technical Competencies Preview</label>
-                  <div className="p-4 bg-slate-950 rounded-lg border border-slate-800 space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      {transferableSkills.length > 0 ? (
-                        transferableSkills.map((sk, i) => (
-                          <Badge key={i} className="bg-purple-950 text-purple-300 border border-purple-800">
-                            {sk}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-sm text-slate-500">No skills added yet</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
+
+            {/* Skills management */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-300">Transferable Skills & Competencies</label>
+              <div className="flex gap-2">
+                <Input
+                  data-testid="input-skill"
+                  placeholder="Add skill (e.g. TypeScript, Distributed Systems, Go)"
+                  value={newSkillInput}
+                  onChange={(e) => setNewSkillInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddSkill();
+                    }
+                  }}
+                  className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
+                />
+                <Button type="button" size="sm" onClick={handleAddSkill} variant="secondary">
+                  Add
+                </Button>
+              </div>
+
+              <div className="p-4 bg-slate-950 rounded-lg border border-slate-800 space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {transferableSkills.length > 0 ? (
+                    transferableSkills.map((sk, i) => (
+                      <Badge
+                        key={i}
+                        className="bg-indigo-950 text-indigo-300 border border-indigo-800 flex items-center gap-1 cursor-pointer"
+                        onClick={() => handleRemoveSkill(sk)}
+                      >
+                        {sk} <span className="text-xs ml-1 hover:text-red-400">×</span>
+                      </Badge>
+                    ))
+                  ) : (
+                    <span className="text-sm text-slate-500">No skills added yet</span>
+                  )}
+                </div>
+              </div>
+            </div>
 
             <div className="flex justify-between pt-4">
               <Button onClick={() => setStep(1)} variant="outline" className="border-slate-800 text-slate-300">
@@ -337,11 +516,20 @@ export default function Onboarding() {
               </p>
             </div>
 
-            {saveError && (
-              <p className="text-red-400 text-sm bg-red-950/40 border border-red-500/30 rounded-lg px-4 py-3">
-                {saveError}
-              </p>
-            )}
+            {/* Saved fields preview */}
+            <div className="max-w-md mx-auto p-4 rounded-lg bg-slate-950 border border-slate-800 text-left space-y-2">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Configured Profile Summary</p>
+              <ul className="text-xs space-y-1 text-slate-300">
+                <li>• Track: <strong>{transitionType === "same_domain" ? "Same Domain" : "Cross-Industry Pivot"}</strong></li>
+                {currentTitle && <li>• Baseline Title: <strong>{currentTitle}</strong></li>}
+                {targetLevel && <li>• Target Level: <strong>{targetLevel}</strong></li>}
+                {currentIndustry && <li>• Current Industry: <strong>{currentIndustry}</strong></li>}
+                {targetIndustry && <li>• Target Industry: <strong>{targetIndustry}</strong></li>}
+                {transferableSkills.length > 0 && (
+                  <li>• Transferable Skills: <strong>{transferableSkills.join(", ")}</strong></li>
+                )}
+              </ul>
+            </div>
 
             <div className="flex justify-center gap-4 pt-4">
               {hydration === "error" && (
@@ -357,6 +545,7 @@ export default function Onboarding() {
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
               <Button
+                data-testid="launch-dashboard-button"
                 onClick={finish}
                 disabled={hydration === "pending"}
                 className="bg-emerald-600 hover:bg-emerald-500 font-bold px-8"

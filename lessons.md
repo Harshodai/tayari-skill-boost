@@ -2289,3 +2289,53 @@ See "What was done". Key design choices: provenance touch is best-effort upsert 
 ### Verification
 - `make audit`: **100% Passed** across all 5 verification layers.
 - `scripts/release_contract_test.sh`: **PASS** across macOS, website, recovery, and promotion gates (46/46 checks).
+
+---
+
+## 2026-08-16 — Credit-Pack Billing, Distinct Receipts UI, Credential-Entry Guard, LinkedIn Policy & Live Docker Playwright E2E
+
+### What was done
+1. **Credit-Pack Billing Architecture (`backend/go/internal/billing/` & `routes_billing.go`)**:
+   - Replaced recurring monthly subscriptions with a pay-per-verified-submission credit pack model (Starter 10 credits / $19, Pro 35 credits / $49, Power 100 credits / $99).
+   - Go billing service is the authoritative source of truth, managing user balances, purchases, debits, refunds, and ledger entries.
+   - Connected `submission_receipt.py` to debit exactly **1 credit** only when `verified = true`, with a strict 0-charge / no debit policy on `failed` or `unverifiable` outcomes.
+   - Completely reworked `src/pages/Pricing.tsx` with prominent zero-risk guarantees and dynamic pack/balance queries via `apiFetch`.
+
+2. **Visually Distinct Receipts UI (`src/pages/Outcomes.tsx`, `src/pages/Pipeline.tsx`, `ReceiptCard.tsx`, `ReceiptBadge.tsx`)**:
+   - Designed 3 visually unmistakable status badge styles so outcomes never look like "Pending":
+     - **VERIFIED**: Emerald green badge with confirmation code, timestamp, and "1 Credit Debited".
+     - **FAILED**: Crimson/Rose badge with specific failure reason, retry action, and "0 Credits Charged (Free)".
+     - **UNVERIFIABLE**: Slate/Gray badge for candidate-confirmed submissions lacking ATS evidence with "0 Credits Charged".
+   - Integrated full audit logs and filtering into `Outcomes.tsx` and pipeline stage cards into `Pipeline.tsx`.
+
+3. **Credential-Entry Guard & Strict ATS Origin Allowlist (`origin_guard.py`)**:
+   - Expanded heuristic detection to block passwords, passcodes, OTPs, 2FA/MFA, PINs, SSNs, secret questions, and CAPTCHA challenges (reCAPTCHA, hCaptcha, Turnstile).
+   - Enforced strict origin allowlist against verified ATS domains (`greenhouse.io`, `lever.co`, `workday.com`, `ashbyhq.com`, `smartrecruiters.com`, etc.).
+   - Triggers `CredentialEntryBlockedError` and enqueues tasks into the durable `human_handoff` queue for candidate resolution.
+
+4. **Code-Enforced LinkedIn Read-Only Policy (`linkedin_policy.py`)**:
+   - Enforced code-level blocking on any write actions, Easy Apply automations, messaging, or scraping on `*.linkedin.com`.
+   - Explicitly limits LinkedIn interactions to read-only job URL ingestion.
+
+5. **Onboarding Gateway Error UI & Local Draft Persistence (`src/pages/Onboarding.tsx`)**:
+   - Distinguishes recoverable gateway outages (502/503/network) from profile validation errors (400/422).
+   - Shows styled offline mode banner with exact list of saved fields.
+   - Supports local draft persistence via `localStorage` with automatic restore on reload.
+
+6. **Live Containerized Playwright E2E Testing (`e2e/credit_billing_and_candidate_flow.spec.ts`)**:
+   - Created and executed a 5-scenario Playwright E2E suite against the running local Docker stack (`http://127.0.0.1:8083` / `http://127.0.0.1:8085`).
+   - Verified new user registration with 12+ char password, `/pricing` credit packs, `/free-scan` resume parsing, `/onboarding` draft restoration and gateway offline fallback, and `/pipeline` / `/outcomes` receipt proof badges.
+   - 5/5 tests passed in 8.7s.
+
+### Reusable lessons
+- **Charge Only on Verifiable Value:** Candidates resent recurring subscriptions for automated job applications. Charging 1 credit only when an ATS prints a verifiable confirmation code aligns incentives and eliminates chargeback risk.
+- **Visual Distinction Eliminates Phantom Pending States:** Explicitly styling failed and unverifiable outcomes with distinct colors and credit notices prevents candidate confusion and builds trust in AI agent transparency.
+- **Credential Fields Must Fail Closed into Human Handoff:** An AI web agent must never attempt to guess, generate, or bypass passwords, MFA, or CAPTCHA challenges; routing to a durable human handoff preserves candidate account security and platform integrity.
+- **E2E Tests on Real Local Docker Containers Beat Mocks:** Running Playwright against production-built containerized services exposes real cross-service CORS, routing, and database constraints before staging deployment.
+
+### Verification
+- `backend/go`: `go test ./...` -> **100% Passed**.
+- `backend/python`: `pytest` -> **729 passed, 4 skipped (100% Passed)**.
+- `frontend`: `npx vitest run` -> **135 passed across 39 files (100% Passed)**.
+- `playwright`: `npx playwright test e2e/credit_billing_and_candidate_flow.spec.ts` -> **5/5 passed (100% Passed in 8.7s)**.
+- `make audit && bash scripts/release_contract_test.sh` -> **PASS across all release and promotion gates**.

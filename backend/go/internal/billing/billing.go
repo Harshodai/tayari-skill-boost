@@ -34,11 +34,71 @@ type Entitlement struct {
 	CustomerID   string    `json:"customer_id,omitempty"`
 }
 
+// CreditPack represents a purchasable pack of submission credits
+type CreditPack struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Credits     int     `json:"credits"`
+	PriceUSD    float64 `json:"price_usd"`
+	PriceCents  int     `json:"price_cents"`
+	Description string  `json:"description"`
+}
+
+// UserCreditBalance represents a user's current credit balance & lifetime totals
+type UserCreditBalance struct {
+	UserID            string    `json:"user_id"`
+	Balance           int       `json:"balance"`
+	LifetimePurchased int       `json:"lifetime_purchased"`
+	LifetimeUsed      int       `json:"lifetime_used"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+// CreditLedgerEntry records every credit transaction (purchase, debit, refund, grant)
+type CreditLedgerEntry struct {
+	ID          string    `json:"id"`
+	UserID      string    `json:"user_id"`
+	Amount      int       `json:"amount"` // positive for credit in, negative for debit out
+	Type        string    `json:"type"`   // "purchase", "debit", "refund", "grant"
+	Description string    `json:"description"`
+	ReferenceID string    `json:"reference_id,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// Standard credit pack definitions
+var StandardCreditPacks = []CreditPack{
+	{
+		ID:          "starter",
+		Name:        "Starter",
+		Credits:     10,
+		PriceUSD:    19.00,
+		PriceCents:  1900,
+		Description: "10 verified submissions for $19",
+	},
+	{
+		ID:          "pro",
+		Name:        "Pro",
+		Credits:     35,
+		PriceUSD:    49.00,
+		PriceCents:  4900,
+		Description: "35 verified submissions for $49",
+	},
+	{
+		ID:          "power",
+		Name:        "Power",
+		Credits:     100,
+		PriceUSD:    99.00,
+		PriceCents:  9900,
+		Description: "100 verified submissions for $99",
+	},
+}
+
 type BillingService struct {
 	db              *database.DB
 	mu              sync.RWMutex
 	entitlements    map[string]*Entitlement
 	processedEvents map[string]time.Time
+	creditBalances  map[string]*UserCreditBalance
+	creditLedger    map[string][]CreditLedgerEntry
 }
 
 func NewBillingService(db *database.DB) *BillingService {
@@ -51,6 +111,8 @@ func NewBillingService(db *database.DB) *BillingService {
 		db:              db,
 		entitlements:    make(map[string]*Entitlement),
 		processedEvents: make(map[string]time.Time),
+		creditBalances:  make(map[string]*UserCreditBalance),
+		creditLedger:    make(map[string][]CreditLedgerEntry),
 	}
 }
 
@@ -521,4 +583,359 @@ func (b *BillingService) EntitlementMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// GetCreditPacks returns the list of purchasable submission credit packs
+func (b *BillingService) GetCreditPacks() []CreditPack {
+	packs := make([]CreditPack, len(StandardCreditPacks))
+	copy(packs, StandardCreditPacks)
+	return packs
+}
+
+// GetCreditBalance returns the user's current credit balance
+func (b *BillingService) GetCreditBalance(userID string) (*UserCreditBalance, error) {
+	if userID == "" {
+		return nil, errors.New("user ID is required")
+	}
+
+	if !IsBillingEnabled() {
+		return &UserCreditBalance{
+			UserID:            userID,
+			Balance:           999999,
+			LifetimePurchased: 999999,
+			LifetimeUsed:      0,
+			UpdatedAt:         time.Now(),
+		}, nil
+	}
+
+	// Try DB query first if database connection is available
+	if b.db != nil && b.db.Conn != nil {
+		var bal UserCreditBalance
+		bal.UserID = userID
+		query := `
+			SELECT balance, lifetime_purchased, lifetime_used, updated_at
+			FROM public.user_credits
+			WHERE user_id = $1::uuid
+		`
+		err := b.db.Conn.QueryRow(query, userID).Scan(
+			&bal.Balance,
+			&bal.LifetimePurchased,
+			&bal.LifetimeUsed,
+			&bal.UpdatedAt,
+		)
+		if err == nil {
+			return &bal, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			log.Printf("[billing] GetCreditBalance DB query error for %s: %v", userID, err)
+		}
+	}
+
+	// In-memory fallback
+	b.mu.RLock()
+	bal, exists := b.creditBalances[userID]
+	b.mu.RUnlock()
+
+	if !exists {
+		return &UserCreditBalance{
+			UserID:            userID,
+			Balance:           0,
+			LifetimePurchased: 0,
+			LifetimeUsed:      0,
+			UpdatedAt:         time.Now(),
+		}, nil
+	}
+
+	copyBal := *bal
+	return &copyBal, nil
+}
+
+// AddCredits grants or purchases credits for a user
+func (b *BillingService) AddCredits(userID string, amount int, referenceID, description string) (*UserCreditBalance, error) {
+	if userID == "" {
+		return nil, errors.New("user ID is required")
+	}
+	if amount <= 0 {
+		return nil, errors.New("credit amount must be positive")
+	}
+
+	now := time.Now()
+
+	// Persist to PostgreSQL if available
+	if b.db != nil && b.db.Conn != nil {
+		var bal UserCreditBalance
+		bal.UserID = userID
+		query := `
+			INSERT INTO public.user_credits (user_id, balance, lifetime_purchased, lifetime_used, updated_at)
+			VALUES ($1::uuid, $2, $2, 0, NOW())
+			ON CONFLICT (user_id) DO UPDATE SET
+				balance = public.user_credits.balance + EXCLUDED.balance,
+				lifetime_purchased = public.user_credits.lifetime_purchased + EXCLUDED.lifetime_purchased,
+				updated_at = NOW()
+			RETURNING balance, lifetime_purchased, lifetime_used, updated_at
+		`
+		err := b.db.Conn.QueryRow(query, userID, amount).Scan(
+			&bal.Balance,
+			&bal.LifetimePurchased,
+			&bal.LifetimeUsed,
+			&bal.UpdatedAt,
+		)
+		if err == nil {
+			// Record ledger entry
+			_, _ = b.db.Conn.Exec(`
+				INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at)
+				VALUES ($1, $2::uuid, $3, 'purchase', $4, $5, NOW())
+			`, fmt.Sprintf("led_%d", time.Now().UnixNano()), userID, amount, description, referenceID)
+
+			b.mu.Lock()
+			b.creditBalances[userID] = &bal
+			b.mu.Unlock()
+			return &bal, nil
+		}
+		log.Printf("[billing] AddCredits DB error for %s: %v", userID, err)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	bal, exists := b.creditBalances[userID]
+	if !exists {
+		bal = &UserCreditBalance{
+			UserID:            userID,
+			Balance:           0,
+			LifetimePurchased: 0,
+			LifetimeUsed:      0,
+			UpdatedAt:         now,
+		}
+		b.creditBalances[userID] = bal
+	}
+
+	bal.Balance += amount
+	bal.LifetimePurchased += amount
+	bal.UpdatedAt = now
+
+	entry := CreditLedgerEntry{
+		ID:          fmt.Sprintf("led_%d", time.Now().UnixNano()),
+		UserID:      userID,
+		Amount:      amount,
+		Type:        "purchase",
+		Description: description,
+		ReferenceID: referenceID,
+		CreatedAt:   now,
+	}
+	b.creditLedger[userID] = append(b.creditLedger[userID], entry)
+
+	copyBal := *bal
+	return &copyBal, nil
+}
+
+// PurchaseCreditPack purchases a named credit pack for a user
+func (b *BillingService) PurchaseCreditPack(userID string, packID string, referenceID string) (*UserCreditBalance, error) {
+	var matchedPack *CreditPack
+	for _, pack := range StandardCreditPacks {
+		if strings.EqualFold(pack.ID, packID) {
+			matchedPack = &pack
+			break
+		}
+	}
+
+	if matchedPack == nil {
+		return nil, fmt.Errorf("invalid credit pack '%s'", packID)
+	}
+
+	desc := fmt.Sprintf("Purchased %s Pack (%d credits for $%.2f)", matchedPack.Name, matchedPack.Credits, matchedPack.PriceUSD)
+	return b.AddCredits(userID, matchedPack.Credits, referenceID, desc)
+}
+
+// DebitCredit deducts credits (default 1) for a verified submission receipt
+func (b *BillingService) DebitCredit(userID string, amount int, referenceID, description string) (bool, *UserCreditBalance, error) {
+	if userID == "" {
+		return false, nil, errors.New("user ID is required")
+	}
+	if amount <= 0 {
+		amount = 1
+	}
+
+	if !IsBillingEnabled() {
+		return true, &UserCreditBalance{
+			UserID:            userID,
+			Balance:           999999,
+			LifetimePurchased: 999999,
+			LifetimeUsed:      0,
+			UpdatedAt:         time.Now(),
+		}, nil
+	}
+
+	now := time.Now()
+
+	// Persist to PostgreSQL if available
+	if b.db != nil && b.db.Conn != nil {
+		var bal UserCreditBalance
+		bal.UserID = userID
+		query := `
+			UPDATE public.user_credits
+			SET balance = balance - $2,
+				lifetime_used = lifetime_used + $2,
+				updated_at = NOW()
+			WHERE user_id = $1::uuid AND balance >= $2
+			RETURNING balance, lifetime_purchased, lifetime_used, updated_at
+		`
+		err := b.db.Conn.QueryRow(query, userID, amount).Scan(
+			&bal.Balance,
+			&bal.LifetimePurchased,
+			&bal.LifetimeUsed,
+			&bal.UpdatedAt,
+		)
+		if err == nil {
+			_, _ = b.db.Conn.Exec(`
+				INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at)
+				VALUES ($1, $2::uuid, $3, 'debit', $4, $5, NOW())
+			`, fmt.Sprintf("led_%d", time.Now().UnixNano()), userID, -amount, description, referenceID)
+
+			b.mu.Lock()
+			b.creditBalances[userID] = &bal
+			b.mu.Unlock()
+			return true, &bal, nil
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			currentBal, _ := b.GetCreditBalance(userID)
+			return false, currentBal, errors.New("insufficient credit balance for verified submission")
+		}
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	bal, exists := b.creditBalances[userID]
+	if !exists || bal.Balance < amount {
+		currentBal := &UserCreditBalance{
+			UserID:            userID,
+			Balance:           0,
+			LifetimePurchased: 0,
+			LifetimeUsed:      0,
+			UpdatedAt:         now,
+		}
+		if exists {
+			*currentBal = *bal
+		}
+		return false, currentBal, errors.New("insufficient credit balance for verified submission")
+	}
+
+	bal.Balance -= amount
+	bal.LifetimeUsed += amount
+	bal.UpdatedAt = now
+
+	entry := CreditLedgerEntry{
+		ID:          fmt.Sprintf("led_%d", time.Now().UnixNano()),
+		UserID:      userID,
+		Amount:      -amount,
+		Type:        "debit",
+		Description: description,
+		ReferenceID: referenceID,
+		CreatedAt:   now,
+	}
+	b.creditLedger[userID] = append(b.creditLedger[userID], entry)
+
+	copyBal := *bal
+	return true, &copyBal, nil
+}
+
+// RefundCredit restores previously debited credits (e.g. on contested or cancelled submissions)
+func (b *BillingService) RefundCredit(userID string, amount int, referenceID, description string) (*UserCreditBalance, error) {
+	if userID == "" {
+		return nil, errors.New("user ID is required")
+	}
+	if amount <= 0 {
+		amount = 1
+	}
+
+	now := time.Now()
+
+	// Persist to PostgreSQL if available
+	if b.db != nil && b.db.Conn != nil {
+		var bal UserCreditBalance
+		bal.UserID = userID
+		query := `
+			INSERT INTO public.user_credits (user_id, balance, lifetime_purchased, lifetime_used, updated_at)
+			VALUES ($1::uuid, $2, 0, 0, NOW())
+			ON CONFLICT (user_id) DO UPDATE SET
+				balance = public.user_credits.balance + EXCLUDED.balance,
+				lifetime_used = GREATEST(0, public.user_credits.lifetime_used - EXCLUDED.balance),
+				updated_at = NOW()
+			RETURNING balance, lifetime_purchased, lifetime_used, updated_at
+		`
+		err := b.db.Conn.QueryRow(query, userID, amount).Scan(
+			&bal.Balance,
+			&bal.LifetimePurchased,
+			&bal.LifetimeUsed,
+			&bal.UpdatedAt,
+		)
+		if err == nil {
+			_, _ = b.db.Conn.Exec(`
+				INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at)
+				VALUES ($1, $2::uuid, $3, 'refund', $4, $5, NOW())
+			`, fmt.Sprintf("led_%d", time.Now().UnixNano()), userID, amount, description, referenceID)
+
+			b.mu.Lock()
+			b.creditBalances[userID] = &bal
+			b.mu.Unlock()
+			return &bal, nil
+		}
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	bal, exists := b.creditBalances[userID]
+	if !exists {
+		bal = &UserCreditBalance{
+			UserID:            userID,
+			Balance:           0,
+			LifetimePurchased: 0,
+			LifetimeUsed:      0,
+			UpdatedAt:         now,
+		}
+		b.creditBalances[userID] = bal
+	}
+
+	bal.Balance += amount
+	if bal.LifetimeUsed >= amount {
+		bal.LifetimeUsed -= amount
+	} else {
+		bal.LifetimeUsed = 0
+	}
+	bal.UpdatedAt = now
+
+	entry := CreditLedgerEntry{
+		ID:          fmt.Sprintf("led_%d", time.Now().UnixNano()),
+		UserID:      userID,
+		Amount:      amount,
+		Type:        "refund",
+		Description: description,
+		ReferenceID: referenceID,
+		CreatedAt:   now,
+	}
+	b.creditLedger[userID] = append(b.creditLedger[userID], entry)
+
+	copyBal := *bal
+	return &copyBal, nil
+}
+
+// GetCreditLedger returns the transaction history for a user's credit balance
+func (b *BillingService) GetCreditLedger(userID string) ([]CreditLedgerEntry, error) {
+	if userID == "" {
+		return nil, errors.New("user ID is required")
+	}
+
+	b.mu.RLock()
+	entries, exists := b.creditLedger[userID]
+	b.mu.RUnlock()
+
+	if !exists {
+		return []CreditLedgerEntry{}, nil
+	}
+
+	result := make([]CreditLedgerEntry, len(entries))
+	copy(result, entries)
+	return result, nil
 }
