@@ -1,0 +1,59 @@
+version: 1
+environment: production
+release_scope: candidate_controlled_workspace
+
+capabilities:
+  workspace.auth:
+    state: enabled_after_staging_gates
+    description: Account, profile, session, and recovery lifecycle.
+  workspace.resume:
+    state: enabled_after_staging_gates
+    description: Resume upload, parsing, preview, history, and user-approved variants.
+  workspace.public_import:
+    state: enabled_after_staging_gates
+    description: Candidate-selected public job-description and knowledge-source import.
+  workspace.ats_assistance:
+    state: enabled_after_staging_gates
+    description: Heuristic ATS and resume assistance with explicit unavailable states.
+  workspace.knowledge_hub:
+    state: enabled_after_staging_gates
+    description: Cited public-source knowledge workspace with deletion controls.
+  workspace.interview_prep:
+    state: enabled_after_staging_gates
+    description: Assisted interview preparation; no claim of interview outcome prediction.
+  workspace.application_tracker:
+    state: enabled_after_staging_gates
+    description: Candidate-owned application pipeline and status tracking.
+
+  autonomous.browser:
+    state: disabled
+    reason: Requires isolated browser, takeover, approval binding, receipt, and recovery proof.
+  autonomous.ats_submit:
+    state: disabled
+    reason: No public autonomous portal submission claim in the initial release.
+  autonomous.gmail:
+    state: disabled
+    reason: Requires mailbox scope, Pub/Sub, renewal, refresh, deletion, and privacy proof.
+  autonomous.messaging:
+    state: disabled
+    reason: Requires provider opt-in, delivery, revocation, and webhook proof.
+  autonomous.billing:
+    state: disabled
+    reason: Requires official Stripe test-mode reconciliation and refund proof.
+  autonomous.irreversible_jobs:
+    state: disabled
+    reason: Requires worker-kill idempotency and external side-effect recovery proof.
+
+claims_excluded:
+  - autonomous_external_ats_submission
+  - private_saved_list_synchronization
+  - production_messaging_campaigns
+  - customer_visible_billing
+  - hiring_outcome_prediction
+
+promotion_requirements:
+  - real_go_true_two_tenant_isolation
+  - route_authorization_inventory
+  - real_backup_restore_rpo_rto
+  - immutable_image_digest_sbom_attestation
+  - production_canary_and_rollback

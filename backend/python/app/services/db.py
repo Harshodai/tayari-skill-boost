@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 _pool: Any = None
 _pool_checked: bool = False
+_pool_loop: Any = None
 
 
 import asyncio
@@ -27,9 +28,22 @@ async def get_pool() -> Any:
     Implements exponential backoff retry (5 attempts) to handle
     transient network issues during startup.
     """
-    global _pool, _pool_checked
-    if _pool_checked:
+    global _pool, _pool_checked, _pool_loop
+    current_loop = asyncio.get_running_loop()
+    if _pool_checked and _pool_loop is current_loop:
         return _pool
+
+    # asyncpg pools are bound to the event loop that created them. Test
+    # harnesses, reloaders, and worker lifecycle boundaries can legitimately
+    # create a new loop; never hand a stale pool across that boundary.
+    if _pool is not None and _pool_loop is not current_loop:
+        try:
+            await _pool.close()
+        except Exception:  # noqa: BLE001 - stale-loop cleanup is best effort
+            pass
+        _pool = None
+    _pool_checked = False
+    _pool_loop = current_loop
     
     if not DATABASE_URL:
         logger.info("DATABASE_URL not set — DB persistence disabled")
@@ -56,6 +70,7 @@ async def get_pool() -> Any:
                 }
             )
             _pool_checked = True
+            _pool_loop = current_loop
             logger.info("DB pool connected (attempt %d/5)", attempt)
             return _pool
         except Exception as exc:
@@ -68,6 +83,7 @@ async def get_pool() -> Any:
     
     logger.error("DB pool failed after 5 attempts — running without persistence")
     _pool_checked = True
+    _pool_loop = current_loop
     return None
 
 
@@ -78,7 +94,7 @@ def is_db_enabled() -> bool:
 
 async def close_pool() -> None:
     """Close the cached pool (used on app/worker shutdown)."""
-    global _pool, _pool_checked
+    global _pool, _pool_checked, _pool_loop
     if _pool is not None:
         try:
             await _pool.close()
@@ -86,6 +102,7 @@ async def close_pool() -> None:
             pass
     _pool = None
     _pool_checked = False
+    _pool_loop = None
 
 
 # ---------------------------------------------------------------------------

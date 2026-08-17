@@ -8,6 +8,7 @@ import (
 	"tayari-backend/internal/ai"
 	"tayari-backend/internal/auth"
 	"tayari-backend/internal/billing"
+	"tayari-backend/internal/capabilities"
 	"tayari-backend/internal/config"
 	"tayari-backend/internal/database"
 	"tayari-backend/internal/models"
@@ -39,6 +40,7 @@ type Server struct {
 	loginRateLimiter  *rateLimiter
 	voiceRateLimiter  *rateLimiter
 	metrics           *observability.Metrics
+	capabilities      *capabilities.Registry
 }
 
 func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB) *Server {
@@ -57,6 +59,7 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		// connections per user, refilling at one connection every five seconds.
 		voiceRateLimiter: newRateLimiter(rate.Limit(0.2), 2, true),
 		metrics:          observability.NewMetrics(),
+		capabilities:     capabilities.NewFromEnv(),
 	}
 	s.routes()
 	return s
@@ -132,6 +135,18 @@ func (s *Server) routes() {
 // requireFeature checks billing entitlement for the given feature name.
 // Returns false and writes a 402 response if the user's plan doesn't cover it.
 // When BILLING_ENABLED=false (self-hosted), always returns true.
+func (s *Server) requireCapability(w http.ResponseWriter, capability capabilities.Name) bool {
+	if s.capabilities == nil || !s.capabilities.Enabled(capability) {
+		s.respondJSON(w, http.StatusLocked, map[string]string{
+			"code":       "disabled_by_launch_scope",
+			"capability": string(capability),
+			"message":    "This capability is not enabled for the current deployment scope.",
+		})
+		return false
+	}
+	return true
+}
+
 func (s *Server) requireFeature(w http.ResponseWriter, r *http.Request, feature string) bool {
 	user, ok := r.Context().Value(contextKeyUser).(*models.User)
 	if !ok || user == nil {

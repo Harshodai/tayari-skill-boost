@@ -14,21 +14,22 @@ import getMarketSalaryTool from "./tools/get-market-salary";
 import checkCompanyTool from "./tools/check-company";
 import reportOutcomeTool from "./tools/report-outcome";
 
-// Build the Supabase issuer from the project ref. Prefer the Vite build-time
-// ref (inlined as a literal for the frontend build); fall back to the Vite
-// runtime's VITE_SUPABASE_URL (https://<project-ref>.supabase.co) so the
-// deployed app gets a valid issuer even when the build-time ref was empty
-// (the historical bundle shipped `projectRef = ""` → issuer
-// "https://.supabase.co/auth/v1", which no OAuth server ever answers to).
-//
-// ponytail: the SUPABASE_URL fallback is parsed and its hostname validated
-// against the canonical single-label https://<project-ref>.supabase.co shape
-// before the project ref is extracted. A missing, malformed, non-HTTPS,
-// nested-subdomain, or wrong-length value leaves projectRef empty rather than
-// emitting a garbage issuer. Supabase project refs are exactly 20 lowercase
-// alphanumeric characters.
+// Build the Supabase issuer from the runtime Supabase URL. The URL is parsed
+// and its hostname is validated against the canonical single-label
+// https://<project-ref>.supabase.co shape before the project ref is extracted.
+// A missing, malformed, non-HTTPS, nested-subdomain, or wrong-length value
+// leaves projectRef empty and fails closed below. Supabase project refs are
+// exactly 20 lowercase alphanumeric characters. Runtime configuration avoids
+// baking tenant or environment identifiers into a distributable bundle.
+function runtimeSupabaseUrl(): string {
+  const runtime = (globalThis as {
+    Deno?: { env?: { get?: (key: string) => string | undefined } };
+  }).Deno?.env?.get?.("SUPABASE_URL");
+  return runtime ?? "";
+}
+
 function projectRefFromSupabaseUrl(): string {
-  const raw = String(import.meta.env.VITE_SUPABASE_URL ?? "");
+  const raw = String(runtimeSupabaseUrl());
   if (!raw) return "";
   let parsed: URL;
   try {
@@ -43,14 +44,11 @@ function projectRefFromSupabaseUrl(): string {
   return match[1];
 }
 
-function validProjectRef(value: string | undefined): boolean {
-  return !!value && value !== "project-ref-unset" && /^[a-z0-9]{20}$/.test(value);
-}
+const projectRef = projectRefFromSupabaseUrl() || "";
 
-const projectRef =
-  (validProjectRef(import.meta.env.VITE_SUPABASE_PROJECT_ID)
-    ? import.meta.env.VITE_SUPABASE_PROJECT_ID
-    : projectRefFromSupabaseUrl()) || "";
+if (!projectRef) {
+  throw new Error("MCP auth issuer is not configured with a valid hosted Supabase project");
+}
 
 export default defineMcp({
   name: "tayari-mcp",

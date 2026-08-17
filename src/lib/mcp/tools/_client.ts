@@ -1,6 +1,17 @@
 import type { ToolContext } from "@lovable.dev/mcp-js";
 
-const API = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+function runtimeGoApiUrl(): string {
+  const runtime = (globalThis as {
+    Deno?: { env?: { get?: (key: string) => string | undefined } };
+  }).Deno?.env?.get?.("TAYARI_GO_API_URL");
+  return runtime ?? "";
+}
+
+const API = () => {
+  const configured = String(runtimeGoApiUrl()).trim();
+  if (configured) return configured;
+  throw new Error("MCP Go API URL is not configured");
+};
 
 export const REQUEST_TIMEOUT_MS = 60_000;
 

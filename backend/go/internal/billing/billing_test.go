@@ -1,11 +1,16 @@
 package billing
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"tayari-backend/internal/auth"
 	"tayari-backend/internal/models"
@@ -249,5 +254,88 @@ func TestBilling_ConcurrentCreditDebits(t *testing.T) {
 	if bal.Balance != expectedBalance || bal.LifetimeUsed != workers {
 		t.Errorf("Expected balance %d and lifetime_used %d, got balance %d, used %d",
 			expectedBalance, workers, bal.Balance, bal.LifetimeUsed)
+	}
+}
+
+func TestBilling_UnknownFeatureFailsClosed(t *testing.T) {
+	svc := NewBillingService(nil)
+	os.Setenv("BILLING_ENABLED", "true")
+	defer os.Unsetenv("BILLING_ENABLED")
+
+	allowed, reason := svc.CanUseFeature("user_unknown_feature", "feature_added_without_entitlement_registration")
+	if allowed || reason != "feature_not_registered" {
+		t.Fatalf("expected unknown feature to fail closed, got allowed=%v reason=%q", allowed, reason)
+	}
+}
+
+func TestBilling_ProductionRequiresStripePriceID(t *testing.T) {
+	os.Setenv("ENV", "production")
+	os.Setenv("STRIPE_SECRET_KEY", "sk_test_provider_gate")
+	os.Unsetenv("STRIPE_PRICE_PRO_ID")
+	defer os.Unsetenv("ENV")
+	defer os.Unsetenv("STRIPE_SECRET_KEY")
+
+	svc := NewBillingService(nil)
+	_, err := svc.CreateCheckoutSession("user-1", "candidate@example.com", "pro", "https://tayari.example/return")
+	if err == nil || err.Error() != "stripe price ID is not configured for production" {
+		t.Fatalf("expected production Stripe price configuration failure, got %v", err)
+	}
+}
+
+func TestBilling_ProductionRequiresDurableStorage(t *testing.T) {
+	os.Setenv("ENV", "production")
+	os.Setenv("BILLING_ENABLED", "true")
+	defer os.Unsetenv("ENV")
+	defer os.Unsetenv("BILLING_ENABLED")
+
+	svc := NewBillingService(nil)
+	if _, err := svc.GetCreditBalance("user-production"); err == nil || err.Error() != "billing database unavailable" {
+		t.Fatalf("expected credit reads to fail closed, got %v", err)
+	}
+	if _, err := svc.AddCredits("user-production", 1, "ref", "test"); err == nil || err.Error() != "billing database unavailable" {
+		t.Fatalf("expected credit grants to fail closed, got %v", err)
+	}
+	if ok, _, err := svc.DebitCredit("user-production", 1, "ref", "test"); ok || err == nil || err.Error() != "billing database unavailable" {
+		t.Fatalf("expected credit debits to fail closed, got ok=%v err=%v", ok, err)
+	}
+	if _, err := svc.RefundCredit("user-production", 1, "ref", "test"); err == nil || err.Error() != "billing database unavailable" {
+		t.Fatalf("expected credit refunds to fail closed, got %v", err)
+	}
+}
+
+func TestVerifyStripeSignatureRejectsMissingAndExpiredHeaders(t *testing.T) {
+	payload := []byte(`{"id":"evt_test"}`)
+	if VerifyStripeSignature(payload, "", "whsec_test") {
+		t.Fatal("expected missing signature header to fail")
+	}
+	oldTimestamp := strconv.FormatInt(time.Now().Add(-10*time.Minute).Unix(), 10)
+	if VerifyStripeSignature(payload, "t="+oldTimestamp+",v1=deadbeef", "whsec_test") {
+		t.Fatal("expected expired signature to fail")
+	}
+}
+
+func TestVerifyStripeSignatureAcceptsValidAndRejectsTamperedPayload(t *testing.T) {
+	payload := []byte(`{"id":"evt_test","type":"customer.subscription.created"}`)
+	secret := "whsec_test"
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(timestamp + "."))
+	_, _ = mac.Write(payload)
+	signature := hex.EncodeToString(mac.Sum(nil))
+	header := "t=" + timestamp + ",v1=" + signature
+	if !VerifyStripeSignature(payload, header, secret) {
+		t.Fatal("expected valid Stripe signature to pass")
+	}
+	if VerifyStripeSignature([]byte(`{"id":"evt_tampered"}`), header, secret) {
+		t.Fatal("expected tampered Stripe payload to fail")
+	}
+}
+
+func TestBilling_EmptyStripeEventIDFailsClosed(t *testing.T) {
+	svc := NewBillingService(nil)
+	os.Setenv("BILLING_ENABLED", "true")
+	defer os.Unsetenv("BILLING_ENABLED")
+	if svc.ProcessStripeWebhook("", "customer.subscription.created", "cus", "sub", "user", "pro") {
+		t.Fatal("expected empty Stripe event ID to fail closed")
 	}
 }

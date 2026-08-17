@@ -26,6 +26,10 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/27-20260813_durable_run_control_plane.sql",
         "zz-27-20260813_durable_run_control_plane.sql",
     ),
+    "backend/db/migrations/20260817_stripe_webhook_events.sql": (
+        "supabase-local/volumes/db/init/35-20260817_stripe_webhook_events.sql",
+        "zz-35-20260817_stripe_webhook_events.sql",
+    ),
 }
 
 
@@ -47,6 +51,10 @@ def main() -> int:
     migration_names = [path.name for path in sorted(init_dir.glob("*.sql"))]
     if migration_names != sorted(migration_names):
         failures.append("self-hosted migrations are not in lexical execution order")
+    prefixes = [name.split("-", 1)[0] for name in migration_names if name[:1].isdigit()]
+    duplicates = sorted({prefix for prefix in prefixes if prefixes.count(prefix) > 1})
+    if duplicates:
+        failures.append(f"duplicate self-hosted migration prefixes: {', '.join(duplicates)}")
 
     for source_relative, (bundle_relative, target_name) in REQUIRED_MIRRORS.items():
         source = ROOT / source_relative

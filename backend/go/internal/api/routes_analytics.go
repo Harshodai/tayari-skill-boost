@@ -82,13 +82,14 @@ func (s *Server) handleCreateResumeVariant(w http.ResponseWriter, r *http.Reques
 	scores, err := s.AI.PostJSON("/api/v1/predictive/score", pythonPayload)
 	if err != nil {
 		log.Printf("handleCreateResumeVariant: AI score failed: %v", err)
-		// Fallback mock scores
+		// Never fabricate a numeric score when the AI engine is unavailable.
+		// Keep the variant creation flow usable, but make the degraded state
+		// explicit so the UI cannot present invented analytics as measured data.
 		scores = map[string]interface{}{
-			"formatting_score":  75,
-			"metrics_score":     60,
-			"readability_score": 80,
-			"keyword_score":     70,
-			"overall_score":     71,
+			"status":  "unavailable",
+			"source":  "ai_engine",
+			"error":   "predictive_scoring_unavailable",
+			"message": "Predictive scoring is temporarily unavailable; no numeric score was produced.",
 		}
 	}
 
@@ -166,19 +167,20 @@ func (s *Server) handleListResumeVariants(w http.ResponseWriter, r *http.Request
 			continue
 		}
 
-		// Parse mock scores for list display
 		pythonPayload := map[string]string{
 			"resume_text":     v.OriginalText,
 			"job_description": "",
 		}
 		scores, err := s.AI.PostJSON("/api/v1/predictive/score", pythonPayload)
 		if err != nil {
+			// Do not turn a provider outage into a believable score. The list
+			// endpoint still returns the variant, but the score is explicitly
+			// unavailable and must be rendered as such by the client.
 			scores = map[string]interface{}{
-				"formatting_score":  70,
-				"metrics_score":     50,
-				"readability_score": 75,
-				"keyword_score":     65,
-				"overall_score":     65,
+				"status":  "unavailable",
+				"source":  "ai_engine",
+				"error":   "predictive_scoring_unavailable",
+				"message": "Predictive scoring is temporarily unavailable; no numeric score was produced.",
 			}
 		}
 		v.Scores = scores

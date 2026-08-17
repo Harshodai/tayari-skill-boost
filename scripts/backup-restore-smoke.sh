@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${DRY_RUN:-false}" == "true" ]]; then
+  echo "backup/restore plan: pg_dump source -> custom-format backup -> pg_restore disposable target"
+  echo "backup/restore plan: source and restore endpoints must be distinct"
+  echo "backup/restore plan: schema verification includes stripe_webhook_events"
+  echo "backup/restore plan: no database mutation performed"
+  exit 0
+fi
+
 : "${DATABASE_URL:?DATABASE_URL is required for the source database}"
 : "${RESTORE_DATABASE_URL:?RESTORE_DATABASE_URL is required and must point to a disposable restore database}"
 BACKUP_FILE="${BACKUP_FILE:-$(mktemp -t tayari-backup.XXXXXX.dump)}"
@@ -26,14 +34,14 @@ pg_dump --format=custom --no-owner --no-privileges --file "$BACKUP_FILE" "$DATAB
 pg_restore --clean --if-exists --no-owner --no-privileges --exit-on-error --dbname "$RESTORE_DATABASE_URL" "$BACKUP_FILE"
 
 psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc '
-  SELECT CASE WHEN COUNT(*) = 13 THEN $$schema-ok$$ ELSE $$schema-incomplete$$ END
+  SELECT CASE WHEN COUNT(*) = 14 THEN $$schema-ok$$ ELSE $$schema-incomplete$$ END
     FROM information_schema.tables
    WHERE table_schema = $$public$$
      AND table_name = ANY (ARRAY[
        $$application_approvals$$, $$submission_receipts$$, $$agent_questions$$,
        $$agent_runs$$, $$run_events$$, $$run_controls$$, $$delivery_ledger$$,
        $$tenants$$, $$cohorts$$, $$memberships$$, $$push_subscriptions$$,
-       $$agent_tasks$$, $$agent_router_events$$
+       $$agent_tasks$$, $$agent_router_events$$, $$stripe_webhook_events$$
      ]);' | grep -qx schema-ok
 
 echo "backup/restore smoke: PASS"

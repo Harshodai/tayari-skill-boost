@@ -25,6 +25,9 @@ const (
 
 func main() {
 	cfg := config.LoadConfig()
+	if err := cfg.ValidateForStartup(); err != nil {
+		log.Fatalf("FATAL: invalid startup configuration: %v", err)
+	}
 
 	if dsn := os.Getenv("SENTRY_DSN"); dsn != "" {
 		err := sentry.Init(sentry.ClientOptions{

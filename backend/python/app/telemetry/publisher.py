@@ -1,4 +1,4 @@
-"""Async event publisher — logs pipeline telemetry for now."""
+"""Structured event publisher for the service logging and collection pipeline."""
 import logging
 import time
 from typing import Optional
@@ -12,7 +12,7 @@ def publish_event(
     payload: Optional[dict] = None,
     latency_ms: Optional[float] = None,
 ) -> None:
-    """Publish a generic telemetry event. Currently logs only."""
+    """Publish a generic structured telemetry event to the service logger."""
     payload = payload or {}
     extra = {"trace_id": trace_id, "event": event_name, **payload}
     if latency_ms is not None:

@@ -8,6 +8,7 @@ import os
 from typing import Any
 
 from app.services.approval_gate import job_fingerprint, resume_fingerprint
+from app.services.capabilities import Capability, capability_enabled
 
 
 def _sha256(value: str) -> str:
@@ -72,8 +73,9 @@ def sign_guard(fingerprint: dict[str, str], approval_id: str) -> dict[str, str] 
 
 
 def autonomous_submission_enabled() -> bool:
-    """Return true only when an operator explicitly enables final browser submit."""
-    return os.getenv("AUTONOMOUS_SUBMIT_ENABLED", "false").strip().lower() == "true"
+    """Return true only when the server-side capability and legacy flag agree."""
+    legacy_flag = os.getenv("AUTONOMOUS_SUBMIT_ENABLED", "false").strip().lower() == "true"
+    return legacy_flag and capability_enabled(Capability.AUTONOMOUS_ATS_SUBMIT)
 
 
 def verify_guard(

@@ -941,6 +941,8 @@ async def browser_automation_endpoint(
     _user_id: str = Depends(get_current_user),
 ):
     """Execute autonomous browser instruction via browser-use + Playwright."""
+    from app.services.capabilities import Capability, require_capability
+    require_capability(Capability.AUTONOMOUS_BROWSER)
     from app.services.browser_automation import run_browser_agent
 
     actor = _user_id
@@ -2113,6 +2115,8 @@ async def browser_automation_stream_endpoint(
     _user_id: str = Depends(get_current_user),
 ):
     """SSE stream of per-step browser screenshots for the Glass-Box live feed."""
+    from app.services.capabilities import Capability, require_capability
+    require_capability(Capability.AUTONOMOUS_BROWSER)
     import json as _json
     from app.services.browser_automation.agent import stream_browser_agent
     from app.services.db import load_agent_run
@@ -2187,6 +2191,8 @@ async def browser_automation_control_endpoint(
     bounded event history and cancellation acknowledgement only when the
     durable control plane confirms the authenticated candidate owns the run.
     """
+    from app.services.capabilities import Capability, require_capability
+    require_capability(Capability.AUTONOMOUS_BROWSER)
     from app.services.run_control import (
         RunControlOwnershipError,
         RunControlStoreUnavailable,
@@ -2223,6 +2229,8 @@ async def browser_automation_cancel_endpoint(
     Authz: only the user that started the run may kill it. Bounded by a hard
     timeout so a wedged provider API cannot hang the kill switch.
     """
+    from app.services.capabilities import Capability, require_capability
+    require_capability(Capability.AUTONOMOUS_BROWSER)
     from app.services.browser_automation.session import BrowserAuthzError, cancel_run
 
     actor = _user_id

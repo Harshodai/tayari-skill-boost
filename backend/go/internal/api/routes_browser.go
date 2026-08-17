@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"tayari-backend/internal/capabilities"
 	"tayari-backend/internal/models"
 
 	"github.com/go-chi/chi/v5"
@@ -45,14 +46,14 @@ const (
 // RegisterBrowserRoutes wires the browser automation proxy routes.
 // NOTE: these must stay inside the authenticated route group.
 func (s *Server) RegisterBrowserRoutes(r chi.Router) {
-	r.Post("/api/v1/browser/automation", s.handleBrowserAutomation)
-	r.Post("/api/browser/automation", s.handleBrowserAutomation)
-	r.Post("/api/v1/browser/automation/stream", s.handleBrowserAutomationStream)
-	r.Post("/api/browser/automation/stream", s.handleBrowserAutomationStream)
-	r.Post("/api/v1/browser/automation/cancel", s.handleBrowserAutomationCancel)
-	r.Post("/api/browser/automation/cancel", s.handleBrowserAutomationCancel)
-	r.Get("/api/v1/browser/automation/runs/{runID}/control", s.handleBrowserAutomationControl)
-	r.Get("/api/browser/automation/runs/{runID}/control", s.handleBrowserAutomationControl)
+	r.Post("/api/v1/browser/automation", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomation))
+	r.Post("/api/browser/automation", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomation))
+	r.Post("/api/v1/browser/automation/stream", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationStream))
+	r.Post("/api/browser/automation/stream", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationStream))
+	r.Post("/api/v1/browser/automation/cancel", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationCancel))
+	r.Post("/api/browser/automation/cancel", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationCancel))
+	r.Get("/api/v1/browser/automation/runs/{runID}/control", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationControl))
+	r.Get("/api/browser/automation/runs/{runID}/control", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationControl))
 }
 
 // auditBrowser emits a single-line audit record for browser-agent actions.

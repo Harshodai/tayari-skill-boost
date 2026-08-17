@@ -32,6 +32,14 @@
 
 set -euo pipefail
 
+if [ "${DRY_RUN:-false}" = "true" ]; then
+    echo "restore-drill plan: backup -> dedicated SUPABASE_DB_DRILL_* throwaway database"
+    echo "restore-drill plan: production endpoint address/port comparison remains mandatory"
+    echo "restore-drill plan: integrity and key-table verification runs after restore"
+    echo "restore-drill plan: no backup or database was accessed"
+    exit 0
+fi
+
 if [ "${BACKUP_DRILL_MODE:-}" != "true" ]; then
     echo "[restore-drill] REFUSING: BACKUP_DRILL_MODE is not 'true'." >&2
     echo "[restore-drill] This script restores a backup into a database and MUST NOT run against production." >&2

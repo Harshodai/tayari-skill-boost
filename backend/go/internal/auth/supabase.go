@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -28,16 +29,10 @@ type SupabaseAuth struct {
 // supabase-local/docker-compose.yml. If you change it there, update this to
 // match or every verified request fails with ErrInvalidToken.
 //
-// There is deliberately no iss check: gotrue v2.185.0 (supabase-local's
-// pinned image) never sets an iss claim on access tokens it issues — verified
-// live against a real signup token, and confirmed by the binary itself: its
-// only "issuer"-related strings are for external OIDC providers (Azure,
-// Apple), not its own token minting. An iss==supabaseJWTIssuer check here
-// previously rejected every real login with ErrInvalidToken. Go's own
-// generateToken() (self-hosted-JWT mode) is already blocked from producing
-// tokens at all when UseSupabase=true (see its early return below), so there
-// is no live "tayari-backend"-issued token in circulation for an iss check
-// to catch — the aud check plus that mint-side guard is the real boundary.
+// Self-hosted GoTrue tokens may omit iss, so issuer validation is optional and
+// enabled only when SUPABASE_JWT_ISSUER is explicitly configured. Go's own
+// generateToken() is blocked when UseSupabase=true, so hosted access tokens
+// remain the only accepted user-token source in that mode.
 const supabaseJWTAudience = "authenticated"
 
 func NewSupabaseAuth(cfg *config.Config, db *database.DB) *SupabaseAuth {
@@ -54,7 +49,16 @@ func (a *SupabaseAuth) Login(ctx context.Context, email, password string) (strin
 	return "", fmt.Errorf("operation not supported in Supabase mode: use frontend SDK")
 }
 
-// verifyToken verifies the JWT token (HMAC with JWT Secret or Supabase logic)
+// VerifyIdentity verifies a hosted Supabase token and returns typed request identity.
+func (a *SupabaseAuth) VerifyIdentity(tokenString string) (*Identity, error) {
+	user, err := a.VerifyToken(tokenString)
+	if err != nil || user == nil {
+		return nil, ErrInvalidToken
+	}
+	return &Identity{UserID: user.ID, Email: user.Email, Roles: []string{user.Role}, Method: AuthMethodUserJWT, User: user}, nil
+}
+
+// VerifyToken verifies the JWT token (HMAC with JWT Secret or Supabase logic)
 func (a *SupabaseAuth) VerifyToken(tokenString string) (*models.User, error) {
 	// Supabase signs tokens with HMAC using the JWT Secret
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -62,7 +66,7 @@ func (a *SupabaseAuth) VerifyToken(tokenString string) (*models.User, error) {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(a.Config.JWTSecret), nil
-	})
+	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired())
 
 	if err != nil || !token.Valid {
 		return nil, ErrInvalidToken
@@ -73,10 +77,15 @@ func (a *SupabaseAuth) VerifyToken(tokenString string) (*models.User, error) {
 		return nil, ErrInvalidToken
 	}
 
-	// Verify the audience GoTrue actually issues (see the const doc comment
-	// above for why there is no iss check).
+	// Verify the audience GoTrue actually issues. If an issuer is configured,
+	// it is checked below while preserving self-hosted tokens that omit iss.
 	if aud, ok := claims["aud"].(string); !ok || aud != supabaseJWTAudience {
 		return nil, ErrInvalidToken
+	}
+	if expectedIssuer := strings.TrimSpace(a.Config.SupabaseJWTIssuer); expectedIssuer != "" {
+		if issuer, ok := claims["iss"].(string); !ok || issuer != expectedIssuer {
+			return nil, ErrInvalidToken
+		}
 	}
 
 	// Enforce expiration check
@@ -187,6 +196,11 @@ func (a *SupabaseAuth) SocialCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *SupabaseAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request, gothUser goth.User, returnTo string) {
+	if !validateEmail(gothUser.Email) || strings.TrimSpace(gothUser.Provider) == "" || strings.TrimSpace(gothUser.UserID) == "" {
+		log.Printf("handleSocialCallback: incomplete provider identity (provider: %s)", gothUser.Provider)
+		http.Error(w, "Invalid identity from provider", http.StatusBadRequest)
+		return
+	}
 	if !validateEmail(gothUser.Email) {
 		// Log sanitized email or generic message to avoid PII leak
 		log.Printf("handleSocialCallback: invalid email from provider (provider: %s)", gothUser.Provider)
@@ -196,10 +210,13 @@ func (a *SupabaseAuth) handleSocialCallback(w http.ResponseWriter, r *http.Reque
 
 	ctx := r.Context()
 	var dbUser models.User
+	var rawMetadata []byte
 
-	// Check if user exists in auth.users
-	query := `SELECT id, email, role FROM auth.users WHERE email = $1`
-	err := a.DB.Conn.QueryRowContext(ctx, query, gothUser.Email).Scan(&dbUser.ID, &dbUser.Email, &dbUser.Role)
+	// Never link a provider login to an existing email account implicitly. A
+	// previously provisioned social account must prove the same provider subject;
+	// password/email accounts require an explicit account-link flow instead.
+	query := `SELECT id, email, role, raw_user_meta_data FROM auth.users WHERE email = $1 FOR UPDATE`
+	err := a.DB.Conn.QueryRowContext(ctx, query, gothUser.Email).Scan(&dbUser.ID, &dbUser.Email, &dbUser.Role, &rawMetadata)
 
 	if err == sql.ErrNoRows {
 		// Provision new user
@@ -214,6 +231,16 @@ func (a *SupabaseAuth) handleSocialCallback(w http.ResponseWriter, r *http.Reque
 		log.Printf("handleSocialCallback: database error: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
+	} else {
+		var metadata map[string]string
+		if len(rawMetadata) > 0 && json.Unmarshal(rawMetadata, &metadata) == nil &&
+			metadata["provider"] == gothUser.Provider && metadata["provider_user_id"] == gothUser.UserID {
+			// Existing account is the same provider subject; continue.
+		} else {
+			log.Printf("handleSocialCallback: provider collision for existing account (provider: %s)", gothUser.Provider)
+			http.Error(w, "Account already exists; sign in with the original method or explicitly link this provider", http.StatusConflict)
+			return
+		}
 	}
 
 	// Generate JWT Token (Minting our own Supabase-compatible token)
@@ -245,9 +272,10 @@ func (a *SupabaseAuth) provisionSocialUser(ctx context.Context, gothUser goth.Us
               VALUES ($1, $2, $3, $4, $5, true, $6) RETURNING id, created_at`
 
 	metaData := map[string]string{
-		"full_name":  gothUser.Name,
-		"avatar_url": gothUser.AvatarURL,
-		"provider":   gothUser.Provider,
+		"full_name":        gothUser.Name,
+		"avatar_url":       gothUser.AvatarURL,
+		"provider":         gothUser.Provider,
+		"provider_user_id": gothUser.UserID,
 	}
 	metaDataJSON, err := json.Marshal(metaData)
 	if err != nil {

@@ -65,3 +65,21 @@ def test_digest_assembly_and_no_empty_send():
     assert digest["event_count"] == 2
     assert "Tayari Digest" in digest["subject"]
     assert "Senior Go Dev" in digest["body"]
+
+
+def test_production_email_delivery_fails_closed_without_real_smtp(monkeypatch):
+    from app.services.notifications import send_email_notification
+
+    monkeypatch.setenv("ENV", "production")
+    monkeypatch.delenv("SMTP_HOST", raising=False)
+    assert send_email_notification("test@example.com", "Subject", "Body") is False
+
+
+def test_development_email_uses_explicit_smtp_host(monkeypatch):
+    from unittest.mock import patch
+    from app.services.notifications import send_email_notification
+
+    monkeypatch.setenv("ENV", "development")
+    with patch("app.services.notifications.smtplib.SMTP") as smtp:
+        assert send_email_notification("test@example.com", "Subject", "Body", smtp_host="mailpit", smtp_port=1025) is True
+        smtp.assert_called_once_with("mailpit", 1025, timeout=5)

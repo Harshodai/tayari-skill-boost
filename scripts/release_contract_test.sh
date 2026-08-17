@@ -95,12 +95,87 @@ grep -q 'default_policy: authenticated' infra/endpoint-exposure.yml
 grep -q 's.Router.Get("/metrics"' backend/go/internal/api/router.go
 grep -q 'X-Internal-Token' backend/go/internal/observability/metrics.go
 grep -q 'RequestTelemetryMiddleware' backend/python/app/main.py
+grep -q 'OperationBudgetMiddleware' backend/python/app/main.py
+grep -q 'SlowAPIMiddleware' backend/python/app/main.py
+grep -q 'publicRateLimiter: newRateLimiter' backend/go/internal/api/router.go
+grep -q 'loginRateLimiter.Middleware' backend/go/internal/api/routes_app.go
+grep -q 'authRateLimiter.Middleware' backend/go/internal/api/routes_app.go
+grep -q 'type rateLimiter struct' backend/go/internal/api/middleware.go
 grep -q '"/metrics"' backend/python/app/middleware/internal_gateway.py
 grep -q 'llm_errors_total' backend/python/app/tests/test_observability.py
 test -f infra/observability/alerts.yml
 grep -q 'TayariQueueAgeHigh' infra/observability/alerts.yml
 grep -q 'TayariProviderErrors' infra/observability/alerts.yml
 grep -q 'TayariBudgetRejections' infra/observability/alerts.yml
+# Live verification and external side-effect safety are release contracts.
+test -x scripts/live_provider_verify.py
+test -f .github/workflows/live-provider-verify.yml
+grep -q 'permissions:' .github/workflows/live-provider-verify.yml
+grep -q 'contents: read' .github/workflows/live-provider-verify.yml
+grep -q -- '--require-providers' .github/workflows/live-provider-verify.yml
+grep -q 'ALLOW_LIVE_PROVIDER_VERIFY: "true"' .github/workflows/live-provider-verify.yml
+grep -q 'SMTP_HOST: ${SMTP_HOST:-}' docker-compose.production.yml
+grep -q 'SMTP_HOST: ${SMTP_HOST:-}' docker-compose.aws.yml
+grep -q 'SMTP provider is not configured for production notification delivery' backend/python/app/services/notifications.py
+grep -q 'post-persistence billing debit failed' backend/python/app/services/submission_receipt.py
+grep -q 'LLM_PROVIDER=openrouter requires OPENROUTER_API_KEY' backend/python/app/services/llm_service.py
+test -f backend/python/app/tests/test_llm_provider_configuration.py
+grep -q 'billing database unavailable' backend/go/internal/billing/billing.go
+grep -q 'TestBilling_ProductionRequiresDurableStorage' backend/go/internal/billing/billing_test.go
+test -x scripts/verify_rls_contract.py
+python3 scripts/verify_rls_contract.py >/dev/null
+test -x scripts/verify_observability_contract.py
+python3 scripts/verify_observability_contract.py >/dev/null
+grep -q 'stripe_webhook_events' backend/db/migrations/20260817_stripe_webhook_events.sql
+test -f supabase-local/volumes/db/init/35-20260817_stripe_webhook_events.sql
+grep -q 'stripe_webhook_events' supabase-local/volumes/db/init/35-20260817_stripe_webhook_events.sql
+grep -q 'zz-35-20260817_stripe_webhook_events.sql' supabase-local/docker-compose.yml
+grep -q 'stripe_webhook_events' scripts/backup-restore-smoke.sh
+test -x scripts/verify_self_hosted_migrations.py
+python3 scripts/verify_self_hosted_migrations.py >/dev/null
+grep -q 'autopilot_runs(run_id)' backend/db/migrations/0002_tayari_core_architecture.sql
+grep -q 'autopilot_runs(run_id)' supabase-local/volumes/db/init/25-0002_tayari_core_architecture.sql
+test -f docs/launch/2026-workspace-scope.yml
+grep -q 'autonomous.ats_submit' docs/launch/2026-workspace-scope.yml
+grep -q 'AutonomousBrowser' backend/go/internal/capabilities/capabilities.go
+grep -q 'disabled_by_launch_scope' backend/go/internal/api/router.go
+grep -q 'AUTONOMOUS_BROWSER' backend/python/app/services/capabilities.py
+grep -q 'token_hash' backend/db/migrations/20260817_password_reset_token_hash.sql
+test -f supabase-local/volumes/db/init/36-20260817_password_reset_token_hash.sql
+test -x scripts/verify_route_authorization_contract.py
+python3 scripts/verify_route_authorization_contract.py >/dev/null
+grep -q 'except LLMNotConfiguredError' backend/python/app/routes/health.py
+grep -q '_pool_loop' backend/python/app/services/db.py
+test -f backend/python/tests/test_health.py
+test -x scripts/rollback.sh
+test -x scripts/backup-restore-smoke.sh
+test -x scripts/restore-drill.sh
+grep -q 'DRY_RUN' scripts/rollback.sh
+grep -q 'DRY_RUN' scripts/backup-restore-smoke.sh
+grep -q 'DRY_RUN' scripts/restore-drill.sh
+# Local no-database fallbacks are intentional test/development behavior, never
+# an implicit production persistence mode.
+test -f docs/production-readiness.md
+grep -q 'Intentional no-database behavior' docs/production-readiness.md
+grep -q 'configured but the pool unavailable' docs/production-readiness.md
+grep -q 'must never be enabled for a production deployment' docs/production-readiness.md
+# Performance evidence must be target-gated; a simulated sleep cannot certify production latency.
+test -x scripts/perf_check.sh
+! grep -q 'simulated' scripts/perf_check.sh
+ grep -q -- '--plan' scripts/perf_check.sh
+python3 scripts/run_staging_hostile_suite.py --plan >/dev/null
+
+# The registry is only useful if it is compared with the mounted gateway. Keep
+# this generated check in the release gate so new anonymous routes cannot be
+# introduced without an explicit exposure decision.
+ROUTE_INVENTORY="$(mktemp -t tayari-route-inventory.XXXXXX.json)"
+LIVE_PROVIDER_CONTRACT="$(mktemp -t tayari-live-provider-contract.XXXXXX.json)"
+trap 'rm -f "$ROUTE_INVENTORY" "$LIVE_PROVIDER_CONTRACT"' EXIT
+(cd backend/go && go run ./cmd/route_inventory -o "$ROUTE_INVENTORY") >/dev/null
+python3 scripts/verify_endpoint_exposure.py "$ROUTE_INVENTORY"
+test -x scripts/live_provider_verify.py
+python3 -m pytest -q scripts/test_live_provider_verify.py
+python3 scripts/live_provider_verify.py --environment release --output "$LIVE_PROVIDER_CONTRACT" >/dev/null
 
 echo "release contract: PASS"
 # AWS canary uses Supabase GoTrue in the gateway, so the frontend must use the

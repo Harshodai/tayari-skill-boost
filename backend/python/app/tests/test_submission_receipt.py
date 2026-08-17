@@ -407,3 +407,47 @@ async def test_save_receipt_triggers_debit_when_verified():
     assert mock_debit.call_count == 1
     assert mock_debit.call_args[1]["user_id"] == "u_ver_1"
     assert mock_debit.call_args[1]["verified"] is True
+
+
+@pytest.mark.asyncio
+async def test_save_receipt_does_not_debit_when_persistence_unavailable():
+    verified_receipt = {
+        "run_id": "r_no_pool",
+        "user_id": "u_no_pool",
+        "job_url": JOB["url"],
+        "job_title": JOB["title"],
+        "company": JOB["company"],
+        "verified": True,
+        "answers": {},
+        "outcome": "submitted",
+    }
+    with mock.patch("app.services.submission_receipt.get_pool", new=mock.AsyncMock(return_value=None)), \
+         mock.patch("app.services.submission_receipt.debit_submission_credit", new_callable=mock.AsyncMock) as mock_debit:
+        saved = await sr.save_receipt(verified_receipt)
+
+    assert saved is False
+    mock_debit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_save_receipt_marks_post_persistence_debit_for_reconciliation():
+    conn = _FakeConn()
+    pool = _FakePool(conn)
+    verified_receipt = {
+        "run_id": "r_reconcile",
+        "user_id": "u_reconcile",
+        "job_url": JOB["url"],
+        "job_title": JOB["title"],
+        "company": JOB["company"],
+        "verified": True,
+        "answers": {},
+        "outcome": "submitted",
+    }
+    with mock.patch("app.services.submission_receipt.get_pool", new=mock.AsyncMock(return_value=pool)), \
+         mock.patch("app.services.submission_receipt.debit_submission_credit", new_callable=mock.AsyncMock) as mock_debit:
+        mock_debit.return_value = {"status": "debit_failed", "charged": 0}
+        saved = await sr.save_receipt(verified_receipt)
+
+    assert saved is True
+    assert verified_receipt["_billing_result"]["status"] == "debit_failed"
+    mock_debit.assert_awaited_once()

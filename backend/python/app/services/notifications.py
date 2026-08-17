@@ -69,12 +69,28 @@ def send_email_notification(
     to_email: str,
     subject: str,
     body_text: str,
-    smtp_host: str = "localhost",
-    smtp_port: int = 1025,
+    smtp_host: str | None = None,
+    smtp_port: int | None = None,
 ) -> bool:
-    """Send plain-text-first notification email with mandatory List-Unsubscribe header."""
-    from_email = os.getenv("NOTIFICATIONS_FROM_EMAIL", "notifications@tayari.local")
-    unsub_url = os.getenv("NOTIFICATIONS_UNSUBSCRIBE_URL", "mailto:unsubscribe@tayari.local?subject=unsubscribe")
+    """Send email, refusing to pretend localhost is production delivery.
+
+    Development keeps the Mailpit-friendly localhost default. Production must
+    provide a real SMTP host and a non-loopback sender configuration; otherwise
+    the event remains unconfirmed and is observable as a provider failure.
+    """
+    environment = os.getenv("ENV", "development").strip().lower()
+    configured_host = os.getenv("SMTP_HOST", "").strip()
+    resolved_host = (smtp_host or configured_host or "localhost").strip()
+    resolved_port = smtp_port if smtp_port is not None else int(os.getenv("SMTP_PORT", "1025"))
+    if environment == "production" and (not configured_host or resolved_host in {"localhost", "127.0.0.1", "::1"}):
+        logger.error("SMTP provider is not configured for production notification delivery")
+        return False
+
+    from_email = os.getenv("NOTIFICATIONS_FROM_EMAIL", "notifications@tayari.local").strip()
+    unsub_url = os.getenv("NOTIFICATIONS_UNSUBSCRIBE_URL", "mailto:unsubscribe@tayari.local?subject=unsubscribe").strip()
+    if environment == "production" and (from_email.endswith(".local") or ".local" in unsub_url):
+        logger.error("Production notification sender and unsubscribe URL must use a real domain")
+        return False
 
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -84,11 +100,11 @@ def send_email_notification(
     msg.set_content(body_text)
 
     try:
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=5) as server:
+        with smtplib.SMTP(resolved_host, resolved_port, timeout=5) as server:
             server.send_message(msg)
         return True
     except Exception as exc:
-        logger.warning("SMTP email send failed (fix_hint: configure SMTP_HOST in .env or run local Mailpit): %s", exc)
+        logger.warning("SMTP email send failed (fix_hint: configure a real SMTP_HOST in production or run local Mailpit): %s", exc)
         return False
 
 
@@ -146,14 +162,10 @@ def process_notification_event(
 
     # Channel 2: Email per-event (if enabled and user_email provided)
     if prefs.get("email_per_event", False) and user_email:
-        smtp_host = os.getenv("SMTP_HOST", "localhost")
-        smtp_port = int(os.getenv("SMTP_PORT", "1025"))
         sent = send_email_notification(
             user_email,
             event.title,
             event.message,
-            smtp_host=smtp_host,
-            smtp_port=smtp_port,
         )
         if sent:
             channels_sent.append("email")

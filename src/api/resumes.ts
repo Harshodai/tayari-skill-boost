@@ -189,11 +189,15 @@ export interface ResumeVariant {
   name: string;
   original_text: string;
   scores: {
-    formatting_score: number;
-    metrics_score: number;
-    readability_score: number;
-    keyword_score: number;
-    overall_score: number;
+    status?: "available" | "unavailable" | string;
+    source?: string;
+    error?: string;
+    message?: string;
+    formatting_score?: number;
+    metrics_score?: number;
+    readability_score?: number;
+    keyword_score?: number;
+    overall_score?: number;
   };
   pulls: number;
   conversions: number;

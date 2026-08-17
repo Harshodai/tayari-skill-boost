@@ -126,9 +126,12 @@ const PredictiveAnalytics = () => {
       setVariants(prev => [newVar, ...prev]);
       setVariantName("");
       setVariantText("");
+      const scoreAvailable = typeof newVar.scores?.overall_score === "number";
       toast({
-        title: "Variant created!",
-        description: `Successfully scored and registered variant "${variantName}".`
+        title: scoreAvailable ? "Variant created!" : "Variant saved without a score",
+        description: scoreAvailable
+          ? `Successfully scored and registered variant "${variantName}".`
+          : `Variant "${variantName}" was saved, but predictive scoring is currently unavailable.`,
       });
       
       // Refresh bandit statistics
@@ -361,7 +364,9 @@ const PredictiveAnalytics = () => {
                           <div className="flex items-center justify-between">
                             <h4 className="font-bold text-foreground text-sm">{v.name}</h4>
                             <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 text-xs font-bold">
-                              Score: {v.scores?.overall_score || 70}%
+                              {typeof v.scores?.overall_score === "number"
+                                ? `Score: ${v.scores.overall_score}%`
+                                : "Score unavailable"}
                             </Badge>
                           </div>
                         </CardHeader>
@@ -370,19 +375,19 @@ const PredictiveAnalytics = () => {
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                             <div className="p-2 border rounded bg-card">
                               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Formatting</span>
-                              <div className="text-sm font-bold text-foreground mt-0.5">{v.scores?.formatting_score || 0}%</div>
+                              <div className="text-sm font-bold text-foreground mt-0.5">{typeof v.scores?.formatting_score === "number" ? `${v.scores.formatting_score}%` : "Unavailable"}</div>
                             </div>
                             <div className="p-2 border rounded bg-card">
                               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Metrics</span>
-                              <div className="text-sm font-bold text-foreground mt-0.5">{v.scores?.metrics_score || 0}%</div>
+                              <div className="text-sm font-bold text-foreground mt-0.5">{typeof v.scores?.metrics_score === "number" ? `${v.scores.metrics_score}%` : "Unavailable"}</div>
                             </div>
                             <div className="p-2 border rounded bg-card">
                               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Readability</span>
-                              <div className="text-sm font-bold text-foreground mt-0.5">{v.scores?.readability_score || 0}%</div>
+                              <div className="text-sm font-bold text-foreground mt-0.5">{typeof v.scores?.readability_score === "number" ? `${v.scores.readability_score}%` : "Unavailable"}</div>
                             </div>
                             <div className="p-2 border rounded bg-card">
                               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Keywords</span>
-                              <div className="text-sm font-bold text-foreground mt-0.5">{v.scores?.keyword_score || 0}%</div>
+                              <div className="text-sm font-bold text-foreground mt-0.5">{typeof v.scores?.keyword_score === "number" ? `${v.scores.keyword_score}%` : "Unavailable"}</div>
                             </div>
                           </div>
                         </CardContent>

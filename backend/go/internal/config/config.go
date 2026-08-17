@@ -1,12 +1,14 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strings"
 )
 
 type Config struct {
+	Environment            string
 	Port                   string
 	AllowedOrigins         []string
 	CORSAllowedOrigins     []string
@@ -15,6 +17,7 @@ type Config struct {
 	JWTSecret              string
 	SupabaseURL            string
 	SupabaseKey            string
+	SupabaseJWTIssuer      string
 	SupabaseServiceRoleKey string
 	FrontendURL            string
 	PythonAIURL            string
@@ -39,6 +42,7 @@ func LoadConfig() *Config {
 	jwtSecret := getEnvRequired("JWT_SECRET")
 
 	return &Config{
+		Environment:        strings.ToLower(strings.TrimSpace(getEnv("APP_ENV", "development"))),
 		Port:               getEnv("PORT", "8080"),
 		AllowedOrigins:     parseAllowedOrigins(getEnv("ALLOWED_ORIGINS", "http://localhost:5173")),
 		CORSAllowedOrigins: parseAllowedOrigins(getEnv("CORS_ALLOWED_ORIGINS", "")),
@@ -47,6 +51,7 @@ func LoadConfig() *Config {
 		JWTSecret:          jwtSecret,
 		SupabaseURL:        getEnv("SUPABASE_URL", ""),
 		SupabaseKey:        getEnv("SUPABASE_ANON_KEY", ""),
+		SupabaseJWTIssuer:  getEnv("SUPABASE_JWT_ISSUER", ""),
 		// Optional: enables the GoTrue Admin-API account-deletion path
 		// (DELETE /auth/v1/admin/users/{id}) in handleDeleteAccount. Without
 		// it, deletion falls back to a direct `DELETE FROM auth.users`.
@@ -68,6 +73,31 @@ func LoadConfig() *Config {
 		LinkedinClientSecret: getEnv("LINKEDIN_CLIENT_SECRET", ""),
 		LinkedinCallbackURL:  getEnv("LINKEDIN_CALLBACK_URL", "http://localhost:8080/api/auth/linkedin/callback"),
 	}
+}
+
+func (c *Config) ValidateForStartup() error {
+	if c == nil {
+		return fmt.Errorf("configuration is nil")
+	}
+	if c.Environment != "production" && c.Environment != "prod" && c.Environment != "staging" {
+		return nil
+	}
+	if !c.UseSupabase {
+		return fmt.Errorf("%s requires USE_SUPABASE=true; local authentication is development-only", c.Environment)
+	}
+	if strings.TrimSpace(c.SupabaseURL) == "" {
+		return fmt.Errorf("%s requires SUPABASE_URL", c.Environment)
+	}
+	if strings.TrimSpace(c.AIInternalToken) == "" {
+		return fmt.Errorf("%s requires AI_INTERNAL_TOKEN", c.Environment)
+	}
+	for _, origin := range append(append([]string{}, c.AllowedOrigins...), c.CORSAllowedOrigins...) {
+		lower := strings.ToLower(strings.TrimSpace(origin))
+		if strings.HasPrefix(lower, "http://localhost") || strings.HasPrefix(lower, "http://127.0.0.1") {
+			return fmt.Errorf("%s cannot use localhost CORS origin: %s", c.Environment, origin)
+		}
+	}
+	return nil
 }
 
 func getEnv(key, fallback string) string {

@@ -1,4 +1,4 @@
-"""Telemetry stub — publish pipeline events to logs."""
+"""Structured pipeline telemetry published through the service logger."""
 from .publisher import publish_event, stage_complete, stage_fail
 from .counters import MetricsRegistry, metrics
 

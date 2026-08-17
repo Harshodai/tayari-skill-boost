@@ -171,6 +171,14 @@ func (a *LocalAuth) LoginWithRequest(ctx context.Context, email, password string
 	return a.generateToken(&user)
 }
 
+func (a *LocalAuth) VerifyIdentity(tokenString string) (*Identity, error) {
+	user, err := a.VerifyToken(tokenString)
+	if err != nil || user == nil {
+		return nil, ErrInvalidToken
+	}
+	return &Identity{UserID: user.ID, Email: user.Email, Roles: []string{user.Role}, Method: AuthMethodUserJWT, User: user}, nil
+}
+
 func (a *LocalAuth) VerifyToken(tokenString string) (*models.User, error) {
 	// ponytail: HMAC method check denies 'none' alg; WithExpirationRequired + WithIssuer enforce claims in the parser (root-cause single guard for all callers).
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -178,7 +186,7 @@ func (a *LocalAuth) VerifyToken(tokenString string) (*models.User, error) {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(a.Config.JWTSecret), nil
-	}, jwt.WithExpirationRequired(), jwt.WithIssuer("tayari-backend"))
+	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired(), jwt.WithIssuer("tayari-backend"))
 
 	if err != nil || !token.Valid {
 		return nil, ErrInvalidToken
@@ -213,6 +221,7 @@ func (a *LocalAuth) VerifyToken(tokenString string) (*models.User, error) {
 func (a *LocalAuth) generateToken(user *models.User) (string, error) {
 	claims := jwt.MapClaims{
 		"sub":   user.ID.String(),
+		"aud":   "authenticated",
 		"email": user.Email,
 		"role":  user.Role,
 		"exp":   time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days

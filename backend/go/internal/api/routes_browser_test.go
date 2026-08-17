@@ -15,6 +15,7 @@ import (
 
 func newBrowserServer(t *testing.T, pythonURL string) *Server {
 	t.Helper()
+	t.Setenv("CAPABILITY_AUTONOMOUS_BROWSER", "true")
 	cfg := &config.Config{PythonAIURL: pythonURL}
 	return NewServer(&hermesMockAuth{}, cfg, &database.DB{Conn: nil})
 }

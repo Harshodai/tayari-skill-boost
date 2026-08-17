@@ -35,6 +35,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS public.agent_action_approvals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     candidate_id UUID NOT NULL,
+    -- Legacy installs use SERIAL `id` plus UUID `run_id`; reference the stable UUID key.
     run_id UUID REFERENCES public.autopilot_runs(run_id) ON DELETE SET NULL,
     action_type VARCHAR(100) NOT NULL, -- 'SUBMIT_ATS_APPLICATION', 'SEND_RECRUITER_EMAIL'
     action_payload JSONB NOT NULL,
@@ -148,6 +149,7 @@ CREATE INDEX IF NOT EXISTS idx_source_chunks_fts ON public.source_chunks USING g
 CREATE TABLE IF NOT EXISTS public.candidate_agent_audit_logs (
     id BIGSERIAL PRIMARY KEY,
     candidate_id UUID NOT NULL,
+    -- Legacy installs use SERIAL `id` plus UUID `run_id`; reference the stable UUID key.
     run_id UUID REFERENCES public.autopilot_runs(run_id) ON DELETE SET NULL,
     actor_type VARCHAR(50) NOT NULL, -- 'AGENT', 'USER', 'SYSTEM'
     action_name VARCHAR(150) NOT NULL,

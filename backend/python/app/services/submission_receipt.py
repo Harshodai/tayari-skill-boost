@@ -412,21 +412,13 @@ async def debit_submission_credit(
 
 
 async def save_receipt(receipt: dict[str, Any]) -> bool:
-    """Persist a receipt and debit 1 credit only when verified=True."""
-    # Trigger credit debit hook for verified submissions
-    if receipt.get("verified") and receipt.get("user_id"):
-        try:
-            await debit_submission_credit(
-                user_id=receipt["user_id"],
-                receipt_id=receipt.get("run_id"),
-                run_id=receipt.get("run_id"),
-                job_title=receipt.get("job_title"),
-                company=receipt.get("company"),
-                verified=True,
-            )
-        except Exception as exc:
-            logger.warning("submission_receipt: credit debit hook failed non-fatally: %s", exc)
+    """Persist evidence before charging, then expose debit reconciliation state.
 
+    Charging before the insert creates the worst failure mode: a user loses a
+    credit while the receipt they need to inspect does not exist. Billing uses
+    the receipt/run reference as its idempotency key, so a failed post-insert
+    debit can be retried safely by reconciliation.
+    """
     pool = await get_pool()
     if not pool:
         logger.info("submission_receipt: no DB pool, receipt not persisted")
@@ -482,6 +474,25 @@ async def save_receipt(receipt: dict[str, Any]) -> bool:
                 json.dumps(persist_answers),
                 receipt.get("outcome") or "unknown",
             )
+        if receipt.get("verified") and receipt.get("user_id"):
+            try:
+                billing_result = await debit_submission_credit(
+                    user_id=receipt["user_id"],
+                    receipt_id=receipt.get("run_id"),
+                    run_id=receipt.get("run_id"),
+                    job_title=receipt.get("job_title"),
+                    company=receipt.get("company"),
+                    verified=True,
+                )
+                receipt["_billing_result"] = billing_result
+                if billing_result.get("status") != "debited":
+                    logger.error(
+                        "submission_receipt: durable verified receipt needs billing reconciliation: %s",
+                        billing_result.get("status"),
+                    )
+            except Exception as exc:
+                logger.exception("submission_receipt: post-persistence billing debit failed: %s", exc)
+                receipt["_billing_result"] = {"status": "reconciliation_required", "charged": 0}
         return True
     except Exception as exc:  # noqa: BLE001 — persistence must never break a run
         logger.warning("submission_receipt: save failed (%s)", exc)

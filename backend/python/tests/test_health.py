@@ -57,6 +57,14 @@ def test_health_check_reports_llm_not_configured(unconfigured_env):
     assert resp.model_status == "llm_not_configured"
 
 
+def test_health_check_handles_explicit_provider_without_credentials(unconfigured_env, monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+    resp = health_route.health_check()
+    assert resp.status == "ok"
+    assert resp.model_status == "llm_not_configured"
+
+
 def test_health_check_reports_loaded_when_configured(unconfigured_env, monkeypatch):
     monkeypatch.setenv("LLM_BASE_URL", "https://api.groq.com/openai/v1")
     monkeypatch.setenv("LLM_API_KEY", "test-key")
@@ -68,6 +76,15 @@ def test_health_check_reports_loaded_when_configured(unconfigured_env, monkeypat
 def test_health_route_returns_200(path):
     resp = client.get(path)
     assert resp.status_code == 200
+
+
+def test_readyz_fails_closed_with_missing_explicit_provider(monkeypatch):
+    monkeypatch.setenv("ENV", "production")
+    monkeypatch.setenv("LLM_PROVIDER", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+    response = client.get("/readyz")
+    assert response.status_code == 503
+    assert response.json()["detail"] == "llm_not_configured"
 
 
 def test_readyz_fails_closed_without_database(monkeypatch):

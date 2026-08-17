@@ -121,6 +121,17 @@ func IsBillingEnabled() bool {
 	return os.Getenv("BILLING_ENABLED") == "true"
 }
 
+func isProductionBilling() bool {
+	return IsBillingEnabled() && strings.EqualFold(os.Getenv("ENV"), "production")
+}
+
+func (b *BillingService) requireDurableBillingStorage() error {
+	if isProductionBilling() && (b.db == nil || b.db.Conn == nil) {
+		return errors.New("billing database unavailable")
+	}
+	return nil
+}
+
 func (b *BillingService) GetEntitlement(userID string) *Entitlement {
 	// Self-hosters or disabled billing get unlimited Pro entitlement
 	if !IsBillingEnabled() {
@@ -164,12 +175,18 @@ func (b *BillingService) GetEntitlement(userID string) *Entitlement {
 			return &ent
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
-			// A transient DB error (timeout, connection drop, etc.) is not
-			// the same as "no subscription row exists" — log it distinctly
-			// so it isn't confused with a genuinely free/no-subscription
-			// user. Falls through to the in-memory cache below, which may
-			// still hold this user's entitlement from a prior webhook.
-			log.Printf("[billing] GetEntitlement: DB query failed for user %s (falling back to cache/free): %v", userID, err)
+			// A transient DB error is not the same as "no subscription row
+			// exists". Never turn an entitlement outage into a free or
+			// cached entitlement: that would grant paid features while the
+			// source of truth is unavailable.
+			log.Printf("[billing] GetEntitlement: DB query failed for user %s (failing closed): %v", userID, err)
+			return &Entitlement{
+				UserID:       userID,
+				Plan:         "unavailable",
+				IsActive:     false,
+				MeteredLimit: 0,
+				ExpiresAt:    time.Time{},
+			}
 		}
 	}
 
@@ -207,23 +224,23 @@ const (
 // requireFeature gate always passes for these entries.
 var FEATURE_LIMITS = map[string]string{
 	// Free tier features
-	"resume_optimize":    TierFree,
-	"ats_score":          TierFree,
-	"cover_letter":       TierFree,
-	"job_search":         TierFree,
-	"save_job":           TierFree,
-	"knowledge_graph":    TierFree,
-	"dashboard_stats":    TierFree,
+	"resume_optimize": TierFree,
+	"ats_score":       TierFree,
+	"cover_letter":    TierFree,
+	"job_search":      TierFree,
+	"save_job":        TierFree,
+	"knowledge_graph": TierFree,
+	"dashboard_stats": TierFree,
 	// Pro-only features
-	"interview_copilot":  TierPro,
-	"voice_coach":        TierPro,
-	"deep_ats":           TierPro,
-	"agent_reach":        TierPro,
-	"autopilot":          TierPro,
-	"recruiter_lookup":   TierPro,
-	"offer_calculate":    TierPro,
-	"linkedin_analyze":   TierPro,
-	"truth_check":        TierPro,
+	"interview_copilot": TierPro,
+	"voice_coach":       TierPro,
+	"deep_ats":          TierPro,
+	"agent_reach":       TierPro,
+	"autopilot":         TierPro,
+	"recruiter_lookup":  TierPro,
+	"offer_calculate":   TierPro,
+	"linkedin_analyze":  TierPro,
+	"truth_check":       TierPro,
 	// Enterprise-only features
 	"multi_tenant_admin": TierEnterprise,
 	"custom_branding":    TierEnterprise,
@@ -278,9 +295,12 @@ func (b *BillingService) CanUseFeature(userID, feature string) (bool, string) {
 	}
 	requiredPlan, known := FEATURE_LIMITS[feature]
 	if !known {
-		return true, "" // unknown feature: allow by default (fail open)
+		return false, "feature_not_registered"
 	}
 	ent := b.GetEntitlement(userID)
+	if ent.Plan == "unavailable" {
+		return false, "entitlement_unavailable"
+	}
 	if !ent.IsActive {
 		return false, "subscription_inactive"
 	}
@@ -380,7 +400,10 @@ func (b *BillingService) CreateCheckoutSession(userID, userEmail, plan, returnUR
 		}
 	}
 	if priceID == "" {
-		// Fallback for dev mode
+		if strings.EqualFold(os.Getenv("ENV"), "production") {
+			return "", errors.New("stripe price ID is not configured for production")
+		}
+		// Fallback is deliberately development-only.
 		priceID = "price_pro_default"
 	}
 
@@ -437,26 +460,15 @@ func (b *BillingService) CreatePortalSession(userID, returnURL string) (string, 
 	return s.URL, nil
 }
 
-// ProcessStripeWebhook processes subscription events idempotently with Postgres update
+// ProcessStripeWebhook processes subscription events idempotently with a durable
+// event claim and an atomic subscription update when PostgreSQL is available.
 func (b *BillingService) ProcessStripeWebhook(eventID, eventType, customerID, subscriptionID, userID, plan string) bool {
 	if !IsBillingEnabled() {
 		return true
 	}
-
-	b.mu.Lock()
-	now := time.Now()
-	for id, t := range b.processedEvents {
-		if now.Sub(t) > 24*time.Hour {
-			delete(b.processedEvents, id)
-		}
+	if strings.TrimSpace(eventID) == "" {
+		return false
 	}
-
-	if _, exists := b.processedEvents[eventID]; exists {
-		b.mu.Unlock()
-		return true
-	}
-	b.processedEvents[eventID] = now
-	b.mu.Unlock()
 
 	limit := 1000
 	p := strings.ToLower(plan)
@@ -471,13 +483,38 @@ func (b *BillingService) ProcessStripeWebhook(eventID, eventType, customerID, su
 		status = "canceled"
 		limit = 1000
 	}
-
 	expiresAt := time.Now().AddDate(0, 1, 0)
 
-	// Persist to PostgreSQL if available
-	if b.db != nil && b.db.Conn != nil && userID != "" {
-		_, err := b.db.Conn.Exec(`
-			INSERT INTO public.user_subscriptions 
+	if b.db != nil && b.db.Conn != nil {
+		if strings.TrimSpace(userID) == "" {
+			log.Printf("[billing] Stripe event %s has no user_id metadata; refusing entitlement mutation", eventID)
+			return false
+		}
+		tx, err := b.db.Conn.Begin()
+		if err != nil {
+			log.Printf("[billing] Failed to begin Stripe event transaction: %v", err)
+			return false
+		}
+		defer tx.Rollback()
+
+		var claimedEventID string
+		err = tx.QueryRow(`
+			INSERT INTO public.stripe_webhook_events (event_id, event_type)
+			VALUES ($1, $2)
+			ON CONFLICT (event_id) DO NOTHING
+			RETURNING event_id
+		`, eventID, eventType).Scan(&claimedEventID)
+		if errors.Is(err, sql.ErrNoRows) {
+			// Duplicate delivery: the original transaction already claimed it.
+			return true
+		}
+		if err != nil {
+			log.Printf("[billing] Failed to claim Stripe event %s: %v", eventID, err)
+			return false
+		}
+
+		_, err = tx.Exec(`
+			INSERT INTO public.user_subscriptions
 				(user_id, stripe_customer_id, stripe_subscription_id, plan, status, metered_limit, requests_used, current_period_end, updated_at)
 			VALUES ($1::uuid, $2, $3, $4, $5, $6, 0, $7, NOW())
 			ON CONFLICT (user_id) DO UPDATE SET
@@ -490,11 +527,41 @@ func (b *BillingService) ProcessStripeWebhook(eventID, eventType, customerID, su
 				updated_at = NOW()
 		`, userID, customerID, subscriptionID, plan, status, limit, expiresAt)
 		if err != nil {
-			log.Printf("[billing] Failed to save subscription to DB: %v", err)
+			log.Printf("[billing] Failed to save subscription for Stripe event %s: %v", eventID, err)
+			return false
 		}
+		if err := tx.Commit(); err != nil {
+			log.Printf("[billing] Failed to commit Stripe event %s: %v", eventID, err)
+			return false
+		}
+
+		b.mu.Lock()
+		b.entitlements[userID] = &Entitlement{
+			UserID:       userID,
+			Plan:         plan,
+			IsActive:     status == "active",
+			MeteredLimit: limit,
+			RequestsUsed: 0,
+			ExpiresAt:    expiresAt,
+			CustomerID:   customerID,
+		}
+		b.mu.Unlock()
+		return true
 	}
 
+	// Development-only fallback for the in-memory test/self-hosted service.
 	b.mu.Lock()
+	now := time.Now()
+	for id, t := range b.processedEvents {
+		if now.Sub(t) > 24*time.Hour {
+			delete(b.processedEvents, id)
+		}
+	}
+	if _, exists := b.processedEvents[eventID]; exists {
+		b.mu.Unlock()
+		return true
+	}
+	b.processedEvents[eventID] = now
 	b.entitlements[userID] = &Entitlement{
 		UserID:       userID,
 		Plan:         plan,
@@ -505,7 +572,6 @@ func (b *BillingService) ProcessStripeWebhook(eventID, eventType, customerID, su
 		CustomerID:   customerID,
 	}
 	b.mu.Unlock()
-
 	return true
 }
 
@@ -607,6 +673,9 @@ func (b *BillingService) GetCreditBalance(userID string) (*UserCreditBalance, er
 			UpdatedAt:         time.Now(),
 		}, nil
 	}
+	if err := b.requireDurableBillingStorage(); err != nil {
+		return nil, err
+	}
 
 	// Try DB query first if database connection is available
 	if b.db != nil && b.db.Conn != nil {
@@ -628,10 +697,16 @@ func (b *BillingService) GetCreditBalance(userID string) (*UserCreditBalance, er
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("[billing] GetCreditBalance DB query error for %s: %v", userID, err)
+			if isProductionBilling() {
+				return nil, errors.New("billing database unavailable")
+			}
 		}
 	}
 
-	// In-memory fallback
+	// In-memory fallback is development-only when billing is enabled.
+	if isProductionBilling() {
+		return nil, errors.New("billing database unavailable")
+	}
 	b.mu.RLock()
 	bal, exists := b.creditBalances[userID]
 	b.mu.RUnlock()
@@ -657,6 +732,9 @@ func (b *BillingService) AddCredits(userID string, amount int, referenceID, desc
 	}
 	if amount <= 0 {
 		return nil, errors.New("credit amount must be positive")
+	}
+	if err := b.requireDurableBillingStorage(); err != nil {
+		return nil, err
 	}
 
 	now := time.Now()
@@ -693,6 +771,12 @@ func (b *BillingService) AddCredits(userID string, amount int, referenceID, desc
 			return &bal, nil
 		}
 		log.Printf("[billing] AddCredits DB error for %s: %v", userID, err)
+		if isProductionBilling() {
+			return nil, errors.New("billing database unavailable")
+		}
+	}
+	if isProductionBilling() {
+		return nil, errors.New("billing database unavailable")
 	}
 
 	b.mu.Lock()
@@ -765,6 +849,9 @@ func (b *BillingService) DebitCredit(userID string, amount int, referenceID, des
 			UpdatedAt:         time.Now(),
 		}, nil
 	}
+	if err := b.requireDurableBillingStorage(); err != nil {
+		return false, nil, err
+	}
 
 	now := time.Now()
 
@@ -801,6 +888,12 @@ func (b *BillingService) DebitCredit(userID string, amount int, referenceID, des
 			currentBal, _ := b.GetCreditBalance(userID)
 			return false, currentBal, errors.New("insufficient credit balance for verified submission")
 		}
+		if isProductionBilling() {
+			return false, nil, errors.New("billing database unavailable")
+		}
+	}
+	if isProductionBilling() {
+		return false, nil, errors.New("billing database unavailable")
 	}
 
 	b.mu.Lock()
@@ -848,6 +941,9 @@ func (b *BillingService) RefundCredit(userID string, amount int, referenceID, de
 	if amount <= 0 {
 		amount = 1
 	}
+	if err := b.requireDurableBillingStorage(); err != nil {
+		return nil, err
+	}
 
 	now := time.Now()
 
@@ -881,6 +977,12 @@ func (b *BillingService) RefundCredit(userID string, amount int, referenceID, de
 			b.mu.Unlock()
 			return &bal, nil
 		}
+		if isProductionBilling() {
+			return nil, errors.New("billing database unavailable")
+		}
+	}
+	if isProductionBilling() {
+		return nil, errors.New("billing database unavailable")
 	}
 
 	b.mu.Lock()

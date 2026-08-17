@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from pydantic import BaseModel
-from app.services.llm_service import active_engine, is_llm_configured
+from app.services.llm_service import LLMNotConfiguredError, is_llm_configured
 from app.telemetry import metrics
 try:
     from fastapi_cache.decorator import cache
@@ -30,11 +30,17 @@ class HealthResponse(BaseModel):
 @router.get("/api/v1/health", response_model=HealthResponse)
 @cache(expire=60)
 def health_check():
+    try:
+        configured = is_llm_configured()
+    except LLMNotConfiguredError:
+        # Liveness must remain stable in development and local smoke tests. The
+        # readiness endpoint is responsible for failing closed in production.
+        configured = False
     return HealthResponse(
         status="ok",
         service="python-ai-engine",
         version="1.0.0",
-        model_status="loaded" if is_llm_configured() else "llm_not_configured",
+        model_status="loaded" if configured else "llm_not_configured",
     )
 
 
@@ -56,8 +62,13 @@ async def metrics_snapshot(request: Request):
 @router.get("/readyz")
 async def readiness_check():
     """Return 503 until required production dependencies are reachable."""
-    if os.getenv("ENV", "development").lower() == "production" and not is_llm_configured():
-        raise HTTPException(status_code=503, detail="llm_not_configured")
+    if os.getenv("ENV", "development").lower() == "production":
+        try:
+            configured = is_llm_configured()
+        except LLMNotConfiguredError:
+            configured = False
+        if not configured:
+            raise HTTPException(status_code=503, detail="llm_not_configured")
     from app.services.db import get_pool
     pool = await get_pool()
     if pool is None:

@@ -149,7 +149,15 @@ import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z4 } from "npm:zod@^4.4.3";
 
 // src/lib/mcp/tools/_client.ts
-var API = () => process.env.VITE_GO_API_URL ?? "http://localhost:8085";
+function runtimeGoApiUrl() {
+  const runtime = globalThis.Deno?.env?.get?.("TAYARI_GO_API_URL");
+  return runtime ?? "";
+}
+var API = () => {
+  const configured = String(runtimeGoApiUrl()).trim();
+  if (configured) return configured;
+  throw new Error("MCP Go API URL is not configured");
+};
 var REQUEST_TIMEOUT_MS = 6e4;
 var ApiError = class extends Error {
   data;
@@ -474,8 +482,12 @@ var report_outcome_default = defineTool14({
 });
 
 // src/lib/mcp/index.ts
+function runtimeSupabaseUrl() {
+  const runtime = globalThis.Deno?.env?.get?.("SUPABASE_URL");
+  return runtime ?? "";
+}
 function projectRefFromSupabaseUrl() {
-  const raw = String("http://localhost:8010");
+  const raw = String(runtimeSupabaseUrl());
   if (!raw) return "";
   let parsed;
   try {
@@ -489,10 +501,10 @@ function projectRefFromSupabaseUrl() {
   if (!match) return "";
   return match[1];
 }
-function validProjectRef(value) {
-  return !!value && value !== "project-ref-unset" && /^[a-z0-9]{20}$/.test(value);
+var projectRef = projectRefFromSupabaseUrl() || "";
+if (!projectRef) {
+  throw new Error("MCP auth issuer is not configured with a valid hosted Supabase project");
 }
-var projectRef = (validProjectRef("") ? "" : projectRefFromSupabaseUrl()) || "";
 var mcp_default = defineMcp({
   name: "tayari-mcp",
   title: "Tayari",

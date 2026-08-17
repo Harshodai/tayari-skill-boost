@@ -138,6 +138,10 @@ func (s *Server) handleSocialLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid provider", http.StatusBadRequest)
 		return
 	}
+	if s.Auth == nil {
+		http.Error(w, "social authentication is unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	s.Auth.SocialLogin(w, r)
 }
 
@@ -145,6 +149,10 @@ func (s *Server) handleSocialCallback(w http.ResponseWriter, r *http.Request) {
 	r, ok := s.setupSocialAuthContext(r)
 	if !ok {
 		http.Error(w, "invalid provider", http.StatusBadRequest)
+		return
+	}
+	if s.Auth == nil {
+		http.Error(w, "social authentication is unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	s.Auth.SocialCallback(w, r)

@@ -9,6 +9,13 @@ if [[ "$ENVIRONMENT" != "staging" && "$ENVIRONMENT" != "production" ]]; then
   exit 2
 fi
 
+if [[ "${DRY_RUN:-false}" == "true" ]]; then
+  echo "rollback plan: environment=${ENVIRONMENT} namespace=tayari-${ENVIRONMENT} revision=${TARGET_REVISION:-previous}"
+  echo "rollback plan: workloads=tayari-frontend,tayari-go-gateway,tayari-python-api"
+  echo "rollback plan: no cluster mutation performed"
+  exit 0
+fi
+
 : "${ROLLBACK_APPROVED:?Set ROLLBACK_APPROVED=true after incident/change-owner approval}"
 if [[ "$ROLLBACK_APPROVED" != "true" ]]; then
   echo "ROLLBACK_APPROVED must be exactly true." >&2

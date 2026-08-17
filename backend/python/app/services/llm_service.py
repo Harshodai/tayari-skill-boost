@@ -369,7 +369,7 @@ def build_provider(tier: str = "default") -> LLMProvider:
         model = _tier_model("OPENROUTER_MODEL", tier, "openai/gpt-4o-mini")
         if key:
             return OpenRouterProvider(key, model)
-        logger.warning("LLM_PROVIDER=openrouter but OPENROUTER_API_KEY not set; falling back")
+        raise LLMNotConfiguredError("LLM_PROVIDER=openrouter requires OPENROUTER_API_KEY")
 
     if provider_name == "nvidia_nim":
         key = _env("NVIDIA_NIM_API_KEY") or _env("LLM_API_KEY")
@@ -377,7 +377,7 @@ def build_provider(tier: str = "default") -> LLMProvider:
         base = _env("NVIDIA_NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
         if key:
             return NVIDIANIMProvider(key, model, base)
-        logger.warning("LLM_PROVIDER=nvidia_nim but NVIDIA_NIM_API_KEY not set; falling back")
+        raise LLMNotConfiguredError("LLM_PROVIDER=nvidia_nim requires NVIDIA_NIM_API_KEY")
 
     # Auto-detect NVIDIA NIM: if key is present and no explicit provider chosen, prefer NIM
     if provider_name in ("", "auto"):
@@ -388,17 +388,27 @@ def build_provider(tier: str = "default") -> LLMProvider:
             logger.info("Auto-detected NVIDIA NIM (NVIDIA_NIM_API_KEY set) → using NVIDIANIMProvider")
             return NVIDIANIMProvider(nim_key, nim_model, nim_base)
 
-    if provider_name in ("ollama", "") and _env("LLM_BASE_URL"):
+    if provider_name == "ollama":
         base = _env("LLM_BASE_URL")
-        if "ollama" in base.lower() or "11434" in base:
-            return OllamaProvider(base, _tier_model("LLM_MODEL", tier, "llama3.1"))
+        if not base:
+            raise LLMNotConfiguredError("LLM_PROVIDER=ollama requires LLM_BASE_URL")
+        if "ollama" not in base.lower() and "11434" not in base:
+            raise LLMNotConfiguredError("LLM_PROVIDER=ollama requires an Ollama LLM_BASE_URL")
+        return OllamaProvider(base, _tier_model("LLM_MODEL", tier, "llama3.1"))
 
-    # Generic OpenAI-compatible (Groq, Together, local vLLM …)
+    # Generic OpenAI-compatible (Groq, Together, local vLLM …). An explicit
+    # provider label without an endpoint is not allowed to silently become a
+    # MockProvider or another provider.
     if _env("LLM_BASE_URL"):
         return OpenAICompatibleProvider(
             _env("LLM_BASE_URL"),
             _env("LLM_API_KEY"),
             _tier_model("LLM_MODEL", tier, "default"),
+        )
+
+    if provider_name not in {"", "auto"}:
+        raise LLMNotConfiguredError(
+            f"LLM_PROVIDER={provider_name} requires LLM_BASE_URL or a supported provider credential"
         )
 
     return MockProvider()

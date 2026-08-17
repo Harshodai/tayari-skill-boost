@@ -9,6 +9,9 @@ import (
 	"strings"
 	"tayari-backend/internal/auth"
 	"tayari-backend/internal/models"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // Auth Handlers
@@ -97,8 +100,8 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		parts := strings.Fields(authHeader)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || len(parts[1]) > 8192 {
 			s.respondError(w, http.StatusUnauthorized, "Invalid authorization header format")
 			return
 		}
@@ -108,13 +111,41 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		user, err := s.Auth.VerifyToken(tokenStr)
-		if err != nil {
+		var user *models.User
+		var identity *auth.Identity
+		var err error
+		if verifier, ok := s.Auth.(auth.IdentityVerifier); ok {
+			identity, err = verifier.VerifyIdentity(tokenStr)
+			if identity != nil {
+				user = identity.User
+			}
+		} else {
+			user, err = s.Auth.VerifyToken(tokenStr)
+			if user != nil {
+				identity = &auth.Identity{UserID: user.ID, Email: user.Email, Method: auth.AuthMethodLegacy, User: user}
+			}
+		}
+		if err != nil || user == nil {
 			s.respondError(w, http.StatusUnauthorized, "Invalid token")
 			return
 		}
 
 		ctx := auth.WithUserContext(r.Context(), user)
+		if identity != nil {
+			ctx = auth.WithIdentityContext(ctx, identity)
+		}
+		var tenantID uuid.UUID
+		if tenant, ok := ctx.Value(contextKeyTenant).(*models.Tenant); ok && tenant != nil {
+			tenantID = tenant.ID
+		}
+		requestID := requestTraceID(r)
+		ctx = auth.WithAuthorizationContext(ctx, &auth.AuthorizationContext{
+			Subject:   user.ID,
+			TenantID:  tenantID,
+			Roles:     append([]string(nil), identity.Roles...),
+			RequestID: requestID,
+			Epoch:     time.Now().Unix(),
+		})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

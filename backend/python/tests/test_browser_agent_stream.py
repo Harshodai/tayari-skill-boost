@@ -117,6 +117,8 @@ async def test_stream_emits_error_when_browser_use_missing(monkeypatch):
 
 def _authz_endpoint_request(monkeypatch):
     """Return the endpoint with a synthetic verified actor for direct calls."""
+    monkeypatch.setenv("CAPABILITY_AUTONOMOUS_BROWSER", "true")
+
     async def call(payload, request):
         return await browser_automation_stream_endpoint(payload, request, _user_id="u-test")
     return call

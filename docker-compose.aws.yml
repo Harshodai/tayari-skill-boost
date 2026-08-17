@@ -35,6 +35,10 @@ services:
       SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: production
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      NOTIFICATIONS_FROM_EMAIL: ${NOTIFICATIONS_FROM_EMAIL:-}
+      NOTIFICATIONS_UNSUBSCRIBE_URL: ${NOTIFICATIONS_UNSUBSCRIBE_URL:-}
     depends_on:
       redis:
         condition: service_healthy
@@ -68,6 +72,10 @@ services:
       SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: production
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      NOTIFICATIONS_FROM_EMAIL: ${NOTIFICATIONS_FROM_EMAIL:-}
+      NOTIFICATIONS_UNSUBSCRIBE_URL: ${NOTIFICATIONS_UNSUBSCRIBE_URL:-}
     depends_on:
       redis:
         condition: service_healthy

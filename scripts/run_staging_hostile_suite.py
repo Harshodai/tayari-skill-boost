@@ -13,6 +13,7 @@ Executes automated adversarial security proofs:
 Saves raw execution output and evidence to test-results/staging_hostile_evidence.json.
 """
 
+import argparse
 import asyncio
 import datetime
 import hashlib
@@ -713,7 +714,47 @@ class StagingHostileSuiteRunner:
         return 0 if self.evidence["failed_tests"] == 0 else 1
 
 
+def _plan() -> int:
+    plan = {
+        "suite_name": "Tayari Staging Hostile Verification Suite",
+        "mode": "plan",
+        "mutates_external_state": False,
+        "requires_deployed_staging": True,
+        "required_prerequisites": [
+            "TARGET_BASE_URL",
+            "PYTHON_BASE_URL",
+            "two disposable authenticated tenants",
+            "Redis-backed worker process that can be deliberately interrupted",
+            "staging observability and alert receiver",
+        ],
+        "categories": [
+            "rate_limit_flood_protection",
+            "ssrf_private_ip_blocking",
+            "prompt_injection_guardrails",
+            "two_tenant_rls_isolation",
+            "kill_switch_deadline_verification",
+            "account_deletion_privacy_purge",
+        ],
+        "test_counts": {
+            "rate_limit_flood_protection": 2,
+            "ssrf_private_ip_blocking": 13,
+            "prompt_injection_guardrails": 10,
+            "two_tenant_rls_isolation": 4,
+            "kill_switch_deadline_verification": 2,
+            "account_deletion_privacy_purge": 3,
+        },
+    }
+    print(json.dumps(plan, indent=2, sort_keys=True))
+    return 0
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--plan", "--dry-run", action="store_true", dest="plan", help="Print required staging prerequisites without executing tests")
+    args = parser.parse_args()
+    if args.plan:
+        raise SystemExit(_plan())
+
     runner = StagingHostileSuiteRunner()
     runner.run_rate_limit_tests()
     runner.run_ssrf_tests()

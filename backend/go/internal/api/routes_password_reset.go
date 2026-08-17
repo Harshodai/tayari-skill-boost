@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,13 +17,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	"tayari-backend/internal/auth"
 )
 
 func (s *Server) routesPasswordReset(r chi.Router) {
-	r.Post("/api/auth/forgot-password", s.handleForgotPassword)
-	r.Post("/api/v1/auth/forgot-password", s.handleForgotPassword)
-	r.Post("/api/auth/reset-password", s.handleResetPassword)
-	r.Post("/api/v1/auth/reset-password", s.handleResetPassword)
+	r.Post("/api/auth/forgot-password", s.loginRateLimiter.Middleware(http.HandlerFunc(s.handleForgotPassword)).ServeHTTP)
+	r.Post("/api/v1/auth/forgot-password", s.loginRateLimiter.Middleware(http.HandlerFunc(s.handleForgotPassword)).ServeHTTP)
+	r.Post("/api/auth/reset-password", s.loginRateLimiter.Middleware(http.HandlerFunc(s.handleResetPassword)).ServeHTTP)
+	r.Post("/api/v1/auth/reset-password", s.loginRateLimiter.Middleware(http.HandlerFunc(s.handleResetPassword)).ServeHTTP)
 }
 
 func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
@@ -50,10 +53,11 @@ func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		token := hex.EncodeToString(tokenBytes)
+		tokenHash := resetTokenHash(token)
 
 		_, err = s.DB.Conn.ExecContext(r.Context(),
-			`INSERT INTO public.password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, NOW() + INTERVAL '1 hour')`,
-			userID, token)
+			`INSERT INTO public.password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, NOW() + INTERVAL '1 hour')`,
+			userID, tokenHash)
 		if err != nil {
 			log.Printf("handleForgotPassword: failed to store token: %v", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to create reset token")
@@ -88,18 +92,8 @@ func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusBadRequest, "Token and password are required")
 		return
 	}
-	if len(req.Password) < 8 {
-		s.respondError(w, http.StatusBadRequest, "Password must be at least 8 characters")
-		return
-	}
-
-	var tokenID int
-	var userID uuid.UUID
-	err := s.DB.Conn.QueryRowContext(r.Context(),
-		`SELECT id, user_id FROM public.password_reset_tokens WHERE token=$1 AND used=false AND expires_at > NOW()`,
-		req.Token).Scan(&tokenID, &userID)
-	if err != nil {
-		s.respondError(w, http.StatusBadRequest, "Invalid or expired reset token")
+	if err := auth.ValidatePassword(req.Password); err != nil {
+		s.respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -117,6 +111,15 @@ func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
+
+	var tokenID int
+	var userID uuid.UUID
+	if err := tx.QueryRowContext(r.Context(),
+		`SELECT id, user_id FROM public.password_reset_tokens WHERE token_hash=$1 AND used=false AND expires_at > NOW() FOR UPDATE`,
+		resetTokenHash(req.Token)).Scan(&tokenID, &userID); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid or expired reset token")
+		return
+	}
 
 	_, err = tx.ExecContext(r.Context(),
 		`UPDATE auth.users SET encrypted_password=$1, updated_at=NOW() WHERE id=$2`,
@@ -145,6 +148,11 @@ func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		"ok":      true,
 		"message": "Password has been reset successfully.",
 	})
+}
+
+func resetTokenHash(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
 }
 
 func sendPasswordResetEmail(email, token, frontendURL string) error {

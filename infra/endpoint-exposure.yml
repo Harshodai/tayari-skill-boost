@@ -37,10 +37,12 @@ anonymous:
   - GET /api/v1/oauth/gmail/callback
   - POST /api/gmail/webhook
   - POST /api/v1/gmail/webhook
-  - POST /api/waitlist/join
-  - POST /api/v1/waitlist/join
   - POST /api/billing/webhook
   - POST /api/v1/billing/webhook
+  - GET /api/billing/credits/packs
+  - GET /api/v1/billing/credits/packs
+  - POST /api/waitlist/join
+  - POST /api/v1/waitlist/join
 api_key_protected:
   - POST /api/public/optimize
   - POST /api/v1/public/optimize

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"tayari-backend/internal/auth"
 	"tayari-backend/internal/models"
 
 	"github.com/go-chi/chi/v5"
@@ -44,25 +45,37 @@ func (s *Server) handleGetTenantBranding(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) checkAdvisorRole(w http.ResponseWriter, r *http.Request) (*models.User, *models.Tenant, bool) {
+	authorization, ok := auth.AuthorizationContextFromContext(r.Context())
+	if !ok || authorization.Subject == uuid.Nil || authorization.TenantID == uuid.Nil {
+		s.respondError(w, http.StatusUnauthorized, "Authorization context missing")
+		return nil, nil, false
+	}
+
 	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	if user == nil {
+	if user == nil || user.ID != authorization.Subject {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return nil, nil, false
 	}
 
 	tenant, _ := r.Context().Value(contextKeyTenant).(*models.Tenant)
-	if tenant == nil {
-		s.respondError(w, http.StatusBadRequest, "Tenant context missing")
+	if tenant == nil || tenant.ID != authorization.TenantID {
+		s.respondError(w, http.StatusForbidden, "Forbidden: tenant context mismatch")
 		return nil, nil, false
 	}
 
-	// Verify membership and role
+	if s.DB == nil || s.DB.Conn == nil {
+		s.respondError(w, http.StatusServiceUnavailable, "Tenant authorization unavailable")
+		return nil, nil, false
+	}
+
+	// Verify current membership and role against the immutable subject/tenant
+	// pair. A host/header-selected tenant can never authorize a different pair.
 	var role string
 	err := s.DB.Conn.QueryRowContext(r.Context(),
 		"SELECT role FROM memberships WHERE tenant_id = $1 AND user_id = $2",
-		tenant.ID, user.ID).Scan(&role)
+		authorization.TenantID, authorization.Subject).Scan(&role)
 	if err != nil {
-		log.Printf("[TENANT] Membership not found for user:%s in tenant:%s: %v", user.ID, tenant.ID, err)
+		log.Printf("[TENANT] Membership not found for user:%s in tenant:%s: %v", authorization.Subject, authorization.TenantID, err)
 		s.respondError(w, http.StatusForbidden, "Forbidden: not a member of this tenant")
 		return nil, nil, false
 	}
