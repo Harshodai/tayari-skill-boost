@@ -13,6 +13,7 @@ INTERVIEW_COACH_AGENT_CARD = AgentCard(
     description="Generates behavioral, technical, and system design interview preparation intel.",
     version="1.0.0",
     url="http://localhost:8000/a2a/agents/interview-coach",
+    required_capability="workspace.interview_prep",
     capabilities=[
         AgentCapability(
             name="generate_prep",

@@ -10,7 +10,8 @@ from app.a2a.agents import register_all_a2a_agents
 
 
 @pytest.fixture(autouse=True)
-def setup_a2a():
+def setup_a2a(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "development")
     register_all_a2a_agents()
 
 
@@ -30,6 +31,20 @@ def test_system_agent_card():
     card = registry.get_system_agent_card()
     assert card.name == "Tayari AI Multi-Agent Platform"
     assert len(card.capabilities) >= 5
+
+
+def test_system_agent_card_hides_disabled_workspace_skills(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "staging")
+    for name in (
+        "CAPABILITY_WORKSPACE_ATS_ASSISTANCE",
+        "CAPABILITY_WORKSPACE_RESUME",
+        "CAPABILITY_WORKSPACE_INTERVIEW_PREP",
+        "CAPABILITY_WORKSPACE_APPLICATION_TRACKER",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    card = AgentRegistry.get_instance().get_system_agent_card()
+    assert card.capabilities == []
+    assert card.metadata["total_agents"] == 0
 
 
 @pytest.mark.asyncio

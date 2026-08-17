@@ -24,6 +24,7 @@ class AgentCard(BaseModel):
     description: str
     version: str = "1.0.0"
     url: str
+    required_capability: Optional[str] = None
     capabilities: List[AgentCapability] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 

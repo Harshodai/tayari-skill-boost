@@ -8,9 +8,12 @@ from app.a2a.federation import (
     A2AFederationClient,
     FederationNotEnabled,
     FederationRejected,
+    ReplayProtector,
     RemoteAgentConfig,
     _canonical_json,
     _safe_peer_url,
+    _sign,
+    verify_signed_federation_request,
 )
 from app.a2a.models import A2AMessage
 
@@ -76,6 +79,60 @@ async def test_federation_verifies_card_and_signs_dispatch(monkeypatch):
     assert seen[0].headers["authorization"] == "Bearer federation-test-secret"
     assert seen[1].headers["x-a2a-signature"]
     assert seen[1].headers["x-a2a-nonce"]
+
+
+@pytest.mark.asyncio
+async def test_signed_request_rejects_tampering_and_replay(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "development")
+    body = b'{"jsonrpc":"2.0"}'
+    timestamp = "1700000000"
+    nonce = "unique-test-nonce"
+    signature = _sign("federation-test-secret", timestamp, nonce, body)
+    protector = ReplayProtector()
+
+    await verify_signed_federation_request(
+        secret="federation-test-secret",
+        timestamp=timestamp,
+        nonce=nonce,
+        signature=signature,
+        body=body,
+        replay_protector=protector,
+        now=1700000000,
+    )
+    with pytest.raises(FederationRejected, match="already been used"):
+        await verify_signed_federation_request(
+            secret="federation-test-secret",
+            timestamp=timestamp,
+            nonce=nonce,
+            signature=signature,
+            body=body,
+            replay_protector=protector,
+            now=1700000000,
+        )
+    with pytest.raises(FederationRejected, match="signature"):
+        await verify_signed_federation_request(
+            secret="federation-test-secret",
+            timestamp=timestamp,
+            nonce="tampered",
+            signature=signature,
+            body=body,
+            replay_protector=ReplayProtector(),
+            now=1700000000,
+        )
+
+
+@pytest.mark.asyncio
+async def test_signed_request_requires_durable_replay_protection_in_staging(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "staging")
+    with pytest.raises(FederationRejected, match="requires Redis"):
+        await verify_signed_federation_request(
+            secret="federation-test-secret",
+            timestamp="1700000000",
+            nonce="staging-nonce",
+            signature=_sign("federation-test-secret", "1700000000", "staging-nonce", b"body"),
+            body=b"body",
+            now=1700000000,
+        )
 
 
 @pytest.mark.asyncio

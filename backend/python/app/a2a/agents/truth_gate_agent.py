@@ -13,6 +13,7 @@ TRUTH_GATE_AGENT_CARD = AgentCard(
     description="Audits AI-generated resume rewrites against original text to prevent fabrication or keyword stuffing.",
     version="1.0.0",
     url="http://localhost:8000/a2a/agents/truth-gate",
+    required_capability="workspace.resume",
     capabilities=[
         AgentCapability(
             name="check_authenticity",

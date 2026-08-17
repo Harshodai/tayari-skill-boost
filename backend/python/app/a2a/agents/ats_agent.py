@@ -13,6 +13,7 @@ ATS_AGENT_CARD = AgentCard(
     description="Analyzes resumes against job descriptions for ATS keyword matching and formatting risks.",
     version="1.0.0",
     url="http://localhost:8000/a2a/agents/ats-scorer",
+    required_capability="workspace.ats_assistance",
     capabilities=[
         AgentCapability(
             name="analyze_ats",

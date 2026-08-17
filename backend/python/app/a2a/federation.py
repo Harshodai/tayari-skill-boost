@@ -57,6 +57,83 @@ def _sign(secret: str, timestamp: str, nonce: str, body: bytes) -> str:
     return hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
 
+class FederationReplayUnavailable(RuntimeError):
+    """Raised when production cannot provide durable nonce replay protection."""
+
+
+class ReplayProtector:
+    """Claim federation nonces durably when Redis is available.
+
+    Development may use a bounded process-local fallback for deterministic tests.
+    Staging and production reject signed federation traffic without Redis so a
+    restart cannot reopen the replay window.
+    """
+
+    def __init__(self):
+        self.redis_url = os.getenv("A2A_REPLAY_REDIS_URL") or os.getenv("REDIS_URL")
+        self.environment = os.getenv("APP_ENV", "development").strip().lower()
+        self._memory: dict[str, float] = {}
+
+    async def claim(self, nonce: str, ttl_seconds: int = 300) -> bool:
+        if self.redis_url:
+            try:
+                import redis.asyncio as redis
+
+                client = redis.from_url(self.redis_url, decode_responses=True)
+                try:
+                    return bool(await client.set(f"tayari:a2a:nonce:{nonce}", "1", ex=ttl_seconds, nx=True))
+                finally:
+                    await client.aclose()
+            except Exception as exc:  # noqa: BLE001
+                if self.environment in {"production", "prod", "staging"}:
+                    raise FederationReplayUnavailable("durable A2A replay protection is unavailable") from exc
+        if self.environment in {"production", "prod", "staging"}:
+            raise FederationReplayUnavailable("A2A replay protection requires Redis in this environment")
+        now = time.time()
+        self._memory = {key: expiry for key, expiry in self._memory.items() if expiry > now}
+        if nonce in self._memory:
+            return False
+        if len(self._memory) >= 4096:
+            oldest = min(self._memory, key=self._memory.get)
+            del self._memory[oldest]
+        self._memory[nonce] = now + ttl_seconds
+        return True
+
+
+async def verify_signed_federation_request(
+    *,
+    secret: str,
+    timestamp: str | None,
+    nonce: str | None,
+    signature: str | None,
+    body: bytes,
+    replay_protector: ReplayProtector | None = None,
+    now: int | None = None,
+    max_skew_seconds: int = 300,
+) -> None:
+    if not secret or not timestamp or not nonce or not signature:
+        raise FederationRejected("signed A2A headers are required")
+    if len(timestamp) > 20 or len(nonce) > 160 or len(signature) != 64:
+        raise FederationRejected("invalid signed A2A header length")
+    try:
+        issued_at = int(timestamp)
+    except ValueError as exc:
+        raise FederationRejected("invalid A2A timestamp") from exc
+    current = int(time.time()) if now is None else now
+    if abs(current - issued_at) > max_skew_seconds:
+        raise FederationRejected("A2A timestamp is outside the allowed clock skew")
+    expected = _sign(secret, timestamp, nonce, body)
+    if not hmac.compare_digest(expected, signature):
+        raise FederationRejected("invalid A2A signature")
+    protector = replay_protector or ReplayProtector()
+    try:
+        claimed = await protector.claim(nonce, ttl_seconds=max_skew_seconds)
+    except FederationReplayUnavailable as exc:
+        raise FederationRejected(str(exc)) from exc
+    if not claimed:
+        raise FederationRejected("A2A nonce has already been used")
+
+
 class A2AFederationClient:
     def __init__(self, client: httpx.AsyncClient | None = None):
         self.secret = os.getenv("A2A_FEDERATION_SECRET", "").strip()

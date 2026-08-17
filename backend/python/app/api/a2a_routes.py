@@ -9,12 +9,41 @@ from fastapi import APIRouter, Request, HTTPException, Depends, Header
 from app.a2a.models import A2AMessage, A2AResponse, AgentCard
 from app.a2a.registry import AgentRegistry
 from app.a2a.dispatcher import A2ADispatcher
+from app.a2a.federation import FederationRejected, verify_signed_federation_request
+from app.services.capabilities import Capability, require_capability
 
 router = APIRouter(tags=["A2A Protocol"])
 
 
-async def verify_a2a_auth(authorization: Optional[str] = Header(None)):
-    """Authenticate A2A dispatch requests using TAYARI_API_KEY / A2A_API_KEY. Fails closed if unset."""
+async def verify_a2a_auth(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+    x_a2a_timestamp: Optional[str] = Header(None, alias="X-A2A-Timestamp"),
+    x_a2a_nonce: Optional[str] = Header(None, alias="X-A2A-Nonce"),
+    x_a2a_signature: Optional[str] = Header(None, alias="X-A2A-Signature"),
+):
+    """Authenticate A2A with signed federation headers or development bearer auth."""
+    environment = os.getenv("APP_ENV", "development").strip().lower()
+    signed_request = any(
+        isinstance(value, str) and value.strip()
+        for value in (x_a2a_timestamp, x_a2a_nonce, x_a2a_signature)
+    )
+    if signed_request:
+        require_capability(Capability.INTEGRATION_A2A_FEDERATION)
+        try:
+            await verify_signed_federation_request(
+                secret=os.getenv("A2A_FEDERATION_SECRET", "").strip(),
+                timestamp=x_a2a_timestamp,
+                nonce=x_a2a_nonce,
+                signature=x_a2a_signature,
+                body=await request.body(),
+            )
+        except FederationRejected as exc:
+            raise HTTPException(status_code=401, detail="Invalid signed A2A request") from exc
+        return
+    if environment in {"production", "prod", "staging"}:
+        require_capability(Capability.INTEGRATION_A2A_FEDERATION)
+        raise HTTPException(status_code=401, detail="Signed A2A authentication is required")
     expected_key = os.getenv("TAYARI_API_KEY") or os.getenv("A2A_API_KEY")
     if not expected_key:
         raise HTTPException(status_code=401, detail="A2A API key not configured")

@@ -16,6 +16,7 @@ def disabled_autonomous_scope(monkeypatch):
         "CAPABILITY_AUTONOMOUS_GMAIL",
         "CAPABILITY_AUTONOMOUS_ATS_SUBMIT",
         "CAPABILITY_AUTONOMOUS_BILLING",
+        "CAPABILITY_INTEGRATION_A2A_FEDERATION",
     ):
         monkeypatch.delenv(name, raising=False)
     return {
@@ -72,3 +73,8 @@ def test_provider_specific_research_capability_is_independent(disabled_autonomou
         headers=disabled_autonomous_scope,
     )
     assert_disabled(response, "workspace.external_research.firecrawl")
+
+
+def test_a2a_discovery_is_disabled_by_launch_scope(disabled_autonomous_scope):
+    response = client.get("/.well-known/agent-card.json", headers=disabled_autonomous_scope)
+    assert_disabled(response, "integration.a2a_federation")

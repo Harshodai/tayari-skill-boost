@@ -13,6 +13,7 @@ JOB_SEARCH_AGENT_CARD = AgentCard(
     description="Primary orchestrator agent managing candidate matching, job search, and review queue.",
     version="1.0.0",
     url="http://localhost:8000/a2a/agents/job-search",
+    required_capability="workspace.application_tracker",
     capabilities=[
         AgentCapability(
             name="orchestrate_pipeline",

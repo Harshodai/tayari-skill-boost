@@ -13,6 +13,7 @@ OPTIMIZER_AGENT_CARD = AgentCard(
     description="Reflectively tailors resumes to job descriptions using Pydantic structured schemas.",
     version="1.0.0",
     url="http://localhost:8000/a2a/agents/optimizer",
+    required_capability="workspace.resume",
     capabilities=[
         AgentCapability(
             name="optimize_resume",

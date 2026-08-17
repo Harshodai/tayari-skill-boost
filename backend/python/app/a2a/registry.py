@@ -6,6 +6,7 @@ from typing import Dict, Optional, List
 import logging
 
 from app.a2a.models import AgentCard, AgentCapability
+from app.services.capabilities import capability_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,12 @@ class AgentRegistry:
     def get_system_agent_card(self, host_url: str = "http://localhost:8000") -> AgentCard:
         """Return combined system Agent Card for /.well-known/agent-card.json."""
         all_capabilities: List[AgentCapability] = []
-        for card in self._agents.values():
+        visible_agents = [
+            card
+            for card in self._agents.values()
+            if not card.required_capability or capability_enabled(card.required_capability)
+        ]
+        for card in visible_agents:
             all_capabilities.extend(card.capabilities)
 
         return AgentCard(
@@ -47,5 +53,5 @@ class AgentRegistry:
             version="1.0.0",
             url=host_url,
             capabilities=all_capabilities,
-            metadata={"total_agents": len(self._agents)},
+            metadata={"total_agents": len(visible_agents)},
         )
