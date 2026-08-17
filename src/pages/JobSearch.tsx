@@ -757,7 +757,7 @@ const JobSearch = () => {
                     matchReason={selected.match_reasons?.[0] || selected.match_reason}
                     atsProvider={selected.ats_provider}
                     isLiveAtSource={true}
-                    transitionType={userProfile?.transition_type}
+                    transitionType={(profile as any)?.transition_type}
                   />
 
                   {/* Action bar */}
