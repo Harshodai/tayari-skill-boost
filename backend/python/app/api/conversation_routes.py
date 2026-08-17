@@ -21,7 +21,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, HTTPException, Header, Body
+from fastapi import Depends, APIRouter, HTTPException, Header, Body
+from app.auth.dependencies import get_current_user
 from pydantic import BaseModel, Field
 
 from app.services.db import get_pool
@@ -111,7 +112,7 @@ def _row_to_response(row: dict) -> ConversationResponse:
 @conversation_router.post("", response_model=ConversationResponse)
 async def create_conversation(
     payload: ConversationCreate,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_user_id: str = Depends(get_current_user),
 ) -> ConversationResponse:
     user_id = _require_user(x_user_id)
     pool = await get_pool()
@@ -143,7 +144,7 @@ async def create_conversation(
 
 @conversation_router.get("", response_model=List[ConversationResponse])
 async def list_conversations(
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_user_id: str = Depends(get_current_user),
     limit: int = DEFAULT_LIST_LIMIT,
 ) -> List[ConversationResponse]:
     user_id = _require_user(x_user_id)
@@ -174,7 +175,7 @@ async def list_conversations(
 @conversation_router.get("/{conv_id}", response_model=ConversationResponse)
 async def get_conversation(
     conv_id: str,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_user_id: str = Depends(get_current_user),
 ) -> ConversationResponse:
     user_id = _require_user(x_user_id)
     pool = await get_pool()
@@ -201,7 +202,7 @@ async def get_conversation(
 async def append_message(
     conv_id: str,
     payload: MessageAppend,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_user_id: str = Depends(get_current_user),
 ) -> ConversationResponse:
     user_id = _require_user(x_user_id)
     pool = await get_pool()
@@ -240,7 +241,7 @@ async def append_message(
 async def update_conversation(
     conv_id: str,
     payload: ConversationUpdate,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_user_id: str = Depends(get_current_user),
 ) -> ConversationResponse:
     user_id = _require_user(x_user_id)
     pool = await get_pool()
@@ -277,7 +278,7 @@ async def update_conversation(
 @conversation_router.delete("/{conv_id}")
 async def delete_conversation(
     conv_id: str,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_user_id: str = Depends(get_current_user),
 ) -> dict:
     user_id = _require_user(x_user_id)
     pool = await get_pool()

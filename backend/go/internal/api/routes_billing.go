@@ -1,10 +1,12 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"tayari-backend/internal/auth"
@@ -35,11 +37,17 @@ func (s *Server) RegisterBillingRoutes(r chi.Router, b *billing.BillingService) 
 	r.Get("/api/v1/billing/credits/packs", s.handleGetCreditPacks(b))
 	r.Get("/api/billing/credits/packs", s.handleGetCreditPacks(b))
 
-	// Service/Client debit and refund endpoints (support auth token or payload user_id)
-	r.Post("/api/v1/billing/credits/debit", s.handleDebitCredits(b))
-	r.Post("/api/billing/credits/debit", s.handleDebitCredits(b))
-	r.Post("/api/v1/billing/credits/refund", s.handleRefundCredits(b))
-	r.Post("/api/billing/credits/refund", s.handleRefundCredits(b))
+	// Service/Client debit and refund endpoints. These mutate credit balances,
+	// so they require either the shared internal-service token (trusted
+	// server-to-server caller, e.g. the Python receipt pipeline) or a valid
+	// user session — and a session may only affect its own user_id.
+	r.Group(func(r chi.Router) {
+		r.Use(s.internalOrAuthMiddleware)
+		r.Post("/api/v1/billing/credits/debit", s.handleDebitCredits(b))
+		r.Post("/api/billing/credits/debit", s.handleDebitCredits(b))
+		r.Post("/api/v1/billing/credits/refund", s.handleRefundCredits(b))
+		r.Post("/api/billing/credits/refund", s.handleRefundCredits(b))
+	})
 
 	// Public Webhook Endpoint (Stripe Signature Verified)
 	r.Post("/api/v1/billing/webhook", s.handleStripeWebhook(b))
@@ -246,6 +254,62 @@ func (s *Server) handlePurchaseCredits(b *billing.BillingService) http.HandlerFu
 	}
 }
 
+// internalServiceCaller reports whether the request carries the shared
+// AI_INTERNAL_TOKEN, compared in constant time (same pattern as /metrics).
+func (s *Server) internalServiceCaller(r *http.Request) bool {
+	expected := os.Getenv("AI_INTERNAL_TOKEN")
+	if expected == "" && s.Config != nil {
+		expected = s.Config.AIInternalToken
+	}
+	if expected == "" {
+		return false
+	}
+	provided := r.Header.Get("X-Internal-Token")
+	if provided == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) == 1
+}
+
+// internalOrAuthMiddleware lets a verified internal-service caller through
+// untouched and otherwise enforces the normal user authentication middleware,
+// so these routes are never reachable anonymously.
+func (s *Server) internalOrAuthMiddleware(next http.Handler) http.Handler {
+	authed := s.authMiddleware(next)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.internalServiceCaller(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		authed.ServeHTTP(w, r)
+	})
+}
+
+// resolveCreditSubject determines which user a credit mutation may target.
+// Internal callers may name any user_id; everyone else must be authenticated
+// and can only affect themselves. Returns "" after writing an error response.
+func (s *Server) resolveCreditSubject(w http.ResponseWriter, r *http.Request, bodyUserID string) string {
+	if s.internalServiceCaller(r) {
+		if bodyUserID == "" {
+			s.respondError(w, http.StatusBadRequest, "user_id is required")
+			return ""
+		}
+		return bodyUserID
+	}
+
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok || user == nil || user.ID == [16]byte{} {
+		s.respondError(w, http.StatusUnauthorized, "unauthorized - valid authentication required")
+		return ""
+	}
+	self := user.ID.String()
+	if bodyUserID != "" && !strings.EqualFold(bodyUserID, self) {
+		s.respondError(w, http.StatusForbidden, "forbidden - cannot modify another user's credits")
+		return ""
+	}
+	return self
+}
+
 func (s *Server) handleDebitCredits(b *billing.BillingService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -260,14 +324,8 @@ func (s *Server) handleDebitCredits(b *billing.BillingService) http.HandlerFunc 
 			return
 		}
 
-		userID := req.UserID
+		userID := s.resolveCreditSubject(w, r, req.UserID)
 		if userID == "" {
-			if user, ok := auth.UserFromContext(r.Context()); ok && user != nil && user.ID != [16]byte{} {
-				userID = user.ID.String()
-			}
-		}
-		if userID == "" {
-			s.respondError(w, http.StatusBadRequest, "user_id is required")
 			return
 		}
 
@@ -324,14 +382,8 @@ func (s *Server) handleRefundCredits(b *billing.BillingService) http.HandlerFunc
 			return
 		}
 
-		userID := req.UserID
+		userID := s.resolveCreditSubject(w, r, req.UserID)
 		if userID == "" {
-			if user, ok := auth.UserFromContext(r.Context()); ok && user != nil && user.ID != [16]byte{} {
-				userID = user.ID.String()
-			}
-		}
-		if userID == "" {
-			s.respondError(w, http.StatusBadRequest, "user_id is required")
 			return
 		}
 

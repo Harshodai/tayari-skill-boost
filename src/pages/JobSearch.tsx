@@ -39,7 +39,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes, isBackendUnavailable } from "@/api";
 import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
-import { ATS_NAMES, ATS_LOGOS } from "@/components/jobs/atsMeta";
 import { useAutomation } from "@/contexts/AutomationContext";
 import { SkillGapWidget } from "@/components/jobs/SkillGapWidget";
 import { CalibratedFitCard, getFitBand } from "@/components/jobs/CalibratedFitCard";
@@ -79,6 +78,9 @@ interface Job {
   salary?: string;
   score?: number;
   fit_score?: number;
+  match_score?: number;
+  matched_skills?: string[];
+  match_reason?: string;
   match_reasons?: string[];
   missing_skills?: string[];
   dedupe_key?: string;
@@ -754,7 +756,7 @@ const JobSearch = () => {
                     matchReason={selected.match_reasons?.[0] || selected.match_reason}
                     atsProvider={selected.ats_provider}
                     isLiveAtSource={true}
-                    transitionType={userProfile?.transition_type}
+                    transitionType={(profile as any)?.transition_type}
                   />
 
                   {/* Action bar */}

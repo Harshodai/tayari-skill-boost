@@ -26,7 +26,7 @@ export function PortfolioGenerator() {
   React.useEffect(() => {
     async function loadProfile() {
       try {
-        const profile = await apiFetch("/v1/profile").catch(() => null);
+        const profile = await apiFetch<any>("/v1/profile").catch(() => null);
         if (profile) {
           if (profile.full_name) setFullName(profile.full_name);
           if (profile.headline) setHeadline(profile.headline);

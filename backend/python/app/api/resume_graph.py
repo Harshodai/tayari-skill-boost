@@ -1,5 +1,5 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException, Request, Response, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query
 from fastapi.responses import JSONResponse
 import logging
 import time
@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 
 from pydantic import BaseModel, ConfigDict
 
+from app.auth.dependencies import get_current_user
 from app.services import automation_engine, resume_parser
 from app.services.resume_graph_storage import store_graph, load_graph, delete_graph
 
@@ -45,6 +46,23 @@ def _rate_limit_check(key: str, now: float) -> None:
     _RATE_LIMIT[key] = timestamps
 
 
+def _owned_store(run_id: str, user_id: str) -> Dict[str, Any] | None:
+    """Return the in-process autopilot run only when it belongs to ``user_id``.
+
+    Runs recorded without an owner (legacy entries) are treated as not found so
+    a guessed run_id can never expose another user's parsed resume.
+    """
+    store = automation_engine._autopilot_store.get(run_id)
+    if store is None:
+        return None
+    owner = store.get("user_id")
+    if owner and str(owner) == str(user_id):
+        return store
+    if not owner:
+        return None
+    return None
+
+
 class GraphData(BaseModel):
     links: List[Any] = []  # renamed from edges
     nodes: List[Dict[str, Any]]
@@ -70,6 +88,7 @@ async def get_resume_graph(
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1),
     format: str | None = Query(None, pattern="^raw$"),
+    user_id: str = Depends(get_current_user),
 ) -> GraphResponse | dict:
     """Retrieve stored resume knowledge‑graph for the given run.
 
@@ -84,22 +103,20 @@ async def get_resume_graph(
     # Trust boundary: the gateway overwrites any client-supplied X-User-Id with
     # the authenticated user (getXUserHeaders), and python-ai is only exposed on
     # the internal compose network, so this header is trustworthy.
-    ip = request.client.host if request.client else "unknown"
-    key = request.headers.get("x-user-id") or ip
-    _rate_limit_check(key, time.time())
+    _rate_limit_check(user_id, time.time())
 
     # Security headers
     response.headers["Content-Security-Policy"] = "default-src 'self'"
     response.headers["X-Content-Type-Options"] = "nosniff"
 
     # Retrieve stored graph
-    store = automation_engine._autopilot_store.get(run_id)
+    store = _owned_store(run_id, user_id)
     graph: Dict[str, Any] | None = None
     if store and "graph" in store:
         graph = store["graph"]
     else:
-        # Fallback to DB loading (async helper)
-        graph = await load_graph(run_id)
+        # Fallback to DB loading (async helper), owner-scoped.
+        graph = await load_graph(run_id, user_id)
 
     if not graph:
         logger.info("Resume graph not found for run_id %s", run_id)
@@ -142,26 +159,33 @@ class ResumeGraphRequest(BaseModel):
 
 
 @router.post("/v1/resume-graph")
-async def post_resume_graph(request: ResumeGraphRequest) -> Dict[str, Any]:
+async def post_resume_graph(
+    request: ResumeGraphRequest,
+    user_id: str = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Parse a resume and store its knowledge‑graph for a given run.
 
     Returns the stored graph. 404 if the ``run_id`` is unknown, 400 if parsing fails.
     """
     run_id = request.run_id
-    store = automation_engine._autopilot_store.get(run_id)
+    store = _owned_store(run_id, user_id)
     if store is None:
         raise HTTPException(status_code=404, detail="Run not found")
+    store.setdefault("user_id", user_id)
     graph = resume_parser.parse_resume(request.resume_text)
     if graph is None:
         raise HTTPException(status_code=400, detail="Resume parsing failed")
     store["graph"] = graph
     # Persist to DB (best‑effort, no‑op if DB disabled)
-    await store_graph(run_id, graph)
+    await store_graph(run_id, graph, user_id)
     return {"run_id": run_id, "graph": graph}
 
 
 @router.delete("/v1/resume-graph/{run_id}")
-async def delete_resume_graph(run_id: str) -> Response:
+async def delete_resume_graph(
+    run_id: str,
+    user_id: str = Depends(get_current_user),
+) -> Response:
     """Delete stored resume graph for a run.
 
     Removes the ``graph`` entry from the in‑process store if present, and
@@ -169,7 +193,7 @@ async def delete_resume_graph(run_id: str) -> Response:
     to the DB (e.g. loaded from storage after an in‑process restart).
     Returns 204 No Content on success, 404 when neither store holds the run.
     """
-    store = automation_engine._autopilot_store.get(run_id)
+    store = _owned_store(run_id, user_id)
     had_in_memory = store is not None and "graph" in store
     if had_in_memory:
         del store["graph"]
@@ -177,28 +201,31 @@ async def delete_resume_graph(run_id: str) -> Response:
 
     # Check the DB fallback even when the in‑process store was empty: the run
     # may only exist as a persisted row (the common case after a restart).
-    persisted = await load_graph(run_id) is not None
+    persisted = await load_graph(run_id, user_id) is not None
 
     if not had_in_memory and not persisted:
         raise HTTPException(status_code=404, detail="Run not found")
 
     # Persist deletion to DB (best‑effort, no‑op if disabled).
-    await delete_graph(run_id)
+    await delete_graph(run_id, user_id)
     return Response(status_code=204)
 
 
 @router.get("/v1/resume-graph/{run_id}/export")
-async def export_resume_graph(run_id: str) -> Response:
+async def export_resume_graph(
+    run_id: str,
+    user_id: str = Depends(get_current_user),
+) -> Response:
     """Export the stored resume graph as a downloadable JSON file.
 
     Returns ``application/json`` with a ``Content‑Disposition`` attachment header.
     """
-    store = automation_engine._autopilot_store.get(run_id)
+    store = _owned_store(run_id, user_id)
     if store is not None and "graph" in store:
         graph = store["graph"]
     else:
-        # Fallback to DB persistence
-        graph = await load_graph(run_id)
+        # Fallback to DB persistence, owner-scoped.
+        graph = await load_graph(run_id, user_id)
         if graph is None:
             raise HTTPException(status_code=404, detail="Resume graph not found")
     import json
