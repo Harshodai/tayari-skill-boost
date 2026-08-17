@@ -18,6 +18,29 @@ func TestHighRiskCapabilityIsDisabledByDefault(t *testing.T) {
 	}
 }
 
+func TestComputerCapabilitiesRequireExplicitFlagsInProduction(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	for _, env := range []string{
+		"CAPABILITY_WORKSPACE_ISOLATED_COMPUTER",
+		"CAPABILITY_WORKSPACE_LOCAL_BROWSER_BRIDGE",
+		"CAPABILITY_WORKSPACE_LOCAL_BROWSER_SENSITIVE_ACTIONS",
+		"CAPABILITY_WORKSPACE_COMPUTER_SUBMISSION",
+	} {
+		t.Setenv(env, "")
+	}
+	registry := NewFromEnv()
+	for _, capability := range []Name{
+		WorkspaceIsolatedComputer,
+		WorkspaceLocalBrowserBridge,
+		WorkspaceLocalBrowserSensitiveActions,
+		WorkspaceComputerSubmission,
+	} {
+		if registry.Enabled(capability) {
+			t.Fatalf("%s must be disabled until explicitly promoted", capability)
+		}
+	}
+}
+
 func TestWorkspaceCapabilityRequiresExplicitFlagInProduction(t *testing.T) {
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("CAPABILITY_WORKSPACE_RESUME", "")

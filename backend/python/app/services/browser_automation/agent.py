@@ -20,6 +20,7 @@ from app.services.browser_automation.origin_guard import (
     credential_field_heuristic,
 )
 from app.services.browser_automation.session import (
+    BrowserSessionError,
     close_session,
     is_cancelled,
     open_session,
@@ -386,11 +387,17 @@ def _extract_history(history) -> AgentResult:
 def _build_agent(Agent, instruction: str, llm, callback, session):
     """Construct a browser-use Agent bound to the run's isolated session.
 
-    Remote providers hand back a CDP URL; older/newer browser-use versions
-    accept it under different kwargs, so we degrade to the local browser
-    rather than failing the run.
+    Remote providers hand back a CDP URL; local-browser bridge sessions do
+    not. A bridge session must never be converted into an unrelated local
+    Playwright browser, and remote constructor incompatibility is fail-closed.
     """
+    if getattr(session, "provider", None) == "local_bridge":
+        raise BrowserSessionError(
+            "local_bridge sessions are controlled through the extension bridge protocol; "
+            "the browser agent must not launch a local Playwright browser for bridge sessions"
+        )
     cdp_url = getattr(session, "cdp_url", None)
+
     if cdp_url:
         for kwarg in ("cdp_url", "browser_session", "wss_url"):
             try:
@@ -399,7 +406,10 @@ def _build_agent(Agent, instruction: str, llm, callback, session):
                 continue
             except Exception:
                 raise
-        logger.warning("[BrowserAgent] browser-use rejected remote CDP kwargs; using local browser")
+        raise BrowserSessionError("browser-use could not bind to the isolated browser session")
+    # The legacy explicitly selected local provider has no remote endpoint and
+    # may construct its local browser. local_bridge is rejected above, so this
+    # fallback cannot silently bypass the extension bridge.
     return Agent(task=instruction, llm=llm, register_new_step_callback=callback)
 
 

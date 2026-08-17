@@ -32,6 +32,8 @@ REQUIRED_TABLES = (
     "artifact_versions",
     "artifact_origin_events",
     "artifact_disclosures",
+    "computer_runs",
+    "computer_run_events",
     "user_achievements",
     "user_streaks",
 )
@@ -41,6 +43,7 @@ SERVER_ONLY_TABLES = (
     "stripe_webhook_events",
     "ai_applications",
     "ai_models",
+    "computer_grants",
 )
 
 

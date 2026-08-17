@@ -34,6 +34,10 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/37-20260817_ai_provenance.sql",
         "zz-37-20260817_ai_provenance.sql",
     ),
+    "backend/db/migrations/20260817_02_computer_control.sql": (
+        "supabase-local/volumes/db/init/38-20260817_computer_control.sql",
+        "zz-38-20260817_computer_control.sql",
+    ),
 }
 
 

@@ -36,6 +36,88 @@ async function taskMutation(taskId, suffix, init = {}) {
 }
 const RESEARCH_NOTES_KEY = 'tayari_research_notes_v1';
 const MAX_RESEARCH_NOTES = 50;
+const COMPUTER_BRIDGE_KEY = 'tayari_computer_bridge_v1';
+
+async function getComputerBridge() {
+  const stored = await chrome.storage.session.get(COMPUTER_BRIDGE_KEY);
+  const bridge = stored?.[COMPUTER_BRIDGE_KEY];
+  if (!bridge || !bridge.run_id || !bridge.tab_id || !bridge.origin || !bridge.grant || !bridge.signature) return null;
+  if (bridge.expires_at && Date.parse(bridge.expires_at) <= Date.now()) {
+    await chrome.storage.session.remove(COMPUTER_BRIDGE_KEY);
+    return null;
+  }
+  return bridge;
+}
+
+async function connectComputerBridge() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || !tab.url) throw new Error('Open the browser tab you want Tayari to use first.');
+  let parsed;
+  try { parsed = new URL(tab.url); } catch { throw new Error('The selected tab has no valid URL.'); }
+  if (parsed.protocol !== 'https:') throw new Error('Only HTTPS browser tabs can be connected.');
+  const config = await getConfig();
+  if (!config.session?.access_token) throw new Error('Sign in before connecting a browser tab.');
+  const response = await TayariSession.fetchJson(config, 'v1/computer/runs', {
+    method: 'POST',
+    body: JSON.stringify({
+      mode: 'local_browser_bridge',
+      capability: 'workspace.local_browser_bridge',
+      allowed_origins: [parsed.origin],
+      selected_window_id: String(tab.windowId || ''),
+      selected_tab_id: String(tab.id),
+    }),
+  });
+  if (!response.ok) throw new Error('Tayari could not create a browser bridge grant.');
+  const result = await response.json();
+  const attachResponse = await TayariSession.fetchJson(config, `v1/computer/runs/${encodeURIComponent(result.run_id)}/bridge/attach`, {
+    method: 'POST',
+    body: JSON.stringify({ grant: result.grant, signature: result.signature }),
+  });
+  if (!attachResponse.ok) throw new Error('Tayari rejected the local browser bridge grant.');
+  const bridge = { run_id: result.run_id, origin: parsed.origin, tab_id: tab.id, window_id: tab.windowId, grant: result.grant, signature: result.signature, expires_at: result.expires_at, connected_at: new Date().toISOString() };
+  await chrome.storage.session.set({ [COMPUTER_BRIDGE_KEY]: bridge });
+  return { success: true, run_id: bridge.run_id, origin: bridge.origin, expires_at: bridge.expires_at };
+}
+
+async function computerBridgeStatus() {
+  const bridge = await getComputerBridge();
+  if (!bridge) return { connected: false };
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const activeMatches = Boolean(tab?.id === bridge.tab_id && String(tab.url || '').startsWith(`${bridge.origin}/`));
+  return { connected: true, activeMatches, origin: bridge.origin, tabId: bridge.tab_id, runId: bridge.run_id, expiresAt: bridge.expires_at };
+}
+
+async function observeComputerBridge() {
+  const bridge = await getComputerBridge();
+  if (!bridge) throw new Error('No local browser bridge is connected.');
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || tab.id !== bridge.tab_id) throw new Error('The connected browser tab is not active.');
+  let parsed;
+  try { parsed = new URL(tab.url || ''); } catch { throw new Error('The connected tab URL is unavailable.'); }
+  if (parsed.origin !== bridge.origin) throw new Error('The connected tab changed origin; reconnect is required.');
+  const context = await getPageSnapshot(tab.id);
+  if (!context) throw new Error('The connected tab did not provide a safe page observation.');
+  const bounded = { url: boundedText(context.url, 2048), origin: bridge.origin, title: boundedText(context.title, 240), selection: boundedText(context.selection, 4000), visibleText: boundedText(context.visibleText, 12000), capturedAt: context.capturedAt || new Date().toISOString() };
+  const config = await getConfig();
+  const contentSha256 = await sha256Hex(JSON.stringify(bounded));
+  const recordResponse = await TayariSession.fetchJson(config, `v1/computer/runs/${encodeURIComponent(bridge.run_id)}/bridge/observation`, {
+    method: 'POST',
+    body: JSON.stringify({ grant: bridge.grant, signature: bridge.signature, observation_id: crypto.randomUUID(), document_generation: 0, origin: bridge.origin, url: bounded.url, content_sha256: contentSha256 }),
+  });
+  if (!recordResponse.ok) throw new Error('Tayari could not durably record the browser observation.');
+  return { success: true, run_id: bridge.run_id, origin: bridge.origin, context: bounded };
+}
+
+async function revokeComputerBridge() {
+  const bridge = await getComputerBridge();
+  if (!bridge) return { success: true, connected: false };
+  const config = await getConfig();
+  const response = await TayariSession.fetchJson(config, `v1/computer/runs/${encodeURIComponent(bridge.run_id)}/revoke`, { method: 'POST', body: '{}' });
+  if (!response.ok) throw new Error('Tayari could not revoke the browser bridge.');
+  await chrome.storage.session.remove(COMPUTER_BRIDGE_KEY);
+  return { success: true, connected: false, run_id: bridge.run_id };
+}
+
 async function getPageSnapshot(tabId) {
   if (!Number.isInteger(tabId)) return null;
   try {
@@ -61,6 +143,11 @@ async function getOpenTabContexts() {
   return results;
 }
 function boundedText(value, max) { return String(value || '').trim().slice(0, max); }
+async function sha256Hex(value) {
+  const bytes = new TextEncoder().encode(String(value || ''));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
 function makePlan(prompt, mode, page, tabs) {
   const sourceCount = Math.max(1, tabs?.length || (page ? 1 : 0));
   const warnings = detectInjectionIndicators(page?.visibleText || '');
@@ -606,6 +693,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         break;
       }
       
+      case 'computer_bridge_connect': {
+        try { sendResponse(await connectComputerBridge()); } catch (error) { sendResponse({ success: false, error: error.message || 'Browser bridge connection failed.' }); }
+        break;
+      }
+      case 'computer_bridge_status': {
+        try { sendResponse(await computerBridgeStatus()); } catch (error) { sendResponse({ connected: false, error: error.message || 'Browser bridge status failed.' }); }
+        break;
+      }
+      case 'computer_bridge_observe': {
+        try { sendResponse(await observeComputerBridge()); } catch (error) { sendResponse({ success: false, error: error.message || 'Browser bridge observation failed.' }); }
+        break;
+      }
+      case 'computer_bridge_revoke': {
+        try { sendResponse(await revokeComputerBridge()); } catch (error) { sendResponse({ success: false, error: error.message || 'Browser bridge revoke failed.' }); }
+        break;
+      }
       case 'get_active_context': {
         sendResponse(await getActiveContext());
         break;

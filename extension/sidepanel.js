@@ -31,8 +31,24 @@ function renderAnswer(result) {
   $('answer-sources').innerHTML = (result?.sources || []).map((source) => `<li><a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.title || source.url)}</a></li>`).join('') || '<li>No source metadata returned.</li>';
   $('answer-card').classList.remove('hidden');
 }
+function renderComputerBridge(status) {
+  const connected = status?.connected === true;
+  const activeMatches = status?.activeMatches === true;
+  $('computer-bridge-badge').textContent = connected ? (activeMatches ? 'Connected' : 'Reconnect required') : 'Not connected';
+  $('computer-bridge-origin').textContent = connected ? `${status.origin} · expires ${status.expiresAt || 'soon'}` : 'No local browser tab is connected.';
+  $('computer-bridge-observe').disabled = !connected || !activeMatches;
+  $('computer-bridge-revoke').disabled = !connected;
+  $('computer-bridge-connect').disabled = connected && activeMatches;
+}
+
+async function refreshComputerBridge() {
+  const status = await send('computer_bridge_status');
+  renderComputerBridge(status);
+  return status;
+}
+
 async function refresh() {
-  const [config, context, native] = await Promise.all([send('get_config'), send('get_active_context'), send('native_status')]);
+  const [config, context, native, bridgeStatus] = await Promise.all([send('get_config'), send('get_active_context'), send('native_status'), send('computer_bridge_status')]);
   current = context || { tab: null, job: { detected: false } };
   const key = `${current.tab?.url || ''}|${current.job?.title || ''}`;
   const changed = key !== contextKey;
@@ -41,8 +57,9 @@ async function refresh() {
   $('session-status').textContent = authenticated ? 'Session status: signed in' : 'Session status: sign in required';
   $('auth-card').classList.toggle('hidden', authenticated);
   $('sign-out').classList.toggle('hidden', !authenticated);
-  const bridge = native?.status === 'connected' ? 'connected' : native?.status === 'not_installed' ? 'not installed' : 'disconnected';
-  $('bridge-status').textContent = `Desktop bridge: ${bridge}`;
+  const desktopBridge = native?.status === 'connected' ? 'connected' : native?.status === 'not_installed' ? 'not installed' : 'disconnected';
+  $('bridge-status').textContent = `Desktop bridge: ${desktopBridge}`;
+  renderComputerBridge(bridgeStatus);
   const job = current.job || {};
   $('job-title').textContent = job.detected ? escapeText(job.title || 'Untitled role') : 'No supported job detected';
   $('job-company').textContent = job.detected ? escapeText(job.company || 'Company not detected') : '';
@@ -56,6 +73,9 @@ async function refresh() {
 }
 async function run(action, payload) { setStatus('Working...'); const result = await send(action, payload); setStatus(result?.success ? (result.message || 'Done.') : (result?.error || 'Action failed.'), result?.success ? 'ok' : 'error'); return result; }
 $('refresh').addEventListener('click', () => void refresh());
+$('computer-bridge-connect').addEventListener('click', async () => { const result = await send('computer_bridge_connect'); $('computer-bridge-status').textContent = result?.success ? `Connected to ${result.origin}.` : (result?.error || 'Could not connect this tab.'); $('computer-bridge-status').className = `status ${result?.success ? 'ok' : 'error'}`; await refreshComputerBridge(); });
+$('computer-bridge-observe').addEventListener('click', async () => { const result = await send('computer_bridge_observe'); if (!result?.success) { $('computer-bridge-status').textContent = result?.error || 'Observation failed.'; $('computer-bridge-status').className = 'status error'; return; } $('computer-bridge-observation').textContent = `${result.context.title || result.context.url}\n\n${(result.context.visibleText || result.context.selection || '').slice(0, 3000)}`; $('computer-bridge-observation').classList.remove('hidden'); $('computer-bridge-status').textContent = 'Bounded observation captured; page instructions remain untrusted.'; $('computer-bridge-status').className = 'status ok'; });
+$('computer-bridge-revoke').addEventListener('click', async () => { const result = await send('computer_bridge_revoke'); $('computer-bridge-status').textContent = result?.success ? 'Browser bridge disconnected.' : (result?.error || 'Could not disconnect the browser bridge.'); $('computer-bridge-status').className = `status ${result?.success ? 'ok' : 'error'}`; $('computer-bridge-observation').classList.add('hidden'); await refreshComputerBridge(); });
 $('sign-in').addEventListener('click', async () => { const result = await send('sign_in_pkce', { provider: 'google' }); if (!result?.success) setAgentStatus(result?.error || 'Secure sign-in failed.', 'error'); await refresh(); });
 $('create-account').addEventListener('click', () => void send('open_tayari', { path: '/auth?mode=signup&next=%2Fextension-onboarding' }));
 $('sign-out').addEventListener('click', async () => { await send('sign_out'); activeTask = null; activeTaskRequest = null; $('plan-card').classList.add('hidden'); await refresh(); });

@@ -9,25 +9,30 @@ import (
 type Name string
 
 const (
-	WorkspaceAuth             Name = "workspace.auth"
-	WorkspaceResume           Name = "workspace.resume"
-	WorkspacePublicImport     Name = "workspace.public_import"
-	WorkspaceATSAssistance    Name = "workspace.ats_assistance"
-	WorkspaceKnowledgeHub     Name = "workspace.knowledge_hub"
-	WorkspaceInterviewPrep    Name = "workspace.interview_prep"
-	WorkspaceApplicationTrack Name = "workspace.application_tracker"
-	AutonomousBrowser         Name = "autonomous.browser"
-	AutonomousATSSubmit       Name = "autonomous.ats_submit"
-	AutonomousGmail           Name = "autonomous.gmail"
-	AutonomousMessaging       Name = "autonomous.messaging"
-	AutonomousBilling         Name = "autonomous.billing"
-	AutonomousIrreversible    Name = "autonomous.irreversible_jobs"
+	WorkspaceAuth                         Name = "workspace.auth"
+	WorkspaceResume                       Name = "workspace.resume"
+	WorkspacePublicImport                 Name = "workspace.public_import"
+	WorkspaceATSAssistance                Name = "workspace.ats_assistance"
+	WorkspaceKnowledgeHub                 Name = "workspace.knowledge_hub"
+	WorkspaceInterviewPrep                Name = "workspace.interview_prep"
+	WorkspaceApplicationTrack             Name = "workspace.application_tracker"
+	AutonomousBrowser                     Name = "autonomous.browser"
+	WorkspaceIsolatedComputer             Name = "workspace.isolated_computer"
+	WorkspaceLocalBrowserBridge           Name = "workspace.local_browser_bridge"
+	WorkspaceLocalBrowserSensitiveActions Name = "workspace.local_browser_sensitive_actions"
+	WorkspaceComputerSubmission           Name = "workspace.computer_submission"
+	AutonomousATSSubmit                   Name = "autonomous.ats_submit"
+	AutonomousGmail                       Name = "autonomous.gmail"
+	AutonomousMessaging                   Name = "autonomous.messaging"
+	AutonomousBilling                     Name = "autonomous.billing"
+	AutonomousIrreversible                Name = "autonomous.irreversible_jobs"
 )
 
 var known = map[Name]struct{}{
 	WorkspaceAuth: {}, WorkspaceResume: {}, WorkspacePublicImport: {},
 	WorkspaceATSAssistance: {}, WorkspaceKnowledgeHub: {}, WorkspaceInterviewPrep: {},
-	WorkspaceApplicationTrack: {}, AutonomousBrowser: {}, AutonomousATSSubmit: {},
+	WorkspaceApplicationTrack: {}, WorkspaceIsolatedComputer: {}, WorkspaceLocalBrowserBridge: {},
+	WorkspaceLocalBrowserSensitiveActions: {}, WorkspaceComputerSubmission: {}, AutonomousBrowser: {}, AutonomousATSSubmit: {},
 	AutonomousGmail: {}, AutonomousMessaging: {}, AutonomousBilling: {}, AutonomousIrreversible: {},
 }
 

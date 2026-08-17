@@ -97,6 +97,7 @@ from app.a2a.agents import register_all_a2a_agents
 from app.api.a2a_routes import router as a2a_router
 from app.api.external_research_routes import router as external_research_router
 from app.api.provenance_routes import router as provenance_router
+from app.api.computer_routes import router as computer_router
 from app.routes.agent import router as agent_router
 
 
@@ -146,6 +147,7 @@ app = FastAPI(
 app.include_router(a2a_router)
 app.include_router(external_research_router)
 app.include_router(provenance_router)
+app.include_router(computer_router)
 app.include_router(agent_router)
 app.state.limiter = limiter
 # The Go gateway is the only public API boundary in production. The middleware
@@ -937,6 +939,18 @@ def clamp_steps(value: Optional[int]) -> int:
     return max(1, min(steps, BROWSER_MAX_STEPS_CAP))
 
 
+def require_browser_automation_capabilities() -> None:
+    """Gate browser execution on both the legacy agent and selected provider scope."""
+    from app.services.capabilities import Capability, require_capability
+
+    require_capability(Capability.AUTONOMOUS_BROWSER)
+    provider = (os.getenv("BROWSER_PROVIDER") or "local").strip().lower()
+    if provider == "opensandbox":
+        require_capability(Capability.WORKSPACE_ISOLATED_COMPUTER)
+    elif provider == "local_bridge":
+        require_capability(Capability.WORKSPACE_LOCAL_BROWSER_BRIDGE)
+
+
 @app.post("/api/v1/browser/automation")
 @app.post("/api/browser/automation")
 async def browser_automation_endpoint(
@@ -947,6 +961,7 @@ async def browser_automation_endpoint(
     """Execute autonomous browser instruction via browser-use + Playwright."""
     from app.services.capabilities import Capability, require_capability
     require_capability(Capability.AUTONOMOUS_BROWSER)
+    require_browser_automation_capabilities()
     from app.services.browser_automation import run_browser_agent
 
     actor = _user_id
@@ -2121,6 +2136,7 @@ async def browser_automation_stream_endpoint(
     """SSE stream of per-step browser screenshots for the Glass-Box live feed."""
     from app.services.capabilities import Capability, require_capability
     require_capability(Capability.AUTONOMOUS_BROWSER)
+    require_browser_automation_capabilities()
     import json as _json
     from app.services.browser_automation.agent import stream_browser_agent
     from app.services.db import load_agent_run
@@ -2197,6 +2213,7 @@ async def browser_automation_control_endpoint(
     """
     from app.services.capabilities import Capability, require_capability
     require_capability(Capability.AUTONOMOUS_BROWSER)
+    require_browser_automation_capabilities()
     from app.services.run_control import (
         RunControlOwnershipError,
         RunControlStoreUnavailable,
@@ -2235,6 +2252,7 @@ async def browser_automation_cancel_endpoint(
     """
     from app.services.capabilities import Capability, require_capability
     require_capability(Capability.AUTONOMOUS_BROWSER)
+    require_browser_automation_capabilities()
     from app.services.browser_automation.session import BrowserAuthzError, cancel_run
 
     actor = _user_id

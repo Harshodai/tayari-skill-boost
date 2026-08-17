@@ -15,12 +15,16 @@ wedged.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import os
 from dataclasses import dataclass, field
 from typing import Dict, Optional
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
+from app.services.capabilities import Capability, capability_enabled
 
 BROWSERBASE_API = "https://api.browserbase.com/v1"
 
@@ -69,6 +73,117 @@ class LocalPlaywrightProvider(BrowserProvider):
 
     async def terminate(self, session: BrowserSession) -> None:
         session.cancelled = True
+
+
+class LocalBrowserBridgeProvider(BrowserProvider):
+    """User-approved browser session controlled by the extension bridge.
+
+    This provider intentionally returns no CDP URL: the server cannot attach to
+    or impersonate a local browser profile. Observation and bounded actions are
+    transported through the signed extension bridge grant instead.
+    """
+
+    name = "local_bridge"
+
+    async def create(self, run_id: str) -> BrowserSession:
+        return BrowserSession(
+            run_id=run_id,
+            provider=self.name,
+            meta={"transport": "extension", "profile_access": "denied", "submission": "blocked"},
+        )
+
+    async def terminate(self, session: BrowserSession) -> None:
+        session.cancelled = True
+
+
+class OpenSandboxProvider(BrowserProvider):
+    """Isolated-computer provider backed by an OpenSandbox control plane.
+
+    The adapter is opt-in and never falls back to a local or public endpoint.
+    Sandbox images and runtime policy are operator-configured; credentials are
+    passed only via the provider's private control-plane request.
+    """
+
+    name = "opensandbox"
+
+    def __init__(self) -> None:
+        self.api_url = os.getenv("OPENSANDBOX_API_URL", "").strip().rstrip("/")
+        self.api_token = os.getenv("OPENSANDBOX_API_TOKEN", "").strip()
+        self.image = os.getenv("OPENSANDBOX_IMAGE", "").strip()
+        self.runtime = os.getenv("OPENSANDBOX_RUNTIME", "gvisor").strip()
+        self.network_policy = os.getenv("OPENSANDBOX_NETWORK_POLICY", "deny_private_allowlist").strip()
+
+    def _headers(self) -> Dict[str, str]:
+        if not self.api_url or not self.api_token or not self.image:
+            raise BrowserSessionError(
+                "BROWSER_PROVIDER=opensandbox requires OPENSANDBOX_API_URL, OPENSANDBOX_API_TOKEN, and OPENSANDBOX_IMAGE"
+            )
+        if not self.api_url.startswith("https://") and os.getenv("APP_ENV", "development").lower() in {"staging", "production", "prod"}:
+            raise BrowserSessionError("OpenSandbox control plane must use HTTPS outside development")
+        return {"Authorization": f"Bearer {self.api_token}", "Content-Type": "application/json"}
+
+    def _private_endpoint(self, value: str | None) -> str | None:
+        if not value:
+            return None
+        parsed = urlparse(value)
+        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+            raise BrowserSessionError("OpenSandbox browser endpoint must be HTTPS and credential-free")
+        host = parsed.hostname.rstrip(".").lower()
+        try:
+            address = ipaddress.ip_address(host)
+            if not (address.is_private or address.is_loopback):
+                raise BrowserSessionError("OpenSandbox browser endpoint must be private")
+        except ValueError:
+            suffix = os.getenv("OPENSANDBOX_PRIVATE_HOST_SUFFIX", "").strip().lower()
+            if not suffix or not host.endswith(suffix):
+                raise BrowserSessionError("OpenSandbox browser endpoint is not on the configured private host suffix")
+        return value
+
+    async def create(self, run_id: str) -> BrowserSession:
+        if not capability_enabled(Capability.WORKSPACE_ISOLATED_COMPUTER):
+            raise BrowserSessionError("isolated computer capability is disabled by launch scope")
+        import httpx
+
+        headers = self._headers()
+        payload = {
+            "image": self.image,
+            "runtime": self.runtime,
+            "network_policy": self.network_policy,
+            "ttl_seconds": int(os.getenv("OPENSANDBOX_TTL_SECONDS", "900")),
+            "metadata": {"provider": "tayari", "run_id": run_id},
+            "browser": {"enabled": True, "private_endpoint": True},
+        }
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0), follow_redirects=False) as client:
+            response = await client.post(f"{self.api_url}/sandboxes", headers=headers, json=payload)
+        if response.status_code >= 400:
+            raise BrowserSessionError(f"OpenSandbox create failed ({response.status_code})")
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise BrowserSessionError("OpenSandbox returned invalid session metadata") from exc
+        session_id = str(data.get("id") or data.get("sandbox_id") or "").strip()
+        if not session_id:
+            raise BrowserSessionError("OpenSandbox response did not contain a sandbox id")
+        return BrowserSession(
+            run_id=run_id,
+            provider=self.name,
+            session_id=session_id,
+            cdp_url=self._private_endpoint(data.get("browser_connect_url") or data.get("cdp_url")),
+            live_view_url=self._private_endpoint(data.get("live_view_url") or data.get("vnc_url")),
+            meta={"runtime": self.runtime, "network_policy": self.network_policy, "image": self.image},
+        )
+
+    async def terminate(self, session: BrowserSession) -> None:
+        session.cancelled = True
+        if not session.session_id:
+            return
+        import httpx
+
+        headers = self._headers()
+        async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0), follow_redirects=False) as client:
+            response = await client.delete(f"{self.api_url}/sandboxes/{session.session_id}", headers=headers)
+        if response.status_code >= 400 and response.status_code != 404:
+            raise BrowserSessionError(f"OpenSandbox terminate failed ({response.status_code})")
 
 
 class BrowserbaseProvider(BrowserProvider):
@@ -133,6 +248,10 @@ def get_provider() -> BrowserProvider:
     name = (os.getenv("BROWSER_PROVIDER") or "local").strip().lower()
     if name in {"browserbase", "remote"}:
         return BrowserbaseProvider()
+    if name in {"local_bridge", "extension"}:
+        return LocalBrowserBridgeProvider()
+    if name in {"opensandbox", "open_sandbox"}:
+        return OpenSandboxProvider()
     if name not in {"local", "playwright"}:
         logger.warning("[BrowserSession] unknown BROWSER_PROVIDER=%r; falling back to local", name)
     return LocalPlaywrightProvider()

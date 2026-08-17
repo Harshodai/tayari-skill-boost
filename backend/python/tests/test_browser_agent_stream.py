@@ -177,3 +177,27 @@ async def test_stream_authorized_run_streams_successfully(monkeypatch):
     body = "".join(chunks)
     assert "screenshot" in body
     assert "done" in body
+
+
+@pytest.mark.asyncio
+async def test_opensandbox_requires_isolated_computer_capability(monkeypatch):
+    monkeypatch.setenv("BROWSER_PROVIDER", "opensandbox")
+    monkeypatch.setenv("CAPABILITY_AUTONOMOUS_BROWSER", "true")
+    monkeypatch.setenv("CAPABILITY_WORKSPACE_ISOLATED_COMPUTER", "false")
+
+    with pytest.raises(HTTPException) as exc:
+        await browser_automation_stream_endpoint({"instruction": "observe"}, request=object(), _user_id="u-test")
+    assert exc.value.status_code == 423
+    assert exc.value.detail["capability"] == "workspace.isolated_computer"
+
+
+@pytest.mark.asyncio
+async def test_local_bridge_requires_bridge_capability(monkeypatch):
+    monkeypatch.setenv("BROWSER_PROVIDER", "local_bridge")
+    monkeypatch.setenv("CAPABILITY_AUTONOMOUS_BROWSER", "true")
+    monkeypatch.setenv("CAPABILITY_WORKSPACE_LOCAL_BROWSER_BRIDGE", "false")
+
+    with pytest.raises(HTTPException) as exc:
+        await browser_automation_stream_endpoint({"instruction": "observe"}, request=object(), _user_id="u-test")
+    assert exc.value.status_code == 423
+    assert exc.value.detail["capability"] == "workspace.local_browser_bridge"

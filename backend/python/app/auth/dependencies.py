@@ -10,7 +10,8 @@ from __future__ import annotations
 import hmac
 import logging
 import os
-from typing import Optional
+from dataclasses import dataclass
+from typing import Any, Optional
 from uuid import UUID
 
 import jwt
@@ -49,8 +50,8 @@ if JWT_ALGORITHM not in _SYMMETRIC_ALGORITHMS:
     )
 
 
-def _verify_token(token: str) -> str:
-    """Verify a Bearer token and return its ``sub`` claim."""
+def _decode_token(token: str) -> dict[str, Any]:
+    """Verify a bearer token and return its claims."""
     options = {
         "verify_signature": True,
         "verify_exp": True,
@@ -62,7 +63,6 @@ def _verify_token(token: str) -> str:
         options["require"].append("iss")
     if JWT_AUDIENCE:
         options["require"].append("aud")
-
     payload = jwt.decode(
         token,
         JWT_SECRET,
@@ -71,7 +71,8 @@ def _verify_token(token: str) -> str:
         issuer=JWT_ISSUER if JWT_ISSUER else None,
         audience=JWT_AUDIENCE if JWT_AUDIENCE else None,
     )
-
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=401, detail="Invalid or missing authentication credentials")
     subject = payload.get("sub")
     if not subject or not isinstance(subject, str) or not subject.strip():
         raise HTTPException(
@@ -79,7 +80,27 @@ def _verify_token(token: str) -> str:
             detail="Invalid or missing authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return subject.strip()
+    return payload
+
+
+def _verify_token(token: str) -> str:
+    """Verify a Bearer token and return its ``sub`` claim."""
+    return str(_decode_token(token)["sub"]).strip()
+
+
+@dataclass(frozen=True)
+class VerifiedRequestContext:
+    subject: str
+    tenant_id: str
+
+
+def _uuid_text(value: str | None, label: str) -> str:
+    if not value or not value.strip():
+        raise HTTPException(status_code=401, detail=f"verified {label} is required")
+    try:
+        return str(UUID(value.strip()))
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=401, detail=f"verified {label} is invalid") from exc
 
 
 async def get_current_user(
@@ -136,6 +157,44 @@ async def get_current_user(
         # let the generic error path produce a 500.
         logger.exception("Unexpected error during JWT verification: %s", exc)
         raise
+
+
+async def get_verified_context(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
+    x_internal_token: Optional[str] = Header(None, alias="X-Internal-Token"),
+) -> VerifiedRequestContext:
+    """Return a verified subject/tenant pair for multi-tenant control routes.
+
+    The internal-token branch is only valid for the Go gateway, which must
+    derive both values from its immutable authorization context. Direct bearer
+    callers must carry a verified ``tenant_id`` claim; a caller-supplied header
+    alone never establishes tenant authority.
+    """
+    if x_internal_token:
+        configured_token = os.getenv("AI_INTERNAL_TOKEN", "")
+        if configured_token and hmac.compare_digest(x_internal_token, configured_token):
+            return VerifiedRequestContext(
+                subject=_uuid_text(x_user_id, "user identity"),
+                tenant_id=_uuid_text(x_tenant_id, "tenant identity"),
+            )
+
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Invalid or missing authentication credentials", headers={"WWW-Authenticate": "Bearer"})
+    token = authorization.split(" ", 1)[1].strip()
+    if not token or token == "demo-user":
+        raise HTTPException(status_code=401, detail="Invalid or missing authentication credentials", headers={"WWW-Authenticate": "Bearer"})
+    try:
+        claims = _decode_token(token)
+        return VerifiedRequestContext(
+            subject=_uuid_text(str(claims.get("sub") or ""), "user identity"),
+            tenant_id=_uuid_text(str(claims.get("tenant_id") or ""), "tenant identity"),
+        )
+    except HTTPException:
+        raise
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status_code=401, detail="Invalid or missing authentication credentials", headers={"WWW-Authenticate": "Bearer"}) from exc
 
 
 # Convenience alias so routers can write ``Depends(get_current_user)`` uniformly.
