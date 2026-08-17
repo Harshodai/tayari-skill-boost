@@ -51,6 +51,7 @@ func TestRedactEmail(t *testing.T) {
 
 func TestGmailWebhook_ProcessesPayload(t *testing.T) {
 	server := newHermesServer(t, "")
+	t.Setenv("GMAIL_PUBSUB_VERIFICATION_TOKEN", "pubsub-test-token")
 
 	dataJSON, _ := json.Marshal(map[string]interface{}{
 		"emailAddress": "test@example.com",
@@ -68,6 +69,7 @@ func TestGmailWebhook_ProcessesPayload(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/gmail/webhook", bytes.NewReader(payload))
 	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("X-Internal-Token", "pubsub-test-token")
 	server.Router.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
@@ -78,5 +80,25 @@ func TestGmailWebhook_ProcessesPayload(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp["status"] != "processing" {
 		t.Fatalf("expected status=processing, got %v", resp["status"])
+	}
+}
+
+// TestGmailWebhook_RejectsUnverifiedPush asserts an anonymous caller cannot
+// trigger a sync of somebody else's inbox.
+func TestGmailWebhook_RejectsUnverifiedPush(t *testing.T) {
+	server := newHermesServer(t, "")
+	t.Setenv("GMAIL_PUBSUB_VERIFICATION_TOKEN", "pubsub-test-token")
+
+	payload, _ := json.Marshal(map[string]interface{}{
+		"message": map[string]interface{}{"data": "", "messageId": "msg-999"},
+	})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/gmail/webhook", bytes.NewReader(payload))
+	r.Header.Set("Content-Type", "application/json")
+	server.Router.ServeHTTP(w, r)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for unverified push, got %d", w.Code)
 	}
 }
