@@ -79,10 +79,13 @@ interface Job {
   salary?: string;
   score?: number;
   fit_score?: number;
+  match_score?: number;
+  matched_skills?: string[];
+  match_reason?: string;
   match_reasons?: string[];
   missing_skills?: string[];
   dedupe_key?: string;
-  ats_provider?: string;
+
 }
 
 const scoreColor = (s: number) =>
