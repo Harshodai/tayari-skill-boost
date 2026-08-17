@@ -6,7 +6,8 @@ import logging
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, List
-from fastapi import APIRouter, HTTPException, Header, Body
+from fastapi import Depends, APIRouter, HTTPException, Header, Body
+from app.auth.dependencies import get_current_user
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.services import portal_scanner, career_ops_evaluator, pattern_analyzer, followup_tracker
@@ -78,7 +79,7 @@ class StoryBankUpdateRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/evaluate")
-async def evaluate_job(payload: dict = Body(...), x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def evaluate_job(payload: dict = Body(...), x_user_id: str = Depends(get_current_user)):
     parsed = EvaluateRequest.from_mapped(payload)
     user_id = get_required_user_id(x_user_id)
     report = await career_ops_evaluator.evaluate_job_candidate(
@@ -116,7 +117,7 @@ async def evaluate_job(payload: dict = Body(...), x_user_id: Optional[str] = Hea
     return report
 
 @router.post("/scan")
-async def trigger_scan(payload: ScanRequest, x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def trigger_scan(payload: ScanRequest, x_user_id: str = Depends(get_current_user)):
     user_id = get_required_user_id(x_user_id)
     jobs = await portal_scanner.scan_portals(
         user_id=user_id,
@@ -128,19 +129,19 @@ async def trigger_scan(payload: ScanRequest, x_user_id: Optional[str] = Header(N
     return {"jobs": jobs}
 
 @router.get("/patterns")
-async def get_patterns(x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def get_patterns(x_user_id: str = Depends(get_current_user)):
     user_id = get_required_user_id(x_user_id)
     patterns = await pattern_analyzer.analyze_rejection_patterns(user_id)
     return patterns
 
 @router.get("/followups")
-async def get_followups(x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def get_followups(x_user_id: str = Depends(get_current_user)):
     user_id = get_required_user_id(x_user_id)
     followups = await followup_tracker.track_followup_cadence(user_id)
     return {"followups": followups}
 
 @router.post("/followups/action")
-async def action_followup(payload: FollowupActionRequest, x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def action_followup(payload: FollowupActionRequest, x_user_id: str = Depends(get_current_user)):
     user_id = get_required_user_id(x_user_id)
     pool = await get_pool()
     if not pool:
@@ -180,13 +181,13 @@ async def action_followup(payload: FollowupActionRequest, x_user_id: Optional[st
     return {"status": "ok"}
 
 @router.get("/portals")
-async def get_portals(x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def get_portals(x_user_id: str = Depends(get_current_user)):
     user_id = get_required_user_id(x_user_id)
     portals = await portal_scanner.list_user_portals(user_id)
     return {"portals": portals}
 
 @router.post("/portals")
-async def save_portal(payload: PortalCreateRequest, x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def save_portal(payload: PortalCreateRequest, x_user_id: str = Depends(get_current_user)):
     user_id = get_required_user_id(x_user_id)
     success = await portal_scanner.create_user_portal(
         user_id=user_id,
@@ -201,7 +202,7 @@ async def save_portal(payload: PortalCreateRequest, x_user_id: Optional[str] = H
     return {"status": "ok"}
 
 @router.delete("/portals/{portal_id}")
-async def remove_portal(portal_id: int, x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def remove_portal(portal_id: int, x_user_id: str = Depends(get_current_user)):
     user_id = get_required_user_id(x_user_id)
     success = await portal_scanner.delete_user_portal(user_id, portal_id)
     if not success:
@@ -209,7 +210,7 @@ async def remove_portal(portal_id: int, x_user_id: Optional[str] = Header(None, 
     return {"status": "ok"}
 
 @router.get("/story-bank")
-async def get_story_bank(x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def get_story_bank(x_user_id: str = Depends(get_current_user)):
     user_id = get_required_user_id(x_user_id)
     pool = await get_pool()
     if not pool:
@@ -223,7 +224,7 @@ async def get_story_bank(x_user_id: Optional[str] = Header(None, alias="X-User-I
         return {"stories": stories}
 
 @router.post("/story-bank")
-async def save_story_bank(payload: StoryBankUpdateRequest, x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def save_story_bank(payload: StoryBankUpdateRequest, x_user_id: str = Depends(get_current_user)):
     user_id = get_required_user_id(x_user_id)
     pool = await get_pool()
     if not pool:
@@ -237,7 +238,7 @@ async def save_story_bank(payload: StoryBankUpdateRequest, x_user_id: Optional[s
     return {"status": "ok"}
 
 @router.patch("/portals/{portal_id}")
-async def update_portal(portal_id: int, payload: PortalUpdateRequest, x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def update_portal(portal_id: int, payload: PortalUpdateRequest, x_user_id: str = Depends(get_current_user)):
     user_id = get_required_user_id(x_user_id)
     success = await portal_scanner.update_portal_enabled(user_id, portal_id, payload.enabled)
     if not success:
@@ -245,7 +246,7 @@ async def update_portal(portal_id: int, payload: PortalUpdateRequest, x_user_id:
     return {"status": "ok"}
 
 @router.delete("/story-bank/{index}")
-async def delete_story(index: int, x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def delete_story(index: int, x_user_id: str = Depends(get_current_user)):
     user_id = get_required_user_id(x_user_id)
     pool = await get_pool()
     if not pool:
@@ -266,7 +267,7 @@ async def delete_story(index: int, x_user_id: Optional[str] = Header(None, alias
     return {"status": "ok"}
 
 @router.get("/stats")
-async def get_stats(x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+async def get_stats(x_user_id: str = Depends(get_current_user)):
     user_id = get_required_user_id(x_user_id)
     stats = await portal_scanner.get_stats(user_id)
     return stats

@@ -14,7 +14,8 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import Depends, APIRouter, HTTPException, Header
+from app.auth.dependencies import get_current_user
 from pydantic import BaseModel, Field
 
 from app.services.preference_learning import run_preference_learning
@@ -40,13 +41,13 @@ class FeedbackRequest(BaseModel):
 
 
 @preference_router.get("")
-async def get_preferences(x_user_id: Optional[str] = Header(None, alias="X-User-Id")) -> dict:
+async def get_preferences(x_user_id: str = Depends(get_current_user)) -> dict:
     user_id = _require_user(x_user_id)
     return await run_preference_learning(user_id)
 
 
 @preference_router.post("/refresh")
-async def refresh_preferences(x_user_id: Optional[str] = Header(None, alias="X-User-Id")) -> dict:
+async def refresh_preferences(x_user_id: str = Depends(get_current_user)) -> dict:
     user_id = _require_user(x_user_id)
     return await run_preference_learning(user_id)
 
@@ -58,7 +59,7 @@ async def refresh_preferences(x_user_id: Optional[str] = Header(None, alias="X-U
 @preference_router.post("/feedback")
 async def post_feedback(
     payload: FeedbackRequest,
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_user_id: str = Depends(get_current_user),
 ) -> dict:
     user_id = _require_user(x_user_id)
     if payload.feedback_type not in VALID_FEEDBACK_TYPES:
@@ -76,7 +77,7 @@ async def post_feedback(
 
 @preference_router.get("/feedback")
 async def list_feedback(
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_user_id: str = Depends(get_current_user),
     feedback_type: Optional[str] = None,
 ) -> dict:
     user_id = _require_user(x_user_id)
