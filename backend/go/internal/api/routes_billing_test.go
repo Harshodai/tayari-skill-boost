@@ -15,6 +15,51 @@ import (
 	"github.com/google/uuid"
 )
 
+// testInternalToken stands in for the shared Go<->Python service secret that
+// the credit debit/refund endpoints now require.
+const testInternalToken = "test-internal-token"
+
+// TestBillingRoutes_DebitRequiresInternalTokenOrAuth asserts an anonymous
+// caller can no longer touch anyone's credit balance.
+func TestBillingRoutes_DebitRequiresInternalTokenOrAuth(t *testing.T) {
+	os.Setenv("AI_INTERNAL_TOKEN", testInternalToken)
+	defer os.Unsetenv("AI_INTERNAL_TOKEN")
+
+	s := &Server{}
+	b := billing.NewBillingService(nil)
+
+	body := `{"user_id":"` + uuid.New().String() + `","amount":1,"verified":true}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/billing/credits/debit", bytes.NewBufferString(body))
+	rec := httptest.NewRecorder()
+	s.handleDebitCredits(b)(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected 401 for anonymous debit, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/billing/credits/refund", bytes.NewBufferString(body))
+	rec = httptest.NewRecorder()
+	s.handleRefundCredits(b)(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected 401 for anonymous refund, got %d", rec.Code)
+	}
+}
+
+// A signed-in user may not debit someone else's account.
+func TestBillingRoutes_DebitRejectsForeignUserID(t *testing.T) {
+	s := &Server{}
+	b := billing.NewBillingService(nil)
+	user := &models.User{ID: uuid.New()}
+
+	body := `{"user_id":"` + uuid.New().String() + `","amount":1,"verified":true}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/billing/credits/debit", bytes.NewBufferString(body))
+	req = req.WithContext(auth.WithUserContext(req.Context(), user))
+	rec := httptest.NewRecorder()
+	s.handleDebitCredits(b)(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("Expected 403 when debiting another user, got %d", rec.Code)
+	}
+}
+
 func TestBillingRoutes_GetCreditPacks(t *testing.T) {
 	s := &Server{}
 	b := billing.NewBillingService(nil)
@@ -43,6 +88,8 @@ func TestBillingRoutes_GetCreditPacks(t *testing.T) {
 func TestBillingRoutes_CreditsLifecycle(t *testing.T) {
 	os.Setenv("BILLING_ENABLED", "true")
 	defer os.Unsetenv("BILLING_ENABLED")
+	os.Setenv("AI_INTERNAL_TOKEN", testInternalToken)
+	defer os.Unsetenv("AI_INTERNAL_TOKEN")
 
 	s := &Server{}
 	b := billing.NewBillingService(nil)
@@ -82,6 +129,7 @@ func TestBillingRoutes_CreditsLifecycle(t *testing.T) {
 	// 3. Debit 1 credit on verified submission receipt
 	debitBody := `{"user_id":"` + userUUID.String() + `","amount":1,"reference_id":"sub_rcpt_1","verified":true}`
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/billing/credits/debit", bytes.NewBufferString(debitBody))
+	req.Header.Set("X-Internal-Token", testInternalToken)
 	rec = httptest.NewRecorder()
 	s.handleDebitCredits(b)(rec, req)
 
@@ -102,6 +150,7 @@ func TestBillingRoutes_CreditsLifecycle(t *testing.T) {
 	// 4. Unverified submission receives 0 charge / no debit
 	unverifiedBody := `{"user_id":"` + userUUID.String() + `","amount":1,"reference_id":"sub_rcpt_fail","verified":false}`
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/billing/credits/debit", bytes.NewBufferString(unverifiedBody))
+	req.Header.Set("X-Internal-Token", testInternalToken)
 	rec = httptest.NewRecorder()
 	s.handleDebitCredits(b)(rec, req)
 
@@ -120,6 +169,7 @@ func TestBillingRoutes_CreditsLifecycle(t *testing.T) {
 	// 5. Refund debited credit
 	refundBody := `{"user_id":"` + userUUID.String() + `","amount":1,"reference_id":"sub_rcpt_1"}`
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/billing/credits/refund", bytes.NewBufferString(refundBody))
+	req.Header.Set("X-Internal-Token", testInternalToken)
 	rec = httptest.NewRecorder()
 	s.handleRefundCredits(b)(rec, req)
 
@@ -140,6 +190,8 @@ func TestBillingRoutes_CreditsLifecycle(t *testing.T) {
 func TestBillingRoutes_DebitInsufficientCredits(t *testing.T) {
 	os.Setenv("BILLING_ENABLED", "true")
 	defer os.Unsetenv("BILLING_ENABLED")
+	os.Setenv("AI_INTERNAL_TOKEN", testInternalToken)
+	defer os.Unsetenv("AI_INTERNAL_TOKEN")
 
 	s := &Server{}
 	b := billing.NewBillingService(nil)
@@ -147,6 +199,7 @@ func TestBillingRoutes_DebitInsufficientCredits(t *testing.T) {
 
 	debitBody := `{"user_id":"` + userUUID + `","amount":1,"reference_id":"sub_empty","verified":true}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/billing/credits/debit", bytes.NewBufferString(debitBody))
+	req.Header.Set("X-Internal-Token", testInternalToken)
 	rec := httptest.NewRecorder()
 	s.handleDebitCredits(b)(rec, req)
 
