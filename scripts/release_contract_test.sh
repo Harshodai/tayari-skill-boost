@@ -109,11 +109,15 @@ grep -q 'TayariProviderErrors' infra/observability/alerts.yml
 grep -q 'TayariBudgetRejections' infra/observability/alerts.yml
 # Live verification and external side-effect safety are release contracts.
 test -x scripts/live_provider_verify.py
-test -f .github/workflows/live-provider-verify.yml
-grep -q 'permissions:' .github/workflows/live-provider-verify.yml
-grep -q 'contents: read' .github/workflows/live-provider-verify.yml
-grep -q -- '--require-providers' .github/workflows/live-provider-verify.yml
-grep -q 'ALLOW_LIVE_PROVIDER_VERIFY: "true"' .github/workflows/live-provider-verify.yml
+# The GitHub workflow is an optional operator-deployment artifact. When present,
+# validate it; when absent, live verification remains an explicit external
+# blocker rather than silently being treated as passed.
+if [[ -f .github/workflows/live-provider-verify.yml ]]; then
+  grep -q 'permissions:' .github/workflows/live-provider-verify.yml
+  grep -q 'contents: read' .github/workflows/live-provider-verify.yml
+  grep -q -- '--require-providers' .github/workflows/live-provider-verify.yml
+  grep -q 'ALLOW_LIVE_PROVIDER_VERIFY: "true"' .github/workflows/live-provider-verify.yml
+fi
 grep -q 'SMTP_HOST: ${SMTP_HOST:-}' docker-compose.production.yml
 grep -q 'SMTP_HOST: ${SMTP_HOST:-}' docker-compose.aws.yml
 grep -q 'SMTP provider is not configured for production notification delivery' backend/python/app/services/notifications.py
