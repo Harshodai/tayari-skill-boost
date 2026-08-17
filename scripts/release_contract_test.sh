@@ -152,6 +152,8 @@ test -f backend/python/app/a2a/federation.py
 test -f backend/python/app/tests/test_external_research.py
 test -f backend/python/app/tests/test_a2a_federation.py
 test -f docs/integrations/a2a-mcp-provider-adapters.md
+test -x scripts/verify_external_provider_config.py
+test -f docs/operations/staging-external-integrations.md
 grep -q 'token_hash' backend/db/migrations/20260817_password_reset_token_hash.sql
 test -f supabase-local/volumes/db/init/36-20260817_password_reset_token_hash.sql
 test -x scripts/verify_route_authorization_contract.py
