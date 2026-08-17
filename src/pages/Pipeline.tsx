@@ -23,7 +23,7 @@ export default function Pipeline() {
     enabled: !!userId,
     queryFn: async () => {
       try {
-        const data = await apiFetch("/v1/jobs/saved");
+        const data = await apiFetch<any>("/v1/jobs/saved");
         return Array.isArray(data) ? data : (data?.jobs ?? []);
       } catch (err) {
         if (!USE_SELF_HOSTED) {
@@ -47,7 +47,7 @@ export default function Pipeline() {
     enabled: !!userId,
     queryFn: async () => {
       try {
-        const res = await apiFetch("/v1/jobs/receipts");
+        const res = await apiFetch<any>("/v1/jobs/receipts");
         if (Array.isArray(res)) return res;
         if (Array.isArray(res?.receipts)) return res.receipts;
       } catch {

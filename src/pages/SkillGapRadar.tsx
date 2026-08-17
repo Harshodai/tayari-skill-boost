@@ -23,7 +23,7 @@ export function SkillGapRadar() {
   React.useEffect(() => {
     async function loadSkills() {
       try {
-        const profile = await apiFetch("/v1/profile").catch(() => null);
+        const profile = await apiFetch<any>("/v1/profile").catch(() => null);
         if (profile?.skills && Array.isArray(profile.skills) && profile.skills.length > 0) {
           setUserSkills(profile.skills);
         }
