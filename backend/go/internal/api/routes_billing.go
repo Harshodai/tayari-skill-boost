@@ -41,10 +41,13 @@ func (s *Server) RegisterBillingRoutes(r chi.Router, b *billing.BillingService) 
 	// so they require either the shared internal-service token (trusted
 	// server-to-server caller, e.g. the Python receipt pipeline) or a valid
 	// user session — and a session may only affect its own user_id.
-	r.Post("/api/v1/billing/credits/debit", s.handleDebitCredits(b))
-	r.Post("/api/billing/credits/debit", s.handleDebitCredits(b))
-	r.Post("/api/v1/billing/credits/refund", s.handleRefundCredits(b))
-	r.Post("/api/billing/credits/refund", s.handleRefundCredits(b))
+	r.Group(func(r chi.Router) {
+		r.Use(s.internalOrAuthMiddleware)
+		r.Post("/api/v1/billing/credits/debit", s.handleDebitCredits(b))
+		r.Post("/api/billing/credits/debit", s.handleDebitCredits(b))
+		r.Post("/api/v1/billing/credits/refund", s.handleRefundCredits(b))
+		r.Post("/api/billing/credits/refund", s.handleRefundCredits(b))
+	})
 
 	// Public Webhook Endpoint (Stripe Signature Verified)
 	r.Post("/api/v1/billing/webhook", s.handleStripeWebhook(b))
@@ -266,6 +269,20 @@ func (s *Server) internalServiceCaller(r *http.Request) bool {
 		return false
 	}
 	return subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) == 1
+}
+
+// internalOrAuthMiddleware lets a verified internal-service caller through
+// untouched and otherwise enforces the normal user authentication middleware,
+// so these routes are never reachable anonymously.
+func (s *Server) internalOrAuthMiddleware(next http.Handler) http.Handler {
+	authed := s.authMiddleware(next)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.internalServiceCaller(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		authed.ServeHTTP(w, r)
+	})
 }
 
 // resolveCreditSubject determines which user a credit mutation may target.
