@@ -54,7 +54,7 @@ export function CommandPalette() {
     "g j": () => navigate("/jobs"),
     "g p": () => navigate("/profile"),
     "g r": () => navigate("/resume"),
-    "g i": () => navigate("/interview-board"),
+    "g i": () => navigate("/interview"),
     "g s": () => navigate("/settings"),
     "?": () => setOpen(true),
   });
@@ -70,8 +70,8 @@ export function CommandPalette() {
       { id: "go-jobs", label: "Smart Job Search", hint: "g j", icon: Briefcase, group: "Navigate", perform: go("/jobs") },
       { id: "go-resume", label: "Resume Optimizer", hint: "g r", icon: FileText, group: "Navigate", perform: go("/resume") },
       { id: "go-cover", label: "Cover Letter", icon: PenLine, group: "Navigate", perform: go("/cover-letter") },
-      { id: "go-interview", label: "Interview Board", hint: "g i", icon: Mic, group: "Navigate", perform: go("/interview-board") },
-      { id: "go-prep", label: "AI Interview Prep", icon: Mic, group: "Navigate", perform: go("/interview-prep") },
+      { id: "go-interview", label: "Interview Board", hint: "g i", icon: Mic, group: "Navigate", perform: go("/interview") },
+      { id: "go-prep", label: "AI Interview Prep", icon: Mic, group: "Navigate", perform: go("/interview/prep") },
       { id: "go-comms", label: "Communication Hub", icon: MessagesSquare, group: "Navigate", perform: go("/communication") },
       { id: "go-roadmap", label: "Career Roadmap", icon: MapIcon, group: "Navigate", perform: go("/roadmap") },
       { id: "go-profile", label: "Profile", hint: "g p", icon: UserIcon, group: "Navigate", perform: go("/profile") },
@@ -79,7 +79,7 @@ export function CommandPalette() {
 
       { id: "act-tailor", label: "Tailor resume to a job…", icon: Sparkles, group: "AI actions", perform: go("/resume?intent=tailor") },
       { id: "act-cover", label: "Generate a cover letter…", icon: Sparkles, group: "AI actions", perform: go("/cover-letter?intent=new") },
-      { id: "act-autopilot", label: "Run AutoPilot apply chain…", icon: Rocket, group: "AI actions", perform: go("/autopilot") },
+      { id: "act-autopilot", label: "Run AutoPilot apply chain…", icon: Rocket, group: "AI actions", perform: go("/jobs/autopilot") },
       { id: "act-search", label: "Search jobs…", icon: Search, group: "AI actions", perform: go("/jobs") },
 
       {

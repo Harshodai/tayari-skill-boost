@@ -8,7 +8,7 @@ interface LayoutProps {
 
 export function Layout({ children, showFooter = true }: LayoutProps) {
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-hero">
+    <div className="min-h-[100dvh] flex flex-col bg-gradient-hero">
       <Header />
       <main className="flex-1 pt-16">
         {children}

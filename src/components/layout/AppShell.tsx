@@ -54,7 +54,7 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
     <SidebarProvider>
       <SkipToContent />
       <CommandPalette />
-      <div className="app-shell min-h-screen flex w-full bg-background">
+      <div className="app-shell min-h-[100dvh] flex w-full bg-background">
         <AppSidebar />
 
         <div className="flex-1 flex flex-col min-w-0">
@@ -92,7 +92,7 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
               <NotificationsBell />
               <ActivityButton />
               <DropdownMenu>
-                <DropdownMenuTrigger className="outline-none">
+                <DropdownMenuTrigger className="outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-full">
                   <Avatar className="h-8 w-8 border border-border/60">
                     <AvatarFallback className="text-xs bg-primary/10 text-primary">
                       {initials}

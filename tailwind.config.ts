@@ -123,9 +123,9 @@ export default {
         "glow-success": "var(--shadow-glow-success)",
         "glow-lg": "0 0 60px -10px hsl(var(--primary) / 0.4)",
         "glow-xl": "0 0 80px -15px hsl(var(--primary) / 0.5)",
-        "glass": "0 8px 32px 0 rgba(0, 0, 0, 0.36)",
-        "elevated": "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-        "spotlight": "inset 0 1px 0 0 rgba(255,255,255,0.05)",
+        glass: "0 8px 32px 0 hsl(var(--card) / 0.4)",
+        elevated: "0 20px 25px -5px hsl(var(--foreground) / 0.06), 0 10px 10px -5px hsl(var(--foreground) / 0.04)",
+        spotlight: "inset 0 1px 0 0 hsl(var(--foreground) / 0.08)",
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",

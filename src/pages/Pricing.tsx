@@ -293,10 +293,10 @@ const Pricing = () => {
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold mb-4">
               <Coins className="w-3.5 h-3.5" /> Pay Only Per Verified Submission
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight">
+            <h1 className="font-display text-balance text-4xl md:text-5xl font-bold mb-4 tracking-tight">
               Pay for <span className="text-gradient">Proof</span>, Never Subscriptions
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-balance text-xl text-muted-foreground max-w-2xl mx-auto">
               Job tracking and resume tailoring are free forever. Purchase credit packs only when you want automated, verified ATS submissions.
             </p>
 
@@ -309,7 +309,7 @@ const Pricing = () => {
                 <Sparkles className="w-4 h-4 text-emerald-500" />
                 <span>
                   Your Balance:{" "}
-                  <strong className="text-foreground">
+                  <strong className="text-foreground tabular-nums">
                     {isLoadingCredits ? "Loading..." : `${creditBalance ?? 0} Verified Submission Credits`}
                   </strong>
                 </span>
@@ -325,10 +325,10 @@ const Pricing = () => {
             <div className="inline-flex items-center justify-center p-3 bg-emerald-500/20 rounded-full mb-3 text-emerald-500">
               <ShieldCheck className="w-8 h-8" />
             </div>
-            <h2 className="text-xl md:text-2xl font-bold text-emerald-500 mb-2">
+            <h2 className="font-display text-balance text-xl md:text-2xl font-bold text-emerald-500 mb-2">
               Zero Risk: 1 Credit is debited ONLY when a verified submission receipt with ATS confirmation code is generated. Failed or unverifiable applications are $0.00 / 0 credits.
             </h2>
-            <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-balance text-sm text-muted-foreground max-w-2xl mx-auto">
               Never pay for broken application portals, CAPTCHAs, or lost submissions. If our agent cannot capture verifiable ATS confirmation proof, you pay nothing.
             </p>
           </div>
@@ -341,9 +341,9 @@ const Pricing = () => {
                 <div
                   key={pack.id}
                   data-testid={`pricing-card-${pack.id}`}
-                  className={`relative rounded-2xl p-8 border transition-all duration-300 flex flex-col justify-between ${
+                  className={`relative rounded-2xl p-8 border transition-all duration-200 flex flex-col justify-between ${
                     isPopular
-                      ? "bg-gradient-to-b from-primary/20 to-card border-primary ring-1 ring-primary/40 shadow-lg scale-105"
+                      ? "bg-card border-primary ring-2 ring-primary/40 shadow-lg"
                       : "bg-card/70 border-border hover:border-primary/50 shadow-sm"
                   }`}
                 >
@@ -374,16 +374,16 @@ const Pricing = () => {
                           <Coins className="w-5 h-5" />
                         </div>
                         <div>
-                          <h3 className="text-xl font-bold">{pack.name}</h3>
-                          <span className="text-xs text-muted-foreground font-medium">{pack.credits} Verified Submissions</span>
+                          <h3 className="font-display text-xl font-bold">{pack.name}</h3>
+                          <span className="text-xs text-muted-foreground font-medium tabular-nums">{pack.credits} Verified Submissions</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="mb-4">
                       <div className="flex items-baseline gap-2">
-                        <span className="text-4xl font-extrabold">{pack.priceFormatted}</span>
-                        <span className="text-sm font-semibold text-emerald-500">
+                        <span className="font-display text-4xl font-extrabold tabular-nums tracking-tight">{pack.priceFormatted}</span>
+                        <span className="text-sm font-semibold text-emerald-500 tabular-nums">
                           ({pack.unitPrice})
                         </span>
                       </div>
@@ -403,7 +403,7 @@ const Pricing = () => {
                   </div>
 
                   <Button
-                    className={`w-full font-semibold py-5 ${
+                    className={`w-full font-semibold py-5 active:scale-[0.98] ${
                       isPopular
                         ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-md"
                         : "bg-secondary hover:bg-secondary/80 text-foreground border border-border"
@@ -445,14 +445,14 @@ const Pricing = () => {
 
           {/* Why Credits, Not Subscriptions */}
           <div className="max-w-4xl mx-auto mb-20">
-            <h2 className="text-3xl font-bold text-center mb-10">
+            <h2 className="font-display text-balance text-3xl font-bold text-center mb-10 tracking-tight">
               Why <span className="text-gradient">Credit Packs</span> Beat Monthly Subscriptions
             </h2>
             <div className="grid md:grid-cols-3 gap-6">
               <div className="glass rounded-2xl p-6 border border-border/50">
                 <div className="flex items-center gap-2 mb-3">
                   <Receipt className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold text-sm">Pay Only For Verified Proof</h3>
+                  <h3 className="font-display font-semibold text-sm">Pay Only For Verified Proof</h3>
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Monthly subscriptions charge you whether you apply to 0 jobs or 50. With credit packs, 1 credit is debited strictly upon a verified ATS confirmation receipt.
@@ -461,7 +461,7 @@ const Pricing = () => {
               <div className="glass rounded-2xl p-6 border border-border/50">
                 <div className="flex items-center gap-2 mb-3">
                   <X className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold text-sm">Zero Cancellation Friction</h3>
+                  <h3 className="font-display font-semibold text-sm">Zero Cancellation Friction</h3>
                 </div>
                 <p className="text-sm text-muted-foreground">
                   No recurring charges, no calendar clocks ticking down, and no dark patterns when you land your dream role. There is nothing to cancel.
@@ -470,7 +470,7 @@ const Pricing = () => {
               <div className="glass rounded-2xl p-6 border border-border/50">
                 <div className="flex items-center gap-2 mb-3">
                   <ShieldCheck className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold text-sm">Zero Risk on Failed Applications</h3>
+                  <h3 className="font-display font-semibold text-sm">Zero Risk on Failed Applications</h3>
                 </div>
                 <p className="text-sm text-muted-foreground">
                   If an application cannot be completed or ATS confirmation is missing, the cost is $0.00 / 0 credits.
@@ -487,7 +487,7 @@ const Pricing = () => {
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Building2 className="w-5 h-5 text-primary" />
                   </div>
-                  <h3 className="text-xl font-bold">For Career Centers & Bootcamps</h3>
+                  <h3 className="font-display text-xl font-bold">For Career Centers & Bootcamps</h3>
                 </div>
                 <p className="text-muted-foreground mb-4 text-sm">
                   Universities, bootcamps, and outplacement programs. Empower your cohorts with bulk verified submission credits, audit reporting, and SSO.
@@ -526,7 +526,7 @@ const Pricing = () => {
                     onChange={(e) => setContactEmail(e.target.value)}
                     className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
-                  <Button type="submit" size="sm" className="bg-primary hover:bg-primary/90">
+                  <Button type="submit" size="sm" className="bg-primary hover:bg-primary/90 active:scale-[0.98]">
                     <Mail className="w-4 h-4 mr-1" />
                     Contact Sales
                   </Button>
@@ -541,7 +541,7 @@ const Pricing = () => {
           {/* Trust Banner */}
           <div className="max-w-4xl mx-auto mb-16 p-6 rounded-2xl border border-border bg-gradient-to-r from-card via-card to-primary/5 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-1">
-              <h3 className="font-bold text-base flex items-center gap-2">
+              <h3 className="font-display font-bold text-base flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-emerald-500" /> 7-Day Refund on Unused Credits
               </h3>
               <p className="text-xs text-muted-foreground max-w-xl">
@@ -549,7 +549,7 @@ const Pricing = () => {
               </p>
             </div>
             <div className="space-y-1 md:text-right">
-              <h3 className="font-bold text-base flex items-center gap-2 md:justify-end">
+              <h3 className="font-display font-bold text-base flex items-center gap-2 md:justify-end">
                 <Clock className="w-4 h-4 text-primary" /> Credits Never Expire
               </h3>
               <p className="text-xs text-muted-foreground">
@@ -560,7 +560,7 @@ const Pricing = () => {
 
           {/* FAQ Section */}
           <div className="max-w-3xl mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-10">
+            <h2 className="font-display text-balance text-3xl font-bold text-center mb-10 tracking-tight">
               Frequently Asked <span className="text-gradient">Questions</span>
             </h2>
             <Accordion type="single" collapsible className="space-y-4">

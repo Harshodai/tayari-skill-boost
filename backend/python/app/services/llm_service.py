@@ -587,6 +587,15 @@ def extract_json(text: str):
                 return json.loads(text[start:end + 1])
             except json.JSONDecodeError:
                 continue
+    # Truncated array recovery: e.g. [ {...}, {...}, {"index": 2 ...
+    if "[" in text:
+        start = text.find("[")
+        last_obj_end = text.rfind("}")
+        if last_obj_end > start:
+            try:
+                return json.loads(text[start:last_obj_end + 1] + "]")
+            except json.JSONDecodeError:
+                pass
     logger.error("Failed to parse JSON from LLM response: %s", text[:400])
     raise ValueError("LLM returned unparseable JSON")
 

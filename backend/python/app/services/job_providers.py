@@ -152,10 +152,32 @@ except Exception as _exc:  # noqa: BLE001 - hermes package is optional
 del _hermes_active
 
 
+async def _call_provider(p, client: httpx.AsyncClient, query: str, location: str = "") -> list:
+    try:
+        import inspect
+        sig = inspect.signature(p)
+        if "location" in sig.parameters:
+            res = p(client, query, location=location)
+        elif len(sig.parameters) >= 3:
+            res = p(client, query, location)
+        else:
+            res = p(client, query)
+        if asyncio.iscoroutine(res):
+            return await res
+        return res or []
+    except Exception as exc:
+        logger.warning("Provider %s execution failed: %s", getattr(p, "__qualname__", str(p)), exc)
+        return []
+
+
 async def search_jobs(query: str, location: str = "", limit: int = 40) -> list:
     """Aggregate all providers in parallel."""
     async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
-        batches = await asyncio.gather(*[p(client, query) for p in PROVIDERS])
+        results = await asyncio.gather(
+            *[_call_provider(p, client, query, location) for p in PROVIDERS],
+            return_exceptions=True,
+        )
+    batches = [r for r in results if isinstance(r, list)]
     jobs = _dedupe([j for batch in batches for j in batch])
 
     if location:

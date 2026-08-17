@@ -162,7 +162,8 @@ const Dashboard = () => {
         {!isLoading && !isError && (
         <>
         {/* Header */}
-        <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+        {/* Header */}
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
           <div>
             <p className="text-sm text-muted-foreground mb-1">
               {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
@@ -175,7 +176,7 @@ const Dashboard = () => {
             <Button variant="outline" size="sm" onClick={openActivity}>
               <Activity className="w-4 h-4 mr-2" /> Activity
               {runs.length > 0 && (
-                <Badge variant="secondary" className="ml-2">{runs.length}</Badge>
+                <Badge variant="secondary" className="ml-2 tabular-nums">{runs.length}</Badge>
               )}
             </Button>
             <Button asChild size="sm" variant="glow">
@@ -186,31 +187,33 @@ const Dashboard = () => {
           </div>
         </div>
 
-          <div className="flex space-x-4 mb-4">
-            <GamificationBadge />
-            <AchievementsBadge />
-          </div>
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <GamificationBadge />
+          <AchievementsBadge />
+        </div>
         {/* K5 — observable 7-stage chain strip (server-aggregated, polls every 30s) */}
-        <ChainStrip />
-        <MemoryBadge />
+        <div className="mb-6 space-y-3">
+          <ChainStrip />
+          <MemoryBadge />
+        </div>
 
         {/* ⚡ One-Shot Autopilot Console Hero Banner */}
-        <Card className="mb-8 border-primary/40 bg-gradient-to-r from-primary/15 via-primary/5 to-background backdrop-blur-xl shadow-lg relative overflow-hidden group">
+        <Card className="mb-6 border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-background backdrop-blur-md shadow-sm relative overflow-hidden group">
           <div className="absolute -right-16 -top-16 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none group-hover:bg-primary/15 transition-colors" />
           <CardContent className="p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-primary/15 text-primary border border-primary/30 shadow-xs">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-xs">
                 <Zap className="w-3.5 h-3.5 fill-current animate-pulse" />
-                Featured: The One-Shot Solution for Jobseekers
+                Featured: One-Shot Jobseeker Engine
               </div>
-              <h2 className="text-2xl font-extrabold tracking-tight text-foreground">
+              <h2 className="text-2xl font-bold tracking-tight text-foreground">
                 One-Shot Autopilot Console
               </h2>
-              <p className="text-sm text-muted-foreground/90 max-w-xl leading-relaxed">
+              <p className="text-sm text-muted-foreground max-w-xl leading-relaxed">
                 Execute Fit Audit → Typst Resume → Cover Letter → Stealth Auto-Apply → Recruiter Outreach → STAR Interview Kit in a single click.
               </p>
             </div>
-            <Button asChild size="lg" className="font-extrabold shadow-md bg-primary hover:bg-primary/90 text-primary-foreground whitespace-nowrap hover:scale-[1.02] transition-transform">
+            <Button asChild size="lg" variant="glow" className="font-bold whitespace-nowrap">
               <Link to="/one-shot">
                 Launch One-Shot Console <ArrowRight className="w-4 h-4 ml-2" />
               </Link>
@@ -340,7 +343,7 @@ const Dashboard = () => {
                   <div className="grid grid-cols-2 gap-3 text-center">
                     <div className="bg-muted/40 p-2.5 rounded-lg border border-border/50">
                       <div className="text-xs text-muted-foreground font-medium mb-0.5">Response Rate</div>
-                      <div className="text-xl font-bold font-mono text-primary">
+                      <div className="text-xl font-bold font-mono tabular-nums text-primary">
                         {totalApps > 0 ? `${responseRate}%` : "—"}
                       </div>
                       <div className="text-[10px] text-muted-foreground mt-0.5">
@@ -349,7 +352,7 @@ const Dashboard = () => {
                     </div>
                     <div className="bg-muted/40 p-2.5 rounded-lg border border-border/50">
                       <div className="text-xs text-muted-foreground font-medium mb-0.5">Callback Rate</div>
-                      <div className="text-xl font-bold font-mono text-success">
+                      <div className="text-xl font-bold font-mono tabular-nums text-success">
                         {totalApps > 0 ? `${callbackRate}%` : "—"}
                       </div>
                       <div className="text-[10px] text-muted-foreground mt-0.5">
@@ -362,7 +365,7 @@ const Dashboard = () => {
                   <div className="space-y-1.5 pt-1">
                     <div className="flex justify-between text-[11px] text-muted-foreground font-medium">
                       <span>Funnel Stages</span>
-                      <span>{totalApps} Total Applications</span>
+                      <span className="tabular-nums">{totalApps} Total Applications</span>
                     </div>
                     <div className="flex h-3.5 w-full rounded-full overflow-hidden bg-muted/65 border border-border/50">
                       <div
@@ -389,15 +392,15 @@ const Dashboard = () => {
                     <div className="flex justify-between text-[9px] text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                        <span>Applied ({funnel.applied})</span>
+                        <span>Applied (<span className="tabular-nums">{funnel.applied}</span>)</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-warning" />
-                        <span>Interview ({funnel.interview})</span>
+                        <span>Interview (<span className="tabular-nums">{funnel.interview}</span>)</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                        <span>Offers ({funnel.offer})</span>
+                        <span>Offers (<span className="tabular-nums">{funnel.offer}</span>)</span>
                       </div>
                     </div>
                   </div>
@@ -408,76 +411,45 @@ const Dashboard = () => {
         </div>
 
         {/* One-Stop Jobseeker AI Command Center */}
-        <Card className="mb-6 border-indigo-900/40 bg-gradient-to-r from-slate-900 via-indigo-950/20 to-slate-900">
+        <Card className="mb-6 border-border/60 bg-card/60 backdrop-blur-sm">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-base flex items-center gap-2 text-white">
-                <Sparkles className="w-4 h-4 text-indigo-400" />
-                One-Stop Jobseeker Command Center
+              <CardTitle className="text-base flex items-center gap-2 text-foreground font-semibold">
+                <Sparkles className="w-4 h-4 text-primary" />
+                Jobseeker AI Command Center
               </CardTitle>
-              <CardDescription>All-in-one AI career suite: Search, Tailor, Practice, Apply & Negotiate</CardDescription>
+              <CardDescription>
+                Unified career acceleration suite: Search, Tailor, Practice, Apply & Negotiate
+              </CardDescription>
             </div>
-            <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-xs">
-              8 AI Tools Active
+            <Badge variant="secondary" className="text-xs">
+              8 Tools Active
             </Badge>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Link to="/radar" className="p-3 rounded-lg bg-slate-800/60 hover:bg-indigo-950/40 border border-slate-700/60 hover:border-indigo-500/40 transition-all block group">
-                <div className="flex items-center gap-2 mb-1 text-indigo-400 group-hover:text-indigo-300 font-semibold text-xs">
-                  <Radar className="w-4 h-4" /> Company Radar
-                </div>
-                <div className="text-[11px] text-slate-400 line-clamp-1">15-min ATS career alerts</div>
-              </Link>
-
-              <Link to="/interview/voice-coach" className="p-3 rounded-lg bg-slate-800/60 hover:bg-blue-950/40 border border-slate-700/60 hover:border-blue-500/40 transition-all block group">
-                <div className="flex items-center gap-2 mb-1 text-blue-400 group-hover:text-blue-300 font-semibold text-xs">
-                  <Mic className="w-4 h-4" /> Voice Interview Coach
-                </div>
-                <div className="text-[11px] text-slate-400 line-clamp-1">WPM, filler & STAR feedback</div>
-              </Link>
-
-              <Link to="/negotiation" className="p-3 rounded-lg bg-slate-800/60 hover:bg-emerald-950/40 border border-slate-700/60 hover:border-emerald-500/40 transition-all block group">
-                <div className="flex items-center gap-2 mb-1 text-emerald-400 group-hover:text-emerald-300 font-semibold text-xs">
-                  <DollarSign className="w-4 h-4" /> Salary Negotiation
-                </div>
-                <div className="text-[11px] text-slate-400 line-clamp-1">H1B benchmarks & scripts</div>
-              </Link>
-
-              <Link to="/skill-gap-radar" className="p-3 rounded-lg bg-slate-800/60 hover:bg-teal-950/40 border border-slate-700/60 hover:border-teal-500/40 transition-all block group">
-                <div className="flex items-center gap-2 mb-1 text-teal-400 group-hover:text-teal-300 font-semibold text-xs">
-                  <Target className="w-4 h-4" /> Skill Gap Radar
-                </div>
-                <div className="text-[11px] text-slate-400 line-clamp-1">Free resource mapping</div>
-              </Link>
-
-              <Link to="/portfolio" className="p-3 rounded-lg bg-slate-800/60 hover:bg-purple-950/40 border border-slate-700/60 hover:border-purple-500/40 transition-all block group">
-                <div className="flex items-center gap-2 mb-1 text-purple-400 group-hover:text-purple-300 font-semibold text-xs">
-                  <Globe className="w-4 h-4" /> Portfolio Site Builder
-                </div>
-                <div className="text-[11px] text-slate-400 line-clamp-1">Interactive HTML export</div>
-              </Link>
-
-              <Link to="/outreach" className="p-3 rounded-lg bg-slate-800/60 hover:bg-amber-950/40 border border-slate-700/60 hover:border-amber-500/40 transition-all block group">
-                <div className="flex items-center gap-2 mb-1 text-amber-400 group-hover:text-amber-300 font-semibold text-xs">
-                  <Send className="w-4 h-4" /> Recruiter Outreach
-                </div>
-                <div className="text-[11px] text-slate-400 line-clamp-1">Cold email & LinkedIn notes</div>
-              </Link>
-
-              <Link to="/analytics-funnel" className="p-3 rounded-lg bg-slate-800/60 hover:bg-cyan-950/40 border border-slate-700/60 hover:border-cyan-500/40 transition-all block group">
-                <div className="flex items-center gap-2 mb-1 text-cyan-400 group-hover:text-cyan-300 font-semibold text-xs">
-                  <BarChart3 className="w-4 h-4" /> Funnel Analytics
-                </div>
-                <div className="text-[11px] text-slate-400 line-clamp-1">Conversion diagnostic engine</div>
-              </Link>
-
-              <Link to="/cover-letter" className="p-3 rounded-lg bg-slate-800/60 hover:bg-rose-950/40 border border-slate-700/60 hover:border-rose-500/40 transition-all block group">
-                <div className="flex items-center gap-2 mb-1 text-rose-400 group-hover:text-rose-300 font-semibold text-xs">
-                  <FileText className="w-4 h-4" /> Cover Letter AI
-                </div>
-                <div className="text-[11px] text-slate-400 line-clamp-1">3-paragraph custom letters</div>
-              </Link>
+              {[
+                { title: "Company Radar", desc: "15-min ATS career alerts", icon: Radar, to: "/radar" },
+                { title: "Voice Coach", desc: "WPM, filler & STAR feedback", icon: Mic, to: "/interview/voice-coach" },
+                { title: "Salary Negotiation", desc: "H1B benchmarks & scripts", icon: DollarSign, to: "/negotiation" },
+                { title: "Skill Gap Radar", desc: "Free resource mapping", icon: Target, to: "/skill-gap-radar" },
+                { title: "Portfolio Builder", desc: "Interactive HTML export", icon: Globe, to: "/portfolio" },
+                { title: "Recruiter Outreach", desc: "Cold email & LinkedIn notes", icon: Send, to: "/outreach" },
+                { title: "Funnel Analytics", desc: "Conversion diagnostics", icon: BarChart3, to: "/analytics-funnel" },
+                { title: "Cover Letter AI", desc: "3-paragraph custom letters", icon: FileText, to: "/cover-letter" },
+              ].map(({ title, desc, icon: Icon, to }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className="p-3 rounded-lg bg-muted/30 hover:bg-accent/40 border border-border/50 hover:border-primary/40 transition-all block group"
+                >
+                  <div className="flex items-center gap-2 mb-1 text-foreground group-hover:text-primary font-semibold text-xs transition-colors">
+                    <Icon className="w-4 h-4 text-primary shrink-0" />
+                    <span>{title}</span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground line-clamp-1">{desc}</div>
+                </Link>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -522,7 +494,7 @@ const Dashboard = () => {
               <div>
                 <CardTitle className="text-base">Roadmap progress</CardTitle>
                 <CardDescription>
-                  {completedRoadmap} of {roadmap.length || 0} steps completed
+                  <span className="tabular-nums">{completedRoadmap}</span> of <span className="tabular-nums">{roadmap.length || 0}</span> steps completed
                 </CardDescription>
               </div>
               <Button asChild size="sm" variant="ghost">

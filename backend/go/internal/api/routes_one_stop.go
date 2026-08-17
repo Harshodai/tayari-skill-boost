@@ -20,6 +20,9 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 		r.Post("/api/v1/export/typst-pdf", s.handleTypstExport)
 		r.Post("/api/export/typst-pdf", s.handleTypstExport)
 
+		r.Post("/api/v1/typst/compile", s.handleOneStopProxy("/api/v1/typst/compile"))
+		r.Post("/api/typst/compile", s.handleOneStopProxy("/api/v1/typst/compile"))
+
 		r.Post("/api/v1/radar/check", s.handleOneStopProxy("/api/v1/radar/check"))
 		r.Post("/api/radar/check", s.handleOneStopProxy("/api/v1/radar/check"))
 

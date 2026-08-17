@@ -243,12 +243,13 @@ async def update_agent_run(run_id: str, **fields) -> bool:
     pool = await get_pool()
     if not pool:
         return False
-    import json as _json
+    from datetime import datetime
     jsonb_cols = {"logs", "screenshots", "result", "config"}
+    timestamp_cols = {"started_at", "completed_at", "handoff_expires_at"}
     scalar_cols = {
         "status", "progress", "current_step", "error", "engine",
-        "celery_task_id", "started_at", "completed_at", "parent_run_id",
-        "handoff_state", "handoff_token_hash", "handoff_expires_at", "state_version",
+        "celery_task_id", "parent_run_id",
+        "handoff_state", "handoff_token_hash", "state_version",
     }
     sets: list[str] = []
     args: list = [run_id]
@@ -257,6 +258,14 @@ async def update_agent_run(run_id: str, **fields) -> bool:
         if key in jsonb_cols:
             sets.append(f"{key} = ${idx}::jsonb")
             args.append(_json.dumps(value))
+        elif key in timestamp_cols:
+            sets.append(f"{key} = ${idx}")
+            if isinstance(value, str):
+                try:
+                    value = datetime.fromisoformat(value)
+                except Exception:
+                    pass
+            args.append(value)
         elif key in scalar_cols:
             sets.append(f"{key} = ${idx}")
             args.append(value)

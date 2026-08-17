@@ -94,10 +94,10 @@ export default function FreeAtsScan() {
       <div className="min-h-screen bg-gradient-hero py-12">
         <div className="container mx-auto px-4 max-w-4xl">
           <div className="text-center mb-10">
-            <h1 className="text-3xl md:text-4xl font-bold mb-3">
+            <h1 className="font-display text-balance text-3xl md:text-4xl font-bold mb-3 tracking-tight">
               Free <span className="text-gradient">ATS Resume Scan</span>
             </h1>
-            <p className="text-muted-foreground text-lg">
+            <p className="text-balance text-muted-foreground text-lg">
               Paste your resume and a job description to see how you score. No signup required.
             </p>
           </div>
@@ -143,13 +143,13 @@ export default function FreeAtsScan() {
               onClick={handleScan}
               disabled={loading || offline}
               aria-busy={loading}
-              className="px-8"
+              className="px-8 active:scale-[0.98]"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Zap className="w-5 h-5 mr-2" />}
               {loading ? "Scanning..." : "Scan My Resume"}
             </Button>
             {loading && (
-              <Button type="button" size="lg" variant="outline" onClick={cancelScan}>
+              <Button type="button" size="lg" variant="outline" onClick={cancelScan} className="active:scale-[0.98]">
                 Cancel scan
               </Button>
             )}
@@ -161,12 +161,12 @@ export default function FreeAtsScan() {
                 <p className="text-destructive text-sm">{error}</p>
                 <div className="flex items-center gap-2 shrink-0">
                   {error.toLowerCase().includes("rate limit") ? (
-                    <Button size="sm" asChild>
+                    <Button size="sm" asChild className="active:scale-[0.98]">
                       <Link to="/auth?redirect=/pricing">Create Free Account</Link>
                     </Button>
                   ) : (
                     !loading && !offline && resumeText.trim() && jobDescription.trim() && (
-                      <Button type="button" size="sm" variant="outline" onClick={handleScan}>Try again</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={handleScan} className="active:scale-[0.98]">Try again</Button>
                     )
                   )}
                 </div>
@@ -178,14 +178,14 @@ export default function FreeAtsScan() {
             <div className="space-y-6 mb-8">
               <Card className="text-center">
                 <CardHeader>
-                  <CardTitle className="text-lg">ATS Match Score</CardTitle>
+                  <CardTitle className="font-display text-lg">ATS Match Score</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className={`text-6xl font-black mb-4 ${scoreColor}`}>
+                  <div className={`text-6xl font-black mb-4 font-mono tabular-nums ${scoreColor}`}>
                     {score}%
                   </div>
                   <Progress value={score} className="h-3 mb-4" />
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-balance text-muted-foreground text-sm">
                     {score >= 80 ? "Strong match! Your resume is well-aligned with this role." :
                      score >= 60 ? "Decent match. Some improvements could boost your callback rate." :
                      "Low match. Significant tailoring needed for this role."}
@@ -196,14 +196,14 @@ export default function FreeAtsScan() {
               {Object.keys(breakdown).length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Score Breakdown</CardTitle>
+                    <CardTitle className="font-display text-lg">Score Breakdown</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {Object.entries(breakdown).map(([key, val]) => (
                       <div key={key}>
                         <div className="flex justify-between text-sm mb-1">
                           <span className="capitalize">{key.replace(/_/g, " ")}</span>
-                          <span className="font-semibold">{val as number}%</span>
+                          <span className="font-semibold font-mono tabular-nums">{val as number}%</span>
                         </div>
                         <Progress value={val as number} className="h-2" />
                       </div>
@@ -215,7 +215,7 @@ export default function FreeAtsScan() {
               <div className="grid md:grid-cols-2 gap-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg text-success flex items-center gap-2">
+                    <CardTitle className="font-display text-lg text-success flex items-center gap-2">
                       <Check className="w-5 h-5" /> Matched Skills
                     </CardTitle>
                   </CardHeader>
@@ -236,7 +236,7 @@ export default function FreeAtsScan() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg text-destructive flex items-center gap-2">
+                    <CardTitle className="font-display text-lg text-destructive flex items-center gap-2">
                       <X className="w-5 h-5" /> Missing Keywords
                     </CardTitle>
                   </CardHeader>
@@ -259,7 +259,7 @@ export default function FreeAtsScan() {
               {recommendations.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Recommendations</CardTitle>
+                    <CardTitle className="font-display text-lg">Recommendations</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ul className="space-y-3">
@@ -278,17 +278,17 @@ export default function FreeAtsScan() {
 
           {result && (
             <div className="text-center py-10 border-t border-border">
-              <h2 className="text-2xl font-bold mb-3">Want the full picture?</h2>
-              <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              <h2 className="font-display text-balance text-2xl font-bold mb-3 tracking-tight">Want the full picture?</h2>
+              <p className="text-balance text-muted-foreground mb-6 max-w-md mx-auto">
                 Sign up for additional scans, deeper section analysis, AI-assisted drafting, and personalized optimization within the limits shown for your plan.
               </p>
               <div className="flex items-center justify-center gap-4">
-                <Button size="lg" asChild>
+                <Button size="lg" asChild className="active:scale-[0.98]">
                   <Link to="/auth?redirect=/pricing">
                     Create Free Account <ArrowRight className="w-4 h-4 ml-2" />
                   </Link>
                 </Button>
-                <Button variant="outline" size="lg" asChild>
+                <Button variant="outline" size="lg" asChild className="active:scale-[0.98]">
                   <Link to="/pricing">
                     See Pricing
                   </Link>

@@ -218,9 +218,10 @@ func (s *Server) tenantMiddleware(next http.Handler) http.Handler {
 		}
 		if domain == "" {
 			domain = r.Host
-			if h, _, err := net.SplitHostPort(domain); err == nil {
-				domain = h
-			}
+		}
+
+		if h, _, err := net.SplitHostPort(domain); err == nil {
+			domain = h
 		}
 
 		domain = strings.ToLower(strings.TrimSpace(domain))
@@ -247,7 +248,7 @@ func (s *Server) tenantMiddleware(next http.Handler) http.Handler {
 		if err == nil {
 			ctx := context.WithValue(r.Context(), contextKeyTenant, &tenant)
 			r = r.WithContext(ctx)
-		} else {
+		} else if domain != "localhost" && domain != "127.0.0.1" && domain != "" {
 			log.Printf("[TENANT] Could not resolve tenant for domain '%s' (subdomain '%s'): %v", domain, subdomain, err)
 		}
 

@@ -64,17 +64,10 @@ def _resolve_and_validate_url(url: str) -> Optional[Dict[str, Any]]:
 
 
 # Patterns for sensitive government identifiers and private data
-# Narrowed: [A-Z0-9]{8,9} -> [A-Z]{1,2}[0-9]{6,7} to avoid broad uppercase tokens like POSTGRES/REQ12345
 SENSITIVE_PATTERNS = [
-    (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "[REDACTED_SSN]"),
-    # ponytail: a bare 9-digit run matches arbitrary IDs/phone extensions, so a
-    # TIN/EIN is redacted only when an identifier label precedes the number.
-    # The number allows an optional separator between the first two and the
-    # remaining seven digits (e.g. "12-3456789" or "12 3456789"); the label's
-    # separator class deliberately excludes hyphens so the separator within the
-    # identifier is captured by the number pattern instead.
-    (re.compile(r"(?i)(\b(?:tin|ein|tax(?:\s+id)?|taxpayer\s+identification|employer\s+identification)\b[\s:\-]{0,2})(\d{2}[-\s]?\d{7})"), r"\1[REDACTED_TIN]"),
-    (re.compile(r"\b[A-Z]{1,2}[0-9]{6,7}\b"), "[REDACTED_PASSPORT]"),
+    (re.compile(r"\b(?:\d{3}[-\s.]\d{2}[-\s.]\d{4}|\b(?:ssn|social security)\b[\s:\-]{0,2}\d{9})\b", re.IGNORECASE), "[REDACTED_SSN]"),
+    (re.compile(r"(?i)(\b(?:tin|ein|tax(?:\s+id)?|taxpayer\s+identification|employer\s+identification)(?:\s+number)?\b[\s:\-]{0,2})(\d{2}[-\s]?\d{7})"), r"\1[REDACTED_TIN]"),
+    (re.compile(r"(?i)(?:\b[A-Z]{1,2}[0-9]{6,8}\b|\bpassport(?:\s+no\.?)?[\s:\-]{0,2}[A-Z0-9]{6,9}\b)"), "[REDACTED_PASSPORT]"),
 ]
 
 
@@ -117,8 +110,9 @@ class FormFiller:
         """
         if isinstance(profile, dict):
             return {k: self.redact_sensitive_data(v) for k, v in profile.items()}
-        elif isinstance(profile, list):
-            return [self.redact_sensitive_data(item) for item in profile]
+        elif isinstance(profile, (list, tuple, set)):
+            res = [self.redact_sensitive_data(item) for item in profile]
+            return tuple(res) if isinstance(profile, tuple) else (set(res) if isinstance(profile, set) else res)
         else:
             return self._redact_value(profile)
 

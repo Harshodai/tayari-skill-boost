@@ -393,13 +393,20 @@ async def run_autopilot(
             selected.append(j)
 
         dream_hits = sum(1 for j in selected if j.get("is_dream_company"))
-        _log(
-            run_id,
-            "SELECT",
-            f"Selected top {len(selected)} jobs to apply to" + (f" ({dream_hits} at your dream companies)" if dream_hits else ""),
-        )
         if not selected:
-            raise ValueError("No matching jobs found - try broader job titles")
+            if all_jobs:
+                _log(run_id, "SELECT", "Strict screening filtered all results; falling back to best matched discovered roles.")
+                selected = all_jobs[:max_apps]
+            else:
+                _log(run_id, "SELECT", "No jobs found matching search criteria. Complete with 0 applications created.")
+                _update_run(run_id, progress=100, status="completed", current_step="DONE", applications_created=0)
+                return
+        else:
+            _log(
+                run_id,
+                "SELECT",
+                f"Selected top {len(selected)} jobs to apply to" + (f" ({dream_hits} at your dream companies)" if dream_hits else ""),
+            )
 
         # ---- 4‑7. TAILOR / SCORE / LETTER / APPLY per job ---------------
         applications = []

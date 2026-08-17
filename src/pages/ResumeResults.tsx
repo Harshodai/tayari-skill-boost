@@ -7,10 +7,17 @@ import { Badge } from "@/components/ui/badge";
 import { ScoreDisplay } from "@/components/ui/score-display";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowLeft, Download, Edit, RotateCcw, ChevronDown, ChevronUp, Check,
   Lightbulb, Target, Briefcase, GraduationCap, FileText, AlertCircle,
   CheckCircle2, XCircle, Wand2, Sparkles, Loader2, RefreshCw,
-  MessageSquare, Mail
+  MessageSquare, Mail, MoreHorizontal
 } from "lucide-react";
 import type { ResumeAnalysisResult } from "@/types/resume";
 import type { GuardrailResult } from "@/api/types";
@@ -28,14 +35,10 @@ const sectionIcons: Record<string, React.ComponentType<{ className?: string }>> 
 };
 
 // --- ATS scoring constants (mirror ats_engine.py; single source of truth in UI) ---
-// ponytail: named constants so thresholds aren't magic numbers scattered in JSX.
 const ATS_SCORE_HIGH = 80;
 const ATS_SCORE_MEDIUM = 60;
 const ATS_DEFAULT_BAND = 5;
 
-// SRP: per-ATS parser profile is config data, separate from render logic.
-// `key` maps to ats_engine per_ats.estimates keys; `offset` is the fallback
-// heuristic when the Python per_ats estimate isn't present.
 interface AtsParserProfile {
   name: string;
   key: string;
@@ -94,9 +97,6 @@ const ResumeResults = () => {
     setOptimizeError(null);
     setOptimizationResult(null);
     try {
-      // ponytail: targetRole flows from location.state when a flow supplies
-      // it (contract supports it, Python honors it); ResumeUpload does not
-      // send one yet, so it is undefined and omitted — not forwarded as empty.
       const res = await optimizeResume(resumeId, {
         jobDescription,
         customInstructions,
@@ -185,153 +185,183 @@ const ResumeResults = () => {
 
   return (
     <AppShell>
-      <div className="container mx-auto px-4 py-12">
-        {/* Header */}
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* Header with consolidated 1 primary CTA, 1 secondary CTA, and 1 dropdown */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
-            <Button variant="ghost" asChild className="mb-2">
+            <Button variant="ghost" size="sm" asChild className="mb-2 -ml-2 text-muted-foreground hover:text-foreground">
               <Link to="/resume">
-                <ArrowLeft className="w-4 h-4 mr-2" />
+                <ArrowLeft className="w-4 h-4 mr-1.5" />
                 Back to Upload
               </Link>
             </Button>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
               Resume Analysis Results
             </h1>
             {resumeFileName && (
               <p className="text-muted-foreground text-sm mt-1">
-                Analyzed: {resumeFileName}
+                Analyzed: <span className="font-medium text-foreground">{resumeFileName}</span>
               </p>
             )}
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <Button variant="outline" onClick={handleOptimize} disabled={isOptimizing || !resumeId}>
-              {isOptimizing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Wand2 className="w-4 h-4 mr-2" />}
-              Optimize
-            </Button>
-            <Button variant="outline" onClick={handleDeepATS} disabled={isDeepATS || !resumeId}>
-              {isDeepATS ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-              Deep ATS
-            </Button>
-            <Button variant="outline" onClick={handleExport} disabled={isExporting || !resumeId}>
-              {isExporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
-              Export DOCX
-            </Button>
-            <Button variant="outline" onClick={handleChooseTemplate}>
-              <Edit className="w-4 h-4 mr-2" />
+
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Primary CTA */}
+            <Button variant="glow" onClick={handleChooseTemplate} className="gap-2 font-semibold">
+              <Edit className="w-4 h-4" />
               Choose Template
             </Button>
-            <Button variant="outline" asChild>
-              <Link to="/cover-letter">
-                <MessageSquare className="w-4 h-4 mr-2" />
-                Cover Letter
-              </Link>
+
+            {/* Secondary CTA */}
+            <Button
+              variant="outline"
+              onClick={handleOptimize}
+              disabled={isOptimizing || !resumeId}
+              className="gap-2"
+            >
+              {isOptimizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4 text-primary" />}
+              Optimize
             </Button>
-            <Button variant="outline" asChild>
-              <Link to="/communication">
-                <Mail className="w-4 h-4 mr-2" />
-                Communication Hub
-              </Link>
-            </Button>
-            <Button variant="ghost" asChild>
-              <Link to="/resume">
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Start Over
-              </Link>
-            </Button>
+
+            {/* Consolidated Actions Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="More actions" className="h-9 w-9">
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem
+                  onClick={handleDeepATS}
+                  disabled={isDeepATS || !resumeId}
+                  className="cursor-pointer gap-2"
+                >
+                  {isDeepATS ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-primary" />}
+                  Deep ATS Analysis
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleExport}
+                  disabled={isExporting || !resumeId}
+                  className="cursor-pointer gap-2"
+                >
+                  {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 text-primary" />}
+                  Export DOCX
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild className="cursor-pointer gap-2">
+                  <Link to="/cover-letter">
+                    <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                    Generate Cover Letter
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer gap-2">
+                  <Link to="/communication">
+                    <Mail className="w-4 h-4 text-muted-foreground" />
+                    Communication Hub
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild className="cursor-pointer gap-2 text-destructive focus:text-destructive">
+                  <Link to="/resume">
+                    <RotateCcw className="w-4 h-4" />
+                    Start Over
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
-            {/* Guardrail Results Card */}
-            {guardrails && (
-              <SlideUp delay={0.25}>
-                <Card className={guardrails.all_passed ? "border-success/40" : "border-warning/40"}>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      {guardrails.all_passed ? (
-                        <CheckCircle2 className="w-5 h-5 text-success" />
-                      ) : (
-                        <AlertCircle className="w-5 h-5 text-warning" />
-                      )}
-                      Quality Check
-                      <Badge variant={guardrails.all_passed ? "default" : "secondary"} className="ml-auto">
-                        {guardrails.all_passed ? "Passed" : "Needs Review"}
-                      </Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Truthfulness */}
-                    <div className="flex items-start gap-3">
-                      {guardrails.results.truthfulness.passed
-                        ? <CheckCircle2 className="w-4 h-4 text-success mt-0.5" />
-                        : <XCircle className="w-4 h-4 text-destructive mt-0.5" />}
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Factual Accuracy</p>
-                        {!guardrails.results.truthfulness.passed && (
-                          <ul className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                            {guardrails.results.truthfulness.violations.map((v, i) => (
-                              <li key={i}>• {v}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
+        {/* Guardrail Results Card */}
+        {guardrails && (
+          <SlideUp delay={0.25}>
+            <Card className={`mb-6 ${guardrails.all_passed ? "border-success/40" : "border-warning/40"}`}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  {guardrails.all_passed ? (
+                    <CheckCircle2 className="w-4 h-4 text-success" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-warning" />
+                  )}
+                  Quality & Accuracy Check
+                  <Badge variant={guardrails.all_passed ? "default" : "secondary"} className="ml-auto text-xs">
+                    {guardrails.all_passed ? "Passed" : "Needs Review"}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Truthfulness */}
+                <div className="flex items-start gap-3">
+                  {guardrails.results.truthfulness.passed
+                    ? <CheckCircle2 className="w-4 h-4 text-success mt-0.5" />
+                    : <XCircle className="w-4 h-4 text-destructive mt-0.5" />}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Factual Accuracy</p>
+                    {!guardrails.results.truthfulness.passed && (
+                      <ul className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                        {guardrails.results.truthfulness.violations.map((v, i) => (
+                          <li key={i}>• {v}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
 
-                    {/* Keyword Stuffing */}
-                    <div className="flex items-start gap-3">
-                      {guardrails.results.keyword_stuffing.passed
-                        ? <CheckCircle2 className="w-4 h-4 text-success mt-0.5" />
-                        : <XCircle className="w-4 h-4 text-destructive mt-0.5" />}
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Keyword Density</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${
-                                guardrails.results.keyword_stuffing.density_score > 0.5
-                                  ? "bg-destructive" : "bg-success"
-                              }`}
-                              style={{ width: `${Math.min(guardrails.results.keyword_stuffing.density_score * 100, 100)}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-muted-foreground">
-                            {Math.round(guardrails.results.keyword_stuffing.density_score * 100)}%
-                          </span>
-                        </div>
-                        {guardrails.results.keyword_stuffing.flagged_keywords.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {guardrails.results.keyword_stuffing.flagged_keywords.map((kw) => (
-                              <Badge key={kw} variant="secondary" className="text-[10px] bg-destructive/10 text-destructive border-destructive/20">
-                                {kw}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
+                {/* Keyword Stuffing */}
+                <div className="flex items-start gap-3">
+                  {guardrails.results.keyword_stuffing.passed
+                    ? <CheckCircle2 className="w-4 h-4 text-success mt-0.5" />
+                    : <XCircle className="w-4 h-4 text-destructive mt-0.5" />}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Keyword Density</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            guardrails.results.keyword_stuffing.density_score > 0.5
+                              ? "bg-destructive" : "bg-success"
+                          }`}
+                          style={{ width: `${Math.min(guardrails.results.keyword_stuffing.density_score * 100, 100)}%` }}
+                        />
                       </div>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {Math.round(guardrails.results.keyword_stuffing.density_score * 100)}%
+                      </span>
                     </div>
-
-                    {/* PII */}
-                    <div className="flex items-start gap-3">
-                      {guardrails.results.pii.passed
-                        ? <CheckCircle2 className="w-4 h-4 text-success mt-0.5" />
-                        : <XCircle className="w-4 h-4 text-destructive mt-0.5" />}
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Personal Data</p>
-                        {!guardrails.results.pii.passed && (
-                          <ul className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                            {guardrails.results.pii.pii_found.map((p, i) => (
-                              <li key={i}>• {p.type}: <code className="bg-muted px-1 rounded">{p.match}</code></li>
-                            ))}
-                          </ul>
-                        )}
+                    {guardrails.results.keyword_stuffing.flagged_keywords.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {guardrails.results.keyword_stuffing.flagged_keywords.map((kw) => (
+                          <Badge key={kw} variant="secondary" className="text-[10px] bg-destructive/10 text-destructive border-destructive/20">
+                            {kw}
+                          </Badge>
+                        ))}
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </SlideUp>
-            )}
+                    )}
+                  </div>
+                </div>
 
-            {/* AI Operation Error Cards */}
+                {/* PII */}
+                <div className="flex items-start gap-3">
+                  {guardrails.results.pii.passed
+                    ? <CheckCircle2 className="w-4 h-4 text-success mt-0.5" />
+                    : <XCircle className="w-4 h-4 text-destructive mt-0.5" />}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Personal Data</p>
+                    {!guardrails.results.pii.passed && (
+                      <ul className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                        {guardrails.results.pii.pii_found.map((p, i) => (
+                          <li key={i}>• {p.type}: <code className="bg-muted px-1 rounded">{p.match}</code></li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </SlideUp>
+        )}
+
+        {/* AI Operation Error Cards */}
         {(optimizeError || deepATSError || exportError) && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
             {optimizeError && (
@@ -385,7 +415,7 @@ const ResumeResults = () => {
             {isOptimizing && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
                     <Loader2 className="w-5 h-5 animate-spin text-primary" />
                     Optimizing Resume…
                   </CardTitle>
@@ -402,7 +432,7 @@ const ResumeResults = () => {
             {isDeepATS && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
                     <Loader2 className="w-5 h-5 animate-spin text-primary" />
                     Running Deep ATS Analysis…
                   </CardTitle>
@@ -424,8 +454,8 @@ const ResumeResults = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {optimizedText && (
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
                     <Wand2 className="w-5 h-5 text-primary" />
                     Optimized Resume
                   </CardTitle>
@@ -442,7 +472,7 @@ const ResumeResults = () => {
                     </Button>
                     <Button variant="outline" onClick={handleExport}>
                       <Download className="w-4 h-4 mr-2" />
-                      Export
+                      Export DOCX
                     </Button>
                   </div>
                 </CardContent>
@@ -451,25 +481,25 @@ const ResumeResults = () => {
             
             {deepScore && (
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
                     <Sparkles className="w-5 h-5 text-primary" />
                     Deep ATS Score
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="text-center">
-                    <div className="text-4xl font-bold">
+                  <div className="text-center py-2">
+                    <div className="text-4xl font-bold tabular-nums text-foreground">
                       {deepScore.score ?? deepScore.ats_score ?? "N/A"}
                     </div>
-                    <p className="text-muted-foreground text-sm">Overall Score</p>
+                    <p className="text-muted-foreground text-sm mt-1">Overall ATS Fit Score</p>
                   </div>
                   {deepScore.checks && (
                     <div className="space-y-2">
                       {Object.entries(deepScore.checks).map(([key, val]: [string, any]) => (
-                        <div key={key} className="flex items-center justify-between text-sm">
-                          <span className="capitalize">{key.replace(/_/g, " ")}</span>
-                          <Badge variant={val?.passed ? "default" : "destructive"}>
+                        <div key={key} className="flex items-center justify-between text-sm py-1 border-b border-border/40 last:border-0">
+                          <span className="capitalize text-muted-foreground">{key.replace(/_/g, " ")}</span>
+                          <Badge variant={val?.passed ? "default" : "destructive"} className="text-xs">
                             {val?.passed ? "Pass" : "Fail"}
                           </Badge>
                         </div>
@@ -477,10 +507,10 @@ const ResumeResults = () => {
                     </div>
                   )}
                   {deepScore.recommendations && (
-                    <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
-                      <p className="font-medium">Recommendations:</p>
+                    <div className="bg-muted/40 rounded-lg p-3 text-sm space-y-1">
+                      <p className="font-medium text-foreground">Recommendations:</p>
                       {(deepScore.recommendations as string[]).map((r, i) => (
-                        <p key={i} className="text-muted-foreground">• {r}</p>
+                        <p key={i} className="text-muted-foreground text-xs">• {r}</p>
                       ))}
                     </div>
                   )}
@@ -489,20 +519,20 @@ const ResumeResults = () => {
             )}
 
             {optimizationResult && !deepScore && (
-              <Card className="flex flex-col h-full border border-border/60 shadow-lg">
+              <Card className="flex flex-col h-full border border-border/60 shadow-sm">
                 <CardHeader className="pb-3 border-b border-border/40 bg-muted/20">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
-                      <Sparkles className="w-5 h-5 text-primary animate-pulse" />
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+                      <Sparkles className="w-4 h-4 text-primary animate-pulse" />
                       AI Tailoring Feedback & Critique
                     </CardTitle>
                     {optimizationResult.alignment_report?.is_aligned ? (
-                      <Badge variant="outline" className="bg-success/10 border-success/30 text-success flex items-center gap-1">
+                      <Badge variant="outline" className="bg-success/10 border-success/30 text-success flex items-center gap-1 text-xs">
                         <CheckCircle2 className="w-3.5 h-3.5 text-success" />
                         Verified Truthful
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="bg-warning/10 border-warning/30 text-warning flex items-center gap-1">
+                      <Badge variant="outline" className="bg-warning/10 border-warning/30 text-warning flex items-center gap-1 text-xs">
                         <AlertCircle className="w-3.5 h-3.5 text-warning" />
                         Fabrication Alerts
                       </Badge>
@@ -510,37 +540,37 @@ const ResumeResults = () => {
                   </div>
                 </CardHeader>
                 
-                <CardContent className="space-y-5 pt-4 overflow-y-auto max-h-[500px]">
-                  {/* Score & Passes comparison */}
-                  <div className="flex items-center justify-between bg-muted/40 rounded-lg p-3 border border-border/30">
+                <CardContent className="space-y-4 pt-4 overflow-y-auto max-h-[500px]">
+                  {/* Flattened Score & Passes comparison */}
+                  <div className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
                     <div>
-                      <span className="text-xs text-muted-foreground block font-medium uppercase tracking-wider">Before Score</span>
-                      <span className="text-2xl font-bold text-muted-foreground">{analysisResults?.overallScore}%</span>
+                      <span className="text-[10px] text-muted-foreground block font-bold uppercase tracking-wider">Before</span>
+                      <span className="text-2xl font-bold tabular-nums text-muted-foreground">{analysisResults?.overallScore}%</span>
                     </div>
                     <div className="text-primary font-bold text-lg">→</div>
                     <div>
-                      <span className="text-xs text-primary block font-medium uppercase tracking-wider">Tailored Score</span>
-                      <span className="text-2xl font-bold text-primary">{optimizationResult.new_heuristic_score}%</span>
+                      <span className="text-[10px] text-primary block font-bold uppercase tracking-wider">Tailored</span>
+                      <span className="text-2xl font-bold tabular-nums text-primary">{optimizationResult.new_heuristic_score}%</span>
                     </div>
                     <div className="border-l border-border/60 pl-3">
-                      <span className="text-xs text-muted-foreground block">Refinement</span>
-                      <span className="font-semibold text-sm">{optimizationResult.refinement_passes} pass(es)</span>
+                      <span className="text-[10px] text-muted-foreground block font-bold uppercase tracking-wider">Refinement</span>
+                      <span className="font-semibold text-sm tabular-nums">{optimizationResult.refinement_passes} pass(es)</span>
                     </div>
                   </div>
 
-                  {/* ── Optimization Summary ──────────────────────────── */}
+                  {/* ── Flattened Optimization Summary ──────────────────────────── */}
                   {optimizationResult.optimization_summary && (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-2.5">
                       {/* Semantic similarity */}
                       {optimizationResult.optimization_summary.semantic_score_before != null && (
-                        <div className="bg-muted/40 rounded-lg p-2.5 border border-border/30 space-y-1">
-                          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider block">Semantic Match</span>
+                        <div className="bg-muted/20 rounded-lg p-2.5 space-y-1">
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Semantic Match</span>
                           <div className="flex items-baseline gap-1">
-                            <span className="text-sm font-semibold text-muted-foreground">
+                            <span className="text-sm font-semibold tabular-nums text-muted-foreground">
                               {optimizationResult.optimization_summary.semantic_score_before}%
                             </span>
                             <span className="text-primary font-bold text-xs">→</span>
-                            <span className="text-lg font-bold text-primary">
+                            <span className="text-lg font-bold tabular-nums text-primary">
                               {optimizationResult.optimization_summary.semantic_score_after ?? optimizationResult.optimization_summary.semantic_score_before}%
                             </span>
                           </div>
@@ -551,7 +581,7 @@ const ResumeResults = () => {
                             />
                           </div>
                           {optimizationResult.semantic_similarity_after?.interpretation && (
-                            <span className="text-xs text-muted-foreground leading-tight block">
+                            <span className="text-[11px] text-muted-foreground leading-tight block">
                               {optimizationResult.semantic_similarity_after.interpretation}
                             </span>
                           )}
@@ -560,10 +590,10 @@ const ResumeResults = () => {
 
                       {/* STAR score */}
                       {optimizationResult.optimization_summary.avg_star_score != null && (
-                        <div className="bg-muted/40 rounded-lg p-2.5 border border-border/30 space-y-1">
-                          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider block">STAR Score</span>
+                        <div className="bg-muted/20 rounded-lg p-2.5 space-y-1">
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">STAR Score</span>
                           <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-bold text-primary">
+                            <span className="text-2xl font-bold tabular-nums text-primary">
                               {optimizationResult.optimization_summary.avg_star_score}
                             </span>
                             <span className="text-xs text-muted-foreground">/4 avg</span>
@@ -574,7 +604,7 @@ const ResumeResults = () => {
                               style={{ width: `${(optimizationResult.optimization_summary.avg_star_score / 4) * 100}%` }}
                             />
                           </div>
-                          <span className="text-xs text-muted-foreground block">
+                          <span className="text-[11px] text-muted-foreground block tabular-nums">
                             {optimizationResult.star_analysis?.bullets_scored ?? 0} bullets scored
                           </span>
                         </div>
@@ -582,47 +612,47 @@ const ResumeResults = () => {
 
                       {/* Buzzwords cleaned */}
                       {optimizationResult.optimization_summary.buzzwords_cleaned != null && (
-                        <div className="bg-muted/40 rounded-lg p-2.5 border border-border/30">
-                          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider block">Buzzwords Cleaned</span>
-                          <span className="text-2xl font-bold text-green-500">{optimizationResult.optimization_summary.buzzwords_cleaned}</span>
+                        <div className="bg-muted/20 rounded-lg p-2.5">
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Buzzwords Cleaned</span>
+                          <span className="text-2xl font-bold tabular-nums text-success">{optimizationResult.optimization_summary.buzzwords_cleaned}</span>
                         </div>
                       )}
 
                       {/* JD keyword coverage */}
                       {optimizationResult.keyword_matrix?.hard_skill_coverage != null && (
-                        <div className="bg-muted/40 rounded-lg p-2.5 border border-border/30">
-                          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider block">Hard Skill Coverage</span>
-                          <span className={`text-2xl font-bold ${
-                            optimizationResult.keyword_matrix.hard_skill_coverage >= 80 ? 'text-green-500' :
-                            optimizationResult.keyword_matrix.hard_skill_coverage >= 50 ? 'text-amber-500' : 'text-destructive'
+                        <div className="bg-muted/20 rounded-lg p-2.5">
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Hard Skill Coverage</span>
+                          <span className={`text-2xl font-bold tabular-nums ${
+                            optimizationResult.keyword_matrix.hard_skill_coverage >= 80 ? 'text-success' :
+                            optimizationResult.keyword_matrix.hard_skill_coverage >= 50 ? 'text-warning' : 'text-destructive'
                           }`}>{optimizationResult.keyword_matrix.hard_skill_coverage}%</span>
                         </div>
                       )}
                     </div>
                   )}
 
-                  {/* ── STAR Bullet Analysis ───────────────────────────── */}
+                  {/* ── Flattened STAR Bullet Analysis ───────────────────────────── */}
                   {optimizationResult.star_analysis?.bullets_needing_improvement?.length > 0 && (
-                    <div className="space-y-3 pt-1 border-t border-border/40">
-                      <h4 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
-                        <Target className="w-4 h-4 text-amber-500" />
+                    <div className="space-y-2.5 pt-2 border-t border-border/40">
+                      <h4 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-foreground">
+                        <Target className="w-3.5 h-3.5 text-amber-500" />
                         STAR Bullet Analysis
                       </h4>
                       <div className="space-y-2">
                         {optimizationResult.star_analysis.bullets_needing_improvement.slice(0, 4).map((b: any, idx: number) => (
-                          <div key={idx} className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-2.5 text-xs space-y-1">
+                          <div key={idx} className="bg-muted/20 rounded-lg p-2.5 text-xs space-y-1">
                             <div className="flex items-center justify-between">
                               <span className="text-muted-foreground font-mono truncate max-w-[220px]">{b.bullet}</span>
-                              <Badge variant="outline" className={`ml-1 shrink-0 ${
-                                b.star_score >= 3 ? 'bg-green-500/10 text-green-500 border-green-500/20' :
-                                b.star_score >= 2 ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                              <Badge variant="outline" className={`ml-1 shrink-0 text-[10px] ${
+                                b.star_score >= 3 ? 'bg-success/10 text-success border-success/20' :
+                                b.star_score >= 2 ? 'bg-warning/10 text-warning border-warning/20' :
                                 'bg-destructive/10 text-destructive border-destructive/20'
                               }`}>
                                 STAR {b.star_grade}
                               </Badge>
                             </div>
                             {b.suggestion && (
-                              <p className="text-amber-600 dark:text-amber-400 leading-relaxed">
+                              <p className="text-muted-foreground leading-relaxed">
                                 💡 {b.suggestion}
                               </p>
                             )}
@@ -632,26 +662,26 @@ const ResumeResults = () => {
                     </div>
                   )}
 
-                  {/* ── JD Keyword Matrix ─────────────────────────────── */}
+                  {/* ── Flattened JD Keyword Matrix ─────────────────────────────── */}
                   {optimizationResult.keyword_matrix?.hard_skills_matrix?.length > 0 && (
-                    <div className="space-y-3 pt-1 border-t border-border/40">
-                      <h4 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
-                        <Sparkles className="w-4 h-4 text-primary" />
+                    <div className="space-y-2.5 pt-2 border-t border-border/40">
+                      <h4 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-foreground">
+                        <Sparkles className="w-3.5 h-3.5 text-primary" />
                         JD Keyword Matrix
                       </h4>
-                      <div className="grid grid-cols-1 gap-3">
+                      <div className="grid grid-cols-1 gap-2.5">
                         {/* Hard Skills */}
                         {optimizationResult.keyword_matrix.hard_skills_matrix?.length > 0 && (
                           <div>
-                            <span className="text-xs font-semibold text-blue-500 uppercase tracking-wider block mb-1.5">Hard Skills</span>
-                            <div className="flex flex-wrap gap-1.5">
+                            <span className="text-[10px] font-bold text-primary uppercase tracking-wider block mb-1">Hard Skills</span>
+                            <div className="flex flex-wrap gap-1">
                               {optimizationResult.keyword_matrix.hard_skills_matrix.slice(0, 12).map((item: any) => (
                                 <Badge
                                   key={item.keyword}
                                   variant="outline"
-                                  className={`text-xs ${
+                                  className={`text-[11px] ${
                                     item.in_resume
-                                      ? 'bg-green-500/10 text-green-600 border-green-500/30'
+                                      ? 'bg-success/10 text-success border-success/30'
                                       : 'bg-destructive/10 text-destructive border-destructive/20'
                                   }`}
                                 >
@@ -664,40 +694,19 @@ const ResumeResults = () => {
                         {/* Soft Skills */}
                         {optimizationResult.keyword_matrix.soft_skills_matrix?.length > 0 && (
                           <div>
-                            <span className="text-xs font-semibold text-purple-500 uppercase tracking-wider block mb-1.5">Soft Skills</span>
-                            <div className="flex flex-wrap gap-1.5">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Soft Skills</span>
+                            <div className="flex flex-wrap gap-1">
                               {optimizationResult.keyword_matrix.soft_skills_matrix.slice(0, 8).map((item: any) => (
                                 <Badge
                                   key={item.keyword}
                                   variant="outline"
-                                  className={`text-xs ${
+                                  className={`text-[11px] ${
                                     item.in_resume
-                                      ? 'bg-green-500/10 text-green-600 border-green-500/30'
-                                      : 'bg-orange-500/10 text-orange-500 border-orange-500/20'
+                                      ? 'bg-success/10 text-success border-success/30'
+                                      : 'bg-warning/10 text-warning border-warning/20'
                                   }`}
                                 >
                                   {item.in_resume ? '✓' : '~'} {item.keyword}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {/* Domain */}
-                        {optimizationResult.keyword_matrix.domain_matrix?.length > 0 && (
-                          <div>
-                            <span className="text-xs font-semibold text-cyan-500 uppercase tracking-wider block mb-1.5">Domain Terms</span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {optimizationResult.keyword_matrix.domain_matrix.slice(0, 8).map((item: any) => (
-                                <Badge
-                                  key={item.keyword}
-                                  variant="outline"
-                                  className={`text-xs ${
-                                    item.in_resume
-                                      ? 'bg-cyan-500/10 text-cyan-600 border-cyan-500/30'
-                                      : 'bg-muted text-muted-foreground border-border/40'
-                                  }`}
-                                >
-                                  {item.in_resume ? '✓' : '○'} {item.keyword}
                                 </Badge>
                               ))}
                             </div>
@@ -707,22 +716,22 @@ const ResumeResults = () => {
                     </div>
                   )}
 
-                  {/* ── Keyword Gap Analysis (meaningful terms only) ──── */}
-                  <div className="space-y-3 pt-1 border-t border-border/40">
-                    <h4 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
-                      <Target className="w-4 h-4 text-primary" />
+                  {/* ── Flattened Keyword Gap Analysis ──── */}
+                  <div className="space-y-2.5 pt-2 border-t border-border/40">
+                    <h4 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-foreground">
+                      <Target className="w-3.5 h-3.5 text-primary" />
                       Keyword Gap Analysis
                     </h4>
                     
                     {/* Injectable/Added Keywords */}
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                       <span className="text-xs text-muted-foreground font-medium block">
                         Keywords Woven In (From Master Resume):
                       </span>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1">
                         {optimizationResult.injectable_keywords?.length > 0 ? (
                           optimizationResult.injectable_keywords.map((kw: string) => (
-                            <Badge key={kw} variant="secondary" className="bg-success/10 text-success border-success/20 text-xs">
+                            <Badge key={kw} variant="secondary" className="bg-success/10 text-success border-success/20 text-[11px]">
                               +{kw}
                             </Badge>
                           ))
@@ -733,53 +742,53 @@ const ResumeResults = () => {
                     </div>
 
                     {/* Skill Gaps */}
-                    <div className="space-y-1.5 pt-1">
+                    <div className="space-y-1 pt-1">
                       <span className="text-xs text-muted-foreground font-medium block">
                         Remaining Skill Gaps (Not in master resume):
                       </span>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1">
                         {optimizationResult.non_injectable_keywords?.length > 0 ? (
                           optimizationResult.non_injectable_keywords.map((kw: string) => (
-                            <Badge key={kw} variant="outline" className="bg-destructive/5 text-destructive border-destructive/20 text-xs">
+                            <Badge key={kw} variant="outline" className="bg-destructive/5 text-destructive border-destructive/20 text-[11px]">
                               {kw}
                             </Badge>
                           ))
                         ) : (
-                          <span className="text-xs text-muted-foreground italic text-success">All job keywords matched!</span>
+                          <span className="text-xs text-success italic">All job keywords matched!</span>
                         )}
                       </div>
                     </div>
                   </div>
 
                   {/* AI Buzzwords */}
-                  <div className="space-y-3 pt-1 border-t border-border/40">
-                    <h4 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
-                      <Wand2 className="w-4 h-4 text-primary" />
+                  <div className="space-y-2.5 pt-2 border-t border-border/40">
+                    <h4 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-foreground">
+                      <Wand2 className="w-3.5 h-3.5 text-primary" />
                       AI Buzzword Cleanup
                     </h4>
                     {optimizationResult.removed_ai_phrases?.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="grid grid-cols-2 gap-1.5 text-xs">
                         {optimizationResult.removed_ai_phrases.map((item: any, idx: number) => (
-                          <div key={idx} className="bg-muted/50 rounded p-2 border border-border/30 flex items-center justify-between">
-                            <span className="line-through text-muted-foreground font-mono">{item.buzzword}</span>
-                            <span className="text-primary font-bold">→</span>
-                            <span className="font-semibold text-foreground">{item.replacement || "removed"}</span>
+                          <div key={idx} className="bg-muted/20 rounded p-2 flex items-center justify-between">
+                            <span className="line-through text-muted-foreground font-mono text-[11px]">{item.buzzword}</span>
+                            <span className="text-primary font-bold text-xs">→</span>
+                            <span className="font-semibold text-foreground text-[11px]">{item.replacement || "removed"}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-xs text-muted-foreground italic">No generic AI buzzwords or clichés detected.</span>
+                      <span className="text-xs text-muted-foreground italic">No generic AI buzzwords detected.</span>
                     )}
                   </div>
 
                   {/* Metric quantification suggestions */}
-                  <div className="space-y-3 pt-1 border-t border-border/40">
-                    <h4 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
-                      <Lightbulb className="w-4 h-4 text-primary" />
+                  <div className="space-y-2.5 pt-2 border-t border-border/40">
+                    <h4 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-foreground">
+                      <Lightbulb className="w-3.5 h-3.5 text-primary" />
                       Experience Bullet Recommendations
                     </h4>
                     {optimizationResult.metric_suggestions?.length > 0 ? (
-                      <ul className="space-y-2">
+                      <ul className="space-y-1.5">
                         {optimizationResult.metric_suggestions.map((sug: string, idx: number) => (
                           <li key={idx} className="text-xs text-muted-foreground flex items-start gap-1.5">
                             <span className="text-primary font-bold mt-0.5">•</span>
@@ -807,8 +816,8 @@ const ResumeResults = () => {
             {/* Overall Score Card */}
             <SlideUp>
               <Card>
-                <CardHeader className="text-center">
-                  <CardTitle>Overall Match Score</CardTitle>
+                <CardHeader className="text-center pb-2">
+                  <CardTitle className="text-base">Overall Match Score</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center">
                   <ScoreDisplay
@@ -822,19 +831,19 @@ const ResumeResults = () => {
                   </div>
                   
                   {/* Confidence Band Display */}
-                  <div className="mt-2 text-xs font-mono text-muted-foreground bg-muted/50 px-3 py-1 rounded-full border border-border/50">
+                  <div className="mt-2 text-xs font-mono tabular-nums text-muted-foreground bg-muted/50 px-3 py-1 rounded-full border border-border/50">
                     Confidence Range: {Math.max(0, analysisResults.overallScore - 5)}% - {Math.min(100, analysisResults.overallScore + 5)}%
                   </div>
 
                   <p className="text-muted-foreground text-xs text-center mt-3">
-                    Your resume matches {analysisResults.overallScore}% of the job requirements
+                    Your resume matches <span className="tabular-nums font-semibold text-foreground">{analysisResults.overallScore}%</span> of the job requirements
                   </p>
 
                   {/* Score Plateau Warning */}
                   {analysisResults.overallScore >= 80 && (
                     <div className="mt-4 p-3 rounded-lg border border-warning/20 bg-warning/5 text-center space-y-2">
                       <p className="text-xs text-warning-foreground leading-relaxed">
-                        ⚠️ **Score Plateau:** Above 80%, the bottleneck shifts from keywords to interview skills. Mock interviews now yield higher callback gains.
+                        ⚠️ <strong>Score Plateau:</strong> Above 80%, the bottleneck shifts from keywords to interview skills. Mock interviews now yield higher callback gains.
                       </p>
                       <Button size="sm" variant="outline" className="w-full text-xs h-7 gap-1 border-warning/30 hover:bg-warning/10" asChild>
                         <Link to="/interview/prep">
@@ -851,23 +860,20 @@ const ResumeResults = () => {
             <SlideUp delay={0.05}>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-1.5 uppercase tracking-wider text-muted-foreground">
-                    <Target className="w-4 h-4 text-primary" />
+                  <CardTitle className="text-xs font-bold flex items-center gap-1.5 uppercase tracking-wider text-muted-foreground">
+                    <Target className="w-3.5 h-3.5 text-primary" />
                     ATS Parser Compatibility
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3.5">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[11px] text-muted-foreground">
-                      Estimated scoring compatibility based on typical parser rules:
+                      Estimated scoring compatibility based on parser rules:
                     </p>
                     <Link to="/methodology" className="text-[10px] text-primary hover:underline shrink-0">
                       How we score →
                     </Link>
                   </div>
-                  {/* ponytail: prefer real per_ats estimates (Python ats_engine) when present;
-                      fall back to the offset heuristic on pure-Go analyzer paths. Band from
-                      per_ats.band when available, else ±5. */}
                   {ATS_PARSER_PROFILES.map((ats) => {
                     const realEstimate = analysisResults.per_ats?.estimates?.[ats.key];
                     const atsScore = realEstimate != null
@@ -883,7 +889,7 @@ const ResumeResults = () => {
                             <span className="font-semibold text-foreground">{ats.name}</span>
                             <span className="text-[9px] text-muted-foreground">{ats.desc}</span>
                           </div>
-                          <span className="font-mono font-bold text-muted-foreground flex items-center gap-1">
+                          <span className="font-mono font-bold tabular-nums text-muted-foreground flex items-center gap-1">
                             {atsScore}% <span className="text-[8px] text-muted-foreground/70 font-normal">±{band}</span> <Badge variant={atsScore >= 80 ? "success" : atsScore >= 60 ? "warning" : "destructive"} className="text-[8px] px-1.5 py-0">{atsLabel}</Badge>
                           </span>
                         </div>
@@ -898,9 +904,9 @@ const ResumeResults = () => {
             {/* Keywords Card */}
             <SlideUp delay={0.1}>
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Target className="w-5 h-5 text-primary" />
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Target className="w-4 h-4 text-primary" />
                     Keyword Analysis
                   </CardTitle>
                 </CardHeader>
@@ -909,17 +915,19 @@ const ResumeResults = () => {
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle2 className="w-4 h-4 text-success" />
-                      <span className="text-sm font-medium">Matched Keywords</span>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Matched Keywords (<span className="tabular-nums">{analysisResults.matchedKeywords.length}</span>)
+                      </span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {analysisResults.matchedKeywords.length > 0 ? (
                         analysisResults.matchedKeywords.map((keyword) => (
-                          <Badge key={keyword} variant="outline" className="bg-success/10 border-success/30 text-success">
+                          <Badge key={keyword} variant="outline" className="bg-success/10 border-success/30 text-success text-xs">
                             {keyword}
                           </Badge>
                         ))
                       ) : (
-                        <span className="text-muted-foreground text-sm">No matched keywords found</span>
+                        <span className="text-muted-foreground text-xs">No matched keywords found</span>
                       )}
                     </div>
                   </div>
@@ -928,17 +936,19 @@ const ResumeResults = () => {
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <XCircle className="w-4 h-4 text-destructive" />
-                      <span className="text-sm font-medium">Missing Keywords</span>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Missing Keywords (<span className="tabular-nums">{analysisResults.missingKeywords.length}</span>)
+                      </span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {analysisResults.missingKeywords.length > 0 ? (
                         analysisResults.missingKeywords.map((keyword) => (
-                          <Badge key={keyword} variant="outline" className="bg-destructive/10 border-destructive/30 text-destructive">
+                          <Badge key={keyword} variant="outline" className="bg-destructive/10 border-destructive/30 text-destructive text-xs">
                             {keyword}
                           </Badge>
                         ))
                       ) : (
-                        <span className="text-muted-foreground text-sm">Great! No critical keywords missing</span>
+                        <span className="text-muted-foreground text-xs">Great! No critical keywords missing</span>
                       )}
                     </div>
                   </div>
@@ -949,9 +959,9 @@ const ResumeResults = () => {
             {/* Summary Recommendation */}
             <SlideUp delay={0.2}>
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5 text-primary" />
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-primary" />
                     AI Recommendation
                   </CardTitle>
                 </CardHeader>
@@ -964,9 +974,9 @@ const ResumeResults = () => {
             </SlideUp>
           </div>
 
-          {/* Right Column - Section Breakdown */}
+          {/* Right Column - Flattened Section Breakdown */}
           <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-xl font-semibold text-foreground mb-4">
+            <h2 className="text-lg font-bold text-foreground tracking-tight">
               Detailed Breakdown
             </h2>
 
@@ -978,37 +988,36 @@ const ResumeResults = () => {
               return (
                 <Card
                   key={section.name}
-                  className="animate-fade-in-up overflow-hidden"
-                  style={{ animationDelay: `${index * 0.1}s` }}
+                  className="overflow-hidden border border-border/60 hover:border-border transition-colors"
                 >
                   <button
                     onClick={() => toggleSection(section.name)}
-                    className="w-full p-4 flex items-center justify-between hover:bg-accent/50 transition-colors"
+                    className="w-full p-4 flex items-center justify-between hover:bg-muted/40 transition-colors text-left"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-                        <Icon className="w-5 h-5 text-primary" />
+                    <div className="flex items-center gap-3.5">
+                      <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 text-primary shrink-0">
+                        <Icon className="w-4 h-4" />
                       </div>
-                      <div className="text-left">
-                        <h3 className="font-semibold text-foreground">{section.name}</h3>
-                        <p className={`text-sm ${scoreLabel.color}`}>{scoreLabel.text}</p>
+                      <div>
+                        <h3 className="font-semibold text-sm text-foreground">{section.name}</h3>
+                        <p className={`text-xs ${scoreLabel.color} font-medium`}>{scoreLabel.text}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       <ScoreDisplay score={section.score} size="sm" animated={false} />
                       {isExpanded ? (
-                        <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                        <ChevronUp className="w-4 h-4 text-muted-foreground" />
                       ) : (
-                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
                       )}
                     </div>
                   </button>
 
                   {isExpanded && section.suggestions.length > 0 && (
-                    <CardContent className="pt-0 pb-4 px-4 border-t border-border/50">
-                      <div className="pt-4">
-                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
-                          <Lightbulb className="w-4 h-4" />
+                    <CardContent className="pt-0 pb-4 px-4 border-t border-border/40">
+                      <div className="pt-3">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">
+                          <Lightbulb className="w-3.5 h-3.5" />
                           Suggestions to Improve
                         </div>
                         <ul className="space-y-2">
@@ -1017,23 +1026,24 @@ const ResumeResults = () => {
                             return (
                               <li
                                 key={suggestion}
-                                className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${isApplied
-                                  ? "bg-success/10 border border-success/20"
-                                  : "bg-accent/50"
-                                  }`}
+                                className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${
+                                  isApplied
+                                    ? "bg-success/10 border border-success/20"
+                                    : "bg-muted/30 hover:bg-muted/50"
+                                }`}
                               >
-                                <span className={`flex-1 text-sm ${isApplied ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                                <span className={`flex-1 text-xs leading-relaxed ${isApplied ? "line-through text-muted-foreground" : "text-foreground"}`}>
                                   {suggestion}
                                 </span>
                                 <Button
                                   size="sm"
                                   variant={isApplied ? "ghost" : "outline"}
                                   onClick={() => applySuggestion(suggestion)}
-                                  className="flex-shrink-0"
+                                  className="shrink-0 h-7 text-xs px-2.5"
                                 >
                                   {isApplied ? (
                                     <>
-                                      <Check className="w-4 h-4 mr-1 text-success" />
+                                      <Check className="w-3.5 h-3.5 mr-1 text-success" />
                                       Applied
                                     </>
                                   ) : (
@@ -1053,9 +1063,10 @@ const ResumeResults = () => {
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-12">
-          <Button size="lg" variant="glow" onClick={handleChooseTemplate}>
+        {/* Bottom Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-10 pb-6 border-t border-border/40 pt-8">
+          <Button size="lg" variant="glow" onClick={handleChooseTemplate} className="gap-2 font-semibold">
+            <Edit className="w-4 h-4" />
             Choose a Template & Download
           </Button>
           <Button size="lg" variant="outline" asChild>

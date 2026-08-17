@@ -34,79 +34,83 @@ export const LandingPage = () => {
   const [showCapabilityNote, setShowCapabilityNote] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-950 font-sans text-slate-100 selection:bg-indigo-500 selection:text-white">
-      <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-slate-800 bg-slate-900/80 px-6 py-4 backdrop-blur">
+    <div className="min-h-screen bg-background font-sans text-foreground selection:bg-primary selection:text-primary-foreground">
+      <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-border bg-background/80 px-6 py-4 backdrop-blur">
         <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-indigo-600 p-2 font-bold text-white">T</div>
-          <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-xl font-bold tracking-tight text-transparent">
+          <div className="rounded-lg bg-primary p-2 font-bold text-primary-foreground">T</div>
+          <span className="font-display text-gradient text-xl font-bold tracking-tight">
             Job Tayari
           </span>
         </div>
         <div className="flex items-center gap-4 text-sm font-medium">
-          {features.pricing && <a href="#plans" className="text-slate-300 transition hover:text-white">How it works</a>}
-          <Link to="/onboarding" className="text-slate-300 transition hover:text-white">Your plan</Link>
-          <Link to="/auth"><Button size="sm" variant="outline" className="border-slate-700 text-slate-200 hover:bg-slate-800">Sign in</Button></Link>
-          <Link to="/auth"><Button size="sm" className="bg-indigo-600 font-semibold text-white hover:bg-indigo-500">Get started <ArrowRight className="ml-1 h-4 w-4" /></Button></Link>
+          {features.pricing && <a href="#plans" className="text-muted-foreground transition hover:text-foreground">How it works</a>}
+          <Link to="/onboarding" className="text-muted-foreground transition hover:text-foreground">Your plan</Link>
+          <Link to="/auth"><Button size="sm" variant="outline">Sign in</Button></Link>
+          <Link to="/auth"><Button size="sm" className="font-semibold">Get started <ArrowRight className="ml-1 h-4 w-4" /></Button></Link>
         </div>
       </nav>
 
       <main>
         <section className="mx-auto max-w-6xl space-y-6 px-6 pb-16 pt-20 text-center">
-          <Badge className="border-indigo-800 bg-indigo-950 px-4 py-1 text-xs uppercase tracking-widest text-indigo-300">
+          <Badge className="border-primary/20 bg-primary/10 px-4 py-1 text-xs uppercase tracking-widest text-primary">
             A candidate-controlled career workspace
           </Badge>
-          <h1 className="mx-auto max-w-4xl text-5xl font-extrabold leading-tight tracking-tight md:text-6xl">
-            Make every engineering application <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">more intentional.</span>
+          <h1 className="font-display text-balance mx-auto max-w-4xl text-5xl font-extrabold leading-tight tracking-tight text-foreground md:text-6xl">
+            Make every engineering application <span className="text-gradient">more intentional.</span>
           </h1>
-          <p className="mx-auto max-w-2xl text-lg leading-relaxed text-slate-400 md:text-xl">
+          <p className="text-balance mx-auto max-w-2xl text-lg leading-relaxed text-muted-foreground md:text-xl">
             Tailor your resume to a real role, organize your job search, and review every application artifact before you act. Job Tayari helps you stay in control of your next move.
           </p>
           <div className="flex flex-wrap justify-center gap-4 pt-4">
-            <Link to="/onboarding"><Button size="lg" className="bg-indigo-600 px-8 font-semibold text-white shadow-lg shadow-indigo-900/40 hover:bg-indigo-500">Build my job-change plan <ArrowRight className="ml-2 h-5 w-5" /></Button></Link>
-            <Link to="/downloads"><Button size="lg" variant="outline" className="border-indigo-500/40 px-8 font-semibold text-indigo-200 hover:bg-indigo-500/10">Download desktop app <Download className="ml-2 h-5 w-5" /></Button></Link>
-            <Link to="/resume"><Button size="lg" variant="outline" className="border-slate-800 px-8 font-semibold text-slate-300 hover:bg-slate-900">Try the resume optimizer</Button></Link>
+            <Link to="/onboarding"><Button size="lg" className="px-8 font-semibold shadow-md active:scale-[0.98]">Build my job-change plan <ArrowRight className="ml-2 h-5 w-5" /></Button></Link>
+            <Link to="/downloads"><Button size="lg" variant="outline" className="px-8 font-semibold active:scale-[0.98]">Download desktop app <Download className="ml-2 h-5 w-5" /></Button></Link>
+            <Link to="/resume"><Button size="lg" variant="outline" className="px-8 font-semibold active:scale-[0.98]">Try the resume optimizer</Button></Link>
           </div>
-          <button onClick={() => setShowCapabilityNote((value) => !value)} className="text-xs text-slate-400 underline-offset-4 hover:text-slate-200 hover:underline" aria-expanded={showCapabilityNote}>
+          <button onClick={() => setShowCapabilityNote((value) => !value)} className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" aria-expanded={showCapabilityNote}>
             What can Job Tayari do today?
           </button>
           {showCapabilityNote && (
-            <p className="mx-auto max-w-2xl rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-sm leading-relaxed text-amber-100">
+            <p className="mx-auto max-w-2xl rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm leading-relaxed text-foreground text-balance">
               Resume tailoring, career planning, job tracking, article URL import, and interview-email organization are available where connected. Application-browser automation is currently a clearly labelled preview; Job Tayari does not claim to submit an application until it has a verified external receipt.
             </p>
           )}
         </section>
 
-        <section className="mx-auto max-w-6xl space-y-12 border-t border-slate-900 px-6 py-16">
+        <section className="mx-auto max-w-6xl space-y-12 border-t border-border px-6 py-16">
           <div className="space-y-3 text-center">
-            <h2 className="text-3xl font-bold tracking-tight">Clear tools for a difficult job search</h2>
-            <p className="mx-auto max-w-xl text-sm text-slate-400">Plain language, visible review steps, and no false promises about automation.</p>
+            <h2 className="font-display text-balance text-3xl font-bold tracking-tight text-foreground">Clear tools for a difficult job search</h2>
+            <p className="text-balance mx-auto max-w-xl text-sm text-muted-foreground">Plain language, visible review steps, and no false promises about automation.</p>
           </div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <FeatureCard icon={<FileText className="mb-2 h-8 w-8 text-indigo-400" />} title="Resume optimizer" description="Upload or paste a resume, add a pasted job description or a public job link, and review role-specific suggestions." />
-            <FeatureCard icon={<Target className="mb-2 h-8 w-8 text-purple-400" />} title="Transition plan" description="Tell us whether you are changing jobs, moving domains, or both. You can edit that plan as your goals change." />
-            <FeatureCard icon={<ShieldCheck className="mb-2 h-8 w-8 text-amber-400" />} title="Application review" description="Keep control of your resume and application answers. No sensitive question or final submission should happen without you." />
-            <FeatureCard icon={<BookOpen className="mb-2 h-8 w-8 text-emerald-400" />} title="Career memory" description="Import article links you choose, organize them with AI, and ask questions with source links when citations are available." />
+            <FeatureCard icon={<FileText className="mb-2 h-8 w-8 text-primary" />} title="Resume optimizer" description="Upload or paste a resume, add a pasted job description or a public job link, and review role-specific suggestions." />
+            <FeatureCard icon={<Target className="mb-2 h-8 w-8 text-primary" />} title="Transition plan" description="Tell us whether you are changing jobs, moving domains, or both. You can edit that plan as your goals change." />
+            <FeatureCard icon={<ShieldCheck className="mb-2 h-8 w-8 text-primary" />} title="Application review" description="Keep control of your resume and application answers. No sensitive question or final submission should happen without you." />
+            <FeatureCard icon={<BookOpen className="mb-2 h-8 w-8 text-primary" />} title="Career memory" description="Import article links you choose, organize them with AI, and ask questions with source links when citations are available." />
           </div>
         </section>
 
-        <section id="plans" className="mx-auto max-w-6xl space-y-10 border-t border-slate-900 px-6 py-16">
+        <section id="plans" className="mx-auto max-w-6xl space-y-10 border-t border-border px-6 py-16">
           <div className="space-y-3 text-center">
-            <h2 className="text-3xl font-bold tracking-tight">Choose the workflow you need</h2>
-            <p className="mx-auto max-w-xl text-sm text-slate-400">Capabilities—not exaggerated automation claims—should determine a plan. Commercial terms belong only after the related workflow is production-ready.</p>
+            <h2 className="font-display text-balance text-3xl font-bold tracking-tight text-foreground">Choose the workflow you need</h2>
+            <p className="text-balance mx-auto max-w-xl text-sm text-muted-foreground">Capabilities—not exaggerated automation claims—should determine a plan. Commercial terms belong only after the related workflow is production-ready.</p>
           </div>
           <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
             {plans.map((plan) => (
-              <Card key={plan.name} className={`flex flex-col justify-between text-slate-100 ${plan.featured ? 'border-indigo-600 bg-slate-900 shadow-xl shadow-indigo-950/50' : 'border-slate-800 bg-slate-900'}`}>
+              <Card key={plan.name} className={`flex flex-col text-foreground ${plan.featured ? 'border-primary bg-card shadow-lg ring-1 ring-primary/30' : 'border-border bg-card'}`}>
                 <CardHeader>
-                  {plan.featured && <Badge className="mb-3 w-fit bg-indigo-600 text-white">Candidate-controlled beta</Badge>}
-                  <CardTitle className="text-xl font-bold">{plan.name}</CardTitle>
-                  <CardDescription className="text-slate-400">{plan.description}</CardDescription>
+                  {plan.featured && <Badge className="mb-3 w-fit bg-primary text-primary-foreground">Candidate-controlled beta</Badge>}
+                  <CardTitle className="font-display text-xl font-bold">{plan.name}</CardTitle>
+                  <CardDescription className="text-muted-foreground">{plan.description}</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3 text-sm text-slate-300">
-                  {plan.items.map((item) => <div key={item} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-indigo-400" />{item}</div>)}
+                <CardContent className="space-y-3 text-sm text-foreground/80 flex-1">
+                  {plan.items.map((item) => <div key={item} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />{item}</div>)}
                 </CardContent>
-                <CardFooter>
-                  <Link to={plan.name === 'Career Memory' ? '/omnisave' : '/auth'} className="w-full"><Button className={`w-full font-semibold ${plan.featured ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-slate-800 hover:bg-slate-700'}`}>{plan.action}</Button></Link>
+                <CardFooter className="mt-auto pt-4">
+                  <Link to={plan.name === 'Career Memory' ? '/omnisave' : '/auth'} className="w-full">
+                    <Button className="w-full font-semibold active:scale-[0.98]" variant={plan.featured ? "default" : "secondary"}>
+                      {plan.action}
+                    </Button>
+                  </Link>
                 </CardFooter>
               </Card>
             ))}
@@ -119,9 +123,9 @@ export const LandingPage = () => {
 
 function FeatureCard({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {
   return (
-    <Card className="border-slate-800 bg-slate-900 text-slate-100 transition hover:border-indigo-500/50">
-      <CardHeader><>{icon}</><CardTitle className="text-lg font-bold">{title}</CardTitle></CardHeader>
-      <CardContent className="text-sm leading-relaxed text-slate-400">{description}</CardContent>
+    <Card className="border-border bg-card text-foreground transition hover:border-primary/50 flex flex-col">
+      <CardHeader><>{icon}</><CardTitle className="font-display text-lg font-bold">{title}</CardTitle></CardHeader>
+      <CardContent className="text-sm leading-relaxed text-muted-foreground flex-1">{description}</CardContent>
     </Card>
   );
 }

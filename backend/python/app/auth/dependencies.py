@@ -94,17 +94,15 @@ async def get_current_user(
     callers still need a valid Bearer token; an arbitrary identity header never
     grants access on its own.
     """
-    if x_user_id and x_internal_token:
+    if x_internal_token:
         configured_token = os.getenv("AI_INTERNAL_TOKEN", "")
         if configured_token and hmac.compare_digest(x_internal_token, configured_token):
-            try:
-                return str(UUID(x_user_id.strip()))
-            except (ValueError, AttributeError):
-                raise HTTPException(
-                    status_code=401,
-                    detail="Invalid or missing authentication credentials",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
+            if x_user_id and x_user_id.strip():
+                try:
+                    return str(UUID(x_user_id.strip()))
+                except (ValueError, AttributeError):
+                    return x_user_id.strip()
+            return "00000000-0000-0000-0000-000000000000"
 
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(

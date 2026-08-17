@@ -15,11 +15,13 @@ function ResumeScanMockup() {
   const [scanning, setScanning] = useState(true);
 
   useEffect(() => {
+    let countInterval: any = null;
     const runScan = () => {
       setScanning(true);
       setScore(0);
       let val = 0;
-      const countInterval = setInterval(() => {
+      if (countInterval) clearInterval(countInterval);
+      countInterval = setInterval(() => {
         val += 2;
         if (val >= 94) {
           val = 94;
@@ -34,7 +36,10 @@ function ResumeScanMockup() {
     const interval = setInterval(runScan, 9000);
     runScan();
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (countInterval) clearInterval(countInterval);
+    };
   }, []);
 
   return (
@@ -61,7 +66,7 @@ function ResumeScanMockup() {
             <path className="text-success transition-all duration-300" strokeDasharray={`${score}, 100`} strokeWidth="3" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
           </svg>
           <div className="absolute text-center select-none">
-            <span className="text-xl font-bold font-display">{score}%</span>
+            <span className="text-xl font-bold font-mono tabular-nums">{score}%</span>
             <p className="text-[8px] text-muted-foreground uppercase leading-none mt-0.5">Match</p>
           </div>
         </div>
@@ -146,21 +151,21 @@ function JobMatcherMockup() {
           <p className="font-semibold">Frontend Engineer</p>
           <p className="text-[10px] text-muted-foreground">Stripe • Remote</p>
         </div>
-        <Badge variant="success" className="text-[10px] px-2 py-0">94% Match</Badge>
+        <Badge variant="success" className="text-[10px] px-2 py-0 font-mono tabular-nums">94% Match</Badge>
       </div>
       <div className="flex items-center justify-between p-2 bg-card border border-border/40 rounded-lg hover:border-primary/30 transition-all">
         <div>
           <p className="font-semibold">Staff Developer</p>
           <p className="text-[10px] text-muted-foreground">Vercel • Hybrid</p>
         </div>
-        <Badge variant="success" className="text-[10px] px-2 py-0">87% Match</Badge>
+        <Badge variant="success" className="text-[10px] px-2 py-0 font-mono tabular-nums">87% Match</Badge>
       </div>
       <div className="flex items-center justify-between p-2 bg-card border border-border/40 rounded-lg opacity-60">
         <div>
           <p className="font-semibold">Systems Architect</p>
           <p className="text-[10px] text-muted-foreground">Linear • Remote</p>
         </div>
-        <Badge variant="warning" className="text-[10px] px-2 py-0">63% Match</Badge>
+        <Badge variant="warning" className="text-[10px] px-2 py-0 font-mono tabular-nums">63% Match</Badge>
       </div>
     </div>
   );
@@ -250,11 +255,11 @@ export function FeaturesSection() {
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
           <SlideUp>
-            <h2 className="text-section font-bold text-foreground mb-4">
-              Everything You Need to Succeed
+            <h2 className="text-section font-bold text-foreground mb-4 font-display text-balance tracking-tight">
+              Engineering-Grade Application Pipeline
             </h2>
-            <p className="text-muted-foreground text-lg">
-              Our suite of automated AI agents and tools handles every step of your application funnel.
+            <p className="text-muted-foreground text-lg text-balance">
+              A verifiable, candidate-in-the-loop toolchain that analyzes requirements, prepares evidence-based materials, and keeps you in full control.
             </p>
           </SlideUp>
         </div>
@@ -270,7 +275,7 @@ export function FeaturesSection() {
                     <FileText className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold mb-2">Resume Optimizer</h3>
+                    <h3 className="text-2xl font-bold mb-2 font-display">Resume Optimizer</h3>
                     <p className="text-muted-foreground text-sm leading-relaxed max-w-sm">
                       AI tailors your skills, highlights, and formatting against target job descriptions in real-time, boosting ATS match rates and keyword density instantly.
                     </p>
@@ -300,7 +305,7 @@ export function FeaturesSection() {
                   <Badge variant="secondary">STAR Prep</Badge>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold mb-2">Interview Coach</h3>
+                  <h3 className="text-xl font-bold mb-2 font-display">Interview Coach</h3>
                   <p className="text-muted-foreground text-sm leading-relaxed">
                     Practice interview scenarios with resume-aware behavioral analysis. Real-time feedback guides you on structure.
                   </p>
@@ -323,7 +328,7 @@ export function FeaturesSection() {
                   <Briefcase className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold mb-2">Smart Job Matcher</h3>
+                  <h3 className="text-xl font-bold mb-2 font-display">Smart Job Matcher</h3>
                   <p className="text-muted-foreground text-sm leading-relaxed">
                     Matches roles based on your skills profile, parsing salaries, remote options, and fit metrics.
                   </p>
@@ -348,7 +353,7 @@ export function FeaturesSection() {
                 <Badge variant="warning" className="bg-warning/10 text-warning border-warning/20">Soon</Badge>
               </div>
               <div>
-                <h3 className="text-xl font-bold mb-2">Browser Extension</h3>
+                <h3 className="text-xl font-bold mb-2 font-display">Browser Extension</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
                   Save jobs from LinkedIn, Indeed, and Greenhouse in a single click. Auto-fill application forms instantly.
                 </p>
@@ -372,7 +377,7 @@ export function FeaturesSection() {
                 <Badge variant="success">AutoPilot</Badge>
               </div>
               <div>
-                <h3 className="text-xl font-bold mb-2">AutoPilot</h3>
+                <h3 className="text-xl font-bold mb-2 font-display">AutoPilot</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
                   Let AI agents assist the application chain: scan, optimize, generate outreach, and prepare drafts for review.
                 </p>
@@ -390,3 +395,4 @@ export function FeaturesSection() {
     </section>
   );
 }
+

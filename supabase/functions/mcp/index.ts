@@ -475,7 +475,7 @@ var report_outcome_default = defineTool14({
 
 // src/lib/mcp/index.ts
 function projectRefFromSupabaseUrl() {
-  const raw = String("https://snvhgwconuidoymwdeae.supabase.co");
+  const raw = String("http://localhost:8010");
   if (!raw) return "";
   let parsed;
   try {
@@ -492,7 +492,7 @@ function projectRefFromSupabaseUrl() {
 function validProjectRef(value) {
   return !!value && value !== "project-ref-unset" && /^[a-z0-9]{20}$/.test(value);
 }
-var projectRef = (validProjectRef("snvhgwconuidoymwdeae") ? "snvhgwconuidoymwdeae" : projectRefFromSupabaseUrl()) || "";
+var projectRef = (validProjectRef("") ? "" : projectRefFromSupabaseUrl()) || "";
 var mcp_default = defineMcp({
   name: "tayari-mcp",
   title: "Tayari",

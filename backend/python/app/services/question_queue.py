@@ -33,17 +33,23 @@ _ALWAYS_ASK: tuple[re.Pattern[str], ...] = tuple(
     for p in (
         r"\bsponsor(?:ship|ed)?\b",
         r"\b(?:work )?authoriz(?:ed|ation)\b",
+        r"\bauthoris(?:ed|ation)\b",
         r"\bright to work\b",
         r"\bvisa\b",
+        r"\b(?:h-?1b|opt|cpt|tn status|e-?3|l-?1|stem opt|immigration status)\b",
         r"\bcitizen(?:ship)?\b",
         r"\bsecurity clearance\b",
-        r"\b(?:desired|expected|current)?\s*(?:salary|compensation|pay)\b",
+        r"\b(?:desired|expected|current)?\s*(?:salary|compensation|pay|base pay)\b",
+        r"\b(?:bonus|equity|stock options?|hourly rate|day rate|target cash)\b",
         r"\bnotice period\b",
         r"\bwilling to relocate\b",
         r"\bcriminal\b|\bfelony\b|\bconvict(?:ed|ion)\b",
+        r"\b(?:drug (?:test|screen)|non-?compete|conflict of interest|nda)\b",
         r"\bdisabilit(?:y|ies)\b",
         r"\bveteran\b",
         r"\bgender\b|\brace\b|\bethnicit(?:y|ies)\b",
+        r"\b(?:sex|hispanic|latino|sexual orientation|lgbtq\+?)\b",
+        r"\b(?:password|passcode|2fa|mfa|otp|pin|security code|captcha|recaptcha|turnstile|auth code)\b",
         r"\byears? of experience\b",
         r"\bwhy do you want\b|\bcover letter\b",
     )
@@ -57,7 +63,9 @@ def is_sensitive_field(label: str) -> bool:
     """True when ``label`` names a field the agent must never answer itself."""
     if not label:
         return False
-    return any(p.search(label) for p in _ALWAYS_ASK)
+    # Normalize snake_case or dash-case (e.g. expected_salary, is_veteran) into words
+    normalized = label.replace("_", " ").replace("-", " ")
+    return any(p.search(normalized) for p in _ALWAYS_ASK)
 
 
 def normalize_field_key(label: str) -> str:

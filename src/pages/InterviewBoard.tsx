@@ -791,97 +791,110 @@ const InterviewBoard = () => {
                 </div>
 
                 {/* Cards feed */}
-                <div className="flex-1 bg-card/20 border-x border-b border-border/60 rounded-b-xl p-2.5 space-y-3 min-h-[350px] transition-colors">
-                  {appsByColumn(col.id).map((app) => {
-                    const isMoving = !!optimisticApps[app.id];
-                    return (
-                      <Card
-                        key={app.id}
-                        className={`group relative cursor-pointer border-border/60 hover:border-primary/40 bg-card/70 backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${isMoving ? "opacity-60" : ""
-                          }`}
-                        onClick={() => {
-                          setSelectedApp(app);
-                          setDetailOpen(true);
-                        }}
-                      >
-                        <CardContent className="p-3.5 space-y-3">
-                          <div className="flex items-start gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                              <Building2 className="w-4 h-4 text-primary" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
-                                {app.title || app.job?.title || "Untitled Role"}
-                              </h4>
-                              <p className="text-xs text-muted-foreground truncate">
-                                {app.company || app.job?.company || "Unknown"}
-                              </p>
-                              {app.location && (
-                                <p className="text-[10px] text-muted-foreground/80 flex items-center gap-1 mt-0.5">
-                                  <MapPin className="w-3 h-3" />
-                                  {app.location}
+                <div className="flex-1 bg-card/20 border-x border-b border-border/60 rounded-b-xl p-2.5 space-y-3 min-h-[350px] transition-colors flex flex-col">
+                  {appsByColumn(col.id).length === 0 ? (
+                    <div className="flex-1 min-h-[220px] flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-border/50 text-center bg-card/10">
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        No active interviews in this stage
+                      </p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-1 max-w-[160px] leading-normal">
+                        {col.id === "saved"
+                          ? "Add or import positions to track them here"
+                          : `Move cards here when reaching ${col.label.toLowerCase()}`}
+                      </p>
+                    </div>
+                  ) : (
+                    appsByColumn(col.id).map((app) => {
+                      const isMoving = !!optimisticApps[app.id];
+                      return (
+                        <Card
+                          key={app.id}
+                          className={`group relative cursor-pointer border-border/60 hover:border-primary/40 bg-card/70 backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${isMoving ? "opacity-60" : ""
+                            }`}
+                          onClick={() => {
+                            setSelectedApp(app);
+                            setDetailOpen(true);
+                          }}
+                        >
+                          <CardContent className="p-3.5 space-y-3">
+                            <div className="flex items-start gap-2.5">
+                              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                <Building2 className="w-4 h-4 text-primary" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
+                                  {app.title || app.job?.title || "Untitled Role"}
+                                </h4>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {app.company || app.job?.company || "Unknown"}
                                 </p>
+                                {app.location && (
+                                  <p className="text-[10px] text-muted-foreground/80 flex items-center gap-1 mt-0.5">
+                                    <MapPin className="w-3 h-3" />
+                                    {app.location}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Quick indicators */}
+                            <div className="flex flex-wrap gap-1">
+                              {app.notes_log && app.notes_log.length > 0 && (
+                                <Badge variant="outline" className="text-[9px] py-0 px-1.5 bg-muted/30">
+                                  <MessageSquare className="w-2.5 h-2.5 mr-1" />
+                                  {app.notes_log.length}
+                                </Badge>
+                              )}
+                              {app.voice_notes && app.voice_notes.length > 0 && (
+                                <Badge variant="outline" className="text-[9px] py-0 px-1.5 bg-violet-500/5 text-violet-500 border-violet-500/10">
+                                  <Mic className="w-2.5 h-2.5 mr-1" />
+                                  {app.voice_notes.length}
+                                </Badge>
+                              )}
+                              {app.interview_research && app.interview_research.commonly_asked && (
+                                <Badge variant="outline" className="text-[9px] py-0 px-1.5 bg-primary/5 text-primary border-primary/10">
+                                  <Brain className="w-2.5 h-2.5 mr-1" /> AI Intel
+                                </Badge>
                               )}
                             </div>
-                          </div>
 
-                          {/* Quick indicators */}
-                          <div className="flex flex-wrap gap-1">
-                            {app.notes_log && app.notes_log.length > 0 && (
-                              <Badge variant="outline" className="text-[9px] py-0 px-1.5 bg-muted/30">
-                                <MessageSquare className="w-2.5 h-2.5 mr-1" />
-                                {app.notes_log.length}
-                              </Badge>
-                            )}
-                            {app.voice_notes && app.voice_notes.length > 0 && (
-                              <Badge variant="outline" className="text-[9px] py-0 px-1.5 bg-violet-500/5 text-violet-500 border-violet-500/10">
-                                <Mic className="w-2.5 h-2.5 mr-1" />
-                                {app.voice_notes.length}
-                              </Badge>
-                            )}
-                            {app.interview_research && app.interview_research.commonly_asked && (
-                              <Badge variant="outline" className="text-[9px] py-0 px-1.5 bg-primary/5 text-primary border-primary/10">
-                                <Brain className="w-2.5 h-2.5 mr-1" /> AI Intel
-                              </Badge>
-                            )}
-                          </div>
-
-                          {/* Controls */}
-                          <div className="flex items-center justify-between pt-1 border-t border-border/30" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex gap-0.5">
+                            {/* Controls */}
+                            <div className="flex items-center justify-between pt-1 border-t border-border/30" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex gap-0.5">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 hover:bg-muted"
+                                  disabled={col.id === COLUMNS[0].id || isMoving}
+                                  onClick={() => move(app, "left")}
+                                >
+                                  <ArrowLeft className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 hover:bg-muted"
+                                  disabled={col.id === COLUMNS[COLUMNS.length - 1].id || isMoving}
+                                  onClick={() => move(app, "right")}
+                                >
+                                  <ArrowRight className="w-3 h-3" />
+                                </Button>
+                              </div>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 hover:bg-muted"
-                                disabled={col.id === COLUMNS[0].id || isMoving}
-                                onClick={() => move(app, "left")}
+                                className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => deleteMutation.mutate(String(app.id))}
+                                disabled={deleteMutation.isPending}
                               >
-                                <ArrowLeft className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 hover:bg-muted"
-                                disabled={col.id === COLUMNS[COLUMNS.length - 1].id || isMoving}
-                                onClick={() => move(app, "right")}
-                              >
-                                <ArrowRight className="w-3 h-3" />
+                                <Trash2 className="w-3 h-3" />
                               </Button>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => deleteMutation.mutate(String(app.id))}
-                              disabled={deleteMutation.isPending}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             ))}
@@ -1320,57 +1333,53 @@ const InterviewBoard = () => {
             setRetroOpen(false);
           }
         }}>
-          <DialogContent className="max-w-2xl p-0 overflow-hidden border-0 shadow-2xl">
+          <DialogContent className="max-w-2xl p-0 overflow-hidden border border-border shadow-xl bg-card">
             {retroApp && (
               <>
-                {/* Emotional header */}
-                <div className={`relative p-8 pb-6 overflow-hidden ${retroTargetStage === "offer"
-                  ? "bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-900"
-                  : "bg-gradient-to-br from-rose-950 via-rose-900 to-red-900"
-                  }`}>
-                  {/* Decorative circles */}
-                  <div className={`absolute -top-12 -right-12 w-48 h-48 rounded-full opacity-10 ${retroTargetStage === "offer" ? "bg-emerald-400" : "bg-rose-400"
-                    }`} />
-                  <div className={`absolute -bottom-8 -left-8 w-32 h-32 rounded-full opacity-10 ${retroTargetStage === "offer" ? "bg-teal-400" : "bg-red-400"
-                    }`} />
-
-                  <div className="relative z-10 flex items-start gap-4">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${retroTargetStage === "offer"
-                      ? "bg-emerald-500/30 border border-emerald-400/30"
-                      : "bg-rose-500/30 border border-rose-400/30"
-                      }`}>
+                {/* Standardized header */}
+                <div className={`p-6 pb-5 border-b ${
+                  retroTargetStage === "offer"
+                    ? "bg-success/10 border-success/20"
+                    : "bg-muted/40 border-border"
+                }`}>
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                      retroTargetStage === "offer"
+                        ? "bg-success/20 text-success border border-success/30"
+                        : "bg-muted text-muted-foreground border border-border"
+                    }`}>
                       {retroTargetStage === "offer"
-                        ? <Trophy className="w-7 h-7 text-emerald-300" />
-                        : <HeartCrack className="w-7 h-7 text-rose-300" />}
+                        ? <Trophy className="w-6 h-6 text-success" />
+                        : <HeartCrack className="w-6 h-6 text-muted-foreground" />}
                     </div>
-                    <div className="flex-1">
-                      <div className={`text-xs font-bold uppercase tracking-widest mb-1 ${retroTargetStage === "offer" ? "text-emerald-400" : "text-rose-400"
-                        }`}>
-                        {retroTargetStage === "offer" ? "Congratulations 🎉" : "Stay resilient 💪"}
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-xs font-bold uppercase tracking-wider mb-1 ${
+                        retroTargetStage === "offer" ? "text-success" : "text-muted-foreground"
+                      }`}>
+                        {retroTargetStage === "offer" ? "Congratulations 🎉" : "Stage Retrospective 💪"}
                       </div>
-                      <h2 className="text-xl font-extrabold text-white leading-tight">
-                        {retroTargetStage === "offer" ? "You got an offer!" : "Application not selected"}
+                      <h2 className="text-lg font-bold text-foreground leading-tight">
+                        {retroTargetStage === "offer" ? "Offer Received Retrospective" : "Application Debrief & Learnings"}
                       </h2>
-                      <p className="text-sm text-white/70 mt-1.5">
-                        {retroApp.title || retroApp.job?.title || "Untitled Role"} <span className="text-white/40 mx-1">at</span> {retroApp.company || retroApp.job?.company || "Unknown Company"}
+                      <p className="text-xs text-muted-foreground mt-1 truncate">
+                        {retroApp.title || retroApp.job?.title || "Untitled Role"} · {retroApp.company || retroApp.job?.company || "Unknown Company"}
                       </p>
                     </div>
                   </div>
 
-                  <p className={`relative z-10 mt-5 text-sm leading-relaxed ${retroTargetStage === "offer" ? "text-emerald-100/80" : "text-rose-100/80"
-                    }`}>
+                  <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
                     {retroTargetStage === "offer"
-                      ? "Take a moment to capture what worked — your winning strategies, the questions they loved, and how you stood out. Future-you will thank you."
-                      : "Every rejection is a data point. Capture what happened, where you felt unprepared, and what you'd do differently. This is your growth engine."}
+                      ? "Capture what worked — your winning responses, the questions they loved, and what set you apart."
+                      : "Every interview provides insights. Capture what happened, where you felt unprepared, and what to focus on next."}
                   </p>
                 </div>
 
                 {/* Content */}
-                <div className="p-6 space-y-5 bg-background">
+                <div className="p-6 space-y-5 bg-card">
                   {/* Prompt chips */}
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reflection prompts</p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {(retroTargetStage === "offer"
                         ? [
                           "What set me apart?",
@@ -1390,7 +1399,7 @@ const InterviewBoard = () => {
                           key={chip}
                           type="button"
                           onClick={() => setRetroText((t) => t ? `${t}\n• ${chip}: ` : `• ${chip}: `)}
-                          className="text-[11px] px-2.5 py-1 rounded-full border border-border/60 bg-muted/40 hover:bg-muted/80 text-foreground/70 hover:text-foreground transition-colors cursor-pointer font-medium"
+                          className="text-[11px] px-2.5 py-1 rounded-full border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer font-medium"
                         >
                           + {chip}
                         </button>
@@ -1415,13 +1424,13 @@ const InterviewBoard = () => {
                           ? "What went well? What was your winning strategy? Any standout moments in the interview?"
                           : "What happened? Where did it fall short? What would you prep differently next time?"
                         }
-                        rows={6}
+                        rows={5}
                         value={retroText}
                         onChange={(e) => setRetroText(e.target.value)}
-                        className="resize-none bg-muted/20 focus-visible:ring-primary/20 text-sm leading-relaxed"
+                        className="resize-none bg-background focus-visible:ring-primary/20 text-xs leading-relaxed"
                       />
-                      <p className="text-[10px] text-muted-foreground mt-1.5">
-                        {retroText.length > 0 ? `${retroText.length} chars written` : "Start typing your reflection..."}
+                      <p className="text-[10px] text-muted-foreground mt-1.5 tabular-nums">
+                        {retroText.length > 0 ? `${retroText.length} characters written` : "Start typing your reflection..."}
                       </p>
                     </TabsContent>
 
@@ -1446,7 +1455,7 @@ const InterviewBoard = () => {
                         )}
                         <div className="flex gap-3">
                           {!retroRecording ? (
-                            <Button onClick={startRetroRecording} size="sm" className="bg-primary text-white">
+                            <Button onClick={startRetroRecording} size="sm" variant="default">
                               <Mic className="w-4 h-4 mr-2" /> Start Recording
                             </Button>
                           ) : (
@@ -1469,8 +1478,8 @@ const InterviewBoard = () => {
                   </Tabs>
 
                   {/* Self-assessment quick rating */}
-                  <div className="border border-border/40 rounded-xl p-4 bg-muted/10 space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Quick self-assessment areas to note</p>
+                  <div className="border border-border/60 rounded-xl p-4 bg-muted/20 space-y-2">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Quick self-assessment areas</p>
                     <div className="grid grid-cols-2 gap-2">
                       {[
                         { icon: Brain, label: "Technical preparation" },
@@ -1482,7 +1491,7 @@ const InterviewBoard = () => {
                           key={label}
                           type="button"
                           onClick={() => setRetroText((t) => t ? `${t}\n• ${label}: ` : `• ${label}: `)}
-                          className="flex items-center gap-2 text-left text-xs px-3 py-2 rounded-lg border border-border/40 bg-background/50 hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                          className="flex items-center gap-2 text-left text-xs px-3 py-2 rounded-lg border border-border/40 bg-card hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <Icon className="w-3.5 h-3.5 shrink-0" />
                           {label}
@@ -1504,10 +1513,7 @@ const InterviewBoard = () => {
                     </Button>
                     <Button
                       size="sm"
-                      className={retroTargetStage === "offer"
-                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                        : "bg-rose-700 hover:bg-rose-800 text-white"
-                      }
+                      variant="default"
                       onClick={() => handleRetroSubmit(false)}
                       disabled={isSavingRetro || (retroText.trim() === "" && !retroAudioBlob)}
                     >

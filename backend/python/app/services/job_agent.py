@@ -254,7 +254,7 @@ async def rank_jobs(candidate: str, jobs: list, top_n: int = 12) -> list:
         "\"matched_skills\": [<=5 strings], \"missing_skills\": [<=4 strings], "
         "\"reason\": \"<one concise sentence>\"}")
     try:
-        raw = await llm_complete(RANK_SYSTEM, user_msg, tier="fast")
+        raw = await llm_complete(RANK_SYSTEM, user_msg, tier="fast", max_tokens=2500)
         scores = extract_json(raw)
     except Exception as exc:
         logger.error("Job ranking LLM failed: %s", exc)

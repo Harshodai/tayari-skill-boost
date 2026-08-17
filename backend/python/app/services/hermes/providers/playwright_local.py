@@ -42,7 +42,7 @@ class PlaywrightLocalProvider:
         self,
         client: httpx.AsyncClient,
         query: str,
-        location: str,
+        location: str = "",
         board: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Fetch job posting URL or execute search using local Playwright."""

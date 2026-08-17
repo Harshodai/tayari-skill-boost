@@ -23,6 +23,7 @@
  */
 
 import * as React from "react";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "./skeleton";
 
@@ -90,13 +91,13 @@ function PageHeader({
                   </svg>
                 )}
                 {crumb.href ? (
-                  <a
-                    href={crumb.href}
+                  <Link
+                    to={crumb.href}
                     className="hover:text-foreground transition-colors"
                     aria-current={i === breadcrumbs!.length - 1 ? "page" : undefined}
                   >
                     {crumb.label}
-                  </a>
+                  </Link>
                 ) : (
                   <span
                     className={cn(i === breadcrumbs!.length - 1 && "text-foreground font-medium")}
@@ -113,8 +114,8 @@ function PageHeader({
 
       {/* Back button */}
       {backHref && (
-        <a
-          href={backHref}
+        <Link
+          to={backHref}
           className={cn(
             "mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground",
             "hover:text-foreground transition-colors group"
@@ -132,7 +133,7 @@ function PageHeader({
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
           </svg>
           {backLabel}
-        </a>
+        </Link>
       )}
 
       {/* Title row */}
