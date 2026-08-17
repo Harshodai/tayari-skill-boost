@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -350,9 +351,45 @@ type pubSubGmailData struct {
 	HistoryID    uint64 `json:"historyId"`
 }
 
+// verifyPubSubPush authenticates a Google Pub/Sub push delivery before any
+// user inbox is touched. Google can be configured to attach either a shared
+// verification token (?token=...) or a signed OIDC bearer token; we accept a
+// constant-time match against GMAIL_PUBSUB_VERIFICATION_TOKEN (falling back to
+// AI_INTERNAL_TOKEN for internal replays) presented in either place. The check
+// fails closed: with no secret configured the webhook is disabled entirely, so
+// an anonymous caller can never trigger a sync.
+func (s *Server) verifyPubSubPush(r *http.Request) bool {
+	expected := os.Getenv("GMAIL_PUBSUB_VERIFICATION_TOKEN")
+	if expected == "" {
+		expected = os.Getenv("AI_INTERNAL_TOKEN")
+	}
+	if expected == "" {
+		return false
+	}
+	candidates := []string{
+		r.URL.Query().Get("token"),
+		r.Header.Get("X-Internal-Token"),
+	}
+	if authz := r.Header.Get("Authorization"); strings.HasPrefix(strings.ToLower(authz), "bearer ") {
+		candidates = append(candidates, strings.TrimSpace(authz[7:]))
+	}
+	for _, c := range candidates {
+		if c != "" && subtle.ConstantTimeCompare([]byte(c), []byte(expected)) == 1 {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !s.verifyPubSubPush(r) {
+		log.Printf("[GmailWebhook] Rejected unverified push delivery")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
