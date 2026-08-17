@@ -18,6 +18,8 @@ class Capability(StrEnum):
     WORKSPACE_KNOWLEDGE_HUB = "workspace.knowledge_hub"
     WORKSPACE_INTERVIEW_PREP = "workspace.interview_prep"
     WORKSPACE_APPLICATION_TRACK = "workspace.application_tracker"
+    WORKSPACE_EXTERNAL_RESEARCH = "workspace.external_research"
+    INTEGRATION_A2A_FEDERATION = "integration.a2a_federation"
     AUTONOMOUS_BROWSER = "autonomous.browser"
     AUTONOMOUS_ATS_SUBMIT = "autonomous.ats_submit"
     AUTONOMOUS_GMAIL = "autonomous.gmail"

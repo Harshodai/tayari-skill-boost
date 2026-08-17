@@ -95,6 +95,7 @@ logger = logging.getLogger(__name__)
 
 from app.a2a.agents import register_all_a2a_agents
 from app.api.a2a_routes import router as a2a_router
+from app.api.external_research_routes import router as external_research_router
 from app.routes.agent import router as agent_router
 
 
@@ -142,6 +143,7 @@ app = FastAPI(
 )
 
 app.include_router(a2a_router)
+app.include_router(external_research_router)
 app.include_router(agent_router)
 app.state.limiter = limiter
 # The Go gateway is the only public API boundary in production. The middleware

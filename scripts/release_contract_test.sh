@@ -140,6 +140,14 @@ grep -q 'autonomous.ats_submit' docs/launch/2026-workspace-scope.yml
 grep -q 'AutonomousBrowser' backend/go/internal/capabilities/capabilities.go
 grep -q 'disabled_by_launch_scope' backend/go/internal/api/router.go
 grep -q 'AUTONOMOUS_BROWSER' backend/python/app/services/capabilities.py
+grep -q 'WORKSPACE_EXTERNAL_RESEARCH' backend/python/app/services/capabilities.py
+grep -q 'INTEGRATION_A2A_FEDERATION' backend/python/app/services/capabilities.py
+test -f backend/python/app/services/external_research.py
+test -f backend/python/app/api/external_research_routes.py
+test -f backend/python/app/a2a/federation.py
+test -f backend/python/app/tests/test_external_research.py
+test -f backend/python/app/tests/test_a2a_federation.py
+test -f docs/integrations/a2a-mcp-provider-adapters.md
 grep -q 'token_hash' backend/db/migrations/20260817_password_reset_token_hash.sql
 test -f supabase-local/volumes/db/init/36-20260817_password_reset_token_hash.sql
 test -x scripts/verify_route_authorization_contract.py

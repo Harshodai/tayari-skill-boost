@@ -52,3 +52,12 @@ def test_gmail_parser_is_disabled_by_launch_scope(disabled_autonomous_scope):
         headers=disabled_autonomous_scope,
     )
     assert_disabled(response, "autonomous.gmail")
+
+
+def test_external_research_is_disabled_by_launch_scope(disabled_autonomous_scope):
+    response = client.post(
+        "/api/v1/integrations/research",
+        json={"query": "public senior engineering jobs", "provider": "firecrawl", "limit": 5},
+        headers=disabled_autonomous_scope,
+    )
+    assert_disabled(response, "workspace.external_research")
