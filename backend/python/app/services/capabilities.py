@@ -19,6 +19,8 @@ class Capability(StrEnum):
     WORKSPACE_INTERVIEW_PREP = "workspace.interview_prep"
     WORKSPACE_APPLICATION_TRACK = "workspace.application_tracker"
     WORKSPACE_EXTERNAL_RESEARCH = "workspace.external_research"
+    WORKSPACE_EXTERNAL_RESEARCH_FIRECRAWL = "workspace.external_research.firecrawl"
+    WORKSPACE_EXTERNAL_RESEARCH_APIFY = "workspace.external_research.apify"
     INTEGRATION_A2A_FEDERATION = "integration.a2a_federation"
     AUTONOMOUS_BROWSER = "autonomous.browser"
     AUTONOMOUS_ATS_SUBMIT = "autonomous.ats_submit"

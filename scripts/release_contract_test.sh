@@ -145,6 +145,10 @@ grep -q 'AutonomousBrowser' backend/go/internal/capabilities/capabilities.go
 grep -q 'disabled_by_launch_scope' backend/go/internal/api/router.go
 grep -q 'AUTONOMOUS_BROWSER' backend/python/app/services/capabilities.py
 grep -q 'WORKSPACE_EXTERNAL_RESEARCH' backend/python/app/services/capabilities.py
+grep -q 'WORKSPACE_EXTERNAL_RESEARCH_FIRECRAWL' backend/python/app/services/capabilities.py
+grep -q 'WORKSPACE_EXTERNAL_RESEARCH_APIFY' backend/python/app/services/capabilities.py
+grep -q 'CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH_FIRECRAWL' scripts/verify_external_provider_config.py
+grep -q 'CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH_APIFY' scripts/verify_external_provider_config.py
 grep -q 'INTEGRATION_A2A_FEDERATION' backend/python/app/services/capabilities.py
 test -f backend/python/app/services/external_research.py
 test -f backend/python/app/api/external_research_routes.py

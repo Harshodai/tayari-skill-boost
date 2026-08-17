@@ -30,6 +30,11 @@ async def external_research(
 ) -> ResearchResponse:
     """Search public job/company information through an explicitly enabled provider."""
     require_capability(Capability.WORKSPACE_EXTERNAL_RESEARCH)
+    provider_capability = {
+        "firecrawl": Capability.WORKSPACE_EXTERNAL_RESEARCH_FIRECRAWL,
+        "apify": Capability.WORKSPACE_EXTERNAL_RESEARCH_APIFY,
+    }[payload.provider]
+    require_capability(provider_capability)
     request_id = request.headers.get("X-Request-ID")
     context = ResearchContext(subject=current_user, tenant_id=x_tenant_id, request_id=request_id)
     provider = provider_for(payload.provider)

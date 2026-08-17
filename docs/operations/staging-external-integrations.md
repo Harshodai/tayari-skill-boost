@@ -10,7 +10,9 @@ The initial staging scope is limited to synthetic public job and company researc
 
 | Variable | Secret? | Firecrawl value | Apify value | Constraint |
 |---|---:|---|---|---|
-| `CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH` | No | `true` when explicitly approved | `true` when explicitly approved | Keep `false` until staging approvals and disposable credentials exist. |
+| `CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH` | No | `true` when explicitly approved | `true` when explicitly approved | Global research switch; keep `false` until staging approvals and disposable credentials exist. |
+| `CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH_FIRECRAWL` | No | `true` when Firecrawl is approved | Not used | Provider-specific kill switch; requires the global switch. |
+| `CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH_APIFY` | No | Not used | `true` when Apify is approved | Provider-specific kill switch; requires the global switch. |
 | `FIRECRAWL_API_KEY` | Yes | Staging-only provider key | Not used | Store only in the staging secret manager. |
 | `FIRECRAWL_API_BASE_URL` | No | `https://api.firecrawl.dev/v1` | Not used | Must match the approved HTTPS endpoint exactly. |
 | `APIFY_API_TOKEN` | Yes | Not used | Staging-only Apify token | Store only in the staging secret manager. |
@@ -22,6 +24,8 @@ The values below are safe **shape examples only** and must not be copied as cred
 
 ```dotenv
 CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH=true
+CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH_FIRECRAWL=true
+CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH_APIFY=true
 FIRECRAWL_API_BASE_URL=https://api.firecrawl.dev/v1
 FIRECRAWL_API_KEY=<staging-firecrawl-key-from-secret-manager>
 APIFY_API_BASE_URL=https://api.apify.com/v2

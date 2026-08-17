@@ -31,13 +31,22 @@ def exact_https_url(name: str, expected: str) -> bool:
     return raw == expected and parsed.scheme == "https" and not parsed.username and not parsed.password
 
 
+FIRECRAWL_CAPABILITY = "CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH_FIRECRAWL"
+APIFY_CAPABILITY = "CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH_APIFY"
+
+
 def provider_enabled(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def research_provider_enabled(provider: str) -> bool:
+    provider_capability = {"firecrawl": FIRECRAWL_CAPABILITY, "apify": APIFY_CAPABILITY}[provider]
+    return provider_enabled("CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH") and provider_enabled(provider_capability)
+
+
 def validate_firecrawl() -> Check:
-    if not provider_enabled("CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH"):
-        return Check("firecrawl", "disabled", "CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH is not enabled")
+    if not research_provider_enabled("firecrawl"):
+        return Check("firecrawl", "disabled", "global or Firecrawl-specific research capability is not enabled")
     missing = [name for name in ("FIRECRAWL_API_KEY",) if not present(name)]
     if missing:
         return Check("firecrawl", "fail", f"missing required variables: {', '.join(missing)}")
@@ -47,8 +56,8 @@ def validate_firecrawl() -> Check:
 
 
 def validate_apify() -> Check:
-    if not provider_enabled("CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH"):
-        return Check("apify", "disabled", "CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH is not enabled")
+    if not research_provider_enabled("apify"):
+        return Check("apify", "disabled", "global or Apify-specific research capability is not enabled")
     missing = [name for name in ("APIFY_API_TOKEN", "APIFY_RESEARCH_ACTOR_ID", "APIFY_ALLOWED_ACTORS") if not present(name)]
     if missing:
         return Check("apify", "fail", f"missing required variables: {', '.join(missing)}")

@@ -61,3 +61,14 @@ def test_external_research_is_disabled_by_launch_scope(disabled_autonomous_scope
         headers=disabled_autonomous_scope,
     )
     assert_disabled(response, "workspace.external_research")
+
+
+def test_provider_specific_research_capability_is_independent(disabled_autonomous_scope, monkeypatch):
+    monkeypatch.setenv("CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH", "true")
+    monkeypatch.delenv("CAPABILITY_WORKSPACE_EXTERNAL_RESEARCH_FIRECRAWL", raising=False)
+    response = client.post(
+        "/api/v1/integrations/research",
+        json={"query": "public senior engineering jobs", "provider": "firecrawl", "limit": 5},
+        headers=disabled_autonomous_scope,
+    )
+    assert_disabled(response, "workspace.external_research.firecrawl")
