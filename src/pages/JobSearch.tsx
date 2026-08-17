@@ -39,7 +39,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes, isBackendUnavailable } from "@/api";
 import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
-import { ATS_NAMES, ATS_LOGOS } from "@/components/jobs/atsMeta";
 import { useAutomation } from "@/contexts/AutomationContext";
 import { SkillGapWidget } from "@/components/jobs/SkillGapWidget";
 import { CalibratedFitCard, getFitBand } from "@/components/jobs/CalibratedFitCard";
@@ -85,7 +84,7 @@ interface Job {
   match_reasons?: string[];
   missing_skills?: string[];
   dedupe_key?: string;
-
+  ats_provider?: string;
 }
 
 const scoreColor = (s: number) =>
