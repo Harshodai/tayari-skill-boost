@@ -8,3 +8,4 @@ export * from "./dashboard";
 export * from "./ai";
 export * from "./verification";
 export * from "./tasks";
+export * from "./provenance";

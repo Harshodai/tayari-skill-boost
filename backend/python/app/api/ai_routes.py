@@ -44,6 +44,7 @@ from app.services.linkedin_analyzer import score_linkedin_profile
 from app.services.offer_calculator import JobOfferInput, calculate_offer_comp
 from app.services.live_interview_copilot import LiveCopilotRequest, generate_live_copilot_hints
 from app.auth.dependencies import get_current_user
+from app.services.provenance import ProvenanceError, ProvenanceUnavailable, payload_hash, provenance_service, sha256_text
 
 logger = logging.getLogger(__name__)
 # Every AI-router operation is authenticated. The only intentionally public AI
@@ -53,6 +54,43 @@ router = APIRouter(tags=["ai"], dependencies=[Depends(get_current_user)])
 entity_extractor = EntityExtractor()
 ai_proofing = AIProofingDetector()
 strategic_analyzer = StrategicAnalyzer()
+
+
+async def _capture_ai_output(
+    *,
+    user_id: str | None,
+    artifact_type: str,
+    workflow: str,
+    output: Any,
+    input_values: list[str],
+    event_type: str = "ai_generated",
+) -> dict[str, Any] | None:
+    """Persist hash-only AI provenance without copying sensitive content."""
+    if not user_id:
+        return None
+    try:
+        return await provenance_service.create_artifact(
+            user_id=user_id,
+            artifact_type=artifact_type,
+            content_hash=payload_hash(output),
+            event_type=event_type,
+            origin_actor="ai_system",
+            producer_type="tayari_workflow",
+            idempotency_key=f"{workflow}:{payload_hash(output)}",
+            metadata={
+                "workflow": workflow,
+                "model_metadata_status": "unknown",
+                "provenance_capture": "hash_only",
+            },
+            input_hashes=[sha256_text(value) for value in input_values if value],
+            output_hash=payload_hash(output),
+        )
+    except ProvenanceUnavailable:
+        logger.error("provenance storage unavailable for workflow=%s", workflow)
+        return {"provenance_status": "unavailable", "classification": "unknown"}
+    except (ProvenanceError, ValueError) as exc:
+        logger.error("provenance capture failed for workflow=%s: %s", workflow, type(exc).__name__)
+        return {"provenance_status": "failed", "classification": "unknown"}
 
 
 class AnalyzeRequest(BaseModel):
@@ -350,12 +388,22 @@ def _transition_payload(payload: OptimizerRequest) -> Optional[dict]:
 
 
 @router.post("/api/v1/strategic/analyze", response_model=None)
-async def strategic_analyze(payload: AnalyzeRequest):
+async def strategic_analyze(payload: AnalyzeRequest, user_id: str = Depends(get_current_user)):
     """Strategic LLM analysis (hidden skills, templates, recommendations)."""
     try:
-        return await strategic_analyzer.analyze(
+        result = await strategic_analyzer.analyze(
             payload.resume_text or "", payload.job_description or ""
         )
+        provenance = await _capture_ai_output(
+            user_id=user_id,
+            artifact_type="strategic_analysis",
+            workflow="strategic_analyze",
+            output=result,
+            input_values=[payload.resume_text or "", payload.job_description or ""],
+        )
+        if isinstance(result, dict) and provenance:
+            result = {**result, "provenance": provenance}
+        return result
     except LLMNotConfiguredError as exc:
         logger.error("strategic/analyze: LLM not configured: %s", exc)
         return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
@@ -408,7 +456,7 @@ async def export_json(payload: ExportRequest):
 
 
 @router.post("/api/v1/optimizer/optimize")
-async def optimize_resume(payload: OptimizerRequest):
+async def optimize_resume(payload: OptimizerRequest, user_id: str = Depends(get_current_user)):
     """AI-powered resume optimization with reflexion loop."""
     try:
         transition = _transition_payload(payload)
@@ -437,6 +485,16 @@ async def optimize_resume(payload: OptimizerRequest):
             )
         if transition:
             result["transition_mode"] = transition["transition_type"]
+        provenance = await _capture_ai_output(
+            user_id=user_id,
+            artifact_type="resume_optimization",
+            workflow="optimizer_optimize",
+            output=result,
+            input_values=[payload.resume_text, payload.job_description or payload.jd_url or ""],
+            event_type="ai_transformed",
+        )
+        if isinstance(result, dict) and provenance:
+            result["provenance"] = provenance
         return result
     except LLMNotConfiguredError as exc:
         logger.error("optimizer/optimize: LLM not configured/available: %s", exc)
@@ -488,10 +546,10 @@ async def optimize_resume_stream(
 
 
 @router.post("/api/v1/cover-letter/generate")
-async def generate_cover_letter_endpoint(payload: CoverLetterInput):
+async def generate_cover_letter_endpoint(payload: CoverLetterInput, user_id: str = Depends(get_current_user)):
     """Generate tailored cover letter matching candidate experience."""
     try:
-        return await CoverLetterGenerator.generate(
+        result = await CoverLetterGenerator.generate(
             resume_text=payload.resume_text,
             job_description=payload.job_description,
             company_name=payload.company_name,
@@ -499,6 +557,16 @@ async def generate_cover_letter_endpoint(payload: CoverLetterInput):
             tone=payload.tone,
             personal_notes=payload.personal_notes,
         )
+        provenance = await _capture_ai_output(
+            user_id=user_id,
+            artifact_type="cover_letter",
+            workflow="cover_letter_generate",
+            output=result,
+            input_values=[payload.resume_text, payload.job_description, payload.company_name, payload.job_title],
+        )
+        if isinstance(result, dict) and provenance:
+            result = {**result, "provenance": provenance}
+        return result
     except LLMNotConfiguredError as exc:
         logger.error("cover-letter/generate: LLM not configured: %s", exc)
         return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
@@ -524,15 +592,25 @@ async def generate_communication_endpoint(payload: CommunicationInput):
 
 
 @router.post("/api/v1/interview/prep")
-async def generate_interview_prep_endpoint(payload: InterviewPrepInput):
+async def generate_interview_prep_endpoint(payload: InterviewPrepInput, user_id: str = Depends(get_current_user)):
     """Generate STAR & technical interview questions based on experience."""
     try:
-        return await InterviewPrepGenerator.generate(
+        result = await InterviewPrepGenerator.generate(
             resume_text=payload.resume_text,
             job_title=payload.job_title,
             company_name=payload.company_name,
             interview_type=payload.interview_type,
         )
+        provenance = await _capture_ai_output(
+            user_id=user_id,
+            artifact_type="interview_preparation",
+            workflow="interview_prep_generate",
+            output=result,
+            input_values=[payload.resume_text, payload.job_title, payload.company_name, payload.interview_type],
+        )
+        if isinstance(result, dict) and provenance:
+            result = {**result, "provenance": provenance}
+        return result
     except LLMNotConfiguredError as exc:
         logger.error("interview/prep: LLM not configured: %s", exc)
         return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})

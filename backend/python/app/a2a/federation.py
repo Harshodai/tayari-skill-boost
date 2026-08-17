@@ -154,8 +154,20 @@ class A2AFederationClient:
         self._validate(config)
         owns_client = self._client is None
         client = self._client or httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=3.0), follow_redirects=False)
+        timestamp = str(int(time.time()))
+        nonce = secrets.token_urlsafe(18)
+        body = b""
+        signed_headers = {
+            "Authorization": f"Bearer {self.secret}",
+            "X-A2A-Timestamp": timestamp,
+            "X-A2A-Nonce": nonce,
+            "X-A2A-Signature": _sign(self.secret, timestamp, nonce, body),
+        }
         try:
-            response = await client.get(f"{config.base_url.rstrip('/')}/.well-known/agent-card.json", headers={"Authorization": f"Bearer {self.secret}"})
+            response = await client.get(
+                f"{config.base_url.rstrip('/')}/.well-known/agent-card.json",
+                headers=signed_headers,
+            )
             response.raise_for_status()
             raw = response.json()
             if hashlib.sha256(_canonical_json(raw)).hexdigest() != config.card_sha256:

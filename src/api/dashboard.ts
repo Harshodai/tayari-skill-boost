@@ -250,6 +250,11 @@ export interface SavedPost {
   category: string;
   is_interview_related: boolean;
   created_at: string;
+  provenance?: {
+    classification?: "human_only" | "ai_assisted" | "ai_generated" | "ai_transformed" | "machine_imported" | "unknown" | "disputed";
+    policy_version?: string;
+  };
+
 }
 
 export async function listSaves(category?: string): Promise<SavedPost[]> {

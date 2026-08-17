@@ -30,6 +30,10 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/35-20260817_stripe_webhook_events.sql",
         "zz-35-20260817_stripe_webhook_events.sql",
     ),
+    "backend/db/migrations/20260817_01_ai_provenance.sql": (
+        "supabase-local/volumes/db/init/37-20260817_ai_provenance.sql",
+        "zz-37-20260817_ai_provenance.sql",
+    ),
 }
 
 

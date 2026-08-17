@@ -288,6 +288,7 @@ services:
       - ./volumes/db/init/33-20260815_06_omnisave_capture_provenance.sql:/docker-entrypoint-initdb.d/migrations/zz-33-20260815_06_omnisave_capture_provenance.sql:Z
       - ./volumes/db/init/34-20260817_resume_graph_owner.sql:/docker-entrypoint-initdb.d/migrations/zz-34-20260817_resume_graph_owner.sql:Z
       - ./volumes/db/init/35-20260817_stripe_webhook_events.sql:/docker-entrypoint-initdb.d/migrations/zz-35-20260817_stripe_webhook_events.sql:Z
+      - ./volumes/db/init/37-20260817_ai_provenance.sql:/docker-entrypoint-initdb.d/migrations/zz-37-20260817_ai_provenance.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:

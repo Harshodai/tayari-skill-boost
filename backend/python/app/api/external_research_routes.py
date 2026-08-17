@@ -16,6 +16,7 @@ from app.services.external_research import (
     ResearchContext,
     provider_for,
 )
+from app.services.provenance import ProvenanceError, ProvenanceUnavailable, payload_hash, provenance_service, sha256_text
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/integrations", tags=["External research"])
@@ -40,7 +41,49 @@ async def external_research(
     context = ResearchContext(subject=current_user, tenant_id=None, request_id=request_id)
     provider = provider_for(payload.provider)
     try:
-        return await provider.search(payload, context)
+        response = await provider.search(payload, context)
+        try:
+            provenance = await provenance_service.create_artifact(
+                user_id=current_user,
+                artifact_type="external_research_result",
+                content_hash=payload_hash(response.model_dump()),
+                event_type="machine_imported",
+                origin_actor="external_provider",
+                producer_type=payload.provider,
+                idempotency_key=f"external-research:{request_id or payload_hash(payload.model_dump())}:{payload.provider}",
+                metadata={
+                    "workflow": "external_research",
+                    "provider": payload.provider,
+                    "source_count": response.result_count,
+                    "truncated": response.truncated,
+                    "request_id": request_id,
+                    "model_metadata_status": "not_applicable",
+                },
+                input_hashes=[sha256_text(payload.query)],
+                output_hash=payload_hash(response.model_dump()),
+                trace_id=request_id,
+            )
+            response.provenance = {
+                "artifact_id": provenance["artifact_id"],
+                "version_id": provenance["version_id"],
+                "classification": "machine_imported",
+                "policy_version": "ai-provenance-v1",
+            }
+        except ProvenanceUnavailable:
+            logger.error("External research provenance storage unavailable provider=%s request_id=%s", payload.provider, request_id)
+            response.provenance = {
+                "status": "unavailable",
+                "classification": "unknown",
+                "reason": "durable_provenance_storage_unavailable",
+            }
+        except (ProvenanceError, ValueError) as exc:
+            logger.error("External research provenance capture failed provider=%s request_id=%s", payload.provider, request_id)
+            response.provenance = {
+                "status": "failed",
+                "classification": "unknown",
+                "reason": "provenance_capture_failed",
+            }
+        return response
     except ProviderNotConfigured as exc:
         raise HTTPException(status_code=503, detail={"code": "external_provider_not_configured", "provider": payload.provider}) from exc
     except ProviderRejected as exc:

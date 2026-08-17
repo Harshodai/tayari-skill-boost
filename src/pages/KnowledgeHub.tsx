@@ -24,6 +24,7 @@ import {
 import { listSaves, createSave, deleteSave, type SavedPost } from "@/api";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
+import { ProvenanceBadge } from "@/components/provenance/ProvenanceBadge";
 
 const CATEGORIES = [
   { value: "", label: "All Topics" },
@@ -306,6 +307,7 @@ export default function KnowledgeHub() {
                             <Badge variant="secondary" className="bg-primary/5 text-primary hover:bg-primary/10 border-primary/10">
                               {save.category ? save.category.replace(/-/g, " ") : "uncategorized"}
                             </Badge>
+                            <ProvenanceBadge classification={save.provenance?.classification ?? "unknown"} />
                             <span className="text-muted-foreground flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5" />
                               {save.created_at ? formatDistanceToNow(new Date(save.created_at)) + " ago" : "recently"}
@@ -332,6 +334,7 @@ export default function KnowledgeHub() {
                           <div className="font-semibold text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
                             <Sparkles className="w-3.5 h-3.5 text-primary" />
                             AI Summary
+                            <span className="sr-only">This summary is an AI-produced transformation of the saved source.</span>
                           </div>
                           {save.summary}
                         </div>

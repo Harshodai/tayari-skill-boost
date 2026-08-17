@@ -38,6 +38,7 @@ class ResearchResponse(BaseModel):
     items: list[ResearchItem]
     result_count: int
     truncated: bool = False
+    provenance: dict[str, Any] | None = None
 
 
 class ProviderNotConfigured(RuntimeError):

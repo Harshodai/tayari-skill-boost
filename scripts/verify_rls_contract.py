@@ -28,6 +28,10 @@ REQUIRED_TABLES = (
     "question_upvotes",
     "application_outcomes",
     "privacy_audit_log",
+    "artifacts",
+    "artifact_versions",
+    "artifact_origin_events",
+    "artifact_disclosures",
     "user_achievements",
     "user_streaks",
 )
@@ -35,6 +39,8 @@ REQUIRED_TABLES = (
 SERVER_ONLY_TABLES = (
     "password_reset_tokens",
     "stripe_webhook_events",
+    "ai_applications",
+    "ai_models",
 )
 
 

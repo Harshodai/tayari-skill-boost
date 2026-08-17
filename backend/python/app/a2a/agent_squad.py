@@ -18,6 +18,7 @@ from app.a2a.agent_audit_trail import AgentAuditTrail
 from app.a2a.agents.optimizer_agent import handle_optimizer_message
 from app.a2a.agents.truth_gate_agent import handle_truth_gate_message
 from app.a2a.models import A2AMessage
+from app.services.provenance import ProvenanceError, ProvenanceUnavailable, provenance_service
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ class AgentSquadOrchestrator:
         jd_text: str,
         company: str = "",
         role: str = "",
+        user_id: str | None = None,
     ) -> Dict[str, Any]:
         """Tailor and truth-check a resume as an approval-required workflow.
 
@@ -159,6 +161,50 @@ class AgentSquadOrchestrator:
                 "outputs": {},
             }
 
+        provenance = None
+        if user_id:
+            try:
+                provenance = await provenance_service.create_artifact(
+                    user_id=user_id,
+                    artifact_type="resume_review_package",
+                    content_hash=self._fingerprint(optimized_text),
+                    event_type="ai_transformed",
+                    origin_actor="ai_system",
+                    producer_type="tayari_workflow",
+                    idempotency_key=f"agent-squad:{run_id}",
+                    metadata={
+                        "workflow": "review_squad",
+                        "run_id": run_id,
+                        "trace_id": trace_id,
+                        "company": company.strip(),
+                        "role": role.strip(),
+                        "candidate_approval_required": True,
+                        "submission_permitted": False,
+                    },
+                    input_hashes=[metadata["resume_sha256"], metadata["job_description_sha256"]],
+                    output_hash=self._fingerprint(optimized_text),
+                    trace_id=trace_id,
+                )
+                provenance["disclosure"] = await provenance_service.compute_disclosure(
+                    user_id=user_id,
+                    artifact_id=provenance["artifact_id"],
+                    channel="internal",
+                )
+            except (ProvenanceUnavailable, ProvenanceError) as exc:
+                logger.error("Review squad run %s could not persist provenance: %s", run_id, type(exc).__name__)
+                return {
+                    "squad_name": self.squad_name,
+                    "run_id": run_id,
+                    "trace_id": trace_id,
+                    "status": "failed",
+                    "message": "The review package could not be durably recorded. No browser session or application action was started.",
+                    "candidate_approval_required": True,
+                    "submission_permitted": False,
+                    "external_submission_verified": False,
+                    "provenance_persisted": False,
+                    "outputs": {},
+                }
+
         return {
             "squad_name": self.squad_name,
             "run_id": run_id,
@@ -174,6 +220,8 @@ class AgentSquadOrchestrator:
             },
             "submission_permitted": False,
             "external_submission_verified": False,
+            "provenance_persisted": bool(provenance) if user_id else None,
+            "provenance": provenance,
             "next_action": "Show the candidate the optimized resume and truth-gate flags, then request a content-hash-bound approval.",
             "outputs": {
                 "optimizer": optimizer_payload,

@@ -117,8 +117,9 @@ func (s *Server) routes() {
 	s.RegisterWaitlistRoutes(s.Router)
 	s.RegisterSSERoutes(s.Router)
 	s.RegisterMemoryRoutes(s.Router) // conversations + preferences + feedback (was dead)
-	s.routesMVP(s.Router)            // all 24 previously unregistered MVP handlers
-	s.routesSocial(s.Router)         // connections, shared Qs, outcome funnel (Phase 4.2)
+	s.RegisterProvenanceRoutes(s.Router)
+	s.routesMVP(s.Router)    // all 24 previously unregistered MVP handlers
+	s.routesSocial(s.Router) // connections, shared Qs, outcome funnel (Phase 4.2)
 	s.routesJobWatches(s.Router)
 	s.routesCareerOps(s.Router)
 	s.routesCareerIntelligence(s.Router)
