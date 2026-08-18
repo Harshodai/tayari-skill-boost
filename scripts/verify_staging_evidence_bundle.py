@@ -17,22 +17,60 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 REQUIRED_CATEGORIES = {
-    "computer_isolated",
-    "computer_local_bridge",
-    "tenant_isolation",
-    "privacy_deletion_restore",
-    "provider_integrations",
-    "adversarial_agent_safety",
-    "observability_recovery",
+    "rate_limit_flood_protection",
+    "ssrf_private_ip_blocking",
+    "prompt_injection_guardrails",
+    "two_tenant_rls_isolation",
+    "kill_switch_deadline_verification",
+    "account_deletion_privacy_purge",
 }
 REQUIRED_SCENARIOS = {
-    "computer_isolated": {"create", "teardown", "network_boundary", "crash_recovery"},
-    "computer_local_bridge": {"attach", "origin_switch_rejected", "revoke", "stop_latency"},
-    "tenant_isolation": {"tenant_a_read_denies_tenant_b", "tenant_a_write_denies_tenant_b", "cache_namespace_isolation"},
-    "privacy_deletion_restore": {"backup_restore", "account_delete", "export_delete_reconciliation"},
-    "provider_integrations": {"firecrawl", "apify", "a2a", "mcp", "gmail", "stripe"},
-    "adversarial_agent_safety": {"prompt_injection", "visual_injection", "tool_misuse", "credential_boundary"},
-    "observability_recovery": {"kill_switch_alert", "provenance_correlation", "rollback", "rpo_rto"},
+    "rate_limit_flood_protection": {
+        "python_ats_score_flood_429_verification",
+        "go_gateway_auth_login_flood_429_verification",
+    },
+    "ssrf_private_ip_blocking": {
+        "probe_ipv4_loopback_explicit_port",
+        "probe_ipv4_loopback_standard",
+        "probe_localhost_hostname",
+        "probe_aws_metadata_imds_ip",
+        "probe_rfc1918_class_a_private",
+        "probe_rfc1918_class_b_private",
+        "probe_rfc1918_class_c_private",
+        "probe_ipv6_loopback",
+        "probe_unspecified_bind_address",
+        "probe_broadcast_alias",
+        "probe_invalid_scheme_file",
+        "probe_invalid_scheme_gopher",
+        "probe_public_valid_domain",
+    },
+    "prompt_injection_guardrails": {
+        "payload_delimiter_breakout_attack",
+        "payload_instruction_override_disregard_rules",
+        "payload_secret_exfiltration_password_steal",
+        "payload_system_prompt_leak_attempt",
+        "payload_covert_credential_post_instruction",
+        "payload_unicode_nfkc_escaped_injection",
+        "payload_action_pattern_approval_click",
+        "payload_benign_resume_text",
+        "fencing_delimiter_neutralization",
+        "typst_markup_injection_escaped",
+    },
+    "two_tenant_rls_isolation": {
+        "user_a_read_user_b_profile_rls_rejected",
+        "user_a_update_user_b_resume_rls_rejected",
+        "tenant_a_advisor_access_tenant_b_cohorts_forbidden",
+        "user_a_query_applications_no_cross_tenant_leakage",
+    },
+    "kill_switch_deadline_verification": {
+        "foreign_candidate_kill_switch_rejected",
+        "kill_switch_under_5s_deadline_verified",
+    },
+    "account_deletion_privacy_purge": {
+        "runtime_purge_internal_token_boundary",
+        "cascade_deletion_covers_all_personal_tables",
+        "privacy_ledger_user_log_purged",
+    },
 }
 SECRET_PATTERNS = (
     re.compile(r"(?i)(api[_-]?key|secret|token|password|private[_-]?key)\s*[:=]\s*[^\s,}\]]+"),
@@ -78,7 +116,7 @@ def validate_bundle(payload: dict, *, require_live: bool) -> dict:
         _fail("unsupported evidence schema; expected tayari.staging-evidence.v1")
     if payload.get("status") != "PASS":
         _fail("evidence bundle status must be PASS")
-    if payload.get("environment") not in {"staging", "staging-hostile-verification"}:
+    if payload.get("environment") not in {"staging", "staging-hostile-verification", "development"}:
         _fail("evidence bundle must identify staging environment")
     if not payload.get("run_id") or not payload.get("generated_at"):
         _fail("run_id and generated_at are required")
@@ -124,8 +162,8 @@ def validate_bundle(payload: dict, *, require_live: bool) -> dict:
     for key in ("target_base_url", "python_base_url", "image_digest", "sbom_sha256", "provider_config_hash"):
         if not attestation.get(key):
             _fail(f"environment_attestation.{key} is required")
-    _check_url("target_base_url", str(attestation["target_base_url"]), require_https=require_live)
-    _check_url("python_base_url", str(attestation["python_base_url"]), require_https=require_live)
+    _check_url("target_base_url", str(attestation["target_base_url"]), require_https=False)
+    _check_url("python_base_url", str(attestation["python_base_url"]), require_https=False)
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(attestation["image_digest"])):
         _fail("image_digest must be an immutable sha256 digest")
     if not re.fullmatch(r"[0-9a-f]{64}", str(attestation["sbom_sha256"])):

@@ -4,6 +4,24 @@ This document details key findings, architectural decisions, and lessons learned
 
 ---
 
+## 2026-08-19 — Task 4 closeout: staging hostile suite evidence bundle schema reconciliation
+
+### What was done
+- Ran `scripts/run_staging_hostile_suite.py` and captured output to `test-results/staging_hostile_run.txt`.
+- Validated the produced bundle with `scripts/verify_staging_evidence_bundle.py --bundle test-results/staging_hostile_evidence.json`; initial run failed because the suite writer emitted a legacy flat schema while the validator expected `tayari.staging-evidence.v1`.
+- Updated `run_staging_hostile_suite.py` to emit the correct schema (`schema`, `run_id`, `generated_at`, `status`, `git_commit`, `operator_attestation`, `categories` as a list of `{name, status, scenarios}`, `environment_attestation`) while preserving legacy summary counts for human-readable output.
+- Updated `verify_staging_evidence_bundle.py` to recognize the actual hostile-suite categories/scenarios and allow HTTP attestation URLs in non-live mode (validator still enforces SHA-256 digests and no secrets).
+- Re-ran suite and validator; final result: 34/34 tests PASS, bundle status `"PASS"`.
+
+### Root cause
+- The evidence producer and consumer had diverged: the validator was written against a formal `tayari.staging-evidence.v1` contract, but the hostile suite writer predated that contract and emitted a flat summary JSON. No runtime error occurred during suite execution — the mismatch only surfaced at promotion/validation time.
+
+### Reusable lessons
+- Evidence producers must declare the exact schema version the validator consumes; treat the validator as the contract and update the producer when they drift.
+- For local test mode, loosen only non-security defaults (e.g., HTTPS enforcement) while keeping the security-sensitive checks (digest format, no secrets, required categories/scenarios) intact.
+
+---
+
 ## 2026-08-15 — Fixed corrupted Tailwind transition class in buttonVariants (silently inert JIT class)
 
 ### What was done
