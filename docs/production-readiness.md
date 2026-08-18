@@ -24,3 +24,5 @@ The release contract asserts this boundary through source-level fail-closed chec
 The following require a disposable staging environment and cannot be proven by static checks: two-tenant RLS isolation against real PostgreSQL, queue redelivery after worker termination, Stripe signature and replay behavior through a deployed endpoint, Gmail Pub/Sub watch renewal and push delivery, provider structured-output calls, alert delivery, and measured restore/rollback RPO and RTO.
 
 The credential-gated live verifier and hostile-suite plan mode report these conditions as blocked rather than converting them into synthetic passes.
+
+- Latest evidence run: `docs/ruthless_2026_08_18_evidence_report.md`

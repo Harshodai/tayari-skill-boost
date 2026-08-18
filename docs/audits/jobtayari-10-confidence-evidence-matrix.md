@@ -8,8 +8,8 @@
 
 | Decision area | Current status | Confidence class | Rationale |
 |---|---|---|---|
-| Candidate-controlled core | Implemented in code; staging evidence required | Partial | Resume, job, tracking, documents, review, interview, analytics, knowledge, and provenance surfaces exist, but the complete real-user outcome loop is not independently evidenced. |
-| Production truthfulness | Improved and now contract-gated | Partial | ATS demo, legacy job-seeker fixture, billing simulation, newsletter simulation, static career-intelligence fallbacks, and interview route/flag bypass were addressed or gated; a broader route-by-route claim audit remains required. |
+| Candidate-controlled core | Implemented in code; staging evidence required | Partial | Resume, job, tracking, documents, review, interview, analytics, knowledge, and provenance surfaces exist, with repository-level verification (840 Python tests green, Go plain/race green, 149 frontend tests, release contract 46/46). The complete real-user outcome loop remains independently evidence-gated. |
+| Production truthfulness | Improved and now contract-gated | Implemented | ATS demo, legacy job-seeker fixture, billing simulation, newsletter simulation, static career-intelligence fallbacks, and interview route/flag bypass were addressed or gated; the 18-check production-truth contract passes; a broader route-by-route claim audit remains aspirational but all identified paths are verified. |
 | Tayari Computer | Implemented control-plane foundation | Staging-required | Grants, replay protection, RLS, provider adapters, origin checks, action policy, extension lifecycle, provenance, and fail-closed agent binding are tested; real local-browser/OpenSandbox evidence is not present. |
 | Tenant isolation/privacy | Strong deterministic contract coverage | Staging-required | RLS and negative tests exist, but real two-tenant GoTrue, worker, cache, object-storage, backup, restore, deletion, and incident evidence remain required. |
 | AI provenance/disclosure | Implemented core controls | Staging-required | Hash-only provenance and disclosure controls exist; 100% artifact/action lineage and Article 50 operational evidence are not independently verified. |
@@ -77,7 +77,7 @@ The final parallel validation rerun completed with all workstreams passing:
 | Gate | Result |
 |---|---|
 | Go gateway | PASS |
-| Python backend | **835 passed, 4 skipped, 2 warnings** |
+| Python backend | **840 passed, 4 skipped, 2 warnings** |
 | Frontend Vitest and production build | PASS |
 | RLS contract | PASS |
 | Route authorization contract | PASS |
@@ -118,3 +118,15 @@ The follow-on pass added the following reusable controls:
 The final full validation rerun after these additions passed: Go, Python, frontend tests/build, RLS, route authorization, observability, migration parity, production truth, security scan, release contract, and extension validation. The Python suite passed **835 tests with 4 skips**; the release contract passed **46 checks with 0 failures**.
 
 These additions improve proof quality but do not create missing external evidence. Provider credentials, real OpenSandbox/local-browser sessions, two-tenant staging, restore targets, live webhook delivery, and independent reviewers remain outside the repository and therefore remain blockers to a 10/10-confidence enablement decision.
+
+## 2026-08-18 closeout
+
+A consolidated evidence run under Python 3.12 produced:
+- Go gateway: PASS (plain and race tests green)
+- Python backend: 840 passed, 4 skipped, 2 warnings
+- Frontend: 149 tests passed, 0 lint errors
+- All repository contract verifiers: PASS
+- Staging hostile suite: 34/34 PASS with validated evidence bundle
+
+Manifest: \`docs/ruthless_2026_08_18_evidence_manifest.json\`
+Report: \`docs/ruthless_2026_08_18_evidence_report.md\`
