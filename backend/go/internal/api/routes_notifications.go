@@ -139,8 +139,9 @@ func (s *Server) handleNotifyApproval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = s.DB.Conn.ExecContext(r.Context(), `UPDATE notification_deliveries SET status='accepted', provider_message_id=$1, sent_at=now(), updated_at=now() WHERE approval_id=$2 AND channel=$3 AND tenant_id=$4 AND user_id=$5`, messageID, approvalID, request.Channel, tenantID, userID)
-	_, _ = s.DB.Conn.ExecContext(r.Context(), `UPDATE approval_requests SET status='delivered', updated_at=now() WHERE id=$1 AND tenant_id=$2 AND user_id=$3 AND status='pending'`, approvalID, tenantID, userID)
-	s.respondJSON(w, http.StatusAccepted, map[string]any{"ok": true, "approval_id": approvalID, "channel": request.Channel, "provider": provider.Name(), "provider_message_id": messageID, "delivery_status": "accepted"})
+	// Provider acceptance is a delivery state only. The canonical approval remains pending
+	// until a separately authenticated owner/approver records an approve or deny decision.
+	s.respondJSON(w, http.StatusAccepted, map[string]any{"ok": true, "approval_id": approvalID, "channel": request.Channel, "provider": provider.Name(), "provider_message_id": messageID, "delivery_status": "accepted", "approval_status": "pending"})
 }
 
 func (s *Server) handleNotificationWebhook(w http.ResponseWriter, r *http.Request, provider string, secret string) {

@@ -50,11 +50,14 @@ channels:
   email:
     enabled_by_default: false
     requires: [explicit_consent, verified_address, provider_configuration]
-    decision_mode: signed_review_link
+    decision_mode: authenticated_in_app_review
+    external_decision_authority: false
   whatsapp:
     enabled_by_default: false
     requires: [explicit_opt_in, verified_phone, provider_configuration, approved_template]
-    decision_mode: signed_review_link_or_interactive_reply
+    decision_mode: authenticated_in_app_review
+    external_decision_authority: false
+    future_interactive_reply_requires: [single_use_token, current_action_hash, tenant_binding, approver_binding, replay_rejection]
 notification_rules:
   max_attempts: 5
   retry_transient_only: true
