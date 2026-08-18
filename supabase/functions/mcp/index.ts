@@ -5,6 +5,17 @@
 // src/lib/mcp/index.ts
 import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.1";
 
+function requireMcpWriteTool(ctx, toolName) {
+  const denied = (reason) => {
+    const detail = { code: "disabled_by_launch_scope", capability: "mcp.write_tools", tool: toolName, reason };
+    return { content: [{ type: "text", text: JSON.stringify(detail) }], isError: true, structuredContent: detail };
+  };
+  if (!ctx.isAuthenticated()) return denied("authenticated MCP context required");
+  const raw = globalThis.Deno?.env?.get?.("CAPABILITY_MCP_WRITE_TOOLS") ?? process.env.CAPABILITY_MCP_WRITE_TOOLS;
+  if (!["1", "true", "yes", "on"].includes(String(raw ?? "").trim().toLowerCase())) return denied("MCP write tools are disabled by launch scope");
+  return null;
+}
+
 // src/lib/mcp/tools/get-profile.ts
 import { createClient } from "npm:@supabase/supabase-js@^2.112.3";
 import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.1";
@@ -195,27 +206,8 @@ async function callApi(ctx, path, options = {}) {
   }
   return data;
 }
-function toolError(text, structuredContent) {
-  return {
-    content: [{ type: "text", text }],
-    ...(structuredContent ? { structuredContent } : {}),
-    isError: true
-  };
-}
-function mcpWriteToolsEnabled() {
-  const raw = globalThis.Deno?.env?.get?.("CAPABILITY_MCP_WRITE_TOOLS") ?? process.env.CAPABILITY_MCP_WRITE_TOOLS;
-  return ["1", "true", "yes", "on"].includes(String(raw ?? "").trim().toLowerCase());
-}
-function requireMcpWriteTool(ctx, toolName) {
-  if (!ctx.isAuthenticated()) return toolError("Not authenticated");
-  if (mcpWriteToolsEnabled()) return null;
-  const detail = {
-    code: "disabled_by_launch_scope",
-    capability: "mcp.write_tools",
-    tool: toolName,
-    message: "MCP write tools are disabled for the current deployment scope. Use the canonical approval boundary before enabling them."
-  };
-  return toolError(JSON.stringify(detail), detail);
+function toolError(text) {
+  return { content: [{ type: "text", text }], isError: true };
 }
 
 // src/lib/mcp/tools/optimize-resume.ts

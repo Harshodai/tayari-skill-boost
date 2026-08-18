@@ -38,6 +38,22 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/38-20260817_computer_control.sql",
         "zz-38-20260817_computer_control.sql",
     ),
+    "backend/db/migrations/20260818_03_google_workspace.sql": (
+        "supabase-local/volumes/db/init/39-20260818_google_workspace.sql",
+        "zz-39-20260818_google_workspace.sql",
+    ),
+    "backend/db/migrations/20260819_01_agent_automation_notifications.sql": (
+        "supabase-local/volumes/db/init/40-20260819_agent_automation_notifications.sql",
+        "zz-40-20260819_agent_automation_notifications.sql",
+    ),
+    "backend/db/migrations/20260820_01_automation_lease_recovery.sql": (
+        "supabase-local/volumes/db/init/41-20260820_automation_lease_recovery.sql",
+        "zz-41-20260820_automation_lease_recovery.sql",
+    ),
+    "backend/db/migrations/20260821_01_automation_event_inbox.sql": (
+        "supabase-local/volumes/db/init/42-20260821_automation_event_inbox.sql",
+        "zz-42-20260821_automation_event_inbox.sql",
+    ),
 }
 
 

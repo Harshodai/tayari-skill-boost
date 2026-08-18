@@ -1,0 +1,144 @@
+schema: tayari.automation-catalog.v1
+version: 1
+owner: platform-safety
+defaults:
+  capability: workspace.automations
+  tenant_binding: required
+  idempotency: event_id_and_definition_version
+  delivery_authority: in_app_only
+  submission_enabled: false
+  unknown_event: reject
+  unknown_action: pause_and_escalate
+
+event_envelope:
+  required:
+    - event_id
+    - event_type
+    - tenant_id
+    - user_id
+    - occurred_at
+    - source
+    - payload
+  constraints:
+    event_id: uuid_or_provider_event_id
+    payload_max_bytes: 65536
+    provider_payloads_must_be_normalized: true
+    identity_source: verified_auth_or_verified_provider_binding
+    raw_tokens_forbidden: true
+
+risk_tiers:
+  read:
+    execution: automatic
+    approval: none
+  navigation:
+    execution: automatic
+    approval: none
+  draft:
+    execution: automatic
+    approval: external_delivery_review
+  sensitive:
+    execution: paused
+    approval: explicit_owner
+  external_write:
+    execution: paused
+    approval: explicit_owner
+  submission:
+    execution: disabled
+    approval: forbidden_first_release
+
+actions:
+  - id: jobs.refresh_watch
+    handler: autopilot.refresh_job_watch
+    risk_tier: read
+    capabilities: [workspace.automations, workspace.external_research]
+    writes: [saved_jobs, automation_events]
+  - id: jobs.enrich_match
+    handler: automation.enrich_job_match
+    risk_tier: read
+    capabilities: [workspace.automations, workspace.ats_assistance]
+    providers: [firecrawl, apify]
+    writes: [automation_events]
+  - id: jobs.prepare_candidate_bundle
+    handler: automation.prepare_candidate_bundle
+    risk_tier: draft
+    capabilities: [workspace.automations, workspace.resume, workspace.ats_assistance]
+    writes: [ai_provenance, automation_steps, approval_requests]
+  - id: pipeline.reconcile_stale_stage
+    handler: automation.reconcile_pipeline_stage
+    risk_tier: read
+    capabilities: [workspace.automations, workspace.application_tracker]
+    writes: [automation_events]
+  - id: pipeline.followup_draft
+    handler: automation.draft_followup
+    risk_tier: draft
+    capabilities: [workspace.automations, workspace.application_tracker]
+    writes: [automation_steps, approval_requests]
+  - id: approvals.dispatch
+    handler: delivery.dispatch_pending_messages
+    risk_tier: external_write
+    capabilities: [workspace.approvals]
+    writes: [notification_deliveries, notification_events]
+    decision_authority: false
+  - id: calendar.prepare_interview_event
+    handler: automation.prepare_calendar_event
+    risk_tier: sensitive
+    capabilities: [workspace.automations, workspace.google.calendar]
+    writes: [google_calendar_events, approval_requests]
+  - id: drive.archive_artifact
+    handler: automation.prepare_drive_archive
+    risk_tier: sensitive
+    capabilities: [workspace.automations, workspace.google.drive]
+    writes: [google_drive_files, approval_requests]
+  - id: gmail.prepare_followup_draft
+    handler: automation.prepare_gmail_draft
+    risk_tier: sensitive
+    capabilities: [workspace.automations, workspace.google.gmail]
+    writes: [approval_requests]
+  - id: outcomes.attribute
+    handler: learning.attribute_application_outcome
+    risk_tier: read
+    capabilities: [workspace.automations]
+    writes: [automation_events]
+  - id: reliability.reclaim
+    handler: automation.dispatch_checkpoints
+    risk_tier: read
+    capabilities: [workspace.automations]
+    writes: [automation_runs, automation_events]
+
+automations:
+  - id: job_watch_refresh
+    name: Refresh saved job watches
+    triggers: [schedule, manual]
+    events: [job_watch.due, job_watch.requested]
+    actions: [jobs.refresh_watch, jobs.enrich_match]
+    default_enabled: false
+  - id: match_to_preparation
+    name: Prepare a candidate bundle for a selected match
+    triggers: [job_match.found, manual]
+    events: [job_match.found, candidate_bundle.requested]
+    actions: [jobs.enrich_match, jobs.prepare_candidate_bundle]
+    default_enabled: false
+  - id: pipeline_care
+    name: Keep the application pipeline current
+    triggers: [schedule, application.stage_changed, application.outcome_recorded]
+    events: [pipeline.sweep_due, application.stage_changed, application.outcome_recorded]
+    actions: [pipeline.reconcile_stale_stage, pipeline.followup_draft]
+    default_enabled: false
+  - id: approval_delivery
+    name: Deliver approval review notifications
+    triggers: [approval.requested, schedule]
+    events: [automation.approval.requested, notification.retry_due]
+    actions: [approvals.dispatch]
+    default_enabled: false
+  - id: interview_workspace
+    name: Prepare approved interview workspace artifacts
+    triggers: [calendar.interview_detected, approval.approved]
+    events: [calendar.interview_detected, automation.approval.approved]
+    actions: [calendar.prepare_interview_event, drive.archive_artifact, gmail.prepare_followup_draft]
+    default_enabled: false
+  - id: outcome_learning
+    name: Attribute outcomes and improve recommendations
+    triggers: [application.outcome_recorded, schedule]
+    events: [application.outcome_recorded, learning.sweep_due]
+    actions: [outcomes.attribute]
+    default_enabled: false

@@ -522,7 +522,22 @@ func (s *Server) handleUpsertOutcome(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusConflict, "Outcome ownership changed, please retry")
 		return
 	}
-	s.respondJSON(w, http.StatusOK, map[string]string{"status": "saved", "application_id": appID})
+	automationEventEnqueued := false
+	if _, tenantID, tenantOK := calendarUser(r); tenantOK {
+		payload, marshalErr := json.Marshal(map[string]interface{}{"application_id": appID, "outcome": req})
+		if marshalErr != nil {
+			log.Printf("handleUpsertOutcome: automation event payload marshal failed: %v", marshalErr)
+		} else {
+			eventID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("tayari:application-outcome:"+user.ID.String()+":"+appID+":"+string(payload)))
+			_, eventErr := s.DB.Conn.ExecContext(r.Context(), `INSERT INTO automation_event_inbox (event_id,tenant_id,user_id,event_type,source,occurred_at,payload) VALUES ($1,$2,$3,'application.outcome_recorded','go.outcome_api',NOW(),$4) ON CONFLICT (event_id) DO NOTHING`, eventID, tenantID, user.ID, payload)
+			if eventErr != nil {
+				log.Printf("handleUpsertOutcome: automation event enqueue failed: %v", eventErr)
+			} else {
+				automationEventEnqueued = true
+			}
+		}
+	}
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{"status": "saved", "application_id": appID, "automation_event_enqueued": automationEventEnqueued})
 }
 
 func (s *Server) handleGetOutcome(w http.ResponseWriter, r *http.Request) {

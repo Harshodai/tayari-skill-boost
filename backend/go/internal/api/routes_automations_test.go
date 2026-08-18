@@ -62,3 +62,25 @@ func TestRandomApprovalTokenReturnsOnlyDigestableSecret(t *testing.T) {
 		t.Fatalf("unexpected token/digest lengths or equality: %d/%d", len(token), len(digest))
 	}
 }
+
+func TestAutomationEventTypeAllowlist(t *testing.T) {
+	for _, eventType := range []string{
+		"job_watch.due",
+		"job_match.found",
+		"application.stage_changed",
+		"application.outcome_recorded",
+		"automation.approval.requested",
+		"automation.approval.approved",
+		"automation.approval.denied",
+		"calendar.interview_detected",
+	} {
+		if !validAutomationEventType(eventType) {
+			t.Fatalf("expected supported automation event type: %s", eventType)
+		}
+	}
+	for _, eventType := range []string{"", "unknown.event", "automation.execute.arbitrary_tool"} {
+		if validAutomationEventType(eventType) {
+			t.Fatalf("unexpectedly accepted unsupported event type: %s", eventType)
+		}
+	}
+}

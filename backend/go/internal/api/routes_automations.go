@@ -34,6 +34,14 @@ type automationRunRequest struct {
 	ExpiresSeconds int    `json:"expires_seconds"`
 }
 
+type automationEventRequest struct {
+	EventID    uuid.UUID       `json:"event_id"`
+	EventType  string          `json:"event_type"`
+	Source     string          `json:"source"`
+	OccurredAt time.Time       `json:"occurred_at"`
+	Payload    json.RawMessage `json:"payload"`
+}
+
 type automationApprovalRequest struct {
 	ActionType     string          `json:"action_type"`
 	RiskTier       string          `json:"risk_tier"`
@@ -63,6 +71,8 @@ func (s *Server) routesAutomations(r chi.Router) {
 		r.Get("/api/automations", s.handleListAutomations)
 		r.Post("/api/v1/automations/{automationID}/runs", s.handleCreateAutomationRun)
 		r.Post("/api/automations/{automationID}/runs", s.handleCreateAutomationRun)
+		r.Post("/api/v1/automations/events", s.handleIngestAutomationEvent)
+		r.Post("/api/automations/events", s.handleIngestAutomationEvent)
 		r.Get("/api/v1/automation-runs/{runID}", s.handleGetAutomationRun)
 		r.Get("/api/automation-runs/{runID}", s.handleGetAutomationRun)
 		r.Get("/api/v1/automation-runs/{runID}/events", s.handleListAutomationEvents)
@@ -111,6 +121,15 @@ func validAutomationTrigger(value string) bool {
 	}
 }
 
+func validAutomationEventType(value string) bool {
+	switch value {
+	case "job_watch.due", "job_watch.requested", "job_match.found", "candidate_bundle.requested", "application.stage_changed", "application.outcome_recorded", "pipeline.sweep_due", "automation.approval.requested", "automation.approval.approved", "automation.approval.denied", "notification.retry_due", "calendar.interview_detected", "learning.sweep_due":
+		return true
+	default:
+		return false
+	}
+}
+
 func validAutomationRisk(value string) bool {
 	switch value {
 	case "read", "navigation", "draft", "sensitive", "external_write", "submission":
@@ -140,6 +159,11 @@ func (s *Server) automationReady(w http.ResponseWriter, capability capabilities.
 
 func writeAutomationEvent(r *http.Request, tx *sql.Tx, runID, userID, tenantID uuid.UUID, eventType string, payload []byte) error {
 	_, err := tx.ExecContext(r.Context(), `INSERT INTO automation_events (run_id, tenant_id, user_id, event_type, payload) VALUES ($1,$2,$3,$4,$5)`, runID, tenantID, userID, eventType, payload)
+	return err
+}
+
+func writeAutomationInboxEvent(r *http.Request, tx *sql.Tx, eventID, userID, tenantID uuid.UUID, eventType, source string, payload []byte) error {
+	_, err := tx.ExecContext(r.Context(), `INSERT INTO automation_event_inbox (event_id,tenant_id,user_id,event_type,source,occurred_at,payload) VALUES ($1,$2,$3,$4,$5,now(),$6) ON CONFLICT (event_id) DO NOTHING`, eventID, tenantID, userID, eventType, source, payload)
 	return err
 }
 
@@ -200,6 +224,44 @@ func (s *Server) handleListAutomations(w http.ResponseWriter, r *http.Request) {
 		items = append(items, map[string]any{"id": id, "name": name, "objective": objective, "trigger_type": triggerType, "status": status, "policy_version": policyVersion, "created_at": createdAt, "updated_at": updatedAt})
 	}
 	s.respondJSON(w, http.StatusOK, map[string]any{"automations": items})
+}
+
+func (s *Server) handleIngestAutomationEvent(w http.ResponseWriter, r *http.Request) {
+	userID, tenantID, ok := automationOwner(r)
+	if !ok {
+		s.respondError(w, http.StatusForbidden, "Verified tenant context required")
+		return
+	}
+	if !s.automationReady(w, capabilities.WorkspaceAutomations) {
+		return
+	}
+	var req automationEventRequest
+	if err := decodeAutomationJSON(r, &req); err != nil || req.EventID == uuid.Nil || !validAutomationEventType(strings.TrimSpace(req.EventType)) || strings.TrimSpace(req.Source) == "" || len(strings.TrimSpace(req.Source)) > 160 {
+		s.respondError(w, http.StatusBadRequest, "event_id, supported event_type, and bounded source are required")
+		return
+	}
+	if len(req.Payload) == 0 {
+		req.Payload = json.RawMessage(`{}`)
+	}
+	if len(req.Payload) > 64*1024 || !json.Valid(req.Payload) {
+		s.respondError(w, http.StatusBadRequest, "payload must be valid JSON no larger than 64 KiB")
+		return
+	}
+	occurredAt := req.OccurredAt
+	if occurredAt.IsZero() {
+		occurredAt = time.Now().UTC()
+	}
+	var accepted bool
+	err := s.DB.Conn.QueryRowContext(r.Context(), `INSERT INTO automation_event_inbox (event_id,tenant_id,user_id,event_type,source,occurred_at,payload) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (event_id) DO NOTHING RETURNING true`, req.EventID, tenantID, userID, strings.TrimSpace(req.EventType), strings.TrimSpace(req.Source), occurredAt, req.Payload).Scan(&accepted)
+	if err == sql.ErrNoRows {
+		s.respondJSON(w, http.StatusAccepted, map[string]any{"accepted": false, "duplicate": true, "event_id": req.EventID})
+		return
+	}
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, "failed to enqueue automation event")
+		return
+	}
+	s.respondJSON(w, http.StatusAccepted, map[string]any{"accepted": accepted, "duplicate": false, "event_id": req.EventID, "status": "received"})
 }
 
 func (s *Server) handleCreateAutomationRun(w http.ResponseWriter, r *http.Request) {
@@ -440,8 +502,13 @@ func (s *Server) handleCreateAutomationApproval(w http.ResponseWriter, r *http.R
 		s.respondError(w, http.StatusInternalServerError, "failed to pause automation for approval")
 		return
 	}
-	if err := writeAutomationEvent(r, tx, runID, userID, tenantID, "automation.approval.requested", []byte(fmt.Sprintf(`{"approval_id":%q,"risk_tier":%q}`, approvalID, req.RiskTier))); err != nil {
+	approvalPayload := []byte(fmt.Sprintf(`{"approval_id":%q,"risk_tier":%q}`, approvalID, req.RiskTier))
+	if err := writeAutomationEvent(r, tx, runID, userID, tenantID, "automation.approval.requested", approvalPayload); err != nil {
 		s.respondError(w, http.StatusInternalServerError, "failed to record approval event")
+		return
+	}
+	if err := writeAutomationInboxEvent(r, tx, approvalID, userID, tenantID, "automation.approval.requested", "go.automation_api", approvalPayload); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "failed to enqueue approval event")
 		return
 	}
 	if err := tx.Commit(); err != nil {
@@ -524,7 +591,11 @@ func (s *Server) decideAutomationApproval(w http.ResponseWriter, r *http.Request
 			s.respondError(w, http.StatusInternalServerError, "failed to update automation run")
 			return
 		}
-		_ = writeAutomationEvent(r, tx, *runID, userID, tenantID, "automation.approval."+decision, []byte(fmt.Sprintf(`{"approval_id":%q}`, approvalID)))
+		decisionPayload := []byte(fmt.Sprintf(`{"approval_id":%q,"decision":%q}`, approvalID, decision))
+		_ = writeAutomationEvent(r, tx, *runID, userID, tenantID, "automation.approval."+decision, decisionPayload)
+		decisionEventID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("tayari:approval:"+approvalID.String()+":"+decision))
+		_ = writeAutomationInboxEvent(r, tx, decisionEventID, userID, tenantID, "automation.approval."+decision, "go.automation_api", decisionPayload)
+
 	}
 	if err := tx.Commit(); err != nil {
 		s.respondError(w, http.StatusInternalServerError, "failed to commit approval decision")

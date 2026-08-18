@@ -29,6 +29,7 @@ class Capability(StrEnum):
     WORKSPACE_COMPUTER_SUBMISSION = "workspace.computer_submission"
     AUTONOMOUS_ATS_SUBMIT = "autonomous.ats_submit"
     AUTONOMOUS_GMAIL = "autonomous.gmail"
+    WORKSPACE_GOOGLE_GMAIL = "workspace.google.gmail"
     WORKSPACE_GOOGLE_CALENDAR = "workspace.google.calendar"
     WORKSPACE_GOOGLE_DRIVE = "workspace.google.drive"
     WORKSPACE_AUTOMATIONS = "workspace.automations"

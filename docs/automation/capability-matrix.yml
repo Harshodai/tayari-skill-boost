@@ -62,25 +62,35 @@ capabilities:
     required_evidence: [trajectory_injection_resistance, real_teardown, stop_latency, two_tenant_isolation]
   - id: automation.definitions
     label: User-managed automation definitions
-    surface: planned_automation_definitions
-    state: planned
+    surface: backend/go/internal/api/routes_automations.go and automation_definitions
+    state: deterministic_implemented_staging_required
     risk_tier: external_write
     approval: activation_approval
-    required_evidence: [tool_allowlist, budget, retention, policy_version]
-  - id: automation.triggers
-    label: Schedule and event-triggered execution
-    surface: planned_automation_triggers
-    state: planned
+    required_evidence: [tool_allowlist, budget, retention, policy_version, owner_predicates]
+  - id: automation.catalog
+    label: Named automation catalog and action registry
+    surface: docs/automation/automation-catalog.yml and backend/python/app/services/automation_events.py
+    state: deterministic_implemented
     risk_tier: read
     approval: activation_approval
-    required_evidence: [webhook_signature, replay_protection, idempotency, outage_behavior]
+    required_evidence: [known_event_types, known_handlers, unknown_action_pause]
+
+  - id: automation.triggers
+    label: Schedule and event-triggered execution
+    surface: backend/python/app/services/automation_events.py and automation_event_inbox
+    state: deterministic_implemented_staging_required
+    risk_tier: read
+    approval: activation_approval
+    required_evidence: [webhook_signature, replay_protection, idempotency, outage_behavior, tenant_binding]
+
   - id: automation.checkpoints
     label: Durable checkpoints and resume
-    surface: planned_automation_checkpoints
-    state: planned
+    surface: backend/python/app/tasks/agent_automation.py and automation_runs
+    state: deterministic_implemented_staging_required
     risk_tier: sensitive
     approval: none
-    required_evidence: [state_machine, version_binding, worker_restart, rollback]
+    required_evidence: [state_machine, version_binding, worker_restart, rollback, lease_reclaim]
+
   - id: notifications.email
     label: Transactional approval email
     surface: planned_notification_adapters
@@ -103,8 +113,8 @@ capabilities:
     approval: explicit_owner_decision
     required_evidence: [truthful_delivery_state, owner_scoping, expiry]
   - id: integrations.google_workspace
-    label: Gmail, Calendar, and Drive read-only integration
-    surface: Google Workspace routes and adapters
+    label: Gmail, Calendar, and Drive governed integration
+    surface: Google Workspace routes, adapters, and automation catalog
     state: deterministic_implemented_staging_required
     risk_tier: sensitive
     approval: provider_consent

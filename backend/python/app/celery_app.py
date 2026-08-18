@@ -21,7 +21,7 @@ celery_app = Celery(
     "tayari",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["app.tasks.scraping", "app.tasks.automation", "app.tasks.agent_automation", "app.tasks.learning", "app.tasks.delivery"],
+    include=["app.tasks.scraping", "app.tasks.automation", "app.tasks.agent_automation", "app.tasks.automation_events", "app.tasks.learning", "app.tasks.delivery"],
 )
 
 celery_app.conf.update(
@@ -54,6 +54,14 @@ celery_app.conf.update(
         "delivery-ledger-dispatch": {
             "task": "delivery.dispatch_pending_messages",
             "schedule": 30,
+        },
+        "automation-scheduled-event-emission": {
+            "task": "automation.emit_scheduled_events",
+            "schedule": 15,
+        },
+        "automation-event-dispatch": {
+            "task": "automation.dispatch_events",
+            "schedule": 15,
         },
         "automation-checkpoint-dispatch": {
             "task": "automation.dispatch_checkpoints",

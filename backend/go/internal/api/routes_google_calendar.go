@@ -170,6 +170,14 @@ func (s *Server) handleGoogleCalendarSync(w http.ResponseWriter, r *http.Request
 		_, writeErr := s.DB.Conn.ExecContext(r.Context(), `INSERT INTO google_calendar_events (id, user_id, tenant_id, provider_event_id, calendar_id, summary, description, start_time, html_link, provenance, created_at, updated_at) VALUES ($1,$2,$3,$4,'primary',$5,$6,$7,$8,'google_calendar_readonly',NOW(),NOW()) ON CONFLICT (user_id, tenant_id, provider_event_id) DO UPDATE SET summary=$5, description=$6, start_time=$7, html_link=$8, updated_at=NOW()`, uuid.New(), user.ID, tenantID, event.ID, event.Summary, event.Description, parseGoogleCalendarTime(event.Start), event.HTMLLink)
 		if writeErr == nil {
 			imported++
+			combined := strings.ToLower(event.Summary + " " + event.Description)
+			if strings.Contains(combined, "interview") {
+				payload := []byte(fmt.Sprintf(`{"provider_event_id":%q,"summary":%q,"start":%q,"html_link":%q}`, event.ID, event.Summary, event.Start, event.HTMLLink))
+				eventID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("tayari:calendar-interview:"+user.ID.String()+":"+event.ID))
+				if _, eventErr := s.DB.Conn.ExecContext(r.Context(), `INSERT INTO automation_event_inbox (event_id,tenant_id,user_id,event_type,source,occurred_at,payload) VALUES ($1,$2,$3,'calendar.interview_detected','google.calendar.readonly',NOW(),$4) ON CONFLICT (event_id) DO NOTHING`, eventID, tenantID, user.ID, payload); eventErr != nil {
+					log.Printf("handleGoogleCalendarSync: interview automation event enqueue failed: %v", eventErr)
+				}
+			}
 		}
 	}
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "read_only": true, "total": len(events), "imported": imported, "provenance": "google_calendar_readonly"})

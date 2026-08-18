@@ -171,6 +171,16 @@ test -f backend/db/migrations/20260820_01_automation_lease_recovery.sql
 grep -q 'lease_owner' backend/db/migrations/20260820_01_automation_lease_recovery.sql
 grep -q 'automation.run.reclaimed' backend/python/app/tasks/agent_automation.py
 grep -q 'def _heartbeat_run' backend/python/app/tasks/agent_automation.py
+test -f docs/automation/automation-expansion-map.md
+test -f docs/automation/automation-catalog.yml
+test -f backend/python/app/services/automation_events.py
+test -f backend/python/app/services/automation_catalog.py
+test -f backend/python/app/tasks/automation_events.py
+grep -q 'automation.dispatch_events' backend/python/app/celery_app.py
+grep -q 'automation.emit_scheduled_events' backend/python/app/celery_app.py
+grep -q 'automation_event_inbox' backend/go/internal/api/routes_automations.go
+grep -q 'automation_event_inbox' backend/db/migrations/20260821_01_automation_event_inbox.sql
+grep -q 'automation_event_inbox' scripts/verify_rls_contract.py
 grep -q 'token_hash' backend/db/migrations/20260817_password_reset_token_hash.sql
 test -f supabase-local/volumes/db/init/36-20260817_password_reset_token_hash.sql
 test -x scripts/verify_route_authorization_contract.py

@@ -40,6 +40,7 @@ REQUIRED_TABLES = (
     "automation_runs",
     "automation_steps",
     "automation_events",
+    "automation_event_inbox",
     "approval_requests",
     "notification_preferences",
     "notification_deliveries",
