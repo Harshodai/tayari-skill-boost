@@ -16,6 +16,7 @@ runner. Secrets are never included in the output.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -198,6 +199,52 @@ def run(environment: str, base_url: str | None, python_base_url: str | None, all
         runner.run("llm", "configuration", lambda: blocked("LLM_PROVIDER is not an approved live provider"))
 
     config_probe(runner, "stripe", ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"], "Stripe credentials and webhook secret present")
+
+    firecrawl_key = os.getenv("FIRECRAWL_API_KEY", "").strip()
+    firecrawl_base = os.getenv("FIRECRAWL_API_BASE_URL", "https://api.firecrawl.dev/v1").rstrip("/")
+    config_probe(runner, "firecrawl", ["FIRECRAWL_API_KEY"], "Firecrawl API key present")
+    if firecrawl_key:
+        # Official read-only Firecrawl v2 credit-usage endpoint; no scrape is run.
+        firecrawl_usage_base = firecrawl_base[:-3] + "v2" if firecrawl_base.endswith("/v1") else firecrawl_base
+        http_probe(
+            runner,
+            "firecrawl",
+            "credit-usage-readiness",
+            f"{firecrawl_usage_base}/team/credit-usage",
+            headers={"Authorization": f"Bearer {firecrawl_key}"},
+        )
+    else:
+        runner.run("firecrawl", "credit-usage-readiness", lambda: blocked("FIRECRAWL_API_KEY is not configured"))
+
+    apify_token = os.getenv("APIFY_API_TOKEN", "").strip()
+    apify_base = os.getenv("APIFY_API_BASE_URL", "https://api.apify.com/v2").rstrip("/")
+    config_probe(runner, "apify", ["APIFY_API_TOKEN", "APIFY_RESEARCH_ACTOR_ID", "APIFY_ALLOWED_ACTORS"], "Apify token, actor, and allowlist present")
+    if apify_token:
+        # Official read-only Apify authenticated-account endpoint.
+        http_probe(
+            runner,
+            "apify",
+            "account-readiness",
+            f"{apify_base}/users/me",
+            headers={"Authorization": f"Bearer {apify_token}"},
+        )
+    else:
+        runner.run("apify", "account-readiness", lambda: blocked("APIFY_API_TOKEN is not configured"))
+
+    stripe_key = os.getenv("STRIPE_SECRET_KEY", "").strip()
+    if stripe_key:
+        # Official read-only Stripe balance endpoint; no charge or mutation occurs.
+        basic = base64.b64encode(f"{stripe_key}:".encode("utf-8")).decode("ascii")
+        http_probe(
+            runner,
+            "stripe",
+            "balance-readiness",
+            "https://api.stripe.com/v1/balance",
+            headers={"Authorization": f"Basic {basic}"},
+        )
+    else:
+        runner.run("stripe", "balance-readiness", lambda: blocked("STRIPE_SECRET_KEY is not configured"))
+
     config_probe(runner, "gmail", ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GMAIL_PUBSUB_VERIFICATION_TOKEN"], "Gmail OAuth and Pub/Sub verification configuration present")
     gmail_token = os.getenv("GOOGLE_TEST_ACCESS_TOKEN", "").strip()
     if gmail_token:
