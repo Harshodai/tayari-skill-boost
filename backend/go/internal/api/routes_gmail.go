@@ -20,6 +20,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"tayari-backend/internal/capabilities"
 	"tayari-backend/internal/models"
 )
 
@@ -108,9 +109,17 @@ func (s *Server) handleGmailStatus(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if !s.requireCapability(w, capabilities.AutonomousGmail) {
+		return
+	}
+	tenantID, tenantOK := verifiedWorkspaceTenant(r, user)
+	if !tenantOK {
+		s.respondError(w, http.StatusForbidden, "Verified tenant context required")
+		return
+	}
 	var count int
 	_ = s.DB.Conn.QueryRowContext(r.Context(),
-		`SELECT COUNT(*) FROM gmail_tokens WHERE user_id=$1`, user.ID).Scan(&count)
+		`SELECT COUNT(*) FROM gmail_tokens WHERE user_id=$1 AND tenant_id=$2`, user.ID, tenantID).Scan(&count)
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
 		"enabled":   true,
 		"connected": count > 0,
@@ -127,6 +136,14 @@ func (s *Server) handleGmailLogin(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
+	if !s.requireCapability(w, capabilities.AutonomousGmail) {
+		return
+	}
+	tenantID, tenantOK := verifiedWorkspaceTenant(r, user)
+	if !tenantOK {
+		s.respondError(w, http.StatusForbidden, "Verified tenant context required")
+		return
+	}
 	if !gmailEnabled() {
 		s.respondError(w, http.StatusNotImplemented,
 			"Gmail integration not configured on this server")
@@ -136,8 +153,8 @@ func (s *Server) handleGmailLogin(w http.ResponseWriter, r *http.Request) {
 	// Generate and store a CSRF state nonce
 	state := uuid.New().String()
 	_, err := s.DB.Conn.ExecContext(r.Context(),
-		`INSERT INTO oauth_states (id, user_id, state, created_at) VALUES ($1,$2,$3,NOW())`,
-		uuid.New(), user.ID, state)
+		`INSERT INTO oauth_states (id, user_id, tenant_id, provider, state, created_at) VALUES ($1,$2,$3,$4,$5,NOW())`,
+		uuid.New(), user.ID, tenantID, "gmail", state)
 	if err != nil {
 		log.Printf("handleGmailLogin: failed to store state: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to initiate OAuth")
@@ -182,10 +199,14 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate state nonce
-	var userID uuid.UUID
+	var userID, tenantID uuid.UUID
+	var provider string
 	err := s.DB.Conn.QueryRowContext(r.Context(),
-		`DELETE FROM oauth_states WHERE state=$1 AND created_at > NOW()-INTERVAL '10 minutes' RETURNING user_id`,
-		state).Scan(&userID)
+		`DELETE FROM oauth_states WHERE state=$1 AND provider=$2 AND created_at > NOW()-INTERVAL '10 minutes' RETURNING user_id, tenant_id, provider`,
+		state, "gmail").Scan(&userID, &tenantID, &provider)
+	if provider != "gmail" || userID == uuid.Nil || tenantID == uuid.Nil {
+		err = sql.ErrNoRows
+	}
 	if err != nil {
 		log.Printf("handleGmailCallback: invalid or expired state: %v", err)
 		http.Redirect(w, r, frontendURL+"/interview-board?gmail=error", http.StatusFound)
@@ -203,12 +224,12 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 	// Upsert tokens
 	expiry := time.Now().Add(time.Duration(tokenData.ExpiresIn) * time.Second)
 	_, err = s.DB.Conn.ExecContext(r.Context(), `
-		INSERT INTO gmail_tokens (id, user_id, access_token, refresh_token, expiry, scope, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
-		ON CONFLICT (user_id) DO UPDATE
+			INSERT INTO gmail_tokens (id, user_id, tenant_id, access_token, refresh_token, expiry, scope, created_at, updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())
+			ON CONFLICT (user_id, tenant_id) DO UPDATE
 		SET access_token=$3, refresh_token=CASE WHEN $4!='' THEN $4 ELSE gmail_tokens.refresh_token END,
 		    expiry=$5, updated_at=NOW()`,
-		uuid.New(), userID, tokenData.AccessToken, tokenData.RefreshToken, expiry, tokenData.Scope)
+		uuid.New(), userID, tenantID, tokenData.AccessToken, tokenData.RefreshToken, expiry, tokenData.Scope)
 	if err != nil {
 		log.Printf("handleGmailCallback: failed to store tokens: %v", err)
 		http.Redirect(w, r, frontendURL+"/interview-board?gmail=error", http.StatusFound)
@@ -217,7 +238,7 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Clean up old states for this user
 	_, _ = s.DB.Conn.ExecContext(r.Context(),
-		`DELETE FROM oauth_states WHERE user_id=$1`, userID)
+		`DELETE FROM oauth_states WHERE user_id=$1 AND tenant_id=$2 AND provider=$3`, userID, tenantID, "gmail")
 
 	http.Redirect(w, r, frontendURL+"/interview-board?gmail=connected", http.StatusFound)
 }
@@ -232,6 +253,14 @@ func (s *Server) handleGmailSync(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
+	if !s.requireCapability(w, capabilities.AutonomousGmail) {
+		return
+	}
+	tenantID, tenantOK := verifiedWorkspaceTenant(r, user)
+	if !tenantOK {
+		s.respondError(w, http.StatusForbidden, "Verified tenant context required")
+		return
+	}
 	if !gmailEnabled() {
 		s.respondError(w, http.StatusServiceUnavailable, "Gmail integration not configured")
 		return
@@ -241,8 +270,8 @@ func (s *Server) handleGmailSync(w http.ResponseWriter, r *http.Request) {
 	var accessToken, refreshToken string
 	var expiry time.Time
 	err := s.DB.Conn.QueryRowContext(r.Context(),
-		`SELECT access_token, refresh_token, expiry FROM gmail_tokens WHERE user_id=$1`,
-		user.ID).Scan(&accessToken, &refreshToken, &expiry)
+		`SELECT access_token, refresh_token, expiry FROM gmail_tokens WHERE user_id=$1 AND tenant_id=$2`,
+		user.ID, tenantID).Scan(&accessToken, &refreshToken, &expiry)
 	if err != nil {
 		s.respondError(w, http.StatusPreconditionFailed, "Gmail not connected. Use /api/gmail/login first.")
 		return
@@ -306,7 +335,7 @@ func (s *Server) handleGmailSync(w http.ResponseWriter, r *http.Request) {
 			VALUES ($1,$2,$3,$4,$5,$5,$6,'{}',NOW(),NOW())
 			ON CONFLICT DO NOTHING`,
 			uuid.New(), user.ID, title, company, stage,
-			fmt.Sprintf("Imported from Gmail: %s", msg.Subject))
+			fmt.Sprintf("Imported from Gmail (read-only): %s | provenance=google_gmail_readonly", msg.Subject))
 		parsed++
 	}
 
@@ -328,8 +357,13 @@ func (s *Server) handleGmailDisconnect(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
+	tenantID, tenantOK := verifiedWorkspaceTenant(r, user)
+	if !tenantOK {
+		s.respondError(w, http.StatusForbidden, "Verified tenant context required")
+		return
+	}
 	_, _ = s.DB.Conn.ExecContext(r.Context(),
-		`DELETE FROM gmail_tokens WHERE user_id=$1`, user.ID)
+		`DELETE FROM gmail_tokens WHERE user_id=$1 AND tenant_id=$2`, user.ID, tenantID)
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
 }
 
@@ -430,9 +464,10 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		var userID uuid.UUID
+		var userID, tenantID uuid.UUID
 		var accessToken, refreshToken string
 		var expiry time.Time
+		var tokenCount int
 
 		// Q7: when the Pub/Sub message carries no notified address we must NOT
 		// fall back to "most recently updated token across all users" — that
@@ -445,15 +480,20 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		err = s.DB.Conn.QueryRowContext(ctx,
-			`SELECT user_id, access_token, refresh_token, expiry FROM gmail_tokens WHERE user_id IN (SELECT id FROM users WHERE email=$1)`,
-			email).Scan(&userID, &accessToken, &refreshToken, &expiry)
+			`SELECT user_id, tenant_id, access_token, refresh_token, expiry, COUNT(*) OVER() FROM gmail_tokens WHERE user_id IN (SELECT id FROM users WHERE email=$1)`,
+			email).Scan(&userID, &tenantID, &accessToken, &refreshToken, &expiry, &tokenCount)
 
 		if err != nil {
+
 			if errors.Is(err, sql.ErrNoRows) {
 				log.Printf("[GmailWebhook] No matching token/account for email %s", redactEmail(email))
 			} else {
 				log.Printf("[GmailWebhook] Token lookup failed for email %s: %v", redactEmail(email), err)
 			}
+			return
+		}
+		if tokenCount != 1 || tenantID == uuid.Nil {
+			log.Printf("[GmailWebhook] Ambiguous or missing tenant token for email %s — refusing attribution", redactEmail(email))
 			return
 		}
 
@@ -463,8 +503,8 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 				accessToken = newToken.AccessToken
 				newExpiry := time.Now().Add(time.Duration(newToken.ExpiresIn) * time.Second)
 				_, _ = s.DB.Conn.ExecContext(ctx,
-					`UPDATE gmail_tokens SET access_token=$1, expiry=$2, updated_at=NOW() WHERE user_id=$3`,
-					accessToken, newExpiry, userID)
+					`UPDATE gmail_tokens SET access_token=$1, expiry=$2, updated_at=NOW() WHERE user_id=$3 AND tenant_id=$4`,
+					accessToken, newExpiry, userID, tenantID)
 			}
 		}
 
@@ -503,7 +543,7 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 				VALUES ($1,$2,$3,$4,$5,$5,$6,'{}',NOW(),NOW())
 				ON CONFLICT DO NOTHING`,
 				uuid.New(), userID, title, company, stage,
-				fmt.Sprintf("Imported via Gmail Webhook: %s", msg.Subject))
+				fmt.Sprintf("Imported via Gmail Webhook (read-only): %s | provenance=google_gmail_readonly", msg.Subject))
 		}
 	}(gmailData.EmailAddress)
 

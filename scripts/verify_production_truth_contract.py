@@ -59,6 +59,10 @@ def main() -> int:
     require("local bridge launch state", "docs/launch/2026-workspace-scope.yml", "workspace.local_browser_bridge:")
     require("sensitive computer action disabled", "docs/launch/2026-workspace-scope.yml", "workspace.local_browser_sensitive_actions:")
     require("computer submission permanently disabled", "docs/launch/2026-workspace-scope.yml", "workspace.computer_submission:")
+    require("google calendar production flag disabled", "src/config/features.ts", "googleCalendar: [false, false]")
+    require("google drive production flag disabled", "src/config/features.ts", "googleDrive: [false, false]")
+    require("google calendar launch state", "docs/launch/2026-workspace-scope.yml", "workspace.google.calendar:")
+    require("google drive launch state", "docs/launch/2026-workspace-scope.yml", "workspace.google.drive:")
 
     # A legacy route may exist for explicit development fixtures, but every
     # handler must be protected by the same fail-closed gate. Other production

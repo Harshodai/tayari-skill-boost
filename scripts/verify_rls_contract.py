@@ -40,10 +40,16 @@ REQUIRED_TABLES = (
 
 SERVER_ONLY_TABLES = (
     "password_reset_tokens",
+    "gmail_tokens",
+    "oauth_states",
+    "google_calendar_events",
+    "google_drive_files",
     "stripe_webhook_events",
     "ai_applications",
     "ai_models",
     "computer_grants",
+    "google_calendar_tokens",
+    "google_drive_tokens",
 )
 
 

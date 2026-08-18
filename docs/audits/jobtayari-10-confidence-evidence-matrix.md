@@ -13,7 +13,7 @@
 | Tayari Computer | Implemented control-plane foundation | Staging-required | Grants, replay protection, RLS, provider adapters, origin checks, action policy, extension lifecycle, provenance, and fail-closed agent binding are tested; real local-browser/OpenSandbox evidence is not present. |
 | Tenant isolation/privacy | Strong deterministic contract coverage | Staging-required | RLS and negative tests exist, but real two-tenant GoTrue, worker, cache, object-storage, backup, restore, deletion, and incident evidence remain required. |
 | AI provenance/disclosure | Implemented core controls | Staging-required | Hash-only provenance and disclosure controls exist; 100% artifact/action lineage and Article 50 operational evidence are not independently verified. |
-| External providers | Adapter and gate code exists | Not verified live | Firecrawl, Apify, A2A, MCP, Gmail, messaging, billing, and other providers require real credentials and provider-specific staging evidence. |
+| External providers | Adapter and gate code exists | Not verified live | Firecrawl, Apify, A2A, MCP, Gmail, Google Calendar, Google Drive, messaging, billing, and other providers require real credentials and provider-specific staging evidence. |
 | Autonomous final submission | Intentionally disabled | Correct non-enablement | The first release must not claim autonomous submission; sensitive fields, credentials, MFA, CAPTCHA, legal declarations, and irreversible actions remain blocked. |
 | 10/10 confidence across all aspects | Not achieved | Blocked | 10/10 requires independent hostile evaluation, real staging, production-like recovery, and no unknowns; those conditions are not yet all available. |
 
@@ -43,7 +43,9 @@
 | A2A federation | Auth, replay protection, tenant boundary, capability advertisement | Implemented deterministic | Real partner staging with signed messages, replay attempts, allowlist, outage, and deletion evidence. |
 | MCP | Runtime issuer/API configuration and contract tests | Partial | Real MCP server tool allowlist, tenant-scoped credentials, tool-result provenance, timeout, and revocation evidence. |
 | Firecrawl/Apify | Provider adapters and independent capability gates | Partial | Real staging credentials, quotas, terms/robots review, source attribution, failure handling, and deletion tests. |
-| Gmail | Routes/configuration and disabled autonomous capability | Not live-verified | Real read-only OAuth, renewal, Pub/Sub, disconnect, token revocation, deletion, and privacy evidence. |
+| Gmail | Tenant-bound routes, incremental OAuth, read-only provenance, capability gate, webhook ambiguity refusal, and server-only token storage | Not live-verified | Real read-only OAuth, renewal, Pub/Sub, disconnect/revocation, deletion, two-tenant, and privacy evidence. |
+| Google Calendar | Tenant-bound read-only OAuth, event sync, provenance table, consent card, capability gate, and provider probe | Deterministic implemented; staging-required | Real OAuth callback, refresh, revocation, two-tenant negative test, Calendar provider outage/drop recovery, deletion, and privacy evidence. |
+| Google Drive | Tenant-bound metadata-only OAuth, file metadata sync, provenance table, consent card, capability gate, and provider probe | Deterministic implemented; staging-required | Real OAuth callback, refresh, revocation, two-tenant negative test, metadata deletion, provider outage, and privacy evidence. |
 | Messaging | Routes/gates exist; disabled in launch scope | Not live-verified | Delivery ledger, approval, bounce/complaint, unsubscribe, provider outage, and rollback evidence. |
 | Billing | Stripe ledger and fail-closed guards exist; UI simulation removed | Not live-verified | Stripe test-mode checkout, webhook idempotency, entitlement, refund/dispute, duplicate, and reconciliation evidence. |
 | Backups/restore | Scripts and runbooks exist | Staging-required | Execute real restore drills and record RPO/RTO, tenant deletion, and key-rotation outcomes. |
@@ -62,11 +64,12 @@
 | Removed simulated pricing success and balance mutation | `src/pages/Pricing.tsx` |
 | Wired blog newsletter to an actual waitlist endpoint with failure preservation | `src/pages/Blog.tsx` |
 | Corrected disabled interview-prep route bypass | `src/App.tsx` |
+| Added governed Google Workspace scope and consent boundary | `docs/governance/google-workspace-scope.md`; `backend/go/internal/api/google_workspace.go`; Calendar/Drive routes and Settings cards |
 | Added regression coverage | `backend/python/tests/test_production_truth_contract.py` |
 
 ## Current no-go items
 
-The following cannot be marked complete without environment-dependent evidence: real OpenSandbox lifecycle and isolation; real local-browser bridge takeover and stop; real two-tenant end-to-end isolation; Gmail/Firecrawl/Apify/A2A/MCP/messaging/Stripe staging; production restore and rollback; independent security/product/operations review; 30-day pilot outcome evidence; and any autonomous final submission.
+The following cannot be marked complete without environment-dependent evidence: real OpenSandbox lifecycle and isolation; real local-browser bridge takeover and stop; real two-tenant end-to-end isolation; Gmail/Google Calendar/Google Drive/Firecrawl/Apify/A2A/MCP/messaging/Stripe staging; production restore and rollback; independent security/product/operations review; 30-day pilot outcome evidence; and any autonomous final submission.
 
 The correct release state is **candidate-controlled core plus explicitly gated/staged capabilities**, not unrestricted automation.
 

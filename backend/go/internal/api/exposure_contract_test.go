@@ -40,6 +40,10 @@ func TestExposureRegistryAnonymousRoutesAreRegistered(t *testing.T) {
 		"POST /api/v1/security/check-breached-password",
 		"GET /api/oauth/gmail/callback",
 		"GET /api/v1/oauth/gmail/callback",
+		"GET /api/oauth/google/calendar/callback",
+		"GET /api/v1/oauth/google/calendar/callback",
+		"GET /api/oauth/google/drive/callback",
+		"GET /api/v1/oauth/google/drive/callback",
 		"POST /api/gmail/webhook",
 		"POST /api/v1/gmail/webhook",
 		"GET /metrics",
@@ -60,6 +64,8 @@ func TestExposureRepresentativeProtectedRoutesRejectAnonymous(t *testing.T) {
 		{http.MethodGet, "/api/v1/profile"},
 		{http.MethodPost, "/api/v1/resumes"},
 		{http.MethodGet, "/api/v1/gmail/status"},
+		{http.MethodGet, "/api/v1/google/calendar/status"},
+		{http.MethodGet, "/api/v1/google/drive/status"},
 		{http.MethodPost, "/api/v1/public/optimize"},
 	}
 	for _, tc := range cases {

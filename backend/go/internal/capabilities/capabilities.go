@@ -23,6 +23,8 @@ const (
 	WorkspaceComputerSubmission           Name = "workspace.computer_submission"
 	AutonomousATSSubmit                   Name = "autonomous.ats_submit"
 	AutonomousGmail                       Name = "autonomous.gmail"
+	WorkspaceGoogleCalendar               Name = "workspace.google.calendar"
+	WorkspaceGoogleDrive                  Name = "workspace.google.drive"
 	AutonomousMessaging                   Name = "autonomous.messaging"
 	AutonomousBilling                     Name = "autonomous.billing"
 	AutonomousIrreversible                Name = "autonomous.irreversible_jobs"
@@ -33,7 +35,7 @@ var known = map[Name]struct{}{
 	WorkspaceATSAssistance: {}, WorkspaceKnowledgeHub: {}, WorkspaceInterviewPrep: {},
 	WorkspaceApplicationTrack: {}, WorkspaceIsolatedComputer: {}, WorkspaceLocalBrowserBridge: {},
 	WorkspaceLocalBrowserSensitiveActions: {}, WorkspaceComputerSubmission: {}, AutonomousBrowser: {}, AutonomousATSSubmit: {},
-	AutonomousGmail: {}, AutonomousMessaging: {}, AutonomousBilling: {}, AutonomousIrreversible: {},
+	AutonomousGmail: {}, WorkspaceGoogleCalendar: {}, WorkspaceGoogleDrive: {}, AutonomousMessaging: {}, AutonomousBilling: {}, AutonomousIrreversible: {},
 }
 
 type Registry struct {

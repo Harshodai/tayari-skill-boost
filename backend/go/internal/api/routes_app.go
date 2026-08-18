@@ -51,6 +51,8 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 
 		s.routesPublic(r)
 		s.routesGmail(r)
+		s.routesGoogleCalendar(r)
+		s.routesGoogleDrive(r)
 		s.routesSecurity(r)
 
 		// Public legacy aliases

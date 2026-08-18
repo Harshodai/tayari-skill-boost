@@ -304,6 +304,46 @@ export async function disconnectGmail(): Promise<any> {
   });
 }
 
+export interface GoogleWorkspaceStatusResponse {
+  enabled: boolean;
+  connected: boolean;
+  capability: string;
+  read_only: boolean;
+  message?: string;
+}
+
+export async function getGoogleCalendarStatus(): Promise<GoogleWorkspaceStatusResponse> {
+  return apiFetch<GoogleWorkspaceStatusResponse>("/google/calendar/status");
+}
+
+export async function getGoogleCalendarLogin(): Promise<{ auth_url: string; scope: string; read_only: boolean }> {
+  return apiFetch<{ auth_url: string; scope: string; read_only: boolean }>("/google/calendar/login");
+}
+
+export async function syncGoogleCalendar(): Promise<any> {
+  return apiFetch<any>("/google/calendar/sync", { method: "POST" });
+}
+
+export async function disconnectGoogleCalendar(): Promise<any> {
+  return apiFetch<any>("/google/calendar/disconnect", { method: "POST" });
+}
+
+export async function getGoogleDriveStatus(): Promise<GoogleWorkspaceStatusResponse> {
+  return apiFetch<GoogleWorkspaceStatusResponse>("/google/drive/status");
+}
+
+export async function getGoogleDriveLogin(): Promise<{ auth_url: string; scope: string; read_only: boolean }> {
+  return apiFetch<{ auth_url: string; scope: string; read_only: boolean }>("/google/drive/login");
+}
+
+export async function syncGoogleDrive(): Promise<any> {
+  return apiFetch<any>("/google/drive/sync", { method: "POST" });
+}
+
+export async function disconnectGoogleDrive(): Promise<any> {
+  return apiFetch<any>("/google/drive/disconnect", { method: "POST" });
+}
+
 export async function listAPIKeys(): Promise<any> {
   return apiFetch<any>("/api-keys");
 }

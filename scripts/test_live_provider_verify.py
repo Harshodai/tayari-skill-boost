@@ -53,8 +53,9 @@ def test_dry_run_reports_blocked_not_green(monkeypatch):
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     results = verify.run("local", None, None, allow_live=False, timeout=0.2)
-    assert len(results) == 12
+    assert len(results) == 21
     assert {result.status for result in results} == {"blocked_by_configuration"}
+    assert {result.provider for result in results} >= {"firecrawl", "apify", "stripe", "google-calendar", "google-drive"}
     assert all(result.side_effect == "none" for result in results)
 
 

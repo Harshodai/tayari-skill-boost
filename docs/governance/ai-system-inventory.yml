@@ -80,6 +80,18 @@ systems:
     excluded_use: [unapproved_send, broad_mailbox_access, private_data_export]
     evidence_requirements: [oauth_scope, renewal, revoke, deletion, audit, provider_outage]
     review_owner: privacy-security
+  - id: tayari_google_workspace
+    name: Google Workspace Candidate Integrations
+    owner: platform-integrations
+    purpose: Candidate-controlled, least-privilege read-only Gmail, Calendar, and Drive context for application tracking, interview scheduling, and document metadata.
+    risk_tier: high
+    lifecycle_state: disabled
+    data_classes: [mail_metadata, calendar_event_metadata, drive_file_metadata, candidate_application_context, oauth_tokens]
+    outputs: [candidate_reviewable_signal, provenance_linked_application_context, human_handoff]
+    human_control: explicit_service_consent_and_revocation
+    excluded_use: [mail_send, calendar_write, drive_write, broad_domain_export, autonomous_external_submission]
+    evidence_requirements: [oauth_scope_review, incremental_consent, tenant_isolation, token_refresh, revoke, deletion, provenance, provider_outage, staging_two_tenant_test]
+    review_owner: privacy-security
   - id: tayari_messaging_billing
     name: Messaging and Billing Automation
     owner: platform-integrations

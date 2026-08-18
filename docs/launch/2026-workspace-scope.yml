@@ -46,6 +46,12 @@ capabilities:
   autonomous.gmail:
     state: disabled
     reason: Requires mailbox scope, Pub/Sub, renewal, refresh, deletion, and privacy proof.
+  workspace.google.calendar:
+    state: disabled
+    reason: Requires verified read-only OAuth scope, tenant-bound token storage, revocation, Calendar sync, provenance, provider outage, and staging evidence.
+  workspace.google.drive:
+    state: disabled
+    reason: Requires verified metadata-only OAuth scope, tenant-bound token storage, revocation, metadata-only sync, provenance, provider outage, and staging evidence.
   autonomous.messaging:
     state: disabled
     reason: Requires provider opt-in, delivery, revocation, and webhook proof.

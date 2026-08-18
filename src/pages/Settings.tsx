@@ -39,6 +39,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { profileSchema, changePasswordSchema } from "@/lib/schemas";
 import { z } from "zod";
 import { PreferenceProfileCard } from "@/components/PreferenceProfileCard";
+import { GoogleWorkspaceConnectCard } from "@/components/GoogleWorkspaceConnectCard";
+import { features } from "@/config/features";
 
 const Settings = () => {
   const { user, session, signOut } = useAuth();
@@ -812,6 +814,19 @@ const Settings = () => {
                     )}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="animate-fade-in-up">
+              <CardHeader>
+                <CardTitle>Google Workspace Extensions</CardTitle>
+                <CardDescription>
+                  Candidate-controlled, read-only connections for interview scheduling and document metadata. Each service requires separate consent and can be revoked independently.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <GoogleWorkspaceConnectCard service="calendar" enabled={features.googleCalendar} />
+                <GoogleWorkspaceConnectCard service="drive" enabled={features.googleDrive} />
               </CardContent>
             </Card>
 

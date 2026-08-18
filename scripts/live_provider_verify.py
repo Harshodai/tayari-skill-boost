@@ -257,6 +257,31 @@ def run(environment: str, base_url: str | None, python_base_url: str | None, all
         )
     else:
         runner.run("gmail", "mailbox-readiness", lambda: blocked("GOOGLE_TEST_ACCESS_TOKEN is not configured"))
+
+    config_probe(runner, "google-calendar", ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"], "Google Calendar OAuth client configuration present")
+    if gmail_token:
+        http_probe(
+            runner,
+            "google-calendar",
+            "upcoming-events-readiness",
+            "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=1&singleEvents=true&orderBy=startTime",
+            headers={"Authorization": f"Bearer {gmail_token}"},
+        )
+    else:
+        runner.run("google-calendar", "upcoming-events-readiness", lambda: blocked("GOOGLE_TEST_ACCESS_TOKEN is not configured"))
+
+    config_probe(runner, "google-drive", ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"], "Google Drive OAuth client configuration present")
+    if gmail_token:
+        http_probe(
+            runner,
+            "google-drive",
+            "about-user-readiness",
+            "https://www.googleapis.com/drive/v3/about?fields=user",
+            headers={"Authorization": f"Bearer {gmail_token}"},
+        )
+    else:
+        runner.run("google-drive", "about-user-readiness", lambda: blocked("GOOGLE_TEST_ACCESS_TOKEN is not configured"))
+
     config_probe(runner, "observability", ["SENTRY_DSN", "METRICS_TOKEN"], "Sentry and protected metrics configuration present")
     if base_url and os.getenv("METRICS_TOKEN", "").strip():
         http_probe(

@@ -36,6 +36,10 @@ const CONFIG = {
     coverLetter: [true, true],
     // Communication hub for messaging templates
     communicationHub: [true, true],
+    // Google Workspace Calendar connector; disabled until provider evidence is complete
+    googleCalendar: [false, false],
+    // Google Workspace Drive connector; disabled until provider evidence is complete
+    googleDrive: [false, false],
     // AI-powered interview coaching (disabled for current release scope)
     interviewAI: [false, false],
     // Voice interview coach with live metrics

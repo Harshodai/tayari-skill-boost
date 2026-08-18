@@ -16,6 +16,7 @@ REQUIRED_SYSTEMS = {
     "tayari_external_research",
     "tayari_computer",
     "tayari_email_workspace",
+    "tayari_google_workspace",
     "tayari_messaging_billing",
 }
 REQUIRED_FIELDS = {

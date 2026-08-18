@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services.capabilities import Capability, capability_enabled
 
 
 client = TestClient(app)
@@ -78,3 +79,19 @@ def test_provider_specific_research_capability_is_independent(disabled_autonomou
 def test_a2a_discovery_is_disabled_by_launch_scope(disabled_autonomous_scope):
     response = client.get("/.well-known/agent-card.json", headers=disabled_autonomous_scope)
     assert_disabled(response, "integration.a2a_federation")
+
+
+def test_google_workspace_capabilities_fail_closed_in_production(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("CAPABILITY_WORKSPACE_GOOGLE_CALENDAR", raising=False)
+    monkeypatch.delenv("CAPABILITY_WORKSPACE_GOOGLE_DRIVE", raising=False)
+    assert not capability_enabled(Capability.WORKSPACE_GOOGLE_CALENDAR)
+    assert not capability_enabled(Capability.WORKSPACE_GOOGLE_DRIVE)
+
+
+def test_google_workspace_capabilities_are_available_in_development(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.delenv("CAPABILITY_WORKSPACE_GOOGLE_CALENDAR", raising=False)
+    monkeypatch.delenv("CAPABILITY_WORKSPACE_GOOGLE_DRIVE", raising=False)
+    assert capability_enabled(Capability.WORKSPACE_GOOGLE_CALENDAR)
+    assert capability_enabled(Capability.WORKSPACE_GOOGLE_DRIVE)
