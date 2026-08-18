@@ -14,6 +14,11 @@ Several local development and deterministic unit-test paths intentionally run wi
 
 The release contract asserts this boundary through source-level fail-closed checks, unit tests, and migration/recovery contracts. A deployment is not production-ready merely because the local no-database path is green.
 
+## Toolchain
+
+- Python runtime: 3.11+ required. Local verification uses `backend/python/.venv/bin/python` (Python 3.12.13).
+- Do not use system `python3` 3.9 for tests or verification scripts.
+
 ## Live proof boundary
 
 The following require a disposable staging environment and cannot be proven by static checks: two-tenant RLS isolation against real PostgreSQL, queue redelivery after worker termination, Stripe signature and replay behavior through a deployed endpoint, Gmail Pub/Sub watch renewal and push delivery, provider structured-output calls, alert delivery, and measured restore/rollback RPO and RTO.
