@@ -124,9 +124,8 @@ var save_job_default = defineTool4({
   },
   annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
   handler: async ({ title, company, location, url, description, status }, ctx) => {
-    if (!ctx.isAuthenticated()) {
-      return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    }
+    const gate = requireMcpWriteTool(ctx, "save_job");
+    if (gate) return gate;
     const { data, error } = await sb4(ctx).from("saved_jobs").insert({
       user_id: ctx.getUserId(),
       title,
@@ -196,8 +195,27 @@ async function callApi(ctx, path, options = {}) {
   }
   return data;
 }
-function toolError(text) {
-  return { content: [{ type: "text", text }], isError: true };
+function toolError(text, structuredContent) {
+  return {
+    content: [{ type: "text", text }],
+    ...(structuredContent ? { structuredContent } : {}),
+    isError: true
+  };
+}
+function mcpWriteToolsEnabled() {
+  const raw = globalThis.Deno?.env?.get?.("CAPABILITY_MCP_WRITE_TOOLS") ?? process.env.CAPABILITY_MCP_WRITE_TOOLS;
+  return ["1", "true", "yes", "on"].includes(String(raw ?? "").trim().toLowerCase());
+}
+function requireMcpWriteTool(ctx, toolName) {
+  if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+  if (mcpWriteToolsEnabled()) return null;
+  const detail = {
+    code: "disabled_by_launch_scope",
+    capability: "mcp.write_tools",
+    tool: toolName,
+    message: "MCP write tools are disabled for the current deployment scope. Use the canonical approval boundary before enabling them."
+  };
+  return toolError(JSON.stringify(detail), detail);
 }
 
 // src/lib/mcp/tools/optimize-resume.ts
@@ -211,7 +229,8 @@ var optimize_resume_default = defineTool5({
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ resume_id, job_description }, ctx) => {
-    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    const gate = requireMcpWriteTool(ctx, "optimize_resume");
+    if (gate) return gate;
     try {
       const data = await callApi(ctx, `/api/v1/resumes/${resume_id}/optimize`, {
         body: { job_description },
@@ -264,7 +283,8 @@ var generate_cover_letter_default = defineTool7({
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ resume_id, job_description, company_name, tone }, ctx) => {
-    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    const gate = requireMcpWriteTool(ctx, "generate_cover_letter");
+    if (gate) return gate;
     try {
       const data = await callApi(ctx, "/api/v1/cover-letter/generate", {
         body: { resume_id, job_description, company_name, tone }
@@ -325,7 +345,8 @@ var add_to_pipeline_default = defineTool9({
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ title, company, url, location, description, stage }, ctx) => {
-    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    const gate = requireMcpWriteTool(ctx, "add_to_pipeline");
+    if (gate) return gate;
     try {
       const data = await callApi(ctx, "/api/v1/extension/capture", {
         body: { title, company, url, location, description, stage, add_to_board: true }
@@ -466,7 +487,8 @@ var report_outcome_default = defineTool14({
   },
   annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false },
   handler: async ({ application_id, ...rest }, ctx) => {
-    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    const gate = requireMcpWriteTool(ctx, "report_outcome");
+    if (gate) return gate;
     if (Object.keys(rest).length === 0) {
       return toolError("At least one outcome field is required");
     }

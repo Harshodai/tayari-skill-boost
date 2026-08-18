@@ -87,7 +87,8 @@ async def test_signed_request_rejects_tampering_and_replay(monkeypatch):
     body = b'{"jsonrpc":"2.0"}'
     timestamp = "1700000000"
     nonce = "unique-test-nonce"
-    signature = _sign("federation-test-secret", timestamp, nonce, body)
+    peer_id = "test-peer"
+    signature = _sign("federation-test-secret", timestamp, nonce, body, peer_id)
     protector = ReplayProtector()
 
     await verify_signed_federation_request(
@@ -96,6 +97,7 @@ async def test_signed_request_rejects_tampering_and_replay(monkeypatch):
         nonce=nonce,
         signature=signature,
         body=body,
+        peer_id=peer_id,
         replay_protector=protector,
         now=1700000000,
     )
@@ -106,6 +108,7 @@ async def test_signed_request_rejects_tampering_and_replay(monkeypatch):
             nonce=nonce,
             signature=signature,
             body=body,
+            peer_id=peer_id,
             replay_protector=protector,
             now=1700000000,
         )
@@ -116,6 +119,7 @@ async def test_signed_request_rejects_tampering_and_replay(monkeypatch):
             nonce="tampered",
             signature=signature,
             body=body,
+            peer_id=peer_id,
             replay_protector=ReplayProtector(),
             now=1700000000,
         )
@@ -129,8 +133,9 @@ async def test_signed_request_requires_durable_replay_protection_in_staging(monk
             secret="federation-test-secret",
             timestamp="1700000000",
             nonce="staging-nonce",
-            signature=_sign("federation-test-secret", "1700000000", "staging-nonce", b"body"),
+            signature=_sign("federation-test-secret", "1700000000", "staging-nonce", b"body", "staging-peer"),
             body=b"body",
+            peer_id="staging-peer",
             now=1700000000,
         )
 

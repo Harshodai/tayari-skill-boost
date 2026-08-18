@@ -3,18 +3,26 @@ import asyncio
 from typing import Dict, Any, List, Optional, Callable
 
 class MCPTool:
-    """Represents a Model Context Protocol tool definition."""
-    def __init__(self, name: str, description: str, input_schema: Dict[str, Any], handler: Callable):
+    """Represents an internal tool used by the Python agent runtime.
+
+    This registry is intentionally not an external MCP server. Public MCP
+    discovery and execution are owned by the authenticated Supabase function;
+    keeping that boundary explicit prevents this compatibility registry from
+    becoming a shadow tool surface.
+    """
+    def __init__(self, name: str, description: str, input_schema: Dict[str, Any], handler: Callable, public: bool = False):
         self.name = name
         self.description = description
         self.input_schema = input_schema
         self.handler = handler
+        self.public = public
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "description": self.description,
-            "inputSchema": self.input_schema
+            "inputSchema": self.input_schema,
+            "internalOnly": not self.public,
         }
 
 class MCPManager:
@@ -29,9 +37,9 @@ class MCPManager:
         self.resources: Dict[str, Dict[str, Any]] = {}
         self.prompts: Dict[str, Dict[str, Any]] = {}
 
-    def register_tool(self, name: str, description: str, input_schema: Dict[str, Any], handler: Callable):
-        """Register a new tool following MCP spec."""
-        tool = MCPTool(name=name, description=description, input_schema=input_schema, handler=handler)
+    def register_tool(self, name: str, description: str, input_schema: Dict[str, Any], handler: Callable, *, public: bool = False):
+        """Register an internal compatibility tool; public exposure is opt-in and currently unused."""
+        tool = MCPTool(name=name, description=description, input_schema=input_schema, handler=handler, public=public)
         self.tools[name] = tool
 
     def register_resource(self, uri: str, name: str, mime_type: str, content: str):
@@ -48,8 +56,12 @@ class MCPManager:
         return [tool.to_dict() for tool in self.tools.values()]
 
     def list_resources(self) -> List[Dict[str, Any]]:
-        """List all resources registered in the MCP host."""
+        """List all resources registered in the internal agent runtime."""
         return list(self.resources.values())
+
+    def list_public_tools(self) -> List[Dict[str, Any]]:
+        """Return only tools explicitly approved for an external surface."""
+        return [tool.to_dict() for tool in self.tools.values() if tool.public]
 
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a tool call by name with JSON-RPC standard error handling."""

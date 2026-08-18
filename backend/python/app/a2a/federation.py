@@ -52,8 +52,8 @@ def _canonical_json(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-def _sign(secret: str, timestamp: str, nonce: str, body: bytes) -> str:
-    payload = b".".join((timestamp.encode(), nonce.encode(), body))
+def _sign(secret: str, timestamp: str, nonce: str, body: bytes, peer_id: str = "") -> str:
+    payload = b".".join((timestamp.encode(), nonce.encode(), peer_id.encode(), body))
     return hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
 
@@ -107,12 +107,15 @@ async def verify_signed_federation_request(
     nonce: str | None,
     signature: str | None,
     body: bytes,
+    peer_id: str | None = None,
     replay_protector: ReplayProtector | None = None,
     now: int | None = None,
     max_skew_seconds: int = 300,
 ) -> None:
     if not secret or not timestamp or not nonce or not signature:
         raise FederationRejected("signed A2A headers are required")
+    if os.getenv("APP_ENV", "development").strip().lower() in {"production", "prod", "staging"} and not peer_id:
+        raise FederationRejected("signed A2A peer identity is required")
     if len(timestamp) > 20 or len(nonce) > 160 or len(signature) != 64:
         raise FederationRejected("invalid signed A2A header length")
     try:
@@ -122,7 +125,7 @@ async def verify_signed_federation_request(
     current = int(time.time()) if now is None else now
     if abs(current - issued_at) > max_skew_seconds:
         raise FederationRejected("A2A timestamp is outside the allowed clock skew")
-    expected = _sign(secret, timestamp, nonce, body)
+    expected = _sign(secret, timestamp, nonce, body, peer_id or "")
     if not hmac.compare_digest(expected, signature):
         raise FederationRejected("invalid A2A signature")
     protector = replay_protector or ReplayProtector()
@@ -157,11 +160,13 @@ class A2AFederationClient:
         timestamp = str(int(time.time()))
         nonce = secrets.token_urlsafe(18)
         body = b""
+        peer_id = config.name.strip()
         signed_headers = {
             "Authorization": f"Bearer {self.secret}",
+            "X-A2A-Peer-ID": peer_id,
             "X-A2A-Timestamp": timestamp,
             "X-A2A-Nonce": nonce,
-            "X-A2A-Signature": _sign(self.secret, timestamp, nonce, body),
+            "X-A2A-Signature": _sign(self.secret, timestamp, nonce, body, peer_id),
         }
         try:
             response = await client.get(
@@ -186,12 +191,14 @@ class A2AFederationClient:
         body = _canonical_json(message.model_dump())
         timestamp = str(int(time.time()))
         nonce = secrets.token_urlsafe(18)
+        peer_id = config.name.strip()
         headers = {
             "Authorization": f"Bearer {self.secret}",
             "Content-Type": "application/json",
+            "X-A2A-Peer-ID": peer_id,
             "X-A2A-Timestamp": timestamp,
             "X-A2A-Nonce": nonce,
-            "X-A2A-Signature": _sign(self.secret, timestamp, nonce, body),
+            "X-A2A-Signature": _sign(self.secret, timestamp, nonce, body, peer_id),
         }
         owns_client = self._client is None
         client = self._client or httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0), follow_redirects=False)

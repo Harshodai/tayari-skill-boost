@@ -220,10 +220,14 @@ async def run_agent_task(req: AgentRunRequest, user_id: str = Depends(get_curren
 
 @router.get("/tools")
 async def list_agent_tools(user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
+    """Expose runtime diagnostics without creating a second public MCP registry."""
     return {
         "success": True,
-        "mcp_tools": agent_instance.mcp.list_tools(),
-        "mcp_resources": agent_instance.mcp.list_resources()
+        "mcp_tools": agent_instance.mcp.list_public_tools(),
+        "mcp_resources": [],
+        "legacy_internal_tools": agent_instance.mcp.list_tools(),
+        "canonical_mcp_endpoint": "supabase:function:mcp",
+        "legacy_registry_public": False,
     }
 
 # --- Job Seeker Endpoints ---

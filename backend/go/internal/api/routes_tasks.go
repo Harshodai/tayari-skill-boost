@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"tayari-backend/internal/auth"
+	"tayari-backend/internal/capabilities"
 )
 
 type taskCreateRequest struct {
@@ -98,6 +99,17 @@ func (s *Server) taskDB(w http.ResponseWriter) bool {
 		return false
 	}
 	return true
+}
+
+// legacyTaskApprovalReady prevents the older user-only approval plane from
+// authorizing actions when the canonical tenant-bound approval capability is
+// disabled. Development may exercise the compatibility path explicitly; a
+// staging/production launch must use the governed approval service instead.
+func (s *Server) legacyTaskApprovalReady(w http.ResponseWriter) bool {
+	if !s.requireCapability(w, capabilities.WorkspaceApprovals) {
+		return false
+	}
+	return s.taskDB(w)
 }
 func decodeTaskJSON(r *http.Request, target any) error {
 	dec := json.NewDecoder(io.LimitReader(r.Body, 256*1024))
@@ -292,7 +304,7 @@ func (s *Server) handlePlanDecision(w http.ResponseWriter, r *http.Request, appr
 		s.respondError(w, 400, "invalid task id")
 		return
 	}
-	if !s.taskDB(w) {
+	if !s.legacyTaskApprovalReady(w) {
 		return
 	}
 	status := "rejected"
@@ -347,6 +359,9 @@ func (s *Server) handleCreateActionProposal(w http.ResponseWriter, r *http.Reque
 		s.respondError(w, 401, "Unauthorized")
 		return
 	}
+	if !s.requireCapability(w, capabilities.WorkspaceApprovals) {
+		return
+	}
 	taskID, err := taskID(r)
 	if err != nil {
 		s.respondError(w, 400, "invalid task id")
@@ -363,6 +378,10 @@ func (s *Server) handleCreateActionProposal(w http.ResponseWriter, r *http.Reque
 	allowed := map[string]bool{"read": true, "navigation": true, "draft": true, "sensitive": true, "external_write": true, "submission": true}
 	if !allowed[req.RiskTier] {
 		s.respondError(w, 400, "invalid risk tier")
+		return
+	}
+	if req.RiskTier == "submission" {
+		s.respondError(w, http.StatusForbidden, "legacy submission approvals are disabled; use the canonical governed approval service")
 		return
 	}
 	payload := req.Payload
@@ -422,7 +441,7 @@ func (s *Server) handleActionDecision(w http.ResponseWriter, r *http.Request, ap
 		s.respondError(w, 400, "invalid action id")
 		return
 	}
-	if !s.taskDB(w) {
+	if !s.legacyTaskApprovalReady(w) {
 		return
 	}
 	if approved {

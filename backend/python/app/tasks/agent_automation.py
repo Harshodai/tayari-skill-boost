@@ -10,8 +10,10 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import secrets
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.celery_app import celery_app
@@ -41,6 +43,22 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+LEASE_SECONDS = 90
+
+
+def _worker_id() -> uuid.UUID:
+    raw = os.getenv("AUTOMATION_WORKER_ID", "").strip()
+    try:
+        return uuid.UUID(raw) if raw else uuid.uuid4()
+    except ValueError:
+        logger.warning("Ignoring invalid AUTOMATION_WORKER_ID; generating an ephemeral worker UUID")
+        return uuid.uuid4()
+
+
+def _lease_deadline() -> datetime:
+    return _utcnow() + timedelta(seconds=LEASE_SECONDS)
+
+
 async def _record_event(conn: Any, run: Any, event_type: str, payload: dict[str, Any]) -> None:
     await conn.execute(
         """
@@ -59,7 +77,8 @@ async def _expire_runs(conn: Any) -> int:
     rows = await conn.fetch(
         """
         UPDATE automation_runs
-        SET status='expired', completed_at=now(), updated_at=now(), version=version+1
+        SET status='expired', completed_at=now(), lease_owner=NULL, lease_expires_at=NULL,
+            last_heartbeat_at=NULL, updated_at=now(), version=version+1
         WHERE status IN ('queued','running','resumed','paused','awaiting_action_approval')
           AND expires_at IS NOT NULL AND expires_at <= now()
         RETURNING id, tenant_id, user_id
@@ -70,7 +89,41 @@ async def _expire_runs(conn: Any) -> int:
     return len(rows)
 
 
-async def _claim_runs(conn: Any, limit: int = 50) -> list[Any]:
+async def _reclaim_expired_runs(conn: Any, worker_id: uuid.UUID, limit: int = 50) -> list[Any]:
+    rows = await conn.fetch(
+        """
+        WITH reclaimable AS (
+            SELECT id
+            FROM automation_runs
+            WHERE status='running'
+              AND lease_expires_at IS NOT NULL
+              AND lease_expires_at <= now()
+              AND (expires_at IS NULL OR expires_at > now())
+            ORDER BY lease_expires_at, updated_at
+            FOR UPDATE SKIP LOCKED
+            LIMIT $2
+        )
+        UPDATE automation_runs run
+        SET lease_owner=$1, lease_expires_at=$3, last_heartbeat_at=now(),
+            reclaim_count=run.reclaim_count+1, updated_at=now(), version=version+1
+        FROM reclaimable
+        WHERE run.id=reclaimable.id
+        RETURNING run.id, run.definition_id, run.tenant_id, run.user_id, run.status,
+                  run.version, run.lease_owner, run.reclaim_count
+        """,
+        worker_id, limit, _lease_deadline(),
+    )
+    for run in rows:
+        await _record_event(
+            conn,
+            run,
+            "automation.run.reclaimed",
+            {"worker_id": str(worker_id), "reclaim_count": run["reclaim_count"]},
+        )
+    return list(rows)
+
+
+async def _claim_runs(conn: Any, worker_id: uuid.UUID, limit: int = 50) -> list[Any]:
     return await conn.fetch(
         """
         WITH claimable AS (
@@ -80,16 +133,33 @@ async def _claim_runs(conn: Any, limit: int = 50) -> list[Any]:
               AND (expires_at IS NULL OR expires_at > now())
             ORDER BY created_at
             FOR UPDATE SKIP LOCKED
-            LIMIT $1
+            LIMIT $2
         )
         UPDATE automation_runs run
-        SET status='running', started_at=COALESCE(started_at, now()), updated_at=now(), version=version+1
+        SET status='running', lease_owner=$1, lease_expires_at=$3,
+            last_heartbeat_at=now(), started_at=COALESCE(started_at, now()),
+            updated_at=now(), version=version+1
         FROM claimable
         WHERE run.id=claimable.id
-        RETURNING run.id, run.definition_id, run.tenant_id, run.user_id, run.status, run.version
+        RETURNING run.id, run.definition_id, run.tenant_id, run.user_id, run.status,
+                  run.version, run.lease_owner, run.reclaim_count
         """,
-        limit,
+        worker_id, limit, _lease_deadline(),
     )
+
+
+async def _heartbeat_run(conn: Any, run: Any, worker_id: uuid.UUID) -> None:
+    updated = await conn.fetchval(
+        """
+        UPDATE automation_runs
+        SET lease_expires_at=$4, last_heartbeat_at=now(), updated_at=now(), version=version+1
+        WHERE id=$1 AND tenant_id=$2 AND user_id=$3 AND status='running' AND lease_owner=$5
+        RETURNING id
+        """,
+        run["id"], run["tenant_id"], run["user_id"], _lease_deadline(), worker_id,
+    )
+    if not updated:
+        raise RuntimeError(f"automation lease lost for run {run['id']}")
 
 
 async def _create_plan_boundary(conn: Any, run: Any, definition: Any) -> None:
@@ -145,7 +215,8 @@ async def _create_plan_boundary(conn: Any, run: Any, definition: Any) -> None:
     await conn.execute(
         """
         UPDATE automation_runs
-        SET status='awaiting_action_approval', updated_at=now(), version=version+1
+        SET status='awaiting_action_approval', lease_owner=NULL, lease_expires_at=NULL,
+            last_heartbeat_at=NULL, updated_at=now(), version=version+1
         WHERE id=$1 AND tenant_id=$2 AND user_id=$3 AND status='running'
         """,
         run["id"], run["tenant_id"], run["user_id"],
@@ -157,7 +228,8 @@ async def _pause_unimplemented_tools(conn: Any, run: Any, definition: Any) -> No
     await conn.execute(
         """
         UPDATE automation_runs
-        SET status='paused', last_error='tool execution is not enabled for this release', updated_at=now(), version=version+1
+        SET status='paused', last_error='tool execution is not enabled for this release', lease_owner=NULL,
+            lease_expires_at=NULL, last_heartbeat_at=NULL, updated_at=now(), version=version+1
         WHERE id=$1 AND tenant_id=$2 AND user_id=$3 AND status='running'
         """,
         run["id"], run["tenant_id"], run["user_id"],
@@ -176,17 +248,20 @@ async def _pause_unimplemented_tools(conn: Any, run: Any, definition: Any) -> No
 
 async def _dispatch() -> dict[str, Any]:
     if not capability_enabled(Capability.WORKSPACE_AUTOMATIONS):
-        return {"status": "disabled_by_launch_scope", "expired": 0, "claimed": 0}
+        return {"status": "disabled_by_launch_scope", "expired": 0, "reclaimed": 0, "claimed": 0}
     from app.services.db import get_pool
 
     pool = await get_pool()
     if not pool:
-        return {"status": "skipped_no_db", "expired": 0, "claimed": 0}
+        return {"status": "skipped_no_db", "expired": 0, "reclaimed": 0, "claimed": 0}
     async with pool.acquire() as conn:
         async with conn.transaction():
+            worker_id = _worker_id()
             expired = await _expire_runs(conn)
-            claimed = await _claim_runs(conn)
-            for run in claimed:
+            reclaimed = await _reclaim_expired_runs(conn, worker_id)
+            claimed = await _claim_runs(conn, worker_id)
+            for run in [*reclaimed, *claimed]:
+                await _heartbeat_run(conn, run, worker_id)
                 definition = await conn.fetchrow(
                     """
                     SELECT id, objective, trigger_type, tool_allowlist, policy_version
@@ -199,7 +274,8 @@ async def _dispatch() -> dict[str, Any]:
                     await conn.execute(
                         """
                         UPDATE automation_runs
-                        SET status='failed', last_error='automation definition not found', updated_at=now(), version=version+1
+                        SET status='failed', last_error='automation definition not found', lease_owner=NULL,
+                            lease_expires_at=NULL, last_heartbeat_at=NULL, updated_at=now(), version=version+1
                         WHERE id=$1 AND tenant_id=$2 AND user_id=$3
                         """,
                         run["id"], run["tenant_id"], run["user_id"],
@@ -210,7 +286,7 @@ async def _dispatch() -> dict[str, Any]:
                     await _pause_unimplemented_tools(conn, run, definition)
                 else:
                     await _create_plan_boundary(conn, run, definition)
-    return {"status": "ok", "expired": expired, "claimed": len(claimed)}
+    return {"status": "ok", "expired": expired, "reclaimed": len(reclaimed), "claimed": len(claimed)}
 
 
 @celery_app.task(name="automation.dispatch_checkpoints", bind=True)
@@ -220,4 +296,4 @@ def dispatch_checkpoints(self) -> dict[str, Any]:
         return __import__("asyncio").run(_dispatch())
     except Exception as exc:  # noqa: BLE001 - worker must report a truthful failure
         logger.exception("automation checkpoint dispatch failed")
-        return {"status": "failed", "error": str(exc), "expired": 0, "claimed": 0}
+        return {"status": "failed", "error": str(exc), "expired": 0, "reclaimed": 0, "claimed": 0}

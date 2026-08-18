@@ -122,3 +122,39 @@ async def test_a2a_dispatch_timeout():
     assert resp.error is not None
     assert resp.error["code"] == -32603
     assert "timed out" in resp.error["message"]
+
+
+
+def test_peer_policy_is_exact_and_tenant_bound(monkeypatch):
+    from app.a2a.authorization import A2APeerPrincipal, peer_allows, require_tenant_binding
+
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setenv("A2A_ALLOWED_PEER_SKILLS", "partner=AtsScorerAgent.analyze_ats")
+    principal = A2APeerPrincipal(peer_id="partner", auth_mode="signed", tenant_id="tenant-a")
+
+    assert peer_allows(principal, "AtsScorerAgent", "analyze_ats")
+    assert not peer_allows(principal, "TruthGateAgent", "check_authenticity")
+    assert not peer_allows(principal, "AtsScorerAgent", "analyze_ats.extra")
+    assert require_tenant_binding(principal)
+    assert not require_tenant_binding(A2APeerPrincipal(peer_id="partner", auth_mode="signed"))
+
+
+@pytest.mark.asyncio
+async def test_dispatch_rejects_peer_skill_not_in_allowlist(monkeypatch):
+    from app.a2a.authorization import A2APeerPrincipal
+
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setenv("A2A_ALLOWED_PEER_SKILLS", "partner=AtsScorerAgent.analyze_ats")
+    dispatcher = A2ADispatcher.get_instance()
+    message = A2AMessage(
+        sender="partner",
+        recipient="TruthGateAgent",
+        method="check_authenticity",
+        params={"original_text": "one", "optimized_text": "one"},
+    )
+
+    with pytest.raises(PermissionError, match="not authorized"):
+        await dispatcher.dispatch(
+            message,
+            principal=A2APeerPrincipal(peer_id="partner", auth_mode="signed", tenant_id="tenant-a"),
+        )

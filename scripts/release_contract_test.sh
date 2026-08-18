@@ -36,6 +36,7 @@ grep -q 'pip install -r ../../integrations/jobtheory_mcp/requirements.txt' .gith
 grep -q 'mcp>=1.28.1' integrations/jobtheory_mcp/requirements.txt
 grep -q 'MCP URL and tool contract' .github/workflows/ci.yml
 test -f scripts/mcp_contract_test.py
+python3 scripts/mcp_write_governance_test.py >/dev/null
 grep -q 'bun install --frozen-lockfile' .github/workflows/ci.yml
 # CI coverage and environment contracts must match the reproducible local gates.
 grep -q 'GO_COVERAGE_MIN=20 bash ../../scripts/check_go_coverage.sh' .github/workflows/ci.yml
@@ -158,6 +159,18 @@ test -f backend/python/app/tests/test_a2a_federation.py
 test -f docs/integrations/a2a-mcp-provider-adapters.md
 test -x scripts/verify_external_provider_config.py
 test -f docs/operations/staging-external-integrations.md
+# P0/P1 agent-surface governance: mutating MCP tools are fail-closed, the
+# legacy Python registry is not public, and durable automation runs have leases.
+test -f docs/governance/mcp-tool-governance.md
+grep -q 'requireMcpWriteTool' supabase/functions/mcp/index.ts
+grep -q 'CAPABILITY_MCP_WRITE_TOOLS' supabase/functions/mcp/index.ts
+grep -q 'disabled_by_launch_scope' supabase/functions/mcp/index.ts
+grep -q 'legacy_registry_public.*False' backend/python/app/routes/agent.py
+grep -q 'def list_public_tools' backend/python/app/agent/mcp_manager.py
+test -f backend/db/migrations/20260820_01_automation_lease_recovery.sql
+grep -q 'lease_owner' backend/db/migrations/20260820_01_automation_lease_recovery.sql
+grep -q 'automation.run.reclaimed' backend/python/app/tasks/agent_automation.py
+grep -q 'def _heartbeat_run' backend/python/app/tasks/agent_automation.py
 grep -q 'token_hash' backend/db/migrations/20260817_password_reset_token_hash.sql
 test -f supabase-local/volumes/db/init/36-20260817_password_reset_token_hash.sql
 test -x scripts/verify_route_authorization_contract.py

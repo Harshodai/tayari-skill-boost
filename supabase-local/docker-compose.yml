@@ -290,6 +290,9 @@ services:
       - ./volumes/db/init/35-20260817_stripe_webhook_events.sql:/docker-entrypoint-initdb.d/migrations/zz-35-20260817_stripe_webhook_events.sql:Z
       - ./volumes/db/init/37-20260817_ai_provenance.sql:/docker-entrypoint-initdb.d/migrations/zz-37-20260817_ai_provenance.sql:Z
       - ./volumes/db/init/38-20260817_computer_control.sql:/docker-entrypoint-initdb.d/migrations/zz-38-20260817_computer_control.sql:Z
+      - ./volumes/db/init/39-20260818_google_workspace.sql:/docker-entrypoint-initdb.d/migrations/zz-39-20260818_google_workspace.sql:Z
+      - ./volumes/db/init/40-20260819_agent_automation_notifications.sql:/docker-entrypoint-initdb.d/migrations/zz-40-20260819_agent_automation_notifications.sql:Z
+      - ./volumes/db/init/41-20260820_automation_lease_recovery.sql:/docker-entrypoint-initdb.d/migrations/zz-41-20260820_automation_lease_recovery.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:

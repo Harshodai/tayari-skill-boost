@@ -45,6 +45,37 @@ func TestBrowserRoutesAreLockedWhenCapabilityDisabled(t *testing.T) {
 	}
 }
 
+func TestLegacyTaskApprovalRoutesAreLockedWhenCanonicalCapabilityDisabled(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("CAPABILITY_WORKSPACE_APPROVALS", "false")
+	server := NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: nil})
+
+	tests := []struct {
+		method string
+		path   string
+		body   []byte
+	}{
+		{http.MethodPost, "/api/v1/tasks/00000000-0000-0000-0000-000000000001/plan/approve", nil},
+		{http.MethodPost, "/api/tasks/00000000-0000-0000-0000-000000000001/plan/reject", nil},
+		{http.MethodPost, "/api/v1/tasks/00000000-0000-0000-0000-000000000001/actions/00000000-0000-0000-0000-000000000002/approve", nil},
+		{http.MethodPost, "/api/tasks/00000000-0000-0000-0000-000000000001/actions/00000000-0000-0000-0000-000000000002/deny", nil},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
+			req := authReq(tc.method, tc.path, tc.body)
+			rec := httptest.NewRecorder()
+			server.Router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusLocked {
+				t.Fatalf("expected 423, got %d: %s", rec.Code, rec.Body.String())
+			}
+			if !containsAll(rec.Body.String(), `"code":"disabled_by_launch_scope"`, `"capability":"workspace.approvals"`) {
+				t.Fatalf("unexpected disabled response: %s", rec.Body.String())
+			}
+		})
+	}
+}
+
 func containsAll(value string, expected ...string) bool {
 	for _, item := range expected {
 		if !strings.Contains(value, item) {
