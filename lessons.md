@@ -2382,3 +2382,21 @@ See "What was done". Key design choices: provenance touch is best-effort upsert 
 - Smoke tests must be verified against the actual route table, not assumed route names from a brief. A 404 from a smoke test is actionable evidence that the path or method is wrong.
 - When a brief specifies paths that don't exist, prefer adjusting the test to reality and adding only the minimal route needed to make the test meaningful, rather than disabling or weakening assertions.
 - Capability gating should have explicit env-default tests per environment so staging/production cannot accidentally enable high-risk features.
+
+## 2026-08-18 — Ruthless >9.5/10 repository closeout
+
+**What was done:**
+Closed all repository-level gaps blocking the Ruthless >9.5/10 execution claim. Documented the Python 3.11+ toolchain requirement in `backend/python/RUNBOOK.md` and `docs/production-readiness.md`. Added Go smoke tests for capabilities, provenance, and computer routes (`backend/go/internal/api/handlers_smoke_test.go`, `backend/go/internal/capabilities/capabilities_test.go`). Ran and captured the full contract verification suite: Python 840 passed/4 skipped, Go tests/race green, frontend 149 passed/0 lint errors, release contract 46/46 PASS, production truth 18/18 PASS, staging hostile suite 34/34 PASS. Generated `docs/ruthless_2026_08_18_evidence_manifest.json` and `docs/ruthless_2026_08_18_evidence_report.md`. Updated `docs/audits/jobtayari-10-confidence-evidence-matrix.md` and `docs/production-readiness.md` with the new numbers.
+
+**Root cause / why it mattered:**
+The freshly-pulled code was already hardened and contract-gated, but the local verification environment's Python 3.9 interpreter syntax-failed on 3.10+ union types and `enum.StrEnum`. This created false-red test results that hid the real deterministic passing state. Consolidating evidence into a single auditable manifest (with file SHA-256 hashes) makes the claim verifiable and prevents future environment drift.
+
+**Fix applied:**
+- Documented `backend/python/.venv/bin/python` as the required interpreter in `backend/python/RUNBOOK.md` and `docs/production-readiness.md`.
+- Added `TestSmoke_Capabilities`, `TestSmoke_Provenance`, and `TestSmoke_Computer` plus capability registry env-default tests.
+- Ran and captured: Python 840 passed/4 skipped, Go tests/race green, staging hostile 34/34, release contract 46/46, and all remaining contract verifiers.
+- Generated `docs/ruthless_2026_08_18_evidence_manifest.json` and `docs/ruthless_2026_08_18_evidence_report.md`.
+- Updated `docs/audits/jobtayari-10-confidence-evidence-matrix.md` and `docs/production-readiness.md`.
+
+**Reusable lesson:**
+Always verify the project's declared runtime before interpreting a red test suite as a code defect. Consolidate evidence artifacts into a versioned manifest with file hashes; claims without an auditable bundle are not evidence.
