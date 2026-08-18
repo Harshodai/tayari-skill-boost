@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BlogFilters, BlogPostCard, SuccessStoryCard, type BlogFiltersState } from "@/components/blog";
 import { supabase } from "@/integrations/supabase/client";
+import { apiFetchResponse } from "@/api";
+import { toast } from "sonner";
 import { AlertCircle, RefreshCw, Mail, ArrowRight, Sparkles } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -109,14 +111,26 @@ const Blog = () => {
 
   const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newsletterEmail) return;
+    const email = newsletterEmail.trim();
+    if (!email) return;
 
     setIsSubscribing(true);
-    // Simulate API call - in production, connect to email service
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsSubscribing(false);
-    setNewsletterEmail("");
-    // Show success toast here
+    try {
+      const response = await apiFetchResponse("/v1/waitlist/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, tier: "newsletter" }),
+      });
+      if (!response.ok) {
+        throw new Error("Newsletter service is unavailable; your email was not submitted.");
+      }
+      setNewsletterEmail("");
+      toast.success("You’re subscribed to JobTayari updates.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Newsletter service is unavailable; your email was not submitted.");
+    } finally {
+      setIsSubscribing(false);
+    }
   };
 
   // Helper to safely convert Json to expected types

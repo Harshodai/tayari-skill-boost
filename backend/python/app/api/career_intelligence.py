@@ -101,11 +101,26 @@ async def get_learning_path(payload: CareerIntelligenceRequest):
 
 @router.get("/trending-skills")
 async def get_trending_skills(limit: int = 10):
-    """
-    Return a list of currently trending skills.
-    """
-    from app.services.career_intelligence import trending_skills
-    return trending_skills(limit)
+    """Return live trends only; an explicitly labelled fixture is development-only."""
+    import os
+
+    app_env = os.getenv("APP_ENV", os.getenv("ENV", "development")).strip().lower()
+    demo_enabled = os.getenv("ENABLE_DEMO_FIXTURES", "false").strip().lower() in {"1", "true", "yes", "on"}
+    if app_env not in {"production", "prod", "staging"} and demo_enabled:
+        from app.services.career_intelligence import trending_skills
+
+        return [
+            {**item, "evidence_class": "demo_fixture", "runtime_mode": "development_demo"}
+            for item in trending_skills(limit)
+        ]
+    raise HTTPException(
+        status_code=503,
+        detail={
+            "code": "provider_not_configured",
+            "capability": "workspace.career_intelligence.trending_skills",
+            "message": "Live trend data is not configured for this deployment.",
+        },
+    )
 
 @router.post("/salary-benchmark", response_model=SalaryBenchmarkResponse)
 async def get_salary_benchmark(payload: CareerIntelligenceRequest):
@@ -145,30 +160,11 @@ async def get_salary_benchmark(payload: CareerIntelligenceRequest):
         except Exception as exc:
             logger.warning("External salary API failed: %s", exc)
 
-    # Find closest role key
-    matched_role = "backend" # Default fallback
-    for key in MOCK_SALARIES.keys():
-        if key in role_lower:
-            matched_role = key
-            break
-
-    role_salaries = MOCK_SALARIES[matched_role]
-    
-    # Check location match (e.g. US, India/IN)
-    loc_key = "default"
-    if "india" in location_lower or "in" == location_lower:
-        loc_key = "in"
-    elif "united states" in location_lower or "us" == location_lower or "usa" in location_lower:
-        loc_key = "us"
-
-    sal = role_salaries.get(loc_key, role_salaries["default"])
-
-    return SalaryBenchmarkResponse(
-        role=role,
-        location=location,
-        salary_min=sal["min"],
-        salary_median=sal["med"],
-        salary_max=sal["max"],
-        currency=sal["currency"],
-        confidence="medium (based on historical market reports)"
+    raise HTTPException(
+        status_code=503,
+        detail={
+            "code": "provider_unavailable",
+            "capability": "workspace.career_intelligence.salary_benchmark",
+            "message": "Live salary data is unavailable; no static estimate is returned.",
+        },
     )

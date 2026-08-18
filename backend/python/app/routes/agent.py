@@ -123,6 +123,21 @@ class UpdateKanbanRequest(BaseModel):
 
 agent_instance = GeneralistAgentEngine()
 
+
+def _require_legacy_job_seeker_fixture() -> None:
+    """Keep the legacy simulated job-seeker engine out of release environments."""
+    app_env = os.getenv("APP_ENV", os.getenv("ENV", "development")).strip().lower()
+    enabled = os.getenv("ENABLE_LEGACY_JOB_SEEKER_FIXTURE", "false").strip().lower() in {"1", "true", "yes", "on"}
+    if app_env in {"production", "prod", "staging"} or not enabled:
+        raise HTTPException(
+            status_code=423,
+            detail={
+                "code": "disabled_by_launch_scope",
+                "capability": "demo.legacy_job_seeker_engine",
+                "message": "The legacy job-seeker fixture is disabled; use the governed candidate workflow.",
+            },
+        )
+
 # ponytail: bounded LRU caches for per-user engine instances. Engines hold
 # in-memory state (HITL approvals, interview board), so keep them alive, but
 # cap total resident instances to prevent unbounded memory growth.
@@ -215,6 +230,7 @@ async def list_agent_tools(user_id: str = Depends(get_current_user)) -> Dict[str
 
 @router.post("/job-seeker/search")
 async def job_seeker_search(req: JobSearchRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
+    _require_legacy_job_seeker_fixture()
     try:
         res = await _job_seeker_engine_for(user_id).search_and_filter_jobs(req.query, req.location or "Remote")
         return {"success": True, "data": res}
@@ -224,6 +240,7 @@ async def job_seeker_search(req: JobSearchRequest, user_id: str = Depends(get_cu
 
 @router.post("/job-seeker/tailor")
 async def job_seeker_tailor(req: JobTailorRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
+    _require_legacy_job_seeker_fixture()
     try:
         res = await _job_seeker_engine_for(user_id).tailor_resume_and_cover_letter(req.job_title, req.company, req.job_description)
         return {"success": True, "data": res}
@@ -233,6 +250,7 @@ async def job_seeker_tailor(req: JobTailorRequest, user_id: str = Depends(get_cu
 
 @router.post("/job-seeker/autofill")
 async def job_seeker_autofill(req: JobAutofillRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
+    _require_legacy_job_seeker_fixture()
     if not _is_safe_url(req.form_url):
         raise HTTPException(status_code=400, detail=f"Invalid or unsafe URL '{req.form_url}'. Private, loopback, or non-HTTP(S) destinations are forbidden.")
     try:
@@ -245,6 +263,7 @@ async def job_seeker_autofill(req: JobAutofillRequest, user_id: str = Depends(ge
 
 @router.post("/job-seeker/interview-prep")
 async def job_seeker_interview_prep(req: JobInterviewPrepRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
+    _require_legacy_job_seeker_fixture()
     try:
         res = await _job_seeker_engine_for(user_id).generate_interview_prep_brief(req.company)
         return {"success": True, "data": res}

@@ -87,3 +87,35 @@ Start a task, issue a stop/revoke request, and measure time to local bridge rele
 ## Promotion decision
 
 Do not enable `workspace.local_browser_sensitive_actions` or `workspace.computer_submission` based only on successful read-only tests. They require a separate product, privacy, security, and legal review. Production enablement of the two safe modes requires a signed staging evidence package, approved monitoring and retention settings, dependency/SBOM review, restore treatment for computer-run events, and an on-call runbook.
+
+## F. Machine-checkable evidence bundle
+
+The operator must produce a redacted JSON bundle conforming to `tayari.staging-evidence.v1`. The bundle must contain the exact deployed Git commit, immutable image digest, SBOM digest, provider-configuration hash, operator attestation, and all required scenarios across Computer, tenant isolation, privacy/recovery, provider integrations, adversarial safety, and observability/recovery.
+
+Validate the bundle without making live calls:
+
+```bash
+python3 scripts/verify_staging_evidence_bundle.py --plan
+python3 scripts/verify_staging_evidence_bundle.py --bundle /secure/path/staging-evidence.json
+```
+
+For an actual provider-enabled staging run, the operator must explicitly authorize live verification and use real HTTPS staging endpoints. The verifier will reject missing authorization, local/private endpoints, missing categories, missing scenarios, non-PASS results, secret-shaped values, mutable image references, and missing environment attestations:
+
+```bash
+ALLOW_LIVE_PROVIDER_VERIFY=true \
+python3 scripts/verify_staging_evidence_bundle.py \
+  --bundle /secure/path/staging-evidence.json \
+  --require-live
+```
+
+The bundle is evidence of a specific deployment, not a permanent certification. Its Git commit, image digest, provider configuration hash, and review approval must be checked again after any code, image, provider, model, policy, or infrastructure change.
+
+## G. Standards evidence mapping
+
+Every enabled capability must map its evidence to the repository AI system inventory at `docs/governance/ai-system-inventory.yml`. The inventory records purpose, owner, risk tier, lifecycle state, data classes, outputs, human control, excluded use, evidence requirements, and review owner. Validate it with:
+
+```bash
+python3 scripts/verify_ai_system_inventory.py
+```
+
+This operationalizes the repository’s mapping to NIST AI RMF/AI 600-1, OWASP GenAI and Agentic Application guidance, and ISO/IEC 42001. It does not claim certification. Independent review, live staging evidence, retention/deletion proof, and incident/recovery exercises remain mandatory.

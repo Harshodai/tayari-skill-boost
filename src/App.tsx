@@ -133,10 +133,28 @@ const App = () => (
               <Route path="/landing" element={<LandingPage />} />
               <Route path="/downloads" element={<Downloads />} />
               <Route path="/omnisave" element={<Omnisave />} />
-              <Route path="/control-room" element={<ProtectedRoute><TayariComputerControlRoom /></ProtectedRoute>} />
-              <Route path="/desktop" element={<ProtectedRoute><DesktopAgent /></ProtectedRoute>} />
-              <Route path="/desktop/tasks/:taskId" element={<ProtectedRoute><TaskControlRoom /></ProtectedRoute>} />
-              <Route path="/control-room/tasks/:taskId" element={<ProtectedRoute><TaskControlRoom /></ProtectedRoute>} />
+              {features.computerControl ? (
+                <>
+                  <Route path="/control-room" element={<ProtectedRoute><TayariComputerControlRoom /></ProtectedRoute>} />
+                  <Route path="/control-room/tasks/:taskId" element={<ProtectedRoute><TaskControlRoom /></ProtectedRoute>} />
+                </>
+              ) : (
+                <>
+                  <Route path="/control-room" element={<Navigate to="/resume" replace />} />
+                  <Route path="/control-room/*" element={<Navigate to="/resume" replace />} />
+                </>
+              )}
+              {features.desktopAgent ? (
+                <>
+                  <Route path="/desktop" element={<ProtectedRoute><DesktopAgent /></ProtectedRoute>} />
+                  <Route path="/desktop/tasks/:taskId" element={<ProtectedRoute><TaskControlRoom /></ProtectedRoute>} />
+                </>
+              ) : (
+                <>
+                  <Route path="/desktop" element={<Navigate to="/resume" replace />} />
+                  <Route path="/desktop/*" element={<Navigate to="/resume" replace />} />
+                </>
+              )}
               {features.oneShotPipeline && (
                 <Route path="/one-shot" element={<OneShotPipeline />} />
               )}
@@ -357,14 +375,18 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/interview/prep"
-                element={
-                  <ProtectedRoute>
-                    <InterviewPrep />
-                  </ProtectedRoute>
-                }
-              />
+              {features.interviewPrep ? (
+                <Route
+                  path="/interview/prep"
+                  element={
+                    <ProtectedRoute>
+                      <InterviewPrep />
+                    </ProtectedRoute>
+                  }
+                />
+              ) : (
+                <Route path="/interview/prep" element={<Navigate to="/resume" replace />} />
+              )}
               {features.voiceCoach && (
                 <Route
                   path="/interview/voice-coach"

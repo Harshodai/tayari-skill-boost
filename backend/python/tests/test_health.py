@@ -100,3 +100,42 @@ def test_readyz_fails_closed_without_database(monkeypatch):
 def test_health_routes_have_identical_bodies():
     bodies = [client.get(p).json() for p in ("/health", "/api/health", "/api/v1/health", "/healthz")]
     assert all(body == bodies[0] for body in bodies[1:])
+
+
+def test_capability_manifest_is_non_secret_and_marks_high_risk_disabled(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("CAPABILITY_WORKSPACE_COMPUTER_SUBMISSION", raising=False)
+    response = client.get("/api/v1/capabilities")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["release_scope"] == "candidate_controlled_workspace"
+    entries = {item["capability"]: item for item in body["capabilities"]}
+    assert entries["workspace.computer_submission"]["state"] == "disabled"
+    assert entries["workspace.computer_submission"]["risk_class"] == "high"
+    assert entries["workspace.computer_submission"]["reason"] == "high_risk_capability_disabled_by_launch_scope"
+    assert all("secret" not in str(item).lower() for item in body["capabilities"])
+
+
+def test_capability_manifest_reflects_explicit_development_flag(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("CAPABILITY_WORKSPACE_LOCAL_BROWSER_BRIDGE", "true")
+    response = client.get("/capabilities")
+    assert response.status_code == 200
+    entries = {item["capability"]: item for item in response.json()["capabilities"]}
+    assert entries["workspace.local_browser_bridge"]["state"] == "enabled"
+    assert entries["workspace.local_browser_bridge"]["evidence_class"] == "runtime_capability_registry"
+
+
+def test_capability_manifest_reports_provider_configuration_without_claiming_live_verification(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setenv("CAPABILITY_WORKSPACE_ISOLATED_COMPUTER", "true")
+    monkeypatch.setenv("OPENSANDBOX_API_URL", "https://sandbox.example.test")
+    monkeypatch.setenv("OPENSANDBOX_API_TOKEN", "configured-but-redacted")
+    monkeypatch.setenv("OPENSANDBOX_IMAGE", "registry.example/test@sha256:" + "a" * 64)
+    response = client.get("/api/v1/capabilities")
+    assert response.status_code == 200
+    providers = {item["provider"]: item for item in response.json()["providers"]}
+    assert providers["opensandbox"]["state"] == "configured_unverified"
+    assert providers["opensandbox"]["evidence_class"] == "configuration_presence_only"
+    assert "configured-but-redacted" not in response.text
+    assert "live_probe" in providers["opensandbox"]["reason"]

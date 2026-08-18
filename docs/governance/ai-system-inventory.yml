@@ -1,0 +1,94 @@
+version: 1
+schema: tayari.ai-system-inventory.v1
+last_reviewed: 2026-08-18
+review_cadence_days: 30
+policy_references:
+  - NIST AI RMF 1.0 and Generative AI Profile (AI 600-1)
+  - OWASP GenAI LLM Top 10 2026
+  - OWASP Top 10 for Agentic Applications 2026
+  - ISO/IEC 42001:2023
+systems:
+  - id: tayari_resume_ats
+    name: Resume and ATS Assistance
+    owner: product-career-workspace
+    purpose: Candidate-controlled resume parsing, analysis, tailoring, and ATS assistance.
+    risk_tier: medium
+    lifecycle_state: enabled_after_staging_gates
+    data_classes: [candidate_profile, resume_content, public_job_description]
+    outputs: [analysis, tailored_draft, provenance_record]
+    human_control: candidate_review_required
+    excluded_use: [hiring_decision, outcome_prediction, fabricated_credentials]
+    evidence_requirements: [grounding_trace, unsupported_claim_check, provenance, export_review]
+    review_owner: product-quality
+  - id: tayari_job_discovery
+    name: Job Discovery and Ranking
+    owner: product-career-workspace
+    purpose: Candidate-selected discovery, deduplication, freshness, and explainable ranking of job opportunities.
+    risk_tier: medium
+    lifecycle_state: enabled_after_staging_gates
+    data_classes: [public_job_source, candidate_preferences]
+    outputs: [job_match, ranking_explanation, source_attribution]
+    human_control: candidate_selection_required
+    excluded_use: [private_saved_list_sync, hiring_outcome_prediction]
+    evidence_requirements: [source_freshness, deduplication, attribution, ranking_calibration]
+    review_owner: product-quality
+  - id: tayari_interview_assistance
+    name: Interview Preparation Assistance
+    owner: product-career-workspace
+    purpose: Generate preparation material from candidate-provided context and public job information.
+    risk_tier: medium
+    lifecycle_state: enabled_after_staging_gates
+    data_classes: [candidate_profile, application_context, public_job_description]
+    outputs: [preparation_brief, practice_questions, provenance_record]
+    human_control: candidate_review_required
+    excluded_use: [interview_outcome_prediction, impersonation, live_answer_submission]
+    evidence_requirements: [source_trace, disclosure, unsupported_claim_check]
+    review_owner: product-quality
+  - id: tayari_external_research
+    name: External Research Adapters
+    owner: platform-integrations
+    purpose: Retrieve candidate-authorized public research through explicitly gated providers.
+    risk_tier: high
+    lifecycle_state: staged_only
+    data_classes: [public_source_query, provider_response_metadata]
+    outputs: [cited_research_result, provider_receipt, provenance_record]
+    human_control: candidate_review_required
+    excluded_use: [private_data_exfiltration, unrestricted_crawling, credentialed_site_access]
+    evidence_requirements: [provider_config, quota, attribution, provenance, deletion]
+    review_owner: security-operations
+  - id: tayari_computer
+    name: Tayari Computer
+    owner: platform-security
+    purpose: Bound isolated-computer and explicitly authorized local-browser assistance under a signed policy.
+    risk_tier: critical
+    lifecycle_state: staged_only
+    data_classes: [candidate_selected_page_state, action_metadata, hash_only_observation]
+    outputs: [bounded_action_request, human_handoff, hash_only_provenance]
+    human_control: candidate_takeover_and_approval
+    excluded_use: [password_entry, mfa, captcha, legal_declaration, autonomous_submission, public_cdp, public_vnc]
+    evidence_requirements: [grant_signature, replay_protection, origin_binding, tenant_isolation, stop_latency, teardown, recovery, provenance]
+    review_owner: independent-security-review
+  - id: tayari_email_workspace
+    name: Email-Assisted Workspace
+    owner: platform-integrations
+    purpose: Read-only or candidate-authorized email assistance where provider scope and deletion are proven.
+    risk_tier: high
+    lifecycle_state: disabled
+    data_classes: [email_metadata, candidate_application_context]
+    outputs: [candidate_reviewable_signal, draft_only_message]
+    human_control: candidate_approval_required
+    excluded_use: [unapproved_send, broad_mailbox_access, private_data_export]
+    evidence_requirements: [oauth_scope, renewal, revoke, deletion, audit, provider_outage]
+    review_owner: privacy-security
+  - id: tayari_messaging_billing
+    name: Messaging and Billing Automation
+    owner: platform-integrations
+    purpose: Provider-backed delivery or billing only after reconciliation, revocation, and rollback proof.
+    risk_tier: critical
+    lifecycle_state: disabled
+    data_classes: [contact_data, entitlement_state, payment_event_metadata]
+    outputs: [delivery_receipt, entitlement_state, reconciliation_record]
+    human_control: explicit_opt_in_and_approval
+    excluded_use: [campaigns_without_opt_in, fabricated_entitlements, unverified_refunds]
+    evidence_requirements: [provider_staging, idempotency, reconciliation, refund, revoke, outage, audit]
+    review_owner: security-operations

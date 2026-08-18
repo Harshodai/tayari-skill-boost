@@ -1,0 +1,88 @@
+{
+  "schema": "tayari.staging-evidence.v1",
+  "status": "PASS",
+  "environment": "staging",
+  "run_id": "replace-with-unique-run-id",
+  "generated_at": "2026-08-18T00:00:00Z",
+  "git_commit": "0000000000000000000000000000000000000000",
+  "operator_attestation": "redacted-human-approval-reference",
+  "environment_attestation": {
+    "target_base_url": "https://staging.example.invalid",
+    "python_base_url": "https://python.staging.example.invalid",
+    "image_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "sbom_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "provider_config_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "categories": [
+    {
+      "name": "computer_isolated",
+      "status": "PASS",
+      "scenarios": [
+        {"name": "create", "status": "PASS", "evidence_ref": "evidence://computer-isolated/create"},
+        {"name": "teardown", "status": "PASS", "evidence_ref": "evidence://computer-isolated/teardown"},
+        {"name": "network_boundary", "status": "PASS", "evidence_ref": "evidence://computer-isolated/network-boundary"},
+        {"name": "crash_recovery", "status": "PASS", "evidence_ref": "evidence://computer-isolated/crash-recovery"}
+      ]
+    },
+    {
+      "name": "computer_local_bridge",
+      "status": "PASS",
+      "scenarios": [
+        {"name": "attach", "status": "PASS", "evidence_ref": "evidence://computer-local/attach"},
+        {"name": "origin_switch_rejected", "status": "PASS", "evidence_ref": "evidence://computer-local/origin-switch"},
+        {"name": "revoke", "status": "PASS", "evidence_ref": "evidence://computer-local/revoke"},
+        {"name": "stop_latency", "status": "PASS", "evidence_ref": "evidence://computer-local/stop-latency"}
+      ]
+    },
+    {
+      "name": "tenant_isolation",
+      "status": "PASS",
+      "scenarios": [
+        {"name": "tenant_a_read_denies_tenant_b", "status": "PASS", "evidence_ref": "evidence://tenant/read-negative"},
+        {"name": "tenant_a_write_denies_tenant_b", "status": "PASS", "evidence_ref": "evidence://tenant/write-negative"},
+        {"name": "cache_namespace_isolation", "status": "PASS", "evidence_ref": "evidence://tenant/cache-negative"}
+      ]
+    },
+    {
+      "name": "privacy_deletion_restore",
+      "status": "PASS",
+      "scenarios": [
+        {"name": "backup_restore", "status": "PASS", "evidence_ref": "evidence://recovery/restore"},
+        {"name": "account_delete", "status": "PASS", "evidence_ref": "evidence://privacy/delete"},
+        {"name": "export_delete_reconciliation", "status": "PASS", "evidence_ref": "evidence://privacy/export-delete"}
+      ]
+    },
+    {
+      "name": "provider_integrations",
+      "status": "PASS",
+      "scenarios": [
+        {"name": "firecrawl", "status": "PASS", "evidence_ref": "evidence://providers/firecrawl"},
+        {"name": "apify", "status": "PASS", "evidence_ref": "evidence://providers/apify"},
+        {"name": "a2a", "status": "PASS", "evidence_ref": "evidence://providers/a2a"},
+        {"name": "mcp", "status": "PASS", "evidence_ref": "evidence://providers/mcp"},
+        {"name": "gmail", "status": "PASS", "evidence_ref": "evidence://providers/gmail"},
+        {"name": "stripe", "status": "PASS", "evidence_ref": "evidence://providers/stripe"}
+      ]
+    },
+    {
+      "name": "adversarial_agent_safety",
+      "status": "PASS",
+      "scenarios": [
+        {"name": "prompt_injection", "status": "PASS", "evidence_ref": "evidence://agent/prompt-injection"},
+        {"name": "visual_injection", "status": "PASS", "evidence_ref": "evidence://agent/visual-injection"},
+        {"name": "tool_misuse", "status": "PASS", "evidence_ref": "evidence://agent/tool-misuse"},
+        {"name": "credential_boundary", "status": "PASS", "evidence_ref": "evidence://agent/credential-boundary"}
+      ]
+    },
+    {
+      "name": "observability_recovery",
+      "status": "PASS",
+      "scenarios": [
+        {"name": "kill_switch_alert", "status": "PASS", "evidence_ref": "evidence://operations/kill-switch"},
+        {"name": "provenance_correlation", "status": "PASS", "evidence_ref": "evidence://operations/provenance"},
+        {"name": "rollback", "status": "PASS", "evidence_ref": "evidence://operations/rollback"},
+        {"name": "rpo_rto", "status": "PASS", "evidence_ref": "evidence://operations/rpo-rto"}
+      ]
+    }
+  ]
+}

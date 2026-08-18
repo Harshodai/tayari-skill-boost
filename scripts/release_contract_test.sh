@@ -182,6 +182,18 @@ test -x scripts/perf_check.sh
 ! grep -q 'simulated' scripts/perf_check.sh
  grep -q -- '--plan' scripts/perf_check.sh
 python3 scripts/run_staging_hostile_suite.py --plan >/dev/null
+# Production truth is a release contract: demo fixtures and disabled routes must
+# never report live success or bypass the declared launch scope.
+test -x scripts/verify_production_truth_contract.py
+python3 scripts/verify_production_truth_contract.py >/dev/null
+# Staging promotion evidence is schema-checked; live calls remain explicit and
+# require operator authorization plus real staging endpoints.
+test -x scripts/verify_staging_evidence_bundle.py
+python3 scripts/verify_staging_evidence_bundle.py --plan >/dev/null
+test -x scripts/verify_ai_system_inventory.py
+python3 scripts/verify_ai_system_inventory.py >/dev/null
+test -x scripts/verify_recovery_evidence.py
+python3 scripts/verify_recovery_evidence.py --plan >/dev/null
 
 # The registry is only useful if it is compared with the mounted gateway. Keep
 # this generated check in the release gate so new anonymous routes cannot be

@@ -216,17 +216,10 @@ const Pricing = () => {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        toast.success("Self-hosted mode: credit pack unlocked automatically!");
-        setCreditBalance((prev) => (prev ?? 0) + (packs.find((p) => p.id === packId)?.credits ?? 10));
-        navigate("/dashboard");
+        throw new Error("Billing provider did not return a checkout URL; purchase not completed.");
       }
     } catch (err: any) {
-      if (USE_SELF_HOSTED) {
-        toast.success("Self-hosted mode: credits simulated successfully!");
-        setCreditBalance((prev) => (prev ?? 0) + (packs.find((p) => p.id === packId)?.credits ?? 10));
-      } else {
-        toast.error(err.message || "Failed to launch payment checkout");
-      }
+      toast.error(err.message || "Payment checkout is unavailable; no purchase was completed.");
     } finally {
       setLoadingPlan(null);
     }

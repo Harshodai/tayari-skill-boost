@@ -122,7 +122,7 @@ def _policy_hash(policy: ComputerRunPolicy) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-async def _capture_computer_provenance(*, run: ComputerRun, event_name: str, content: dict, input_hashes: list[str] | None = None) -> None:
+async def _capture_computer_provenance(*, run: ComputerRun, event_name: str, content: dict, input_hashes: list[str] | None = None) -> bool:
     """Persist computer-control origin as hash-only AI provenance."""
     try:
         digest = payload_hash(content)
@@ -146,8 +146,10 @@ async def _capture_computer_provenance(*, run: ComputerRun, event_name: str, con
             input_hashes=input_hashes or [],
             output_hash=digest,
         )
+        return True
     except (ProvenanceUnavailable, ProvenanceError, ValueError) as exc:
         logger.error("computer provenance capture failed event=%s error=%s", event_name, type(exc).__name__)
+        return False
 
 
 async def _insert_event(conn, *, run: ComputerRun, event_type: str, idempotency_key: str, metadata: dict | None = None) -> None:
@@ -268,12 +270,13 @@ async def create_computer_run(
     except Exception as exc:  # noqa: BLE001
         logger.exception("computer run persistence failed")
         raise HTTPException(status_code=503, detail="computer control storage is unavailable") from exc
-    await _capture_computer_provenance(
+    if not await _capture_computer_provenance(
         run=run,
         event_name="run_requested",
         content={"run_id": str(run.run_id), "mode": run.mode.value, "capability": run.capability, "policy_hash": _policy_hash(policy)},
         input_hashes=[_policy_hash(policy)],
-    )
+    ):
+        raise HTTPException(status_code=503, detail="computer provenance storage is unavailable; run was not released")
     return ComputerRunResponse(
         run_id=run.run_id,
         mode=run.mode,
@@ -406,12 +409,13 @@ async def record_computer_observation(
         state=ComputerRunState.GRANTED,
         capability=Capability.WORKSPACE_LOCAL_BROWSER_BRIDGE.value,
     )
-    await _capture_computer_provenance(
+    if not await _capture_computer_provenance(
         run=run_stub,
         event_name="observation_captured",
         content={"run_id": str(run_id), "observation_id": str(payload.observation_id), "origin": payload.origin, "content_sha256": payload.content_sha256, "document_generation": payload.document_generation},
         input_hashes=[payload.content_sha256],
-    )
+    ):
+        raise HTTPException(status_code=503, detail="computer provenance storage is unavailable; observation was not acknowledged")
     return {"success": True, "observation_id": str(payload.observation_id), "recorded": True}
 
 
@@ -475,12 +479,13 @@ async def authorize_computer_action(
         state=ComputerRunState.GRANTED,
         capability=grant.capability,
     )
-    await _capture_computer_provenance(
+    if not await _capture_computer_provenance(
         run=run_stub,
         event_name="action_requested",
         content={"run_id": str(run_id), "action_id": str(action.action_id), "action_class": action.action_class.value, "origin": action.origin, "observation_sha256": action.observation_sha256, "status": decision.status},
         input_hashes=[action.observation_sha256] if action.observation_sha256 else [],
-    )
+    ):
+        raise HTTPException(status_code=503, detail="computer provenance storage is unavailable; action was not authorized")
     return {"success": True, "status": decision.status, "action_id": decision.action_id}
 
 

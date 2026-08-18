@@ -48,6 +48,10 @@ const CONFIG = {
     portfolioGenerator: [true, true],
     // Browser extension availability (enabled)
     browserExtension: [true, true],
+    // JobTayari Computer is preview/staging-only until live isolation and takeover evidence exists.
+    computerControl: [false, true],
+    // JobTayari Desktop task surface is preview/staging-only until persistent-worker evidence exists.
+    desktopAgent: [false, true],
     // Knowledge hub for resume knowledge graph
     knowledgeHub: [true, true],
     // Career operations dashboard
@@ -86,6 +90,8 @@ const CONFIG = {
     { label: "Communication", href: "/communication", feature: "communicationHub" },
     { label: "Career-Ops", href: "/career-ops", feature: "careerOps" },
     { label: "Career Intelligence", href: "/career-intelligence", feature: "careerOps" },
+    { label: "Computer Control", href: "/control-room", feature: "computerControl" },
+    { label: "Desktop Agent", href: "/desktop", feature: "desktopAgent" },
     { label: "Blog", href: "/blog", feature: "blog" },
     { label: "Pricing", href: "/pricing", feature: "pricing" },
     { label: "FAQ", href: "/faq", feature: null },

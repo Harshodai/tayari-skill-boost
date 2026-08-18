@@ -24,6 +24,18 @@ capabilities:
   workspace.application_tracker:
     state: enabled_after_staging_gates
     description: Candidate-owned application pipeline and status tracking.
+  workspace.isolated_computer:
+    state: staged_only
+    description: Private OpenSandbox computer runs; requires real isolation, teardown, and recovery evidence.
+  workspace.local_browser_bridge:
+    state: staged_only
+    description: Explicit candidate-authorized local browser bridge; requires takeover, revoke, origin, and stop evidence.
+  workspace.local_browser_sensitive_actions:
+    state: disabled
+    reason: Sensitive local-browser actions remain candidate-takeover-only in the first release.
+  workspace.computer_submission:
+    state: disabled
+    reason: Computer-mediated external submission is permanently disabled in the first release.
 
   autonomous.browser:
     state: disabled

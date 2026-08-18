@@ -166,3 +166,25 @@ async def test_get_run_owner_and_tenant_predicates_block_foreign_run(monkeypatch
     query, args = calls[0]
     assert "user_id = $2" in query and "tenant_id = $3" in query
     assert len(args) == 3
+
+
+@pytest.mark.asyncio
+async def test_computer_provenance_failure_is_not_reported_as_success(monkeypatch):
+    from app.services.provenance import ProvenanceUnavailable
+
+    async def unavailable(**kwargs):
+        raise ProvenanceUnavailable("provenance unavailable")
+
+    monkeypatch.setattr(computer_routes.provenance_service, "create_artifact", unavailable)
+    run = SimpleNamespace(
+        user_id=uuid4(),
+        tenant_id=uuid4(),
+        run_id=uuid4(),
+        mode=ComputerMode.LOCAL_BROWSER_BRIDGE,
+        capability="workspace.local_browser_bridge",
+    )
+    assert await computer_routes._capture_computer_provenance(
+        run=run,
+        event_name="action_requested",
+        content={"action_id": str(uuid4())},
+    ) is False

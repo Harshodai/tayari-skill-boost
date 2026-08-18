@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from pydantic import BaseModel
 from app.services.llm_service import LLMNotConfiguredError, is_llm_configured
+from app.services.capabilities import Capability, capability_enabled
 from app.telemetry import metrics
 try:
     from fastapi_cache.decorator import cache
@@ -42,6 +43,71 @@ def health_check():
         version="1.0.0",
         model_status="loaded" if configured else "llm_not_configured",
     )
+
+
+@router.get("/api/v1/capabilities")
+@router.get("/capabilities")
+def capability_manifest():
+    """Expose non-secret runtime capability state as the backend authority."""
+    environment = os.getenv("APP_ENV", os.getenv("ENV", "development")).strip().lower()
+    release_scope = os.getenv("RELEASE_SCOPE", "candidate_controlled_workspace").strip() or "candidate_controlled_workspace"
+    autonomous = {
+        Capability.AUTONOMOUS_BROWSER,
+        Capability.AUTONOMOUS_ATS_SUBMIT,
+        Capability.AUTONOMOUS_GMAIL,
+        Capability.AUTONOMOUS_MESSAGING,
+        Capability.AUTONOMOUS_BILLING,
+        Capability.AUTONOMOUS_IRREVERSIBLE,
+        Capability.WORKSPACE_COMPUTER_SUBMISSION,
+    }
+    entries = []
+    for capability in Capability:
+        enabled = capability_enabled(capability)
+        state = "enabled" if enabled else "disabled"
+        reason = None
+        if capability in autonomous and not enabled:
+            reason = "high_risk_capability_disabled_by_launch_scope"
+        elif not enabled:
+            reason = "capability_flag_disabled"
+        entries.append({
+            "capability": capability.value,
+            "state": state,
+            "environment": environment,
+            "release_scope": release_scope,
+            "risk_class": "high" if capability in autonomous else "candidate_controlled",
+            "reason": reason,
+            "evidence_class": "runtime_capability_registry",
+        })
+    provider_requirements = {
+        "opensandbox": (Capability.WORKSPACE_ISOLATED_COMPUTER, ("OPENSANDBOX_API_URL", "OPENSANDBOX_API_TOKEN", "OPENSANDBOX_IMAGE")),
+        "firecrawl": (Capability.WORKSPACE_EXTERNAL_RESEARCH_FIRECRAWL, ("FIRECRAWL_API_KEY",)),
+        "apify": (Capability.WORKSPACE_EXTERNAL_RESEARCH_APIFY, ("APIFY_API_TOKEN", "APIFY_RESEARCH_ACTOR_ID", "APIFY_ALLOWED_ACTORS")),
+        "a2a": (Capability.INTEGRATION_A2A_FEDERATION, ("A2A_FEDERATION_SECRET", "A2A_ALLOWED_PEERS")),
+        "gmail": (Capability.AUTONOMOUS_GMAIL, ("GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET")),
+        "stripe": (Capability.AUTONOMOUS_BILLING, ("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET")),
+    }
+    providers = []
+    for provider, (capability, required_env) in provider_requirements.items():
+        enabled = capability_enabled(capability)
+        configured = all(bool(os.getenv(name, "").strip()) for name in required_env)
+        if not enabled:
+            state = "disabled"
+            reason = "capability_disabled_by_launch_scope"
+        elif not configured:
+            state = "unconfigured"
+            reason = "required_provider_configuration_missing"
+        else:
+            state = "configured_unverified"
+            reason = "credentials_present_but_no_live_probe_in_health_endpoint"
+        providers.append({
+            "provider": provider,
+            "capability": capability.value,
+            "state": state,
+            "required_configuration": list(required_env),
+            "reason": reason,
+            "evidence_class": "configuration_presence_only",
+        })
+    return {"status": "ok", "environment": environment, "release_scope": release_scope, "capabilities": entries, "providers": providers}
 
 
 @router.get("/metrics")

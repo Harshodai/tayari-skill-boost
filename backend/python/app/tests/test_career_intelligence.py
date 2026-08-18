@@ -4,14 +4,24 @@ from app.main import app
 
 client = TestClient(app)
 
-def test_trending_skills():
+def test_trending_skills_requires_explicit_development_fixture(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("ENABLE_DEMO_FIXTURES", "true")
     response = client.get('/api/v1/career-intelligence/trending-skills')
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
-    # Expect each item to have at least a name field
     if data:
-        assert 'name' in data[0]
+        assert data[0]['evidence_class'] == 'demo_fixture'
+        assert data[0]['runtime_mode'] == 'development_demo'
+
+
+def test_trending_skills_is_unavailable_without_live_provider(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("ENABLE_DEMO_FIXTURES", raising=False)
+    response = client.get('/api/v1/career-intelligence/trending-skills')
+    assert response.status_code == 503
+    assert response.json()['detail']['code'] == 'provider_not_configured'
 
 def test_resume_graph_not_found(monkeypatch):
     # Ensure store empty

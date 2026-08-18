@@ -1546,10 +1546,25 @@ async def one_shot_execute_endpoint(
 
 @app.post("/api/v1/ats/simulate")
 async def ats_simulate_endpoint(payload: dict):
-    """Simulate ATS plain-text parsing and warning diagnostic."""
+    """Run the explicit development ATS fixture; never expose it as live analysis."""
+    app_env = os.getenv("APP_ENV", os.getenv("ENV", "development")).strip().lower()
+    demo_enabled = os.getenv("ENABLE_DEMO_FIXTURES", "false").strip().lower() in {"1", "true", "yes", "on"}
+    if app_env in {"production", "prod", "staging"} or not demo_enabled:
+        raise HTTPException(
+            status_code=423,
+            detail={
+                "code": "disabled_by_launch_scope",
+                "capability": "demo.ats_simulator",
+                "message": "The ATS simulator is available only when explicit demo fixtures are enabled in development.",
+            },
+        )
     from app.services.ats_simulator import simulate_ats_parsing
     resume_text = payload.get("resume_text", "")
-    return simulate_ats_parsing(resume_text)
+    return {
+        "evidence_class": "demo_fixture",
+        "runtime_mode": "development_demo",
+        **simulate_ats_parsing(resume_text),
+    }
 
 
 @app.post("/api/v1/interview/copilot-hint")
