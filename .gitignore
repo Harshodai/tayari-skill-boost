@@ -1,5 +1,6 @@
 # Helper Files
 .worktrees/
+.superpowers/
 .env
 .env.*
 !.env.example

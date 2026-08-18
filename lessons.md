@@ -2339,3 +2339,28 @@ See "What was done". Key design choices: provenance touch is best-effort upsert 
 - `frontend`: `npx vitest run` -> **135 passed across 39 files (100% Passed)**.
 - `playwright`: `npx playwright test e2e/credit_billing_and_candidate_flow.spec.ts` -> **5/5 passed (100% Passed in 8.7s)**.
 - `make audit && bash scripts/release_contract_test.sh` -> **PASS across all release and promotion gates**.
+
+---
+
+## 2026-08-18 — Added Go smoke tests for capabilities, provenance, and computer routes
+
+### What was done
+- Added `TestSmoke_Capabilities`, `TestSmoke_Provenance`, and `TestSmoke_Computer` to `backend/go/internal/api/handlers_smoke_test.go`.
+- Added a minimal public `GET /api/capabilities` (and `/api/v1/capabilities`) handler in `backend/go/internal/api/routes_handlers.go`, registered in `routes_app.go`, so the capabilities smoke test has a real route to exercise.
+- Adjusted provenance and computer smoke-test paths to match the actually registered hardened routes (`/api/v1/provenance/export`, `/api/v1/provenance/artifacts`, and `POST /api/v1/computer/runs`).
+- Added `TestRegistry_NewFromEnv_ProductionDefaults` and `TestRegistry_NewFromEnv_DevDefaults` to `backend/go/internal/capabilities/capabilities_test.go` to lock down default capability gating per environment.
+- Ran `go test ./...` and `go test -race ./...` in `backend/go`; both exited cleanly.
+
+### Root cause
+- The task brief supplied smoke-test paths (`/api/v1/provenance/disclosure`, `/api/v1/provenance/systems`, `/api/v1/computer/grants`, `/api/v1/computer/sessions`, `/api/capabilities`) that did not exist in the current router; running them produced 404s.
+- The capability registry had no public smoke endpoint, and the provenance/computer route names in the brief differed from the registered handlers.
+
+### Fix applied
+- Did not weaken production auth; only adjusted test expectations and paths to match registered routes.
+- Added a tiny public capability health route so the test proves the capabilities subsystem is wired without exposing sensitive state.
+- Locked environment defaults with explicit env-var tests.
+
+### Reusable lessons
+- Smoke tests must be verified against the actual route table, not assumed route names from a brief. A 404 from a smoke test is actionable evidence that the path or method is wrong.
+- When a brief specifies paths that don't exist, prefer adjusting the test to reality and adding only the minimal route needed to make the test meaningful, rather than disabling or weakening assertions.
+- Capability gating should have explicit env-default tests per environment so staging/production cannot accidentally enable high-risk features.

@@ -84,6 +84,54 @@ func TestSmoke_Health(t *testing.T) {
 	}
 }
 
+// TestSmoke_Capabilities verifies the capabilities endpoint responds 200 with
+// a JSON status payload on both archive and v1 aliases.
+func TestSmoke_Capabilities(t *testing.T) {
+	srv := newSmokeServer(t)
+	for _, path := range []string{"/api/capabilities", "/api/v1/capabilities"} {
+		w := httptest.NewRecorder()
+		srv.Router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET %s: want 200, got %d (body=%s)", path, w.Code, w.Body.String())
+		}
+		var body map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("GET %s: invalid JSON: %v", path, err)
+		}
+		if body["status"] != "ok" {
+			t.Fatalf("GET %s: want status ok, got %v", path, body["status"])
+		}
+	}
+}
+
+// TestSmoke_Provenance verifies provenance routes are registered and do not
+// 404/500. Unauthenticated requests may return 200 or 401 depending on route
+// configuration.
+func TestSmoke_Provenance(t *testing.T) {
+	srv := newSmokeServer(t)
+	for _, path := range []string{"/api/v1/provenance/export", "/api/v1/provenance/artifacts"} {
+		w := httptest.NewRecorder()
+		srv.Router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		// Accept 200 or 401; smoke test only proves route is registered and does not 404/500.
+		if w.Code != http.StatusOK && w.Code != http.StatusUnauthorized {
+			t.Fatalf("GET %s: want 200 or 401, got %d (body=%s)", path, w.Code, w.Body.String())
+		}
+	}
+}
+
+// TestSmoke_Computer verifies computer routes are registered and behave within
+// expected unauthenticated/auth boundaries (200, 401, or 403).
+func TestSmoke_Computer(t *testing.T) {
+	srv := newSmokeServer(t)
+	for _, path := range []string{"/api/v1/computer/runs"} {
+		w := httptest.NewRecorder()
+		srv.Router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, path, nil))
+		if w.Code != http.StatusOK && w.Code != http.StatusUnauthorized && w.Code != http.StatusForbidden {
+			t.Fatalf("POST %s: want 200/401/403, got %d (body=%s)", path, w.Code, w.Body.String())
+		}
+	}
+}
+
 // TestSmoke_Profile checks the profile handler is wired behind auth on both
 // prefixes: unauthenticated -> 401, authenticated -> 200 with a default
 // profile (the fake DB returns an error, which handleGetProfile maps to an

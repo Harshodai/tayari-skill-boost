@@ -54,3 +54,25 @@ func TestWorkspaceCapabilityRequiresExplicitFlagInProduction(t *testing.T) {
 		t.Fatal("explicit workspace promotion should enable the capability")
 	}
 }
+
+func TestRegistry_NewFromEnv_ProductionDefaults(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	r := NewFromEnv()
+	if r.Enabled(AutonomousBrowser) {
+		t.Fatal("AutonomousBrowser must be disabled in production by default")
+	}
+	if r.Enabled(WorkspaceResume) {
+		t.Fatal("WorkspaceResume must be disabled in production unless explicitly enabled")
+	}
+}
+
+func TestRegistry_NewFromEnv_DevDefaults(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	r := NewFromEnv()
+	if !r.Enabled(WorkspaceResume) {
+		t.Fatal("WorkspaceResume must be enabled in development by default")
+	}
+	if r.Enabled(AutonomousBrowser) {
+		t.Fatal("AutonomousBrowser must remain disabled in development unless explicitly enabled")
+	}
+}

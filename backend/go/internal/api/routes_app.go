@@ -20,6 +20,7 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Use(s.publicRateLimiter.Middleware)
 		r.Get("/api/v1/health", s.handleHealth)
 		r.Get("/api/v1/health/detailed", s.handleHealthDetailed)
+		r.Get("/api/v1/capabilities", s.handleCapabilities)
 		r.Get("/healthz", s.handleHealth)
 		r.Get("/readyz", s.handleReady)
 
@@ -55,6 +56,7 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		// Public legacy aliases
 		r.Get("/api/health", s.handleHealth)
 		r.Get("/api/health/detailed", s.handleHealthDetailed)
+		r.Get("/api/capabilities", s.handleCapabilities)
 		r.Get("/health", s.handleHealth)
 
 		// Public no-signup ATS scan

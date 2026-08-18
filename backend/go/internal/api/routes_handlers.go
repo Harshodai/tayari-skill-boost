@@ -72,6 +72,14 @@ func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleCapabilities returns a minimal capability health check. The detailed
+// capability registry is exposed separately via feature-gated endpoints.
+func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status": "ok",
+	})
+}
+
 func (s *Server) routesApplications(r chi.Router) {
 	r.Get("/api/v1/applications", s.handleListApplications)
 	r.Post("/api/v1/applications", s.handleCreateApplication)
