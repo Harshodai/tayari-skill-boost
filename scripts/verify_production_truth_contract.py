@@ -63,6 +63,11 @@ def main() -> int:
     require("google drive production flag disabled", "src/config/features.ts", "googleDrive: [false, false]")
     require("google calendar launch state", "docs/launch/2026-workspace-scope.yml", "workspace.google.calendar:")
     require("google drive launch state", "docs/launch/2026-workspace-scope.yml", "workspace.google.drive:")
+    require("automation capability flag", "src/config/features.ts", "automationControl")
+    require("automation launch state", "docs/launch/2026-workspace-scope.yml", "workspace.automations:")
+    require("approval launch state", "docs/launch/2026-workspace-scope.yml", "workspace.approvals:")
+    require("email notification launch state", "docs/launch/2026-workspace-scope.yml", "workspace.notification.email:")
+    require("whatsapp notification launch state", "docs/launch/2026-workspace-scope.yml", "workspace.notification.whatsapp:")
 
     # A legacy route may exist for explicit development fixtures, but every
     # handler must be protected by the same fail-closed gate. Other production

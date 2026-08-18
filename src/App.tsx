@@ -92,6 +92,7 @@ const Omnisave = lazy(() => import('./pages/Omnisave'));
 const TayariComputerControlRoom = lazy(() => import('./components/TayariComputerControlRoom'));
 const DesktopAgent = lazy(() => import('./pages/DesktopAgent'));
 const TaskControlRoom = lazy(() => import('./pages/TaskControlRoom'));
+const AutomationWorkspace = lazy(() => import('./pages/AutomationWorkspace'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 const queryClient = new QueryClient();
@@ -229,6 +230,14 @@ const App = () => (
               <Route path="/about" element={<About />} />
 
               {/* Protected Routes */}
+              {features.automationControl ? (
+                <Route path="/automations" element={<ProtectedRoute><AutomationWorkspace /></ProtectedRoute>} />
+              ) : (
+                <>
+                  <Route path="/automations" element={<Navigate to="/resume" replace />} />
+                  <Route path="/automations/*" element={<Navigate to="/resume" replace />} />
+                </>
+              )}
               <Route
                 path="/dashboard"
                 element={

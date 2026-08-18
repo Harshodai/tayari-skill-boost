@@ -104,3 +104,15 @@ systems:
     excluded_use: [campaigns_without_opt_in, fabricated_entitlements, unverified_refunds]
     evidence_requirements: [provider_staging, idempotency, reconciliation, refund, revoke, outage, audit]
     review_owner: security-operations
+  - id: tayari_agent_automation
+    name: Durable Agent Automation and Human Approval Runtime
+    owner: platform-safety
+    purpose: Execute candidate-authorized workflows with durable checkpoints, risk-tiered actions, explicit approval, and provider delivery receipts.
+    risk_tier: critical
+    lifecycle_state: staged_only
+    data_classes: [candidate_profile, automation_definition, action_payload, approval_metadata, notification_metadata, provider_receipt]
+    outputs: [draft_artifact, approval_request, delivery_receipt, automation_event, human_handoff]
+    human_control: explicit_plan_and_action_approval
+    excluded_use: [approval_bypass, secret_entry, mfa, captcha, legal_declaration, autonomous_external_submission, notification_without_opt_in]
+    evidence_requirements: [tool_allowlist, exact_snapshot_binding, expiry, replay_protection, tenant_isolation, worker_restart, provider_outage, delivery_receipt, deletion, audit]
+    review_owner: independent-security-review

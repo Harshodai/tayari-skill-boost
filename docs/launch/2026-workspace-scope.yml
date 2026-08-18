@@ -52,6 +52,18 @@ capabilities:
   workspace.google.drive:
     state: disabled
     reason: Requires verified metadata-only OAuth scope, tenant-bound token storage, revocation, metadata-only sync, provenance, provider outage, and staging evidence.
+  workspace.automations:
+    state: disabled
+    reason: Requires durable trigger, worker restart, budget, idempotency, approval, retention, and two-tenant evidence.
+  workspace.approvals:
+    state: staged_only
+    reason: In-app task and action approvals are implemented deterministically; external-channel decisions require provider, replay, consent, and audit evidence.
+  workspace.notification.email:
+    state: disabled
+    reason: Requires verified transactional provider, domain authentication, delivery/bounce/complaint webhooks, consent, redaction, and staging evidence.
+  workspace.notification.whatsapp:
+    state: disabled
+    reason: Requires explicit opt-in, approved templates, signed webhook verification, delivery status, opt-out, replay protection, and staging evidence.
   autonomous.messaging:
     state: disabled
     reason: Requires provider opt-in, delivery, revocation, and webhook proof.
@@ -66,6 +78,7 @@ claims_excluded:
   - autonomous_external_ats_submission
   - private_saved_list_synchronization
   - production_messaging_campaigns
+  - autonomous_approval_bypass
   - customer_visible_billing
   - hiring_outcome_prediction
 

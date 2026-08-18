@@ -28,6 +28,8 @@ anonymous:
   - GET /api/v1/auth/{provider}/callback
   - GET /api/tenants/branding
   - GET /api/v1/tenants/branding
+  - GET /api/capabilities
+  - GET /api/v1/capabilities
   - POST /api/v1/analytics/performance
   - POST /api/public/analyze-text
   - POST /api/v1/public/analyze-text
@@ -41,6 +43,12 @@ anonymous:
   - GET /api/v1/oauth/google/drive/callback
   - POST /api/gmail/webhook
   - POST /api/v1/gmail/webhook
+  - POST /api/notifications/email/webhook
+  - POST /api/v1/notifications/email/webhook
+  - GET /api/notifications/whatsapp/webhook
+  - GET /api/v1/notifications/whatsapp/webhook
+  - POST /api/notifications/whatsapp/webhook
+  - POST /api/v1/notifications/whatsapp/webhook
   - POST /api/billing/webhook
   - POST /api/v1/billing/webhook
   - GET /api/billing/credits/packs

@@ -364,3 +364,96 @@ export async function revokeAPIKey(id: number): Promise<any> {
 export async function getAPIKeyUsage(id: number): Promise<any> {
   return apiFetch<any>(`/api-keys/usage/${id}`);
 }
+
+
+export interface AutomationDefinition {
+  id: string;
+  name: string;
+  objective: string;
+  trigger_type: string;
+  status: string;
+  policy_version: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutomationRun {
+  id: string;
+  definition_id: string;
+  status: string;
+  version: number;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutomationApproval {
+  id: string;
+  run_id?: string;
+  action_type: string;
+  risk_tier: string;
+  summary: string;
+  status: string;
+  expires_at: string;
+  decision_channel?: string;
+  decided_at?: string;
+  created_at: string;
+}
+
+export interface NotificationPreferences {
+  email_enabled: boolean;
+  email_address?: string;
+  whatsapp_enabled: boolean;
+  phone_e164?: string;
+  whatsapp_opt_in: boolean;
+  locale: string;
+  quiet_hours: Record<string, unknown>;
+  fallback_order: string[];
+}
+
+export async function listAutomations(): Promise<{ automations: AutomationDefinition[] }> {
+  return apiFetch<{ automations: AutomationDefinition[] }>("/v1/automations");
+}
+
+export async function createAutomation(payload: {
+  name: string;
+  objective: string;
+  trigger_type: string;
+  trigger_config?: Record<string, unknown>;
+  tool_allowlist?: string[];
+  approval_policy?: Record<string, unknown>;
+  retention_days?: number;
+  budget?: Record<string, unknown>;
+}): Promise<{ id: string; status: string; approval_required: boolean }> {
+  return apiFetch("/v1/automations", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function createAutomationRun(automationId: string, idempotencyKey: string): Promise<AutomationRun & { approval_required: boolean }> {
+  return apiFetch(`/v1/automations/${encodeURIComponent(automationId)}/runs`, {
+    method: "POST",
+    body: JSON.stringify({ idempotency_key: idempotencyKey }),
+  });
+}
+
+export async function listAutomationApprovals(): Promise<{ approvals: AutomationApproval[] }> {
+  return apiFetch<{ approvals: AutomationApproval[] }>("/v1/approvals");
+}
+
+export async function decideAutomationApproval(id: string, decision: "approve" | "deny"): Promise<{ id: string; status: string; decision_channel: string }> {
+  return apiFetch(`/v1/approvals/${encodeURIComponent(id)}/${decision}`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export async function getNotificationPreferences(): Promise<NotificationPreferences> {
+  return apiFetch<NotificationPreferences>("/v1/notification-preferences");
+}
+
+export async function updateNotificationPreferences(payload: Partial<NotificationPreferences>): Promise<{ ok: boolean; whatsapp_opt_in: boolean }> {
+  return apiFetch("/v1/notification-preferences", { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function notifyApproval(id: string, channel: "email" | "whatsapp"): Promise<{ ok: boolean; delivery_status: string; provider: string }> {
+  return apiFetch(`/v1/approvals/${encodeURIComponent(id)}/notify`, {
+    method: "POST",
+    body: JSON.stringify({ channel }),
+  });
+}

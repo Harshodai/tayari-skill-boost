@@ -83,10 +83,21 @@ def test_a2a_discovery_is_disabled_by_launch_scope(disabled_autonomous_scope):
 
 def test_google_workspace_capabilities_fail_closed_in_production(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.delenv("CAPABILITY_WORKSPACE_GOOGLE_CALENDAR", raising=False)
-    monkeypatch.delenv("CAPABILITY_WORKSPACE_GOOGLE_DRIVE", raising=False)
+    for capability in (
+        "CAPABILITY_WORKSPACE_GOOGLE_CALENDAR",
+        "CAPABILITY_WORKSPACE_GOOGLE_DRIVE",
+        "CAPABILITY_WORKSPACE_AUTOMATIONS",
+        "CAPABILITY_WORKSPACE_APPROVALS",
+        "CAPABILITY_WORKSPACE_NOTIFICATION_EMAIL",
+        "CAPABILITY_WORKSPACE_NOTIFICATION_WHATSAPP",
+    ):
+        monkeypatch.delenv(capability, raising=False)
     assert not capability_enabled(Capability.WORKSPACE_GOOGLE_CALENDAR)
     assert not capability_enabled(Capability.WORKSPACE_GOOGLE_DRIVE)
+    assert not capability_enabled(Capability.WORKSPACE_AUTOMATIONS)
+    assert not capability_enabled(Capability.WORKSPACE_APPROVALS)
+    assert not capability_enabled(Capability.WORKSPACE_NOTIFICATION_EMAIL)
+    assert not capability_enabled(Capability.WORKSPACE_NOTIFICATION_WHATSAPP)
 
 
 def test_google_workspace_capabilities_are_available_in_development(monkeypatch):
@@ -95,3 +106,18 @@ def test_google_workspace_capabilities_are_available_in_development(monkeypatch)
     monkeypatch.delenv("CAPABILITY_WORKSPACE_GOOGLE_DRIVE", raising=False)
     assert capability_enabled(Capability.WORKSPACE_GOOGLE_CALENDAR)
     assert capability_enabled(Capability.WORKSPACE_GOOGLE_DRIVE)
+
+
+def test_automation_capabilities_are_available_in_development(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "development")
+    for capability in (
+        "CAPABILITY_WORKSPACE_AUTOMATIONS",
+        "CAPABILITY_WORKSPACE_APPROVALS",
+        "CAPABILITY_WORKSPACE_NOTIFICATION_EMAIL",
+        "CAPABILITY_WORKSPACE_NOTIFICATION_WHATSAPP",
+    ):
+        monkeypatch.delenv(capability, raising=False)
+    assert capability_enabled(Capability.WORKSPACE_AUTOMATIONS)
+    assert capability_enabled(Capability.WORKSPACE_APPROVALS)
+    assert capability_enabled(Capability.WORKSPACE_NOTIFICATION_EMAIL)
+    assert capability_enabled(Capability.WORKSPACE_NOTIFICATION_WHATSAPP)

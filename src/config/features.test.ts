@@ -13,6 +13,11 @@ describe('Feature Flags Configuration', () => {
         expect(features.interviewPrep).toBe(false);
     });
 
+    it('should keep automation workspace gated off until evidence is complete', () => {
+        expect(features.automationControl).toBe(false);
+        expect(getNavLinks().find((link) => link.href === '/automations')).toBeUndefined();
+    });
+
     it('should have verification enabled (V3 badge is live)', () => {
         expect(features.verification).toBe(true);
     });

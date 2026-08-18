@@ -128,6 +128,8 @@ func (s *Server) routes() {
 	s.routesExtensionExtra(s.Router)
 	s.routesAgents(s.Router)
 	s.routesTasks(s.Router)
+	s.routesAutomations(s.Router)
+	s.routesNotifications(s.Router)
 	s.routesAnalytics(s.Router)
 	s.routesTenant(s.Router)
 	s.routesPush(s.Router)

@@ -40,6 +40,8 @@ const CONFIG = {
     googleCalendar: [false, false],
     // Google Workspace Drive connector; disabled until provider evidence is complete
     googleDrive: [false, false],
+    // Durable automation workspace; disabled until runtime and provider evidence gates pass
+    automationControl: [false, false],
     // AI-powered interview coaching (disabled for current release scope)
     interviewAI: [false, false],
     // Voice interview coach with live metrics
@@ -96,6 +98,7 @@ const CONFIG = {
     { label: "Career Intelligence", href: "/career-intelligence", feature: "careerOps" },
     { label: "Computer Control", href: "/control-room", feature: "computerControl" },
     { label: "Desktop Agent", href: "/desktop", feature: "desktopAgent" },
+    { label: "Automation Workspace", href: "/automations", feature: "automationControl" },
     { label: "Blog", href: "/blog", feature: "blog" },
     { label: "Pricing", href: "/pricing", feature: "pricing" },
     { label: "FAQ", href: "/faq", feature: null },

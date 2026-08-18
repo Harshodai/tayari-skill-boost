@@ -1,0 +1,75 @@
+schema: tayari.approval-policy.v1
+version: 1
+owner: platform-safety
+default_decision: deny
+approval_state_machine:
+  - draft
+  - pending
+  - delivered
+  - viewed
+  - approved
+  - denied
+  - expired
+  - revoked
+  - consumed
+  - delivery_failed
+  - superseded
+invariants:
+  - approval_is_owner_and_tenant_bound
+  - decision_is_single_use
+  - decision_is_action_snapshot_bound
+  - decision_is_policy_version_bound
+  - decision_is_expiry_bound
+  - raw_tokens_are_never_logged
+  - notification_delivery_is_not_execution_success
+  - provider_receipt_is_required_for_external_success
+  - manual_submit_boundary_cannot_be_overridden_by_approval
+risk_tiers:
+  read:
+    default: auto
+    approval: none
+  navigation:
+    default: auto
+    approval: none
+  draft:
+    default: auto
+    approval: external_delivery_review
+  sensitive:
+    default: paused
+    approval: explicit_owner
+  external_write:
+    default: paused
+    approval: explicit_owner
+  submission:
+    default: disabled
+    approval: forbidden_first_release
+channels:
+  in_app:
+    enabled_by_default: true
+    authoritative_decision_surface: true
+  email:
+    enabled_by_default: false
+    requires: [explicit_consent, verified_address, provider_configuration]
+    decision_mode: signed_review_link
+  whatsapp:
+    enabled_by_default: false
+    requires: [explicit_opt_in, verified_phone, provider_configuration, approved_template]
+    decision_mode: signed_review_link_or_interactive_reply
+notification_rules:
+  max_attempts: 5
+  retry_transient_only: true
+  exponential_backoff: true
+  stop_on: [approved, denied, expired, revoked, consumed]
+  fallback_to_in_app: true
+  redaction_required: true
+  quiet_hours_supported: true
+provider_receipts:
+  email: [accepted, delivered, bounced, complained, failed]
+  whatsapp: [accepted, sent, delivered, read, failed]
+webhook_requirements:
+  - signature_verification
+  - timestamp_or_nonce_validation
+  - provider_event_id_deduplication
+  - tenant_routing
+  - bounded_payload
+  - durable_acknowledgement

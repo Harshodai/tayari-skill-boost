@@ -36,6 +36,14 @@ REQUIRED_TABLES = (
     "computer_run_events",
     "user_achievements",
     "user_streaks",
+    "automation_definitions",
+    "automation_runs",
+    "automation_steps",
+    "automation_events",
+    "approval_requests",
+    "notification_preferences",
+    "notification_deliveries",
+    "notification_events",
 )
 
 SERVER_ONLY_TABLES = (
