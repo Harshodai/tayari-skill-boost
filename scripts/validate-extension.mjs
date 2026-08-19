@@ -14,6 +14,7 @@ const captureMatches = manifest.content_scripts?.find((entry) => entry.js?.inclu
 assert.ok(captureMatches.includes('https://medium.com/me/list*'), 'missing Medium Lists capture match');
 assert.ok(captureMatches.includes('https://substack.com/saved*'), 'missing Substack Saved capture match');
 assert.ok(manifest.externally_connectable?.matches?.includes('http://127.0.0.1:8083/*'), 'missing local 127.0.0.1 frontend origin');
+assert.ok(manifest.host_permissions?.includes('http://127.0.0.1:8083/*'), 'missing local bridge host permission');
 for (const file of ['extension/background.js', 'extension/content.js', 'extension/app_bridge.js', 'extension/sidepanel.html', 'extension/sidepanel.js', 'extension/auth/oauth.js', 'extension/auth/session.js', 'extension/nativeBridge.js']) await exists(file);
 assert.ok(manifest.content_scripts?.some((entry) => entry.js?.includes('app_bridge.js') && entry.matches?.includes('http://127.0.0.1:8083/*')), 'missing trusted local app bridge match');
 const options = await read('extension/options.html');
