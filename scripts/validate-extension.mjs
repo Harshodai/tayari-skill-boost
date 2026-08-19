@@ -38,6 +38,8 @@ assert.match(background, /findResumableCaptureRun/);
 assert.match(background, /capture\/runs\?limit=100/);
 assert.match(background, /http:\/\/127\.0\.0\.1:8083/);
 assert.match(await read('extension/messagePolicy.js'), /http:\/\/127\.0\.0\.1:8083/);
+assert.match(await read('Dockerfile.frontend'), /ARG VITE_EXTENSION_ID/);
+assert.match(await read('Dockerfile.frontend'), /ENV VITE_EXTENSION_ID=\$VITE_EXTENSION_ID/);
 assert.match(await read('extension/omnisave_capture.js'), /home\|saved/);
 assert.match(background, /page_cursor/);
 assert.match(nativeBridge, /REQUEST_TIMEOUT_MS/);
