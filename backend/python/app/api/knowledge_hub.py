@@ -144,6 +144,10 @@ class CaptureItemRequest(BaseModel):
     platform: Optional[str] = Field(default=None, max_length=32)
 
 
+class CaptureItemsRequest(BaseModel):
+    items: list[CaptureItemRequest] = Field(default_factory=list, max_length=100)
+
+
 class CaptureRunRequest(BaseModel):
     platform: str = Field(max_length=32)
     source_page_url: HttpUrl
@@ -213,11 +217,12 @@ async def get_capture_run(run_id: str, user_id: str = Depends(get_current_user))
 @router.post("/saves/capture/runs/{run_id}/items")
 async def enqueue_capture_items(
     run_id: str,
-    payload: list[CaptureItemRequest],
+    payload: list[CaptureItemRequest] | CaptureItemsRequest,
     user_id: str = Depends(get_current_user),
 ):
     try:
-        items = [item.model_dump() for item in payload]
+        payload_items = payload.items if isinstance(payload, CaptureItemsRequest) else payload
+        items = [item.model_dump() for item in payload_items]
         return {"success": True, "result": await get_omnisave_capture_store().enqueue_items(user_id, run_id, items)}
     except KeyError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="capture_run_not_found") from exc

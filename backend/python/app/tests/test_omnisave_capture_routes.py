@@ -5,7 +5,7 @@ from unittest import mock
 import pytest
 from fastapi import HTTPException
 
-from app.api.knowledge_hub import CaptureRunRequest, create_capture_run, get_capture_run
+from app.api.knowledge_hub import CaptureItemRequest, CaptureItemsRequest, CaptureRunRequest, create_capture_run, enqueue_capture_items, get_capture_run
 
 
 USER_ID = "00000000-0000-0000-0000-0000000000aa"
@@ -62,6 +62,17 @@ async def test_capture_run_get_is_owner_scoped_by_service_contract():
         result = await get_capture_run("run-1", USER_ID)
     assert result == {"success": True, "run": expected}
     store.get_run.assert_awaited_once_with(USER_ID, "run-1")
+
+
+@pytest.mark.asyncio
+async def test_capture_items_wrapper_payload_is_supported():
+    store = mock.Mock()
+    store.enqueue_items = mock.AsyncMock(return_value={"inserted": 1, "discovered": 1})
+    payload = CaptureItemsRequest(items=[CaptureItemRequest(url="https://medium.com/@jobtayari/post", platform="medium", content="visible")])
+    with mock.patch("app.api.knowledge_hub.get_omnisave_capture_store", return_value=store):
+        result = await enqueue_capture_items("run-1", payload, USER_ID)
+    assert result == {"success": True, "result": {"inserted": 1, "discovered": 1}}
+    store.enqueue_items.assert_awaited_once()
 
 
 @pytest.mark.asyncio
