@@ -153,20 +153,25 @@ All flags in `src/config/features.ts`. Key ones:
 ## Testing
 
 ```bash
-# Frontend unit tests (only ResumeGraph* tests)
-bun run test
+# Frontend unit tests
+pnpm test
 
-# E2E (Playwright)
-npx playwright test e2e/features.spec.ts
+# Frontend lint and production build
+pnpm lint
+pnpm build
 
-# Go tests (DB-free subset only — full suite panics without DB)
-cd backend/go && go test ./internal/api -run 'TestSmoke|TestRouteParity'
+# E2E discovery (requires the configured full stack)
+pnpm exec playwright test --list
+pnpm test:e2e
 
-# Python — fast sanity
-cd backend/python && python -m py_compile app/**/*.py
+# Go gateway
+cd backend/go && go test ./... && go vet ./...
+
+# Python AI engine
+cd backend/python && .venv/bin/pytest -q
 ```
 
-Full `go test ./...` is **known-red** outside Docker (nil-DB panics). See `tayari-validation-and-qa`.
+The repository’s release decision remains **INTERNAL DEMO ONLY** until live hostile-staging, recovery, route-inventory, and credentialed desktop evidence is attached. Passing local tests is necessary but does not substitute for those release proofs.
 
 ---
 
