@@ -64,7 +64,7 @@ fi
 # Derive the host gateway from the included Supabase Compose env so custom local ports remain testable.
 SUPABASE_GATEWAY_PORT="$(grep "^KONG_HTTP_PORT=" supabase-local/.env | cut -d= -f2- || true)"
 SUPABASE_GATEWAY_PORT="${SUPABASE_GATEWAY_PORT:-8000}"
-SUPABASE_GATEWAY_URL="http://localhost:${SUPABASE_GATEWAY_PORT}"
+SUPABASE_GATEWAY_URL="http://127.0.0.1:${SUPABASE_GATEWAY_PORT}"
 
 
 # 3. Validate compose configuration
@@ -122,11 +122,11 @@ wait_for_health "auth" 30
  curl -fsS -H "apikey: ${ANON_KEY}" "${SUPABASE_GATEWAY_URL}/auth/v1/health" >/dev/null
  echo "  ✓ Supabase Auth Gateway (port ${SUPABASE_GATEWAY_PORT}) is responding"
  # Check Supabase Studio
- curl -fsS -o /dev/null -w "%{http_code}" "http://localhost:3001" | grep -q "200\|307\|308" && echo "  ✓ Supabase Studio Web UI (port 3001) is responding"
+ curl -fsS -o /dev/null -w "%{http_code}" "http://127.0.0.1:3001" | grep -q "200\|307\|308" && echo "  ✓ Supabase Studio Web UI (port 3001) is responding"
  # Check Go Backend Gateway
- curl -fsS "http://localhost:8085/api/health" | grep -q "healthy" && echo "  ✓ Go API Gateway (port 8085) is responding"
+ curl -fsS "http://127.0.0.1:8085/api/health" | grep -q "healthy" && echo "  ✓ Go API Gateway (port 8085) is responding"
  # Check Frontend SPA
- curl -fsS -o /dev/null -w "%{http_code}" "http://localhost:8083" | grep -q "200" && echo "  ✓ Frontend React App (port 8083) is responding"
+ curl -fsS -o /dev/null -w "%{http_code}" "http://127.0.0.1:8083" | grep -q "200" && echo "  ✓ Frontend React App (port 8083) is responding"
 
 # 6. Perform End-to-End Auth & Proxy Verification
  echo "Running End-to-End configured auth -> Go Gateway -> DB test..."
@@ -148,10 +148,10 @@ wait_for_health "auth" 30
    fi
  else
    # Self-hosted JWT mode: the web app intentionally uses the Go auth endpoints.
-   curl -fsS -X POST "http://localhost:8085/api/auth/register" \
+   curl -fsS -X POST "http://127.0.0.1:8085/api/auth/register" \
      -H "Content-Type: application/json" \
      -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASS}\"}" >/tmp/tayari-local-smoke-register.json
-   LOGIN_RESP="$(curl -fsS -X POST "http://localhost:8085/api/auth/login" \
+   LOGIN_RESP="$(curl -fsS -X POST "http://127.0.0.1:8085/api/auth/login" \
      -H "Content-Type: application/json" \
      -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASS}\"}")"
    USER_TOKEN="$(echo "$LOGIN_RESP" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('token') or data.get('access_token') or '')")"
@@ -162,7 +162,7 @@ wait_for_health "auth" 30
    exit 1
  fi
  echo "  ✓ Configured auth mode (${AUTH_MODE:-false}) issued a JWT"
- PROFILE_STATUS="$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8085/api/v1/profile" \
+ PROFILE_STATUS="$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8085/api/v1/profile" \
    -H "Authorization: Bearer ${USER_TOKEN}")"
  if [[ "$PROFILE_STATUS" == "200" || "$PROFILE_STATUS" == "404" ]]; then
    echo "  ✓ Go API Gateway verified the configured JWT and reached PostgreSQL (status $PROFILE_STATUS)"
@@ -174,10 +174,10 @@ wait_for_health "auth" 30
 echo "========================================================"
 echo " ✓ Local Open Source Supabase & Tayari Stack is READY! "
 echo "========================================================"
-echo " - Frontend App:      http://localhost:8083"
-echo " - Supabase Studio:   http://localhost:3001"
+echo " - Frontend App:      http://127.0.0.1:8083"
+echo " - Supabase Studio:   http://127.0.0.1:3001"
 echo " - Supabase Gateway:  ${SUPABASE_GATEWAY_URL}"
-echo " - Go API Gateway:    http://localhost:8085"
-echo " - Python AI Service: http://localhost:8002"
-echo " - Celery Flower:     http://localhost:5555/flower"
+echo " - Go API Gateway:    http://127.0.0.1:8085"
+echo " - Python AI Service: http://127.0.0.1:8002"
+echo " - Celery Flower:     http://127.0.0.1:5555/flower"
 echo "========================================================"
