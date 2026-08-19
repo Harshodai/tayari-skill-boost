@@ -3,7 +3,8 @@
 **Assessment date:** 20 August 2026
 **Repository:** [Harshodai/tayari-skill-boost](https://github.com/Harshodai/tayari-skill-boost)
 **Branch:** `main`
-**Verified revision:** `a71bbed` (`origin/main`)
+**Verified code revision:** `a71bbed`
+**Documentation commit:** `1b2596e` (`origin/main`)
 **Scope:** All reachable non-interview functionality; interview functionality remains intentionally excluded.
 
 ## Executive conclusion
@@ -20,7 +21,8 @@ This is a strong **controlled-beta and staging-candidate** result, not proof of 
 |---|---|
 | Branch | `main` |
 | Remote | `origin/main` |
-| Final commit | `a71bbed` — defer staging-suite imports in plan mode |
+| Verified code revision | `a71bbed` — defer staging-suite imports in plan mode |
+| Documentation commit | `1b2596e` — this final verification report |
 | Preceding Docker image fix | `98361b5` — exclude host virtualenv from Python image |
 | Preceding OmniSaveAI data fix | `fb9db0e` — normalize JSONB metadata |
 | Working tree | Clean |
