@@ -356,38 +356,106 @@ async function saveOmniSavePreferences(next) {
   await scheduleOmniSaveSync();
   return preferences;
 }
+const OMNISAVE_RETRY_DELAYS_MS = [500, 1000, 2000];
+
 async function postOmniSaveJson(config, path, body) {
-  const response = await TayariSession.fetchJson(config, path, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) throw new Error(`OmniSaveAI request failed (HTTP ${response.status})`);
-  return response.json();
+  for (let attempt = 0; attempt <= OMNISAVE_RETRY_DELAYS_MS.length; attempt += 1) {
+    const response = await TayariSession.fetchJson(config, path, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (response.ok) return response.json();
+
+    const retryable = response.status === 429 || response.status >= 500;
+    if (!retryable || attempt === OMNISAVE_RETRY_DELAYS_MS.length) {
+      throw new Error(`OmniSaveAI request failed (HTTP ${response.status})`);
+    }
+
+    const retryAfterHeader = response.headers?.get?.('Retry-After');
+    const retryAfterSeconds = Number.parseFloat(retryAfterHeader || '');
+    const retryAfterMs = Number.isFinite(retryAfterSeconds)
+      ? Math.max(0, Math.min(5000, retryAfterSeconds * 1000))
+      : OMNISAVE_RETRY_DELAYS_MS[attempt];
+    await sleep(retryAfterMs);
+  }
+  throw new Error('OmniSaveAI request retry loop exhausted');
 }
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
+async function getOmniSaveJson(config, path) {
+  const response = await TayariSession.fetchJson(config, path, { method: 'GET' });
+  if (!response.ok) throw new Error(`OmniSaveAI request failed (HTTP ${response.status})`);
+  return response.json();
+}
+
+function normalizeCapturePageUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    url.hash = '';
+    return url.href;
+  } catch {
+    return String(value || '');
+  }
+}
+
+async function findResumableCaptureRun(config, firstPage, tab) {
+  try {
+    const result = await getOmniSaveJson(config, 'v1/saves/capture/runs?limit=100');
+    const pageUrl = normalizeCapturePageUrl(firstPage.page_url || tab.url);
+    return (Array.isArray(result?.runs) ? result.runs : []).find((run) => (
+      run?.platform === firstPage.platform
+      && ['queued', 'running', 'partial'].includes(run?.status)
+      && normalizeCapturePageUrl(run.source_page_url) === pageUrl
+    )) || null;
+  } catch {
+    // A list failure must not prevent a new explicitly-consented capture.
+    return null;
+  }
+}
+
 async function captureFullHistoryTab(config, tab, firstPage, preferences, triggerType) {
   const platform = firstPage.platform;
   const requestedLimit = Math.max(25, Math.min(5000, Number(preferences.maxItems) || 250));
-  const created = await postOmniSaveJson(config, 'v1/saves/capture/runs', {
-    platform,
-    source_page_url: firstPage.page_url || tab.url,
-    trigger_type: triggerType === 'automatic' ? 'automatic' : 'extension',
-    requested_limit: requestedLimit,
-    consent_acknowledged: preferences.consentAcknowledged === true,
-  });
-  const runId = created?.run?.id;
+  const resumable = await findResumableCaptureRun(config, firstPage, tab);
+  let runId;
+  let priorRun = null;
+  if (resumable) {
+    runId = resumable.id;
+    priorRun = resumable;
+  } else {
+    const created = await postOmniSaveJson(config, 'v1/saves/capture/runs', {
+      platform,
+      source_page_url: firstPage.page_url || tab.url,
+      trigger_type: triggerType === 'automatic' ? 'automatic' : 'extension',
+      requested_limit: requestedLimit,
+      consent_acknowledged: preferences.consentAcknowledged === true,
+    });
+    runId = created?.run?.id;
+  }
   if (!runId) throw new Error('Capture run was not created.');
   await postOmniSaveJson(config, `v1/saves/capture/runs/${encodeURIComponent(runId)}/claim`, {});
-  let pageCount = 0;
-  let discovered = 0;
-  let imported = 0;
-  let failed = 0;
+  let pageCount = Number(priorRun?.page_count || 0);
+  let discovered = Number(priorRun?.discovered_count || 0);
+  let imported = Number(priorRun?.imported_count || 0);
+  let failed = Number(priorRun?.failed_count || 0);
   let advanced = true;
   let page = firstPage;
+  let checkpointPagePendingAdvance = Boolean(
+    pageCount > 0
+    && priorRun?.checkpoint?.content_signature
+    && firstPage?.content_signature
+    && priorRun.checkpoint.content_signature === firstPage.content_signature
+  );
   try {
     while (advanced && discovered < requestedLimit && pageCount < 100) {
+      if (checkpointPagePendingAdvance) {
+        const next = await chrome.tabs.sendMessage(tab.id, { action: 'advance_saved_sources' });
+        checkpointPagePendingAdvance = false;
+        advanced = next?.advanced === true;
+        if (advanced) await sleep(450);
+        continue;
+      }
       if (pageCount > 0) {
         page = await chrome.tabs.sendMessage(tab.id, { action: 'collect_saved_sources', maxSources: Math.min(100, requestedLimit - discovered) });
       }

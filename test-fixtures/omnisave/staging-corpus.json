@@ -1,0 +1,131 @@
+{
+  "schema": "tayari.omnisave-staging-fixtures.v1",
+  "purpose": "Sanitized operator fixtures only; no credentials or private account data.",
+  "platforms": {
+    "linkedin": {
+      "source_page_url": "https://www.linkedin.com/my-items/saved-posts/",
+      "pages": [
+        {
+          "cursor": "page-1",
+          "content_signature": "linkedin-page-1",
+          "items": [
+            {
+              "url": "https://www.linkedin.com/posts/example-public-post-1",
+              "title": "Fixture LinkedIn saved post one",
+              "author": "Fixture Author",
+              "content": "Sanitized public fixture content.",
+              "media": [{"url": "https://media.example.test/linkedin-1.jpg", "type": "image", "alt": "fixture image"}]
+            },
+            {
+              "url": "https://www.linkedin.com/feed/update/urn:li:activity:fixture-2",
+              "title": "Fixture LinkedIn saved post two",
+              "author": "Fixture Author Two",
+              "content": "Second sanitized fixture.",
+              "media": []
+            }
+          ],
+          "next": "page-2"
+        },
+        {
+          "cursor": "page-2",
+          "content_signature": "linkedin-page-2",
+          "items": [
+            {
+              "url": "https://www.linkedin.com/posts/example-public-post-1#duplicate",
+              "title": "Duplicate of fixture one",
+              "author": "Fixture Author",
+              "content": "Same canonical source after fragment normalization.",
+              "media": []
+            },
+            {
+              "url": "https://www.linkedin.com/posts/example-public-post-3",
+              "title": "Fixture LinkedIn saved post three",
+              "author": "Fixture Author Three",
+              "content": "Third sanitized fixture.",
+              "media": []
+            }
+          ],
+          "next": null
+        }
+      ],
+      "negative_cases": [
+        {"name": "login_wall", "expected": "operator_authentication_required"},
+        {"name": "cross_platform_host", "url": "https://example.substack.com/p/not-linkedin", "expected": "capture_item_platform_mismatch"}
+      ]
+    },
+    "medium": {
+      "source_page_url": "https://medium.com/me/readinglist",
+      "pages": [
+        {
+          "cursor": "page-1",
+          "content_signature": "medium-page-1",
+          "items": [
+            {
+              "url": "https://medium.com/p/fixture-medium-post-1",
+              "title": "Fixture Medium post one",
+              "author": "Fixture Medium Author",
+              "content": "Sanitized Medium fixture content.",
+              "media": [{"url": "https://media.example.test/medium-1.webp", "type": "image", "alt": "fixture image"}]
+            }
+          ],
+          "next": "page-2"
+        },
+        {
+          "cursor": "page-2",
+          "content_signature": "medium-page-2",
+          "items": [
+            {
+              "url": "https://medium.com/p/fixture-medium-post-2",
+              "title": "Fixture Medium post two",
+              "author": "Fixture Medium Author Two",
+              "content": "A fixture that the staging account can delete before the second capture.",
+              "media": []
+            }
+          ],
+          "next": null
+        }
+      ],
+      "negative_cases": [
+        {"name": "login_wall", "expected": "operator_authentication_required"},
+        {"name": "paywall", "expected": "partial_or_failed_with_visible_error"}
+      ]
+    },
+    "substack": {
+      "source_page_url": "https://substack.com/home",
+      "pages": [
+        {
+          "cursor": "page-1",
+          "content_signature": "substack-page-1",
+          "items": [
+            {
+              "url": "https://fixture-public.substack.com/p/fixture-substack-post-1",
+              "title": "Fixture Substack post one",
+              "author": "Fixture Publication",
+              "content": "Sanitized Substack fixture content.",
+              "media": [{"url": "https://media.example.test/substack-1.png", "type": "image", "alt": "fixture image"}]
+            }
+          ],
+          "next": "page-2"
+        },
+        {
+          "cursor": "page-2",
+          "content_signature": "substack-page-2",
+          "items": [
+            {
+              "url": "https://fixture-public.substack.com/p/fixture-substack-post-2",
+              "title": "Fixture Substack post two",
+              "author": "Fixture Publication",
+              "content": "Second sanitized fixture.",
+              "media": []
+            }
+          ],
+          "next": null
+        }
+      ],
+      "negative_cases": [
+        {"name": "login_wall", "expected": "operator_authentication_required"},
+        {"name": "paywall", "expected": "partial_or_failed_with_visible_error"}
+      ]
+    }
+  }
+}
