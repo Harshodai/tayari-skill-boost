@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     currentTab = tab;
+    setupEventListeners();
 
     // Check authentication
     const config = await sendMessage('get_config');
@@ -47,9 +48,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load stats
     await loadStats();
-
-    // Setup event listeners
-    setupEventListeners();
 
     // Populate settings
     $('api-url').value = CONFIG.apiUrl;
@@ -176,8 +174,18 @@ async function loadStats() {
 
 function setupEventListeners() {
   // Authentication
-  $('btn-open-tayari').addEventListener('click', () => {
-    sendMessage('open_tayari', { path: '/auth?next=%2Fextension-onboarding' });
+  $('btn-open-tayari').addEventListener('click', async () => {
+    showMessage('Opening secure sign-in...', 'info');
+    const result = await sendMessage('sign_in_pkce', { provider: 'google' });
+    if (!result?.success) {
+      showMessage(result?.error || 'Secure sign-in failed.', 'error');
+      return;
+    }
+    const config = await sendMessage('get_config');
+    if (config) Object.assign(CONFIG, config);
+    showMessage('Signed in. Refreshing extension state...', 'success');
+    showState(CONFIG.token ? 'no_job' : 'not_authenticated');
+    if (CONFIG.token) await loadStats();
   });
 
   $('btn-create-account').addEventListener('click', () => sendMessage('open_tayari', { path: '/auth?mode=signup&next=%2Fextension-onboarding' }));
