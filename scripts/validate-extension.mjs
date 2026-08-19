@@ -13,6 +13,7 @@ assert.equal(manifest.content_security_policy?.extension_pages, "script-src 'sel
 const captureMatches = manifest.content_scripts?.find((entry) => entry.js?.includes('omnisave_capture.js'))?.matches || [];
 assert.ok(captureMatches.includes('https://medium.com/me/list*'), 'missing Medium Lists capture match');
 assert.ok(captureMatches.includes('https://substack.com/saved*'), 'missing Substack Saved capture match');
+assert.ok(manifest.externally_connectable?.matches?.includes('http://127.0.0.1:8083/*'), 'missing local 127.0.0.1 frontend origin');
 for (const file of ['extension/background.js', 'extension/content.js', 'extension/sidepanel.html', 'extension/sidepanel.js', 'extension/auth/oauth.js', 'extension/auth/session.js', 'extension/nativeBridge.js']) await exists(file);
 const options = await read('extension/options.html');
 const optionsScript = await read('extension/options.js');
@@ -29,6 +30,8 @@ assert.match(background, /OMNISAVE_RETRY_DELAYS_MS/);
 assert.match(background, /response\.status === 429 \|\| response\.status >= 500/);
 assert.match(background, /findResumableCaptureRun/);
 assert.match(background, /capture\/runs\?limit=100/);
+assert.match(background, /http:\/\/127\.0\.0\.1:8083/);
+assert.match(await read('extension/messagePolicy.js'), /http:\/\/127\.0\.0\.1:8083/);
 assert.match(await read('extension/omnisave_capture.js'), /home\|saved/);
 assert.match(background, /page_cursor/);
 assert.match(nativeBridge, /REQUEST_TIMEOUT_MS/);

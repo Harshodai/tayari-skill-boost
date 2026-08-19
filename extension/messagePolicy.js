@@ -29,6 +29,7 @@
     'http://localhost:5173',
     'http://localhost:8080',
     'http://localhost:8083',
+    'http://127.0.0.1:8083',
     'http://localhost:8085',
   ]);
 
