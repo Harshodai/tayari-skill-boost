@@ -526,6 +526,39 @@ async function handleOmniSaveSync(payload) {
   if (!response.ok) throw new Error(`Automatic sync failed (HTTP ${response.status})`);
   return { success: true, ...(await response.json()) };
 }
+function isSupportedOmniSavePageUrl(value) {
+  try {
+    const parsed = new URL(String(value || ''));
+    const path = parsed.pathname;
+    if (parsed.hostname === 'www.linkedin.com' && /\/my-items\/saved-posts(?:\/|$)/i.test(path)) return true;
+    if (parsed.hostname === 'medium.com' && /\/me\/(?:list|readinglist)/i.test(path)) return true;
+    if (parsed.hostname === 'substack.com' && /^\/(?:home|saved)(?:\/|$)/i.test(path)) return true;
+    if (parsed.hostname === 'www.instagram.com' && /\/your_activity\/saved(?:\/|$)/i.test(path)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+async function collectOmniSaveSourcesFromTab(tab, maxSources) {
+  if (!tab?.id || !isSupportedOmniSavePageUrl(tab.url)) return null;
+  try {
+    const existing = await chrome.tabs.sendMessage(tab.id, { action: 'collect_saved_sources', maxSources });
+    if (existing?.success) return existing;
+  } catch {
+    // The tab may have been open before the extension reload and lack the
+    // collector content script. Recover by injecting only into a supported
+    // saved-library URL already covered by host_permissions.
+  }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['omnisave_capture.js'] });
+    await sleep(50);
+    return await chrome.tabs.sendMessage(tab.id, { action: 'collect_saved_sources', maxSources });
+  } catch {
+    return null;
+  }
+}
+
 async function collectOmniSaveSources(force = false) {
   const preferences = await getOmniSavePreferences();
   if (!force && !preferences.enabled) return { success: false, skipped: true, error: 'Automatic capture is disabled.' };
@@ -541,7 +574,7 @@ async function collectOmniSaveSources(force = false) {
   for (const tab of tabs) {
     if (!tab?.id || !tab.url) continue;
     try {
-      const result = await chrome.tabs.sendMessage(tab.id, { action: 'collect_saved_sources', maxSources: preferences.fullHistoryEnabled ? Math.min(100, preferences.maxItems) : 100 });
+      const result = await collectOmniSaveSourcesFromTab(tab, preferences.fullHistoryEnabled ? Math.min(100, preferences.maxItems) : 100);
       if (!result?.success) continue;
       if (!preferences.platforms.includes(result.platform)) continue;
       platforms.add(result.platform);
