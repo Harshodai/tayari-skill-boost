@@ -141,7 +141,7 @@ func (c *Client) PostJSONWithHeaders(endpoint string, payload interface{}, heade
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
 	}
@@ -352,7 +352,7 @@ func (c *Client) PostJSONWithContext(ctx context.Context, endpoint string, paylo
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
 	}
