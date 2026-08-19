@@ -15,6 +15,7 @@ from pathlib import Path
 REQUIRED_TABLES = (
     "profiles",
     "resumes",
+    "saved_jobs",
     "resume_analyses",
     "tenants",
     "cohorts",
@@ -101,7 +102,7 @@ def verify(root: Path) -> dict[str, object]:
     failed = [table for table, check in checks.items() if not check["pass"]]
     failed_server_only = [table for table, check in server_only.items() if not check["pass"]]
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "required_tables": list(REQUIRED_TABLES),
         "server_only_tables": list(SERVER_ONLY_TABLES),
         "checks": checks,
