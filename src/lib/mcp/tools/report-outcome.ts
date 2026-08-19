@@ -1,6 +1,7 @@
 import { defineTool, type ToolContext } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { callApi, toolError } from "./_client";
+import { requireMcpWriteTool } from "./_write-gate";
 
 export default defineTool({
   name: "report_outcome",
@@ -19,7 +20,8 @@ export default defineTool({
   },
   annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false },
   handler: async ({ application_id, ...rest }, ctx: ToolContext) => {
-    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    const gate = requireMcpWriteTool(ctx, "report_outcome");
+    if (gate) return gate;
     if (Object.keys(rest).length === 0) {
       return toolError("At least one outcome field is required");
     }

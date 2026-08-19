@@ -110,12 +110,22 @@ const CONFIG = {
 // These are the workflows we can explain, support, and verify end-to-end.
 // Additional capabilities remain available behind direct routes/feature flags
 // for internal evaluation, but are not promoted in the primary navigation.
-export const primaryNavigationFeatures = {
-  resumeOptimizer: true,
-  jobSearch: true,
-  coverLetter: true,
-  careerRoadmap: true,
-} as const;
+const primaryNavigationKeys = new Set([
+  "resumeOptimizer",
+  "jobSearch",
+  "coverLetter",
+  "careerRoadmap",
+] as const);
+
+export const primaryNavigationFeatures = Object.keys(CONFIG.features).reduce(
+  (acc, key) => {
+    acc[key as keyof typeof CONFIG.features] = primaryNavigationKeys.has(
+      key as (typeof primaryNavigationKeys extends Set<infer T> ? T : never),
+    );
+    return acc;
+  },
+  {} as Record<keyof typeof CONFIG.features, boolean>,
+);
 
 // ============================================
 // SYSTEM LOGIC (No need to edit below)

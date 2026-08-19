@@ -5,18 +5,6 @@
 // src/lib/mcp/index.ts
 import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.1";
 
-function requireMcpWriteTool(ctx, toolName) {
-  const denied = (reason) => {
-    const detail = { code: "disabled_by_launch_scope", capability: "mcp.write_tools", tool: toolName, reason };
-    return { content: [{ type: "text", text: JSON.stringify(detail) }], isError: true, structuredContent: detail };
-  };
-  if (!ctx.isAuthenticated() || !ctx.getUserId?.() || !ctx.getToken?.()) return denied("authenticated MCP context required");
-  const raw = globalThis.Deno?.env?.get?.("CAPABILITY_MCP_WRITE_TOOLS")
-    ?? globalThis.process?.env?.CAPABILITY_MCP_WRITE_TOOLS;
-  if (!["1", "true", "yes", "on"].includes(String(raw ?? "").trim().toLowerCase())) return denied("MCP write tools are disabled by launch scope");
-  return null;
-}
-
 // src/lib/mcp/tools/get-profile.ts
 import { createClient } from "npm:@supabase/supabase-js@^2.112.3";
 import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.1";
@@ -116,6 +104,33 @@ var list_applications_default = defineTool3({
 import { createClient as createClient4 } from "npm:@supabase/supabase-js@^2.112.3";
 import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z3 } from "npm:zod@^4.4.3";
+
+// src/lib/mcp/tools/_write-gate.ts
+function requireMcpWriteTool(ctx, toolName) {
+  const denied = (reason) => {
+    const detail = {
+      code: "disabled_by_launch_scope",
+      capability: "mcp.write_tools",
+      tool: toolName,
+      reason
+    };
+    return {
+      content: [{ type: "text", text: JSON.stringify(detail) }],
+      isError: true,
+      structuredContent: detail
+    };
+  };
+  if (!ctx.isAuthenticated() || !ctx.getUserId?.() || !ctx.getToken?.()) {
+    return denied("authenticated MCP context required");
+  }
+  const raw = globalThis.Deno?.env?.get?.("CAPABILITY_MCP_WRITE_TOOLS") ?? globalThis.process?.env?.CAPABILITY_MCP_WRITE_TOOLS;
+  if (!["1", "true", "yes", "on"].includes(String(raw ?? "").trim().toLowerCase())) {
+    return denied("MCP write tools are disabled by launch scope");
+  }
+  return null;
+}
+
+// src/lib/mcp/tools/save-job.ts
 function sb4(ctx) {
   return createClient4(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
     global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },

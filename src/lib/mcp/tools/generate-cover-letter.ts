@@ -1,6 +1,7 @@
 import { defineTool, type ToolContext } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { callApi, toolError } from "./_client";
+import { requireMcpWriteTool } from "./_write-gate";
 
 export default defineTool({
   name: "generate_cover_letter",
@@ -14,7 +15,8 @@ export default defineTool({
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ resume_id, job_description, company_name, tone }, ctx: ToolContext) => {
-    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+    const gate = requireMcpWriteTool(ctx, "generate_cover_letter");
+    if (gate) return gate;
     try {
       const data = await callApi(ctx, "/api/v1/cover-letter/generate", {
         body: { resume_id, job_description, company_name, tone },

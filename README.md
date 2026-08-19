@@ -1,6 +1,8 @@
 # Tayari Skill Boost
 
-**End-to-end job-search pipeline.** Resume optimization, ATS scoring, cover letter generation, interview prep, and offer negotiation — wired together as one observable pipeline with a self-hosted LLM option for full data privacy.
+**Reviewable job-application workspace.** Tayari turns a resume and target role into evidence-backed, candidate-approved application materials, with a visible record of what was generated, reviewed, and verified.
+
+> **Current release focus:** resume tailoring, opportunity triage, cover-letter drafting, and candidate-controlled review. Secondary automation, desktop, extension, and coaching surfaces remain internal evaluation capabilities until their live evidence gates are closed.
 
 Tayari Skill Boost is an event-driven career operations platform. Microservices architecture: resume processing, async job-scraping pipelines, ATS parsing, LLM-powered optimization, and a social outcome-sharing graph.
 
@@ -10,7 +12,7 @@ Tayari Skill Boost is an event-driven career operations platform. Microservices 
 2. **Tiered Hermes multi-board scraping** (`app/services/hermes/`) — Tier A keyless ATS JSON (Greenhouse/Lever/Ashby/Workday) → Tier B Firecrawl+SerpApi → Tier C Apify → Tier D Crawl4AI+Playwright, with per-provider circuit breakers. Works with zero API keys; upgrades gracefully.
 3. **Hybrid ranking (reciprocal rank fusion)** — three independent rankers fused via RRF, lexical + semantic, instead of a single black-box score.
 4. **Knowledge graph extraction** (`backend/python/app/services/knowledge_graph.py`) — auto-extracts achievements, skills, and timeline; surfaces skill gaps and links them to a career roadmap.
-5. **One-Stop career suite** — 8 integrated AI tools: Typst ATS Exporter, Company Radar Sentinel, WebSockets Real-Time Voice Interview Coach, Salary Negotiation Copilot, Skill Gap Radar, AI Portfolio Generator, Recruiter Outreach Copilot, and Application Funnel Analytics.
+5. **Evidence-backed workflow foundation** — the repository also contains internal evaluation surfaces for Typst export, company radar, interview coaching, negotiation, skill gaps, portfolio generation, outreach, and funnel analytics. These are not part of the current public release promise until their operational evidence is complete.
 
 Plus: pipeline **guardrails** (`app/guardrails/` — keyword-stuffing detector, PII redaction, truthfulness gate, `PipelineGate`) that run before every application is submitted, and a **durable Celery/Redis autopilot** with run state queryable in Postgres.
 

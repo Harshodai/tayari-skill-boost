@@ -30,7 +30,7 @@ import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { features, primaryNavigationFeatures } from "@/config/features";
+import { primaryNavigationFeatures } from "@/config/features";
 import {
   DropdownMenu,
   DropdownMenuContent,

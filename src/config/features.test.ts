@@ -20,12 +20,12 @@ describe('Feature Flags Configuration', () => {
 
 
     it('keeps the public navigation focused on the core application loop', () => {
-        expect(primaryNavigationFeatures).toEqual({
-            resumeOptimizer: true,
-            jobSearch: true,
-            coverLetter: true,
-            careerRoadmap: true,
-        });
+        expect(primaryNavigationFeatures.resumeOptimizer).toBe(true);
+        expect(primaryNavigationFeatures.jobSearch).toBe(true);
+        expect(primaryNavigationFeatures.coverLetter).toBe(true);
+        expect(primaryNavigationFeatures.careerRoadmap).toBe(true);
+        expect(primaryNavigationFeatures.negotiationCopilot).toBe(false);
+        expect(primaryNavigationFeatures.portfolioGenerator).toBe(false);
     });
 
     it('should have verification enabled (V3 badge is live)', () => {
