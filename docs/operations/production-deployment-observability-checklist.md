@@ -428,3 +428,136 @@ Based on the latest repository evidence, the following must be treated as open u
 [10]: ../../scripts/restore-drill.sh "Throwaway database restore drill"
 [11]: ../../scripts/rollback.sh "Controlled deployment rollback script"
 [12]: ../../docs/operations/backup-and-recovery.md "Backup and recovery operations"
+
+
+## 16. Least-cost deployment path to get started
+
+The cheapest sensible path is **not** to deploy the entire self-hosted Supabase stack and every JobTayari feature at once. The repository’s production compose file expects Redis, Python AI, Celery worker, Celery beat, Go gateway, frontend, and Caddy; running the full self-hosted Supabase stack adds many more services. That is operationally expensive even when the infrastructure invoice is small.
+
+### Recommended starter topology
+
+| Layer | Least-cost starter choice | Approximate recurring cost | Scope and limitation |
+|---|---|---:|---|
+| Frontend | Cloudflare Pages Free | `$0/month` | Static React build, Git integration, HTTPS, preview deployments; the official page lists one concurrent build, 500 builds/month, unlimited sites, static requests, and bandwidth [1]. |
+| Database/Auth/Storage | Supabase Free | `$0/month` | Suitable for a private alpha or demo. The official pricing page lists 500 MB database size, 1 GB storage, 5 GB egress, and project pausing after one week of inactivity [2]. It is not sufficient as the sole public-production backup strategy. |
+| Go gateway + Python API + Celery + Redis + Caddy | One Docker-capable VPS | `$12/month` minimum practical starting point; `$24/month` safer | DigitalOcean currently lists a 2 GiB/1 vCPU Basic Droplet at `$12/month` and a 4 GiB/2 vCPU option at `$24/month` [3]. The 512 MiB `$4` and 1 GiB `$6` sizes are too small for a meaningful multi-service JobTayari deployment. |
+| Domain | Existing domain or low-cost registrar | Variable | Required for OAuth redirect URIs, HTTPS, cookies, and a credible candidate-facing URL. |
+| LLM/provider usage | Disabled initially or pay-as-you-go with hard budgets | Variable | LLM, Apify, Firecrawl, email, WhatsApp, and payment fees are not included in the infrastructure estimate. |
+| Backups | Provider-managed database backup or scheduled encrypted export | Variable | Do not claim public production recovery until a restore has been performed. |
+
+The **private-alpha floor** is therefore approximately `$12/month` plus domain, tax, and usage charges when Supabase Free and Cloudflare Pages Free are acceptable. A more reliable small beta should use a 4 GiB VPS at approximately `$24/month`, or Supabase Pro plus a smaller application VPS if managed backups, non-pausing database service, and support are more important than minimizing the invoice. Supabase’s official pricing currently lists Pro from `$25/month`, with daily backups stored for seven days and separate compute billing/credits described on the pricing page [2]. Prices and quotas can change; confirm them at deployment time.
+
+> **Important boundary:** The `$12/month` path is a controlled beta or private alpha, not unconditional public production. It has a single application host, limited capacity, no automatic high availability, and requires an explicit backup and restore design.
+
+### What to disable at the beginning
+
+Start with the narrowest useful candidate-controlled loop:
+
+- Keep enabled: authentication, profile, resume upload and analysis, job search/triage, saved jobs, application pipeline, truthful resume/cover-letter artifacts, candidate approvals, provenance, RLS, and basic outcome tracking.
+- Keep disabled: autonomous ATS submission, browser/desktop execution, Apply Agent external writes, Google/Gmail/Drive/Calendar connectors, WhatsApp approval delivery, Firecrawl and Apify live calls, voice coaching, and any feature that requires a persistent browser session.
+- Run one LLM provider only, with a small model, strict request and token budgets, bounded input sizes, and a visible fail-closed status.
+- Run one Celery worker with one process and one beat scheduler on the starter VPS. Do not expose Redis or Flower publicly.
+- Keep Caddy as the only public ingress. The VPS firewall should expose only SSH from an administrator allowlist and ports 80/443; Go, Python, Redis, Celery, and Postgres must remain private.
+
+### Step-by-step economical deployment
+
+#### Step A — Create external state first
+
+1. Create one Supabase project for the target environment. For a private alpha, the Free plan is acceptable only after acknowledging its inactivity pause, storage/database limits, short log retention, and lack of included managed backups. For a public beta, use the managed plan or another database provider with a verified backup policy.
+2. Apply the authoritative schema in order: Supabase’s real `auth` schema remains managed by Supabase; apply the application initialization SQL and every migration in `backend/db/migrations/` in order. Verify `saved_jobs`, `external_research_runs`, automation tables, approval tables, provider tables, and all RLS policies.
+3. Create a separate throwaway restore target before the first real tenant. Record the database URL fingerprints without recording credentials.
+4. Create the application VPS using at least 2 GiB RAM for a tiny private beta; select 4 GiB if the API, worker, Redis, and build tooling share the machine. Attach a firewall, disable password SSH, use an administrator key, enable unattended security updates, and configure time synchronization.
+
+#### Step B — Build immutable images outside the small VPS
+
+1. Build frontend, Go, Python API, worker, and proxy images in CI or on a developer machine rather than consuming the starter VPS memory and disk.
+2. Tag every image with the release SHA and push to a private registry.
+3. Record image digests and an SBOM. Never deploy a mutable `latest` tag.
+4. Verify `pnpm test -- --run`, `pnpm build`, Go tests, Python tests, RLS contract, observability contract, provider configuration contract, and `bash scripts/release_contract_test.sh` before copying the deployment environment file to the VPS.
+
+#### Step C — Configure the VPS without leaking secrets
+
+1. Install Docker Engine and Compose on the VPS.
+2. Copy only the production compose file, the approved Caddy configuration, and a root-owned environment file with mode `0600`.
+3. Supply the required database, JWT, internal-token, approval-signing, Supabase, origin, frontend, image, Caddy, and LLM variables. The application must fail closed when any required variable is missing.
+4. Add provider variables only if the capability is intentionally enabled. The current production compose file must be reviewed to ensure Firecrawl/Apify secrets are injected into the Python API and worker through the secret manager or environment mechanism; they must not be put in the frontend image.
+5. Set `UVICORN_WORKERS=1` on a 2 GiB starter host, keep provider concurrency low, set strict Celery task limits, and reserve memory for Redis and the reverse proxy. Treat swap as an emergency buffer, not as capacity.
+
+#### Step D — Deploy the minimum service set
+
+```bash
+# On the VPS, from the release directory
+ docker compose -f docker-compose.production.yml config
+ docker compose -f docker-compose.production.yml pull
+ docker compose -f docker-compose.production.yml up -d
+ docker compose -f docker-compose.production.yml ps
+```
+
+Verify Caddy obtains a certificate, the frontend loads, `/healthz` is live, `/readyz` becomes ready, Go can reach Python, Python can reach the database and Redis, the worker registers its queues, and beat emits no duplicate schedule events. Do not publish the URL to real candidates until the canary and tenant-negative tests pass.
+
+#### Step E — Put free/low-cost observability in place
+
+1. Use the host provider’s basic monitoring for CPU, memory, disk, network, and host availability.
+2. Send application errors to the configured Sentry project, with source maps restricted and PII redaction enabled.
+3. Poll protected `/metrics` from a private runner or a small external uptime/monitoring service. Never expose the metrics token or endpoint publicly.
+4. Configure at least one HTTPS uptime check for the frontend and gateway readiness endpoint. A basic uptime check does not replace queue, tenant-isolation, provider, or backup monitoring.
+5. Set email or low-cost notification alerts for disk exhaustion, memory pressure, readiness failure, queue age, task failures, backup age, and certificate expiry.
+6. Preserve release SHA, deploy time, alert state, and sanitized logs for every deployment.
+
+#### Step F — Add one canary tenant
+
+1. Create a disposable canary tenant and a separate operator account.
+2. Test signup/login, profile, resume upload, job triage, save-job ownership, artifact generation, approval creation, and account export.
+3. Attempt negative reads and writes using a second tenant; every cross-tenant operation must fail.
+4. Keep all external providers and autonomous actions disabled during the first canary.
+5. Monitor for at least one normal usage window before inviting additional beta users.
+
+### Cost controls that must be enabled from day one
+
+- [ ] Set provider budgets and reject calls when the budget is exhausted.
+- [ ] Use one LLM provider and one model until latency, quality, and cost are measured.
+- [ ] Limit job-search refresh frequency, provider concurrency, crawl depth, batch size, and dataset item count.
+- [ ] Disable scheduled automation for inactive tenants and cap recurring event emission.
+- [ ] Set VPS billing alerts and a hard monthly budget; delete unused snapshots, test projects, preview environments, and stopped instances.
+- [ ] Set database spend caps where the provider supports them; treat caps as a safety feature, not a substitute for rate limits.
+- [ ] Avoid self-hosting Supabase, Ollama, browser workers, and observability storage on the smallest VPS.
+- [ ] Run builds in CI rather than on the production VPS and prune old images only after confirming the active digest.
+- [ ] Keep logs short-lived on the starter host but export security/audit evidence to restricted durable storage.
+
+### Upgrade triggers
+
+Move from the `$12/month` private-beta shape to a larger or split deployment when any of the following occurs:
+
+| Trigger | Upgrade action |
+|---|---|
+| VPS memory remains above 75% or swap is used during normal traffic | Move to 4 GiB or separate worker/API hosts |
+| Queue age exceeds 300 seconds or worker reclaim increases | Add a worker instance and separate provider queues |
+| More than one deploy per day or frequent image pulls exhaust disk | Add registry cleanup, larger disk, and CI-only builds |
+| More than one active tenant cohort needs uninterrupted auth/database access | Move off Supabase Free to a non-pausing managed plan with verified backups |
+| Database approaches 500 MB or storage/egress approaches the free quota | Upgrade database plan or split storage before quota exhaustion |
+| Provider spend becomes material or 429s increase | Add budget service, per-tenant quotas, circuit breakers, and provider observability |
+| A single VPS becomes a single point of failure for paying users | Add a second application host, managed Redis, managed database, and tested failover |
+| Public launch, regulated data, or contractual uptime promise | Use managed backups/PITR, off-host logs, formal on-call, staging hostile evidence, and documented RTO/RPO |
+
+### Cheapest safe starting recommendation
+
+For getting started without pretending that a hobby deployment is highly available, use:
+
+```text
+Cloudflare Pages Free
+        |
+      HTTPS
+        |
+One 2 GiB VPS ($12/month class; 4 GiB preferred)
+  Caddy + Go gateway + Python API + one Celery worker + beat + private Redis
+        |
+Supabase Free for private alpha, or Supabase Pro/managed equivalent for real beta
+```
+
+Keep all external writes and paid providers disabled. This topology lets the team validate the core candidate workflow at low cost while preserving the repository’s fail-closed boundaries. The first paid upgrade should usually be **database continuity and backup**, followed by worker capacity and managed observability—not autonomous browser submission.
+
+## 17. Low-cost deployment references
+
+[13]: https://supabase.com/pricing "Supabase official pricing"
+[14]: https://pages.cloudflare.com/ "Cloudflare Pages official pricing"
+[15]: https://www.digitalocean.com/pricing/droplets "DigitalOcean Droplets official pricing"
