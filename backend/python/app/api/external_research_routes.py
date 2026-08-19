@@ -16,6 +16,10 @@ from app.services.capabilities import Capability, require_capability
 from app.services.external_research import (
     ProviderNotConfigured,
     ProviderRejected,
+    FirecrawlBatchScrapeRequest,
+    FirecrawlCrawlRequest,
+    ApifyResearchProvider,
+    FirecrawlResearchProvider,
     ResearchRequest,
     ResearchResponse,
     ResearchContext,
@@ -150,6 +154,46 @@ async def external_research(
         raise HTTPException(status_code=504, detail={"code": "external_provider_timeout", "provider": payload.provider}) from exc
 
 
+@router.post("/research/firecrawl/crawl", response_model=ResearchResponse)
+async def firecrawl_crawl(
+    payload: FirecrawlCrawlRequest,
+    request: Request,
+    current_user: str = Depends(get_current_user),
+) -> ResearchResponse:
+    require_capability(Capability.WORKSPACE_EXTERNAL_RESEARCH)
+    require_capability(Capability.WORKSPACE_EXTERNAL_RESEARCH_FIRECRAWL)
+    provider = FirecrawlResearchProvider()
+    context = ResearchContext(subject=current_user, tenant_id=None, request_id=request.headers.get("X-Request-ID"))
+    try:
+        return await provider.crawl(payload, context)
+    except ProviderNotConfigured as exc:
+        raise HTTPException(status_code=503, detail={"code": "external_provider_not_configured", "provider": "firecrawl"}) from exc
+    except ProviderRejected as exc:
+        raise HTTPException(status_code=502, detail={"code": "external_provider_rejected", "provider": "firecrawl"}) from exc
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail={"code": "external_provider_timeout", "provider": "firecrawl"}) from exc
+
+
+@router.post("/research/firecrawl/batch-scrape", response_model=ResearchResponse)
+async def firecrawl_batch_scrape(
+    payload: FirecrawlBatchScrapeRequest,
+    request: Request,
+    current_user: str = Depends(get_current_user),
+) -> ResearchResponse:
+    require_capability(Capability.WORKSPACE_EXTERNAL_RESEARCH)
+    require_capability(Capability.WORKSPACE_EXTERNAL_RESEARCH_FIRECRAWL)
+    provider = FirecrawlResearchProvider()
+    context = ResearchContext(subject=current_user, tenant_id=None, request_id=request.headers.get("X-Request-ID"))
+    try:
+        return await provider.batch_scrape(payload, context)
+    except ProviderNotConfigured as exc:
+        raise HTTPException(status_code=503, detail={"code": "external_provider_not_configured", "provider": "firecrawl"}) from exc
+    except ProviderRejected as exc:
+        raise HTTPException(status_code=502, detail={"code": "external_provider_rejected", "provider": "firecrawl"}) from exc
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail={"code": "external_provider_timeout", "provider": "firecrawl"}) from exc
+
+
 @router.get("/research/{job_id}", response_model=ResearchJobStatus)
 async def external_research_status(job_id: str, current_user: str = Depends(get_current_user)) -> ResearchJobStatus:
     require_capability(Capability.WORKSPACE_EXTERNAL_RESEARCH)
@@ -175,7 +219,22 @@ async def external_research_status(job_id: str, current_user: str = Depends(get_
 async def cancel_external_research(job_id: str, current_user: str = Depends(get_current_user)) -> ResearchJobStatus:
     require_capability(Capability.WORKSPACE_EXTERNAL_RESEARCH)
     require_capability(Capability.WORKSPACE_EXTERNAL_RESEARCH_APIFY)
+    existing = await load_external_research_run_for_user(job_id, current_user)
+    if not existing:
+        raise HTTPException(status_code=404, detail={"code": "external_research_job_not_found_or_terminal"})
+
+    provider_run_id = existing.get("provider_run_id")
+    if provider_run_id and existing.get("status") in {"accepted", "running"}:
+        try:
+            aborted = await ApifyResearchProvider().abort_remote_run(str(provider_run_id))
+        except ProviderNotConfigured as exc:
+            raise HTTPException(status_code=503, detail={"code": "external_provider_not_configured", "provider": "apify"}) from exc
+        except ProviderRejected as exc:
+            raise HTTPException(status_code=502, detail={"code": "external_provider_abort_rejected", "provider": "apify"}) from exc
+        if not aborted:
+            raise HTTPException(status_code=502, detail={"code": "external_provider_abort_failed", "provider": "apify"})
+
     row = await cancel_external_research_run(job_id, current_user)
     if not row:
-        raise HTTPException(status_code=404, detail={"code": "external_research_job_not_found_or_terminal"})
+        raise HTTPException(status_code=409, detail={"code": "external_research_job_already_terminal"})
     return ResearchJobStatus(job_id=str(row["job_id"]), provider="apify", status="cancelled")

@@ -181,3 +181,27 @@ The original 5.1/10 score in this report is the **pre-remediation baseline** cap
 Local evidence for this remediation is **10 focused provider tests passed**, **867 Python tests passed with 4 skipped**, Go tests passed, frontend tests/build passed, the RLS contract passed, the self-hosted migration mirror check passed, and the release contract passed **46/46**. No final 9.5+ score is asserted yet because live Apify execution, staging worker-restart evidence, duplicate webhook evidence, and real provider latency/error behavior remain credential-dependent. Firecrawl crawl/batch-scrape/HMAC webhook parity, provider budgets, and invoking the remote Apify abort endpoint from the cancellation route remain follow-up gates.
 
 The durable migration is `20260823_01_external_research_runs.sql` with self-hosted mirror `44-20260823_external_research_runs.sql`. Apify submissions now return HTTP `202` with an owner-scoped job ID, while Firecrawl retains its synchronous path. The next score review should use the staging gate in this report rather than treating local mocks as live-provider proof.
+
+## Second remediation snapshot: Firecrawl parity and remote cancellation
+
+The current repository now includes Firecrawl crawl and batch-scrape paths. Crawl submission uses the approved Firecrawl hosted endpoint, then polls the asynchronous job until a terminal state. Batch scrape validates every URL as public HTTP(S), submits the batch, polls its job, follows approved continuation URLs, normalizes Markdown/title/URL fields through the same private-network and description-length protections, and reports bounded truncation. Both paths use bounded retries with `Retry-After` handling.
+
+Apify cancellation now follows a fail-closed sequence: the owner-scoped route loads the durable job, invokes the authenticated remote Actor abort endpoint `/v2/actor-runs/{run_id}/abort` when a provider run exists, and only then marks the local job cancelled. A remote abort failure leaves local state unchanged and returns an explicit provider-abort error. Deterministic route and adapter tests cover both successful and failed aborts.
+
+### Current verification evidence
+
+| Gate | Result | Evidence boundary |
+|---|---:|---|
+| Firecrawl and Apify focused provider/route tests | 16 passed | Mock HTTP lifecycle verified locally |
+| Full Python suite | 873 passed, 4 skipped | Local deterministic and repository tests |
+| Go suite | Passed | Local gateway tests |
+| Frontend tests and production build | Passed | Local build and test run |
+| RLS contract | Passed | `external_research_runs` owner policy included |
+| Self-hosted migration mirror | Passed | New durable research-run mirror recognized |
+| Local Supabase schema check | Passed | `external_research_runs` has RLS and FORCE RLS; owner policy exists |
+| Staging recovery contract | Passed | Static recovery requirements verified |
+| Release contract | 46/46 passed | Promotion gate and security scanner passed |
+| Staging worker restart | Blocked | Requires deployed staging, Redis-backed worker, disposable tenants, and observability receiver |
+| Live Apify credential verification | Blocked | No `APIFY_API_TOKEN`, actor configuration, enabled capability, or staging target was available in this environment |
+
+The Firecrawl implementation is locally parity-complete for crawl and batch-scrape lifecycle semantics, but live provider latency, provider-specific response variants, webhook delivery, and staging restart/reclaim evidence remain deployment-gated. No live-provider success claim is made without credentials and a disposable staging target.
