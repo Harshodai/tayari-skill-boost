@@ -30,7 +30,7 @@ import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { features } from "@/config/features";
+import { features, primaryNavigationFeatures } from "@/config/features";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -177,52 +177,52 @@ export function Header() {
               {activeMenu === "features" && (
                 <div className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[550px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-4 z-50 animate-fade-in">
                   <div className="grid grid-cols-2 gap-3">
-                    {features.resumeOptimizer && (
+                    {primaryNavigationFeatures.resumeOptimizer && (
                       <ListItem to="/resume" title="Resume Optimizer" icon={FileText}>
                         Score and tailor your resume to clear applicant tracking systems.
                       </ListItem>
                     )}
-                    {features.interviewAI && (
+                    {primaryNavigationFeatures.interviewAI && (
                       <ListItem to="/interview/prep" title="Interview Prep AI" icon={Brain}>
                         Practice live mock technical and behavioral interviews with real-time feedback.
                       </ListItem>
                     )}
-                    {features.jobSearch && (
+                    {primaryNavigationFeatures.jobSearch && (
                       <ListItem to="/jobs/autopilot" title="AutoPilot" icon={Zap}>
                         Automate background application workflows and outreach trackers.
                       </ListItem>
                     )}
-                    {features.coverLetter && (
+                    {primaryNavigationFeatures.coverLetter && (
                       <ListItem to="/cover-letter" title="Cover Letter Writer" icon={Mail}>
                         Generate highly tailored, role-specific cover letters in seconds.
                       </ListItem>
                     )}
-                    {features.interviewPrep && (
+                    {primaryNavigationFeatures.interviewPrep && (
                       <ListItem to="/interview" title="Interview Board" icon={Calendar}>
                         Manage your applications, schedules, and historical review notes.
                       </ListItem>
                     )}
-                    {features.companyRadar && (
+                    {primaryNavigationFeatures.companyRadar && (
                       <ListItem to="/radar" title="Company Radar" icon={Radar}>
                         15-minute job sentinel monitoring target company career boards.
                       </ListItem>
                     )}
-                    {features.voiceCoach && (
+                    {primaryNavigationFeatures.voiceCoach && (
                       <ListItem to="/interview/voice-coach" title="Voice Interview Coach" icon={Mic}>
                         Live real-time speech WPM, filler word, and STAR feedback.
                       </ListItem>
                     )}
-                    {features.negotiationCopilot && (
+                    {primaryNavigationFeatures.negotiationCopilot && (
                       <ListItem to="/negotiation" title="Salary Negotiation" icon={DollarSign}>
                         H1B benchmark compensation data and counter-offer scripts.
                       </ListItem>
                     )}
-                    {features.portfolioGenerator && (
+                    {primaryNavigationFeatures.portfolioGenerator && (
                       <ListItem to="/portfolio" title="Portfolio Builder" icon={Globe}>
                         Generate interactive, responsive HTML portfolio websites.
                       </ListItem>
                     )}
-                    {features.communicationHub && (
+                    {primaryNavigationFeatures.communicationHub && (
                       <ListItem to="/communication" title="Communication Hub" icon={MessageSquare}>
                         Draft scripts for recruiter outreach, check-ins, and salary negotiations.
                       </ListItem>
@@ -233,7 +233,7 @@ export function Header() {
             </div>
 
             {/* Job Search Direct Link */}
-            {features.jobSearch && (
+            {primaryNavigationFeatures.jobSearch && (
               <Link
                 to="/jobs"
                 className={cn(
@@ -248,7 +248,7 @@ export function Header() {
             )}
 
             {/* Career Roadmap Direct Link */}
-            {features.careerRoadmap && (
+            {primaryNavigationFeatures.careerRoadmap && (
               <Link
                 to="/roadmap"
                 className={cn(
@@ -288,7 +288,7 @@ export function Header() {
               {activeMenu === "resources" && (
                 <div className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[280px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-3 z-50 animate-fade-in">
                   <div className="flex flex-col gap-2">
-                    {features.blog && (
+                    {primaryNavigationFeatures.blog && (
                       <ListItem to="/blog" title="Career Blog" icon={BookOpen}>
                         Insights, guides, and tips on cracking interviews.
                       </ListItem>
@@ -400,7 +400,7 @@ export function Header() {
                   Features
                 </p>
                 <div className="flex flex-col gap-1">
-                  {features.resumeOptimizer && (
+                  {primaryNavigationFeatures.resumeOptimizer && (
                     <Link
                       to="/resume"
                       onClick={() => setMobileMenuOpen(false)}
@@ -415,7 +415,7 @@ export function Header() {
                       <span>Resume Optimizer</span>
                     </Link>
                   )}
-                  {features.interviewAI && (
+                  {primaryNavigationFeatures.interviewAI && (
                     <Link
                       to="/interview/prep"
                       onClick={() => setMobileMenuOpen(false)}
@@ -430,7 +430,7 @@ export function Header() {
                       <span>Interview Prep AI</span>
                     </Link>
                   )}
-                  {features.jobSearch && (
+                  {primaryNavigationFeatures.jobSearch && (
                     <Link
                       to="/jobs/autopilot"
                       onClick={() => setMobileMenuOpen(false)}
@@ -445,7 +445,7 @@ export function Header() {
                       <span>AutoPilot</span>
                     </Link>
                   )}
-                  {features.coverLetter && (
+                  {primaryNavigationFeatures.coverLetter && (
                     <Link
                       to="/cover-letter"
                       onClick={() => setMobileMenuOpen(false)}
@@ -460,7 +460,7 @@ export function Header() {
                       <span>Cover Letter Writer</span>
                     </Link>
                   )}
-                  {features.interviewPrep && (
+                  {primaryNavigationFeatures.interviewPrep && (
                     <Link
                       to="/interview"
                       onClick={() => setMobileMenuOpen(false)}
@@ -475,7 +475,7 @@ export function Header() {
                       <span>Interview Board</span>
                     </Link>
                   )}
-                  {features.communicationHub && (
+                  {primaryNavigationFeatures.communicationHub && (
                     <Link
                       to="/communication"
                       onClick={() => setMobileMenuOpen(false)}
@@ -499,7 +499,7 @@ export function Header() {
                   Explore
                 </p>
                 <div className="flex flex-col gap-1">
-                  {features.jobSearch && (
+                  {primaryNavigationFeatures.jobSearch && (
                     <Link
                       to="/jobs"
                       onClick={() => setMobileMenuOpen(false)}
@@ -514,7 +514,7 @@ export function Header() {
                       <span>Job Search</span>
                     </Link>
                   )}
-                  {features.careerRoadmap && (
+                  {primaryNavigationFeatures.careerRoadmap && (
                     <Link
                       to="/roadmap"
                       onClick={() => setMobileMenuOpen(false)}
@@ -538,7 +538,7 @@ export function Header() {
                   Resources
                 </p>
                 <div className="flex flex-col gap-1">
-                  {features.blog && (
+                  {primaryNavigationFeatures.blog && (
                     <Link
                       to="/blog"
                       onClick={() => setMobileMenuOpen(false)}

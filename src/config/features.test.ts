@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { features, isProductionMode, getNavLinks } from '@/config/features';
+import { features, isProductionMode, getNavLinks, primaryNavigationFeatures } from '@/config/features';
 
 // We need to mock the config module itself OR relying on the fact that
 // in the test environment 'window' might not define the hostname we look for.
@@ -16,6 +16,16 @@ describe('Feature Flags Configuration', () => {
     it('should keep automation workspace gated off until evidence is complete', () => {
         expect(features.automationControl).toBe(false);
         expect(getNavLinks().find((link) => link.href === '/automations')).toBeUndefined();
+    });
+
+
+    it('keeps the public navigation focused on the core application loop', () => {
+        expect(primaryNavigationFeatures).toEqual({
+            resumeOptimizer: true,
+            jobSearch: true,
+            coverLetter: true,
+            careerRoadmap: true,
+        });
     });
 
     it('should have verification enabled (V3 badge is live)', () => {

@@ -106,6 +106,17 @@ const CONFIG = {
   ]
 };
 
+// The public product surface is intentionally narrow for the current release.
+// These are the workflows we can explain, support, and verify end-to-end.
+// Additional capabilities remain available behind direct routes/feature flags
+// for internal evaluation, but are not promoted in the primary navigation.
+export const primaryNavigationFeatures = {
+  resumeOptimizer: true,
+  jobSearch: true,
+  coverLetter: true,
+  careerRoadmap: true,
+} as const;
+
 // ============================================
 // SYSTEM LOGIC (No need to edit below)
 // ============================================
