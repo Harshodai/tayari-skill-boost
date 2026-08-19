@@ -149,7 +149,7 @@ export function Header() {
           <Logo className="shrink-0" />
 
           {/* Column 2: Centered Desktop Navigation */}
-          <nav className="hidden lg:flex items-center justify-center flex-1 mx-6 gap-1.5">
+          <nav aria-label="Primary navigation" className="hidden lg:flex items-center justify-center flex-1 mx-6 gap-1.5">
             {/* Features Dropdown */}
             <div 
               className="relative"
@@ -157,6 +157,10 @@ export function Header() {
               onMouseLeave={handleMouseLeave}
             >
               <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={activeMenu === "features"}
+                aria-controls="features-menu"
                 onClick={(e) => handleToggleClick("features", e)}
                 className={cn(
                   "inline-flex items-center gap-1.5 bg-transparent hover:bg-muted/50 rounded-full h-9 px-3.5 text-sm font-medium transition-all duration-200 outline-none select-none",
@@ -175,7 +179,7 @@ export function Header() {
 
               {/* Features Dropdown Card */}
               {activeMenu === "features" && (
-                <div className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[550px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-4 z-50 animate-fade-in">
+                <div id="features-menu" role="menu" className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[550px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-4 z-50 animate-fade-in">
                   <div className="grid grid-cols-2 gap-3">
                     {primaryNavigationFeatures.resumeOptimizer && (
                       <ListItem to="/resume" title="Resume Optimizer" icon={FileText}>
@@ -269,6 +273,10 @@ export function Header() {
               onMouseLeave={handleMouseLeave}
             >
               <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={activeMenu === "resources"}
+                aria-controls="resources-menu"
                 onClick={(e) => handleToggleClick("resources", e)}
                 className={cn(
                   "inline-flex items-center gap-1.5 bg-transparent hover:bg-muted/50 rounded-full h-9 px-3.5 text-sm font-medium transition-all duration-200 outline-none select-none",
@@ -286,7 +294,7 @@ export function Header() {
 
               {/* Resources Dropdown Card */}
               {activeMenu === "resources" && (
-                <div className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[280px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-3 z-50 animate-fade-in">
+                <div id="resources-menu" role="menu" className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[280px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-3 z-50 animate-fade-in">
                   <div className="flex flex-col gap-2">
                     {primaryNavigationFeatures.blog && (
                       <ListItem to="/blog" title="Career Blog" icon={BookOpen}>
@@ -381,9 +389,11 @@ export function Header() {
                 "p-2 rounded-full text-foreground transition-colors",
                 "hover:bg-muted focus-visible:outline-none"
               )}
+              type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -392,8 +402,8 @@ export function Header() {
 
         {/* Mobile Dropdown Menu */}
         {mobileMenuOpen && (
-          <div className="lg:hidden py-4 border-t border-border/40 animate-fade-in bg-background/95 backdrop-blur-md absolute top-full left-0 right-0 shadow-lg max-h-[85vh] overflow-y-auto">
-            <nav className="flex flex-col gap-5 px-4 pb-4">
+          <div id="mobile-navigation" role="dialog" aria-label="Mobile navigation" className="lg:hidden py-4 border-t border-border/40 animate-fade-in bg-background/95 backdrop-blur-md absolute top-full left-0 right-0 shadow-lg max-h-[85vh] overflow-y-auto">
+            <nav aria-label="Mobile navigation links" className="flex flex-col gap-5 px-4 pb-4">
               {/* Group 1: Features */}
               <div>
                 <p className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest px-3 mb-2">

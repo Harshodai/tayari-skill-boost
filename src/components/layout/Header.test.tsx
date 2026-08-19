@@ -1,37 +1,43 @@
-import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { vi } from "vitest";
 import { Header } from "./Header";
-import { BrowserRouter } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { TooltipProvider } from "@/components/ui/tooltip";
 
-// Mock AuthContext if needed, but wrapping in AuthProvider is safer if it doesn't require backend
-// For unit tests, usually we mock the hook result.
-// Let's rely on the real provider if possible, or mock the hook if it fails.
-// Since AuthProvider likely uses Supabase which might fail in test env without mocking,
-// I should mock useAuth.
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({ user: null, signOut: vi.fn() }),
+}));
+vi.mock("@/components/automation/ActivityButton", () => ({ ActivityButton: () => null }));
+vi.mock("@/components/ThemeToggle", () => ({ ThemeToggle: () => null }));
 
-// Mocking the module
-// import * as AuthContext from "@/contexts/AuthContext";
-// But for now, let's try rendering with wrappers.
+describe("Header accessibility contract", () => {
+  it("exposes labelled navigation and an operable features menu", () => {
+    render(
+      <MemoryRouter>
+        <Header />
+      </MemoryRouter>,
+    );
 
-const TestWrapper = ({ children }: { children: React.ReactNode }) => (
-    <BrowserRouter>
-        <TooltipProvider>
-            {/* We might need to mock AuthProvider or its context value */}
-            <AuthProvider>
-                {children}
-            </AuthProvider>
-        </TooltipProvider>
-    </BrowserRouter>
-);
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeInTheDocument();
+    const features = screen.getByRole("button", { name: /features/i });
+    expect(features).toHaveAttribute("aria-haspopup", "menu");
+    expect(features).toHaveAttribute("aria-expanded", "false");
 
-describe("Header Component", () => {
-    it("renders header and logo", () => {
-        // We need to verify basic rendering
-        // However, without mocking Supabase client in AuthProvider, this might crash.
-        // Let's try minimal render first.
+    fireEvent.click(features);
+    expect(features).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("menu")).toHaveAttribute("id", "features-menu");
+  });
 
-        // Actually, let's just mock the useAuth hook to avoid provider hell
-    });
+  it("labels the mobile navigation trigger", () => {
+    render(
+      <MemoryRouter>
+        <Header />
+      </MemoryRouter>,
+    );
+
+    const trigger = screen.getByRole("button", { name: /open menu/i });
+    expect(trigger).toHaveAttribute("aria-controls", "mobile-navigation");
+    fireEvent.click(trigger);
+    expect(screen.getByRole("dialog", { name: "Mobile navigation" })).toBeInTheDocument();
+  });
 });
