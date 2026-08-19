@@ -68,3 +68,12 @@ async def test_sync_forwards_safe_media_metadata():
     assert result["success"] is True
     kwargs = service.ingest_source.await_args.kwargs
     assert kwargs["media"] == [{"url": "https://cdn.example.com/post.png", "type": "image", "alt": "cover"}]
+
+
+
+def test_jsonb_metadata_normalizes_string_objects():
+    from app.services.omnisave_service import _json_object
+
+    assert _json_object('{"media":[{"url":"https://cdn.example.com/a.png"}]}')["media"][0]["url"] == "https://cdn.example.com/a.png"
+    assert _json_object({"thread_context": {"reply_count": 1}})["thread_context"]["reply_count"] == 1
+    assert _json_object("not-json") == {}

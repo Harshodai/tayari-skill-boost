@@ -17,6 +17,19 @@ from app.services.omnisave_capture import _bounded_media
 
 logger = logging.getLogger(__name__)
 
+
+def _json_object(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, dict) else {}
+        except (TypeError, ValueError):
+            return {}
+    return {}
+
+
 # ponytail: exact insufficiency response the RAG prompt instructs the LLM to
 # emit when the snippets do not answer the query. It is the ONLY answer accepted
 # without citations; anything else must cite at least one recognized source.
@@ -247,7 +260,7 @@ class OmnisaveService:
                             "primary_category": canonical["primary_category"],
                             "secondary_tags": canonical["secondary_tags"] or [],
                             "summary_bullets": canonical["summary_bullets"] or [],
-                            "nlp_metadata": canonical["nlp_metadata"] or {},
+                            "nlp_metadata": _json_object(canonical["nlp_metadata"]),
                             "saved_at": canonical["created_at"].isoformat() if canonical["created_at"] else None,
                         }
                         await conn.execute(
@@ -397,7 +410,7 @@ class OmnisaveService:
                 "primary_category": row["primary_category"],
                 "secondary_tags": row["secondary_tags"] or [],
                 "summary_bullets": row["summary_bullets"] or [],
-                "nlp_metadata": row["nlp_metadata"] or {},
+                "nlp_metadata": _json_object(row["nlp_metadata"]),
                 "highlight_count": int(row.get("highlight_count", 0) or 0),
                 "context_count": int(row.get("context_count", 0) or 0),
                 "saved_at": row["created_at"].isoformat() if row["created_at"] else None,
@@ -822,7 +835,7 @@ class OmnisaveService:
                 "primary_category": row["primary_category"],
                 "secondary_tags": row["secondary_tags"] or [],
                 "summary_bullets": row["summary_bullets"] or [],
-                "nlp_metadata": row["nlp_metadata"] or {},
+                "nlp_metadata": _json_object(row["nlp_metadata"]),
                 "capture_origin": row.get("capture_origin"),
                 "sync_status": row.get("sync_status"),
                 "content_hash": row.get("content_hash"),
@@ -831,7 +844,7 @@ class OmnisaveService:
                 "last_attempt_at": row["last_attempt_at"].isoformat() if row.get("last_attempt_at") else None,
                 "attempt_count": int(row.get("attempt_count", 0) or 0),
                 "last_sync_error": row.get("last_error"),
-                "thread_context": (row.get("nlp_metadata") or {}).get("thread_context"),
+                "thread_context": _json_object(row.get("nlp_metadata")).get("thread_context"),
                 "freshness_score": self._freshness_score(row),
                 "saved_at": row["created_at"].isoformat() if row["created_at"] else None,
             }

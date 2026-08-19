@@ -14,6 +14,18 @@ MAX_EXPORT_SOURCES = 500
 MAX_SOURCE_TEXT_CHARS = 100_000
 
 
+def _json_object(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, dict) else {}
+        except (TypeError, ValueError):
+            return {}
+    return {}
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -285,8 +297,8 @@ class OmniSaveSyncStore:
                 "category": row["primary_category"],
                 "tags": row["secondary_tags"] or [],
                 "summary": row["summary_bullets"] or [],
-                "nlp": row["nlp_metadata"] or {},
-                "media": (row["nlp_metadata"] or {}).get("media") or [],
+                "nlp": _json_object(row["nlp_metadata"]),
+                "media": _json_object(row["nlp_metadata"]).get("media") or [],
                 "saved_at": _as_iso(row["saved_at"] or row["created_at"]),
                 "capture_origin": row.get("capture_origin"),
                 "sync_status": row.get("sync_status"),
@@ -295,7 +307,7 @@ class OmniSaveSyncStore:
                 "last_attempt_at": _as_iso(row.get("last_attempt_at")),
                 "attempt_count": int(row.get("attempt_count", 0) or 0),
                 "last_sync_error": row.get("last_error"),
-                "thread_context": (row.get("nlp_metadata") or {}).get("thread_context"),
+                "thread_context": _json_object(row.get("nlp_metadata")).get("thread_context"),
                 "freshness_score": self._freshness_score(row),
                 "highlights": [],
                 "context_links": [],
