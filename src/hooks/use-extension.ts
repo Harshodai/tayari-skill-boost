@@ -1,11 +1,9 @@
 // Chrome runtime is injected by the browser extension; its ambient typings are not available in the web build.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const chrome: any;
-declare const process: { env: Record<string, string | undefined> };
-
 import { useEffect, useCallback, useState } from "react";
 
-const EXTENSION_ID = process.env.VITE_EXTENSION_ID || "tayari-extension-id";
+const EXTENSION_ID = import.meta.env.VITE_EXTENSION_ID || "tayari-extension-id";
 const PAGE_BRIDGE_SOURCE = "jobtayari-extension-page-bridge-v1";
 const PAGE_BRIDGE_ACTIONS = new Set(["get_version", "omnisave_preferences_get", "omnisave_preferences_set", "omnisave_sync_now"]);
 
