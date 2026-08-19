@@ -1,6 +1,6 @@
 import { defineTool, type ToolContext } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { callApi, toolError } from "./_client";
+import { callApi, requireMcpWriteTool, toolError } from "./_client";
 
 export default defineTool({
   name: "add_to_pipeline",
@@ -16,6 +16,8 @@ export default defineTool({
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ title, company, url, location, description, stage }, ctx: ToolContext) => {
+    const gate = requireMcpWriteTool(ctx, "add_to_pipeline");
+    if (gate) return gate;
     if (!ctx.isAuthenticated()) return toolError("Not authenticated");
     try {
       const data = await callApi(ctx, "/api/v1/extension/capture", {

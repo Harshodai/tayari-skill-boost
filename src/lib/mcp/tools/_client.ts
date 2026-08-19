@@ -68,6 +68,23 @@ export async function callApi(
   return data;
 }
 
-export function toolError(text: string): { content: { type: "text"; text: string }[]; isError: true } {
-  return { content: [{ type: "text", text }], isError: true };
+export function toolError(text: string, structuredContent?: unknown): { content: { type: "text"; text: string }[]; isError: true; structuredContent?: unknown } {
+  return { content: [{ type: "text", text }], ...(structuredContent === undefined ? {} : { structuredContent }), isError: true };
+}
+
+export function requireMcpWriteTool(ctx: ToolContext, toolName: string) {
+  if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+  const runtime = (globalThis as {
+    Deno?: { env?: { get?: (key: string) => string | undefined } };
+  }).Deno?.env?.get?.("CAPABILITY_MCP_WRITE_TOOLS") ?? "";
+  if (!["1", "true", "yes", "on"].includes(String(runtime).trim().toLowerCase())) {
+    const detail = {
+      code: "disabled_by_launch_scope",
+      capability: "mcp.write_tools",
+      tool: toolName,
+      reason: "MCP write tools are disabled by launch scope",
+    };
+    return toolError(JSON.stringify(detail), detail);
+  }
+  return null;
 }

@@ -1,6 +1,6 @@
 import { defineTool, type ToolContext } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { callApi, toolError, REQUEST_TIMEOUT_MS } from "./_client";
+import { callApi, requireMcpWriteTool, toolError, REQUEST_TIMEOUT_MS } from "./_client";
 
 export default defineTool({
   name: "optimize_resume",
@@ -12,6 +12,8 @@ export default defineTool({
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ resume_id, job_description }, ctx: ToolContext) => {
+    const gate = requireMcpWriteTool(ctx, "optimize_resume");
+    if (gate) return gate;
     if (!ctx.isAuthenticated()) return toolError("Not authenticated");
     try {
       // LLM optimization is slow — explicit timeout instead of the default.

@@ -5,17 +5,6 @@
 // src/lib/mcp/index.ts
 import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.1";
 
-function requireMcpWriteTool(ctx, toolName) {
-  const denied = (reason) => {
-    const detail = { code: "disabled_by_launch_scope", capability: "mcp.write_tools", tool: toolName, reason };
-    return { content: [{ type: "text", text: JSON.stringify(detail) }], isError: true, structuredContent: detail };
-  };
-  if (!ctx.isAuthenticated()) return denied("authenticated MCP context required");
-  const raw = globalThis.Deno?.env?.get?.("CAPABILITY_MCP_WRITE_TOOLS") ?? process.env.CAPABILITY_MCP_WRITE_TOOLS;
-  if (!["1", "true", "yes", "on"].includes(String(raw ?? "").trim().toLowerCase())) return denied("MCP write tools are disabled by launch scope");
-  return null;
-}
-
 // src/lib/mcp/tools/get-profile.ts
 import { createClient } from "npm:@supabase/supabase-js@^2.112.3";
 import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.1";
@@ -115,48 +104,6 @@ var list_applications_default = defineTool3({
 import { createClient as createClient4 } from "npm:@supabase/supabase-js@^2.112.3";
 import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z3 } from "npm:zod@^4.4.3";
-function sb4(ctx) {
-  return createClient4(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-}
-var save_job_default = defineTool4({
-  name: "save_job",
-  title: "Save a job",
-  description: "Save a job to the signed-in user's saved list / Interview Board.",
-  inputSchema: {
-    title: z3.string().trim().min(1),
-    company: z3.string().trim().min(1),
-    location: z3.string().optional(),
-    url: z3.string().url().optional(),
-    description: z3.string().optional(),
-    status: z3.enum(["saved", "applied", "phone_screen", "interview", "offer", "rejected"]).optional()
-  },
-  annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-  handler: async ({ title, company, location, url, description, status }, ctx) => {
-    const gate = requireMcpWriteTool(ctx, "save_job");
-    if (gate) return gate;
-    const { data, error } = await sb4(ctx).from("saved_jobs").insert({
-      user_id: ctx.getUserId(),
-      title,
-      company,
-      location: location ?? null,
-      url: url ?? null,
-      description: description ?? null,
-      status: status ?? "saved"
-    }).select().single();
-    if (error) return { content: [{ type: "text", text: error.message }], isError: true };
-    return {
-      content: [{ type: "text", text: `Saved ${title} at ${company}` }],
-      structuredContent: { row: data }
-    };
-  }
-});
-
-// src/lib/mcp/tools/optimize-resume.ts
-import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.20.1";
-import { z as z4 } from "npm:zod@^4.4.3";
 
 // src/lib/mcp/tools/_client.ts
 function runtimeGoApiUrl() {
@@ -206,11 +153,70 @@ async function callApi(ctx, path, options = {}) {
   }
   return data;
 }
-function toolError(text) {
-  return { content: [{ type: "text", text }], isError: true };
+function toolError(text, structuredContent) {
+  return { content: [{ type: "text", text }], ...structuredContent === void 0 ? {} : { structuredContent }, isError: true };
+}
+function requireMcpWriteTool(ctx, toolName) {
+  if (!ctx.isAuthenticated()) return toolError("Not authenticated");
+  const runtime = globalThis.Deno?.env?.get?.("CAPABILITY_MCP_WRITE_TOOLS") ?? "";
+  if (!["1", "true", "yes", "on"].includes(String(runtime).trim().toLowerCase())) {
+    const detail = {
+      code: "disabled_by_launch_scope",
+      capability: "mcp.write_tools",
+      tool: toolName,
+      reason: "MCP write tools are disabled by launch scope"
+    };
+    return toolError(JSON.stringify(detail), detail);
+  }
+  return null;
 }
 
+// src/lib/mcp/tools/save-job.ts
+function sb4(ctx) {
+  return createClient4(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
+    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+}
+var save_job_default = defineTool4({
+  name: "save_job",
+  title: "Save a job",
+  description: "Save a job to the signed-in user's saved list / Interview Board.",
+  inputSchema: {
+    title: z3.string().trim().min(1),
+    company: z3.string().trim().min(1),
+    location: z3.string().optional(),
+    url: z3.string().url().optional(),
+    description: z3.string().optional(),
+    status: z3.enum(["saved", "applied", "phone_screen", "interview", "offer", "rejected"]).optional()
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  handler: async ({ title, company, location, url, description, status }, ctx) => {
+    const gate = requireMcpWriteTool(ctx, "save_job");
+    if (gate) return gate;
+    if (!ctx.isAuthenticated()) {
+      return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    }
+    const { data, error } = await sb4(ctx).from("saved_jobs").insert({
+      user_id: ctx.getUserId(),
+      title,
+      company,
+      location: location ?? null,
+      url: url ?? null,
+      description: description ?? null,
+      status: status ?? "saved"
+    }).select().single();
+    if (error) return { content: [{ type: "text", text: error.message }], isError: true };
+    return {
+      content: [{ type: "text", text: `Saved ${title} at ${company}` }],
+      structuredContent: { row: data }
+    };
+  }
+});
+
 // src/lib/mcp/tools/optimize-resume.ts
+import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z4 } from "npm:zod@^4.4.3";
 var optimize_resume_default = defineTool5({
   name: "optimize_resume",
   title: "Optimize resume",
@@ -223,6 +229,7 @@ var optimize_resume_default = defineTool5({
   handler: async ({ resume_id, job_description }, ctx) => {
     const gate = requireMcpWriteTool(ctx, "optimize_resume");
     if (gate) return gate;
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
     try {
       const data = await callApi(ctx, `/api/v1/resumes/${resume_id}/optimize`, {
         body: { job_description },
@@ -277,6 +284,7 @@ var generate_cover_letter_default = defineTool7({
   handler: async ({ resume_id, job_description, company_name, tone }, ctx) => {
     const gate = requireMcpWriteTool(ctx, "generate_cover_letter");
     if (gate) return gate;
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
     try {
       const data = await callApi(ctx, "/api/v1/cover-letter/generate", {
         body: { resume_id, job_description, company_name, tone }
@@ -339,6 +347,7 @@ var add_to_pipeline_default = defineTool9({
   handler: async ({ title, company, url, location, description, stage }, ctx) => {
     const gate = requireMcpWriteTool(ctx, "add_to_pipeline");
     if (gate) return gate;
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
     try {
       const data = await callApi(ctx, "/api/v1/extension/capture", {
         body: { title, company, url, location, description, stage, add_to_board: true }
@@ -481,6 +490,7 @@ var report_outcome_default = defineTool14({
   handler: async ({ application_id, ...rest }, ctx) => {
     const gate = requireMcpWriteTool(ctx, "report_outcome");
     if (gate) return gate;
+    if (!ctx.isAuthenticated()) return toolError("Not authenticated");
     if (Object.keys(rest).length === 0) {
       return toolError("At least one outcome field is required");
     }
