@@ -207,6 +207,8 @@ test -x scripts/perf_check.sh
 python3 scripts/run_staging_hostile_suite.py --plan >/dev/null
 test -x scripts/verify_omnisave_staging_fixtures.py
 python3 scripts/verify_omnisave_staging_fixtures.py >/dev/null
+grep -q 'Connect browser companion' src/components/omnisave/OmniSaveCapturePanel.tsx
+grep -q '/extension-onboarding' src/components/omnisave/OmniSaveCapturePanel.tsx
 test -x scripts/omnisave_recovery_contract_test.py
 python3 scripts/omnisave_recovery_contract_test.py >/dev/null
 # Production truth is a release contract: demo fixtures and disabled routes must
