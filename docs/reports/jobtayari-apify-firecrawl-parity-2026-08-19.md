@@ -173,3 +173,11 @@ The correct next move is not to add more provider names or UI controls. It is to
 [8]: ../research/similarweb-apify-firecrawl-2026-08.json "Raw SimilarWeb provider benchmark output"
 [9]: https://github.com/Harshodai/tayari-skill-boost/blob/main/backend/python/app/services/external_research.py "JobTayari external research adapter source"
 [10]: https://github.com/Harshodai/tayari-skill-boost/blob/main/backend/python/app/tests/test_external_research.py "JobTayari external research tests"
+
+## Post-remediation implementation snapshot
+
+The original 5.1/10 score in this report is the **pre-remediation baseline** captured before the Apify lifecycle was implemented. The current repository now contains a durable Apify worker path that submits an Actor through the approved `/v2/actors/{actor_id}/runs` endpoint, records the provider run ID before polling, polls `/v2/actor-runs/{run_id}` to terminal state, fetches `/v2/datasets/{dataset_id}/items` with bounded continuation, applies the existing URL and text sanitation, retries transient 429/5xx/network conditions with `Retry-After` support, heartbeats a durable lease, persists bounded results, and records provenance idempotently.
+
+Local evidence for this remediation is **10 focused provider tests passed**, **867 Python tests passed with 4 skipped**, Go tests passed, frontend tests/build passed, the RLS contract passed, the self-hosted migration mirror check passed, and the release contract passed **46/46**. No final 9.5+ score is asserted yet because live Apify execution, staging worker-restart evidence, duplicate webhook evidence, and real provider latency/error behavior remain credential-dependent. Firecrawl crawl/batch-scrape/HMAC webhook parity, provider budgets, and invoking the remote Apify abort endpoint from the cancellation route remain follow-up gates.
+
+The durable migration is `20260823_01_external_research_runs.sql` with self-hosted mirror `44-20260823_external_research_runs.sql`. Apify submissions now return HTTP `202` with an owner-scoped job ID, while Firecrawl retains its synchronous path. The next score review should use the staging gate in this report rather than treating local mocks as live-provider proof.

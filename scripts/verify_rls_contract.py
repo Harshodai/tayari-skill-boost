@@ -48,6 +48,11 @@ REQUIRED_TABLES = (
     "notification_events",
 )
 
+READ_ONLY_OWNER_TABLES = (
+    "external_research_runs",
+)
+
+
 SERVER_ONLY_TABLES = (
     "password_reset_tokens",
     "gmail_tokens",
@@ -87,6 +92,17 @@ def verify(root: Path) -> dict[str, object]:
             "pass": enablement and policy and with_check,
         }
 
+    read_only_owner: dict[str, dict[str, bool]] = {}
+    for table in READ_ONLY_OWNER_TABLES:
+        enablement = bool(re.search(rf"ALTER\s+TABLE\s+(?:public\.)?{re.escape(table)}\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY", text, re.I))
+        policy = bool(re.search(rf"CREATE\s+POLICY\s+[^\n]+\s+ON\s+(?:public\.)?{re.escape(table)}\b", text, re.I))
+        owner_predicate = bool(re.search(rf"CREATE\s+POLICY[\s\S]+?ON\s+(?:public\.)?{re.escape(table)}\b[\s\S]+?auth\.uid\s*\(\s*\)\s*=\s*user_id", text, re.I))
+        read_only_owner[table] = {
+            "rls_enabled": enablement,
+            "owner_policy_present": policy and owner_predicate,
+            "pass": enablement and policy and owner_predicate,
+        }
+
     server_only: dict[str, dict[str, bool]] = {}
     for table in SERVER_ONLY_TABLES:
         enablement = bool(re.search(rf"ALTER\s+TABLE\s+(?:public\.)?{re.escape(table)}\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY", text, re.I))
@@ -100,16 +116,20 @@ def verify(root: Path) -> dict[str, object]:
         }
 
     failed = [table for table, check in checks.items() if not check["pass"]]
+    failed_read_only_owner = [table for table, check in read_only_owner.items() if not check["pass"]]
     failed_server_only = [table for table, check in server_only.items() if not check["pass"]]
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "required_tables": list(REQUIRED_TABLES),
+        "read_only_owner_tables": list(READ_ONLY_OWNER_TABLES),
         "server_only_tables": list(SERVER_ONLY_TABLES),
         "checks": checks,
+        "read_only_owner_checks": read_only_owner,
         "server_only_checks": server_only,
         "failed_tables": failed,
+        "failed_read_only_owner_tables": failed_read_only_owner,
         "failed_server_only_tables": failed_server_only,
-        "status": "pass" if not failed and not failed_server_only else "fail",
+        "status": "pass" if not failed and not failed_read_only_owner and not failed_server_only else "fail",
     }
 
 
