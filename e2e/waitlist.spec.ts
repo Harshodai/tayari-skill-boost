@@ -13,7 +13,7 @@ test("records an institutional interest request from pricing", async ({ page }) 
 
   await page.goto("/pricing");
   await page.getByLabel("Work email for contact sales").fill("pilot@example.com");
-  await page.getByRole("button", { name: "Contact Us" }).click();
+  await page.getByRole("button", { name: "Contact Sales" }).click();
 
   await expect.poll(() => requestBody).toEqual({
     email: "pilot@example.com",

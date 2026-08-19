@@ -54,7 +54,7 @@ test('End-to-End: Register, Upload Resume and Analyze against Stripe JD', async 
 
   // 6. Wait for Analyze button to become enabled and click
   console.log('[E2E] Triggering analysis...');
-  const analyzeBtn = page.locator('button', { hasText: 'Analyze Resume' });
+  const analyzeBtn = page.getByRole('button', { name: /Generate review/i });
   await expect(analyzeBtn).toBeEnabled({ timeout: 15000 });
   await analyzeBtn.click();
 
