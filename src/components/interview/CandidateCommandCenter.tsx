@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useState } from "react";
 import {
   ArrowUpRight,
   BookOpen,
@@ -32,11 +33,18 @@ type WorkflowItem = {
   tone: string;
 };
 
+type GmailSyncScope = {
+  query?: string;
+  after?: string;
+  before?: string;
+  max_results?: number;
+};
+
 interface CandidateCommandCenterProps {
   applicationCount: number;
   gmailEnabled: boolean;
   gmailConnected: boolean;
-  onSyncGmail: () => void;
+  onSyncGmail: (scope?: GmailSyncScope) => void;
   syncingGmail: boolean;
 }
 
@@ -99,6 +107,9 @@ export function CandidateCommandCenter({
   onSyncGmail,
   syncingGmail,
 }: CandidateCommandCenterProps) {
+  const [query, setQuery] = useState("");
+  const [after, setAfter] = useState("");
+  const [before, setBefore] = useState("");
   const emailLabel = !gmailEnabled
     ? "On demand"
     : gmailConnected
@@ -186,7 +197,27 @@ export function CandidateCommandCenter({
             </CardHeader>
             <CardContent className="space-y-3">
               <HandoffItem icon={<FileText className="mt-0.5 h-4 w-4 shrink-0 text-primary" />} title="Review your board" detail="Confirm the next action for each active application before starting new prep." />
-              {gmailEnabled && <HandoffItem icon={<Mail className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />} title={gmailConnected ? "Sync job email" : "Connect job email"} detail="Email stays private until you approve a board update." action={gmailConnected ? <Button variant="link" size="sm" className="mt-1 h-auto p-0 text-xs" onClick={onSyncGmail} disabled={syncingGmail}>{syncingGmail ? "Syncing..." : "Sync now"}</Button> : undefined} />}
+              {gmailEnabled && <HandoffItem icon={<Mail className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />} title={gmailConnected ? "Sync job email" : "Connect job email"} detail="Email stays private until you approve a board update." action={gmailConnected ? (
+                <div className="mt-2 space-y-2">
+                  <details className="rounded-md border border-border/60 bg-background/40 p-2 text-xs">
+                    <summary className="cursor-pointer font-medium text-foreground">Choose sync scope</summary>
+                    <div className="mt-2 space-y-2">
+                      <label className="block text-muted-foreground">Gmail search query
+                        <input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={240} placeholder="subject:(interview OR offer)" className="mt-1 w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground" />
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="text-muted-foreground">After
+                          <input type="date" value={after} onChange={(event) => setAfter(event.target.value)} className="mt-1 w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground" />
+                        </label>
+                        <label className="text-muted-foreground">Before
+                          <input type="date" value={before} onChange={(event) => setBefore(event.target.value)} className="mt-1 w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground" />
+                        </label>
+                      </div>
+                    </div>
+                  </details>
+                  <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => onSyncGmail({ query: query || undefined, after: after || undefined, before: before || undefined, max_results: 20 })} disabled={syncingGmail}>{syncingGmail ? "Syncing..." : "Sync now"}</Button>
+                </div>
+              ) : undefined} />}
               <HandoffItem icon={<Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-fuchsia-500" />} title="Turn reflection into leverage" detail="Keep private notes or publish a sanitized experience for other candidates." />
             </CardContent>
           </Card>
