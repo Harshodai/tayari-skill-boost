@@ -10,8 +10,9 @@ function requireMcpWriteTool(ctx, toolName) {
     const detail = { code: "disabled_by_launch_scope", capability: "mcp.write_tools", tool: toolName, reason };
     return { content: [{ type: "text", text: JSON.stringify(detail) }], isError: true, structuredContent: detail };
   };
-  if (!ctx.isAuthenticated()) return denied("authenticated MCP context required");
-  const raw = globalThis.Deno?.env?.get?.("CAPABILITY_MCP_WRITE_TOOLS") ?? process.env.CAPABILITY_MCP_WRITE_TOOLS;
+  if (!ctx.isAuthenticated() || !ctx.getUserId?.() || !ctx.getToken?.()) return denied("authenticated MCP context required");
+  const raw = globalThis.Deno?.env?.get?.("CAPABILITY_MCP_WRITE_TOOLS")
+    ?? globalThis.process?.env?.CAPABILITY_MCP_WRITE_TOOLS;
   if (!["1", "true", "yes", "on"].includes(String(raw ?? "").trim().toLowerCase())) return denied("MCP write tools are disabled by launch scope");
   return null;
 }
