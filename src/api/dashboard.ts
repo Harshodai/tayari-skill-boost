@@ -435,6 +435,19 @@ export async function createAutomationRun(automationId: string, idempotencyKey: 
   });
 }
 
+export interface AutomationEvent {
+  sequence_no?: number;
+  event_id?: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+export async function getAutomationRun(runId: string): Promise<AutomationRun> {
+  return apiFetch<AutomationRun>(`/v1/automation-runs/${encodeURIComponent(runId)}`);
+}
+export async function listAutomationEvents(runId: string): Promise<{ events: AutomationEvent[] }> {
+  return apiFetch<{ events: AutomationEvent[] }>(`/v1/automation-runs/${encodeURIComponent(runId)}/events`);
+}
 export async function listAutomationApprovals(): Promise<{ approvals: AutomationApproval[] }> {
   return apiFetch<{ approvals: AutomationApproval[] }>("/v1/approvals");
 }

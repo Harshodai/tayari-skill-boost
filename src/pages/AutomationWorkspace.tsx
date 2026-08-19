@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, Bell, CheckCircle2, Clock3, Mail, MessageCircle, PauseCircle, ShieldCheck, XCircle } from "lucide-react";
+import { AlertCircle, Bell, CheckCircle2, Clock3, Mail, MessageCircle, PauseCircle, Play, RefreshCw, ShieldCheck, Workflow, XCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,15 +8,20 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { features } from "@/config/features";
 import {
   createAutomation,
+  createAutomationRun,
   decideAutomationApproval,
+  listAutomations,
   getNotificationPreferences,
   listAutomationApprovals,
   notifyApproval,
   updateNotificationPreferences,
   type AutomationApproval,
+  type AutomationDefinition,
+  type AutomationRun,
   type NotificationPreferences,
 } from "@/api/dashboard";
 
@@ -35,9 +40,14 @@ const AutomationWorkspace = () => {
   const [name, setName] = useState("");
   const [objective, setObjective] = useState("");
   const [approvals, setApprovals] = useState<AutomationApproval[]>([]);
+  const [automations, setAutomations] = useState<AutomationDefinition[]>([]);
+  const [runs, setRuns] = useState<AutomationRun[]>([]);
+  const [selectedAutomationId, setSelectedAutomationId] = useState("");
+  const [triggerEvent, setTriggerEvent] = useState("manual");
   const [preferences, setPreferences] = useState<NotificationPreferences>(emptyPreferences);
   const [loading, setLoading] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
+  const [startingRun, setStartingRun] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -46,10 +56,13 @@ const AutomationWorkspace = () => {
     setLoading(true);
     setError("");
     try {
-      const [approvalResponse, preferenceResponse] = await Promise.all([
+      const [automationResponse, approvalResponse, preferenceResponse] = await Promise.all([
+        listAutomations(),
         listAutomationApprovals(),
         getNotificationPreferences(),
       ]);
+      setAutomations(automationResponse.automations);
+      setSelectedAutomationId((current) => current || automationResponse.automations.find((automation) => automation.status === "active")?.id || automationResponse.automations[0]?.id || "");
       setApprovals(approvalResponse.approvals);
       setPreferences(preferenceResponse);
     } catch (caught) {
@@ -74,15 +87,36 @@ const AutomationWorkspace = () => {
       await createAutomation({
         name: name.trim(),
         objective: objective.trim(),
-        trigger_type: "manual",
+        trigger_type: triggerEvent === "manual" ? "manual" : "task_event",
+        trigger_config: triggerEvent === "manual" ? {} : { event_types: [triggerEvent] },
         tool_allowlist: [],
         approval_policy: { plan_required: true, action_approval_required: true },
       });
       setName("");
       setObjective("");
+      await loadWorkspace();
       setNotice("Automation draft created. It remains inactive until its plan and launch policy are approved.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to create automation draft.");
+    }
+  };
+
+  const startRun = async () => {
+    if (!selectedAutomationId) {
+      setError("Select an active automation before starting a run.");
+      return;
+    }
+    setStartingRun(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await createAutomationRun(selectedAutomationId, `frontend-${crypto.randomUUID()}`);
+      setRuns((current) => [result, ...current.filter((run) => run.id !== result.id)]);
+      setNotice("Run queued. The durable worker will checkpoint it at the approval boundary; no external action was executed.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to start the automation run.");
+    } finally {
+      setStartingRun(false);
     }
   };
 
@@ -129,7 +163,25 @@ const AutomationWorkspace = () => {
             <div className="flex items-center gap-3"><PauseCircle className="h-6 w-6 text-amber-600" /><CardTitle>Automation workspace is staged</CardTitle></div>
             <CardDescription>Durable automation and outbound approval notifications are disabled until provider, isolation, recovery, and human-approval evidence is complete.</CardDescription>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">No automation was started and no external message was sent.</CardContent>
+          <CardContent className="space-y-4 text-sm text-muted-foreground">
+            <p>No automation was started and no external message was sent.</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                ["Job discovery", "Refresh watches, enrich matches, and surface review-ready opportunities."],
+                ["Pipeline care", "Detect stale stages and prepare follow-up drafts without sending them."],
+                ["Research enrichment", "Use allowlisted Firecrawl or Apify research with provenance."],
+                ["Interview workspace", "Detect Calendar interviews and prepare candidate-controlled materials."],
+                ["Outcome learning", "Attribute interview and offer outcomes to future recommendations."],
+                ["Approval delivery", "Route review notifications while keeping in-app approval authoritative."],
+              ].map(([title, description]) => (
+                <div key={title} className="rounded-lg border border-amber-500/20 bg-background/70 p-3">
+                  <p className="font-medium text-foreground">{title}</p>
+                  <p className="mt-1 text-xs leading-5">{description}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs">Launch remains gated until provider configuration, tenant-isolation, recovery, and human-approval evidence are reviewed.</p>
+          </CardContent>
         </Card>
       </main>
     );
@@ -151,7 +203,8 @@ const AutomationWorkspace = () => {
           <CardContent className="space-y-4">
             <div className="space-y-2"><Label htmlFor="automation-name">Name</Label><Input id="automation-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="A name for this workflow" /></div>
             <div className="space-y-2"><Label htmlFor="automation-objective">Objective</Label><Textarea id="automation-objective" value={objective} onChange={(event) => setObjective(event.target.value)} placeholder="Describe what the workflow should do and what it must never do." className="min-h-32" /></div>
-            <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground"><Bell className="mr-2 inline h-4 w-4" />Manual trigger only in this first slice. Schedules and webhooks remain capability-gated.</div>
+            <div className="space-y-2"><Label htmlFor="automation-trigger">Trigger</Label><Select value={triggerEvent} onValueChange={setTriggerEvent}><SelectTrigger id="automation-trigger"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="manual">Manual review</SelectItem><SelectItem value="job_match.found">New job match</SelectItem><SelectItem value="application.outcome_recorded">Application outcome recorded</SelectItem><SelectItem value="calendar.interview_detected">Interview detected in Calendar</SelectItem><SelectItem value="pipeline.sweep_due">Pipeline sweep</SelectItem></SelectContent></Select></div>
+            <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground"><Bell className="mr-2 inline h-4 w-4" />Event triggers enqueue durable work only. Every draft, sensitive, and external-write action still stops at the canonical in-app approval boundary.</div>
             <Button onClick={() => void createDraftAutomation()} disabled={loading || !name.trim() || !objective.trim()}>Create inactive draft</Button>
           </CardContent>
         </Card>
@@ -171,6 +224,15 @@ const AutomationWorkspace = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader><div className="flex items-center gap-2"><Workflow className="h-5 w-5 text-primary" /><CardTitle>Automation catalog and runs</CardTitle></div><CardDescription>Choose a server-owned workflow and start a durable, tenant-scoped run. Draft and inactive workflows remain blocked by the server.</CardDescription></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end"><div className="min-w-0 flex-1 space-y-2"><Label htmlFor="automation-select">Workflow</Label><Select value={selectedAutomationId} onValueChange={setSelectedAutomationId}><SelectTrigger id="automation-select"><SelectValue placeholder="Select an automation" /></SelectTrigger><SelectContent>{automations.map((automation) => <SelectItem key={automation.id} value={automation.id}>{automation.name} · {automation.status}</SelectItem>)}</SelectContent></Select></div><Button onClick={() => void startRun()} disabled={startingRun || !selectedAutomationId}><Play className="mr-2 h-4 w-4" />{startingRun ? "Queueing…" : "Start governed run"}</Button><Button variant="outline" onClick={() => void loadWorkspace()} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button></div>
+          {automations.length === 0 && <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">No automation definitions are visible for this tenant yet. Create a draft above, then activate it through the server-side launch policy.</div>}
+          {runs.length > 0 && <div className="space-y-2"><p className="text-sm font-medium">Runs started in this session</p>{runs.map((run) => <div key={run.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><span className="font-mono text-xs">{run.id}</span><Badge variant={run.status === "awaiting_action_approval" ? "destructive" : "outline"}>{run.status}</Badge><span className="text-xs text-muted-foreground">Updated {new Date(run.updated_at).toLocaleString()}</span></div>)}</div>}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>Approval notification preferences</CardTitle><CardDescription>External delivery is opt-in and remains disabled until providers are configured and staging evidence passes.</CardDescription></CardHeader>
