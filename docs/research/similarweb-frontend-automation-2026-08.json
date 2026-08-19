@@ -1,0 +1,78 @@
+{
+  "collected_at": "2026-08-19",
+  "domains": {
+    "glassdoor.com": {
+      "get_bounce_rate": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_global_rank": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_traffic_sources_desktop": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_visits_total": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      }
+    },
+    "huntr.co": {
+      "get_bounce_rate": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_global_rank": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_traffic_sources_desktop": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_visits_total": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      }
+    },
+    "indeed.com": {
+      "get_bounce_rate": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_global_rank": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_traffic_sources_desktop": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_visits_total": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      }
+    },
+    "linkedin.com": {
+      "get_bounce_rate": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_global_rank": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_traffic_sources_desktop": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_visits_total": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      }
+    }
+  },
+  "scope": "Frontend automation UX comparator research for JobTayari"
+}

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 
 const sourceFiles = [
-  "src/lib/mcp/tools/_write-gate.ts",
+  "src/lib/mcp/tools/_client.ts",
   "src/lib/mcp/tools/save-job.ts",
   "src/lib/mcp/tools/add-to-pipeline.ts",
   "src/lib/mcp/tools/optimize-resume.ts",
