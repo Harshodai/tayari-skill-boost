@@ -145,3 +145,16 @@ async def test_enqueue_items_is_idempotent_and_keeps_media_metadata(monkeypatch)
 
 async def _async_value(value):
     return value
+
+
+@pytest.mark.asyncio
+async def test_enqueue_items_rejects_cross_platform_host(monkeypatch):
+    conn = FakeConn(row={"platform": "medium", "requested_limit": 10, "status": "queued"})
+    monkeypatch.setattr(omnisave_capture, "get_pool", lambda: _async_value(FakePool(conn)))
+    store = OmniSaveCaptureStore()
+    with pytest.raises(ValueError, match="capture_item_platform_mismatch"):
+        await store.enqueue_items(
+            "00000000-0000-0000-0000-000000000001",
+            "00000000-0000-0000-0000-000000000010",
+            [{"url": "https://example.substack.com/p/not-medium", "platform": "medium"}],
+        )

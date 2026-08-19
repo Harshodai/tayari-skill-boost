@@ -44,6 +44,17 @@ def _source_key(platform: str, url: str) -> str:
     return hashlib.sha256(f"{platform}:{url}".encode("utf-8")).hexdigest()
 
 
+def _platform_host_matches(platform: str, url: str) -> bool:
+    host = (urlsplit(url).hostname or "").lower().rstrip(".")
+    allowed = {
+        "linkedin": ("linkedin.com",),
+        "medium": ("medium.com",),
+        "substack": ("substack.com",),
+        "instagram": ("instagram.com", "instagr.am"),
+    }.get(platform, ())
+    return any(host == root or host.endswith(f".{root}") for root in allowed)
+
+
 def _bounded_media(media: Any) -> list[dict[str, Any]]:
     if not isinstance(media, list):
         return []
@@ -150,6 +161,8 @@ class OmniSaveCaptureStore:
         if requested_limit < 1 or requested_limit > 5000:
             raise ValueError("invalid_capture_limit")
         source_page_url = _canonical_url(source_page_url)
+        if not _platform_host_matches(platform, source_page_url):
+            raise ValueError("capture_page_platform_mismatch")
         user_uuid = uuid_lib.UUID(user_id)
         pool = await self._pool()
         async with pool.acquire() as conn:
@@ -222,6 +235,8 @@ class OmniSaveCaptureStore:
                 if platform != run["platform"]:
                     raise ValueError("capture_platform_mismatch")
                 url = _canonical_url(str(item.get("url") or ""))
+                if not _platform_host_matches(platform, url):
+                    raise ValueError("capture_item_platform_mismatch")
                 source_key = _source_key(platform, url)
                 discovered += 1
                 result = await conn.execute(
