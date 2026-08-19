@@ -40,3 +40,31 @@ async def test_sync_ingests_captured_content_without_url_fetch():
         user_id="00000000-0000-0000-0000-000000000001",
         capture_origin="browser_capture",
     )
+
+
+@pytest.mark.asyncio
+async def test_sync_forwards_safe_media_metadata():
+    service = OmnisaveService()
+    service.ingest_source = mock.AsyncMock(
+        return_value={"success": True, "source": {"id": "captured-source"}}
+    )
+    service.list_user_saved_sources = mock.AsyncMock(return_value=[])
+
+    result = await service.sync_agent_reach_posts(
+        user_id="00000000-0000-0000-0000-000000000001",
+        platforms=["substack"],
+        source_items=[
+            {
+                "url": "https://example.substack.com/p/post",
+                "title": "Post",
+                "author": "Author",
+                "platform": "substack",
+                "content": "Visible article content.",
+                "media": [{"url": "https://cdn.example.com/post.png", "type": "image", "alt": "cover"}],
+            }
+        ],
+    )
+
+    assert result["success"] is True
+    kwargs = service.ingest_source.await_args.kwargs
+    assert kwargs["media"] == [{"url": "https://cdn.example.com/post.png", "type": "image", "alt": "cover"}]

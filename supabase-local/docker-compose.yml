@@ -296,6 +296,7 @@ services:
       - ./volumes/db/init/42-20260821_automation_event_inbox.sql:/docker-entrypoint-initdb.d/migrations/zz-42-20260821_automation_event_inbox.sql:Z
       - ./volumes/db/init/43-20260822_saved_jobs_rls.sql:/docker-entrypoint-initdb.d/migrations/zz-43-20260822_saved_jobs_rls.sql:Z
       - ./volumes/db/init/44-20260823_external_research_runs.sql:/docker-entrypoint-initdb.d/migrations/zz-44-20260823_external_research_runs.sql:Z
+      - ./volumes/db/init/45-20260824_omnisave_capture_runs.sql:/docker-entrypoint-initdb.d/migrations/zz-45-20260824_omnisave_capture_runs.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:

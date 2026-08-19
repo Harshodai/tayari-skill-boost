@@ -7,7 +7,7 @@ party services without a separate authorised integration.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
@@ -20,6 +20,7 @@ from app.services.omnisave_brief import get_omnisave_brief_service
 from app.services.omnisave_service import get_omnisave_service
 from app.services.omnisave_sync import get_omnisave_sync_store
 from app.services.omnisave_seed import _normalise_url, get_omnisave_seed_store
+from app.services.omnisave_capture import get_omnisave_capture_store
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["knowledge-hub"])
@@ -60,6 +61,7 @@ class SaveSyncItem(BaseModel):
     author: str = Field(default="", max_length=160)
     platform: str = Field(default="custom_url", max_length=40)
     content: str = Field(default="", max_length=12_000)
+    media: list[dict[str, Any]] = Field(default_factory=list, max_length=20)
     thread_context: Optional[ThreadContext] = None
 
 
@@ -127,6 +129,198 @@ async def agent_get_omnisave_brief(
     """Read-only agent contract for candidate-authorized career preparation."""
     try:
         return {"success": True, "read_only": True, "brief": await get_omnisave_brief_service().build(user_id, role=role, company=company, skill=skill)}
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
+
+
+class CaptureItemRequest(BaseModel):
+    url: HttpUrl
+    title: str = Field(default="", max_length=240)
+    author: str = Field(default="", max_length=160)
+    content: str = Field(default="", max_length=12_000)
+    media: list[dict[str, Any]] = Field(default_factory=list, max_length=20)
+    platform: Optional[str] = Field(default=None, max_length=32)
+
+
+class CaptureRunRequest(BaseModel):
+    platform: str = Field(max_length=32)
+    source_page_url: HttpUrl
+    trigger_type: str = Field(default="manual", max_length=24)
+    requested_limit: int = Field(default=250, ge=1, le=5000)
+    consent_acknowledged: bool = False
+
+
+class CaptureCheckpointRequest(BaseModel):
+    page_cursor: Optional[str] = Field(default=None, max_length=2000)
+    page_count: Optional[int] = Field(default=None, ge=0, le=100000)
+    checkpoint: Optional[dict[str, Any]] = None
+
+
+class CaptureFinishRequest(BaseModel):
+    status: str = Field(max_length=24)
+    imported_count: int = Field(default=0, ge=0)
+    skipped_count: int = Field(default=0, ge=0)
+    failed_count: int = Field(default=0, ge=0)
+    last_error: Optional[str] = Field(default=None, max_length=500)
+
+
+@router.post("/saves/capture/runs", status_code=status.HTTP_201_CREATED)
+async def create_capture_run(payload: CaptureRunRequest, user_id: str = Depends(get_current_user)):
+    try:
+        return {"success": True, "run": await get_omnisave_capture_store().create_run(
+            user_id,
+            platform=payload.platform,
+            source_page_url=str(payload.source_page_url),
+            trigger_type=payload.trigger_type,
+            requested_limit=payload.requested_limit,
+            consent_acknowledged=payload.consent_acknowledged,
+        )}
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.get("/saves/capture/runs")
+async def list_capture_runs(
+    limit: int = Query(default=20, ge=1, le=100),
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        return {"success": True, "runs": await get_omnisave_capture_store().list_runs(user_id, limit)}
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
+
+
+@router.get("/saves/capture/runs/{run_id}")
+async def get_capture_run(run_id: str, user_id: str = Depends(get_current_user)):
+    try:
+        return {"success": True, "run": await get_omnisave_capture_store().get_run(user_id, run_id)}
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="capture_run_not_found") from exc
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
+
+
+@router.post("/saves/capture/runs/{run_id}/items")
+async def enqueue_capture_items(
+    run_id: str,
+    payload: list[CaptureItemRequest],
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        items = [item.model_dump() for item in payload]
+        return {"success": True, "result": await get_omnisave_capture_store().enqueue_items(user_id, run_id, items)}
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="capture_run_not_found") from exc
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.post("/saves/capture/runs/{run_id}/claim")
+async def claim_capture_run(run_id: str, user_id: str = Depends(get_current_user)):
+    try:
+        return {"success": True, "run": await get_omnisave_capture_store().claim_run(user_id, run_id)}
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
+
+
+@router.post("/saves/capture/runs/{run_id}/heartbeat")
+async def heartbeat_capture_run(run_id: str, user_id: str = Depends(get_current_user)):
+    try:
+        return {"success": True, "run": await get_omnisave_capture_store().heartbeat(user_id, run_id)}
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
+
+
+@router.post("/saves/capture/runs/{run_id}/checkpoint")
+async def checkpoint_capture_run(
+    run_id: str,
+    payload: CaptureCheckpointRequest,
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        return {"success": True, "run": await get_omnisave_capture_store().checkpoint(
+            user_id,
+            run_id,
+            page_cursor=payload.page_cursor,
+            page_count=payload.page_count,
+            checkpoint=payload.checkpoint,
+        )}
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
+
+
+@router.post("/saves/capture/runs/{run_id}/cancel")
+async def cancel_capture_run(run_id: str, user_id: str = Depends(get_current_user)):
+    try:
+        return {"success": True, "run": await get_omnisave_capture_store().request_cancel(user_id, run_id)}
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="capture_run_not_found") from exc
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
+
+
+@router.post("/saves/capture/runs/{run_id}/finish")
+async def finish_capture_run(
+    run_id: str,
+    payload: CaptureFinishRequest,
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        return {"success": True, "run": await get_omnisave_capture_store().finish_run(
+            user_id,
+            run_id,
+            status=payload.status,
+            imported_count=payload.imported_count,
+            skipped_count=payload.skipped_count,
+            failed_count=payload.failed_count,
+            last_error=payload.last_error,
+        )}
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="capture_run_not_found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        if str(exc) == "knowledge_store_unavailable":
+            raise _storage_unavailable() from exc
+        raise
+
+
+@router.get("/saves/capture/runs/{run_id}/items")
+async def list_capture_items(
+    run_id: str,
+    limit: int = Query(default=100, ge=1, le=500),
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        return {"success": True, "items": await get_omnisave_capture_store().list_items(user_id, run_id, limit)}
     except RuntimeError as exc:
         if str(exc) == "knowledge_store_unavailable":
             raise _storage_unavailable() from exc

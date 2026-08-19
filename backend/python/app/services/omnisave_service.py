@@ -13,6 +13,7 @@ from app.services.prompt_safety import untrusted as _untrusted
 from app.services.db import get_pool
 from app.services.llm_service import llm_complete, active_engine, LLMNotConfiguredError
 from app.services.omnisave_sync import calculate_freshness_score
+from app.services.omnisave_capture import _bounded_media
 
 logger = logging.getLogger(__name__)
 
@@ -405,7 +406,7 @@ class OmnisaveService:
             logger.warning("[Omnisave] Failed to look up existing source in DB: %s", exc)
             return None
 
-    async def ingest_source(self, platform: str, url: str, title: str, author: str, raw_content: str, user_id: str, category: str | None = None, summary_bullets: Optional[List[str]] = None, topics: Optional[List[str]] = None, capture_origin: str = "url_import", thread_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def ingest_source(self, platform: str, url: str, title: str, author: str, raw_content: str, user_id: str, category: str | None = None, summary_bullets: Optional[List[str]] = None, topics: Optional[List[str]] = None, capture_origin: str = "url_import", thread_context: Optional[Dict[str, Any]] = None, media: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """Ingest source from Substack, Medium, LinkedIn, or custom URL.
 
         WS-07: when ``category`` is not provided we run a real LLM auto-tag
@@ -432,6 +433,9 @@ class OmnisaveService:
                     "topics": compatibility_topics or nlp_metadata.get("topics") or [],
                     "summary": compatibility_summary or nlp_metadata.get("summary"),
                 }
+        safe_media = _bounded_media(media)
+        if safe_media:
+            nlp_metadata = {**nlp_metadata, "media": safe_media}
         if thread_context:
             safe_comments = [str(item).strip()[:500] for item in (thread_context.get("top_comments") or []) if str(item).strip()][:3]
             nlp_metadata = {
@@ -740,6 +744,8 @@ class OmnisaveService:
                     }
                     if item.get("thread_context"):
                         ingest_kwargs["thread_context"] = item["thread_context"]
+                    if item.get("media"):
+                        ingest_kwargs["media"] = item["media"]
                     result = await self.ingest_source(**ingest_kwargs)
                 else:
                     result = await self.import_public_url(user_id=user_id, url=url, capture_origin=capture_origin)

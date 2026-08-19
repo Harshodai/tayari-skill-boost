@@ -286,6 +286,7 @@ class OmniSaveSyncStore:
                 "tags": row["secondary_tags"] or [],
                 "summary": row["summary_bullets"] or [],
                 "nlp": row["nlp_metadata"] or {},
+                "media": (row["nlp_metadata"] or {}).get("media") or [],
                 "saved_at": _as_iso(row["saved_at"] or row["created_at"]),
                 "capture_origin": row.get("capture_origin"),
                 "sync_status": row.get("sync_status"),

@@ -202,7 +202,14 @@ const PROFILE_CACHE_KEY = 'tayari_profile_cache';
 const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const OMNISAVE_SYNC_KEY = 'omnisave_sync_preferences';
 const OMNISAVE_ALARM = 'omnisave-auto-sync';
-const DEFAULT_OMNISAVE_SYNC = { enabled: false, platforms: ['linkedin', 'medium', 'substack', 'instagram'], intervalMinutes: 60 }
+const DEFAULT_OMNISAVE_SYNC = {
+  enabled: false,
+  platforms: ['linkedin', 'medium', 'substack', 'instagram'],
+  intervalMinutes: 60,
+  fullHistoryEnabled: false,
+  consentAcknowledged: false,
+  maxItems: 250,
+}
 const TRUSTED_APP_ORIGINS = globalThis.TayariMessagePolicy?.TRUSTED_APP_ORIGINS || new Set([
   'https://tayari.app',
   'https://www.tayari.app',
@@ -335,15 +342,105 @@ async function scheduleOmniSaveSync() {
   }
 }
 async function saveOmniSavePreferences(next) {
+  const current = await getOmniSavePreferences();
+  const merged = { ...current, ...(next || {}) };
   const preferences = {
-    enabled: Boolean(next?.enabled),
-    platforms: Array.isArray(next?.platforms) && next.platforms.length ? next.platforms : DEFAULT_OMNISAVE_SYNC.platforms,
-    intervalMinutes: Math.max(5, Math.min(1440, Number(next?.intervalMinutes) || 60))
+    enabled: Boolean(merged.enabled),
+    platforms: Array.isArray(merged.platforms) && merged.platforms.length ? merged.platforms : DEFAULT_OMNISAVE_SYNC.platforms,
+    intervalMinutes: Math.max(5, Math.min(1440, Number(merged.intervalMinutes) || 60)),
+    fullHistoryEnabled: Boolean(merged.fullHistoryEnabled),
+    consentAcknowledged: Boolean(merged.consentAcknowledged),
+    maxItems: Math.max(25, Math.min(5000, Number(merged.maxItems) || DEFAULT_OMNISAVE_SYNC.maxItems)),
   };
   await chrome.storage.local.set({ [OMNISAVE_SYNC_KEY]: preferences });
   await scheduleOmniSaveSync();
   return preferences;
 }
+async function postOmniSaveJson(config, path, body) {
+  const response = await TayariSession.fetchJson(config, path, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`OmniSaveAI request failed (HTTP ${response.status})`);
+  return response.json();
+}
+
+function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+async function captureFullHistoryTab(config, tab, firstPage, preferences, triggerType) {
+  const platform = firstPage.platform;
+  const requestedLimit = Math.max(25, Math.min(5000, Number(preferences.maxItems) || 250));
+  const created = await postOmniSaveJson(config, 'v1/saves/capture/runs', {
+    platform,
+    source_page_url: firstPage.page_url || tab.url,
+    trigger_type: triggerType === 'automatic' ? 'automatic' : 'extension',
+    requested_limit: requestedLimit,
+    consent_acknowledged: preferences.consentAcknowledged === true,
+  });
+  const runId = created?.run?.id;
+  if (!runId) throw new Error('Capture run was not created.');
+  await postOmniSaveJson(config, `v1/saves/capture/runs/${encodeURIComponent(runId)}/claim`, {});
+  let pageCount = 0;
+  let discovered = 0;
+  let imported = 0;
+  let failed = 0;
+  let advanced = true;
+  let page = firstPage;
+  try {
+    while (advanced && discovered < requestedLimit && pageCount < 100) {
+      if (pageCount > 0) {
+        page = await chrome.tabs.sendMessage(tab.id, { action: 'collect_saved_sources', maxSources: Math.min(100, requestedLimit - discovered) });
+      }
+      const items = Array.isArray(page?.sources) ? page.sources.slice(0, requestedLimit - discovered) : [];
+      if (items.length) {
+        await postOmniSaveJson(config, `v1/saves/capture/runs/${encodeURIComponent(runId)}/items`, items);
+        const syncResult = await postOmniSaveJson(config, 'v1/saves/sync', {
+          platforms: [platform],
+          items,
+          trigger_type: 'extension',
+        });
+        discovered += items.length;
+        imported += Number(syncResult?.count || 0);
+        failed += Array.isArray(syncResult?.errors) ? syncResult.errors.length : 0;
+      }
+      pageCount += 1;
+      await postOmniSaveJson(config, `v1/saves/capture/runs/${encodeURIComponent(runId)}/checkpoint`, {
+        page_count: pageCount,
+        page_cursor: String(pageCount),
+        checkpoint: {
+          tab_id: tab.id,
+          page_url: page?.page_url || tab.url,
+          content_signature: page?.content_signature || null,
+        },
+      });
+      if (discovered >= requestedLimit) break;
+      const next = await chrome.tabs.sendMessage(tab.id, { action: 'advance_saved_sources' });
+      advanced = next?.advanced === true;
+      if (advanced) await sleep(450);
+    }
+    const status = failed ? (imported ? 'partial' : 'failed') : 'completed';
+    await postOmniSaveJson(config, `v1/saves/capture/runs/${encodeURIComponent(runId)}/finish`, {
+      status,
+      imported_count: imported,
+      skipped_count: Math.max(0, discovered - imported - failed),
+      failed_count: failed,
+    });
+    return { run_id: runId, platform, requested_count: discovered, imported_count: imported, failed_count: failed, status };
+  } catch (error) {
+    failed += 1;
+    try {
+      await postOmniSaveJson(config, `v1/saves/capture/runs/${encodeURIComponent(runId)}/finish`, {
+        status: imported ? 'partial' : 'failed',
+        imported_count: imported,
+        skipped_count: Math.max(0, discovered - imported),
+        failed_count: failed,
+        last_error: String(error?.message || error).slice(0, 500),
+      });
+    } catch { /* Preserve the original failure; the run remains inspectable. */ }
+    throw error;
+  }
+}
+
 async function handleOmniSaveSync(payload) {
   const config = await getConfig();
   if (!config.token) return { success: false, error: 'Not authenticated. Sign in to sync saved reading.' };
@@ -363,17 +460,26 @@ async function handleOmniSaveSync(payload) {
 async function collectOmniSaveSources(force = false) {
   const preferences = await getOmniSavePreferences();
   if (!force && !preferences.enabled) return { success: false, skipped: true, error: 'Automatic capture is disabled.' };
+  if (preferences.fullHistoryEnabled && preferences.consentAcknowledged !== true) {
+    return { success: false, error: 'Full-history capture requires explicit consent.' };
+  }
   const tabs = await chrome.tabs.query({});
   const urls = [];
   const items = [];
   const platforms = new Set();
+  const captureRuns = [];
+  const config = await getConfig();
   for (const tab of tabs) {
     if (!tab?.id || !tab.url) continue;
     try {
-      const result = await chrome.tabs.sendMessage(tab.id, { action: 'collect_saved_sources' });
+      const result = await chrome.tabs.sendMessage(tab.id, { action: 'collect_saved_sources', maxSources: preferences.fullHistoryEnabled ? Math.min(100, preferences.maxItems) : 100 });
       if (!result?.success) continue;
       if (!preferences.platforms.includes(result.platform)) continue;
       platforms.add(result.platform);
+      if (preferences.fullHistoryEnabled) {
+        captureRuns.push(await captureFullHistoryTab(config, tab, result, preferences, force ? 'manual' : 'automatic'));
+        continue;
+      }
       for (const source of result.sources || []) {
         urls.push(source.url);
         items.push(source);
@@ -381,6 +487,9 @@ async function collectOmniSaveSources(force = false) {
     } catch {
       // Tabs without the saved-content collector are ignored by design.
     }
+  }
+  if (preferences.fullHistoryEnabled) {
+    return { success: captureRuns.length > 0, mode: 'full_history', runs: captureRuns, requested_count: captureRuns.reduce((sum, run) => sum + run.requested_count, 0), imported_count: captureRuns.reduce((sum, run) => sum + run.imported_count, 0), failed_count: captureRuns.reduce((sum, run) => sum + run.failed_count, 0) };
   }
   if (!urls.length) return { success: true, requested_count: 0, imported_count: 0, message: 'No supported saved-content pages are open.' };
   return handleOmniSaveSync({ urls, items, platforms: Array.from(platforms), triggerType: force ? 'manual' : 'automatic' });

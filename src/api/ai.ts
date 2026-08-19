@@ -540,6 +540,70 @@ export interface OmniSaveSyncRun {
   completed_at?: string | null;
 }
 
+export interface OmniSaveCaptureRun {
+  id: string;
+  user_id?: string;
+  platform: "linkedin" | "medium" | "substack" | "instagram" | string;
+  source_page_url: string;
+  trigger_type: "manual" | "automatic" | "extension" | string;
+  status: "queued" | "running" | "partial" | "completed" | "cancel_requested" | "cancelled" | "blocked" | "failed" | string;
+  requested_limit: number;
+  page_cursor?: string | null;
+  page_count: number;
+  discovered_count: number;
+  imported_count: number;
+  skipped_count: number;
+  failed_count: number;
+  checkpoint: Record<string, unknown>;
+  last_error?: string | null;
+  cancel_requested_at?: string | null;
+  heartbeat_at?: string | null;
+  lease_until?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export async function createOmniSaveCaptureRun(input: {
+  platform: string;
+  source_page_url: string;
+  trigger_type?: "manual" | "automatic" | "extension";
+  requested_limit?: number;
+  consent_acknowledged: boolean;
+}): Promise<OmniSaveCaptureRun> {
+  const response = await apiFetch<{ success: boolean; run: OmniSaveCaptureRun }>("/v1/saves/capture/runs", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return response.run;
+}
+
+export async function fetchOmniSaveCaptureRuns(limit = 20): Promise<OmniSaveCaptureRun[]> {
+  const response = await apiFetch<{ success: boolean; runs: OmniSaveCaptureRun[] }>(`/v1/saves/capture/runs?limit=${Math.max(1, Math.min(limit, 100))}`);
+  return response.runs || [];
+}
+
+export async function fetchOmniSaveCaptureRun(runId: string): Promise<OmniSaveCaptureRun> {
+  const response = await apiFetch<{ success: boolean; run: OmniSaveCaptureRun }>(`/v1/saves/capture/runs/${encodeURIComponent(runId)}`);
+  return response.run;
+}
+
+export async function checkpointOmniSaveCaptureRun(runId: string, input: { page_cursor?: string; page_count?: number; checkpoint?: Record<string, unknown> }): Promise<OmniSaveCaptureRun> {
+  const response = await apiFetch<{ success: boolean; run: OmniSaveCaptureRun }>(`/v1/saves/capture/runs/${encodeURIComponent(runId)}/checkpoint`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return response.run;
+}
+
+export async function cancelOmniSaveCaptureRun(runId: string): Promise<OmniSaveCaptureRun> {
+  const response = await apiFetch<{ success: boolean; run: OmniSaveCaptureRun }>(`/v1/saves/capture/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: "POST",
+  });
+  return response.run;
+}
+
 export interface OmniSaveExportSource {
   id: string;
   platform: string;
@@ -553,6 +617,7 @@ export interface OmniSaveExportSource {
   tags: string[];
   summary: string[];
   nlp: Partial<NlpMetadata>;
+  media?: Array<{ url: string; type?: string; alt?: string; width?: number | null; height?: number | null }>;
   saved_at?: string | null;
   highlights: Array<Record<string, unknown>>;
   context_links: Array<Record<string, unknown>>;

@@ -60,6 +60,8 @@ import {
   fetchOmniSaveSyncSettings,
   OmniSaveSyncRun,
   OmniSaveSyncSettings,
+  OmniSaveCaptureRun,
+  fetchOmniSaveCaptureRuns,
   OmniSaveSeedJob,
   createOmniSaveSeedImport,
   fetchOmniSaveSeedJobs,
@@ -187,7 +189,7 @@ function ContextGraphPanel({ graph, skill, role, onSkillChange, onRoleChange, on
 
 export default function Omnisave() {
   const { unavailable: backendUnavailable, refetch: refetchHealth } = useBackendHealth();
-  const { status: extensionStatus, setOmniSavePreferences, omnisaveSyncNow } = useExtension();
+  const { status: extensionStatus, getOmniSavePreferences, setOmniSavePreferences, omnisaveSyncNow } = useExtension();
   const [articles, setArticles] = useState<SavedArticleItem[]>([]);
   const [urlInput, setUrlInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -217,7 +219,9 @@ export default function Omnisave() {
   const [graphLoading, setGraphLoading] = useState(false);
   const [syncSettings, setSyncSettings] = useState<OmniSaveSyncSettings | null>(null);
   const [syncRuns, setSyncRuns] = useState<OmniSaveSyncRun[]>([]);
+  const [captureRuns, setCaptureRuns] = useState<OmniSaveCaptureRun[]>([]);
   const [syncBusy, setSyncBusy] = useState(false);
+  const [fullHistoryEnabled, setFullHistoryEnabled] = useState(false);
   const [activity, setActivity] = useState<OmniSaveActivityEvent[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [seedJobs, setSeedJobs] = useState<OmniSaveSeedJob[]>([]);
@@ -261,9 +265,10 @@ export default function Omnisave() {
   useEffect(() => { void loadBriefSuggestions(); }, [loadBriefSuggestions]);
 
   const loadSyncState = useCallback(async () => {
-    const [settingsResult, runsResult, jobsResult] = await Promise.allSettled([
+    const [settingsResult, runsResult, captureRunsResult, jobsResult] = await Promise.allSettled([
       fetchOmniSaveSyncSettings(),
       fetchOmniSaveSyncRuns(10),
+      fetchOmniSaveCaptureRuns(10),
       fetchOmniSaveSeedJobs(10),
     ]);
     if (settingsResult.status === "fulfilled") {
@@ -276,6 +281,11 @@ export default function Omnisave() {
     } else {
       setSyncRuns([]);
     }
+    if (captureRunsResult.status === "fulfilled") {
+      setCaptureRuns(captureRunsResult.value);
+    } else {
+      setCaptureRuns([]);
+    }
     if (jobsResult.status === "fulfilled") {
       setSeedJobs(jobsResult.value);
     } else {
@@ -284,6 +294,16 @@ export default function Omnisave() {
   }, []);
 
   useEffect(() => { void loadSyncState(); }, [loadSyncState]);
+
+  useEffect(() => {
+    if (!extensionStatus.installed) {
+      setFullHistoryEnabled(false);
+      return;
+    }
+    void getOmniSavePreferences().then((result) => {
+      setFullHistoryEnabled(Boolean(result?.preferences?.fullHistoryEnabled));
+    }).catch(() => setFullHistoryEnabled(false));
+  }, [extensionStatus.installed, getOmniSavePreferences]);
 
   const loadActivity = useCallback(async () => {
     setActivityLoading(true);
@@ -323,6 +343,19 @@ export default function Omnisave() {
     const settings = await updateOmniSaveSyncSettings(next);
     setSyncSettings(settings);
     await loadSyncState();
+  };
+
+  const handleFullHistoryChange = async (enabled: boolean) => {
+    if (!extensionStatus.installed) throw new Error("Connect the Job Tayari browser companion before enabling full-history capture.");
+    const current = await getOmniSavePreferences();
+    const extensionResult = await setOmniSavePreferences({
+      ...(current || {}),
+      fullHistoryEnabled: enabled,
+      consentAcknowledged: true,
+      maxItems: 250,
+    });
+    if (extensionResult && extensionResult.success === false) throw new Error(String(extensionResult.error || "The browser companion did not accept the full-history setting."));
+    setFullHistoryEnabled(enabled);
   };
 
   const handleCreateSeedImport = async (fileName: string, csvText: string) => {
@@ -394,6 +427,7 @@ export default function Omnisave() {
           `\n- Platform: ${source.platform}`,
           `- URL: ${source.url}`,
           source.author ? `- Author: ${source.author}` : "",
+          source.media?.length ? `- Media: ${source.media.map((item) => item.url).join(", ")}` : "",
           source.summary?.length ? `\n${source.summary.join("\n")}` : "",
           source.highlights?.length ? `\n### Evidence cards\n${source.highlights.map((item) => `- ${String(item.excerpt || "")}\n  - ${String(item.note || "")}`).join("\n")}` : "",
           source.context_links?.length ? `\n### Career context\n${source.context_links.map((item) => `- ${String(item.context_type || "context")}: ${String(item.context_label || "")}`).join("\n")}` : "",
@@ -408,11 +442,11 @@ export default function Omnisave() {
         return `"${str.replace(/"/g, '""')}"`;
       };
       const csv = [
-        ["source_id", "platform", "title", "author", "url", "category", "tags", "capture_origin", "sync_status", "evidence_excerpt", "evidence_note", "context_type", "context_label"].join(","),
+        ["source_id", "platform", "title", "author", "url", "category", "tags", "media_urls", "capture_origin", "sync_status", "evidence_excerpt", "evidence_note", "context_type", "context_label"].join(","),
         ...bundle.sources.flatMap((source) => {
           const evidence = source.highlights?.length ? source.highlights : [{}];
           const contexts = source.context_links?.length ? source.context_links : [{}];
-          return evidence.flatMap((highlight) => contexts.map((context) => [source.id, source.platform, source.title, source.author, source.url, source.category, source.tags.join(" | "), source.capture_origin, source.sync_status, (highlight as Record<string, unknown>).excerpt, (highlight as Record<string, unknown>).note, (context as Record<string, unknown>).context_type, (context as Record<string, unknown>).context_label].map(csvEscape).join(",")));
+          return evidence.flatMap((highlight) => contexts.map((context) => [source.id, source.platform, source.title, source.author, source.url, source.category, source.tags.join(" | "), (source.media || []).map((item) => item.url).join(" | "), source.capture_origin, source.sync_status, (highlight as Record<string, unknown>).excerpt, (highlight as Record<string, unknown>).note, (context as Record<string, unknown>).context_type, (context as Record<string, unknown>).context_label].map(csvEscape).join(",")));
         }),
       ].join("\n");
       const body = format === "json" ? JSON.stringify(bundle, null, 2) : format === "csv" ? csv : markdown;
@@ -544,8 +578,11 @@ export default function Omnisave() {
         <SlideUp delay={0.04}><OmniSaveCapturePanel
           settings={syncSettings}
           runs={syncRuns}
+          captureRuns={captureRuns}
           extensionInstalled={extensionStatus.installed}
           onSettingsChange={handleSyncSettingsChange}
+          onFullHistoryChange={handleFullHistoryChange}
+          fullHistoryEnabled={fullHistoryEnabled}
           onSyncNow={handleSyncNow}
           onExport={handleExport}
           busy={syncBusy || ingesting}

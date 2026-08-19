@@ -76,7 +76,23 @@
     };
   };
 
-  const collect = () => {
+  const visible = (element) => {
+    if (!element) return false;
+    const rect = element.getBoundingClientRect?.();
+    const style = window.getComputedStyle?.(element);
+    return Boolean(rect && rect.width > 0 && rect.height > 0 && style?.visibility !== 'hidden' && style?.display !== 'none');
+  };
+
+  const quickSignature = (platform) => {
+    const urls = [];
+    for (const anchor of document.querySelectorAll('a[href]')) {
+      const url = normalizeUrl(anchor.href);
+      if (url && isCandidateUrl(url, platform)) urls.push(url);
+    }
+    return urls.slice(0, 500).join('|');
+  };
+
+  const collect = (maxSources = 100) => {
     const platform = platformForPage();
     if (!platform) return { success: false, error: 'This is not a supported saved-content page.', platform: null, sources: [] };
     const seen = new Set();
@@ -94,14 +110,35 @@
         content: textFrom(card).slice(0, 6000),
         thread_context: threadContextFor(anchor),
       });
-      if (sources.length >= 100) break;
+      if (sources.length >= Math.max(1, Math.min(100, Number(maxSources) || 100))) break;
     }
-    return { success: true, platform, sources, page_url: window.location.href, captured_at: new Date().toISOString() };
+    return { success: true, platform, sources, page_url: window.location.href, content_signature: quickSignature(platform), captured_at: new Date().toISOString() };
+  };
+
+  const advanceSavedSources = async () => {
+    const platform = platformForPage();
+    if (!platform) return { success: false, advanced: false, error: 'This is not a supported saved-content page.' };
+    const before = quickSignature(platform);
+    const beforeScroll = window.scrollY || document.documentElement.scrollTop || 0;
+    const candidates = Array.from(document.querySelectorAll('button, [role="button"], a')).filter(visible);
+    const nextControl = candidates.find((element) => /load more|show more|next|older|more posts|view more/i.test(textFrom(element)));
+    if (nextControl) nextControl.click();
+    else window.scrollTo({ top: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight), behavior: 'auto' });
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    const after = quickSignature(platform);
+    const afterScroll = window.scrollY || document.documentElement.scrollTop || 0;
+    return { success: true, advanced: after !== before || afterScroll > beforeScroll, content_signature: after, page_url: window.location.href };
   };
 
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request?.action !== 'collect_saved_sources') return false;
-    sendResponse(collect());
-    return true;
+    if (request?.action === 'collect_saved_sources') {
+      sendResponse(collect(request.maxSources));
+      return true;
+    }
+    if (request?.action === 'advance_saved_sources') {
+      advanceSavedSources().then(sendResponse).catch((error) => sendResponse({ success: false, advanced: false, error: String(error?.message || error) }));
+      return true;
+    }
+    return false;
   });
 })();
