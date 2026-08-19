@@ -67,16 +67,29 @@ os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-key")
 os.environ.setdefault("AI_INTERNAL_TOKEN", "test-internal-token-secret-12345")
 os.environ.setdefault("ENV", "development")
 
-from starlette.testclient import TestClient
-from app.main import app
-from app.agent.agent_engine import _is_safe_url, _resolve_and_validate_url
-from app.services.prompt_injection_guard import inspect_untrusted_text, assert_safe_untrusted_text
-from app.services.prompt_safety import untrusted, strip_untrusted
-from app.services.typst_builder import escape_typst
-from app.services import run_control
-from app.services.browser_automation import session as browser_session
-from app.middleware.operation_budget import OperationBudget, BudgetRule, OperationBudgetMiddleware
-from app.services.privacy_ledger import ledger
+def _load_runtime_dependencies() -> None:
+    """Load application modules only for an actual hostile-suite execution.
+
+    The release gate invokes this script with ``--plan`` on developer hosts to
+    print staging prerequisites.  Keeping application imports out of module
+    scope means plan mode does not require the production Python runtime or
+    parse application modules that use Python 3.10+ syntax.
+    """
+    global TestClient, app, _is_safe_url, _resolve_and_validate_url
+    global inspect_untrusted_text, assert_safe_untrusted_text, untrusted, strip_untrusted
+    global escape_typst, run_control, browser_session
+    global OperationBudget, BudgetRule, OperationBudgetMiddleware, ledger
+
+    from starlette.testclient import TestClient
+    from app.main import app
+    from app.agent.agent_engine import _is_safe_url, _resolve_and_validate_url
+    from app.services.prompt_injection_guard import inspect_untrusted_text, assert_safe_untrusted_text
+    from app.services.prompt_safety import untrusted, strip_untrusted
+    from app.services.typst_builder import escape_typst
+    from app.services import run_control
+    from app.services.browser_automation import session as browser_session
+    from app.middleware.operation_budget import OperationBudget, BudgetRule, OperationBudgetMiddleware
+    from app.services.privacy_ledger import ledger
 
 
 class StagingHostileSuiteRunner:
@@ -786,6 +799,7 @@ def main():
     if args.plan:
         raise SystemExit(_plan())
 
+    _load_runtime_dependencies()
     runner = StagingHostileSuiteRunner()
     runner.run_rate_limit_tests()
     runner.run_ssrf_tests()
