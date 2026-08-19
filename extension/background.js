@@ -526,25 +526,35 @@ async function handleOmniSaveSync(payload) {
   if (!response.ok) throw new Error(`Automatic sync failed (HTTP ${response.status})`);
   return { success: true, ...(await response.json()) };
 }
-function isSupportedOmniSavePageUrl(value) {
+function platformForCaptureUrl(value) {
   try {
     const parsed = new URL(String(value || ''));
     const path = parsed.pathname;
-    if (parsed.hostname === 'www.linkedin.com' && /\/my-items\/saved-posts(?:\/|$)/i.test(path)) return true;
-    if (parsed.hostname === 'medium.com' && /\/me\/(?:list|readinglist)/i.test(path)) return true;
-    if (parsed.hostname === 'substack.com' && /^\/(?:home|saved)(?:\/|$)/i.test(path)) return true;
-    if (parsed.hostname === 'www.instagram.com' && /\/your_activity\/saved(?:\/|$)/i.test(path)) return true;
-    return false;
+    if (parsed.hostname === 'www.linkedin.com' && /\/my-items\/saved-posts(?:\/|$)/i.test(path)) return 'linkedin';
+    if (parsed.hostname === 'medium.com' && /\/me\/(?:list|readinglist)/i.test(path)) return 'medium';
+    if (parsed.hostname === 'substack.com' && /^\/(?:home|saved)(?:\/|$)/i.test(path)) return 'substack';
+    if (parsed.hostname === 'www.instagram.com' && /\/your_activity\/saved(?:\/|$)/i.test(path)) return 'instagram';
+    return null;
+  } catch {
+    return null;
+  }
+}
+function isSupportedSavedPageUrl(value) {
+  try {
+    const parsed = new URL(String(value || ''));
+    if (parsed.protocol !== 'https:') return false;
+    return Boolean(platformForCaptureUrl(value));
   } catch {
     return false;
   }
 }
 
 async function collectOmniSaveSourcesFromTab(tab, maxSources) {
-  if (!tab?.id || !isSupportedOmniSavePageUrl(tab.url)) return null;
+  if (!tab?.id || !isSupportedSavedPageUrl(tab.url)) return null;
   try {
     const existing = await chrome.tabs.sendMessage(tab.id, { action: 'collect_saved_sources', maxSources });
-    if (existing?.success) return existing;
+    if (existing?.success) return { result: existing, collector: 'existing' };
+
   } catch {
     // The tab may have been open before the extension reload and lack the
     // collector content script. Recover by injecting only into a supported
@@ -553,9 +563,10 @@ async function collectOmniSaveSourcesFromTab(tab, maxSources) {
   try {
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['omnisave_capture.js'] });
     await sleep(50);
-    return await chrome.tabs.sendMessage(tab.id, { action: 'collect_saved_sources', maxSources });
+    const recovered = await chrome.tabs.sendMessage(tab.id, { action: 'collect_saved_sources', maxSources });
+    return recovered?.success ? { result: recovered, collector: 'injected' } : { result: null, collector: 'unavailable' };
   } catch {
-    return null;
+    return { result: null, collector: 'unavailable' };
   }
 }
 
@@ -565,17 +576,35 @@ async function collectOmniSaveSources(force = false) {
   if (preferences.fullHistoryEnabled && preferences.consentAcknowledged !== true) {
     return { success: false, error: 'Full-history capture requires explicit consent.' };
   }
+  const config = await getConfig();
+  if (!config.token) return { success: false, error: 'Not authenticated. Sign in to sync saved reading.', reason: 'not_authenticated' };
   const tabs = await chrome.tabs.query({});
   const urls = [];
   const items = [];
   const platforms = new Set();
   const captureRuns = [];
-  const config = await getConfig();
+  const diagnostics = {
+    inspected_tabs: tabs.length,
+    supported_tabs: 0,
+    collector_ready_tabs: 0,
+    recovered_collectors: 0,
+    visible_source_count: 0,
+    unavailable_platforms: [],
+  };
   for (const tab of tabs) {
-    if (!tab?.id || !tab.url) continue;
+    if (!tab?.id || !tab.url || !isSupportedSavedPageUrl(tab.url)) continue;
+    diagnostics.supported_tabs += 1;
     try {
-      const result = await collectOmniSaveSourcesFromTab(tab, preferences.fullHistoryEnabled ? Math.min(100, preferences.maxItems) : 100);
-      if (!result?.success) continue;
+      const captured = await collectOmniSaveSourcesFromTab(tab, preferences.fullHistoryEnabled ? Math.min(100, preferences.maxItems) : 100);
+      if (captured?.collector === 'injected') diagnostics.recovered_collectors += 1;
+      const result = captured?.result;
+      if (!result?.success) {
+        const platform = platformForCaptureUrl(tab.url);
+        if (platform && !diagnostics.unavailable_platforms.includes(platform)) diagnostics.unavailable_platforms.push(platform);
+        continue;
+      }
+      diagnostics.collector_ready_tabs += 1;
+      diagnostics.visible_source_count += Array.isArray(result.sources) ? result.sources.length : 0;
       if (!preferences.platforms.includes(result.platform)) continue;
       platforms.add(result.platform);
       if (preferences.fullHistoryEnabled) {
@@ -591,10 +620,25 @@ async function collectOmniSaveSources(force = false) {
     }
   }
   if (preferences.fullHistoryEnabled) {
-    return { success: captureRuns.length > 0, mode: 'full_history', runs: captureRuns, requested_count: captureRuns.reduce((sum, run) => sum + run.requested_count, 0), imported_count: captureRuns.reduce((sum, run) => sum + run.imported_count, 0), failed_count: captureRuns.reduce((sum, run) => sum + run.failed_count, 0) };
+    if (!captureRuns.length) {
+      return {
+        success: false,
+        error: diagnostics.supported_tabs ? 'Supported saved pages were open, but their collectors were unavailable. Keep the pages open, ensure they finished loading, and retry.' : 'No supported saved-content tabs were found. Keep the authenticated Medium, LinkedIn, or Substack saved page open and retry.',
+        reason: 'no_capture_runs',
+        diagnostics,
+      };
+    }
+    return { success: true, mode: 'full_history', runs: captureRuns, requested_count: captureRuns.reduce((sum, run) => sum + run.requested_count, 0), imported_count: captureRuns.reduce((sum, run) => sum + run.imported_count, 0), failed_count: captureRuns.reduce((sum, run) => sum + run.failed_count, 0), diagnostics };
   }
-  if (!urls.length) return { success: true, requested_count: 0, imported_count: 0, message: 'No supported saved-content pages are open.' };
-  return handleOmniSaveSync({ urls, items, platforms: Array.from(platforms), triggerType: force ? 'manual' : 'automatic' });
+  if (!urls.length) {
+    return {
+      success: false,
+      error: diagnostics.supported_tabs ? 'Supported saved pages were open, but no visible saved links were detected. Confirm the page finished loading and retry.' : 'No supported saved-content tabs were found. Keep the authenticated Medium, LinkedIn, or Substack saved page open and retry.',
+      reason: 'no_visible_sources',
+      diagnostics,
+    };
+  }
+  return { ...(await handleOmniSaveSync({ urls, items, platforms: Array.from(platforms), triggerType: force ? 'manual' : 'automatic' })), diagnostics };
 }
 
 // ============================================================

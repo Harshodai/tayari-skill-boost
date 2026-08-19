@@ -71,7 +71,7 @@ When you find a job you're interested in but want to review it later:
 
 OmniSaveAI can capture the user-authorized visible saved-content pages from **LinkedIn Saved Posts**, **Medium Lists/Reading List**, **Substack Saved/Home**, and **Instagram Saved Activity**. Full-history mode is opt-in, bounded by an item limit, resumable after service-worker or browser interruption, and protected by deduplication and platform-host validation. The companion never receives passwords, reads private messages or unrelated tabs, bypasses login walls, or submits/shares source content.
 
-For private libraries, open the authenticated saved page in the same browser profile, connect the companion from the JobTayari OmniSaveAI page, enable Full-history capture, and choose **Sync open saved pages**. If the companion is not connected, OmniSaveAI intentionally reports `Paused` / `Not synced` instead of claiming that the library is empty.
+For private libraries, open the authenticated saved page in the same browser profile, connect the companion from the JobTayari OmniSaveAI page, enable Full-history capture, and choose **Sync open saved pages**. If the companion is not connected, OmniSaveAI intentionally reports `Paused` / `Not synced` instead of claiming that the library is empty. If supported saved tabs are open but no visible source links are found, the companion reports an explicit `no_visible_sources` diagnostic rather than returning a successful empty result. The service worker can recover a missing collector on already-open supported saved pages by dynamically injecting the collector only after strict HTTPS URL validation.
 
 ## Supported Platforms
 
@@ -104,13 +104,13 @@ extension/
 
 ### How It Works
 
-1. **Content Script Injection** — `content.js` is injected only on declared supported job-board patterns; `omnisave_capture.js` is injected only on declared saved-library patterns such as LinkedIn Saved Posts, Medium Lists, and Substack Saved
+1. **Content Script Injection** — `content.js` is injected only on declared supported job-board patterns; `omnisave_capture.js` is injected only on declared saved-library patterns such as LinkedIn Saved Posts, Medium Lists, and Substack Saved, with a strict dynamic recovery path for already-open supported HTTPS tabs
 2. **Platform Detection** — The script uses CSS selectors to identify which platform you're on and extract job data
 3. **SPA Navigation** — A MutationObserver watches for URL changes and re-runs detection on SPA navigation (LinkedIn, etc.)
 4. **Floating Panel** — A context-aware UI panel is injected into the page with relevant actions
 5. **Autofill Engine** — Maps form fields to your profile data using name/label/id matching
 6. **Background Service** — `background.js` handles API calls to the Tayari backend, caches profile data, and manages authentication
-7. **Token Sync** — The Tayari web app sends your JWT token to the extension via external messaging for seamless auth
+7. **Secure Authentication** — The companion uses its own secure PKCE sign-in/session flow. The web app cannot push a JWT into the extension; external token-push requests are rejected by design.
 
 ## API Endpoints Used
 
@@ -180,7 +180,9 @@ After making changes to any extension file:
 
 | Issue | Solution |
 |-------|----------|
-| "Not authenticated" error | Sign in to Tayari web app and refresh the page |
+| "Not authenticated" error | Complete the companion’s secure sign-in flow, then refresh the OmniSaveAI page |
+| "No visible saved links" diagnostic | Keep the authenticated Medium, LinkedIn, or Substack saved page open, wait for its saved cards to render, and retry; the companion does not treat an empty collector result as a successful import |
+| "Supported saved pages were open, but their collectors were unavailable" | Reload the extension, keep the source tab on its supported saved-library URL, and retry; dynamic recovery is restricted to supported HTTPS pages |
 | Job not detected | Try refreshing the page. SPA navigation may need a moment to detect |
 | Autofill not working | Ensure your profile is complete at http://localhost:5173/profile |
 | Fields not filled correctly | Some custom forms may need manual entry. The extension shows which fields were filled |
