@@ -82,8 +82,13 @@
       return !sender.url || isExtensionUrl(sender.url, extensionId);
     }
 
-    // Content scripts receive only the legacy page-UI actions they need. They
-    // must never invoke task approval, native messaging, sync, or agent control.
+    // The secure page bridge is itself a content script injected into trusted
+    // JobTayari app pages. It may forward only the narrow WEB_APP_ACTIONS set;
+    // it must never gain content-script UI, native, or agent-control actions.
+    if (isTrustedAppOrigin(sender.url || '')) return WEB_APP_ACTIONS.has(action);
+
+    // Other content scripts receive only the legacy page-UI actions they need.
+    // They must never invoke task approval, native messaging, sync, or agent control.
     if (!CONTENT_SCRIPT_ACTIONS.has(action)) return false;
     return isAllowedContentScriptUrl(sender.url);
   }

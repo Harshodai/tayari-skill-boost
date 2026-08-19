@@ -43,7 +43,20 @@ test('denies legacy content-script actions from an unapproved origin', () => {
 });
 
 const webApp = { id: 'someone-else', url: 'http://localhost:5173/omnisave' };
+const trustedAppBridge = { id: extensionId, url: 'http://127.0.0.1:8083/omnisave', tab: { id: 42 } };
 const attackerPage = { id: 'someone-else', url: 'https://attacker.example/omnisave' };
+
+test('allows WEB_APP_ACTIONS from the trusted app bridge content script', () => {
+  for (const action of ['get_version', 'omnisave_preferences_get', 'omnisave_preferences_set', 'omnisave_sync_now']) {
+    assert.equal(policy.isAuthorized({ action }, trustedAppBridge, extensionId), true);
+  }
+});
+
+test('denies non-WEB_APP_ACTIONS from the trusted app bridge content script', () => {
+  for (const action of ['save_job', 'get_profile_data', 'queue_for_review', 'answer_approved_page', 'native_request', 'create_agent_task']) {
+    assert.equal(policy.isAuthorized({ action }, trustedAppBridge, extensionId), false);
+  }
+});
 
 test('allows WEB_APP_ACTIONS from a trusted frontend origin without an extension id', () => {
   for (const action of ['get_version', 'omnisave_preferences_get', 'omnisave_preferences_set', 'omnisave_sync_now']) {
