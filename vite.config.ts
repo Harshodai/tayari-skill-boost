@@ -65,6 +65,7 @@ export default defineConfig(({ mode }) => {
           manualChunks(id) {
             if (id.includes("node_modules/@sentry/")) return "sentry";
             if (id.includes("node_modules/@supabase/")) return "supabase";
+            if (id.includes("node_modules/recharts/")) return "charts";
             return undefined;
           },
         },
