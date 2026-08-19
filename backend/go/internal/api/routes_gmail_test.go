@@ -49,6 +49,42 @@ func TestRedactEmail(t *testing.T) {
 	}
 }
 
+func TestNormalizeGmailSyncRequest(t *testing.T) {
+	query, maxResults, err := normalizeGmailSyncRequest(gmailSyncRequest{})
+	if err != nil {
+		t.Fatalf("default request should be valid: %v", err)
+	}
+	if query != defaultGmailSearchQuery || maxResults != 20 {
+		t.Fatalf("unexpected defaults: query=%q max=%d", query, maxResults)
+	}
+
+	query, maxResults, err = normalizeGmailSyncRequest(gmailSyncRequest{
+		Query:      "from:recruiting@example.com",
+		After:      "2026-01-01",
+		Before:     "2026-02-01",
+		MaxResults: 5,
+	})
+	if err != nil {
+		t.Fatalf("bounded request should be valid: %v", err)
+	}
+	if query != "from:recruiting@example.com after:2026-01-01 before:2026-02-01" || maxResults != 5 {
+		t.Fatalf("unexpected normalized request: query=%q max=%d", query, maxResults)
+	}
+
+	invalid := []gmailSyncRequest{
+		{Query: "in:anywhere"},
+		{After: "2026-02-30"},
+		{After: "2026-02-01", Before: "2026-01-01"},
+		{After: "2026-01-01", Before: "2026-04-15"},
+		{MaxResults: maxGmailSyncResults + 1},
+	}
+	for _, request := range invalid {
+		if _, _, err := normalizeGmailSyncRequest(request); err == nil {
+			t.Fatalf("expected request to be rejected: %+v", request)
+		}
+	}
+}
+
 func TestGmailWebhook_ProcessesPayload(t *testing.T) {
 	server := newHermesServer(t, "")
 	t.Setenv("GMAIL_PUBSUB_VERIFICATION_TOKEN", "pubsub-test-token")

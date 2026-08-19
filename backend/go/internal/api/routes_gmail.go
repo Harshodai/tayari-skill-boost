@@ -293,7 +293,26 @@ func (s *Server) handleGmailSync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch recent messages from Gmail
-	messages, err := gmailFetchMessages(r.Context(), accessToken, 20)
+	var syncRequest gmailSyncRequest
+	if r.Body != nil {
+		body, readErr := io.ReadAll(io.LimitReader(r.Body, 16*1024))
+		if readErr != nil {
+			s.respondError(w, http.StatusBadRequest, "Invalid Gmail sync request")
+			return
+		}
+		if len(strings.TrimSpace(string(body))) > 0 {
+			if err := json.Unmarshal(body, &syncRequest); err != nil {
+				s.respondError(w, http.StatusBadRequest, "Invalid Gmail sync request")
+				return
+			}
+		}
+	}
+	query, maxResults, err := normalizeGmailSyncRequest(syncRequest)
+	if err != nil {
+		s.respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	messages, err := gmailFetchMessages(r.Context(), accessToken, maxResults, query)
 	if err != nil {
 		log.Printf("handleGmailSync: Gmail API call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to fetch Gmail messages")
@@ -508,7 +527,7 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		messages, err := gmailFetchMessages(ctx, accessToken, 10)
+		messages, err := gmailFetchMessages(ctx, accessToken, 10, defaultGmailSearchQuery)
 		if err != nil {
 			log.Printf("[GmailWebhook] Failed fetching messages: %v", err)
 			return
@@ -569,6 +588,63 @@ type gmailMessage struct {
 	Body    string
 }
 
+const (
+	defaultGmailSearchQuery = "subject:(offer OR interview OR application OR applied OR reject)"
+	maxGmailSyncResults     = 50
+	maxGmailWindowDays      = 90
+)
+
+type gmailSyncRequest struct {
+	Query      string `json:"query"`
+	After      string `json:"after"`
+	Before     string `json:"before"`
+	MaxResults int    `json:"max_results"`
+}
+
+func normalizeGmailSyncRequest(request gmailSyncRequest) (string, int, error) {
+	query := strings.TrimSpace(request.Query)
+	if query == "" {
+		query = defaultGmailSearchQuery
+	}
+	if len(query) > 240 || strings.ContainsAny(query, "\r\n") {
+		return "", 0, errors.New("Gmail search query must be at most 240 characters and single-line")
+	}
+	if strings.Contains(strings.ToLower(query), "in:anywhere") {
+		return "", 0, errors.New("Gmail search cannot include in:anywhere")
+	}
+
+	var afterDate, beforeDate time.Time
+	var err error
+	if request.After != "" {
+		afterDate, err = time.Parse("2006-01-02", request.After)
+		if err != nil {
+			return "", 0, errors.New("Gmail after must use YYYY-MM-DD")
+		}
+		query += " after:" + request.After
+	}
+	if request.Before != "" {
+		beforeDate, err = time.Parse("2006-01-02", request.Before)
+		if err != nil {
+			return "", 0, errors.New("Gmail before must use YYYY-MM-DD")
+		}
+		query += " before:" + request.Before
+	}
+	if !afterDate.IsZero() && !beforeDate.IsZero() {
+		if !afterDate.Before(beforeDate) || beforeDate.Sub(afterDate) > maxGmailWindowDays*24*time.Hour {
+			return "", 0, errors.New("Gmail date window must be positive and at most 90 days")
+		}
+	}
+
+	maxResults := request.MaxResults
+	if maxResults == 0 {
+		maxResults = 20
+	}
+	if maxResults < 1 || maxResults > maxGmailSyncResults {
+		return "", 0, fmt.Errorf("Gmail max_results must be between 1 and %d", maxGmailSyncResults)
+	}
+	return query, maxResults, nil
+}
+
 func gmailExchangeCode(ctx context.Context, code string) (*gmailTokenResponse, error) {
 	params := url.Values{
 		"code":          {code},
@@ -619,11 +695,16 @@ func gmailRefreshToken(ctx context.Context, refreshToken string) (*gmailTokenRes
 	return &tok, nil
 }
 
-func gmailFetchMessages(ctx context.Context, accessToken string, maxResults int) ([]gmailMessage, error) {
-	// Step 1: list recent message IDs
+func gmailFetchMessages(ctx context.Context, accessToken string, maxResults int, query string) ([]gmailMessage, error) {
+	// Step 1: list only the candidate-approved bounded search scope.
+	normalizedQuery, normalizedMaxResults, err := normalizeGmailSyncRequest(gmailSyncRequest{Query: query, MaxResults: maxResults})
+	if err != nil {
+		return nil, err
+	}
 	listURL := fmt.Sprintf(
-		"https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=%d&q=subject:(offer OR interview OR application OR applied OR reject)",
-		maxResults)
+		"https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=%d&q=%s",
+		normalizedMaxResults,
+		url.QueryEscape(normalizedQuery))
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 

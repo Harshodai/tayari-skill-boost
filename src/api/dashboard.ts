@@ -292,9 +292,18 @@ export async function getGmailLogin(): Promise<{ auth_url: string }> {
   return apiFetch<{ auth_url: string }>("/gmail/login");
 }
 
-export async function syncGmail(): Promise<any> {
+export interface GmailSyncOptions {
+  query?: string;
+  after?: string;
+  before?: string;
+  max_results?: number;
+}
+
+export async function syncGmail(options: GmailSyncOptions = {}): Promise<any> {
   return apiFetch<any>("/gmail/sync", {
     method: "POST",
+    headers: { ...getHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(options),
   });
 }
 

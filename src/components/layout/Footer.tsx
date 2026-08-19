@@ -10,7 +10,7 @@ export function Footer() {
       { label: "Resume Optimizer", href: "/resume", visible: true },
       { label: "Mock Interviews", href: "/interview", visible: features.interviewPrep },
       { label: "Job Search", href: "/jobs", visible: features.jobSearch },
-      { label: "AutoPilot Chain", href: "/jobs/autopilot", visible: features.autoPilot },
+      { label: "AutoPilot Chain", href: "/jobs/autopilot", visible: features.jobSearch },
     ],
     platform: [
       { label: "Desktop App", href: "/downloads", visible: true },

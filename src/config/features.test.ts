@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { features, isProductionMode, getNavLinks, primaryNavigationFeatures } from '@/config/features';
 
 // We need to mock the config module itself OR relying on the fact that
@@ -34,6 +36,29 @@ describe('Feature Flags Configuration', () => {
 
     it('should have referralDrafts enabled (Moat-1 is live)', () => {
         expect(features.referralDrafts).toBe(true);
+    });
+
+    it('keeps all source feature references in the canonical registry', () => {
+        const sourceRoot = join(process.cwd(), 'src');
+        const files: string[] = [];
+        const visit = (directory: string) => {
+            for (const entry of readdirSync(directory, { withFileTypes: true })) {
+                const path = join(directory, entry.name);
+                if (entry.isDirectory()) visit(path);
+                else if (/\.(ts|tsx)$/.test(entry.name)) files.push(path);
+            }
+        };
+        visit(sourceRoot);
+        const nonFlagProperties = new Set(['length', 'map', 'ts']);
+        const references = new Set(
+            files
+                .flatMap((path) => [...readFileSync(path, 'utf8').matchAll(/features\.(\w+)/g)].map((match) => match[1]))
+                .filter((reference) => !nonFlagProperties.has(reference)),
+        );
+        expect(references.size).toBeGreaterThan(0);
+        for (const reference of references) {
+            expect(Object.prototype.hasOwnProperty.call(features, reference)).toBe(true);
+        }
     });
 
     it('should generate navigation links', () => {

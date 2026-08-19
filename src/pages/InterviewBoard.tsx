@@ -65,7 +65,8 @@ import {
   getGmailStatus,
   getGmailLogin,
   syncGmail,
-  disconnectGmail
+  disconnectGmail,
+  type GmailSyncOptions
 } from "@/api";
 import { streamInterviewCopilotHints, type CopilotStreamEvent } from "@/api/ai";
 import { useNavigate } from "react-router-dom";
@@ -513,11 +514,11 @@ const InterviewBoard = () => {
     }
   };
 
-  const handleGmailSync = async () => {
+  const handleGmailSync = async (options: GmailSyncOptions = {}) => {
     setIsSyncingGmail(true);
     toast.info("Syncing and scanning recently received recruiter emails...");
     try {
-      const res = await syncGmail();
+      const res = await syncGmail(options);
       toast.success(res?.message || "Sync complete! New applications added/updated.");
       queryClient.invalidateQueries({ queryKey: ["applications"] });
     } catch (e: any) {
