@@ -1,0 +1,96 @@
+{
+  "collected_at": "2026-08-19",
+  "domains": {
+    "apify.com": {
+      "get_bounce_rate": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_global_rank": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_traffic_sources_desktop": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_visits_total": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      }
+    },
+    "crawlee.dev": {
+      "get_bounce_rate": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_global_rank": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_traffic_sources_desktop": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_visits_total": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      }
+    },
+    "firecrawl.dev": {
+      "get_bounce_rate": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_global_rank": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_traffic_sources_desktop": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_visits_total": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      }
+    },
+    "playwright.dev": {
+      "get_bounce_rate": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_global_rank": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_traffic_sources_desktop": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_visits_total": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      }
+    },
+    "scrapy.org": {
+      "get_bounce_rate": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_global_rank": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_traffic_sources_desktop": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      },
+      "get_visits_total": {
+        "code": "failed_precondition",
+        "message": "Credit check passed but current user has insufficient Manus credits. Request was stooped before API call."
+      }
+    }
+  },
+  "scope": "SimilarWeb benchmark for web-research automation providers and implementation alternatives"
+}
