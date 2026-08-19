@@ -14,7 +14,7 @@
     const host = window.location.hostname.toLowerCase();
     if (host === 'www.linkedin.com' && /my-items\/saved-posts/i.test(window.location.pathname)) return 'linkedin';
     if (host === 'medium.com' && /\/me\/(list|readinglist)/i.test(window.location.pathname)) return 'medium';
-    if (host === 'substack.com' && /^\/home(?:\/|$)/i.test(window.location.pathname)) return 'substack';
+    if (host === 'substack.com' && /^\/(?:home|saved)(?:\/|$)/i.test(window.location.pathname)) return 'substack';
     if (host === 'www.instagram.com' && /your_activity\/saved/i.test(window.location.pathname)) return 'instagram';
     return null;
   };

@@ -8,10 +8,11 @@ function setStatus(text, kind = '') { $('action-status').textContent = text; $('
 function setAgentStatus(text, kind = '') { $('agent-status').textContent = text; $('agent-status').className = `status ${kind}`; }
 function escapeText(value) { return value == null ? '' : String(value); }
 function escapeHtml(value) { return escapeText(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
+function safeHttpsUrl(value) { try { const url = new URL(String(value || '')); return url.protocol === 'https:' ? url.href : ''; } catch { return ''; } }
 async function loadEvidence() {
   const result = await send('list_research_notes');
   const notes = result?.notes || [];
-  $('evidence-list').innerHTML = notes.slice(0, 5).map((note) => `<article class="evidence-item"><strong>${escapeHtml(note.title)}</strong><a href="${escapeHtml(note.url)}" target="_blank"   $('evidence-list').innerHTML =te.url)}</a><p>${escapeHtml(note.text).slice(0, 260)}</p><small>${escapeHtml(note.capturedAt)}</small></article>`).join('') || '<p class="muted">No local evidence captured yet.</p>';
+  $('evidence-list').innerHTML = notes.slice(0, 5).map((note) => { const url = safeHttpsUrl(note.url); return `<article class="evidence-item"><strong>${escapeHtml(note.title)}</strong>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>` : '<span class="muted">No safe HTTPS source URL</span>'}<p>${escapeHtml(note.text).slice(0, 260)}</p><small>${escapeHtml(note.capturedAt)}</small></article>`; }).join('') || '<p class="muted">No local evidence captured yet.</p>';
 }
 function renderPlan(result) {
   activeTask = result?.task || null;
@@ -28,7 +29,7 @@ function renderPlan(result) {
 }
 function renderAnswer(result) {
   $('answer-text').textContent = result?.answer || 'No answer returned.';
-  $('answer-sources').innerHTML = (result?.sources || []).map((source) => `<li><a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.title || source.url)}</a></li>`).join('') || '<li>No source metadata returned.</li>';
+  $('answer-sources').innerHTML = (result?.sources || []).map((source) => { const url = safeHttpsUrl(source.url); return url ? `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title || url)}</a></li>` : `<li>${escapeHtml(source.title || 'Untrusted source URL omitted')}</li>`; }).join('') || '<li>No source metadata returned.</li>';
   $('answer-card').classList.remove('hidden');
 }
 function renderComputerBridge(status) {
@@ -64,8 +65,9 @@ async function refresh() {
   $('job-title').textContent = job.detected ? escapeText(job.title || 'Untitled role') : 'No supported job detected';
   $('job-company').textContent = job.detected ? escapeText(job.company || 'Company not detected') : '';
   $('job-meta').textContent = job.detected ? [job.location, job.platform].filter(Boolean).join(' / ') : '';
-  $('page-link').textContent = current.tab?.url || '';
-  $('page-link').href = current.tab?.url || '#';
+  const currentPageUrl = safeHttpsUrl(current.tab?.url);
+  $('page-link').textContent = currentPageUrl || 'Current tab URL unavailable';
+  $('page-link').href = currentPageUrl || '#';
   $('no-job').classList.toggle('hidden', !job.detected);
   $('actions').classList.toggle('hidden', !job.detected || !authenticated);
   if (changed) { $('analysis').classList.add('hidden'); $('approval-check').checked = false; $('fill').disabled = true; setStatus(''); }

@@ -1,4 +1,4 @@
-# Tayari Browser Extension v2.0.0
+# Job Tayari Browser Companion v3.2.0
 
 **Agentic Browser Automation MVP** — Detect jobs, autofill applications, and track your job search directly from your browser.
 
@@ -28,7 +28,7 @@ Coming in Week 4-5 of the roadmap.
 
 ## Setup
 
-1. **Sign in to Tayari** — Open the extension popup and click "Sign in to Tayari". New users should choose "Create an account"; signup happens in the JobTayari web app, never inside the extension.
+1. **Sign in to Tayari** — Open the extension side panel and click "Sign in securely". New users should choose "Create an account"; signup happens in the JobTayari web app, never inside the extension.
 2. **Complete your profile** — Fill in your profile at http://localhost:5173/profile so autofill has data to work with
 3. **Enable autofill** — In the extension settings, ensure "Enable Autofill" is checked
 
@@ -67,6 +67,12 @@ When you find a job you're interested in but want to review it later:
 - Visit `/review-queue` in the Tayari app to approve, reject, or modify before applying
 - This is the "Human-in-the-Loop" safety mechanism for autopilot applications
 
+## OmniSaveAI saved-library capture
+
+OmniSaveAI can capture the user-authorized visible saved-content pages from **LinkedIn Saved Posts**, **Medium Lists/Reading List**, **Substack Saved/Home**, and **Instagram Saved Activity**. Full-history mode is opt-in, bounded by an item limit, resumable after service-worker or browser interruption, and protected by deduplication and platform-host validation. The companion never receives passwords, reads private messages or unrelated tabs, bypasses login walls, or submits/shares source content.
+
+For private libraries, open the authenticated saved page in the same browser profile, connect the companion from the JobTayari OmniSaveAI page, enable Full-history capture, and choose **Sync open saved pages**. If the companion is not connected, OmniSaveAI intentionally reports `Paused` / `Not synced` instead of claiming that the library is empty.
+
 ## Supported Platforms
 
 | Platform | Job Detection | Autofill | Notes |
@@ -98,7 +104,7 @@ extension/
 
 ### How It Works
 
-1. **Content Script Injection** — `content.js` is injected into all pages matching `https://*/*` and specific job sites
+1. **Content Script Injection** — `content.js` is injected only on declared supported job-board patterns; `omnisave_capture.js` is injected only on declared saved-library patterns such as LinkedIn Saved Posts, Medium Lists, and Substack Saved
 2. **Platform Detection** — The script uses CSS selectors to identify which platform you're on and extract job data
 3. **SPA Navigation** — A MutationObserver watches for URL changes and re-runs detection on SPA navigation (LinkedIn, etc.)
 4. **Floating Panel** — A context-aware UI panel is injected into the page with relevant actions
@@ -108,8 +114,7 @@ extension/
 
 ## API Endpoints Used
 
-The extension communicates with the Tayari backend at `http://localhost:8085/api`
-(configurable in the extension's settings popup):
+The extension communicates with the configured JobTayari API base URL. Local development commonly uses `http://localhost:8085/api`; production deployments must use an HTTPS API URL configured through the extension options.
 
 - `GET /api/v1/profile` — Fetch profile data for autofill
 - `POST /api/v1/jobs/save` — Save a detected job
@@ -120,7 +125,7 @@ The extension communicates with the Tayari backend at `http://localhost:8085/api
 
 ## Permissions
 
-The extension requires these permissions:
+The extension requires these permissions. Host access is limited to supported job boards, saved-content pages, and JobTayari API surfaces; it does not request all-sites access.
 
 - `activeTab` — Access current tab for job detection and autofill
 - `storage` — Store configuration and profile cache locally
@@ -192,7 +197,15 @@ After making changes to any extension file:
 
 ## Changelog
 
-### v2.0.0 (Current)
+### v3.2.0 (Current)
+- Strict Manifest V3 extension-page CSP and restricted web-accessible resources
+- OmniSaveAI full-history capture for LinkedIn, Medium, Substack, and Instagram saved libraries
+- Durable checkpoint/resume behavior, bounded retry/backoff, and companion diagnostics
+- Explicit autofill approval in both the side panel and floating in-page panel
+- Native bridge method, payload, timeout, and lifecycle bounds
+- Safe HTTPS-only evidence and source-link rendering
+
+### v2.0.0
 - Complete rewrite with comprehensive job detection across 8 platforms
 - Autofill engine for application forms
 - Application tracking from any job page
@@ -214,7 +227,7 @@ MIT — See LICENSE in repository root.
 
 Job Tayari 3.0 uses Chrome's side panel as the persistent browser workspace. Click the Job Tayari toolbar icon to open it beside the current page. The panel reads the current supported job page, keeps the same signed-in session as the Job Tayari web app, and exposes reviewable actions for saving a role, running fit analysis, opening the workspace, and queueing an application for human review.
 
-Autofill is approval-gated. The side panel shows an explicit approval checkbox before it can fill fields, and the content script rejects autofill messages that do not carry the approval flag. Job Tayari never clicks a final Submit button automatically; the user remains responsible for reviewing answers and completing submission.
+Autofill is approval-gated in both the side panel and floating in-page panel. Each surface shows an explicit approval checkbox before it can fill fields, and the content script rejects autofill messages that do not carry the approval flag. Job Tayari never clicks a final Submit button automatically; the user remains responsible for reviewing answers and completing submission.
 
 To load the unpacked extension during development, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this `extension/` directory. The release workflow also packages `Job-Tayari-Chrome-Extension.zip` alongside desktop installers.
 

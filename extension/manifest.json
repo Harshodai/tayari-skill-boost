@@ -3,6 +3,9 @@
   "name": "Job Tayari Browser Companion",
   "version": "3.2.0",
   "description": "A candidate-controlled Job Tayari side panel for understanding job pages, preparing applications, and keeping reviewable career workflows in sync.",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
   "options_page": "options.html",
   "externally_connectable": {
     "matches": [
@@ -72,6 +75,7 @@
         "https://medium.com/me/list*",
         "https://medium.com/me/readinglist*",
         "https://substack.com/home*",
+        "https://substack.com/saved*",
         "https://www.instagram.com/your_activity/saved*"
       ],
       "js": [
@@ -101,7 +105,16 @@
         "icons/*.svg"
       ],
       "matches": [
-        "<all_urls>"
+        "https://*.greenhouse.io/*",
+        "https://*.workday.com/*",
+        "https://*.lever.co/*",
+        "https://*.ashbyhq.com/*",
+        "https://www.linkedin.com/*",
+        "https://*.indeed.com/*",
+        "https://medium.com/*",
+        "https://*.substack.com/*",
+        "https://substack.com/*",
+        "https://www.instagram.com/*"
       ]
     }
   ],

@@ -811,8 +811,12 @@
               <div class="tayari-job-title">${escapeHtml(job.title || 'Job Application')}</div>
               <div class="tayari-job-company">${escapeHtml(job.company || 'Unknown Company')}</div>
             </div>
+            <label class="tayari-approval-row" for="tayari-autofill-approval">
+              <input type="checkbox" id="tayari-autofill-approval" />
+              <span>I approve filling visible application fields. I will review every answer before submitting.</span>
+            </label>
             <div class="tayari-actions">
-              <button class="tayari-btn tayari-btn-primary" id="tayari-btn-autofill">
+              <button class="tayari-btn tayari-btn-primary" id="tayari-btn-autofill" disabled>
                 <span class="tayari-icon">📝</span> Autofill Form
               </button>
               <button class="tayari-btn tayari-btn-secondary" id="tayari-btn-track">
@@ -923,8 +927,14 @@
         });
       });
     } else {
+      // Autofill approval is explicit in every mutation-capable surface.
+      const autofillApproval = document.getElementById('tayari-autofill-approval');
+      const autofillButton = document.getElementById('tayari-btn-autofill');
+      autofillApproval.addEventListener('change', () => { autofillButton.disabled = !autofillApproval.checked; });
+
       // Autofill button
-      document.getElementById('tayari-btn-autofill').addEventListener('click', async () => {
+      autofillButton.addEventListener('click', async () => {
+        if (!autofillApproval.checked) return;
         const btn = document.getElementById('tayari-btn-autofill');
         const status = document.getElementById('tayari-autofill-status');
         
@@ -937,18 +947,18 @@
         if (result.filled > 0) {
           btn.innerHTML = `<span class="tayari-icon">✅</span> ${result.filled} Fields Filled`;
           btn.classList.add('tayari-btn-success');
-          status.innerHTML = result.fields.map(f => `✓ ${f.field}`).join('<br>');
+          status.textContent = result.fields.map((field) => `✓ ${String(field.field || '').slice(0, 160)}`).join('\n');
           status.classList.add('tayari-status-success');
         } else {
           btn.innerHTML = '<span class="tayari-icon">⚠️</span> No Fields Found';
-          status.innerHTML = 'No matching form fields found. Make sure your profile is complete in Tayari.';
+          status.textContent = 'No matching form fields found. Make sure your profile is complete in Tayari.';
           status.classList.add('tayari-status-warning');
         }
-        
         setTimeout(() => {
           btn.innerHTML = '<span class="tayari-icon">📝</span> Autofill Form';
-          btn.classList.remove('tayari-btn-success');
-          btn.disabled = false;
+          btn.classList.remove('tayari-btn-success', 'tayari-btn-warning');
+          autofillApproval.checked = false;
+          btn.disabled = true;
         }, 3000);
       });
 

@@ -228,3 +228,47 @@
 .tayari-panel::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+.tayari-approval-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.tayari-approval-row input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  accent-color: #4f46e5;
+}
+
+.tayari-approval-row:focus-within {
+  outline: 2px solid #6366f1;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.tayari-autofill-status {
+  white-space: pre-line;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tayari-panel *,
+  .tayari-panel *::before,
+  .tayari-panel *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .tayari-approval-row { color: #e2e8f0; }
+}

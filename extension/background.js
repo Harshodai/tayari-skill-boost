@@ -970,7 +970,7 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
     return false;
   }
   if (request.action === 'get_version') {
-    sendResponse({ version: '3.1.0', features: ['pkce_auth', 'job_detection', 'autofill', 'native_bridge', 'omnisave_auto_capture', 'omnisave_export'] });
+    sendResponse({ version: '3.2.0', features: ['pkce_auth', 'job_detection', 'approval_gated_autofill', 'native_bridge', 'omnisave_auto_capture', 'omnisave_full_history', 'omnisave_export', 'retry_resume'] });
     return false;
   }
   // Frontend OmniSaveAI control plane: only the policy's WEB_APP_ACTIONS may be
