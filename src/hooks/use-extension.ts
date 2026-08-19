@@ -6,6 +6,32 @@ declare const process: { env: Record<string, string | undefined> };
 import { useEffect, useCallback, useState } from "react";
 
 const EXTENSION_ID = process.env.VITE_EXTENSION_ID || "tayari-extension-id";
+const PAGE_BRIDGE_SOURCE = "jobtayari-extension-page-bridge-v1";
+const PAGE_BRIDGE_ACTIONS = new Set(["get_version", "omnisave_preferences_get", "omnisave_preferences_set", "omnisave_sync_now"]);
+
+function sendPageBridgeMessage(action: string, payload: Record<string, unknown> = {}) {
+  if (!PAGE_BRIDGE_ACTIONS.has(action)) return Promise.resolve({ success: false, error: "Unsupported browser-companion action." });
+  return new Promise<Record<string, unknown>>((resolve) => {
+    const requestId = typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    let settled = false;
+    const finish = (response: Record<string, unknown>) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("message", onMessage);
+      window.clearTimeout(timer);
+      resolve(response);
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (data?.source !== PAGE_BRIDGE_SOURCE || data.responseTo !== requestId) return;
+      finish(data.response && typeof data.response === "object" ? data.response : { success: false, error: "Invalid browser-companion response." });
+    };
+    const timer = window.setTimeout(() => finish({ success: false, error: "Browser companion request timed out." }), 1500);
+    window.addEventListener("message", onMessage);
+    window.postMessage({ source: PAGE_BRIDGE_SOURCE, requestId, action, ...payload }, window.location.origin);
+  });
+}
 
 interface ExtensionStatus {
   installed: boolean;
@@ -61,8 +87,13 @@ export function useExtension() {
         }
       });
 
-      const result = await Promise.race([checkPromise, timeout]);
-      setStatus(result);
+      const directResult = await Promise.race([checkPromise, timeout]);
+      if (directResult.installed) {
+        setStatus(directResult);
+      } else {
+        const bridgeResult = await sendPageBridgeMessage("get_version");
+        setStatus(bridgeResult?.version ? { installed: true, version: String(bridgeResult.version), features: Array.isArray(bridgeResult.features) ? bridgeResult.features.map(String) : [] } : { installed: false, version: null, features: [] });
+      }
     } catch (e) {
       setStatus({ installed: false, version: null, features: [] });
     } finally {
@@ -118,14 +149,13 @@ export function useExtension() {
 
   const sendOmniSaveMessage = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (!status.installed) return { success: false, error: "Browser companion is not installed." };
-    return new Promise<Record<string, unknown>>((resolve) => {
+    const directResult = await new Promise<Record<string, unknown>>((resolve) => {
       let settled = false;
       const timer = window.setTimeout(() => {
         if (settled) return;
         settled = true;
         resolve({ success: false, error: "Browser companion request timed out." });
       }, 1500);
-
       try {
         chrome.runtime.sendMessage(EXTENSION_ID, { action, ...payload }, (response) => {
           if (settled) return;
@@ -144,6 +174,8 @@ export function useExtension() {
         resolve({ success: false, error: error instanceof Error ? error.message : "Browser companion is unavailable." });
       }
     });
+    if (directResult.success === false) return sendPageBridgeMessage(action, payload);
+    return directResult;
   }, [status.installed]);
   const getOmniSavePreferences = useCallback(() => sendOmniSaveMessage("omnisave_preferences_get"), [sendOmniSaveMessage]);
   const setOmniSavePreferences = useCallback((preferences: Record<string, unknown>) => sendOmniSaveMessage("omnisave_preferences_set", { preferences }), [sendOmniSaveMessage]);

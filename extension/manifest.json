@@ -53,6 +53,21 @@
   "content_scripts": [
     {
       "matches": [
+        "https://tayari.app/*",
+        "https://www.tayari.app/*",
+        "https://tayari-skill-boost.lovable.app/*",
+        "http://localhost:5173/*",
+        "http://localhost:8080/*",
+        "http://localhost:8083/*",
+        "http://127.0.0.1:8083/*"
+      ],
+      "js": [
+        "app_bridge.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
         "https://www.linkedin.com/jobs/view/*",
         "https://www.linkedin.com/jobs/search/*",
         "https://*.indeed.com/viewjob*",
