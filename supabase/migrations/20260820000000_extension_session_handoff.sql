@@ -18,3 +18,5 @@ ALTER TABLE public.extension_session_handoff_tokens ENABLE ROW LEVEL SECURITY;
 -- The Go gateway accesses this table with the server database role. No direct
 -- browser policy is granted because handoff codes must never be enumerable.
 REVOKE ALL ON TABLE public.extension_session_handoff_tokens FROM anon, authenticated;
+GRANT ALL ON TABLE public.extension_session_handoff_tokens TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.extension_session_handoff_tokens_id_seq TO service_role;

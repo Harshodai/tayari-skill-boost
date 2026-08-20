@@ -15,3 +15,5 @@ CREATE INDEX IF NOT EXISTS extension_session_handoff_tokens_active_idx
 
 ALTER TABLE public.extension_session_handoff_tokens ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.extension_session_handoff_tokens FROM anon, authenticated;
+GRANT ALL ON TABLE public.extension_session_handoff_tokens TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.extension_session_handoff_tokens_id_seq TO service_role;
