@@ -64,3 +64,16 @@ test('unsupported provider is rejected before starting authorization', async () 
   await assert.rejects(() => context.TayariOAuth.begin({ supabaseUrl: 'https://project.supabase.co', supabaseKey: 'public' }, 'facebook'), /Unsupported sign-in provider/);
   assert.equal(sessionStore.has('tayari_extension_oauth_pending_v1'), false);
 });
+
+test('local loopback Supabase OAuth is allowed for Docker development', async () => {
+  const { context, writes } = await harness();
+  const result = await context.TayariOAuth.begin({ supabaseUrl: 'http://127.0.0.1:8010', supabaseKey: 'public' });
+  assert.equal(result.access_token, 'access');
+  assert.equal(writes.length, 1);
+});
+
+test('non-loopback HTTP OAuth origins remain rejected', async () => {
+  const { context, sessionStore } = await harness();
+  await assert.rejects(() => context.TayariOAuth.begin({ supabaseUrl: 'http://kong:8000', supabaseKey: 'public' }), /HTTPS outside local loopback/);
+  assert.equal(sessionStore.has('tayari_extension_oauth_pending_v1'), false);
+});
