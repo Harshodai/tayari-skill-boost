@@ -38,6 +38,7 @@
     'omnisave_preferences_get',
     'omnisave_preferences_set',
     'omnisave_sync_now',
+    'extension_session_handoff',
   ]);
 
   function isExtensionUrl(url, extensionId) {

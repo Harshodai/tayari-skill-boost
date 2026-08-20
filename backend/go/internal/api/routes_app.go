@@ -41,6 +41,7 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 
 		r.Get("/api/v1/auth/extension/config", s.handleExtensionAuthConfig)
 		r.Get("/api/auth/extension/config", s.handleExtensionAuthConfig)
+		s.routesExtensionHandoff(r)
 		s.routesPasswordReset(r)
 
 		// Social Auth Routes
@@ -73,6 +74,7 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 
 		r.Get("/api/v1/auth/me", s.handleMe)
 		r.Get("/api/v1/me", s.handleMe)
+		s.routesProtectedExtensionHandoff(r)
 
 		r.Get("/api/v1/profile", s.handleGetProfile)
 		r.Put("/api/v1/profile", s.handleUpdateProfile)

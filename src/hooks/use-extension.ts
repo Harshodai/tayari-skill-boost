@@ -5,7 +5,7 @@ import { useEffect, useCallback, useState } from "react";
 
 const EXTENSION_ID = import.meta.env.VITE_EXTENSION_ID || "tayari-extension-id";
 const PAGE_BRIDGE_SOURCE = "jobtayari-extension-page-bridge-v1";
-const PAGE_BRIDGE_ACTIONS = new Set(["get_version", "omnisave_preferences_get", "omnisave_preferences_set", "omnisave_sync_now"]);
+const PAGE_BRIDGE_ACTIONS = new Set(["get_version", "omnisave_preferences_get", "omnisave_preferences_set", "omnisave_sync_now", "extension_session_handoff"]);
 
 function sendPageBridgeMessage(action: string, payload: Record<string, unknown> = {}) {
   if (!PAGE_BRIDGE_ACTIONS.has(action)) return Promise.resolve({ success: false, error: "Unsupported browser-companion action." });
@@ -178,6 +178,7 @@ export function useExtension() {
   const getOmniSavePreferences = useCallback(() => sendOmniSaveMessage("omnisave_preferences_get"), [sendOmniSaveMessage]);
   const setOmniSavePreferences = useCallback((preferences: Record<string, unknown>) => sendOmniSaveMessage("omnisave_preferences_set", { preferences }), [sendOmniSaveMessage]);
   const omnisaveSyncNow = useCallback(() => sendOmniSaveMessage("omnisave_sync_now"), [sendOmniSaveMessage]);
+  const handoffExtensionSession = useCallback((code: string) => sendOmniSaveMessage("extension_session_handoff", { code }), [sendOmniSaveMessage]);
   useEffect(() => {
     checkExtension();
   }, [checkExtension]);
@@ -191,5 +192,6 @@ export function useExtension() {
     getOmniSavePreferences,
     setOmniSavePreferences,
     omnisaveSyncNow,
+    handoffExtensionSession,
   };
 }

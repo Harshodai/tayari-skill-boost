@@ -13,7 +13,7 @@ const extensionPage = { id: extensionId, url: `chrome-extension://${extensionId}
 const contentScript = { id: extensionId, url: 'https://www.linkedin.com/jobs/view/123', tab: { id: 7 } };
 const foreignExtension = { id: 'foreign-extension-id', url: `chrome-extension://${extensionId}/sidepanel.html` };
 
-for (const action of ['native_request', 'omnisave_sync_now', 'answer_approved_page', 'approve_agent_plan', 'reject_agent_plan', 'takeover_agent_task', 'stop_agent_task']) {
+for (const action of ['native_request', 'omnisave_sync_now', 'extension_session_handoff', 'answer_approved_page', 'approve_agent_plan', 'reject_agent_plan', 'takeover_agent_task', 'stop_agent_task']) {
   test(`denies ${action} from a content script`, () => {
     assert.equal(policy.isAuthorized({ action }, contentScript, extensionId), false);
   });
@@ -47,7 +47,7 @@ const trustedAppBridge = { id: extensionId, url: 'http://127.0.0.1:8083/omnisave
 const attackerPage = { id: 'someone-else', url: 'https://attacker.example/omnisave' };
 
 test('allows WEB_APP_ACTIONS from the trusted app bridge content script', () => {
-  for (const action of ['get_version', 'omnisave_preferences_get', 'omnisave_preferences_set', 'omnisave_sync_now']) {
+  for (const action of ['get_version', 'omnisave_preferences_get', 'omnisave_preferences_set', 'omnisave_sync_now', 'extension_session_handoff']) {
     assert.equal(policy.isAuthorized({ action }, trustedAppBridge, extensionId), true);
   }
 });
@@ -59,7 +59,7 @@ test('denies non-WEB_APP_ACTIONS from the trusted app bridge content script', ()
 });
 
 test('allows WEB_APP_ACTIONS from a trusted frontend origin without an extension id', () => {
-  for (const action of ['get_version', 'omnisave_preferences_get', 'omnisave_preferences_set', 'omnisave_sync_now']) {
+  for (const action of ['get_version', 'omnisave_preferences_get', 'omnisave_preferences_set', 'omnisave_sync_now', 'extension_session_handoff']) {
     assert.equal(policy.isAuthorized({ action }, webApp, extensionId), true);
   }
 });

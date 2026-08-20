@@ -6,6 +6,7 @@ import { OmniSaveSeedImportCard } from "@/components/omnisave/OmniSaveSeedImport
 import { OmniSaveBriefCard, type OmniSaveBriefSuggestions } from "@/components/omnisave/OmniSaveBriefCard";
 import { OmniSaveActivityTimeline } from "@/components/omnisave/OmniSaveActivityTimeline";
 import { useExtension } from "@/hooks/use-extension";
+import { checkResponse, getHeaders } from "@/api/client";
 import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -189,7 +190,7 @@ function ContextGraphPanel({ graph, skill, role, onSkillChange, onRoleChange, on
 
 export default function Omnisave() {
   const { unavailable: backendUnavailable, refetch: refetchHealth } = useBackendHealth();
-  const { status: extensionStatus, getOmniSavePreferences, setOmniSavePreferences, omnisaveSyncNow } = useExtension();
+  const { status: extensionStatus, getOmniSavePreferences, setOmniSavePreferences, omnisaveSyncNow, handoffExtensionSession } = useExtension();
   const [articles, setArticles] = useState<SavedArticleItem[]>([]);
   const [urlInput, setUrlInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -399,10 +400,21 @@ export default function Omnisave() {
     }
   };
 
+  const bootstrapExtensionSession = useCallback(async () => {
+    if (!extensionStatus.installed) return;
+    const response = await fetch("/api/v1/auth/extension/handoff/request", { method: "POST", headers: getHeaders() });
+    await checkResponse(response);
+    const payload = await response.json() as { code?: string };
+    if (!payload.code || !/^[a-f0-9]{64}$/i.test(payload.code)) throw new Error("The local extension handoff did not return a valid one-time code.");
+    const result = await handoffExtensionSession(payload.code);
+    if (!result.success) throw new Error(String(result.error || "The browser companion could not establish its secure session."));
+  }, [extensionStatus.installed, handoffExtensionSession]);
+
   const handleSyncNow = async () => {
     setSyncBusy(true);
     setError(null);
     try {
+      await bootstrapExtensionSession();
       const result = await omnisaveSyncNow();
       if (!result.success) throw new Error(String(result.error || "The browser companion could not start a sync."));
       await Promise.all([loadArticles(), loadSyncState(), loadActivity()]);

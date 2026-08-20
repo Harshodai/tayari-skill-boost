@@ -5,6 +5,7 @@
     'omnisave_preferences_get',
     'omnisave_preferences_set',
     'omnisave_sync_now',
+    'extension_session_handoff',
   ]);
   const MAX_REQUEST_ID = 96;
   const MAX_PLATFORMS = 8;
@@ -38,6 +39,11 @@
       const preferences = safePreferences(request.preferences);
       if (!preferences) return;
       payload.preferences = preferences;
+    }
+    if (request.action === 'extension_session_handoff') {
+      const code = String(request.code || '').trim();
+      if (!/^[a-f0-9]{64}$/i.test(code)) return;
+      payload.code = code;
     }
 
     chrome.runtime.sendMessage(payload, (response) => {

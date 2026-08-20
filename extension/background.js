@@ -1056,6 +1056,33 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
     sendResponse({ success: false, error: 'Token push is disabled. Use secure extension sign-in.' });
     return false;
   }
+  if (request.action === 'extension_session_handoff') {
+    const code = typeof request.code === 'string' ? request.code.trim() : '';
+    if (!/^[a-f0-9]{64}$/i.test(code)) {
+      sendResponse({ success: false, error: 'Invalid extension handoff code.' });
+      return false;
+    }
+    (async () => {
+      try {
+        const config = await getConfig();
+        const response = await fetch(`${String(config.apiUrl).replace(/\/$/, '')}/v1/auth/extension/handoff/exchange`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        const session = await response.json().catch(() => ({}));
+        if (!response.ok || !session?.access_token) {
+          sendResponse({ success: false, error: session?.error || 'Extension handoff failed.' });
+          return;
+        }
+        const stored = await TayariSession.write(session);
+        sendResponse({ success: true, expires_at: stored?.expires_at || null, user: stored?.user || null });
+      } catch (error) {
+        sendResponse({ success: false, error: error?.message || 'Extension handoff failed.' });
+      }
+    })();
+    return true;
+  }
   if (request.action === 'clear_token') {
     void TayariOAuth.signOut(getConfig()).then(() => invalidateProfileCache());
     sendResponse({ success: true });
