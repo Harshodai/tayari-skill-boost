@@ -14,7 +14,9 @@
       throw new Error('Job Tayari authentication is not configured for this extension build.');
     }
     const authOrigin = new URL(config.supabaseUrl).origin;
-    if (!/^https:\/\//i.test(authOrigin)) throw new Error('Authentication provider must use HTTPS.');
+    const parsed = new URL(authOrigin);
+    const isLoopback = (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') && parsed.protocol === 'http:';
+    if (!/^https:\/\//i.test(authOrigin) && !isLoopback) throw new Error('Authentication provider must use HTTPS outside local loopback development.');
     return { ...config, supabaseUrl: authOrigin };
   }
   async function begin(config, provider = 'google') {

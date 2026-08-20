@@ -186,6 +186,7 @@ services:
       - USE_SUPABASE=${USE_SUPABASE:-true}
       - JWT_SECRET=${JWT_SECRET}
       - SUPABASE_URL=${SUPABASE_URL:-http://kong:8000}
+      - SUPABASE_PUBLIC_URL=${SUPABASE_PUBLIC_URL:-http://127.0.0.1:8010}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
       # Optional — enables GoTrue Admin-API account deletion + session
       # revocation (DELETE /api/v1/account). Copy SERVICE_ROLE_KEY from

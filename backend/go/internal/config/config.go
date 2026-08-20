@@ -16,6 +16,7 @@ type Config struct {
 	UseSupabase            bool
 	JWTSecret              string
 	SupabaseURL            string
+	SupabasePublicURL      string
 	SupabaseKey            string
 	SupabaseJWTIssuer      string
 	SupabaseServiceRoleKey string
@@ -50,6 +51,7 @@ func LoadConfig() *Config {
 		UseSupabase:        getEnv("USE_SUPABASE", "false") == "true",
 		JWTSecret:          jwtSecret,
 		SupabaseURL:        getEnv("SUPABASE_URL", ""),
+		SupabasePublicURL:  getEnv("SUPABASE_PUBLIC_URL", ""),
 		SupabaseKey:        getEnv("SUPABASE_ANON_KEY", ""),
 		SupabaseJWTIssuer:  getEnv("SUPABASE_JWT_ISSUER", ""),
 		// Optional: enables the GoTrue Admin-API account-deletion path

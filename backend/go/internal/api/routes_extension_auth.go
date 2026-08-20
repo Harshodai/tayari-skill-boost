@@ -13,17 +13,25 @@ func (s *Server) handleExtensionAuthConfig(w http.ResponseWriter, r *http.Reques
 		s.respondError(w, http.StatusServiceUnavailable, "Extension OAuth is not configured.")
 		return
 	}
-	scheme := r.Header.Get("X-Forwarded-Proto")
-	if scheme == "" {
-		scheme = "https"
-	}
 	host := r.Header.Get("X-Forwarded-Host")
 	if host == "" {
 		host = r.Host
 	}
-	apiURL := fmt.Sprintf("%s://%s/api", strings.TrimSpace(scheme), strings.TrimSpace(host))
+	scheme := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")))
+	if scheme == "" {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(host)), "localhost") || strings.HasPrefix(strings.TrimSpace(host), "127.0.0.1") {
+			scheme = "http"
+		} else {
+			scheme = "https"
+		}
+	}
+	apiURL := fmt.Sprintf("%s://%s/api", scheme, strings.TrimSpace(host))
+	publicSupabaseURL := strings.TrimRight(strings.TrimSpace(s.Config.SupabasePublicURL), "/")
+	if publicSupabaseURL == "" {
+		publicSupabaseURL = strings.TrimRight(strings.TrimSpace(s.Config.SupabaseURL), "/")
+	}
 	s.respondJSON(w, http.StatusOK, map[string]string{
-		"supabase_url":             strings.TrimRight(s.Config.SupabaseURL, "/"),
+		"supabase_url":             publicSupabaseURL,
 		"supabase_publishable_key": s.Config.SupabaseKey,
 		"api_url":                  apiURL,
 	})
