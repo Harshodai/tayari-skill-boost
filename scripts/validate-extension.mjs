@@ -37,6 +37,9 @@ assert.match(background, /response\.status === 429 \|\| response\.status >= 500/
 assert.match(background, /findResumableCaptureRun/);
 assert.match(background, /capture\/runs\?limit=100/);
 assert.match(background, /http:\/\/127\.0\.0\.1:8083/);
+assert.match(background, /LOCAL_APP_ROUTES/);
+assert.match(background, /lastFocusedWindow: true/);
+assert.match(background, /http:\/\/127\.0\.0\.1:8085\/api/);
 assert.match(await read('extension/messagePolicy.js'), /http:\/\/127\.0\.0\.1:8083/);
 assert.match(await read('Dockerfile.frontend'), /ARG VITE_EXTENSION_ID/);
 assert.match(await read('Dockerfile.frontend'), /ENV VITE_EXTENSION_ID=\$VITE_EXTENSION_ID/);

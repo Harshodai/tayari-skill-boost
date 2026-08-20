@@ -198,6 +198,12 @@ importScripts('auth/pkce.js', 'auth/session.js', 'auth/oauth.js', 'nativeBridge.
 
 const STORAGE_KEY = 'tayari_config';
 const DEFAULT_CONFIG = { apiUrl: 'https://api.tayari.app/api', appUrl: 'https://tayari.app' };
+const LOCAL_APP_ROUTES = new Map([
+  ['http://127.0.0.1:8083', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:8083' }],
+  ['http://localhost:8083', { apiUrl: 'http://localhost:8085/api', appUrl: 'http://localhost:8083' }],
+  ['http://localhost:5173', { apiUrl: 'http://localhost:8085/api', appUrl: 'http://localhost:5173' }],
+  ['http://localhost:8080', { apiUrl: 'http://localhost:8085/api', appUrl: 'http://localhost:8080' }],
+]);
 const PROFILE_CACHE_KEY = 'tayari_profile_cache';
 const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const OMNISAVE_SYNC_KEY = 'omnisave_sync_preferences';
@@ -237,6 +243,14 @@ async function getConfig() {
     if (legacy[STORAGE_KEY]) await chrome.storage.sync.remove(STORAGE_KEY);
   }
   config = { ...DEFAULT_CONFIG, ...config };
+  const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const activeOrigin = activeTabs[0]?.url ? (() => { try { return new URL(activeTabs[0].url).origin; } catch { return ''; } })() : '';
+  const localRoute = LOCAL_APP_ROUTES.get(activeOrigin);
+  const stillOnProductionDefaults = config.apiUrl === DEFAULT_CONFIG.apiUrl && config.appUrl === DEFAULT_CONFIG.appUrl;
+  if (localRoute && stillOnProductionDefaults) {
+    config = { ...config, ...localRoute };
+    await saveConfig(config);
+  }
   const session = await TayariSession.getValid(config);
   return { ...config, token: session?.access_token || null, session: session || null };
 }
