@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"net/http"
 	"strings"
@@ -90,7 +91,11 @@ func (s *Server) handleExtensionHandoffExchange(w http.ResponseWriter, r *http.R
 		FOR UPDATE OF handoff
 	`, extensionHandoffHash(strings.TrimSpace(request.Code))).Scan(&tokenID, &userID, &email, &role)
 	if err != nil {
-		s.respondError(w, http.StatusUnauthorized, "Invalid or expired extension handoff.")
+		if err == sql.ErrNoRows {
+			s.respondError(w, http.StatusUnauthorized, "Invalid or expired extension handoff.")
+		} else {
+			s.respondError(w, http.StatusServiceUnavailable, "Extension handoff storage is unavailable.")
+		}
 		return
 	}
 	if _, err = tx.ExecContext(r.Context(), `UPDATE public.extension_session_handoff_tokens SET used_at = NOW() WHERE id = $1`, tokenID); err != nil {
@@ -103,15 +108,18 @@ func (s *Server) handleExtensionHandoffExchange(w http.ResponseWriter, r *http.R
 	}
 
 	expiresAt := time.Now().UTC().Add(15 * time.Minute)
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+	claims := jwt.MapClaims{
 		"sub":   userID,
 		"aud":   "authenticated",
 		"email": email,
 		"role":  role,
 		"exp":   expiresAt.Unix(),
 		"iat":   time.Now().UTC().Unix(),
-		"iss":   "tayari-extension-handoff",
-	})
+	}
+	if issuer := strings.TrimSpace(s.Config.SupabaseJWTIssuer); issuer != "" {
+		claims["iss"] = issuer
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	accessToken, err := token.SignedString([]byte(s.Config.JWTSecret))
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, "Could not issue extension session.")
