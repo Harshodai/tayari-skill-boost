@@ -44,8 +44,8 @@ const CareerRoadmap = () => {
     // Form inputs
     const [resumes, setResumes] = useState<Resume[]>([]);
     const [selectedResumeId, setSelectedResumeId] = useState<string>("");
-    const [targetRole, setTargetRole] = useState<string>("Frontend Engineer");
-    const [location, setLocation] = useState<string>("US");
+    const [targetRole, setTargetRole] = useState<string>("");
+    const [location, setLocation] = useState<string>("");
     const [jobDescription, setJobDescription] = useState<string>("");
 
     // Loading & state
@@ -90,7 +90,15 @@ const CareerRoadmap = () => {
             toast({
                 variant: "destructive",
                 title: "Resume required",
-                description: "Please select or upload a resume to run the analysis.",
+                description: "Please select or upload a resume to run the skills gap analysis.",
+            });
+            return;
+        }
+        if (!targetRole.trim()) {
+            toast({
+                variant: "destructive",
+                title: "Target role required",
+                description: "Enter the role you want to evaluate before running the roadmap analysis.",
             });
             return;
         }
@@ -200,7 +208,7 @@ const CareerRoadmap = () => {
                                             You must upload a resume to run the skills gap analysis.
                                         </p>
                                         <Button asChild size="sm" className="w-full">
-                                            <Link to="/resumes">Upload Resume</Link>
+                                            <Link to="/resume">Upload Resume</Link>
                                         </Button>
                                     </div>
                                 ) : (

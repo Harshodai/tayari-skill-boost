@@ -3,6 +3,7 @@ import { Terminal, RefreshCw, Send, Plus, Trash2, Award, PieChart, CheckCircle2,
 import { AppShell } from '@/components/layout';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EvaluationReportPanel } from '../components/EvaluationReportPanel';
@@ -97,6 +98,7 @@ export const CareerOpsDashboard: React.FC = () => {
   const [stats, setStats] = useState<Stats | null>(null);
 
   const [toast, setToast] = useState<Toast | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
   const [evaluateAppId, setEvaluateAppId] = useState<string | null>(null);
 
   const [filterOpen, setFilterOpen] = useState(false);
@@ -127,7 +129,7 @@ export const CareerOpsDashboard: React.FC = () => {
       const data = await getCareerOpsStats();
       setStats(data as Stats);
     } catch {
-      // noop
+      setPageError('Unable to load Career Ops statistics. Check the backend status and retry.');
     }
   };
 
@@ -136,7 +138,7 @@ export const CareerOpsDashboard: React.FC = () => {
       const data = await listCareerOpsPortals();
       setPortals(data.portals || []);
     } catch {
-      // noop
+      setPageError('Unable to load configured scanner portals. Check the backend status and retry.');
     }
   };
 
@@ -145,7 +147,7 @@ export const CareerOpsDashboard: React.FC = () => {
       const data = await getCareerOpsPatterns();
       setPatterns(data);
     } catch {
-      // noop
+      setPageError('Unable to load Career Ops patterns. Check the backend status and retry.');
     }
   };
 
@@ -154,7 +156,7 @@ export const CareerOpsDashboard: React.FC = () => {
       const data = await listCareerOpsFollowups();
       setFollowups(data.followups || []);
     } catch {
-      // noop
+      setPageError('Unable to load follow-up items. Check the backend status and retry.');
     }
   };
 
@@ -163,7 +165,7 @@ export const CareerOpsDashboard: React.FC = () => {
       const data = await getCareerOpsStoryBank();
       setStories(data.stories || []);
     } catch {
-      // noop
+      setPageError('Unable to load the story bank. Check the backend status and retry.');
     }
   };
 
@@ -324,6 +326,14 @@ export const CareerOpsDashboard: React.FC = () => {
               {toast.message}
             </div>
           </div>
+        )}
+
+        {pageError && (
+          <Alert variant="destructive" role="alert">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Career Ops data is unavailable</AlertTitle>
+            <AlertDescription>{pageError} Existing local form state was not treated as persisted.</AlertDescription>
+          </Alert>
         )}
 
         {/* Evaluate Drawer */}

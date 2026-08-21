@@ -11,24 +11,24 @@ import { FileCode, Download, Eye, Sparkles, CheckCircle2, Copy, RefreshCw, Layer
 import { toast } from "sonner";
 
 const TEMPLATES = [
-  { id: "modern_tech", name: "Modern Tech", desc: "Clean blue accent design optimized for software & data roles.", atsScore: "98%" },
-  { id: "minimalist_ats", name: "Minimalist ATS", desc: "High-contrast single-column bulletproof ATS parser format.", atsScore: "99%" },
-  { id: "executive_slate", name: "Executive Slate", desc: "Serif typography for director & C-suite leadership profiles.", atsScore: "96%" },
-  { id: "faang_single_page", name: "FAANG Single Page", desc: "Ultra-compact single-page layout for high-density engineering CVs.", atsScore: "99%" },
-  { id: "creative_compact", name: "Creative Compact", desc: "Split sidebar layout for design & product management roles.", atsScore: "94%" },
-  { id: "academic_cv", name: "Academic CV", desc: "Formal layout with research & publication emphasis.", atsScore: "97%" },
+  { id: "modern_tech", name: "Modern Tech", desc: "Clean blue accent design optimized for software & data roles." },
+  { id: "minimalist_ats", name: "Minimalist ATS", desc: "High-contrast single-column format designed for parser compatibility." },
+  { id: "executive_slate", name: "Executive Slate", desc: "Serif typography for director and leadership profiles." },
+  { id: "faang_single_page", name: "Single Page", desc: "Compact single-page layout for high-density engineering CVs." },
+  { id: "creative_compact", name: "Creative Compact", desc: "Split-sidebar layout for design and product-management profiles." },
+  { id: "academic_cv", name: "Academic CV", desc: "Formal layout with research and publication emphasis." },
 ];
 
 export const TypstResumeStudio = () => {
   const [selectedTemplate, setSelectedTemplate] = useState("modern_tech");
-  const [fullName, setFullName] = useState("Alex Mercer");
-  const [headline, setHeadline] = useState("Senior Full-Stack Engineer | AI Infrastructure");
-  const [email, setEmail] = useState("alex.mercer@example.com");
-  const [phone, setPhone] = useState("+1 (555) 019-2834");
-  const [location, setLocation] = useState("San Francisco, CA");
-  const [skills, setSkills] = useState("React, TypeScript, Go, Python, FastAPI, Docker, Kubernetes, PostgreSQL, Redis, Ollama, PyTorch");
-  const [summary, setSummary] = useState("Results-driven Senior Software Engineer with 6+ years of experience designing scalable distributed systems and AI applications. Proven track record reducing API latency by 45% and leading cross-functional teams.");
-  const [experienceText, setExperienceText] = useState("- Lead Engineer at TechCorp (2022-Present): Architected microservices handling 2M+ daily requests with 99.99% uptime.\n- Senior Software Engineer at DataFlow (2019-2022): Reduced database query times by 60% through optimized caching strategies.\n- Software Developer at CloudScale (2018-2019): Built real-time analytics dashboard with React and WebSockets.");
+  const [fullName, setFullName] = useState("");
+  const [headline, setHeadline] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [location, setLocation] = useState("");
+  const [skills, setSkills] = useState("");
+  const [summary, setSummary] = useState("");
+  const [experienceText, setExperienceText] = useState("");
   const [isCompiling, setIsCompiling] = useState(false);
 
   const generateTypstPreviewCode = () => {
@@ -56,6 +56,10 @@ ${experienceText}
   };
 
   const handleCompilePdf = async () => {
+    if (!fullName.trim() || !headline.trim() || !summary.trim() || !experienceText.trim()) {
+      toast.error("Add your name, headline, summary, and experience before compiling.");
+      return;
+    }
     setIsCompiling(true);
     try {
       const resp = await apiFetchResponse("/v1/typst/compile", {
@@ -146,7 +150,7 @@ ${experienceText}
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-foreground truncate">{tmpl.name}</span>
                   <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                    {tmpl.atsScore}
+                    Template
                   </Badge>
                 </div>
                 <p className="text-[11px] text-muted-foreground line-clamp-2">{tmpl.desc}</p>

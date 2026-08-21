@@ -104,11 +104,11 @@ export default function OneShotPipeline() {
                 One-Shot Autopilot Console
               </h1>
               <p className="text-muted-foreground text-sm max-w-2xl">
-                Enter target role details once. Tayari executes Fit Audit → Reflective Resume Tailoring → Custom Cover Letter → Stealth Auto-Apply Payload → Recruiter Outreach → STAR Interview Prep in a single turn.
+                Enter target role details once. Tayari prepares a fit audit, tailored resume, cover-letter draft, candidate-controlled application package, outreach draft, and interview-prep materials for your review.
               </p>
             </div>
             <Badge variant="outline" className="px-4 py-2 text-sm font-medium border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">
-              <ShieldCheck className="w-4 h-4 mr-2" /> 100% Privacy & Local-First Ready
+              <ShieldCheck className="w-4 h-4 mr-2" /> Candidate-controlled · review required
             </Badge>
           </div>
         </div>
@@ -120,7 +120,7 @@ export default function OneShotPipeline() {
               <Target className="w-5 h-5 text-primary" /> Target Role & Master Profile Context
             </CardTitle>
             <CardDescription>
-              Provide the role info below. If resume text is left blank, your default saved profile will be ingested automatically.
+              Provide the role information below. If resume text is left blank, the service will use an available user-owned resume context; otherwise it will report that resume context is unavailable.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -180,11 +180,11 @@ export default function OneShotPipeline() {
             >
               {loading ? (
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 animate-spin" /> Executing 6-Stage One-Shot Pipeline...
+                  <Sparkles className="w-5 h-5 animate-spin" /> Preparing review package...
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Zap className="w-5 h-5 fill-current" /> Execute One-Shot Application Pipeline
+                  <Zap className="w-5 h-5 fill-current" /> Prepare Candidate Review Package
                 </div>
               )}
             </Button>
@@ -215,13 +215,13 @@ export default function OneShotPipeline() {
               </Card>
               <Card className="border-border">
                 <CardContent className="p-4">
-                  <p className="text-xs font-medium text-muted-foreground">Stealth Auto-Apply</p>
+                  <p className="text-xs font-medium text-muted-foreground">Application Package</p>
                   <p className="text-2xl font-bold text-primary">
                     {result.auto_apply_payload.submission_blocked
                       ? "Blocked — human review required"
                       : result.auto_apply_payload.shadow_approval_required
                         ? "Needs review"
-                        : result.auto_apply_payload.stealth_readiness}
+                        : result.auto_apply_payload.stealth_readiness || "Review required"}
                   </p>
                 </CardContent>
               </Card>
