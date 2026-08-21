@@ -31,4 +31,14 @@ describe("truthful candidate-data contracts", () => {
     expect(source).toContain("Candidate-controlled");
     expect(source).toContain("review required");
   });
+
+  it("does not invent compensation or employer details in Negotiation Copilot", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/pages/NegotiationCopilot.tsx"), "utf8");
+
+    expect(source).not.toContain("Senior Software Engineer");
+    expect(source).not.toContain('useState("Stripe")');
+    expect(source).not.toContain('useState("180000")');
+    expect(source).toContain("non-negative numeric offer values");
+    expect(source).toContain("not guaranteed compensation");
+  });
 });

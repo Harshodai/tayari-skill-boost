@@ -2,6 +2,7 @@ import { apiFetchResponse } from "@/api";
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +21,7 @@ export function PortfolioGenerator() {
   const [summary, setSummary] = useState("");
   const [generating, setGenerating] = useState(false);
   const [htmlOutput, setHtmlOutput] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
@@ -51,6 +53,7 @@ export function PortfolioGenerator() {
       return;
     }
     setGenerating(true);
+    setError(null);
 
     try {
       const resp = await apiFetchResponse("/v1/portfolio/generate", {
@@ -68,10 +71,14 @@ export function PortfolioGenerator() {
         const data = await resp.json();
         setHtmlOutput(data.html || data);
       } else {
-        toast({ title: "Portfolio Generation Failed", description: "AI service is currently unavailable." });
+        const message = "The AI service could not generate a portfolio. No new artifact was recorded.";
+        setError(message);
+        toast({ title: "Portfolio Generation Failed", description: message });
       }
     } catch {
-      toast({ title: "Generation Error", description: "Could not generate portfolio HTML." });
+      const message = "The portfolio service is unavailable. Check the backend and provider configuration, then retry.";
+      setError(message);
+      toast({ title: "Generation Error", description: message });
     } finally {
       setGenerating(false);
     }
@@ -99,6 +106,13 @@ export function PortfolioGenerator() {
   return (
     <AppShell>
       <div className="container max-w-5xl mx-auto py-8 space-y-6">
+        {error && (
+          <Alert variant="destructive" role="alert">
+            <AlertTitle>Portfolio generation unavailable</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
             <Globe className="h-8 w-8 text-blue-500" />

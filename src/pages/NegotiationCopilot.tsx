@@ -2,6 +2,7 @@ import { apiFetchResponse } from "@/api";
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -12,12 +13,12 @@ import { useToast } from "@/components/ui/use-toast";
 import { AppShell } from "@/components/layout";
 
 export function NegotiationCopilot() {
-  const [role, setRole] = useState("Senior Software Engineer");
-  const [company, setCompany] = useState("Stripe");
-  const [baseOffer, setBaseOffer] = useState("180000");
-  const [equityOffer, setEquityOffer] = useState("50000");
-  const [signonOffer, setSignonOffer] = useState("20000");
-  const [location, setLocation] = useState("San Francisco, CA");
+  const [role, setRole] = useState("");
+  const [company, setCompany] = useState("");
+  const [baseOffer, setBaseOffer] = useState("");
+  const [equityOffer, setEquityOffer] = useState("");
+  const [signonOffer, setSignonOffer] = useState("");
+  const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +27,13 @@ export function NegotiationCopilot() {
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const parsedBaseOffer = Number(baseOffer);
+    const parsedEquityOffer = equityOffer.trim() ? Number(equityOffer) : 0;
+    const parsedSignonOffer = signonOffer.trim() ? Number(signonOffer) : 0;
+    if (!role.trim() || !Number.isFinite(parsedBaseOffer) || parsedBaseOffer < 0 || !Number.isFinite(parsedEquityOffer) || parsedEquityOffer < 0 || !Number.isFinite(parsedSignonOffer) || parsedSignonOffer < 0) {
+      setError("Enter a target role and non-negative numeric offer values before generating a draft strategy.");
+      return;
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -37,9 +45,9 @@ export function NegotiationCopilot() {
         body: JSON.stringify({
           role,
           company,
-          base_offer: parseFloat(baseOffer) || 180000,
-          equity_offer: parseFloat(equityOffer) || 50000,
-          signon_offer: parseFloat(signonOffer) || 20000,
+          base_offer: parsedBaseOffer,
+          equity_offer: parsedEquityOffer,
+          signon_offer: parsedSignonOffer,
           location,
         }),
       });
@@ -74,7 +82,7 @@ export function NegotiationCopilot() {
             Salary & Counter-Offer Negotiation Copilot
           </h1>
           <p className="text-muted-foreground">
-            Turn your job offers into maximum compensation packages using data-backed H1B benchmarks and multi-stage negotiation scripts.
+            Review a draft negotiation strategy using the offer details and available benchmark data. Outputs are not guaranteed compensation, legal, tax, or financial advice; verify consequential decisions with qualified professionals.
           </p>
         </div>
 
@@ -124,11 +132,14 @@ export function NegotiationCopilot() {
                 <div className="py-12 text-center text-muted-foreground space-y-4">
                   {error ? (
                     <>
-                      <div role="alert" className="text-destructive">{error}</div>
+                      <Alert variant="destructive" role="alert" className="text-left">
+                        <AlertTitle>Negotiation strategy unavailable</AlertTitle>
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
                       <Button type="button" variant="outline" onClick={() => void handleGenerate({ preventDefault: () => undefined } as React.FormEvent)} disabled={loading}>Retry</Button>
                     </>
                   ) : (
-                    <div>Enter your offer terms on the left to generate your counter-offer strategy.</div>
+                    <div>Enter your offer terms on the left to generate a candidate-reviewed counter-offer draft.</div>
                   )}
                 </div>
               ) : (

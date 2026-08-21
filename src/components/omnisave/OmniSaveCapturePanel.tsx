@@ -23,6 +23,21 @@ function statusLabel(status: string) {
   return { never: "Not synced", queued: "Queued", running: "Syncing", completed: "Healthy", partial: "Partial sync", failed: "Needs attention", cancel_requested: "Stopping", cancelled: "Cancelled", blocked: "Blocked", paused: "Paused" }[status] || status;
 }
 
+function diagnosticFor(error?: string | null) {
+  const normalized = String(error || "").toLowerCase();
+  if (!normalized) return null;
+  if (normalized.includes("unknown external action")) {
+    return "The browser companion is running an older service worker. Open chrome://extensions, reload the unpacked extension, confirm chrome.runtime.getManifest().version returns 3.2.0, then reload the saved-content tabs.";
+  }
+  if (normalized.includes("not authenticated") || normalized.includes("authentication")) {
+    return "The source tab is not authenticated in the same Chrome profile as the companion. Open the platform's saved-content page, complete sign-in, confirm saved cards are visible, and retry without using an incognito or different profile.";
+  }
+  if (normalized.includes("no_visible_sources") || normalized.includes("no visible sources")) {
+    return "The page loaded but no visible article-shaped links matched the collector rules. Scroll until saved cards render, then verify the page contains supported article links rather than only /saved, /lists, /feed, or other utility URLs.";
+  }
+  return null;
+}
+
 export function OmniSaveCapturePanel({
   settings,
   runs,
@@ -62,6 +77,8 @@ export function OmniSaveCapturePanel({
   const currentStatus = settings?.last_status || "never";
   const latestRun = runs[0];
   const latestCaptureRun = captureRuns[0];
+  const latestError = latestCaptureRun?.last_error || settings?.last_error || (latestRun?.errors?.length ? JSON.stringify(latestRun.errors[0]) : null);
+  const diagnostic = diagnosticFor(latestError);
   const selectedCount = useMemo(() => selectedPlatforms.length, [selectedPlatforms]);
   const platformHealth = useMemo(() => platforms.map((platform) => {
     const platformSources = sources.filter((source) => source.platform === platform.id);
@@ -172,7 +189,7 @@ export function OmniSaveCapturePanel({
           {message && <p className="text-xs text-muted-foreground" role="status">{message}</p>}
         </div>
         <div className="space-y-3">
-          <div className="rounded-xl border border-border/70 bg-background/60 p-4"><div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /><p className="text-sm font-medium">Sync health</p></div><p className="mt-3 text-2xl font-semibold">{statusLabel(currentStatus)}</p><p className="mt-1 text-xs text-muted-foreground">Last completed: {formatTime(settings?.last_completed_at)}</p>{settings?.last_error && <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">{settings.last_error}</p>}</div>
+          <div className="rounded-xl border border-border/70 bg-background/60 p-4"><div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /><p className="text-sm font-medium">Sync health</p></div><p className="mt-3 text-2xl font-semibold">{statusLabel(currentStatus)}</p><p className="mt-1 text-xs text-muted-foreground">Last completed: {formatTime(settings?.last_completed_at)}</p>{latestError && <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">{latestError}</p>}{diagnostic && <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100"><p className="font-semibold">What to check</p><p className="mt-1">{diagnostic}</p></div>}</div>
           <div className="rounded-xl border border-border/70 bg-background/60 p-4"><div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /><p className="text-sm font-medium">Recent capture</p></div>{latestRun ? <div className="mt-3 space-y-2 text-xs text-muted-foreground"><div className="flex justify-between gap-3"><span>{latestRun.trigger_type} run</span><Badge variant="outline">{statusLabel(latestRun.status)}</Badge></div><div className="flex justify-between gap-3"><span>Imported</span><span className="font-medium text-foreground">{latestRun.imported_count}</span></div><div className="flex justify-between gap-3"><span>Skipped</span><span>{latestRun.skipped_count}</span></div><div className="flex justify-between gap-3"><span>Failed</span><span>{latestRun.failed_count}</span></div><p className="pt-1">Started {formatTime(latestRun.started_at)}</p></div> : <p className="mt-3 text-xs leading-5 text-muted-foreground">No sync runs yet. Open a saved-content page and choose Sync open saved pages.</p>}{latestCaptureRun && <div className="mt-4 border-t border-border/60 pt-3"><div className="flex justify-between gap-3"><span>Full-history {latestCaptureRun.platform}</span><Badge variant="outline">{statusLabel(latestCaptureRun.status)}</Badge></div><div className="mt-2 grid grid-cols-2 gap-2"><span>Pages {latestCaptureRun.page_count}</span><span>Found {latestCaptureRun.discovered_count}</span><span>Imported {latestCaptureRun.imported_count}</span><span>Failed {latestCaptureRun.failed_count}</span></div>{latestCaptureRun.last_error && <p className="mt-2 text-destructive">{latestCaptureRun.last_error}</p>}</div>}</div>
           <div className="rounded-xl border border-border/70 bg-background/60 p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">Platform health</p><Badge variant="outline">{platformHealth.filter((item) => item.pending > 0).length} needs review</Badge></div><div className="mt-3 space-y-2">{platformHealth.map((item) => <div key={item.id} className="rounded-lg border border-border/60 p-2.5"><div className="flex items-center justify-between gap-2 text-xs"><span className="font-medium">{item.label}</span><span className="text-muted-foreground">{item.pending} pending</span></div><p className="mt-1 text-[11px] text-muted-foreground">Last success: {item.lastSeen ? formatTime(item.lastSeen) : "Not yet"}</p>{item.lastError && <p className="mt-1 truncate text-[11px] text-destructive" title={item.lastError}>{item.lastError}</p>}</div>)}</div></div>
         </div>
