@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -21,6 +22,31 @@ type taskCreateRequest struct {
 type taskPlanRequest struct {
 	Steps json.RawMessage `json:"steps"`
 }
+
+type taskPlanStep struct {
+	Tool     string `json:"tool"`
+	RiskTier string `json:"risk_tier"`
+}
+
+func validateTaskPlanSteps(raw json.RawMessage) error {
+	var steps []taskPlanStep
+	if err := json.Unmarshal(raw, &steps); err != nil || len(steps) == 0 {
+		return fmt.Errorf("steps must be a non-empty array")
+	}
+	for _, step := range steps {
+		if step.Tool == "" {
+			continue
+		}
+		if step.Tool != "candidate_context.read" {
+			return fmt.Errorf("tool %q is not available in the candidate-controlled runtime", step.Tool)
+		}
+		if step.RiskTier != "read" {
+			return fmt.Errorf("candidate_context.read must use risk_tier read")
+		}
+	}
+	return nil
+}
+
 type actionRequest struct {
 	ActionType string          `json:"action_type"`
 	RiskTier   string          `json:"risk_tier"`
@@ -300,6 +326,10 @@ func (s *Server) handleCreateTaskPlan(w http.ResponseWriter, r *http.Request) {
 	var req taskPlanRequest
 	if err := decodeTaskJSON(r, &req); err != nil || len(req.Steps) == 0 || !json.Valid(req.Steps) {
 		s.respondError(w, 400, "steps must be valid JSON")
+		return
+	}
+	if err := validateTaskPlanSteps(req.Steps); err != nil {
+		s.respondError(w, 400, err.Error())
 		return
 	}
 	var version int64

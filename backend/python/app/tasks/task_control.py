@@ -21,6 +21,7 @@ from app.services.llm_service import LLMNotConfiguredError, llm_complete
 logger = logging.getLogger(__name__)
 
 CLAIM_LIMIT = 10
+LEASE_SECONDS = 900
 READ_ONLY_TOOLS = {"candidate_context.read"}
 
 
@@ -61,26 +62,35 @@ async def _record_event(conn: Any, task_id: str, user_id: str, event_type: str, 
     )
 
 
-async def _claim_tasks(pool: Any) -> list[Any]:
+async def _claim_tasks(pool: Any, worker_id: str) -> list[Any]:
     async with pool.acquire() as conn:
         async with conn.transaction():
             return list(await conn.fetch(
                 """
                 WITH claimable AS (
-                    SELECT id
+                    SELECT id, (status='running') AS was_reclaimed
                     FROM task_runs
                     WHERE status='queued'
+                       OR (status='running' AND lease_expires_at IS NOT NULL AND lease_expires_at < now())
                     ORDER BY updated_at, created_at
                     FOR UPDATE SKIP LOCKED
-                    LIMIT $1
+                    LIMIT $2
                 )
                 UPDATE task_runs run
-                SET status='running', version=version+1, updated_at=now()
+                SET status='running',
+                    version=version+1,
+                    updated_at=now(),
+                    lease_owner=$1,
+                    lease_expires_at=now() + ($3 * interval '1 second'),
+                    attempt_count=attempt_count+1
                 FROM claimable
-                WHERE run.id=claimable.id AND run.status='queued'
-                RETURNING run.id, run.user_id, run.title, run.objective
+                WHERE run.id=claimable.id
+                  AND (run.status='queued' OR (run.status='running' AND run.lease_expires_at < now()))
+                RETURNING run.id, run.user_id, run.title, run.objective, claimable.was_reclaimed
                 """,
+                worker_id,
                 CLAIM_LIMIT,
+                LEASE_SECONDS,
             ))
 
 
@@ -96,7 +106,7 @@ async def _load_candidate_context(conn: Any, user_id: str) -> dict[str, Any]:
     )
     resume = await conn.fetchrow(
         """
-        SELECT resume_text
+        SELECT LEFT(resume_text, 30000) AS resume_text
         FROM resume_analyses
         WHERE user_id=$1 AND resume_text IS NOT NULL
         ORDER BY created_at DESC
@@ -131,18 +141,19 @@ async def _load_approved_plan(conn: Any, task_id: str, user_id: str) -> list[Any
     return steps if isinstance(steps, list) else []
 
 
-async def _mark_failed(pool: Any, task: Any, code: str, message: str) -> None:
+async def _mark_failed(pool: Any, task: Any, worker_id: str, code: str, message: str) -> None:
     async with pool.acquire() as conn:
         async with conn.transaction():
             changed = await conn.fetchval(
                 """
                 UPDATE task_runs
-                SET status='failed', version=version+1, updated_at=now()
-                WHERE id=$1 AND user_id=$2 AND status='running'
+                SET status='failed', version=version+1, updated_at=now(), lease_owner=NULL, lease_expires_at=NULL
+                WHERE id=$1 AND user_id=$2 AND status='running' AND lease_owner=$3
                 RETURNING id
                 """,
                 task["id"],
                 task["user_id"],
+                worker_id,
             )
             if changed:
                 await _record_event(conn, str(task["id"]), str(task["user_id"]), "task.failed", {
@@ -152,15 +163,15 @@ async def _mark_failed(pool: Any, task: Any, code: str, message: str) -> None:
                 })
 
 
-async def _execute_one(pool: Any, task: Any) -> dict[str, Any]:
+async def _execute_one(pool: Any, task: Any, worker_id: str) -> dict[str, Any]:
     task_id = str(task["id"])
     user_id = str(task["user_id"])
     async with pool.acquire() as conn:
         steps = await _load_approved_plan(conn, task_id, user_id)
         if steps is None:
             await conn.execute(
-                "UPDATE task_runs SET status='failed', version=version+1, updated_at=now() WHERE id=$1 AND user_id=$2 AND status='running'",
-                task["id"], task["user_id"],
+                "UPDATE task_runs SET status='failed', version=version+1, updated_at=now(), lease_owner=NULL, lease_expires_at=NULL WHERE id=$1 AND user_id=$2 AND status='running' AND lease_owner=$3",
+                task["id"], task["user_id"], worker_id,
             )
             await _record_event(conn, task_id, user_id, "task.failed", {
                 "error_code": "approved_plan_missing",
@@ -205,11 +216,11 @@ async def _execute_one(pool: Any, task: Any) -> dict[str, Any]:
     try:
         draft = await llm_complete(system, prompt, tier="fast", max_tokens=1600, temperature=0.2)
     except LLMNotConfiguredError:
-        await _mark_failed(pool, task, "ai_service_unavailable", "No configured AI provider is available for this task.")
+        await _mark_failed(pool, task, worker_id, "ai_service_unavailable", "No configured AI provider is available for this task.")
         return {"task_id": task_id, "status": "failed", "error_code": "ai_service_unavailable"}
     except Exception as exc:  # noqa: BLE001 - persist truthful failure
         logger.exception("Tay task %s draft execution failed", task_id)
-        await _mark_failed(pool, task, "task_execution_failed", "The draft executor failed before producing a result.")
+        await _mark_failed(pool, task, worker_id, "task_execution_failed", "The draft executor failed before producing a result.")
         return {"task_id": task_id, "status": "failed", "error_code": "task_execution_failed", "detail": str(exc)}
 
     try:
@@ -218,12 +229,13 @@ async def _execute_one(pool: Any, task: Any) -> dict[str, Any]:
                 changed = await conn.fetchval(
                     """
                     UPDATE task_runs
-                    SET status='completed', version=version+1, updated_at=now()
-                    WHERE id=$1 AND user_id=$2 AND status='running'
+                    SET status='completed', version=version+1, updated_at=now(), lease_owner=NULL, lease_expires_at=NULL
+                    WHERE id=$1 AND user_id=$2 AND status='running' AND lease_owner=$3
                     RETURNING id
                     """,
                     task["id"],
                     task["user_id"],
+                    worker_id,
                 )
                 if not changed:
                     await _record_event(conn, task_id, user_id, "task.execution.interrupted", {
@@ -255,19 +267,22 @@ async def _execute_one(pool: Any, task: Any) -> dict[str, Any]:
         return {"task_id": task_id, "status": "completed", "artifact_id": artifact_id}
     except Exception as exc:  # noqa: BLE001 - persist artifact failure truthfully
         logger.exception("Tay task %s artifact commit failed", task_id)
-        await _mark_failed(pool, task, "artifact_persist_failed", "The draft was generated but could not be persisted safely.")
+        await _mark_failed(pool, task, worker_id, "artifact_persist_failed", "The draft was generated but could not be persisted safely.")
         return {"task_id": task_id, "status": "failed", "error_code": "artifact_persist_failed", "detail": str(exc)}
 
 
-async def _dispatch() -> dict[str, Any]:
+async def _dispatch(worker_id: str) -> dict[str, Any]:
     pool = await get_pool()
     if not pool:
         return {"status": "skipped_no_db", "claimed": 0, "completed": 0, "failed": 0}
-    tasks = await _claim_tasks(pool)
+    tasks = await _claim_tasks(pool, worker_id)
     completed = 0
     failed = 0
     for task in tasks:
-        result = await _execute_one(pool, task)
+        if bool(task["was_reclaimed"]):
+            async with pool.acquire() as conn:
+                await _record_event(conn, str(task["id"]), str(task["user_id"]), "task.execution.reclaimed", {"worker_id": worker_id, "external_side_effect": False})
+        result = await _execute_one(pool, task, worker_id)
         if result.get("status") == "completed":
             completed += 1
         elif result.get("status") == "failed":
@@ -279,7 +294,8 @@ async def _dispatch() -> dict[str, Any]:
 def dispatch_checkpoints(self) -> dict[str, Any]:
     """Claim approved Tay tasks and produce reviewable draft results."""
     try:
-        return asyncio.run(_dispatch())
+        worker_id = str(getattr(self.request, "id", None) or "celery-worker")
+        return asyncio.run(_dispatch(worker_id))
     except Exception as exc:  # noqa: BLE001 - worker must report a truthful failure
         logger.exception("Tay task-control dispatch failed")
         return {"status": "failed", "claimed": 0, "completed": 0, "failed": 0, "error": str(exc)}

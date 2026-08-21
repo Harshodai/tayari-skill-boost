@@ -58,6 +58,10 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/47-20260821_task_artifacts.sql",
         "zz-47-20260821_task_artifacts.sql",
     ),
+    "backend/db/migrations/20260821_03_task_control_leases.sql": (
+        "supabase-local/volumes/db/init/48-20260821_task_control_leases.sql",
+        "zz-48-20260821_task_control_leases.sql",
+    ),
 }
 
 
