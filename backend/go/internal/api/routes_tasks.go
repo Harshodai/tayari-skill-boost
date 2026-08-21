@@ -38,6 +38,14 @@ type taskRecord struct {
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
 }
+type taskPlanRecord struct {
+	TaskID     string          `json:"task_id"`
+	Version    int64           `json:"version"`
+	Steps      json.RawMessage `json:"steps"`
+	Status     string          `json:"status"`
+	CreatedAt  time.Time       `json:"created_at"`
+	ApprovedAt *time.Time      `json:"approved_at,omitempty"`
+}
 type actionRecord struct {
 	ID         string          `json:"id"`
 	TaskID     string          `json:"task_id"`
@@ -63,6 +71,8 @@ func (s *Server) routesTasks(r chi.Router) {
 		r.Get("/api/tasks/{taskID}/events", s.handleListTaskEvents)
 		r.Post("/api/v1/tasks/{taskID}/plan", s.handleCreateTaskPlan)
 		r.Post("/api/tasks/{taskID}/plan", s.handleCreateTaskPlan)
+		r.Get("/api/v1/tasks/{taskID}/plan", s.handleGetTaskPlan)
+		r.Get("/api/tasks/{taskID}/plan", s.handleGetTaskPlan)
 		r.Post("/api/v1/tasks/{taskID}/plan/approve", s.handleApproveTaskPlan)
 		r.Post("/api/tasks/{taskID}/plan/approve", s.handleApproveTaskPlan)
 		r.Post("/api/v1/tasks/{taskID}/plan/reject", s.handleRejectTaskPlan)
@@ -285,12 +295,40 @@ func (s *Server) handleCreateTaskPlan(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, 500, "failed to version plan")
 		return
 	}
-	_, err = s.DB.Conn.ExecContext(r.Context(), `INSERT INTO task_plans (task_id,user_id,version,steps) SELECT $1,$2,$3,$4 WHERE EXISTS (SELECT 1 FROM task_runs WHERE id=$1 AND user_id=$2)`, id, uid, version, req.Steps)
+	res, err := s.DB.Conn.ExecContext(r.Context(), `INSERT INTO task_plans (task_id,user_id,version,steps) SELECT $1,$2,$3,$4 WHERE EXISTS (SELECT 1 FROM task_runs WHERE id=$1 AND user_id=$2)`, id, uid, version, req.Steps)
 	if err != nil {
 		s.respondError(w, 500, "failed to create plan")
 		return
 	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		s.respondError(w, 404, "task not found")
+		return
+	}
+	_, _ = s.DB.Conn.ExecContext(r.Context(), `INSERT INTO task_events (task_id,user_id,event_type,payload) VALUES ($1,$2,'plan.proposed',$3)`, id, uid, req.Steps)
 	s.respondJSON(w, 201, map[string]any{"task_id": id, "version": version, "status": "proposed", "steps": json.RawMessage(req.Steps)})
+}
+
+func (s *Server) handleGetTaskPlan(w http.ResponseWriter, r *http.Request) {
+	uid, ok := taskOwner(r)
+	if !ok {
+		s.respondError(w, 401, "Unauthorized")
+		return
+	}
+	id, err := taskID(r)
+	if err != nil {
+		s.respondError(w, 400, "invalid task id")
+		return
+	}
+	if !s.taskDB(w) {
+		return
+	}
+	var plan taskPlanRecord
+	err = s.DB.Conn.QueryRowContext(r.Context(), `SELECT task_id,version,steps,status,created_at,approved_at FROM task_plans WHERE task_id=$1 AND user_id=$2 ORDER BY version DESC LIMIT 1`, id, uid).Scan(&plan.TaskID, &plan.Version, &plan.Steps, &plan.Status, &plan.CreatedAt, &plan.ApprovedAt)
+	if err != nil {
+		s.respondError(w, 404, "task plan not found")
+		return
+	}
+	s.respondJSON(w, 200, plan)
 }
 func (s *Server) handlePlanDecision(w http.ResponseWriter, r *http.Request, approved bool) {
 	uid, ok := taskOwner(r)

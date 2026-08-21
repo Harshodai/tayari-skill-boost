@@ -21,5 +21,7 @@ describe("Manus-style task workflow contracts", () => {
     expect(source).toContain("Task stopped");
     expect(source).toContain("Submission remains blocked");
     expect(source).toContain("Live task events");
+    expect(source).toContain("Proposed plan");
+    expect(source).toContain("Review these exact steps before approving");
   });
 });

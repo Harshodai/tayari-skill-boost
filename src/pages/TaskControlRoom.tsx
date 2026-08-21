@@ -23,7 +23,7 @@ const statusCopy: Record<string, string> = {
 };
 
 function TaskView() {
-  const { task, events, actions, approvePlan, rejectPlan, approveAction, denyAction, pause, resume, takeover, stop } = useTaskControl();
+  const { task, plan, events, actions, approvePlan, rejectPlan, approveAction, denyAction, pause, resume, takeover, stop } = useTaskControl();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -48,6 +48,7 @@ function TaskView() {
   const pendingActions = actions.filter((action) => action.status === 'pending');
   const completedEvent = [...events].reverse().find((event) => event.event_type === 'task.completed');
   const resultMarkdown = typeof completedEvent?.payload?.result_markdown === 'string' ? completedEvent.payload.result_markdown : null;
+  const planSteps = Array.isArray(plan?.steps) ? plan.steps : [];
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:px-8">
@@ -70,6 +71,13 @@ function TaskView() {
             <AlertTitle>Task control failed</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
+        )}
+
+        {plan && (
+          <Card className="border-indigo-300/20 bg-indigo-300/5">
+            <CardHeader><CardTitle>Proposed plan · version {plan.version}</CardTitle><CardDescription className="text-slate-400">Review these exact steps before approving. The task will only execute the safe draft path after approval.</CardDescription></CardHeader>
+            <CardContent><ol className="space-y-2">{planSteps.map((step, index) => { const record = typeof step === 'object' && step !== null ? step as Record<string, unknown> : {}; const title = typeof record.title === 'string' ? record.title : `Plan step ${index + 1}`; const requiresApproval = record.requires_approval === true; return <li key={`${plan.version}-${index}`} className="flex items-start gap-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-300/15 text-xs font-semibold text-indigo-100">{index + 1}</span><div><p className="text-sm font-medium text-slate-100">{title}</p>{requiresApproval && <p className="mt-1 text-xs text-amber-200">Requires review before this step.</p>}</div></li>; })}</ol></CardContent>
+          </Card>
         )}
 
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
