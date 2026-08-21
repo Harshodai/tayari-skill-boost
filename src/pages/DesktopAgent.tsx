@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle, ArrowRight, Bot, CheckCircle2, ChevronRight, FileText, FolderOpen, Globe2, Loader2, Play, RefreshCw, ShieldCheck, Square, TerminalSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch, BackendUnavailableError, createTask, createTaskPlan } from "@/api";
@@ -16,6 +16,7 @@ const ACTIONS = [
 
 export default function DesktopAgent() {
   const desktop = window.tayariDesktop;
+  const navigate = useNavigate();
   const [status, setStatus] = useState<DesktopStatus | null>(null);
   const [files, setFiles] = useState<LocalFile[]>([]);
   const [task, setTask] = useState("");
@@ -67,6 +68,7 @@ export default function DesktopAgent() {
         { id: "human_review", title: "Pause for your approval before browser actions", requires_approval: true },
       ]);
       setResult(created);
+      navigate(`/tay/tasks/${created.id}`);
     } catch (caught) {
       setError(caught instanceof BackendUnavailableError
         ? "The local agent service is not reachable. Start local services, then retry."
@@ -102,7 +104,7 @@ export default function DesktopAgent() {
         <header className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 backdrop-blur-xl sm:px-5">
           <Link to="/" className="flex items-center gap-3 font-display text-lg font-semibold tracking-tight text-white">
             <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-indigo-300/20 bg-indigo-300/10"><img src={tayAgentAvatar} alt="" className="h-full w-full object-cover object-top" /></span>
-            Job Tayari <span className="hidden text-slate-500 sm:inline">Desktop</span>
+            Job Tayari <span className="hidden text-slate-500 sm:inline">Workspace</span>
           </Link>
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <span className={`h-2 w-2 rounded-full ${status?.apiReachable ? "bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,.9)]" : "bg-amber-300"}`} />
@@ -115,8 +117,8 @@ export default function DesktopAgent() {
           <aside className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3 backdrop-blur-xl">
             <p className="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Workspace</p>
             <nav className="space-y-1">
-              <NavItem to="/desktop" icon={Bot} active label="Tay Agent" />
-              <NavItem to="/control-room" icon={Globe2} label="Browser review" />
+              <NavItem to="/tay" icon={Bot} active label="Tay Workspace" />
+              <NavItem to="/tay" icon={Globe2} label="Task review" />
               <NavItem to="/answer-bank" icon={ShieldCheck} label="Answer bank" />
               <NavItem to="/resume" icon={FileText} label="Resume studio" />
               <NavItem to="/jobs" icon={TerminalSquare} label="Opportunity desk" />
@@ -131,8 +133,8 @@ export default function DesktopAgent() {
             <div className="flex flex-col gap-6 border-b border-slate-800 pb-7 sm:flex-row sm:items-center sm:justify-between">
               <div className="max-w-2xl">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-300/15 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-100"><Bot className="h-3.5 w-3.5" /> Tay Agent</div>
-                <h1 className="font-display text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">A local agent workspace with visible boundaries.</h1>
-                <p className="mt-3 text-sm leading-6 text-slate-400 sm:text-base">Bring Job Tayari’s career operations into a focused desktop environment: files stay selected by you, browser work stays reviewable, and every run has a clear stop point.</p>
+                <h1 className="font-display text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">A review-first agent workspace with visible boundaries.</h1>
+                <p className="mt-3 text-sm leading-6 text-slate-400 sm:text-base">Bring Job Tayari’s career operations into a focused workspace: files stay selected by you, browser work stays reviewable, and every run has a clear stop point.</p>
               </div>
               <div className="relative mx-auto h-28 w-28 shrink-0 overflow-hidden rounded-[1.5rem] border border-indigo-300/20 bg-gradient-to-b from-indigo-300/10 to-slate-950 shadow-[0_18px_46px_rgba(79,70,229,.23)] sm:mx-0">
                 <img src={tayAgentAvatar} alt="Tay, the Job Tayari agent" className="h-full w-full object-cover object-top" />
@@ -154,8 +156,8 @@ export default function DesktopAgent() {
           </section>
 
           <aside className="space-y-5">
-            <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 backdrop-blur-xl"><p className="text-sm font-semibold text-white">Local services</p><p className="mt-1.5 text-xs leading-5 text-slate-400">The desktop app launches the existing local service stack through Docker Desktop on macOS, Windows, and Linux. It does not hide setup or permissions.</p><div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/70 p-3 text-xs"><p className="text-slate-500">API endpoint</p><p className="mt-1 break-all font-mono text-slate-200">{status?.apiBaseUrl ?? "Checking…"}</p></div><div className="mt-3 grid grid-cols-2 gap-2"><Button type="button" variant="outline" disabled={!desktop || serviceAction !== null || status?.apiReachable} onClick={() => void controlServices("start")} className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">{serviceAction === "start" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Start"}</Button><Button type="button" variant="outline" disabled={!desktop || serviceAction !== null || !status?.apiReachable} onClick={() => void controlServices("stop")} className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">{serviceAction === "stop" ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Square className="mr-1.5 h-3.5 w-3.5" />Stop</>}</Button></div></section>
-            <section className="rounded-2xl border border-amber-300/15 bg-amber-300/5 p-4"><p className="text-sm font-semibold text-amber-100">Before a browser action</p><ol className="mt-3 space-y-2 text-xs leading-5 text-slate-400"><li className="flex gap-2"><span className="font-semibold text-amber-200">01</span>Confirm the target site and role.</li><li className="flex gap-2"><span className="font-semibold text-amber-200">02</span>Watch the browser-review stream.</li><li className="flex gap-2"><span className="font-semibold text-amber-200">03</span>Use the stop control if the work no longer matches your intent.</li></ol><Link to="/control-room" className="mt-4 inline-flex items-center text-xs font-semibold text-amber-100 hover:text-white">Open browser review <ChevronRight className="ml-1 h-3.5 w-3.5" /></Link></section>
+            <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 backdrop-blur-xl"><p className="text-sm font-semibold text-white">Service status</p><p className="mt-1.5 text-xs leading-5 text-slate-400">The web workspace uses the authenticated JobTayari API. The optional desktop app can launch the local service stack, but setup and permissions remain visible.</p><div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/70 p-3 text-xs"><p className="text-slate-500">API endpoint</p><p className="mt-1 break-all font-mono text-slate-200">{status?.apiBaseUrl ?? "Checking…"}</p></div><div className="mt-3 grid grid-cols-2 gap-2"><Button type="button" variant="outline" disabled={!desktop || serviceAction !== null || status?.apiReachable} onClick={() => void controlServices("start")} className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">{serviceAction === "start" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Start"}</Button><Button type="button" variant="outline" disabled={!desktop || serviceAction !== null || !status?.apiReachable} onClick={() => void controlServices("stop")} className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">{serviceAction === "stop" ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Square className="mr-1.5 h-3.5 w-3.5" />Stop</>}</Button></div></section>
+            <section className="rounded-2xl border border-amber-300/15 bg-amber-300/5 p-4"><p className="text-sm font-semibold text-amber-100">Before a browser action</p><ol className="mt-3 space-y-2 text-xs leading-5 text-slate-400"><li className="flex gap-2"><span className="font-semibold text-amber-200">01</span>Confirm the target site and role.</li><li className="flex gap-2"><span className="font-semibold text-amber-200">02</span>Watch the browser-review stream.</li><li className="flex gap-2"><span className="font-semibold text-amber-200">03</span>Use the stop control if the work no longer matches your intent.</li></ol><Link to="/tay" className="mt-4 inline-flex items-center text-xs font-semibold text-amber-100 hover:text-white">Open task review <ChevronRight className="ml-1 h-3.5 w-3.5" /></Link></section>
           </aside>
         </div>
       </div>

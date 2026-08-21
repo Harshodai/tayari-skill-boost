@@ -56,6 +56,9 @@ const CONFIG = {
     browserExtension: [true, true],
     // JobTayari Computer is preview/staging-only until live isolation and takeover evidence exists.
     computerControl: [false, true],
+    // Candidate-controlled Tay Workspace: natural-language intake, plan review, and durable task control.
+    // This does not enable autonomous Computer Control or final submission.
+    taskWorkspace: [true, true],
     // JobTayari Desktop task surface is preview/staging-only until persistent-worker evidence exists.
     desktopAgent: [false, true],
     // Knowledge hub for resume knowledge graph
@@ -96,6 +99,7 @@ const CONFIG = {
     { label: "Communication", href: "/communication", feature: "communicationHub" },
     { label: "Career-Ops", href: "/career-ops", feature: "careerOps" },
     { label: "Career Intelligence", href: "/career-intelligence", feature: "careerOps" },
+    { label: "Tay Workspace", href: "/tay", feature: "taskWorkspace" },
     { label: "Computer Control", href: "/control-room", feature: "computerControl" },
     { label: "Desktop Agent", href: "/desktop", feature: "desktopAgent" },
     { label: "Automation Workspace", href: "/automations", feature: "automationControl" },
@@ -115,6 +119,7 @@ const primaryNavigationKeys = new Set([
   "jobSearch",
   "coverLetter",
   "careerRoadmap",
+  "taskWorkspace",
 ] as const);
 
 export const primaryNavigationFeatures = Object.keys(CONFIG.features).reduce(

@@ -156,6 +156,12 @@ const App = () => (
                   <Route path="/desktop/*" element={<Navigate to="/resume" replace />} />
                 </>
               )}
+              {features.taskWorkspace && (
+                <>
+                  <Route path="/tay" element={<ProtectedRoute><DesktopAgent /></ProtectedRoute>} />
+                  <Route path="/tay/tasks/:taskId" element={<ProtectedRoute><TaskControlRoom /></ProtectedRoute>} />
+                </>
+              )}
               {features.oneShotPipeline && (
                 <Route path="/one-shot" element={<OneShotPipeline />} />
               )}

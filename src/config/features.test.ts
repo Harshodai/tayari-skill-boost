@@ -20,6 +20,12 @@ describe('Feature Flags Configuration', () => {
         expect(getNavLinks().find((link) => link.href === '/automations')).toBeUndefined();
     });
 
+    it('exposes the candidate-controlled Tay Workspace as a distinct capability', () => {
+        expect(features.taskWorkspace).toBe(true);
+        expect(getNavLinks().find((link) => link.href === '/tay')?.label).toBe('Tay Workspace');
+        expect(features.automationControl).toBe(false);
+    });
+
 
     it('keeps the public navigation focused on the core application loop', () => {
         expect(primaryNavigationFeatures.resumeOptimizer).toBe(true);
