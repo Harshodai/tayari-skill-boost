@@ -23,7 +23,7 @@ const statusCopy: Record<string, string> = {
 };
 
 function TaskView() {
-  const { task, plan, artifacts, events, actions, approvePlan, rejectPlan, approveAction, denyAction, pause, resume, takeover, stop } = useTaskControl();
+  const { task, plan, artifacts, events, actions, refreshError, approvePlan, rejectPlan, approveAction, denyAction, pause, resume, takeover, stop } = useTaskControl();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -64,6 +64,14 @@ function TaskView() {
             <Link to="/desktop"><Button variant="outline">New task</Button></Link>
           </div>
         </div>
+
+        {refreshError && (
+          <Alert variant="destructive" role="alert">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Task data may be stale</AlertTitle>
+            <AlertDescription>{refreshError}. Do not approve or treat an empty result as final until the control room refreshes successfully.</AlertDescription>
+          </Alert>
+        )}
 
         {error && (
           <Alert variant="destructive" role="alert">

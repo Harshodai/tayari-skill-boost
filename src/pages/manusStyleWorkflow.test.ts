@@ -26,5 +26,14 @@ describe("Manus-style task workflow contracts", () => {
     expect(source).toContain("Proposed plan");
     expect(source).toContain("Review these exact steps before approving");
     expect(source).toContain("durable artifact");
+    expect(source).toContain("Task data may be stale");
+    expect(source).toContain("Do not approve or treat an empty result as final");
+  });
+
+  it("does not silently convert control-room refresh failures into empty state", () => {
+    const context = readFileSync(resolve(process.cwd(), "src/contexts/TaskControlContext.tsx"), "utf8");
+    expect(context).toContain("refreshError");
+    expect(context).toContain("listTaskArtifacts(taskId)");
+    expect(context).not.toContain("listTaskArtifacts(taskId).catch(() => ({ artifacts: [] }))");
   });
 });
