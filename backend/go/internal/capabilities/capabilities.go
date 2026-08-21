@@ -28,11 +28,14 @@ const (
 	WorkspaceGoogleDrive                  Name = "workspace.google.drive"
 	WorkspaceAutomations                  Name = "workspace.automations"
 	WorkspaceApprovals                    Name = "workspace.approvals"
-	WorkspaceNotificationEmail            Name = "workspace.notification.email"
-	WorkspaceNotificationWhatsApp         Name = "workspace.notification.whatsapp"
-	AutonomousMessaging                   Name = "autonomous.messaging"
-	AutonomousBilling                     Name = "autonomous.billing"
-	AutonomousIrreversible                Name = "autonomous.irreversible_jobs"
+	// WorkspaceTaskControl governs the candidate-owned plan/action review loop.
+	// It is safe to enable by default because it cannot authorize submission.
+	WorkspaceTaskControl          Name = "workspace.task_control"
+	WorkspaceNotificationEmail    Name = "workspace.notification.email"
+	WorkspaceNotificationWhatsApp Name = "workspace.notification.whatsapp"
+	AutonomousMessaging           Name = "autonomous.messaging"
+	AutonomousBilling             Name = "autonomous.billing"
+	AutonomousIrreversible        Name = "autonomous.irreversible_jobs"
 )
 
 var known = map[Name]struct{}{
@@ -40,7 +43,7 @@ var known = map[Name]struct{}{
 	WorkspaceATSAssistance: {}, WorkspaceKnowledgeHub: {}, WorkspaceInterviewPrep: {},
 	WorkspaceApplicationTrack: {}, WorkspaceIsolatedComputer: {}, WorkspaceLocalBrowserBridge: {},
 	WorkspaceLocalBrowserSensitiveActions: {}, WorkspaceComputerSubmission: {}, AutonomousBrowser: {}, AutonomousATSSubmit: {},
-	AutonomousGmail: {}, WorkspaceGoogleGmail: {}, WorkspaceGoogleCalendar: {}, WorkspaceGoogleDrive: {}, WorkspaceAutomations: {}, WorkspaceApprovals: {}, WorkspaceNotificationEmail: {}, WorkspaceNotificationWhatsApp: {}, AutonomousMessaging: {}, AutonomousBilling: {}, AutonomousIrreversible: {},
+	AutonomousGmail: {}, WorkspaceGoogleGmail: {}, WorkspaceGoogleCalendar: {}, WorkspaceGoogleDrive: {}, WorkspaceAutomations: {}, WorkspaceApprovals: {}, WorkspaceTaskControl: {}, WorkspaceNotificationEmail: {}, WorkspaceNotificationWhatsApp: {}, AutonomousMessaging: {}, AutonomousBilling: {}, AutonomousIrreversible: {},
 }
 
 type Registry struct {
@@ -57,6 +60,11 @@ func NewFromEnv() *Registry {
 	registry := &Registry{enabled: make(map[Name]bool, len(known))}
 	for name := range known {
 		defaultValue := workspaceDefault && strings.HasPrefix(string(name), "workspace.")
+		if name == WorkspaceTaskControl {
+			// The task-control loop is candidate-controlled: it plans, pauses,
+			// and proposes bounded actions, but never authorizes submission.
+			defaultValue = true
+		}
 		registry.enabled[name] = envBool(capabilityEnvKey(name), defaultValue)
 	}
 	return registry

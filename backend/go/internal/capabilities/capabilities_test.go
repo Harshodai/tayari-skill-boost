@@ -64,6 +64,20 @@ func TestRegistry_NewFromEnv_ProductionDefaults(t *testing.T) {
 	if r.Enabled(WorkspaceResume) {
 		t.Fatal("WorkspaceResume must be disabled in production unless explicitly enabled")
 	}
+	if !r.Enabled(WorkspaceTaskControl) {
+		t.Fatal("WorkspaceTaskControl must remain available for candidate-owned plan review")
+	}
+	if r.Enabled(WorkspaceApprovals) {
+		t.Fatal("WorkspaceApprovals must remain disabled until automation evidence is complete")
+	}
+}
+
+func TestTaskControlCanBeDisabledExplicitly(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("CAPABILITY_WORKSPACE_TASK_CONTROL", "false")
+	if NewFromEnv().Enabled(WorkspaceTaskControl) {
+		t.Fatal("explicit task-control disablement must be respected")
+	}
 }
 
 func TestRegistry_NewFromEnv_DevDefaults(t *testing.T) {

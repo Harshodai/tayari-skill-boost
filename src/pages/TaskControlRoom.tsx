@@ -46,6 +46,8 @@ function TaskView() {
 
   const terminal = ['stopped', 'completed', 'failed'].includes(task.status);
   const pendingActions = actions.filter((action) => action.status === 'pending');
+  const completedEvent = [...events].reverse().find((event) => event.event_type === 'task.completed');
+  const resultMarkdown = typeof completedEvent?.payload?.result_markdown === 'string' ? completedEvent.payload.result_markdown : null;
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:px-8">
@@ -100,6 +102,13 @@ function TaskView() {
             </CardContent>
           </Card>
         </div>
+
+        {resultMarkdown && (
+          <Card className="border-emerald-300/20 bg-emerald-300/5">
+            <CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Reviewable draft result</CardTitle><CardDescription className="text-slate-400">This is a draft produced from the approved objective and plan. It is not evidence of an external action.</CardDescription></CardHeader>
+            <CardContent><div className="whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950 p-4 text-sm leading-6 text-slate-200">{resultMarkdown}</div></CardContent>
+          </Card>
+        )}
 
         <Card className="border-slate-800 bg-slate-900/70">
           <CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-cyan-300" /> Live task events</CardTitle><CardDescription className="text-slate-400">This timeline is the durable record of planning, execution, approvals, and handoffs.</CardDescription></CardHeader>

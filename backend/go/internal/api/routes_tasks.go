@@ -101,12 +101,11 @@ func (s *Server) taskDB(w http.ResponseWriter) bool {
 	return true
 }
 
-// legacyTaskApprovalReady prevents the older user-only approval plane from
-// authorizing actions when the canonical tenant-bound approval capability is
-// disabled. Development may exercise the compatibility path explicitly; a
-// staging/production launch must use the governed approval service instead.
+// legacyTaskApprovalReady gates the candidate-owned task plan/action review
+// loop. This capability is separate from the higher-risk automation approval
+// bundle and never authorizes application submission.
 func (s *Server) legacyTaskApprovalReady(w http.ResponseWriter) bool {
-	if !s.requireCapability(w, capabilities.WorkspaceApprovals) {
+	if !s.requireCapability(w, capabilities.WorkspaceTaskControl) {
 		return false
 	}
 	return s.taskDB(w)
@@ -359,7 +358,7 @@ func (s *Server) handleCreateActionProposal(w http.ResponseWriter, r *http.Reque
 		s.respondError(w, 401, "Unauthorized")
 		return
 	}
-	if !s.requireCapability(w, capabilities.WorkspaceApprovals) {
+	if !s.requireCapability(w, capabilities.WorkspaceTaskControl) {
 		return
 	}
 	taskID, err := taskID(r)

@@ -47,7 +47,7 @@ func TestBrowserRoutesAreLockedWhenCapabilityDisabled(t *testing.T) {
 
 func TestLegacyTaskApprovalRoutesAreLockedWhenCanonicalCapabilityDisabled(t *testing.T) {
 	t.Setenv("APP_ENV", "production")
-	t.Setenv("CAPABILITY_WORKSPACE_APPROVALS", "false")
+	t.Setenv("CAPABILITY_WORKSPACE_TASK_CONTROL", "false")
 	server := NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: nil})
 
 	tests := []struct {
@@ -69,7 +69,7 @@ func TestLegacyTaskApprovalRoutesAreLockedWhenCanonicalCapabilityDisabled(t *tes
 			if rec.Code != http.StatusLocked {
 				t.Fatalf("expected 423, got %d: %s", rec.Code, rec.Body.String())
 			}
-			if !containsAll(rec.Body.String(), `"code":"disabled_by_launch_scope"`, `"capability":"workspace.approvals"`) {
+			if !containsAll(rec.Body.String(), `"code":"disabled_by_launch_scope"`, `"capability":"workspace.task_control"`) {
 				t.Fatalf("unexpected disabled response: %s", rec.Body.String())
 			}
 		})

@@ -21,7 +21,7 @@ celery_app = Celery(
     "tayari",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["app.tasks.scraping", "app.tasks.external_research", "app.tasks.automation", "app.tasks.agent_automation", "app.tasks.automation_events", "app.tasks.learning", "app.tasks.delivery"],
+    include=["app.tasks.scraping", "app.tasks.external_research", "app.tasks.automation", "app.tasks.agent_automation", "app.tasks.automation_events", "app.tasks.learning", "app.tasks.delivery", "app.tasks.task_control"],
 )
 
 celery_app.conf.update(
@@ -65,6 +65,10 @@ celery_app.conf.update(
         },
         "automation-checkpoint-dispatch": {
             "task": "automation.dispatch_checkpoints",
+            "schedule": 15,
+        },
+        "task-control-dispatch": {
+            "task": "task_control.dispatch_checkpoints",
             "schedule": 15,
         },
     },
