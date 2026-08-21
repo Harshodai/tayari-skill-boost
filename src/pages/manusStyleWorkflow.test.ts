@@ -8,6 +8,8 @@ describe("Manus-style task workflow contracts", () => {
 
     expect(source).toContain("createTask({");
     expect(source).toContain("createTaskPlan(created.id");
+    expect(source).toContain("candidate_context.read");
+    expect(source).toContain("risk_tier: \"read\"");
     expect(source).toContain("requires_approval: true");
     expect(source).toContain("navigate(`/tay/tasks/${created.id}`)");
   });
@@ -23,5 +25,6 @@ describe("Manus-style task workflow contracts", () => {
     expect(source).toContain("Live task events");
     expect(source).toContain("Proposed plan");
     expect(source).toContain("Review these exact steps before approving");
+    expect(source).toContain("durable artifact");
   });
 });

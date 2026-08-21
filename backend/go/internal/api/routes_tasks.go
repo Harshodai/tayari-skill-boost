@@ -38,6 +38,17 @@ type taskRecord struct {
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
 }
+type taskArtifactRecord struct {
+	ID           string          `json:"id"`
+	TaskID       string          `json:"task_id"`
+	ArtifactType string          `json:"artifact_type"`
+	Title        string          `json:"title"`
+	ContentType  string          `json:"content_type"`
+	Body         string          `json:"body"`
+	Provenance   json.RawMessage `json:"provenance"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
+}
 type taskPlanRecord struct {
 	TaskID     string          `json:"task_id"`
 	Version    int64           `json:"version"`
@@ -73,6 +84,8 @@ func (s *Server) routesTasks(r chi.Router) {
 		r.Post("/api/tasks/{taskID}/plan", s.handleCreateTaskPlan)
 		r.Get("/api/v1/tasks/{taskID}/plan", s.handleGetTaskPlan)
 		r.Get("/api/tasks/{taskID}/plan", s.handleGetTaskPlan)
+		r.Get("/api/v1/tasks/{taskID}/artifacts", s.handleListTaskArtifacts)
+		r.Get("/api/tasks/{taskID}/artifacts", s.handleListTaskArtifacts)
 		r.Post("/api/v1/tasks/{taskID}/plan/approve", s.handleApproveTaskPlan)
 		r.Post("/api/tasks/{taskID}/plan/approve", s.handleApproveTaskPlan)
 		r.Post("/api/v1/tasks/{taskID}/plan/reject", s.handleRejectTaskPlan)
@@ -330,6 +343,36 @@ func (s *Server) handleGetTaskPlan(w http.ResponseWriter, r *http.Request) {
 	}
 	s.respondJSON(w, 200, plan)
 }
+func (s *Server) handleListTaskArtifacts(w http.ResponseWriter, r *http.Request) {
+	uid, ok := taskOwner(r)
+	if !ok {
+		s.respondError(w, 401, "Unauthorized")
+		return
+	}
+	id, err := taskID(r)
+	if err != nil {
+		s.respondError(w, 400, "invalid task id")
+		return
+	}
+	if !s.taskDB(w) {
+		return
+	}
+	rows, err := s.DB.Conn.QueryContext(r.Context(), `SELECT id,task_id,artifact_type,title,content_type,body,provenance,created_at,updated_at FROM task_artifacts WHERE task_id=$1 AND user_id=$2 ORDER BY created_at DESC LIMIT 50`, id, uid)
+	if err != nil {
+		s.respondError(w, 500, "failed to list task artifacts")
+		return
+	}
+	defer rows.Close()
+	artifacts := []taskArtifactRecord{}
+	for rows.Next() {
+		var artifact taskArtifactRecord
+		if err := rows.Scan(&artifact.ID, &artifact.TaskID, &artifact.ArtifactType, &artifact.Title, &artifact.ContentType, &artifact.Body, &artifact.Provenance, &artifact.CreatedAt, &artifact.UpdatedAt); err == nil {
+			artifacts = append(artifacts, artifact)
+		}
+	}
+	s.respondJSON(w, 200, map[string]any{"artifacts": artifacts})
+}
+
 func (s *Server) handlePlanDecision(w http.ResponseWriter, r *http.Request, approved bool) {
 	uid, ok := taskOwner(r)
 	if !ok {

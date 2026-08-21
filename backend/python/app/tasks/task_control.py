@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import uuid
 from typing import Any
 
 from app.celery_app import celery_app
@@ -20,9 +21,10 @@ from app.services.llm_service import LLMNotConfiguredError, llm_complete
 logger = logging.getLogger(__name__)
 
 CLAIM_LIMIT = 10
+READ_ONLY_TOOLS = {"candidate_context.read"}
 
 
-def build_draft_prompt(title: str, objective: str, steps: list[Any]) -> tuple[str, str]:
+def build_draft_prompt(title: str, objective: str, steps: list[Any], candidate_context: dict[str, Any] | None = None) -> tuple[str, str]:
     """Build a bounded prompt that cannot authorize external actions."""
     system = (
         "You are Tay, a candidate-controlled career operations assistant. "
@@ -34,10 +36,12 @@ def build_draft_prompt(title: str, objective: str, steps: list[Any]) -> tuple[st
         "user objective and the approved plan below."
     )
     plan_text = json.dumps(steps, ensure_ascii=False, sort_keys=True)
+    context_text = json.dumps(candidate_context or {}, ensure_ascii=False, sort_keys=True)
     user = (
         f"Task title: {title}\n"
         f"User objective: {objective}\n"
-        f"Approved plan: {plan_text}\n\n"
+        f"Approved plan: {plan_text}\n"
+        f"Owner-approved candidate context from read-only tool: {context_text}\n\n"
         "Return a concise Markdown draft with these headings: Result, "
         "Evidence and assumptions, Human review required, and Next safe step."
     )
@@ -78,6 +82,33 @@ async def _claim_tasks(pool: Any) -> list[Any]:
                 """,
                 CLAIM_LIMIT,
             ))
+
+
+async def _load_candidate_context(conn: Any, user_id: str) -> dict[str, Any]:
+    profile = await conn.fetchrow(
+        """
+        SELECT full_name, headline, summary, skills, desired_roles, locations,
+               experience_years, open_to_remote
+        FROM profiles
+        WHERE id=$1
+        """,
+        user_id,
+    )
+    resume = await conn.fetchrow(
+        """
+        SELECT resume_text
+        FROM resume_analyses
+        WHERE user_id=$1 AND resume_text IS NOT NULL
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        user_id,
+    )
+    return {
+        "profile": dict(profile) if profile else {},
+        "resume_text": (resume["resume_text"] if resume else "") or "",
+        "fields_available": sorted([*(dict(profile).keys() if profile else []), "resume_text"]),
+    }
 
 
 async def _load_approved_plan(conn: Any, task_id: str, user_id: str) -> list[Any] | None:
@@ -142,8 +173,35 @@ async def _execute_one(pool: Any, task: Any) -> dict[str, Any]:
             "step_count": len(steps),
             "external_side_effect": False,
         })
+        context = {}
+        requested_tools = [
+            str(step.get("tool"))
+            for step in steps
+            if isinstance(step, dict) and step.get("tool")
+        ]
+        for tool_name in requested_tools:
+            if tool_name not in READ_ONLY_TOOLS:
+                await _record_event(conn, task_id, user_id, "tool.rejected", {
+                    "tool_name": tool_name,
+                    "reason": "tool_not_allowlisted",
+                    "external_side_effect": False,
+                })
+                continue
+            await _record_event(conn, task_id, user_id, "tool.started", {
+                "tool_name": tool_name,
+                "risk_tier": "read",
+                "external_side_effect": False,
+            })
+            if tool_name == "candidate_context.read":
+                context = await _load_candidate_context(conn, user_id)
+                await _record_event(conn, task_id, user_id, "tool.completed", {
+                    "tool_name": tool_name,
+                    "risk_tier": "read",
+                    "fields_available": context.get("fields_available", []),
+                    "external_side_effect": False,
+                })
 
-    system, prompt = build_draft_prompt(str(task["title"]), str(task["objective"]), steps)
+    system, prompt = build_draft_prompt(str(task["title"]), str(task["objective"]), steps, context)
     try:
         draft = await llm_complete(system, prompt, tier="fast", max_tokens=1600, temperature=0.2)
     except LLMNotConfiguredError:
@@ -154,32 +212,51 @@ async def _execute_one(pool: Any, task: Any) -> dict[str, Any]:
         await _mark_failed(pool, task, "task_execution_failed", "The draft executor failed before producing a result.")
         return {"task_id": task_id, "status": "failed", "error_code": "task_execution_failed", "detail": str(exc)}
 
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            changed = await conn.fetchval(
-                """
-                UPDATE task_runs
-                SET status='completed', version=version+1, updated_at=now()
-                WHERE id=$1 AND user_id=$2 AND status='running'
-                RETURNING id
-                """,
-                task["id"],
-                task["user_id"],
-            )
-            if not changed:
-                await _record_event(conn, task_id, user_id, "task.execution.interrupted", {
-                    "message": "Task state changed before the draft could be committed.",
+    try:
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                changed = await conn.fetchval(
+                    """
+                    UPDATE task_runs
+                    SET status='completed', version=version+1, updated_at=now()
+                    WHERE id=$1 AND user_id=$2 AND status='running'
+                    RETURNING id
+                    """,
+                    task["id"],
+                    task["user_id"],
+                )
+                if not changed:
+                    await _record_event(conn, task_id, user_id, "task.execution.interrupted", {
+                        "message": "Task state changed before the draft could be committed.",
+                        "external_side_effect": False,
+                    })
+                    return {"task_id": task_id, "status": "interrupted"}
+                artifact_id = str(uuid.uuid4())
+                await conn.execute(
+                    """
+                    INSERT INTO task_artifacts
+                        (id, task_id, user_id, artifact_type, title, content_type, body, provenance)
+                    VALUES ($1, $2, $3, 'draft', $4, 'text/markdown', $5, $6::jsonb)
+                    """,
+                    artifact_id,
+                    task["id"],
+                    task["user_id"],
+                    f"Tay draft: {str(task['title'])[:220]}",
+                    str(draft),
+                    json.dumps({"source": "configured_llm", "executor": "draft_only_task_control", "task_id": task_id}, separators=(",", ":")),
+                )
+                await _record_event(conn, task_id, user_id, "task.completed", {
+                    "artifact_id": artifact_id,
+                    "executor": "draft_only_task_control",
+                    "requires_human_review": True,
                     "external_side_effect": False,
+                    "provenance": {"source": "configured_llm", "task_id": task_id},
                 })
-                return {"task_id": task_id, "status": "interrupted"}
-            await _record_event(conn, task_id, user_id, "task.completed", {
-                "result_markdown": str(draft),
-                "executor": "draft_only_task_control",
-                "requires_human_review": True,
-                "external_side_effect": False,
-                "provenance": {"source": "configured_llm", "task_id": task_id},
-            })
-    return {"task_id": task_id, "status": "completed"}
+        return {"task_id": task_id, "status": "completed", "artifact_id": artifact_id}
+    except Exception as exc:  # noqa: BLE001 - persist artifact failure truthfully
+        logger.exception("Tay task %s artifact commit failed", task_id)
+        await _mark_failed(pool, task, "artifact_persist_failed", "The draft was generated but could not be persisted safely.")
+        return {"task_id": task_id, "status": "failed", "error_code": "artifact_persist_failed", "detail": str(exc)}
 
 
 async def _dispatch() -> dict[str, Any]:

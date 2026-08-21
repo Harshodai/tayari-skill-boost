@@ -54,6 +54,10 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/42-20260821_automation_event_inbox.sql",
         "zz-42-20260821_automation_event_inbox.sql",
     ),
+    "backend/db/migrations/20260821_02_task_artifacts.sql": (
+        "supabase-local/volumes/db/init/47-20260821_task_artifacts.sql",
+        "zz-47-20260821_task_artifacts.sql",
+    ),
 }
 
 

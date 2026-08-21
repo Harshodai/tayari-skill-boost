@@ -64,8 +64,9 @@ export default function DesktopAgent() {
       });
       await createTaskPlan(created.id, [
         { id: "review_goal", title: "Review the requested objective", requires_approval: false },
-        { id: "prepare_materials", title: "Prepare a draft using approved files", requires_approval: true },
-        { id: "human_review", title: "Pause for your approval before browser actions", requires_approval: true },
+        { id: "candidate_context", title: "Read your saved profile and latest resume", tool: "candidate_context.read", risk_tier: "read", requires_approval: false },
+        { id: "prepare_materials", title: "Prepare a reviewable draft", requires_approval: true },
+        { id: "human_review", title: "Pause for your approval before any external action", requires_approval: true },
       ]);
       setResult(created);
       navigate(`/tay/tasks/${created.id}`);

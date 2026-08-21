@@ -23,7 +23,7 @@ const statusCopy: Record<string, string> = {
 };
 
 function TaskView() {
-  const { task, plan, events, actions, approvePlan, rejectPlan, approveAction, denyAction, pause, resume, takeover, stop } = useTaskControl();
+  const { task, plan, artifacts, events, actions, approvePlan, rejectPlan, approveAction, denyAction, pause, resume, takeover, stop } = useTaskControl();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -46,8 +46,8 @@ function TaskView() {
 
   const terminal = ['stopped', 'completed', 'failed'].includes(task.status);
   const pendingActions = actions.filter((action) => action.status === 'pending');
-  const completedEvent = [...events].reverse().find((event) => event.event_type === 'task.completed');
-  const resultMarkdown = typeof completedEvent?.payload?.result_markdown === 'string' ? completedEvent.payload.result_markdown : null;
+  const latestArtifact = artifacts[0] ?? null;
+  const resultMarkdown = latestArtifact?.content_type === 'text/markdown' ? latestArtifact.body : null;
   const planSteps = Array.isArray(plan?.steps) ? plan.steps : [];
 
   return (
@@ -113,7 +113,7 @@ function TaskView() {
 
         {resultMarkdown && (
           <Card className="border-emerald-300/20 bg-emerald-300/5">
-            <CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Reviewable draft result</CardTitle><CardDescription className="text-slate-400">This is a draft produced from the approved objective and plan. It is not evidence of an external action.</CardDescription></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> {latestArtifact?.title || 'Reviewable draft result'}</CardTitle><CardDescription className="text-slate-400">This durable artifact was produced from the approved objective and plan. It is not evidence of an external action.</CardDescription></CardHeader>
             <CardContent><div className="whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950 p-4 text-sm leading-6 text-slate-200">{resultMarkdown}</div></CardContent>
           </Card>
         )}
