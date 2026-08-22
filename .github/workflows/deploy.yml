@@ -39,23 +39,31 @@ jobs:
           # integration modules outside that focused fixture set.
           python -m pytest app/tests tests --cov=app --cov-report=term-missing --cov-fail-under=60
 
-      - name: Set up Bun
-        run: npm install --global --no-audit --no-fund bun@1.3.14
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.0.0
+        with:
+          version: 11.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
 
       - name: Install frontend dependencies
         run: |
-          bun install --frozen-lockfile
+          pnpm install --frozen-lockfile
 
       - name: Lint and type check
         run: |
           set -e
-          bun run lint
-          bunx tsc --noEmit
+          pnpm run lint
+          pnpm exec tsc --noEmit
 
       - name: Run frontend tests with coverage
         run: |
           set -e
-          bun run test -- --coverage
+          pnpm run test -- --coverage
 
       - name: Build frontend
         env:
@@ -64,7 +72,7 @@ jobs:
           VITE_API_URL: https://api.example.com/api
           VITE_USE_SELF_HOSTED: 'false'
         run: |
-          bun run build
+          pnpm run build
 
       - name: Prepare Docker Compose build environment
         run: |
@@ -74,6 +82,11 @@ jobs:
       - name: Build Docker images
         run: |
           docker compose -f docker-compose.yml build
+
+      - name: Run release contracts and promotion gate
+        run: |
+          bash scripts/release_contract_test.sh
+          pnpm promotion:gate
 
       # Promotion is intentionally separate from CI. Use
       # scripts/deploy-environment.sh only after immutable image digests and

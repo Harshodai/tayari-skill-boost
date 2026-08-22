@@ -188,7 +188,7 @@ echo "[restore-drill] target DB  : ${DB_HOST}:${DB_PORT}/${DB_NAME} (user=${DB_U
 echo "[restore-drill]"
 echo "[restore-drill] DANGER CHECK: the target database MUST be a throwaway."
 echo "[restore-drill]   - It must NOT be the production database."
-echo "[restore-drill]   - The restore will DROP and recreate tables (--clean --if-exists)."
+echo "[restore-drill]   - The target must be disposable and pre-provisioned with managed Auth plus required extensions."
 echo "[restore-drill]"
 printf "[restore-drill] Type the target DB name to confirm it is throwaway: "
 read -r CONFIRM_NAME
@@ -209,9 +209,30 @@ echo "[restore-drill] START $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 export PGPASSWORD="${SUPABASE_DB_DRILL_PASSWORD}"
 
-# --clean --if-exists: drop existing objects before recreating (idempotent on a throwaway)
-# --no-owner --no-acl : portable, no role/OID dependencies
-if ! pg_restore --clean --if-exists --no-owner --no-acl \
+# Public application tables depend on managed Supabase Auth and application
+# extensions. Refuse a generic PostgreSQL target that cannot satisfy them.
+AUTH_OK=$(psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A -c "SELECT CASE WHEN to_regclass('auth.users') IS NOT NULL AND to_regprocedure('auth.uid()') IS NOT NULL AND to_regprocedure('auth.role()') IS NOT NULL THEN 'auth-ok' ELSE 'auth-missing' END;" 2>/dev/null || true)
+if [ "${AUTH_OK}" != "auth-ok" ]; then
+    echo "[restore-drill] REFUSING: target lacks managed Auth tables/functions (auth.users, auth.uid, auth.role)." >&2
+    unset PGPASSWORD
+    exit 2
+fi
+for extension in pgcrypto pg_trgm uuid-ossp vector; do
+    if ! psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -v ON_ERROR_STOP=1 -Atc "SELECT 1 FROM pg_available_extensions WHERE name='${extension}' LIMIT 1;" | grep -qx 1; then
+        echo "[restore-drill] REFUSING: target does not provide PostgreSQL extension '${extension}'." >&2
+        unset PGPASSWORD
+        exit 2
+    fi
+    psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS \"${extension}\";" >/dev/null
+ done
+
+RESTORE_LIST=$(mktemp "${TMPDIR:-/tmp}/tayari-restore-list.XXXXXX")
+trap 'rm -f "${RESTORE_LIST}"' EXIT
+pg_restore --list "${BACKUP_FILE}" | sed -E '/SCHEMA - public /d; /COMMENT - SCHEMA public/d' > "${RESTORE_LIST}"
+# The target is explicitly disposable. Avoid --clean: pg_restore emits DROP
+# POLICY ... ON table statements before recreating the table, which fails on a
+# fresh target before the relation exists.
+if ! pg_restore --use-list="${RESTORE_LIST}" --no-owner --no-acl \
         -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" \
         -d "${DB_NAME}" "${BACKUP_FILE}"; then
     echo "[restore-drill] ERROR: pg_restore failed." >&2
@@ -223,7 +244,7 @@ echo "[restore-drill] pg_restore completed."
 # Verification: count rows in the key tables. A query error returns "-1" and is
 # treated as a failure (not a passing zero).
 echo "[restore-drill] verifying key tables..."
-KEY_TABLES=(profiles resumes saved_jobs submission_receipts)
+KEY_TABLES=(profiles resumes saved_jobs submission_receipts application_approvals agent_questions agent_runs run_events run_controls delivery_ledger tenants cohorts memberships push_subscriptions agent_tasks agent_router_events stripe_webhook_events)
 FAIL=0
 for t in "${KEY_TABLES[@]}"; do
     ROWS=$(psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" \

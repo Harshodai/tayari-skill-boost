@@ -9,6 +9,7 @@ import (
 	"tayari-backend/internal/auth"
 	"tayari-backend/internal/billing"
 	"tayari-backend/internal/capabilities"
+	"tayari-backend/internal/clientip"
 	"tayari-backend/internal/config"
 	"tayari-backend/internal/database"
 	"tayari-backend/internal/models"
@@ -59,10 +60,20 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		// connections per user, refilling at one connection every five seconds.
 		voiceRateLimiter: newRateLimiter(rate.Limit(0.2), 2, true),
 		metrics:          observability.NewMetrics(),
-		capabilities:     capabilities.NewFromEnv(),
+
+		capabilities: capabilities.NewFromEnv(),
 	}
+	resolver, err := clientip.NewResolver(cfg.TrustedProxyCIDRs)
+	if err != nil {
+		panic(err)
+	}
+	s.publicRateLimiter.ipResolver = resolver
+	s.authRateLimiter.ipResolver = resolver
+	s.loginRateLimiter.ipResolver = resolver
+	s.voiceRateLimiter.ipResolver = resolver
 	s.routes()
 	return s
+
 }
 
 func (s *Server) routes() {

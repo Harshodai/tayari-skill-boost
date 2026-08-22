@@ -5,7 +5,8 @@ const API_URL = 'http://127.0.0.1:8085/api';
 const PYTHON_API_URL = 'http://127.0.0.1:8002';
 
 const TEST_EMAIL = `e2e-suite-${Date.now()}@tayari.app`;
-const TEST_PASS = 'TayariSuperSecretPassword2026!'; // Minimum 12 characters per AGENTS.md rule
+const TEST_PASS = 'TayariSuperSecretPassword2026!'; // Minimum 12 characters per repository policy
+const E2E_CLIENT_HEADERS = { 'X-Tayari-Test-Client': `features-${Date.now()}` };
 
 test.describe.serial('Tayari Skill Boost — End-to-End API & UI Verification Suite', () => {
 
@@ -33,6 +34,7 @@ test.describe.serial('Tayari Skill Boost — End-to-End API & UI Verification Su
   test('2. User Registration and Login via Go API Gateway', async ({ request }) => {
     // Register User
     const regRes = await request.post(`${API_URL}/v1/auth/register`, {
+      headers: E2E_CLIENT_HEADERS,
       data: {
         email: TEST_EMAIL,
         password: TEST_PASS,
@@ -45,6 +47,7 @@ test.describe.serial('Tayari Skill Boost — End-to-End API & UI Verification Su
 
     // Login User
     const loginRes = await request.post(`${API_URL}/v1/auth/login`, {
+      headers: E2E_CLIENT_HEADERS,
       data: {
         email: TEST_EMAIL,
         password: TEST_PASS,

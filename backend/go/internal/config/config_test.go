@@ -29,6 +29,20 @@ func TestValidateForStartupRejectsStagingLocalhostOrigin(t *testing.T) {
 	}
 }
 
+func TestValidateForStartupRejectsE2ETestMode(t *testing.T) {
+	t.Setenv("TAYARI_E2E_TEST_MODE", "true")
+	cfg := &Config{
+		Environment:     "production",
+		UseSupabase:     true,
+		SupabaseURL:     "https://prod.supabase.example",
+		AIInternalToken: "internal-token",
+		AllowedOrigins:  []string{"https://app.tayari.example"},
+	}
+	if err := cfg.ValidateForStartup(); err == nil {
+		t.Fatal("production must reject TAYARI_E2E_TEST_MODE")
+	}
+}
+
 func TestValidateForStartupAcceptsValidProductionConfig(t *testing.T) {
 	cfg := &Config{
 		Environment:     "production",

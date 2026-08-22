@@ -20,8 +20,8 @@ the pre-launch checklist.
 ## Backup Mechanism
 
 - **Script:** `scripts/backup-hosted.sh`
-- **Format:** `pg_dump --format=custom --no-owner --no-acl` → portable binary
-  dump (`.dump`), restorable via `pg_restore`.
+- **Format:** `pg_dump --format=custom --schema=public --no-owner --no-acl` → portable application-schema binary dump (`.dump`), restorable via `pg_restore`.
+- **Managed dependencies:** Supabase Auth (`auth.users`, `auth.uid()`, and `auth.role()`) is external to the application dump and must already exist on the restore target. The target must also provide `pgcrypto`, `pg_trgm`, `uuid-ossp`, and `vector`.
 - **Frequency:** daily (cron / scheduled CI — not yet wired into compose; run
   from the host or a scheduled job).
 - **Retention:** 14 days (`BACKUP_RETENTION_DAYS` env, default 14).
@@ -78,28 +78,21 @@ The script:
    the prompt or any restore — exits 2 with a REFUSING message.
 4. Prompts the operator to type the target DB name — a last-line defense
    against pointing at production.
-5. `pg_restore --clean --if-exists --no-owner --no-acl` against the target.
-6. Counts rows in each key table. A query error (table missing/unreadable)
+5. Preflight managed Auth tables/functions and required PostgreSQL extensions; fail closed if any are absent.
+6. Build a `pg_restore --list` filter that omits only the pre-existing `public` schema declaration and restore into the fresh target without `--clean`. This avoids invalid `DROP POLICY ... ON table` statements on an empty database.
+7. Counts rows in each key table. A query error (table missing/unreadable)
    returns `-1` and fails the drill.
-7. Exits 0 only if every key table is queryable (count >= 0).
+8. Exits 0 only if every key table is queryable (count >= 0).
 
 ### Real restore (against production)
 
 > Only after a drill has passed on the same backup file.
 
 1. **Stop the app** so no writes race the restore:
-   `docker compose stop frontend go-api python-ai celery-worker celery-beat`
+   `docker compose stop frontend go-backend python-ai celery-worker celery-beat`
    (keep the `db` service running).
-2. **Drop and recreate** the production database (or restore into a fresh DB
-   and repoint the app):
-   ```bash
-   psql -h localhost -p 54329 -U postgres -d postgres -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-   ```
-3. **Restore** the chosen `.dump`:
-   ```bash
-   pg_restore --clean --if-exists --no-owner --no-acl \
-     -h localhost -p 54329 -U postgres -d postgres backups/tayari_hosted_YYYYMMDD_HHMMSS.dump
-   ```
+2. **Provision or select a fresh restore database** whose managed Auth dependency and required extensions are already present. Do not restore over a live database. Repoint the application only after the restored target passes the full verification checklist.
+3. **Restore** the chosen `.dump` with the repository restore-drill script or its equivalent list-filtered `pg_restore` procedure. The target is disposable and the restore is not performed with `--clean`.
 4. **Verify** with the same key-table counts:
    ```bash
    for t in profiles resumes saved_jobs submission_receipts; do

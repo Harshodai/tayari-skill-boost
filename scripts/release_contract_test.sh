@@ -37,7 +37,8 @@ grep -q 'mcp>=1.28.1' integrations/jobtheory_mcp/requirements.txt
 grep -q 'MCP URL and tool contract' .github/workflows/ci.yml
 test -f scripts/mcp_contract_test.py
 python3 scripts/mcp_write_governance_test.py >/dev/null
-grep -q 'bun install --frozen-lockfile' .github/workflows/ci.yml
+grep -q 'pnpm install --frozen-lockfile' .github/workflows/ci.yml
+grep -q 'version: 11.7.0' .github/workflows/ci.yml
 # CI coverage and environment contracts must match the reproducible local gates.
 grep -q 'GO_COVERAGE_MIN=20 bash ../../scripts/check_go_coverage.sh' .github/workflows/ci.yml
 test -x scripts/check_go_coverage.sh
@@ -52,7 +53,7 @@ grep -q 'E2E_TEST_PASSWORD' .github/workflows/ci.yml
 grep -q 'PLAYWRIGHT_REUSE_EXISTING_SERVER' .github/workflows/ci.yml
 grep -q 'PLAYWRIGHT_REUSE_EXISTING_SERVER' playwright.config.ts
 grep -q '"@vitest/coverage-v8"' package.json
-grep -q 'bun run test -- --coverage' .github/workflows/deploy.yml
+grep -q 'pnpm run test -- --coverage' .github/workflows/deploy.yml
 grep -q 'cp .env.example .env' .github/workflows/deploy.yml
 grep -q 'cp supabase-local/.env.example supabase-local/.env' .github/workflows/deploy.yml
 grep -q 'CADDY_HTTPS_PORT=18443' .github/workflows/ci.yml
@@ -67,8 +68,8 @@ grep -q 'jwt_for_role anon' .github/workflows/ci.yml
 grep -q 'jwt_for_role service_role' .github/workflows/ci.yml
 grep -q 'ANON_KEY=${ANON_KEY}' .github/workflows/ci.yml
 grep -q 'SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}' .github/workflows/ci.yml
-test "$(grep -c 'npm install --global --no-audit --no-fund bun@1.3.14' .github/workflows/ci.yml)" -eq 4
-grep -q 'npm install --global --no-audit --no-fund bun@1.3.14' .github/workflows/deploy.yml
+test "$(grep -c 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1' .github/workflows/ci.yml)" -eq 3
+grep -q 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1' .github/workflows/deploy.yml
 ! grep -RIn 'oven-sh/setup-bun' .github/workflows
 ! grep -RInE 'yarn (install|build|lint)|bun install --no-save|bun.lockb' .github/workflows Dockerfile* scripts --exclude='*.md' --exclude='release_contract_test.sh'
 ! grep -q '"lint": "eslint \."' package.json
@@ -136,6 +137,31 @@ test -f supabase-local/volumes/db/init/35-20260817_stripe_webhook_events.sql
 grep -q 'stripe_webhook_events' supabase-local/volumes/db/init/35-20260817_stripe_webhook_events.sql
 grep -q 'zz-35-20260817_stripe_webhook_events.sql' supabase-local/docker-compose.yml
 grep -q 'stripe_webhook_events' scripts/backup-restore-smoke.sh
+grep -q 'TRUSTED_PROXY_CIDRS' scripts/render-manifests.sh
+grep -q 'LLM_MODEL_FAST' scripts/render-manifests.sh
+grep -q 'LLM_MODEL_SMART' scripts/render-manifests.sh
+grep -q 'TRUSTED_PROXY_CIDRS' deploy/aws/deploy.sh
+grep -q 'LLM_MODEL_FAST' deploy/aws/deploy.sh
+grep -q 'LLM_MODEL_SMART' deploy/aws/deploy.sh
+grep -q 'REDIS_IMAGE:?REDIS_IMAGE must be an immutable image digest' docker-compose.aws.yml
+grep -q 'PYTHON_API_IMAGE:?PYTHON_API_IMAGE must be an immutable image digest' docker-compose.aws.yml
+grep -q 'WORKER_IMAGE:?WORKER_IMAGE must be an immutable image digest' docker-compose.aws.yml
+grep -q 'GATEWAY_IMAGE:?GATEWAY_IMAGE must be an immutable image digest' docker-compose.aws.yml
+grep -q 'FRONTEND_IMAGE:?FRONTEND_IMAGE must be an immutable image digest' docker-compose.aws.yml
+grep -q 'CADDY_IMAGE:?CADDY_IMAGE must be an immutable image digest' docker-compose.aws.yml
+! grep -q '^ *build:' docker-compose.aws.yml
+grep -q 'compose\[@\].*pull' deploy/aws/deploy.sh
+grep -q 'AUTONOMOUS_SUBMIT_ENABLED=false' deploy/aws/.env.example
+grep -q 'AUTONOMOUS_SUBMIT_ENABLED.*!=.*false' deploy/aws/deploy.sh
+grep -q 'TRUSTED_PROXY_CIDRS' infra/k8s/SECRETS.md
+grep -Fq 'command: ["celery"]' infra/k8s/base/deployments/worker.yaml
+grep -q 'app.celery_app:celery_app' infra/k8s/base/deployments/worker.yaml
+grep -Fq 'command: ["celery"]' infra/k8s/base/deployments/celery-beat.yaml
+grep -q -- '--schedule=/tmp/celerybeat-schedule' infra/k8s/base/deployments/celery-beat.yaml
+grep -q 'mountPath: /uploads' infra/k8s/base/deployments/python-api.yaml
+grep -q 'name: tayari-frontend-nginx' infra/k8s/base/kustomization.yaml
+grep -q 'mountPath: /etc/nginx/conf.d/default.conf' infra/k8s/base/deployments/frontend.yaml
+grep -q 'proxy_pass http://tayari-go-gateway:8080' infra/k8s/base/nginx.conf
 test -x scripts/verify_self_hosted_migrations.py
 python3 scripts/verify_self_hosted_migrations.py >/dev/null
 grep -q 'autopilot_runs(run_id)' backend/db/migrations/0002_tayari_core_architecture.sql
@@ -237,7 +263,8 @@ python3 -m pytest -q scripts/test_live_provider_verify.py
 python3 scripts/live_provider_verify.py --environment release --output "$LIVE_PROVIDER_CONTRACT" >/dev/null
 
 echo "release contract: PASS"
-# AWS canary uses Supabase GoTrue in the gateway, so the frontend must use the
-# Supabase client path rather than the legacy Go-issued self-hosted JWT path.
+# AWS canary uses Supabase GoTrue in the gateway, so the frontend release image
+# must be built in cloud mode rather than the legacy self-hosted JWT path.
 grep -q 'USE_SUPABASE: "true"' docker-compose.aws.yml
-grep -q 'VITE_USE_SELF_HOSTED: "false"' docker-compose.aws.yml
+grep -q 'VITE_USE_SELF_HOSTED="${VITE_USE_SELF_HOSTED:-false}"' scripts/build-images.sh
+grep -q 'VITE_USE_SELF_HOSTED.*!=.*false' scripts/build-images.sh

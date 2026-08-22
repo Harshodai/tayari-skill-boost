@@ -35,9 +35,13 @@ spec:
         - name: celery-beat
           image: ghcr.io/job-tayari/tayari-worker:replace-me
           imagePullPolicy: IfNotPresent
+          command: ["celery"]
           args:
+            - -A
+            - app.celery_app:celery_app
             - beat
             - --loglevel=info
+            - --schedule=/tmp/celerybeat-schedule
           envFrom:
             - configMapRef:
                 name: tayari-runtime-config

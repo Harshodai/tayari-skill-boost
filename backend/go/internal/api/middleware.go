@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"tayari-backend/internal/clientip"
 	"tayari-backend/internal/models"
 
 	"github.com/google/uuid"
@@ -99,19 +100,21 @@ type clientLimiter struct {
 }
 
 type rateLimiter struct {
-	mu        sync.RWMutex
-	clients   map[string]*clientLimiter
-	rate      rate.Limit
-	burst     int
-	useUserID bool
+	mu         sync.RWMutex
+	clients    map[string]*clientLimiter
+	rate       rate.Limit
+	burst      int
+	useUserID  bool
+	ipResolver *clientip.Resolver
 }
 
 func newRateLimiter(r rate.Limit, burst int, useUserID bool) *rateLimiter {
 	rl := &rateLimiter{
-		clients:   make(map[string]*clientLimiter),
-		rate:      r,
-		burst:     burst,
-		useUserID: useUserID,
+		clients:    make(map[string]*clientLimiter),
+		rate:       r,
+		burst:      burst,
+		useUserID:  useUserID,
+		ipResolver: func() *clientip.Resolver { resolver, _ := clientip.NewResolver(""); return resolver }(),
 	}
 	go rl.cleanupLoop()
 	return rl
@@ -193,20 +196,15 @@ func (rl *rateLimiter) Middleware(next http.Handler) http.Handler {
 }
 
 func (rl *rateLimiter) getClientID(r *http.Request) string {
-	ip := r.Header.Get("X-Forwarded-For")
-	if ip == "" {
-		ip = r.Header.Get("X-Real-IP")
-	}
-	if ip == "" {
-		host, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err == nil && host != "" {
-			ip = host
+	if os.Getenv("TAYARI_E2E_TEST_MODE") == "true" {
+		if testClient := strings.TrimSpace(r.Header.Get("X-Tayari-Test-Client")); testClient != "" && len(testClient) <= 128 && !strings.ContainsAny(testClient, "\r\n") {
+			return "e2e:" + testClient
 		}
 	}
-	if ip == "" {
-		ip = r.RemoteAddr
+	if rl.ipResolver != nil {
+		return rl.ipResolver.Resolve(r)
 	}
-	return ip
+	return r.RemoteAddr
 }
 
 // tenantMiddleware resolves the active tenant from Host header or X-Tenant-Domain

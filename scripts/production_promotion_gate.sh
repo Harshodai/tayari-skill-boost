@@ -181,18 +181,18 @@ if [[ -f "docker-compose.aws.yml" ]]; then
     log_fail "docker-compose.aws.yml does not enforce AUTONOMOUS_SUBMIT_ENABLED='false'"
   fi
 
-  if grep -q 'USE_SUPABASE: "true"' docker-compose.aws.yml && grep -q 'VITE_USE_SELF_HOSTED: "false"' docker-compose.aws.yml; then
-    log_pass "docker-compose.aws.yml enforces USE_SUPABASE='true' and VITE_USE_SELF_HOSTED='false'"
+    if grep -q 'USE_SUPABASE: "true"' docker-compose.aws.yml && grep -q 'VITE_USE_SELF_HOSTED="${VITE_USE_SELF_HOSTED:-false}"' scripts/build-images.sh && grep -q 'VITE_USE_SELF_HOSTED.*!=.*false' scripts/build-images.sh; then
+    log_pass "AWS deployment enforces Supabase cloud mode and rejects self-hosted frontend release builds"
   else
-    log_fail "docker-compose.aws.yml missing Supabase cloud configuration flags"
+    log_fail "AWS deployment is missing Supabase cloud-mode or frontend build safety enforcement"
+  fi
+  # Check deploy.sh safety guard
+  if grep -q 'AUTONOMOUS_SUBMIT_ENABLED.*!=.*false' deploy/aws/deploy.sh; then
+    log_pass "deploy/aws/deploy.sh rejects any autonomous-submit value other than false"
+  else
+    log_fail "deploy/aws/deploy.sh missing fail-closed AUTONOMOUS_SUBMIT_ENABLED safety guard"
   fi
 
-  # Check deploy.sh safety guard
-  if grep -q 'AUTONOMOUS_SUBMIT_ENABLED.*==.*true' deploy/aws/deploy.sh; then
-    log_pass "deploy/aws/deploy.sh rejects deployment if AUTONOMOUS_SUBMIT_ENABLED=true"
-  else
-    log_fail "deploy/aws/deploy.sh missing AUTONOMOUS_SUBMIT_ENABLED safety guard"
-  fi
 fi
 
 # ------------------------------------------------------------------------------
@@ -211,6 +211,7 @@ REQUIRED_PROD_ENV=(
   "ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required"
   "FRONTEND_URL:?FRONTEND_URL is required"
   "LLM_PROVIDER:?LLM_PROVIDER is required"
+  "TRUSTED_PROXY_CIDRS:?TRUSTED_PROXY_CIDRS is required"
 )
 
 for req in "${REQUIRED_PROD_ENV[@]}"; do
@@ -258,6 +259,37 @@ for img in "${PROD_IMAGES[@]}"; do
     log_fail "docker-compose.production.yml missing immutable digest rule for: \${${img}}"
   fi
 done
+
+AWS_IMAGES=(
+  "REDIS_IMAGE:?REDIS_IMAGE must be an immutable image digest"
+  "PYTHON_API_IMAGE:?PYTHON_API_IMAGE must be an immutable image digest"
+  "WORKER_IMAGE:?WORKER_IMAGE must be an immutable image digest"
+  "GATEWAY_IMAGE:?GATEWAY_IMAGE must be an immutable image digest"
+  "FRONTEND_IMAGE:?FRONTEND_IMAGE must be an immutable image digest"
+  "CADDY_IMAGE:?CADDY_IMAGE must be an immutable image digest"
+)
+for img in "${AWS_IMAGES[@]}"; do
+  if grep -q "\${${img}}" docker-compose.aws.yml; then
+    log_pass "docker-compose.aws.yml enforces immutable image digest: \${${img}}"
+  else
+    log_fail "docker-compose.aws.yml missing immutable digest rule for: \${${img}}"
+  fi
+done
+if grep -q '^ *build:' docker-compose.aws.yml; then
+  log_fail "docker-compose.aws.yml contains build directives; AWS must pull immutable images"
+else
+  log_pass "docker-compose.aws.yml contains no build directives"
+fi
+if grep -q 'compose\[@\].*pull' deploy/aws/deploy.sh; then
+  log_pass "deploy/aws/deploy.sh pulls immutable images before startup"
+else
+  log_fail "deploy/aws/deploy.sh does not pull immutable images"
+fi
+if grep -q 'AUTONOMOUS_SUBMIT_ENABLED.*!=.*false' deploy/aws/deploy.sh; then
+  log_pass "deploy/aws/deploy.sh rejects any environment-file autonomous-submit value other than false"
+else
+  log_fail "deploy/aws/deploy.sh does not fail closed on autonomous-submit configuration"
+fi
 
 # Check build-images.sh requirements
 if grep -q 'IMAGE_TAG:?Set IMAGE_TAG' scripts/build-images.sh; then

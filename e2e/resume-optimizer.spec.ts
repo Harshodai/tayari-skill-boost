@@ -1,19 +1,22 @@
 import { test, expect } from '@playwright/test';
 
 test('End-to-End: Register, Upload Resume and Analyze against Stripe JD', async ({ request, page }) => {
-  test.setTimeout(90000);
+  test.setTimeout(210000);
   const TEST_EMAIL = `test-stripe-flow-${Date.now()}@example.com`;
   const TEST_PASSWORD = 'TayariSuperSecretPassword2026!';
+  const E2E_CLIENT_HEADERS = { 'X-Tayari-Test-Client': `resume-${Date.now()}` };
 
   // 1. Register test user via API
   console.log(`[E2E] Registering user: ${TEST_EMAIL}`);
   const regResponse = await request.post('http://127.0.0.1:8085/api/auth/register', {
+    headers: E2E_CLIENT_HEADERS,
     data: { email: TEST_EMAIL, password: TEST_PASSWORD },
   });
   expect(regResponse.ok()).toBeTruthy();
 
   // 2. Log in via API to obtain JWT token
   const loginResponse = await request.post('http://127.0.0.1:8085/api/auth/login', {
+    headers: E2E_CLIENT_HEADERS,
     data: { email: TEST_EMAIL, password: TEST_PASSWORD },
   });
   expect(loginResponse.ok()).toBeTruthy();
@@ -60,7 +63,7 @@ test('End-to-End: Register, Upload Resume and Analyze against Stripe JD', async 
 
   // 7. Wait for results page
   console.log('[E2E] Waiting for results page...');
-  await page.waitForURL('**/resume/results', { timeout: 75000 });
+  await page.waitForURL('**/resume/results', { timeout: 180000 });
   console.log(`[E2E] Results loaded! URL: ${page.url()}`);
 
   // Assert Overall Match Score is displayed

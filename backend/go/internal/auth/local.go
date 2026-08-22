@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 	"unicode/utf8"
 
+	"tayari-backend/internal/clientip"
 	"tayari-backend/internal/concurrency"
 	"tayari-backend/internal/config"
 	"tayari-backend/internal/database"
@@ -23,13 +23,15 @@ import (
 )
 
 type LocalAuth struct {
-	DB     *database.DB
-	Config *config.Config
-	Worker *concurrency.AuditWorker
+	DB         *database.DB
+	Config     *config.Config
+	Worker     *concurrency.AuditWorker
+	IPResolver *clientip.Resolver
 }
 
 func NewLocalAuth(db *database.DB, cfg *config.Config, worker *concurrency.AuditWorker) *LocalAuth {
-	return &LocalAuth{DB: db, Config: cfg, Worker: worker}
+	resolver, _ := clientip.NewResolver(configValue(cfg, "trusted-proxy-cidrs"))
+	return &LocalAuth{DB: db, Config: cfg, Worker: worker, IPResolver: resolver}
 }
 
 // ValidatePassword enforces 12-72 characters (rune count) and bcrypt's 72-byte limit.
@@ -101,23 +103,22 @@ func hashIP(ip string) string {
 	return hex.EncodeToString(hash[:16]) // Use first 16 bytes
 }
 
-func getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header first (for proxies)
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		if len(parts) > 0 {
-			ip := strings.TrimSpace(parts[0])
-			if ip != "" {
-				return ip
-			}
-		}
+func configValue(cfg *config.Config, key string) string {
+	if cfg == nil {
+		return ""
 	}
-	// Check X-Real-IP header
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
+	if key == "trusted-proxy-cidrs" {
+		return cfg.TrustedProxyCIDRs
 	}
-	// Fall back to RemoteAddr
-	return r.RemoteAddr
+	return ""
+}
+
+func (a *LocalAuth) getClientIP(r *http.Request) string {
+	if a.IPResolver != nil {
+		return a.IPResolver.Resolve(r)
+	}
+	resolver, _ := clientip.NewResolver("")
+	return resolver.Resolve(r)
 }
 
 func (a *LocalAuth) Login(ctx context.Context, email, password string) (string, error) {
@@ -131,7 +132,7 @@ func (a *LocalAuth) LoginWithRequest(ctx context.Context, email, password string
 	// Determine IP hash
 	ipHash := "unknown"
 	if r != nil {
-		ipHash = hashIP(getClientIP(r))
+		ipHash = hashIP(a.getClientIP(r))
 	}
 
 	// Helper to send audit log asynchronously using Go routines

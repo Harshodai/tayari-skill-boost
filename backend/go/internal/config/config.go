@@ -24,6 +24,7 @@ type Config struct {
 	PythonAIURL            string
 	AIInternalToken        string
 	MetricsToken           string
+	TrustedProxyCIDRs      string
 
 	// Social Auth Configs
 	GoogleClientID     string
@@ -62,6 +63,7 @@ func LoadConfig() *Config {
 		PythonAIURL:            getEnv("PYTHON_AI_URL", getEnv("AI_SERVICE_URL", "http://localhost:8000")),
 		AIInternalToken:        getEnv("AI_INTERNAL_TOKEN", ""),
 		MetricsToken:           getEnv("METRICS_TOKEN", getEnv("AI_INTERNAL_TOKEN", "")),
+		TrustedProxyCIDRs:      getEnv("TRUSTED_PROXY_CIDRS", ""),
 
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
@@ -83,6 +85,9 @@ func (c *Config) ValidateForStartup() error {
 	}
 	if c.Environment != "production" && c.Environment != "prod" && c.Environment != "staging" {
 		return nil
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("TAYARI_E2E_TEST_MODE")), "true") {
+		return fmt.Errorf("%s cannot enable TAYARI_E2E_TEST_MODE", c.Environment)
 	}
 	if !c.UseSupabase {
 		return fmt.Errorf("%s requires USE_SUPABASE=true; local authentication is development-only", c.Environment)

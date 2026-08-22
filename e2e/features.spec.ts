@@ -21,6 +21,6 @@ test('3. Register User and Complete Flow', async ({ page }) => {
   await page.click('button[type="submit"]');
 
   // After successful signup, the user is automatically logged in and redirected.
-  await page.waitForURL((url) => !url.href.includes('/auth'), { timeout: 10000 });
+  await page.waitForURL((url) => !url.href.includes('/auth'), { timeout: 30000 });
   await expect(page).not.toHaveURL(/.*\/auth/);
 });

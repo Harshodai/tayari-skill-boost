@@ -46,10 +46,12 @@ fi
 
 export PGPASSWORD="${SUPABASE_DB_PASSWORD}"
 
-# --format=custom   : pg_restore-friendly binary dump (parallel-restore capable)
+# --format=custom    : pg_restore-friendly binary dump (parallel-restore capable)
+# --schema=public    : application schema only; managed Supabase schemas are
+#                      restored by their own service or provisioning workflow.
 # --no-owner --no-acl: portable across environments (no role/OID dependencies)
 if ! pg_dump -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" \
-        --format=custom --no-owner --no-acl \
+        --format=custom --schema=public --no-owner --no-acl \
         --file "${DUMP_FILE}" "${DB_NAME}"; then
     echo "[backup-hosted] ERROR: pg_dump failed." >&2
     rm -f "${DUMP_FILE}"

@@ -1,6 +1,6 @@
 services:
   redis:
-    image: redis:7-alpine
+    image: ${REDIS_IMAGE:?REDIS_IMAGE must be an immutable image digest}
     command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
     restart: unless-stopped
     volumes:
@@ -12,9 +12,7 @@ services:
       retries: 5
 
   python-ai:
-    build:
-      context: ./backend/python
-      dockerfile: Dockerfile
+    image: ${PYTHON_API_IMAGE:?PYTHON_API_IMAGE must be an immutable image digest}
     environment:
       ENV: production
       UVICORN_RELOAD: "false"
@@ -53,9 +51,7 @@ services:
       start_period: 90s
 
   celery-worker:
-    build:
-      context: ./backend/python
-      dockerfile: Dockerfile.worker
+    image: ${WORKER_IMAGE:?WORKER_IMAGE must be an immutable image digest}
     command: ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=INFO", "--concurrency=1", "-Q", "tayari"]
     environment:
       ENV: production
@@ -82,9 +78,7 @@ services:
     restart: unless-stopped
 
   go-backend:
-    build:
-      context: ./backend/go
-      dockerfile: Dockerfile
+    image: ${GATEWAY_IMAGE:?GATEWAY_IMAGE must be an immutable image digest}
     environment:
       PORT: "8080"
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
@@ -115,17 +109,7 @@ services:
       start_period: 30s
 
   frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-      args:
-        VITE_API_URL: /api
-        VITE_USE_SELF_HOSTED: "false"
-        VITE_SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
-        VITE_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY is required}
-        VITE_SUPABASE_PROJECT_ID: ${SUPABASE_PROJECT_ID:-}
-        VITE_SENTRY_DSN: ${SENTRY_DSN:-}
-        VITE_SENTRY_ENVIRONMENT: production
+    image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE must be an immutable image digest}
     depends_on:
       go-backend:
         condition: service_healthy
@@ -134,7 +118,7 @@ services:
       - "80"
 
   caddy:
-    image: caddy:2.10-alpine
+    image: ${CADDY_IMAGE:?CADDY_IMAGE must be an immutable image digest}
     restart: unless-stopped
     ports:
       - "80:80"

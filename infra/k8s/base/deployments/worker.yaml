@@ -38,7 +38,10 @@ spec:
         - name: worker
           image: ghcr.io/job-tayari/tayari-worker:replace-me
           imagePullPolicy: IfNotPresent
+          command: ["celery"]
           args:
+            - -A
+            - app.celery_app:celery_app
             - worker
             - --loglevel=info
             - --concurrency=1

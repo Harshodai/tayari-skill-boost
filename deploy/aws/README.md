@@ -57,7 +57,7 @@ chmod 600 deploy/aws/.env
 openssl rand -hex 32
 ```
 
-Edit `deploy/aws/.env` with the existing Supabase URL, publishable key, PostgreSQL connection string, JWT secret contract, internal service token, approval signing key, Tayari API key, public domain, and Caddy email. Keep `AUTONOMOUS_SUBMIT_ENABLED=false`. Check the file before every release:
+Edit `deploy/aws/.env` with the existing Supabase URL, publishable key, PostgreSQL connection string, JWT secret contract, internal service token, approval signing key, Tayari API key, public domain, Caddy email, and six immutable image digests (`REDIS_IMAGE`, `PYTHON_API_IMAGE`, `WORKER_IMAGE`, `GATEWAY_IMAGE`, `FRONTEND_IMAGE`, and `CADDY_IMAGE`). Resolve the digests from the private registry after CI builds and SBOM/provenance capture; mutable tags and `replace-me` values are rejected. Keep `AUTONOMOUS_SUBMIT_ENABLED=false`. Check the file before every release:
 
 ```bash
 ./deploy/aws/deploy.sh config
@@ -74,7 +74,7 @@ cd /opt/tayari
 PUBLIC_ORIGIN=https://jobs.example.com curl --fail https://jobs.example.com/health
 ```
 
-Caddy obtains and renews TLS certificates automatically. The public surface is the frontend and `/api/*` through the Go gateway. Python and Redis are not published to the Internet.
+Caddy obtains and renews TLS certificates automatically. The public surface is the frontend and `/api/*` through the Go gateway. Python and Redis are not published to the Internet. The AWS Compose file is image-only: the host pulls the exact digests declared in `deploy/aws/.env` and never builds release images on the production host.
 
 ## 5. Apply database migrations safely
 
@@ -84,7 +84,7 @@ Do not use the EC2 host as the only database backup. Export encrypted backups of
 
 ## 6. CI/CD
 
-The repository includes `.github/workflows/aws-canary.yml`. Every push to `main` runs frontend, Go, Python, and production security checks. Deployment is manual through GitHub Actions `workflow_dispatch` and requires the `deploy` input to be true. The workflow uses GitHub OIDC to assume an AWS role and SSM to run the tested commit on the EC2 host.
+The repository includes `.github/workflows/aws-canary.yml`. Every push to `main` runs frontend, Go, Python, and production security checks. Deployment is manual through GitHub Actions `workflow_dispatch` and requires the `deploy` input to be true. The workflow uses GitHub OIDC to assume an AWS role and SSM to run the tested commit on the EC2 host. The workflow must resolve and record immutable image digests before invoking `deploy.sh up`; it must not rebuild images on the EC2 host.
 
 Configure a narrowly scoped GitHub OIDC role with permissions limited to `ssm:SendCommand`, `ssm:GetCommandInvocation`, and read-only discovery for the specific instance. Configure repository/environment variables `AWS_REGION` and `TAYARI_INSTANCE_ID`, and the secret `AWS_ROLE_ARN`. Keep the production environment protected by required reviewers.
 

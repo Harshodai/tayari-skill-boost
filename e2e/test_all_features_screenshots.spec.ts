@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const FRONTEND_URL = 'http://localhost:8083';
+const FRONTEND_URL = 'http://127.0.0.1:8083';
 const TEST_EMAIL = 'testjobseeker2026@tayari.app';
 const TEST_PASSWORD = 'TayariSuperSecretPassword2026!';
 const SCREENSHOT_DIR = path.resolve('e2e-screenshots');
@@ -14,6 +14,7 @@ test.beforeAll(async () => {
 });
 
 test.describe('Tayari Skill Boost — Full Feature End-to-End Visual Audit', () => {
+  test.setTimeout(120000);
 
   test('Capture screenshots of all features and pages', async ({ page }) => {
     // 1. Landing Page

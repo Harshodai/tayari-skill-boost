@@ -6,16 +6,19 @@ const API_URL = 'http://127.0.0.1:8085/api';
 const TEST_PASS = process.env.E2E_TEST_PASSWORD;
 test.skip(!TEST_PASS, "E2E_TEST_PASSWORD is required for authenticated smoke checks");
 const TEST_EMAIL = `e2e-test-suite-${Date.now()}@example.com`;
+const E2E_CLIENT_HEADERS = { 'X-Tayari-Test-Client': `smoke-${Date.now()}` };
 
 test.describe('Tayari Skill Boost — End to End Smoke', () => {
 
   test.beforeAll(async ({ request }) => {
     const res = await request.post(`${API_URL}/auth/register`, {
+      headers: E2E_CLIENT_HEADERS,
       data: { email: TEST_EMAIL, password: TEST_PASS },
     });
     if (res.status() === 409) {
       // Account exists, verify credentials by logging in
       const loginRes = await request.post(`${API_URL}/auth/login`, {
+      headers: E2E_CLIENT_HEADERS,
         data: { email: TEST_EMAIL, password: TEST_PASS },
       });
       expect(loginRes.status()).toBe(200);
@@ -71,6 +74,7 @@ test.describe('Tayari Skill Boost — End to End Smoke', () => {
   test('3. Register a new user via API', async ({ request }) => {
     // Try to register (may already exist from prior run)
     const res = await request.post(`${API_URL}/auth/register`, {
+      headers: E2E_CLIENT_HEADERS,
       data: { email: TEST_EMAIL, password: TEST_PASS },
     });
     // 200 = success, 409 = already exists — both acceptable
@@ -79,6 +83,7 @@ test.describe('Tayari Skill Boost — End to End Smoke', () => {
 
   test('4. Login and get token', async ({ request }) => {
     const res = await request.post(`${API_URL}/auth/login`, {
+      headers: E2E_CLIENT_HEADERS,
       data: { email: TEST_EMAIL, password: TEST_PASS },
     });
     expect(res.status()).toBe(200);
@@ -89,6 +94,7 @@ test.describe('Tayari Skill Boost — End to End Smoke', () => {
 
   test('5. Authenticated: GET /api/v1/career-ops/portals', async ({ request }) => {
     const login = await request.post(`${API_URL}/auth/login`, {
+      headers: E2E_CLIENT_HEADERS,
       data: { email: TEST_EMAIL, password: TEST_PASS },
     });
     const { token } = await login.json();
@@ -103,6 +109,7 @@ test.describe('Tayari Skill Boost — End to End Smoke', () => {
 
   test('6. Authenticated: CRUD career-ops portals', async ({ request }) => {
     const login = await request.post(`${API_URL}/auth/login`, {
+      headers: E2E_CLIENT_HEADERS,
       data: { email: TEST_EMAIL, password: TEST_PASS },
     });
     const { token } = await login.json();
@@ -138,6 +145,7 @@ test.describe('Tayari Skill Boost — End to End Smoke', () => {
 
   test('7. Authenticated: CRUD story bank', async ({ request }) => {
     const login = await request.post(`${API_URL}/auth/login`, {
+      headers: E2E_CLIENT_HEADERS,
       data: { email: TEST_EMAIL, password: TEST_PASS },
     });
     const { token } = await login.json();
@@ -171,6 +179,7 @@ test.describe('Tayari Skill Boost — End to End Smoke', () => {
 
   test('8. Authenticated: GET /api/v1/communication/suggestions', async ({ request }) => {
     const login = await request.post(`${API_URL}/auth/login`, {
+      headers: E2E_CLIENT_HEADERS,
       data: { email: TEST_EMAIL, password: TEST_PASS },
     });
     const { token } = await login.json();
@@ -185,6 +194,7 @@ test.describe('Tayari Skill Boost — End to End Smoke', () => {
 
   test('9. Authenticated: GET /api/v1/career-ops/stats', async ({ request }) => {
     const login = await request.post(`${API_URL}/auth/login`, {
+      headers: E2E_CLIENT_HEADERS,
       data: { email: TEST_EMAIL, password: TEST_PASS },
     });
     const { token } = await login.json();
@@ -197,6 +207,7 @@ test.describe('Tayari Skill Boost — End to End Smoke', () => {
 
   test('10. Archive routes parity', async ({ request }) => {
     const login = await request.post(`${API_URL}/auth/login`, {
+      headers: E2E_CLIENT_HEADERS,
       data: { email: TEST_EMAIL, password: TEST_PASS },
     });
     const { token } = await login.json();
@@ -212,6 +223,7 @@ test.describe('Tayari Skill Boost — End to End Smoke', () => {
 
   test('11. Dashboard stats endpoint', async ({ request }) => {
     const login = await request.post(`${API_URL}/auth/login`, {
+      headers: E2E_CLIENT_HEADERS,
       data: { email: TEST_EMAIL, password: TEST_PASS },
     });
     const { token } = await login.json();

@@ -14,6 +14,10 @@ The Kubernetes package intentionally contains **no secret values** and does not 
 | `SUPABASE_SERVICE_ROLE_KEY` | Go gateway only | Privileged key. Never expose to browser bundles, client-side variables, logs, or worker jobs without an explicit use case. |
 | `ALLOWED_ORIGINS` | Go gateway | Comma-separated, TLS-only public origins for the environment. |
 | `FRONTEND_URL` | Go gateway | Canonical TLS URL for redirects and customer-facing links. |
+| `TRUSTED_PROXY_CIDRS` | Go gateway | Exact ingress/load-balancer CIDRs allowed to supply forwarded client-IP headers. Required in staging and production; never set to an unrestricted wildcard. |
+| `LLM_PROVIDER` | Python API and Celery | Explicit provider identifier for the environment. |
+| `LLM_MODEL_FAST` | Python API and Celery | Bounded-latency model tier used for fast paths and browser-critical work. |
+| `LLM_MODEL_SMART` | Python API and Celery | Explicit smart model tier with an agreed timeout, quota, and cost budget. |
 
 ## Conditional keys
 

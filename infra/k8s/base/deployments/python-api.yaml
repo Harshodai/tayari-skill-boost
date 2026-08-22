@@ -88,8 +88,12 @@ spec:
               mountPath: /tmp
             - name: app-cache
               mountPath: /home/app/.cache
+            - name: uploads
+              mountPath: /uploads
       volumes:
         - name: tmp
           emptyDir: {}
         - name: app-cache
+          emptyDir: {}
+        - name: uploads
           emptyDir: {}

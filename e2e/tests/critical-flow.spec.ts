@@ -5,9 +5,11 @@ import { test, expect } from '@playwright/test';
 test('critical flow', async ({ request, page }) => {
   const TEST_EMAIL = `critical-flow-${Date.now()}@example.com`;
   const TEST_PASS = 'TayariSuperSecretPassword2026!';
+  const E2E_CLIENT_HEADERS = { 'X-Tayari-Test-Client': `critical-${Date.now()}` };
 
   // 1️⃣ Register test user via API
   const regResponse = await request.post('http://127.0.0.1:8085/api/auth/register', {
+    headers: E2E_CLIENT_HEADERS,
     data: { email: TEST_EMAIL, password: TEST_PASS },
   });
   if (!regResponse.ok()) {
@@ -17,6 +19,7 @@ test('critical flow', async ({ request, page }) => {
 
   // 2️⃣ Log in via API to obtain JWT token
   const loginResponse = await request.post('http://127.0.0.1:8085/api/auth/login', {
+    headers: E2E_CLIENT_HEADERS,
     data: { email: TEST_EMAIL, password: TEST_PASS },
   });
   expect(loginResponse.ok()).toBeTruthy();

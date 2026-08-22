@@ -53,6 +53,13 @@ if [[ -z "$ALLOW_PLACEHOLDERS" ]]; then
   : "${WORKER_IMAGE:?WORKER_IMAGE is required}"
 fi
 
+if [[ "$ENVIRONMENT" == "staging" || "$ENVIRONMENT" == "production" ]]; then
+  : "${TRUSTED_PROXY_CIDRS:?TRUSTED_PROXY_CIDRS is required for $ENVIRONMENT rendering}"
+  : "${LLM_PROVIDER:?LLM_PROVIDER is required for $ENVIRONMENT rendering}"
+  : "${LLM_MODEL_FAST:?LLM_MODEL_FAST is required for $ENVIRONMENT rendering}"
+  : "${LLM_MODEL_SMART:?LLM_MODEL_SMART is required for $ENVIRONMENT rendering}"
+fi
+
 TMP_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT

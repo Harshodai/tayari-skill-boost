@@ -12,6 +12,7 @@ fi
 : "${DATABASE_URL:?DATABASE_URL is required for the source database}"
 : "${RESTORE_DATABASE_URL:?RESTORE_DATABASE_URL is required and must point to a disposable restore database}"
 BACKUP_FILE="${BACKUP_FILE:-$(mktemp -t tayari-backup.XXXXXX.dump)}"
+RESTORE_LIST="${BACKUP_FILE}.list"
 KEEP_BACKUP="${KEEP_BACKUP:-false}"
 
 if [[ "$DATABASE_URL" == "$RESTORE_DATABASE_URL" ]]; then
@@ -21,7 +22,7 @@ fi
 
 cleanup() {
   if [[ "$KEEP_BACKUP" != "true" ]]; then
-    rm -f "$BACKUP_FILE"
+    rm -f "$BACKUP_FILE" "$RESTORE_LIST"
   fi
 }
 trap cleanup EXIT
@@ -30,8 +31,28 @@ command -v pg_dump >/dev/null 2>&1 || { echo "pg_dump is required" >&2; exit 1; 
 command -v pg_restore >/dev/null 2>&1 || { echo "pg_restore is required" >&2; exit 1; }
 command -v psql >/dev/null 2>&1 || { echo "psql is required" >&2; exit 1; }
 
-pg_dump --format=custom --no-owner --no-privileges --file "$BACKUP_FILE" "$DATABASE_URL"
-pg_restore --clean --if-exists --no-owner --no-privileges --exit-on-error --dbname "$RESTORE_DATABASE_URL" "$BACKUP_FILE"
+# Back up only the application schema. Supabase-managed schemas such as
+# realtime/auth/storage contain extension-owned functions that are not portable
+# into a disposable restore database under the application database owner.
+pg_dump --format=custom --schema=public --no-owner --no-privileges --file "$BACKUP_FILE" "$DATABASE_URL"
+# Public application tables reference Supabase Auth. The restore target must
+# already contain that managed dependency; this drill must not fabricate it.
+psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc \
+  "SELECT CASE WHEN to_regclass('auth.users') IS NOT NULL THEN 'auth-ok' ELSE 'auth-missing' END" \
+  | grep -qx auth-ok
+
+# Restore targets must provide the same application-level types/functions as
+# the source. Fail closed if the target image does not ship these extensions.
+psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto' -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm' -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"' -c 'CREATE EXTENSION IF NOT EXISTS vector'
+
+# The restore target is explicitly disposable. Avoid --clean here: pg_restore
+# emits DROP POLICY ... ON table statements before recreating the table, and
+# PostgreSQL rejects those statements when the fresh target does not have the
+# relation yet. Recreate the disposable database instead of restoring over it.
+pg_restore --list "$BACKUP_FILE" \
+  | sed -E '/SCHEMA - public /d; /COMMENT - SCHEMA public/d' > "$RESTORE_LIST"
+pg_restore --use-list="$RESTORE_LIST" --no-owner --no-privileges --exit-on-error \
+  --dbname "$RESTORE_DATABASE_URL" "$BACKUP_FILE"
 
 psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc '
   SELECT CASE WHEN COUNT(*) = 14 THEN $$schema-ok$$ ELSE $$schema-incomplete$$ END
