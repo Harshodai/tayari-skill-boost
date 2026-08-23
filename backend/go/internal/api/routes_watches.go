@@ -10,16 +10,16 @@ import (
 )
 
 type JobWatch struct {
-	ID           int      `json:"id"`
-	WatchID      string   `json:"watch_id"`
-	UserID       string   `json:"user_id"`
-	QueryTitle   string   `json:"query_title"`
-	Location     string   `json:"location"`
-	SalaryFloor  float64  `json:"salary_floor"`
-	ScheduleTier string   `json:"schedule_tier"`
-	IsActive     bool     `json:"is_active"`
-	LastRunAt    *string  `json:"last_run_at,omitempty"`
-	CreatedAt    string   `json:"created_at"`
+	ID           int     `json:"id"`
+	WatchID      string  `json:"watch_id"`
+	UserID       string  `json:"user_id"`
+	QueryTitle   string  `json:"query_title"`
+	Location     string  `json:"location"`
+	SalaryFloor  float64 `json:"salary_floor"`
+	ScheduleTier string  `json:"schedule_tier"`
+	IsActive     bool    `json:"is_active"`
+	LastRunAt    *string `json:"last_run_at,omitempty"`
+	CreatedAt    string  `json:"created_at"`
 }
 
 func (s *Server) routesJobWatches(r chi.Router) {

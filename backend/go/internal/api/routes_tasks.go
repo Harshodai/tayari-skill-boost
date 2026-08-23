@@ -98,6 +98,14 @@ type actionRecord struct {
 func (s *Server) routesTasks(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(s.authMiddleware)
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if !s.requireCapability(w, capabilities.WorkspaceTaskControl) {
+					return
+				}
+				next.ServeHTTP(w, req)
+			})
+		})
 		r.Post("/api/v1/tasks", s.handleCreateTask)
 		r.Post("/api/tasks", s.handleCreateTask)
 		r.Get("/api/v1/tasks", s.handleListTasks)

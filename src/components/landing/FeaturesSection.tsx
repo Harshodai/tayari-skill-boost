@@ -204,7 +204,7 @@ function AutoPilotMockup() {
     "Scanning Job Board",
     "Optimizing Resume",
     "Generating Cover Letter",
-    "Submitting Application"
+    "Preparing Submission for Review"
   ];
 
   useEffect(() => {
@@ -216,6 +216,7 @@ function AutoPilotMockup() {
 
   return (
     <div className="w-full h-[180px] bg-background/50 border border-border/40 rounded-xl p-4 flex flex-col justify-around text-xs shadow-spotlight select-none">
+      <div className="text-[9px] uppercase tracking-[0.16em] text-muted-foreground/80">Illustrative workflow · no application submitted</div>
       <div className="space-y-2.5">
         {steps.map((label, idx) => {
           const isDone = activeStep > idx;

@@ -26,18 +26,25 @@ func (s *Server) RegisterBillingRoutes(r chi.Router, b *billing.BillingService) 
 		r.Post("/api/v1/billing/create-portal-session", s.handleCreatePortalSession(b))
 		r.Post("/api/billing/create-portal-session", s.handleCreatePortalSession(b))
 
-		// Credit balances & purchases
+		// Credit balances are user-owned and require normal authentication.
 		r.Get("/api/v1/billing/credits", s.handleGetCredits(b))
 		r.Get("/api/billing/credits", s.handleGetCredits(b))
-		r.Post("/api/v1/billing/credits/purchase", s.handlePurchaseCredits(b))
-		r.Post("/api/billing/credits/purchase", s.handlePurchaseCredits(b))
+
 	})
 
 	// Public Credit Packs list
 	r.Get("/api/v1/billing/credits/packs", s.handleGetCreditPacks(b))
 	r.Get("/api/billing/credits/packs", s.handleGetCreditPacks(b))
 
+	// Direct credit grants are reserved for verified internal payment fulfillment.
+	r.Group(func(r chi.Router) {
+		r.Use(s.internalServiceOnlyMiddleware)
+		r.Post("/api/v1/billing/credits/purchase", s.handlePurchaseCredits(b))
+		r.Post("/api/billing/credits/purchase", s.handlePurchaseCredits(b))
+	})
+
 	// Service/Client debit and refund endpoints. These mutate credit balances,
+
 	// so they require either the shared internal-service token (trusted
 	// server-to-server caller, e.g. the Python receipt pipeline) or a valid
 	// user session — and a session may only affect its own user_id.
@@ -148,10 +155,14 @@ func (s *Server) handleStripeWebhook(b *billing.BillingService) http.HandlerFunc
 					Customer          string `json:"customer"`
 					Subscription      string `json:"subscription"`
 					ClientReferenceID string `json:"client_reference_id"`
+					Mode              string `json:"mode"`
+					PaymentStatus     string `json:"payment_status"`
 					Metadata          struct {
 						UserID string `json:"user_id"`
 						Plan   string `json:"plan"`
+						PackID string `json:"pack_id"`
 					} `json:"metadata"`
+
 					Plan struct {
 						ID string `json:"id"`
 					} `json:"plan"`
@@ -169,7 +180,29 @@ func (s *Server) handleStripeWebhook(b *billing.BillingService) http.HandlerFunc
 			userID = payload.Data.Object.ClientReferenceID
 		}
 
+		packID := payload.Data.Object.Metadata.PackID
+		if packID == "" {
+			packID = payload.Data.Object.Metadata.Plan
+		}
+		if strings.HasPrefix(payload.Type, "checkout.session.") {
+			if payload.Data.Object.Mode != "payment" {
+				s.respondError(w, http.StatusBadRequest, "unsupported checkout session mode")
+				return
+			}
+			if payload.Data.Object.PaymentStatus != "paid" {
+				s.respondJSON(w, http.StatusOK, map[string]string{"status": "ignored_unpaid"})
+				return
+			}
+			if !b.ProcessStripeCreditPackPayment(payload.ID, payload.Type, payload.Data.Object.Customer, userID, packID, payload.Data.Object.PaymentStatus) {
+				s.respondError(w, http.StatusInternalServerError, "credit fulfillment failed; retry the webhook")
+				return
+			}
+			s.respondJSON(w, http.StatusOK, map[string]string{"status": "processed"})
+			return
+		}
+
 		plan := payload.Data.Object.Metadata.Plan
+
 		if plan == "" {
 			plan = payload.Data.Object.Plan.ID
 		}
@@ -180,8 +213,12 @@ func (s *Server) handleStripeWebhook(b *billing.BillingService) http.HandlerFunc
 			subID = payload.Data.Object.ID
 		}
 
-		b.ProcessStripeWebhook(payload.ID, payload.Type, customerID, subID, userID, plan)
+		if !b.ProcessStripeWebhook(payload.ID, payload.Type, customerID, subID, userID, plan) {
+			s.respondError(w, http.StatusInternalServerError, "subscription fulfillment failed; retry the webhook")
+			return
+		}
 		s.respondJSON(w, http.StatusOK, map[string]string{"status": "processed"})
+
 	}
 }
 
@@ -207,20 +244,22 @@ func (s *Server) handleGetCreditPacks(b *billing.BillingService) http.HandlerFun
 	return func(w http.ResponseWriter, r *http.Request) {
 		packs := b.GetCreditPacks()
 		s.respondJSON(w, http.StatusOK, map[string]interface{}{
-			"packs": packs,
+			"packs":           packs,
+			"billing_enabled": billing.IsBillingEnabled(),
 		})
+
 	}
 }
 
 func (s *Server) handlePurchaseCredits(b *billing.BillingService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := auth.UserFromContext(r.Context())
-		if !ok || user == nil || user.ID == [16]byte{} {
-			s.respondError(w, http.StatusUnauthorized, "unauthorized - valid authentication required")
+		if !s.internalServiceCaller(r) {
+			s.respondError(w, http.StatusForbidden, "internal service authentication required")
 			return
 		}
 
 		var req struct {
+			UserID      string `json:"user_id"`
 			PackID      string `json:"pack_id"`
 			Amount      int    `json:"amount"`
 			ReferenceID string `json:"reference_id"`
@@ -230,13 +269,18 @@ func (s *Server) handlePurchaseCredits(b *billing.BillingService) http.HandlerFu
 			return
 		}
 
+		userID := s.resolveCreditSubject(w, r, req.UserID)
+		if userID == "" {
+			return
+		}
+
 		var bal *billing.UserCreditBalance
 		var err error
 
 		if req.PackID != "" {
-			bal, err = b.PurchaseCreditPack(user.ID.String(), req.PackID, req.ReferenceID)
+			bal, err = b.PurchaseCreditPack(userID, req.PackID, req.ReferenceID)
 		} else if req.Amount > 0 {
-			bal, err = b.AddCredits(user.ID.String(), req.Amount, req.ReferenceID, "Direct credit purchase")
+			bal, err = b.AddCredits(userID, req.Amount, req.ReferenceID, "Direct credit purchase")
 		} else {
 			s.respondError(w, http.StatusBadRequest, "pack_id or positive amount required")
 			return
@@ -269,6 +313,18 @@ func (s *Server) internalServiceCaller(r *http.Request) bool {
 		return false
 	}
 	return subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) == 1
+}
+
+// internalServiceOnlyMiddleware permits only a verified server-to-server caller.
+// Direct credit grants must never be user-session endpoints because a client could mint credits.
+func (s *Server) internalServiceOnlyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.internalServiceCaller(r) {
+			s.respondError(w, http.StatusForbidden, "internal service authentication required")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // internalOrAuthMiddleware lets a verified internal-service caller through

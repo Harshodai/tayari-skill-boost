@@ -19,6 +19,8 @@ import {
   listAutomationApprovals,
   notifyApproval,
   updateNotificationPreferences,
+  startWhatsAppLink,
+  confirmWhatsAppLink,
   type AutomationApproval,
   type AutomationDefinition,
   type AutomationRun,
@@ -31,6 +33,7 @@ const emptyPreferences: NotificationPreferences = {
   whatsapp_enabled: false,
   phone_e164: "",
   whatsapp_opt_in: false,
+  whatsapp_verified: false,
   locale: "en",
   quiet_hours: {},
   fallback_order: ["in_app"],
@@ -48,6 +51,11 @@ const AutomationWorkspace = () => {
   const [loading, setLoading] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [startingRun, setStartingRun] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState("");
+  const [whatsappCode, setWhatsappCode] = useState("");
+  const [whatsappConsent, setWhatsappConsent] = useState(false);
+  const [linkingWhatsApp, setLinkingWhatsApp] = useState(false);
+  const [confirmingWhatsApp, setConfirmingWhatsApp] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -65,6 +73,7 @@ const AutomationWorkspace = () => {
       setSelectedAutomationId((current) => current || automationResponse.automations.find((automation) => automation.status === "active")?.id || automationResponse.automations[0]?.id || "");
       setApprovals(approvalResponse.approvals);
       setPreferences(preferenceResponse);
+      setWhatsappPhone(preferenceResponse.phone_e164 ?? "");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load automation workspace.");
     } finally {
@@ -131,6 +140,37 @@ const AutomationWorkspace = () => {
       setError(caught instanceof Error ? caught.message : "Unable to save notification preferences.");
     } finally {
       setSavingPreferences(false);
+    }
+  };
+
+  const startWhatsAppConnection = async () => {
+    setLinkingWhatsApp(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await startWhatsAppLink(whatsappPhone.trim(), whatsappConsent);
+      setNotice(result.next);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to start WhatsApp connection.");
+    } finally {
+      setLinkingWhatsApp(false);
+    }
+  };
+
+  const confirmWhatsAppConnection = async () => {
+    setConfirmingWhatsApp(true);
+    setError("");
+    setNotice("");
+    try {
+      await confirmWhatsAppLink(whatsappCode.trim());
+      setWhatsappCode("");
+      setWhatsappConsent(false);
+      await loadWorkspace();
+      setNotice("WhatsApp is connected and opted in for approval notifications. In-app approval remains authoritative.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to confirm WhatsApp connection.");
+    } finally {
+      setConfirmingWhatsApp(false);
     }
   };
 
@@ -218,7 +258,8 @@ const AutomationWorkspace = () => {
               <div key={approval.id} className="space-y-3 rounded-xl border border-border/70 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-medium">{approval.summary}</p><p className="text-xs text-muted-foreground">{approval.action_type} · {approval.risk_tier}</p></div><Badge variant={approval.risk_tier === "external_write" ? "destructive" : "outline"}>{approval.status}</Badge></div>
                 <p className="flex items-center gap-2 text-xs text-muted-foreground"><Clock3 className="h-3.5 w-3.5" />Expires {new Date(approval.expires_at).toLocaleString()}</p>
-                <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => void decide(approval, "approve")}><CheckCircle2 className="mr-1 h-4 w-4" />Approve</Button><Button size="sm" variant="outline" onClick={() => void decide(approval, "deny")}><XCircle className="mr-1 h-4 w-4" />Deny</Button><Button size="sm" variant="ghost" onClick={() => void sendNotification(approval, "email")} disabled={!preferences.email_enabled}><Mail className="mr-1 h-4 w-4" />Email</Button><Button size="sm" variant="ghost" onClick={() => void sendNotification(approval, "whatsapp")} disabled={!preferences.whatsapp_enabled || !preferences.whatsapp_opt_in}><MessageCircle className="mr-1 h-4 w-4" />WhatsApp</Button></div>
+                <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => void decide(approval, "approve")}><CheckCircle2 className="mr-1 h-4 w-4" />Approve</Button><Button size="sm" variant="outline" onClick={() => void decide(approval, "deny")}><XCircle className="mr-1 h-4 w-4" />Deny</Button><Button size="sm" variant="ghost" onClick={() => void sendNotification(approval, "email")} disabled={!preferences.email_enabled}><Mail className="mr-1 h-4 w-4" />Email</Button><Button size="sm" variant="ghost" onClick={() => void sendNotification(approval, "whatsapp")} disabled={!preferences.whatsapp_enabled || !preferences.whatsapp_opt_in || !preferences.whatsapp_verified}
+><MessageCircle className="mr-1 h-4 w-4" />WhatsApp</Button></div>
               </div>
             ))}
           </CardContent>
@@ -238,7 +279,7 @@ const AutomationWorkspace = () => {
         <CardHeader><CardTitle>Approval notification preferences</CardTitle><CardDescription>External delivery is opt-in and remains disabled until providers are configured and staging evidence passes.</CardDescription></CardHeader>
         <CardContent className="grid gap-5 md:grid-cols-2">
           <div className="space-y-3 rounded-xl border p-4"><div className="flex items-center gap-2"><Mail className="h-4 w-4 text-primary" /><p className="font-medium">Email</p></div><div className="flex items-center gap-2"><Checkbox id="email-enabled" checked={preferences.email_enabled} onCheckedChange={(checked) => setPreferences((current) => ({ ...current, email_enabled: checked === true }))} /><Label htmlFor="email-enabled">Enable approval email</Label></div><Input value={preferences.email_address ?? ""} onChange={(event) => setPreferences((current) => ({ ...current, email_address: event.target.value }))} placeholder="Verified email address" /></div>
-          <div className="space-y-3 rounded-xl border p-4"><div className="flex items-center gap-2"><MessageCircle className="h-4 w-4 text-primary" /><p className="font-medium">WhatsApp</p></div><div className="flex items-center gap-2"><Checkbox id="whatsapp-enabled" checked={preferences.whatsapp_enabled} onCheckedChange={(checked) => setPreferences((current) => ({ ...current, whatsapp_enabled: checked === true }))} /><Label htmlFor="whatsapp-enabled">Enable WhatsApp approval</Label></div><Input value={preferences.phone_e164 ?? ""} onChange={(event) => setPreferences((current) => ({ ...current, phone_e164: event.target.value }))} placeholder="Phone in E.164 format" /><div className="flex items-start gap-2"><Checkbox id="whatsapp-opt-in" checked={preferences.whatsapp_opt_in} onCheckedChange={(checked) => setPreferences((current) => ({ ...current, whatsapp_opt_in: checked === true }))} /><Label htmlFor="whatsapp-opt-in" className="text-sm leading-5">I explicitly opt in to JobTayari approval notifications on WhatsApp.</Label></div></div>
+          <div className="space-y-3 rounded-xl border p-4"><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><MessageCircle className="h-4 w-4 text-primary" /><p className="font-medium">WhatsApp approvals</p></div><Badge variant={preferences.whatsapp_verified ? "default" : "outline"}>{preferences.whatsapp_verified ? "Connected" : "Not connected"}</Badge></div><p className="text-sm text-muted-foreground">Receive an approved template with review details and secure Approve/Deny buttons. Free-form WhatsApp messages never approve an action.</p><Input value={whatsappPhone} onChange={(event) => setWhatsappPhone(event.target.value)} placeholder="Phone in E.164 format, e.g. +14155552671" aria-label="WhatsApp phone number" /><div className="flex items-start gap-2"><Checkbox id="whatsapp-consent" checked={whatsappConsent} onCheckedChange={(checked) => setWhatsappConsent(checked === true)} /><Label htmlFor="whatsapp-consent" className="text-sm leading-5">I explicitly consent to receive JobTayari approval notifications on WhatsApp.</Label></div><Button variant="outline" onClick={() => void startWhatsAppConnection()} disabled={linkingWhatsApp || !whatsappPhone.trim() || !whatsappConsent}>{linkingWhatsApp ? "Sending code…" : "Send verification code"}</Button>{!preferences.whatsapp_verified && <div className="space-y-2"><Label htmlFor="whatsapp-code">Six-digit code from WhatsApp</Label><div className="flex gap-2"><Input id="whatsapp-code" inputMode="numeric" maxLength={6} value={whatsappCode} onChange={(event) => setWhatsappCode(event.target.value.replace(/[^0-9]/g, ""))} placeholder="000000" /><Button onClick={() => void confirmWhatsAppConnection()} disabled={confirmingWhatsApp || whatsappCode.length !== 6}>{confirmingWhatsApp ? "Confirming…" : "Confirm connection"}</Button></div></div>}<div className="flex items-center gap-2"><Checkbox id="whatsapp-enabled" checked={preferences.whatsapp_enabled} disabled={!preferences.whatsapp_verified} onCheckedChange={(checked) => setPreferences((current) => ({ ...current, whatsapp_enabled: checked === true }))} /><Label htmlFor="whatsapp-enabled">Enable WhatsApp approval delivery</Label></div></div>
           <div className="md:col-span-2"><Button onClick={() => void savePreferences()} disabled={savingPreferences}>{savingPreferences ? "Saving…" : "Save notification preferences"}</Button></div>
         </CardContent>
       </Card>

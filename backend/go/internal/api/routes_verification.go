@@ -198,10 +198,10 @@ func (s *Server) handleVerificationStatus(w http.ResponseWriter, r *http.Request
 	}
 
 	row := verificationRow{
-		Status:    "unverified",
-		RedFlags:  []string{},
-		Strengths: []string{},
-		Gaps:      []string{},
+		Status:          "unverified",
+		RedFlags:        []string{},
+		Strengths:       []string{},
+		Gaps:            []string{},
 		SampleQuestions: []string{},
 	}
 	if s.DB == nil || s.DB.Conn == nil {

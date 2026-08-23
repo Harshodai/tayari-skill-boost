@@ -172,6 +172,29 @@ describe("Pricing Page - Credit Packs & Zero Risk Guarantee", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/auth?pack=starter");
   });
 
+  it("shows billing unavailable and disables authenticated purchase when the deployment reports billing disabled", async () => {
+    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
+      user: { id: "user-123", email: "candidate@tayari.io" },
+      profile: null,
+      loading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      signup: vi.fn(),
+    } as any);
+    vi.spyOn(apiModule, "apiFetch").mockResolvedValue({ packs: [], billing_enabled: false } as any);
+
+    render(
+      <MemoryRouter>
+        <Pricing />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByTestId("billing-unavailable")).toBeInTheDocument();
+    const unavailableButtons = screen.getAllByRole("button", { name: "Billing unavailable" });
+    expect(unavailableButtons).toHaveLength(3);
+    unavailableButtons.forEach((button) => expect(button).toBeDisabled());
+  });
+
   it("initiates checkout session for authenticated users", async () => {
     vi.spyOn(AuthContext, "useAuth").mockReturnValue({
       user: { id: "user-123", email: "candidate@tayari.io" },
@@ -182,6 +205,7 @@ describe("Pricing Page - Credit Packs & Zero Risk Guarantee", () => {
       signup: vi.fn(),
     } as any);
 
+    vi.spyOn(apiModule, "apiFetch").mockResolvedValue({ packs: [], billing_enabled: true } as any);
     const apiFetchResponseSpy = vi.spyOn(apiModule, "apiFetchResponse").mockResolvedValue({
       ok: true,
       json: async () => ({ url: "https://checkout.stripe.com/test-session" }),

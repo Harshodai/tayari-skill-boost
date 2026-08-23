@@ -1,7 +1,6 @@
 package api
 
 import (
-	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -36,6 +35,11 @@ func (s *Server) routesNotifications(r chi.Router) {
 	r.Post("/api/v1/notifications/whatsapp/webhook", s.handleWhatsAppNotificationWebhook)
 	r.Group(func(r chi.Router) {
 		r.Use(s.authMiddleware)
+		r.Use(s.authRateLimiter.Middleware)
+		r.Post("/api/v1/notification-preferences/whatsapp/link", s.handleStartWhatsAppLink)
+		r.Post("/api/notification-preferences/whatsapp/link", s.handleStartWhatsAppLink)
+		r.Post("/api/v1/notification-preferences/whatsapp/confirm", s.handleConfirmWhatsAppLink)
+		r.Post("/api/notification-preferences/whatsapp/confirm", s.handleConfirmWhatsAppLink)
 		r.Post("/api/v1/approvals/{approvalID}/notify", s.handleNotifyApproval)
 		r.Post("/api/approvals/{approvalID}/notify", s.handleNotifyApproval)
 	})
@@ -92,8 +96,8 @@ func (s *Server) handleNotifyApproval(w http.ResponseWriter, r *http.Request) {
 	}
 	var summary, emailAddress, phoneE164, locale string
 	var expiresAt time.Time
-	var emailEnabled, whatsappEnabled, whatsappOptIn bool
-	err = s.DB.Conn.QueryRowContext(r.Context(), `SELECT a.summary,a.token_expires_at,COALESCE(p.email_address,''),COALESCE(p.phone_e164,''),COALESCE(p.locale,'en'),COALESCE(p.email_enabled,false),COALESCE(p.whatsapp_enabled,false),COALESCE(p.whatsapp_opt_in_at IS NOT NULL AND p.whatsapp_opt_out_at IS NULL,false) FROM approval_requests a LEFT JOIN notification_preferences p ON p.tenant_id=a.tenant_id AND p.user_id=a.user_id WHERE a.id=$1 AND a.tenant_id=$2 AND a.user_id=$3 AND a.status IN ('pending','delivered','viewed')`, approvalID, tenantID, userID).Scan(&summary, &expiresAt, &emailAddress, &phoneE164, &locale, &emailEnabled, &whatsappEnabled, &whatsappOptIn)
+	var emailEnabled, whatsappEnabled, whatsappOptIn, whatsappVerified bool
+	err = s.DB.Conn.QueryRowContext(r.Context(), `SELECT a.summary,a.token_expires_at,COALESCE(p.email_address,''),COALESCE(p.phone_e164,''),COALESCE(p.locale,'en'),COALESCE(p.email_enabled,false),COALESCE(p.whatsapp_enabled,false),COALESCE(p.whatsapp_opt_in_at IS NOT NULL AND p.whatsapp_opt_out_at IS NULL,false),COALESCE(p.whatsapp_verified_at IS NOT NULL AND NULLIF(p.whatsapp_wa_id,'') IS NOT NULL,false) FROM approval_requests a LEFT JOIN notification_preferences p ON p.tenant_id=a.tenant_id AND p.user_id=a.user_id WHERE a.id=$1 AND a.tenant_id=$2 AND a.user_id=$3 AND a.status IN ('pending','delivered','viewed')`, approvalID, tenantID, userID).Scan(&summary, &expiresAt, &emailAddress, &phoneE164, &locale, &emailEnabled, &whatsappEnabled, &whatsappOptIn, &whatsappVerified)
 	if err != nil || time.Now().After(expiresAt) {
 		s.respondError(w, http.StatusConflict, "approval is missing or expired")
 		return
@@ -112,7 +116,7 @@ func (s *Server) handleNotifyApproval(w http.ResponseWriter, r *http.Request) {
 		provider = newGenericEmailProvider()
 		recipient = emailAddress
 	case "whatsapp":
-		if !whatsappEnabled || !whatsappOptIn || phoneE164 == "" {
+		if !whatsappEnabled || !whatsappOptIn || !whatsappVerified || !validWhatsAppPhoneE164(phoneE164) {
 			s.respondError(w, http.StatusPreconditionFailed, "WhatsApp requires explicit opt-in and a verified phone number")
 			return
 		}
@@ -132,16 +136,19 @@ func (s *Server) handleNotifyApproval(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusInternalServerError, "failed to create notification delivery")
 		return
 	}
-	messageID, sendErr := provider.Send(r.Context(), approvalNotification{ApprovalID: approvalID.String(), Recipient: recipient, Summary: summary, ReviewURL: notificationReviewURL(approvalID), ExpiresAt: expiresAt, Locale: locale, IdempotencyKey: idempotencyKey})
+	sendResult, sendErr := provider.Send(r.Context(), approvalNotification{ApprovalID: approvalID.String(), Recipient: recipient, Summary: summary, ReviewURL: notificationReviewURL(approvalID), ExpiresAt: expiresAt, Locale: locale, IdempotencyKey: idempotencyKey})
 	if sendErr != nil {
 		_, _ = s.DB.Conn.ExecContext(r.Context(), `UPDATE notification_deliveries SET status='failed', last_error=$1, updated_at=now() WHERE approval_id=$2 AND channel=$3 AND tenant_id=$4 AND user_id=$5`, sendErr.Error(), approvalID, request.Channel, tenantID, userID)
 		s.respondError(w, http.StatusBadGateway, "notification provider delivery failed")
 		return
 	}
-	_, _ = s.DB.Conn.ExecContext(r.Context(), `UPDATE notification_deliveries SET status='accepted', provider_message_id=$1, sent_at=now(), updated_at=now() WHERE approval_id=$2 AND channel=$3 AND tenant_id=$4 AND user_id=$5`, messageID, approvalID, request.Channel, tenantID, userID)
+	if request.Channel == "whatsapp" && sendResult.RecipientWAID != "" {
+		_, _ = s.DB.Conn.ExecContext(r.Context(), `UPDATE notification_preferences SET whatsapp_wa_id=$1, updated_at=now() WHERE tenant_id=$2 AND user_id=$3`, sendResult.RecipientWAID, tenantID, userID)
+	}
+	_, _ = s.DB.Conn.ExecContext(r.Context(), `UPDATE notification_deliveries SET status='accepted', provider_message_id=$1, sent_at=now(), updated_at=now() WHERE approval_id=$2 AND channel=$3 AND tenant_id=$4 AND user_id=$5`, sendResult.ProviderMessageID, approvalID, request.Channel, tenantID, userID)
 	// Provider acceptance is a delivery state only. The canonical approval remains pending
 	// until a separately authenticated owner/approver records an approve or deny decision.
-	s.respondJSON(w, http.StatusAccepted, map[string]any{"ok": true, "approval_id": approvalID, "channel": request.Channel, "provider": provider.Name(), "provider_message_id": messageID, "delivery_status": "accepted", "approval_status": "pending"})
+	s.respondJSON(w, http.StatusAccepted, map[string]any{"ok": true, "approval_id": approvalID, "channel": request.Channel, "provider": provider.Name(), "provider_message_id": sendResult.ProviderMessageID, "delivery_status": "accepted", "approval_status": "pending"})
 }
 
 func (s *Server) handleNotificationWebhook(w http.ResponseWriter, r *http.Request, provider string, secret string) {
@@ -196,15 +203,5 @@ func (s *Server) handleEmailNotificationWebhook(w http.ResponseWriter, r *http.R
 }
 
 func (s *Server) handleWhatsAppNotificationWebhook(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		verifyToken := strings.TrimSpace(os.Getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN"))
-		if verifyToken != "" && subtle.ConstantTimeCompare([]byte(verifyToken), []byte(r.URL.Query().Get("hub.verify_token"))) == 1 {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(r.URL.Query().Get("hub.challenge")))
-			return
-		}
-		s.respondError(w, http.StatusUnauthorized, "invalid WhatsApp webhook verification")
-		return
-	}
-	s.handleNotificationWebhook(w, r, "meta_whatsapp", os.Getenv("WHATSAPP_APP_SECRET"))
+	s.handleWhatsAppWebhook(w, r)
 }

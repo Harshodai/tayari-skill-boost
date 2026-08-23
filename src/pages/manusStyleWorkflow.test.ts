@@ -27,6 +27,8 @@ describe("Manus-style task workflow contracts", () => {
     expect(source).toContain("Review these exact steps before approving");
     expect(source).toContain("durable artifact");
     expect(source).toContain("Task data may be stale");
+    expect(source).toContain('to="/tay"');
+    expect(source).not.toContain('to="/desktop"');
     expect(source).toContain("Do not approve or treat an empty result as final");
   });
 

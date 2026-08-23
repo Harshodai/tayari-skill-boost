@@ -26,10 +26,15 @@ type approvalNotification struct {
 	IdempotencyKey string
 }
 
+type notificationSendResult struct {
+	ProviderMessageID string
+	RecipientWAID     string
+}
+
 type approvalNotificationProvider interface {
 	Name() string
 	Configured() bool
-	Send(context.Context, approvalNotification) (string, error)
+	Send(context.Context, approvalNotification) (notificationSendResult, error)
 }
 
 type genericEmailProvider struct {
@@ -51,9 +56,9 @@ func (p *genericEmailProvider) Configured() bool {
 	return p.endpoint != "" && p.apiKey != "" && p.from != ""
 }
 
-func (p *genericEmailProvider) Send(ctx context.Context, message approvalNotification) (string, error) {
+func (p *genericEmailProvider) Send(ctx context.Context, message approvalNotification) (notificationSendResult, error) {
 	if !p.Configured() {
-		return "", errors.New("approval email provider is not configured")
+		return notificationSendResult{}, errors.New("approval email provider is not configured")
 	}
 	body := map[string]any{
 		"from":            p.from,
@@ -65,23 +70,23 @@ func (p *genericEmailProvider) Send(ctx context.Context, message approvalNotific
 	}
 	payload, err := json.Marshal(body)
 	if err != nil {
-		return "", err
+		return notificationSendResult{}, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint, bytes.NewReader(payload))
 	if err != nil {
-		return "", err
+		return notificationSendResult{}, err
 	}
 	req.Header.Set("Authorization", "Bearer "+p.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", message.IdempotencyKey)
 	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
-		return "", err
+		return notificationSendResult{}, err
 	}
 	defer resp.Body.Close()
 	responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("email provider returned status %d", resp.StatusCode)
+		return notificationSendResult{}, fmt.Errorf("email provider returned status %d", resp.StatusCode)
 	}
 	var result struct {
 		ID        string `json:"id"`
@@ -91,10 +96,10 @@ func (p *genericEmailProvider) Send(ctx context.Context, message approvalNotific
 	_ = json.Unmarshal(responseBody, &result)
 	for _, value := range []string{result.ID, result.MessageID, result.RequestID} {
 		if strings.TrimSpace(value) != "" {
-			return value, nil
+			return notificationSendResult{ProviderMessageID: value}, nil
 		}
 	}
-	return "accepted:" + message.IdempotencyKey, nil
+	return notificationSendResult{ProviderMessageID: "accepted:" + message.IdempotencyKey}, nil
 }
 
 type metaWhatsAppProvider struct {
@@ -117,59 +122,147 @@ func newMetaWhatsAppProvider() *metaWhatsAppProvider {
 
 func (p *metaWhatsAppProvider) Name() string { return "meta_whatsapp" }
 func (p *metaWhatsAppProvider) Configured() bool {
-	return p.baseURL != "" && p.graphVersion != "" && p.accessToken != "" && p.phoneNumberID != "" && p.templateName != ""
+	return p.baseURL != "" && p.graphVersion != "" && p.accessToken != "" && p.phoneNumberID != "" && p.templateName != "" && approvalSigningKey() != ""
 }
 
-func (p *metaWhatsAppProvider) Send(ctx context.Context, message approvalNotification) (string, error) {
-	if !p.Configured() {
-		return "", errors.New("WhatsApp provider is not configured")
+func (p *metaWhatsAppProvider) LinkConfigured() bool {
+	return p.baseURL != "" && p.graphVersion != "" && p.accessToken != "" && p.phoneNumberID != "" && strings.TrimSpace(os.Getenv("WHATSAPP_LINK_TEMPLATE_NAME")) != ""
+}
+
+func (p *metaWhatsAppProvider) SendLinkCode(ctx context.Context, recipient, code string) (notificationSendResult, error) {
+	if !p.LinkConfigured() || !validWhatsAppPhoneE164(recipient) || !validWhatsAppLinkCode(code) {
+		return notificationSendResult{}, errors.New("WhatsApp linking provider is not configured")
 	}
 	payload := map[string]any{
 		"messaging_product": "whatsapp",
-		"to":                message.Recipient,
+		"recipient_type":    "individual",
+		"to":                recipient,
 		"type":              "template",
 		"template": map[string]any{
-			"name":     p.templateName,
-			"language": map[string]string{"code": message.Locale},
+			"name":     strings.TrimSpace(os.Getenv("WHATSAPP_LINK_TEMPLATE_NAME")),
+			"language": map[string]string{"code": "en"},
 			"components": []map[string]any{{
-				"type": "body",
-				"parameters": []map[string]string{
-					{"type": "text", "text": message.Summary},
-					{"type": "text", "text": message.ReviewURL},
-				},
+				"type":       "body",
+				"parameters": []map[string]string{{"type": "text", "text": code}},
 			}},
 		},
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
-		return "", err
+		return notificationSendResult{}, err
 	}
 	endpoint := fmt.Sprintf("%s/%s/%s/messages", p.baseURL, p.graphVersion, p.phoneNumberID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(encoded))
 	if err != nil {
-		return "", err
+		return notificationSendResult{}, err
+	}
+	req.Header.Set("Authorization", "Bearer "+p.accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		return notificationSendResult{}, err
+	}
+	defer resp.Body.Close()
+	responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return notificationSendResult{}, fmt.Errorf("WhatsApp link provider returned status %d", resp.StatusCode)
+	}
+	var result struct {
+		Contacts []struct {
+			WAID string `json:"wa_id"`
+		} `json:"contacts"`
+		Messages []struct {
+			ID string `json:"id"`
+		} `json:"messages"`
+	}
+	if json.Unmarshal(responseBody, &result) != nil || len(result.Messages) == 0 || strings.TrimSpace(result.Messages[0].ID) == "" {
+		return notificationSendResult{}, errors.New("WhatsApp link provider returned no message id")
+	}
+	sendResult := notificationSendResult{ProviderMessageID: result.Messages[0].ID}
+	if len(result.Contacts) > 0 {
+		sendResult.RecipientWAID = strings.TrimSpace(result.Contacts[0].WAID)
+	}
+	return sendResult, nil
+}
+
+func (p *metaWhatsAppProvider) Send(ctx context.Context, message approvalNotification) (notificationSendResult, error) {
+	if !p.Configured() {
+		return notificationSendResult{}, errors.New("WhatsApp provider is not configured")
+	}
+	payload := map[string]any{
+		"messaging_product": "whatsapp",
+		"recipient_type":    "individual",
+		"to":                message.Recipient,
+		"type":              "template",
+		"template": map[string]any{
+			"name":     p.templateName,
+			"language": map[string]string{"code": message.Locale},
+			"components": []map[string]any{
+				{
+					"type": "body",
+					"parameters": []map[string]string{
+						{"type": "text", "text": message.Summary},
+						{"type": "text", "text": message.ReviewURL},
+					},
+				},
+				{
+					"type":     "button",
+					"sub_type": "quick_reply",
+					"index":    "0",
+					"parameters": []map[string]string{{
+						"type":    "payload",
+						"payload": whatsappApprovalButtonPayload(message.ApprovalID, "approve"),
+					}},
+				},
+				{
+					"type":     "button",
+					"sub_type": "quick_reply",
+					"index":    "1",
+					"parameters": []map[string]string{{
+						"type":    "payload",
+						"payload": whatsappApprovalButtonPayload(message.ApprovalID, "deny"),
+					}},
+				},
+			},
+		},
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return notificationSendResult{}, err
+	}
+	endpoint := fmt.Sprintf("%s/%s/%s/messages", p.baseURL, p.graphVersion, p.phoneNumberID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(encoded))
+	if err != nil {
+		return notificationSendResult{}, err
 	}
 	req.Header.Set("Authorization", "Bearer "+p.accessToken)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", message.IdempotencyKey)
 	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
-		return "", err
+		return notificationSendResult{}, err
 	}
 	defer resp.Body.Close()
 	responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("WhatsApp provider returned status %d", resp.StatusCode)
+		return notificationSendResult{}, fmt.Errorf("WhatsApp provider returned status %d", resp.StatusCode)
 	}
 	var result struct {
+		Contacts []struct {
+			WAID string `json:"wa_id"`
+		} `json:"contacts"`
 		Messages []struct {
 			ID string `json:"id"`
 		} `json:"messages"`
 	}
 	if json.Unmarshal(responseBody, &result) == nil && len(result.Messages) > 0 && result.Messages[0].ID != "" {
-		return result.Messages[0].ID, nil
+		sendResult := notificationSendResult{ProviderMessageID: result.Messages[0].ID}
+		if len(result.Contacts) > 0 {
+			sendResult.RecipientWAID = strings.TrimSpace(result.Contacts[0].WAID)
+		}
+		return sendResult, nil
 	}
-	return "accepted:" + message.IdempotencyKey, nil
+	return notificationSendResult{ProviderMessageID: "accepted:" + message.IdempotencyKey}, nil
 }
 
 func webhookHMACValid(secret string, body []byte, signature string) bool {

@@ -44,6 +44,22 @@ func TestBillingRoutes_DebitRequiresInternalTokenOrAuth(t *testing.T) {
 	}
 }
 
+func TestBillingRoutes_DirectPurchaseRequiresInternalToken(t *testing.T) {
+	os.Setenv("AI_INTERNAL_TOKEN", testInternalToken)
+	defer os.Unsetenv("AI_INTERNAL_TOKEN")
+
+	s := &Server{}
+	b := billing.NewBillingService(nil)
+	user := &models.User{ID: uuid.New()}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/billing/credits/purchase", bytes.NewBufferString(`{"user_id":"`+user.ID.String()+`","pack_id":"starter","reference_id":"payment_1"}`))
+	req = req.WithContext(auth.WithUserContext(req.Context(), user))
+	rec := httptest.NewRecorder()
+	s.handlePurchaseCredits(b)(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for user-session credit grant, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 // A signed-in user may not debit someone else's account.
 func TestBillingRoutes_DebitRejectsForeignUserID(t *testing.T) {
 	s := &Server{}
@@ -116,9 +132,11 @@ func TestBillingRoutes_CreditsLifecycle(t *testing.T) {
 	}
 
 	// 2. Purchase Starter Pack
-	purchaseBody := `{"pack_id":"starter","reference_id":"ch_test_123"}`
+	purchaseBody := `{"user_id":"` + userUUID.String() + `","pack_id":"starter","reference_id":"ch_test_123"}`
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/billing/credits/purchase", bytes.NewBufferString(purchaseBody))
+	req.Header.Set("X-Internal-Token", testInternalToken)
 	req = req.WithContext(auth.WithUserContext(req.Context(), user))
+
 	rec = httptest.NewRecorder()
 	s.handlePurchaseCredits(b)(rec, req)
 

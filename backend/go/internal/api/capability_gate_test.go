@@ -45,6 +45,49 @@ func TestBrowserRoutesAreLockedWhenCapabilityDisabled(t *testing.T) {
 	}
 }
 
+func TestAllTaskRoutesAreLockedWhenCapabilityDisabled(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("CAPABILITY_WORKSPACE_TASK_CONTROL", "false")
+	server := NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: nil})
+
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/api/v1/tasks"},
+		{http.MethodGet, "/api/tasks"},
+		{http.MethodGet, "/api/v1/tasks/00000000-0000-0000-0000-000000000001"},
+		{http.MethodGet, "/api/tasks/00000000-0000-0000-0000-000000000001/events"},
+		{http.MethodPost, "/api/v1/tasks/00000000-0000-0000-0000-000000000001/plan"},
+		{http.MethodGet, "/api/tasks/00000000-0000-0000-0000-000000000001/plan"},
+		{http.MethodGet, "/api/v1/tasks/00000000-0000-0000-0000-000000000001/artifacts"},
+		{http.MethodPost, "/api/tasks/00000000-0000-0000-0000-000000000001/plan/approve"},
+		{http.MethodPost, "/api/v1/tasks/00000000-0000-0000-0000-000000000001/plan/reject"},
+		{http.MethodPost, "/api/tasks/00000000-0000-0000-0000-000000000001/pause"},
+		{http.MethodPost, "/api/v1/tasks/00000000-0000-0000-0000-000000000001/resume"},
+		{http.MethodPost, "/api/tasks/00000000-0000-0000-0000-000000000001/takeover"},
+		{http.MethodPost, "/api/v1/tasks/00000000-0000-0000-0000-000000000001/stop"},
+		{http.MethodPost, "/api/tasks/00000000-0000-0000-0000-000000000001/actions"},
+		{http.MethodGet, "/api/v1/tasks/00000000-0000-0000-0000-000000000001/actions"},
+		{http.MethodPost, "/api/tasks/00000000-0000-0000-0000-000000000001/actions/00000000-0000-0000-0000-000000000002/approve"},
+		{http.MethodPost, "/api/v1/tasks/00000000-0000-0000-0000-000000000001/actions/00000000-0000-0000-0000-000000000002/deny"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
+			req := authReq(tc.method, tc.path, nil)
+			rec := httptest.NewRecorder()
+			server.Router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusLocked {
+				t.Fatalf("expected 423, got %d: %s", rec.Code, rec.Body.String())
+			}
+			if !containsAll(rec.Body.String(), `"code":"disabled_by_launch_scope"`, `"capability":"workspace.task_control"`) {
+				t.Fatalf("unexpected disabled response: %s", rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestLegacyTaskApprovalRoutesAreLockedWhenCanonicalCapabilityDisabled(t *testing.T) {
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("CAPABILITY_WORKSPACE_TASK_CONTROL", "false")

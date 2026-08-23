@@ -125,7 +125,7 @@ else
 fi
 
 # Demo secrets check
-DEMO_SECRETS=$(grep -v '^[[:space:]]*#' docker-compose.production.yml | grep -iE '(password|secret|changeme|replace-me|dummy_secret)' | grep -v 'must be an immutable image digest' | grep -v 'is required' || true)
+DEMO_SECRETS=$(grep -v '^[[:space:]]*#' docker-compose.production.yml | grep -iE '(password|secret|changeme|replace-me|dummy_secret)' | grep -v 'must be an immutable image digest' | grep -v 'is required' | grep -vE '\$\{[A-Za-z_][A-Za-z0-9_]*:-\}' || true)
 if [[ -n "$DEMO_SECRETS" ]]; then
   log_fail "docker-compose.production.yml contains hardcoded placeholder/demo secrets:\n$DEMO_SECRETS"
 else
@@ -221,6 +221,40 @@ for req in "${REQUIRED_PROD_ENV[@]}"; do
     log_fail "docker-compose.production.yml missing required fail-closed variable: \${${req}}"
   fi
 done
+
+# WhatsApp is optional but must be explicitly wired and disabled by default.
+WHATSAPP_OPTIONAL_ENV=(
+  WHATSAPP_GRAPH_API_BASE_URL
+  WHATSAPP_GRAPH_API_VERSION
+  WHATSAPP_ACCESS_TOKEN
+  WHATSAPP_PHONE_NUMBER_ID
+  WHATSAPP_APPROVAL_TEMPLATE_NAME
+  WHATSAPP_LINK_TEMPLATE_NAME
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN
+  WHATSAPP_APP_SECRET
+)
+for key in "${WHATSAPP_OPTIONAL_ENV[@]}"; do
+  if grep -q "${key}: \${${key}:-}" docker-compose.production.yml && \
+     grep -q "${key}: \${${key}:-}" docker-compose.aws.yml; then
+    log_pass "WhatsApp runtime variable is wired in production and AWS Compose: ${key}"
+  else
+    log_fail "WhatsApp runtime variable is missing from production or AWS Compose: ${key}"
+  fi
+done
+if grep -q 'APP_ENV: production' docker-compose.production.yml && \
+   grep -q 'APP_ENV: production' docker-compose.aws.yml; then
+  log_pass "production and AWS Compose explicitly set APP_ENV=production for capability defaults"
+else
+  log_fail "production or AWS Compose is missing APP_ENV=production"
+fi
+if grep -q 'CAPABILITY_WORKSPACE_NOTIFICATION_WHATSAPP: \${CAPABILITY_WORKSPACE_NOTIFICATION_WHATSAPP:-false}' docker-compose.production.yml && \
+   grep -q 'CAPABILITY_WORKSPACE_APPROVALS: \${CAPABILITY_WORKSPACE_APPROVALS:-false}' docker-compose.production.yml && \
+   grep -q 'CAPABILITY_WORKSPACE_NOTIFICATION_WHATSAPP: \${CAPABILITY_WORKSPACE_NOTIFICATION_WHATSAPP:-false}' docker-compose.aws.yml && \
+   grep -q 'CAPABILITY_WORKSPACE_APPROVALS: \${CAPABILITY_WORKSPACE_APPROVALS:-false}' docker-compose.aws.yml; then
+  log_pass "WhatsApp and approval capabilities default to false in production and AWS Compose"
+else
+  log_fail "WhatsApp or approval capability does not default to false in all production Compose manifests"
+fi
 
 # Frontend build fail-closed checks
 if grep -q 'VITE_SUPABASE_URL is required' Dockerfile.frontend && \

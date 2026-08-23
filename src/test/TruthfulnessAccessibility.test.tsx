@@ -7,6 +7,7 @@ vi.mock("@/components/layout", () => ({
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { CTASection } from "@/components/landing/CTASection";
+import { FeaturesSection } from "@/components/landing/FeaturesSection";
 import { GhostJobStat } from "@/components/landing/GhostJobStat";
 import { ReceiptShowcase } from "@/components/landing/ReceiptShowcase";
 import FreeAtsScan from "@/pages/FreeAtsScan";
@@ -22,6 +23,13 @@ describe("truthfulness and accessibility release contracts", () => {
     expect(screen.getByText(/Illustrative UI example — no application was submitted/i)).toBeInTheDocument();
     expect(screen.getByText(/Supported submission workflows can record a receipt/i)).toBeInTheDocument();
     expect(screen.queryByText(/Every submission produces an immutable receipt/i)).not.toBeInTheDocument();
+  });
+
+  it("labels the AutoPilot animation as review-only and non-submitting", () => {
+    renderWithRouter(<FeaturesSection />);
+    expect(screen.getByText(/Illustrative workflow · no application submitted/i)).toBeInTheDocument();
+    expect(screen.getByText(/Preparing Submission for Review/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Submitting Application$/i)).not.toBeInTheDocument();
   });
 
   it("labels the ghost-job benchmark as synthetic and non-predictive", () => {

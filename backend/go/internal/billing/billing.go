@@ -92,6 +92,16 @@ var StandardCreditPacks = []CreditPack{
 	},
 }
 
+func creditPackByID(packID string) (*CreditPack, bool) {
+	for _, pack := range StandardCreditPacks {
+		if strings.EqualFold(strings.TrimSpace(pack.ID), strings.TrimSpace(packID)) {
+			matched := pack
+			return &matched, true
+		}
+	}
+	return nil, false
+}
+
 type BillingService struct {
 	db              *database.DB
 	mu              sync.RWMutex
@@ -387,24 +397,28 @@ func (b *BillingService) RecordUsage(userID string, count int) (bool, error) {
 	return true, nil
 }
 
-// CreateCheckoutSession initiates a live Stripe Checkout flow
+// CreateCheckoutSession initiates a live one-time Stripe Checkout flow for a credit pack.
 func (b *BillingService) CreateCheckoutSession(userID, userEmail, plan, returnURL string) (string, error) {
 	if stripe.Key == "" {
 		return "", errors.New("stripe API key is not configured on server")
 	}
 
-	priceID := os.Getenv("STRIPE_PRICE_PRO_ID")
-	if strings.ToLower(plan) == "enterprise" || strings.ToLower(plan) == "team" {
-		if id := os.Getenv("STRIPE_PRICE_ENTERPRISE_ID"); id != "" {
-			priceID = id
-		}
+	packID := strings.ToLower(strings.TrimSpace(plan))
+	if _, ok := creditPackByID(packID); !ok {
+		return "", errors.New("invalid credit pack")
 	}
+	priceEnv := map[string]string{
+		"starter": "STRIPE_PRICE_STARTER_ID",
+		"pro":     "STRIPE_PRICE_PRO_ID",
+		"power":   "STRIPE_PRICE_POWER_ID",
+	}[packID]
+	priceID := os.Getenv(priceEnv)
 	if priceID == "" {
 		if strings.EqualFold(os.Getenv("ENV"), "production") {
 			return "", errors.New("stripe price ID is not configured for production")
 		}
-		// Fallback is deliberately development-only.
-		priceID = "price_pro_default"
+		// Fallback is deliberately development-only and never represents a live price.
+		priceID = "price_" + packID + "_default"
 	}
 
 	successURL := returnURL + "?session_id={CHECKOUT_SESSION_ID}&billing=success"
@@ -412,7 +426,7 @@ func (b *BillingService) CreateCheckoutSession(userID, userEmail, plan, returnUR
 
 	params := &stripe.CheckoutSessionParams{
 		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
-		Mode:               stripe.String(string(stripe.CheckoutSessionModeSubscription)),
+		Mode:               stripe.String(string(stripe.CheckoutSessionModePayment)),
 		CustomerEmail:      stripe.String(userEmail),
 		ClientReferenceID:  stripe.String(userID),
 		SuccessURL:         stripe.String(successURL),
@@ -425,7 +439,8 @@ func (b *BillingService) CreateCheckoutSession(userID, userEmail, plan, returnUR
 		},
 	}
 	params.AddMetadata("user_id", userID)
-	params.AddMetadata("plan", plan)
+	params.AddMetadata("plan", packID)
+	params.AddMetadata("pack_id", packID)
 
 	s, err := checkoutsession.New(params)
 	if err != nil {
@@ -571,6 +586,63 @@ func (b *BillingService) ProcessStripeWebhook(eventID, eventType, customerID, su
 		ExpiresAt:    expiresAt,
 		CustomerID:   customerID,
 	}
+	b.mu.Unlock()
+	return true
+}
+
+// ProcessStripeCreditPackPayment fulfills a one-time credit pack only for a paid
+// Checkout Session event. The event claim and balance/ledger mutation are atomic
+// when PostgreSQL is available, so Stripe retries cannot double-grant credits.
+func (b *BillingService) ProcessStripeCreditPackPayment(eventID, eventType, customerID, userID, packID, paymentStatus string) bool {
+	_ = customerID // retained for webhook compatibility and future customer binding.
+	if !IsBillingEnabled() {
+		return true
+	}
+	pack, ok := creditPackByID(packID)
+	if !ok || strings.TrimSpace(eventID) == "" || strings.TrimSpace(userID) == "" || paymentStatus != string(stripe.CheckoutSessionPaymentStatusPaid) {
+		return false
+	}
+
+	if b.db != nil && b.db.Conn != nil {
+		tx, err := b.db.Conn.Begin()
+		if err != nil {
+			return false
+		}
+		defer tx.Rollback()
+
+		var claimed string
+		err = tx.QueryRow(`INSERT INTO public.stripe_webhook_events (event_id, event_type) VALUES ($1, $2) ON CONFLICT (event_id) DO NOTHING RETURNING event_id`, eventID, eventType).Scan(&claimed)
+		if errors.Is(err, sql.ErrNoRows) {
+			return true
+		}
+		if err != nil {
+			return false
+		}
+		_, err = tx.Exec(`INSERT INTO public.user_credits (user_id, balance, lifetime_purchased, lifetime_used, updated_at) VALUES ($1::uuid, $2, $2, 0, NOW()) ON CONFLICT (user_id) DO UPDATE SET balance = public.user_credits.balance + EXCLUDED.balance, lifetime_purchased = public.user_credits.lifetime_purchased + EXCLUDED.lifetime_purchased, updated_at = NOW()`, userID, pack.Credits)
+		if err != nil {
+			return false
+		}
+		_, err = tx.Exec(`INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at) VALUES ($1, $2::uuid, $3, 'purchase', $4, $5, NOW())`, "stripe_"+eventID, userID, pack.Credits, fmt.Sprintf("Purchased %s Pack (%d credits for $%.2f)", pack.Name, pack.Credits, pack.PriceUSD), eventID)
+		if err != nil {
+			return false
+		}
+		return tx.Commit() == nil
+	}
+
+	if isProductionBilling() {
+		return false
+	}
+	b.mu.Lock()
+	if _, seen := b.processedEvents[eventID]; seen {
+		b.mu.Unlock()
+		return true
+	}
+	b.mu.Unlock()
+	if _, err := b.PurchaseCreditPack(userID, pack.ID, eventID); err != nil {
+		return false
+	}
+	b.mu.Lock()
+	b.processedEvents[eventID] = time.Now()
 	b.mu.Unlock()
 	return true
 }
@@ -815,15 +887,8 @@ func (b *BillingService) AddCredits(userID string, amount int, referenceID, desc
 
 // PurchaseCreditPack purchases a named credit pack for a user
 func (b *BillingService) PurchaseCreditPack(userID string, packID string, referenceID string) (*UserCreditBalance, error) {
-	var matchedPack *CreditPack
-	for _, pack := range StandardCreditPacks {
-		if strings.EqualFold(pack.ID, packID) {
-			matchedPack = &pack
-			break
-		}
-	}
-
-	if matchedPack == nil {
+	matchedPack, ok := creditPackByID(packID)
+	if !ok {
 		return nil, fmt.Errorf("invalid credit pack '%s'", packID)
 	}
 

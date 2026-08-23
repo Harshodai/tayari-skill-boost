@@ -15,6 +15,17 @@ var allowedSocialProviders = map[string]bool{
 }
 
 func (s *Server) registerCoreRoutes(r chi.Router) {
+	// Authentication endpoints use their own limiter. Keeping them outside the
+	// shared public bucket prevents anonymous analytics/branding traffic from
+	// starving legitimate registration and login attempts.
+	r.Group(func(r chi.Router) {
+		r.Use(s.loginRateLimiter.Middleware)
+		r.Post("/api/v1/auth/register", s.handleRegister)
+		r.Post("/api/auth/register", s.handleRegister)
+		r.Post("/api/v1/auth/login", s.handleLogin)
+		r.Post("/api/auth/login", s.handleLogin)
+	})
+
 	// Public Health & Info
 	r.Group(func(r chi.Router) {
 		r.Use(s.publicRateLimiter.Middleware)
@@ -23,11 +34,6 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Get("/api/v1/capabilities", s.handleCapabilities)
 		r.Get("/healthz", s.handleHealth)
 		r.Get("/readyz", s.handleReady)
-
-		r.With(s.loginRateLimiter.Middleware).Post("/api/v1/auth/register", s.handleRegister)
-		r.With(s.loginRateLimiter.Middleware).Post("/api/auth/register", s.handleRegister)
-		r.With(s.loginRateLimiter.Middleware).Post("/api/v1/auth/login", s.handleLogin)
-		r.With(s.loginRateLimiter.Middleware).Post("/api/auth/login", s.handleLogin)
 
 		// ---- Auth rate-limit read (replaces check-rate-limit edge fn) ----
 		// Unauthenticated pre-login read: caller checks lockout before login.

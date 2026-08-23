@@ -414,10 +414,26 @@ export interface NotificationPreferences {
   email_address?: string;
   whatsapp_enabled: boolean;
   phone_e164?: string;
+  whatsapp_wa_id?: string;
+  whatsapp_verified?: boolean;
   whatsapp_opt_in: boolean;
   locale: string;
   quiet_hours: Record<string, unknown>;
   fallback_order: string[];
+}
+
+export async function startWhatsAppLink(phone_e164: string, consent: boolean): Promise<{ ok: boolean; expires_at: string; next: string; phone_e164: string; provider_message_id: string }> {
+  return apiFetch("/v1/notification-preferences/whatsapp/link", {
+    method: "POST",
+    body: JSON.stringify({ phone_e164, consent }),
+  });
+}
+
+export async function confirmWhatsAppLink(code: string): Promise<{ ok: boolean; whatsapp_enabled: boolean; whatsapp_opt_in: boolean }> {
+  return apiFetch("/v1/notification-preferences/whatsapp/confirm", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
 }
 
 export async function listAutomations(): Promise<{ automations: AutomationDefinition[] }> {

@@ -28,7 +28,6 @@ func DecodeAndValidate(r *http.Request, v interface{}) error {
 	return validate.Struct(v)
 }
 
-
 func ValidateFileSignature(data []byte, allowedExts ...string) bool {
 	if len(data) < 4 {
 		return false

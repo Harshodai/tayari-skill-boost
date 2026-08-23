@@ -84,6 +84,25 @@ func TestSmoke_Health(t *testing.T) {
 	}
 }
 
+// TestSmoke_AuthLimiterIsolated verifies public traffic cannot exhaust the
+// separate registration/login limiter. The handler may fail against the fake DB,
+// but it must not be rejected by the public bucket with HTTP 429.
+func TestSmoke_AuthLimiterIsolated(t *testing.T) {
+	srv := newSmokeServer(t)
+	for i := 0; i < 120; i++ {
+		w := httptest.NewRecorder()
+		srv.Router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/health", nil))
+	}
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", strings.NewReader(`{"email":"rate-isolation@example.com","password":"DockerSmokePass123!"}`))
+	req.Header.Set("Content-Type", "application/json")
+	srv.Router.ServeHTTP(w, req)
+	if w.Code == http.StatusTooManyRequests {
+		t.Fatalf("registration was starved by public traffic: got 429 (body=%s)", w.Body.String())
+	}
+}
+
 // TestSmoke_Capabilities verifies the capabilities endpoint responds 200 with
 // a JSON status payload on both archive and v1 aliases.
 func TestSmoke_Capabilities(t *testing.T) {

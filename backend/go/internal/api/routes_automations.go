@@ -621,19 +621,20 @@ func (s *Server) handleGetNotificationPreferences(w http.ResponseWriter, r *http
 		return
 	}
 	var emailEnabled, whatsappEnabled bool
-	var emailAddress, phoneE164, locale string
+	var emailAddress, phoneE164, locale, whatsappWAID string
+	var whatsappVerifiedAt sql.NullTime
 	var optIn, optOut sql.NullTime
 	var quietHours, fallback json.RawMessage
-	err := s.DB.Conn.QueryRowContext(r.Context(), `SELECT email_enabled,COALESCE(email_address,''),whatsapp_enabled,COALESCE(phone_e164,''),whatsapp_opt_in_at,whatsapp_opt_out_at,locale,quiet_hours,fallback_order FROM notification_preferences WHERE tenant_id=$1 AND user_id=$2`, tenantID, userID).Scan(&emailEnabled, &emailAddress, &whatsappEnabled, &phoneE164, &optIn, &optOut, &locale, &quietHours, &fallback)
+	err := s.DB.Conn.QueryRowContext(r.Context(), `SELECT email_enabled,COALESCE(email_address,''),whatsapp_enabled,COALESCE(phone_e164,''),COALESCE(whatsapp_wa_id,''),whatsapp_verified_at,whatsapp_opt_in_at,whatsapp_opt_out_at,locale,quiet_hours,fallback_order FROM notification_preferences WHERE tenant_id=$1 AND user_id=$2`, tenantID, userID).Scan(&emailEnabled, &emailAddress, &whatsappEnabled, &phoneE164, &whatsappWAID, &whatsappVerifiedAt, &optIn, &optOut, &locale, &quietHours, &fallback)
 	if err == sql.ErrNoRows {
-		s.respondJSON(w, http.StatusOK, map[string]any{"email_enabled": false, "whatsapp_enabled": false, "whatsapp_opt_in": false, "locale": "en", "quiet_hours": json.RawMessage(`{}`), "fallback_order": json.RawMessage(`["in_app"]`)})
+		s.respondJSON(w, http.StatusOK, map[string]any{"email_enabled": false, "whatsapp_enabled": false, "whatsapp_opt_in": false, "whatsapp_verified": false, "locale": "en", "quiet_hours": json.RawMessage(`{}`), "fallback_order": json.RawMessage(`["in_app"]`)})
 		return
 	}
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, "failed to load notification preferences")
 		return
 	}
-	s.respondJSON(w, http.StatusOK, map[string]any{"email_enabled": emailEnabled, "email_address": emailAddress, "whatsapp_enabled": whatsappEnabled, "phone_e164": phoneE164, "whatsapp_opt_in": optIn.Valid && !optOut.Valid, "locale": locale, "quiet_hours": quietHours, "fallback_order": fallback})
+	s.respondJSON(w, http.StatusOK, map[string]any{"email_enabled": emailEnabled, "email_address": emailAddress, "whatsapp_enabled": whatsappEnabled, "phone_e164": phoneE164, "whatsapp_opt_in": optIn.Valid && !optOut.Valid, "whatsapp_verified": whatsappVerifiedAt.Valid && whatsappWAID != "", "locale": locale, "quiet_hours": quietHours, "fallback_order": fallback})
 }
 
 func (s *Server) handlePutNotificationPreferences(w http.ResponseWriter, r *http.Request) {
@@ -650,15 +651,28 @@ func (s *Server) handlePutNotificationPreferences(w http.ResponseWriter, r *http
 		s.respondError(w, http.StatusBadRequest, "invalid notification preferences")
 		return
 	}
-	if req.WhatsAppEnabled && (!req.WhatsAppOptIn || strings.TrimSpace(req.PhoneE164) == "") {
-		s.respondError(w, http.StatusBadRequest, "WhatsApp requires explicit opt-in and a phone number")
+	if strings.TrimSpace(req.PhoneE164) != "" && !validWhatsAppPhoneE164(req.PhoneE164) {
+		s.respondError(w, http.StatusBadRequest, "phone_e164 must be a valid E.164 phone number")
 		return
 	}
+	if req.WhatsAppEnabled && (!req.WhatsAppOptIn || !validWhatsAppPhoneE164(req.PhoneE164)) {
+		s.respondError(w, http.StatusBadRequest, "WhatsApp requires explicit opt-in and a valid E.164 phone number")
+		return
+	}
+	if req.WhatsAppEnabled {
+		var verifiedAt sql.NullTime
+		var waID, verifiedPhone string
+		if err := s.DB.Conn.QueryRowContext(r.Context(), `SELECT whatsapp_verified_at,COALESCE(whatsapp_wa_id,''),COALESCE(phone_e164,'') FROM notification_preferences WHERE tenant_id=$1 AND user_id=$2`, tenantID, userID).Scan(&verifiedAt, &waID, &verifiedPhone); err != nil || !verifiedAt.Valid || strings.TrimSpace(waID) == "" || strings.TrimSpace(verifiedPhone) != strings.TrimSpace(req.PhoneE164) {
+			s.respondError(w, http.StatusPreconditionFailed, "WhatsApp phone ownership must be confirmed for this phone before enabling approval delivery")
+			return
+		}
+	}
+
 	locale := strings.TrimSpace(req.Locale)
 	if locale == "" {
 		locale = "en"
 	}
-	_, err := s.DB.Conn.ExecContext(r.Context(), `INSERT INTO notification_preferences (tenant_id,user_id,email_enabled,email_address,whatsapp_enabled,phone_e164,whatsapp_opt_in_at,whatsapp_opt_out_at,locale,quiet_hours,fallback_order) VALUES ($1,$2,$3,NULLIF($4,''),$5,NULLIF($6,''),CASE WHEN $7 THEN now() ELSE NULL END,CASE WHEN $7 THEN NULL ELSE now() END,$8,$9,$10) ON CONFLICT (tenant_id,user_id) DO UPDATE SET email_enabled=$3,email_address=NULLIF($4,''),whatsapp_enabled=$5,phone_e164=NULLIF($6,''),whatsapp_opt_in_at=CASE WHEN $7 THEN now() ELSE notification_preferences.whatsapp_opt_in_at END,whatsapp_opt_out_at=CASE WHEN $7 THEN NULL ELSE now() END,locale=$8,quiet_hours=$9,fallback_order=$10,updated_at=now()`, tenantID, userID, req.EmailEnabled, strings.TrimSpace(req.EmailAddress), req.WhatsAppEnabled, strings.TrimSpace(req.PhoneE164), req.WhatsAppOptIn, locale, jsonOrEmpty(req.QuietHours), jsonOrEmpty(req.FallbackOrder))
+	_, err := s.DB.Conn.ExecContext(r.Context(), `INSERT INTO notification_preferences (tenant_id,user_id,email_enabled,email_address,whatsapp_enabled,phone_e164,whatsapp_opt_in_at,whatsapp_opt_out_at,locale,quiet_hours,fallback_order) VALUES ($1,$2,$3,NULLIF($4,''),$5,NULLIF($6,''),CASE WHEN $7 THEN now() ELSE NULL END,CASE WHEN $7 THEN NULL ELSE now() END,$8,$9,$10) ON CONFLICT (tenant_id,user_id) DO UPDATE SET email_enabled=$3,email_address=NULLIF($4,''),whatsapp_enabled=$5,phone_e164=NULLIF($6,''),whatsapp_wa_id=CASE WHEN $5 THEN notification_preferences.whatsapp_wa_id ELSE NULL END,whatsapp_verified_at=CASE WHEN $5 THEN notification_preferences.whatsapp_verified_at ELSE NULL END,whatsapp_opt_in_at=CASE WHEN $7 AND $5 THEN now() ELSE NULL END,whatsapp_opt_out_at=CASE WHEN $7 AND $5 THEN NULL ELSE now() END,locale=$8,quiet_hours=$9,fallback_order=$10,updated_at=now()`, tenantID, userID, req.EmailEnabled, strings.TrimSpace(req.EmailAddress), req.WhatsAppEnabled, strings.TrimSpace(req.PhoneE164), req.WhatsAppOptIn, locale, jsonOrEmpty(req.QuietHours), jsonOrEmpty(req.FallbackOrder))
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, "failed to save notification preferences")
 		return

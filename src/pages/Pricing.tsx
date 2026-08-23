@@ -111,6 +111,7 @@ const Pricing = () => {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [packs, setPacks] = useState<CreditPackItem[]>(DEFAULT_PACKS);
   const [isLoadingCredits, setIsLoadingCredits] = useState(false);
+  const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -119,6 +120,7 @@ const Pricing = () => {
     apiFetch<any>("/v1/billing/credits/packs")
       .then((res) => {
         if (!mounted) return;
+        setBillingEnabled(Array.isArray(res) ? null : res?.billing_enabled === true);
         const rawPacks = Array.isArray(res) ? res : res?.packs;
         if (Array.isArray(rawPacks) && rawPacks.length > 0) {
           const mapped: CreditPackItem[] = rawPacks.map((p: any) => {
@@ -154,6 +156,7 @@ const Pricing = () => {
       .catch(() => {
         if (mounted) {
           setPacks(DEFAULT_PACKS);
+          setBillingEnabled(false);
         }
       });
 
@@ -273,7 +276,7 @@ const Pricing = () => {
     {
       question: "What payment methods do you accept?",
       answer:
-        "We accept all major credit/debit cards via Stripe, Google Pay, Apple Pay, PayPal, and M-Pesa for East African users.",
+        "Checkout currently accepts card payments through Stripe when billing is enabled for the deployment. Other payment methods are not promised unless explicitly shown by the configured Stripe Checkout session.",
     },
   ];
 
@@ -283,6 +286,11 @@ const Pricing = () => {
         <div className="container mx-auto px-4">
           {/* Header */}
           <div className="text-center mb-12">
+            {billingEnabled === false && (
+              <div data-testid="billing-unavailable" role="status" className="mx-auto mb-6 max-w-2xl rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-200">
+                Billing is not enabled for this deployment. Credit packs are shown for reference; no purchase can be completed here.
+              </div>
+            )}
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold mb-4">
               <Coins className="w-3.5 h-3.5" /> Pay Only Per Verified Submission
             </div>
@@ -401,13 +409,13 @@ const Pricing = () => {
                         ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-md"
                         : "bg-secondary hover:bg-secondary/80 text-foreground border border-border"
                     }`}
-                    disabled={Boolean(loadingPlan === pack.id)}
+                    disabled={Boolean(loadingPlan === pack.id) || Boolean(user && billingEnabled !== true)}
                     onClick={() => handleCheckout(pack.id)}
                   >
                     {loadingPlan === pack.id ? (
                       <Loader2 className="w-4 h-4 animate-spin mr-2" />
                     ) : null}
-                    {pack.cta}
+                    {billingEnabled === false ? "Billing unavailable" : pack.cta}
                   </Button>
                 </div>
               );

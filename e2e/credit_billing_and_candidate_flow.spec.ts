@@ -61,6 +61,7 @@ test.describe.serial('Tayari Skill Boost — Credit Billing, Candidate Flow & Lo
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
+          billing_enabled: true,
           packs: [
             {
               id: 'starter',

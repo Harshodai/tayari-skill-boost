@@ -62,6 +62,14 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/48-20260821_task_control_leases.sql",
         "zz-48-20260821_task_control_leases.sql",
     ),
+    "backend/db/migrations/20260823_01_billing_credits.sql": (
+        "supabase-local/volumes/db/init/49-20260823_billing_credits.sql",
+        "zz-49-20260823_billing_credits.sql",
+    ),
+    "backend/db/migrations/20260823_02_whatsapp_approval_replies.sql": (
+        "supabase-local/volumes/db/init/50-20260823_whatsapp_approval_replies.sql",
+        "zz-50-20260823_whatsapp_approval_replies.sql",
+    ),
 }
 
 

@@ -61,7 +61,7 @@ function TaskView() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{task.status}</Badge>
-            <Link to="/desktop"><Button variant="outline">New task</Button></Link>
+            <Link to="/tay"><Button variant="outline">New task</Button></Link>
           </div>
         </div>
 

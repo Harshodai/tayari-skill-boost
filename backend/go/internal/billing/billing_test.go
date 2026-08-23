@@ -205,6 +205,33 @@ func TestBilling_CreditBalanceAndPurchases(t *testing.T) {
 	}
 }
 
+func TestBilling_OneTimeCreditPackFulfillmentIsPaidAndIdempotent(t *testing.T) {
+	t.Setenv("BILLING_ENABLED", "true")
+	t.Setenv("ENV", "staging")
+
+	svc := NewBillingService(nil)
+	userID := "user_payment_test"
+	if svc.ProcessStripeCreditPackPayment("evt_unpaid", "checkout.session.completed", "cus_test", userID, "starter", "unpaid") {
+		t.Fatal("unpaid checkout must not be fulfilled")
+	}
+	if svc.ProcessStripeCreditPackPayment("evt_unknown", "checkout.session.completed", "cus_test", userID, "unknown", "paid") {
+		t.Fatal("unknown pack must not be fulfilled")
+	}
+	if !svc.ProcessStripeCreditPackPayment("evt_paid", "checkout.session.completed", "cus_test", userID, "starter", "paid") {
+		t.Fatal("paid checkout should be fulfilled")
+	}
+	if !svc.ProcessStripeCreditPackPayment("evt_paid", "checkout.session.completed", "cus_test", userID, "starter", "paid") {
+		t.Fatal("duplicate paid checkout should be idempotent")
+	}
+	balance, err := svc.GetCreditBalance(userID)
+	if err != nil {
+		t.Fatalf("failed to read fulfilled balance: %v", err)
+	}
+	if balance.Balance != 10 || balance.LifetimePurchased != 10 {
+		t.Fatalf("expected exactly one starter pack fulfillment, got %+v", balance)
+	}
+}
+
 func TestBilling_DebitCredit_InsufficientBalance(t *testing.T) {
 	svc := NewBillingService(nil)
 	os.Setenv("BILLING_ENABLED", "true")
