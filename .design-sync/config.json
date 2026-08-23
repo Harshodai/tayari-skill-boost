@@ -7,8 +7,6 @@
   "tsconfig": "tsconfig.app.json",
   "cssEntry": ".design-sync/tailwind-compiled.css",
   "componentSrcMap": {
-    "GradientOrb": null,
-    "ScrollToTop": null,
     "Toaster": null
   },
   "guidelinesGlob": [],
@@ -40,6 +38,7 @@
     "JobMatchScore": { "cardMode": "column" },
     "JobsEmptyState": { "cardMode": "column" },
     "OrbBackground": { "cardMode": "column" },
+    "GradientOrb": { "cardMode": "column" },
     "PageHeader": { "cardMode": "column" },
     "Pagination": { "cardMode": "column" },
     "Progress": { "cardMode": "column" },
@@ -73,6 +72,7 @@
     "Sheet": { "cardMode": "single", "primaryStory": "FiltersLeft" },
     "Toast": { "cardMode": "single", "primaryStory": "SuccessAndDestructive" },
     "Tooltip": { "cardMode": "single", "primaryStory": "AtsScoreTooltip" },
-    "ContextMenu": { "cardMode": "single", "primaryStory": "JobActions" }
+    "ContextMenu": { "cardMode": "single", "primaryStory": "JobActions" },
+    "ScrollToTop": { "cardMode": "single", "primaryStory": "Visible" }
   }
 }
