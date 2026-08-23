@@ -72,6 +72,7 @@
     "Popover": { "cardMode": "single", "primaryStory": "AtsScoreBreakdown" },
     "Sheet": { "cardMode": "single", "primaryStory": "FiltersLeft" },
     "Toast": { "cardMode": "single", "primaryStory": "SuccessAndDestructive" },
-    "Tooltip": { "cardMode": "single", "primaryStory": "AtsScoreTooltip" }
+    "Tooltip": { "cardMode": "single", "primaryStory": "AtsScoreTooltip" },
+    "ContextMenu": { "cardMode": "single", "primaryStory": "JobActions" }
   }
 }
