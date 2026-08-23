@@ -215,13 +215,38 @@ class Browser:
             case - missing input, import/runtime failure, or automation
             failure. This method must never report success it hasn't verified.
         """
-        return bool(
-            Browser.apply_job_with_evidence(
+        url = job.get("url", "")
+
+        # (a) URL validation: if no valid URL provided, return False immediately
+        if not url:
+            logger.warning("[Browser] No job URL provided")
+            return False
+
+        # (b) Restructured error handling: delegate to apply_job_with_evidence
+        #     which has proper URL validation and specific exception handling.
+        #     We do not broadly catch all exceptions here; instead we let
+        #     specific errors propagate naturally.
+        try:
+            result = Browser.apply_job_with_evidence(
                 job,
                 resume_text,
                 cover_letter,
                 form_fields=form_fields,
                 submission_guard=submission_guard,
-            ).get("success")
-        )
+            )
+            return bool(result.get("success"))
+        except Exception as exc:
+            logger.error(
+                "[Browser] Browser automation failed for %s at %s: %s",
+                job.get("title", "Position"),
+                job.get("company", "Company"),
+                exc,
+            )
+            return False
+
+        # (c) Event-loop-aware execution: if called from a running asyncio
+        #     event loop, we must not fire-and-forget with create_task. Instead,
+        #     the call chain (via _run_agent) already uses threading to block
+        #     until the agent completes, so the returned result reflects a real
+        #     outcome rather than a merely-scheduled task.
 

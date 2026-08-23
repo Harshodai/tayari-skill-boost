@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 # check_llm_engine.sh — Is the Python AI engine running a REAL LLM or a MOCK?
 #
-# Curls the Python FastAPI health endpoint and reads `model_status`:
-#   "loaded"            -> a real provider is wired (active_engine() != "mock-fallback")  -> exit 0
-#   "llm_not_configured"-> MockProvider is serving fake resume/JSON output                -> exit 1
-#   (unreachable / other) -> could not determine                                          -> exit 2
+# Guards the "mock ≠ passing" rule: ensures evals and API endpoints
+# fail when the LLM is mock/configured-unavailable.
 #
-# Exit 1 is intentional and CI-gateable: a green pipeline that scored a resume
-# against the mock engine proved nothing. Gate merges/evals on `exit 0` here.
-# (Verified against backend/python/app/routes/health.py + llm_service.py, 2026-07-08.)
+# Exit 0 → real LLM configured and serving real results
+# Exit 1 → MockProvider active (no real LLM) → CI must block
+# Exit 2 → cannot determine (service unreachable)
 #
 # Usage:
 #   ./check_llm_engine.sh                      # default host URL http://localhost:8002/health
@@ -16,6 +14,15 @@
 #   TAYARI_PY_HEALTH_URL=http://python-ai:8000/health ./check_llm_engine.sh   # inside compose network
 set -euo pipefail
 
+# ---- Check 1: LLM_API_KEY presence -----------------------------------------
+if [ -z "${LLM_API_KEY:-}" ]; then
+  echo "UNCONFIGURED: LLM_API_KEY is not set."
+  echo "  Set LLM_API_KEY (or OPENROUTER_API_KEY / NVIDIA_NIM_API_KEY) to use a real provider."
+  echo "  Without a key, the engine falls back to MockProvider which returns fake data."
+  exit 1
+fi
+
+# ---- Check 2: Health endpoint model_status ---------------------------------
 URL="${1:-${TAYARI_PY_HEALTH_URL:-http://localhost:8002/health}}"
 
 # --http1.1 avoids rare curl/HTTP2 hangs; -sS = quiet but show errors; -m = hard timeout.
@@ -41,7 +48,7 @@ fi
 
 case "$model_status" in
   loaded)
-    echo "REAL LLM: model_status=loaded — a real provider is wired."
+    echo "REAL LLM: model_status=loaded — a real provider is wired and LLM_API_KEY is present."
     echo "  Results from optimize/interview/cover-letter endpoints reflect a real model."
     echo "  (For the exact provider label, see server logs for active_engine() or"
     echo "   check LLM_PROVIDER/LLM_BASE_URL/OPENROUTER_API_KEY/NVIDIA_NIM_API_KEY/HERMES_AGENT_URL.)"

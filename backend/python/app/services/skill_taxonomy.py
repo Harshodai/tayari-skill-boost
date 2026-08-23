@@ -4,6 +4,7 @@ generalizes beyond exact keywords ('pandas' relates to 'data analysis', 'react'
 implies 'frontend'). Used by the hybrid job-matching pipeline.
 """
 import re
+from typing import Union
 
 # canonical -> (synonyms/surface forms, adjacent canonical skills)
 TAXONOMY: dict = {
@@ -186,7 +187,7 @@ ASYMMETRIC_TRANSFER: dict[str, dict[str, float]] = {
 }
 
 
-def compute_asymmetric_transfer(candidate_source: str | set | list, job_target: str | set | list) -> dict:
+def compute_asymmetric_transfer(candidate_source: Union[str, set, list], job_target: Union[str, set, list]) -> dict:
     """Compute asymmetric, directed skill transfer from candidate to job requirements.
 
     Distinguishes direct overlap from directed mobility paths (e.g. C++ -> Go vs Go -> C++).

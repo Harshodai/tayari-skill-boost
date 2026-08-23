@@ -46,7 +46,7 @@ export function Disabled() {
       <Label htmlFor="otp-disabled" className="opacity-70">
         Code expired — request a new one
       </Label>
-      <InputOTP id="otp-disabled" maxLength={6} defaultValue="000000" disabled>
+      <InputOTP id="otp-disabled" maxLength={6} disabled>
         <InputOTPGroup>
           <InputOTPSlot index={0} />
           <InputOTPSlot index={1} />

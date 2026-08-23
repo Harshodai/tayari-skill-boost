@@ -231,6 +231,8 @@ class SkillEntity(BaseModel):
     """A canonical skill extracted from the resume."""
     model_config = ConfigDict(extra='allow')
     name: str
+    type: str  # e.g. "programming_language", "framework", "tool"
+    confidence: float  # 0.0 to 1.0
     canonical: Optional[str] = None  # ESCO canonical label (populated when taxonomy loaded)
     years_experience: Optional[int] = None
     proficiency: Optional[str] = None  # beginner | intermediate | advanced | expert
@@ -240,7 +242,8 @@ class SkillEntity(BaseModel):
 class Achievement(BaseModel):
     """A quantified achievement extracted from the resume."""
     model_config = ConfigDict(extra='allow')
-    text: str
+    description: str
+    quantified: bool = False
     impact_metric: Optional[str] = None  # e.g. "reduced latency by 45%"
     category: Optional[str] = None       # e.g. performance, scale, revenue
 
@@ -265,9 +268,8 @@ class KnowledgeGraphResponse(BaseModel):
     skills: List[SkillEntity] = Field(default_factory=list)
     achievements: List[Achievement] = Field(default_factory=list)
     timeline: List[TimelineEvent] = Field(default_factory=list)
+    entities: List[SkillEntity] = Field(default_factory=list)
     llm_enhanced: bool = False
-    # Legacy field kept for backward compat — will be removed in next breaking version
-    entities: Optional[Dict[str, Any]] = None
 
 
 class ProfileImportResponse(BaseModel):

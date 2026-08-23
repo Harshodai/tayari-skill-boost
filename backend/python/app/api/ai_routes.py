@@ -456,6 +456,7 @@ async def export_json(payload: ExportRequest):
 
 
 @router.post("/api/v1/optimizer/optimize")
+@router.post("/api/optimizer/optimize")
 async def optimize_resume(payload: OptimizerRequest, user_id: str = Depends(get_current_user)):
     """AI-powered resume optimization with reflexion loop."""
     try:
@@ -546,6 +547,7 @@ async def optimize_resume_stream(
 
 
 @router.post("/api/v1/cover-letter/generate")
+@router.post("/api/cover-letter/generate")
 async def generate_cover_letter_endpoint(payload: CoverLetterInput, user_id: str = Depends(get_current_user)):
     """Generate tailored cover letter matching candidate experience."""
     try:

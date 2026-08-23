@@ -96,3 +96,7 @@ ds-bundle/
 
 # Playwright test artifacts
 /test-results/
+/e2e-screenshots/
+
+# Ad-hoc audit/evidence scratch output (status files, one-off reports)
+.ruthless-evidence/

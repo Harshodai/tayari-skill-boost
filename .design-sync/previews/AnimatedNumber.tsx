@@ -1,3 +1,34 @@
+// Static-capture polyfill: CountUp (which AnimatedNumber wraps) gates its
+// animation start on a real IntersectionObserver firing and then runs a
+// 2.5s wall-clock animation loop — nowhere near settled by the time the
+// headless screenshot fires. Firing the observer synchronously and running
+// a fake monotonically-jumping clock lets it complete within its first few
+// real frames instead. Preview-only, does not touch app source.
+if (typeof window !== 'undefined') {
+  class ImmediateIntersectionObserver implements IntersectionObserver {
+    readonly root = null;
+    readonly rootMargin = '';
+    readonly thresholds: ReadonlyArray<number> = [];
+    constructor(private cb: IntersectionObserverCallback) {}
+    observe(target: Element) {
+      this.cb([{ isIntersecting: true, target, intersectionRatio: 1 } as IntersectionObserverEntry], this);
+    }
+    unobserve() {}
+    disconnect() {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  }
+  // @ts-expect-error preview-only override
+  window.IntersectionObserver = ImmediateIntersectionObserver;
+
+  let fakeNow = Date.now();
+  Date.now = () => {
+    fakeNow += 200;
+    return fakeNow;
+  };
+}
+
 import { AnimatedNumber } from '@/components/ui/count-up';
 
 export function AtsScore() {

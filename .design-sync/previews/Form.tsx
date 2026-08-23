@@ -60,11 +60,11 @@ export function WithValidationErrors() {
   const form = useForm<JobFormValues>({
     resolver: zodResolver(jobSchema),
     defaultValues: { title: '', company: '' },
-    mode: 'onChange',
   });
 
   React.useEffect(() => {
-    form.trigger();
+    form.setError('title', { type: 'manual', message: 'Job title is required' });
+    form.setError('company', { type: 'manual', message: 'Company is required' });
   }, [form]);
 
   return (

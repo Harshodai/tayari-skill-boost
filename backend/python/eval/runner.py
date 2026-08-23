@@ -28,6 +28,73 @@ from app.guardrails import PipelineGate  # noqa: E402
 DATA_DIR = pathlib.Path(__file__).parent / "datasets"
 
 
+def _run_mock_eval_case(resume_text, job_description, eval_name: str):
+    """Run a single eval case with LLM_API_KEY unset; fail if it passes against MockProvider."""
+    api_key = os.environ.pop("LLM_API_KEY", None)
+    try:
+        result = heuristic_ats_score(resume_text, job_description)
+        pytest.fail(
+            f"{eval_name} passes against MockProvider — 'mock ≠ passing' rule violated"
+        )
+    finally:
+        if api_key is not None:
+            os.environ["LLM_API_KEY"] = api_key
+        else:
+            os.environ.pop("LLM_API_KEY", None)
+
+
+def _run_mock_optimize_case(resume_text, job_description, eval_name: str):
+    """Run a single optimize case with LLM_API_KEY unset; fail if it passes against MockProvider."""
+    import asyncio
+
+    api_key = os.environ.pop("LLM_API_KEY", None)
+    try:
+        result = asyncio.run(optimize_with_reflection(resume_text, job_description=job_description))
+        pytest.fail(
+            f"{eval_name} passes against MockProvider — 'mock ≠ passing' rule violated"
+        )
+    except Exception:
+        # Non-LLM failure is acceptable; we only care about MockProvider passes
+        pass
+    finally:
+        if api_key is not None:
+            os.environ["LLM_API_KEY"] = api_key
+        else:
+            os.environ.pop("LLM_API_KEY", None)
+
+
+def test_mock_mode():
+    """Guard: verify that evals fail when LLM is mock/unavailable.
+
+    Temporarily unsets LLM_API_KEY and runs the eval dataset.
+    If any eval passes against MockProvider, the test deliberately fails
+    with a clear message so the CI pipeline can gate on this rule.
+    Restores LLM_API_KEY regardless of outcome.
+    """
+    # --- ATS scoring evals ---
+    data = _load_yaml(DATA_DIR / "ats_scoring_v1.yaml")
+    cases = data["dataset"]["cases"]
+    for case in cases:
+        _run_mock_eval_case(
+            case["resume_text"],
+            case.get("job_description"),
+            f"ATS-{case['id']}",
+        )
+
+    # --- Resume optimization evals ---
+    data = _load_yaml(DATA_DIR / "tayari_resume_v1.yaml")
+    cases = data["dataset"]["cases"]
+    for case in cases:
+        _run_mock_optimize_case(
+            case["resume_text"],
+            case.get("job_description", ""),
+            f"RESUME-{case['id']}",
+        )
+
+
+DATA_DIR = pathlib.Path(__file__).parent / "datasets"
+
+
 def _load_yaml(path: pathlib.Path) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)

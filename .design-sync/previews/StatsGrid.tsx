@@ -3,7 +3,7 @@ import { StatsCard, StatsGrid } from '@/components/ui/stats-card';
 
 export function FourColumns() {
   return (
-    <div style={{ width: 900 }}>
+    <div style={{ width: '100%', maxWidth: 900 }}>
       <StatsGrid columns={4}>
         <StatsCard
           label="Applications Sent"
@@ -72,7 +72,7 @@ export function TwoColumns() {
 
 export function LoadingState() {
   return (
-    <div style={{ width: 900 }}>
+    <div style={{ width: '100%', maxWidth: 900 }}>
       <StatsGrid columns={4}>
         <StatsCard label="Applications Sent" value={24} isLoading />
         <StatsCard label="ATS Avg. Score" value="87%" isLoading />

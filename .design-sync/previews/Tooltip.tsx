@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 export function IconActionTooltips() {
   return (
     <TooltipProvider>
-      <div style={{ display: 'flex', gap: 24, paddingTop: 24 }}>
+      <div style={{ display: 'flex', gap: 72, paddingTop: 40, paddingLeft: 8 }}>
         <Tooltip defaultOpen>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Save job">

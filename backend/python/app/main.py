@@ -79,7 +79,6 @@ from app.guardrails import PipelineGate
 from app.telemetry import stage_complete, stage_fail
 from app.services.llm_service import active_engine, llm_complete, llm_json, LLMNotConfiguredError
 from app.services.one_shot_engine import OneShotRequest
-from app.services.cover_letter import CoverLetterGenerator
 from app.services.communication import CommunicationGenerator
 from app.services.interview_ai import InterviewPrepGenerator
 from app.services.knowledge_graph import KnowledgeGraphExtractor
@@ -224,9 +223,6 @@ from app.routes import health, ats
 from app.routes.ats import AnalyzeRequest
 from app.api.ai_routes import (
     router as ai_router,
-    _validate_public_url,
-    OptimizerRequest,
-    _transition_payload,
 )
 from app.api.adaptations_routes import adaptations_router
 
@@ -326,49 +322,6 @@ async def export_json(
 # ---------------------------------------------------------------------------
 # NEW: Optimizer, Deep ATS, Job Search, Auto-Pilot, DOCX Export
 # ---------------------------------------------------------------------------
-
-
-@app.post("/api/v1/optimizer/optimize")
-async def optimize_resume(payload: OptimizerRequest):
-    """AI-powered resume optimization with reflexion loop."""
-    try:
-        transition = _transition_payload(payload)
-        if payload.jd_url:
-            # ponytail: SSRF guard — run the same public-URL validation as the
-            # job-descriptions/import path before the scraper sees the URL; the
-            # scraper additionally pins the resolved IP and re-validates every
-            # redirect hop (optimizer.scrape_jd_url -> _resolve_and_validate_url
-            # + BrowserOperator.navigate(validate_redirects=True)).
-            safe_url = _validate_public_url(payload.jd_url)
-            result = await optimizer.optimize_resume_with_options(
-                resume_text=payload.resume_text,
-                jd_text=payload.job_description or "",
-                jd_url=safe_url,
-                target_role=payload.target_role,
-                custom_instructions=payload.custom_instructions or "",
-                transition=transition,
-            )
-        else:
-            result = await optimizer.optimize_with_reflection(
-                payload.resume_text,
-                job_description=payload.job_description,
-                target_role=payload.target_role,
-                custom_instructions=payload.custom_instructions,
-                transition=transition,
-            )
-        if transition:
-            result["transition_mode"] = transition["transition_type"]
-        return result
-
-        return result
-    except LLMNotConfiguredError as exc:
-        logger.error("optimizer/optimize: LLM not configured/available: %s", exc)
-        return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("optimizer/optimize failed: %s", exc)
-        raise HTTPException(status_code=502, detail="Optimization failed") from exc
 
 
 @app.post("/api/v1/optimize/stream")
@@ -591,33 +544,6 @@ async def export_docx(payload: DocxExportRequest):
     except Exception as exc:
         logger.error("export/docx failed: %s", exc)
         raise HTTPException(status_code=500, detail="DOCX export failed") from exc
-
-
-class CoverLetterRequest(BaseModel):
-    resume_text: str
-    job_title: str
-    company: str
-    job_description: str
-    tone: Optional[str] = "formal"
-    personal_notes: Optional[str] = ""
-
-
-@app.post("/api/v1/cover-letter/generate")
-async def cover_letter_generate(payload: CoverLetterRequest):
-    """Generate a structured, resume-aware, culture-matched cover letter."""
-    try:
-        result = await CoverLetterGenerator.generate(
-            payload.resume_text,
-            payload.job_description,
-            payload.company,
-            payload.job_title,
-            tone=payload.tone or "formal",
-            personal_notes=payload.personal_notes or "",
-        )
-        return result
-    except Exception as exc:
-        logger.error("cover-letter/generate failed: %s", exc)
-        raise HTTPException(status_code=502, detail="Cover letter generation failed") from exc
 
 
 class LinkedInAnalyzeRequest(BaseModel):

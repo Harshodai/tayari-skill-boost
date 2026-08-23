@@ -45,7 +45,7 @@ const asyncNoop = async () => {};
 
 export function TwoColumnGrid() {
   return (
-    <div style={{ width: 780 }}>
+    <div style={{ width: '100%', maxWidth: 780 }}>
       <JobCardGrid columns={2}>
         {jobs.slice(0, 2).map((job) => (
           <JobCard key={job.id} job={job} onSave={noop} onApply={asyncNoop} onView={noop} />
@@ -57,7 +57,7 @@ export function TwoColumnGrid() {
 
 export function ThreeColumnGrid() {
   return (
-    <div style={{ width: 1100 }}>
+    <div style={{ width: '100%', maxWidth: 1100 }}>
       <JobCardGrid columns={3}>
         {jobs.map((job) => (
           <JobCard key={job.id} job={job} onSave={noop} onApply={asyncNoop} onView={noop} />

@@ -7,7 +7,16 @@ require their own explicit environment flag in every environment.
 from __future__ import annotations
 
 import os
-from enum import StrEnum
+from enum import Enum
+
+# StrEnum was added in Python 3.11; provide a fallback for 3.9+ that creates
+# an enum where members are also strings (inheriting from both str and Enum).
+class StrEnum(str, Enum):
+    """String enum — members are also valid strings."""
+    # Enum.__str__ defaults to "ClassName.MEMBER_NAME"; restore plain str
+    # behavior (the actual value) so str(capability)/f"{capability}" match
+    # real 3.11 StrEnum instead of leaking the enum repr into API responses.
+    __str__ = str.__str__
 
 
 class Capability(StrEnum):

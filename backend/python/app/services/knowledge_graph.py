@@ -75,6 +75,23 @@ class KnowledgeGraphExtractor:
         extra_tech = [t for t in set(tech_pattern.findall(resume_text)) if len(t) > 1 and t.lower() not in skills]
         skills = list(dict.fromkeys(skills + [t.lower() for t in extra_tech]))[:20]
 
+        # Convert skill names to SkillEntity objects
+        skill_entities: List[SkillEntity] = []
+        for s in skills:
+            # Determine type based on skill name heuristics
+            skill_type = "tool"
+            if s in {"python", "javascript", "typescript", "java", "go", "rust", "c++", "c#", "ruby", "php", "swift", "kotlin", "scala", "perl", "r", "matlab", "sql", "bash", "powershell"}:
+                skill_type = "programming_language"
+            elif s in {"react", "vue", "angular", "svelte", "next.js", "nuxt", "gatsby", "node.js", "express", "django", "flask", "fastapi", "spring", "rails", "laravel"}:
+                skill_type = "framework"
+            elif s in {"kubernetes", "docker", "terraform", "ansible", "puppet", "chef", "jenkins", "github actions", "gitlab ci", "circleci", "travisci", "teamcity", "bamboo", "postgresql", "mysql", "mariadb", "mongodb", "dynamodb", "cassandra", "couchbase", "redis", "memcached", "elasticsearch", "solr", "kafka", "rabbitmq", "activemq", "sqs", "sns", "graphql", "rest api", "grpc", "soap", "websocket", "microservices", "soa", "serverless", "lambda", "functions", "faas", "edge computing"}:
+                skill_type = "tool"
+            skill_entities.append(SkillEntity(
+                name=s,
+                type=skill_type,
+                confidence=1.0 if s in KnowledgeGraphExtractor.COMMON_SKILLS else 0.7,
+            ))
+
         # Company extraction (title-case words near "at" or "worked at")
         company_pattern = re.compile(r'(?:at|worked at|with|for)\s+([A-Z][A-Za-z0-9&\s]+?)(?:,|\.|\(|\n|$)', re.IGNORECASE)
         companies = [m.strip() for m in company_pattern.findall(resume_text) if len(m.strip()) > 2][:10]
@@ -97,25 +114,31 @@ class KnowledgeGraphExtractor:
                 action = action_match.group(0) if action_match else ""
                 tech_match = re.search(r'\b(?:using|with|via)\s+([A-Za-z0-9\s]+?)(?:,|\.|\band\b|$)', line, re.IGNORECASE)
                 technology = tech_match.group(1).strip() if tech_match else ""
-                achievements.append({
-                    "text": line[:200],
-                    "metric": metric,
-                    "action": action,
-                    "technology": technology,
-                })
+                # Map to Achievement schema: description = synthesized text, quantified = whether metric present
+                desc = line[:200]
+                achievement = Achievement(
+                    description=desc,
+                    quantified=bool(metric),
+                    impact_metric=metric if metric else None,
+                    category=technology if technology else None,
+                )
+                achievements.append(achievement)
             if len(achievements) >= 10:
                 break
 
-        # Timeline extraction (dates)
-        date_pattern = re.compile(r'(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)?\s*\d{4}\b)\s*[-–—]\s*(\b(?:Present|Current|Now|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)?\s*\d{4}\b)', re.IGNORECASE)
+# Timeline extraction (dates)
+        date_pattern = re.compile(r'(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)?\s*\d{4}\b)\s*[-–—]\s*(\b(?:Present|Current|Now|Jan|Feb|Mar|Apr|May|June|July|August|September|October|November|December)?\s*\d{4}\b)', re.IGNORECASE)
         timeline = []
         for match in date_pattern.finditer(resume_text):
             start = match.group(1)
             end = match.group(2)
-            # Keys match schemas.TimelineEvent (company/title are required
-            # there); the regex has no way to attribute a date range to a
-            # specific employer, so those stay blank.
-            timeline.append({"company": "", "title": "", "start_date": start, "end_date": end})
+            timeline.append(TimelineEvent(
+                company="",
+                title="",
+                start_date=start,
+                end_date=end,
+                description=None,
+            ))
 
         # Education
         edu_pattern = re.compile(r'\b(BS|BA|MS|MA|MBA|PhD|MD|JD|B\.S\.|B\.A\.|M\.S\.|M\.A\.|M\.B\.A\.|Ph\.D\.)\b.*?(?:in|of)\s+([A-Za-z\s]+?)(?:,|\.|\n|$)', re.IGNORECASE)

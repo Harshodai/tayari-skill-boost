@@ -162,19 +162,11 @@ func (s *Server) handleOneStopProxyGET(endpoint string) http.HandlerFunc {
 		}
 		result, err := s.AI.GetJSONWithHeaders(endpoint, headers)
 		if err != nil {
-			log.Printf("[OneStopProxyGET] AI service error for %s: %v", endpoint, err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadGateway)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"error":    "ai_service_unavailable",
-				"endpoint": endpoint,
-			})
+			s.respondJSON(w, http.StatusBadGateway, map[string]string{"error": "ai_service_unavailable"})
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(result)
+		s.respondJSON(w, http.StatusOK, result)
 	}
 }
 
@@ -285,18 +277,10 @@ func (s *Server) handleOneStopProxy(endpoint string) http.HandlerFunc {
 		headers := s.getXUserHeaders(r)
 		result, err := s.AI.PostJSONWithHeaders(endpoint, payload, headers)
 		if err != nil {
-			log.Printf("[OneStopProxy] AI service error for %s: %v", endpoint, err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadGateway)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"error":    "ai_service_unavailable",
-				"endpoint": endpoint,
-			})
+			s.respondJSON(w, http.StatusBadGateway, map[string]string{"error": "ai_service_unavailable"})
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(result)
+		s.respondJSON(w, http.StatusOK, result)
 	}
 }

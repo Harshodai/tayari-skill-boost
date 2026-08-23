@@ -1,3 +1,38 @@
+// Static-capture polyfill: CountUp gates its animation start on a real
+// IntersectionObserver firing, which can land after the headless screenshot
+// — leaving the number frozen at its start value. Firing synchronously here
+// settles it before paint — preview-only, does not touch app source.
+if (typeof window !== 'undefined') {
+  class ImmediateIntersectionObserver implements IntersectionObserver {
+    readonly root = null;
+    readonly rootMargin = '';
+    readonly thresholds: ReadonlyArray<number> = [];
+    constructor(private cb: IntersectionObserverCallback) {}
+    observe(target: Element) {
+      this.cb([{ isIntersecting: true, target, intersectionRatio: 1 } as IntersectionObserverEntry], this);
+    }
+    unobserve() {}
+    disconnect() {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  }
+  // @ts-expect-error preview-only override
+  window.IntersectionObserver = ImmediateIntersectionObserver;
+
+  // The count-up animation loop measures real elapsed wall-clock time via
+  // Date.now() across successive requestAnimationFrame ticks (1.5-2.5s to
+  // finish) — nowhere near settled by the time the headless screenshot
+  // fires. A monotonically-jumping fake clock lets each tick see large
+  // elapsed deltas immediately, so the animation completes within its
+  // first few real frames instead of its real multi-second duration.
+  let fakeNow = Date.now();
+  Date.now = () => {
+    fakeNow += 200;
+    return fakeNow;
+  };
+}
+
 import { CountUp, AnimatedNumber } from '@/components/ui/count-up';
 
 export function JobsMatched() {

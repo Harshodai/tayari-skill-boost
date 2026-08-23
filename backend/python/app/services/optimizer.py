@@ -15,7 +15,7 @@ import re
 import uuid
 
 from app.services.ats_engine import (
-    heuristic_ats_score,
+    semantic_ats_score,
     semantic_similarity_score,
     categorize_jd_keywords,
     AI_PHRASE_BLACKLIST,
@@ -230,6 +230,11 @@ async def _humanize_pass(optimized_text: str) -> str:
         )
         if result and len(result) > 200:
             return result.strip()
+    except LLMNotConfiguredError:
+        # Never silently degrade — an unconfigured LLM must fail the whole
+        # request (route-level 503), not quietly ship unhumanized text as if
+        # nothing were wrong.
+        raise
     except Exception as exc:
         logger.warning("Humanization pass failed: %s", exc)
     return optimized_text  # Fall back to pre-humanization text
@@ -237,6 +242,7 @@ async def _humanize_pass(optimized_text: str) -> str:
 
 from app.schemas import OptimizedResumePayloadSchema
 from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LongContextClient
+from app.services.llm_service import LLMNotConfiguredError
 
 
 def _parse_marked_output(raw: str):
@@ -532,8 +538,8 @@ async def optimize_with_reflection(
         + transition_rules
     )
 
-    # Pre-compute heuristic score for fallback
-    heuristic_before = heuristic_ats_score(resume_text, jd)
+    # Pre-compute semantic score for fallback
+    semantic_before = semantic_ats_score(resume_text, jd)
     try:
         res_obj: OptimizedResumePayloadSchema = await LongContextClient().map_reduce_json(
             resume_text,
@@ -550,15 +556,20 @@ async def optimize_with_reflection(
             "keywords_added": res_obj.keywords_added,
             "estimated_score": res_obj.estimated_score,
         }
+    except LLMNotConfiguredError:
+        # Never silently degrade — an unconfigured LLM must fail the whole
+        # request (route-level 503), not quietly ship the untouched input
+        # resume back as if it had been "optimized".
+        raise
     except Exception as exc:
         logger.warning("Primary optimization LLM call failed: %s. Falling back to input resume.", exc)
         optimized = resume_text
         meta = {
             "changes": ["Fallback: Optimization LLM call encountered error"],
             "keywords_added": [],
-            "estimated_score": heuristic_before["score"],
+            "estimated_score": semantic_before["score"],
         }
-    heuristic = heuristic_ats_score(optimized, jd)
+    heuristic = semantic_ats_score(optimized, jd)
     alignment_report = validate_master_alignment(optimized, resume_text)
     passes = 1
 
@@ -599,7 +610,7 @@ async def optimize_with_reflection(
                 "keywords_added": res_obj2.keywords_added,
                 "estimated_score": res_obj2.estimated_score,
             }
-            heuristic2 = heuristic_ats_score(optimized2, jd)
+            heuristic2 = semantic_ats_score(optimized2, jd)
             alignment_report2 = validate_master_alignment(optimized2, resume_text)
             passes = 2
 
@@ -621,7 +632,7 @@ async def optimize_with_reflection(
     optimized = await _humanize_pass(optimized)
 
     # ---- Recalculate on final cleaned text ------------------------------
-    heuristic = heuristic_ats_score(optimized, jd)
+    heuristic = semantic_ats_score(optimized, jd)
     alignment_report = validate_master_alignment(optimized, resume_text)
     metric_suggestions = generate_metric_suggestions(optimized)
     injectable, non_injectable = analyze_keyword_gaps(optimized, resume_text, jd or "")

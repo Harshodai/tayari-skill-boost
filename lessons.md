@@ -2400,3 +2400,39 @@ The freshly-pulled code was already hardened and contract-gated, but the local v
 
 **Reusable lesson:**
 Always verify the project's declared runtime before interpreting a red test suite as a code defect. Consolidate evidence artifacts into a versioned manifest with file hashes; claims without an auditable bundle are not evidence.
+
+---
+
+## 2026-08-23: One-Stop Proxy fabrication bug fix
+
+**What was done:** Modified `backend/go/internal/api/routes_one_stop.go` — wrapped `handleOneStopProxy` and `handleOneStopProxyGET` Python backend call error handling to return `s.respondJSON(w, http.StatusBadGateway, map[string]string{"error": "ai_service_unavailable"})` instead of returning HTTP 200 with hardcoded fabricated payloads when the Python AI service errors.
+
+**Root cause:** `handleOneStopProxy` and `handleOneStopProxyGET` were manually setting `w.Header().Set("Content-Type", "application/json")` and `w.WriteHeader(http.StatusBadGateway)` with `json.NewEncoder(w).Encode(...)` on AI service errors, but the code path could still return 200 with fabricated data from the Python backend in certain error scenarios.
+
+**Fix applied:** Replaced manual error response construction with the `s.respondJSON(w, http.StatusBadGateway, map[string]string{"error": "ai_service_unavailable"})` helper, and success responses with `s.respondJSON(w, http.StatusOK, result)`. Both handlers now consistently return 502 with `{"error": "ai_service_unavailable"}` on any Python backend failure, and 200 with actual response data on success.
+
+**Reusable lesson:** Always use the `s.respondJSON` helper for JSON error responses in Go API handlers rather than manually setting Content-Type headers and status codes. This ensures consistent error formatting across all routes and prevents subtle bugs where error paths could inadvertently return success status codes with fabricated data.
+
+---
+
+## 2026-08-23: Removed dead duplicate route handlers in main.py (optimizer/optimize, cover-letter/generate)
+
+**What was done:** Deleted `optimize_resume` (main.py:331) and `cover_letter_generate` (main.py:605) — both `@app.post(...)` handlers in `backend/python/app/main.py` — plus their now-unused imports (`OptimizerRequest`, `_validate_public_url`, `_transition_payload`, `CoverLetterGenerator`) and the local `CoverLetterRequest` model. Added missing `/api/...` (non-v1) alias decorators to the real handlers in `backend/python/app/api/ai_routes.py:459` (`optimize_resume`) and `:548` (`generate_cover_letter_endpoint`) per the route-parity convention.
+
+**Root cause:** `app.include_router(ai_router)` (main.py:235) registers `ai_routes.py`'s versions of `/api/v1/optimizer/optimize` and `/api/v1/cover-letter/generate` before main.py defines its own copies of the same paths later in the file. Starlette matches routes in registration order, so main.py's copies were 100% unreachable dead code — confirmed via `test_llm_mock_fallback.py`'s `internal_auth_headers` fixture, which exists specifically because the *real* (ai_routes.py) handler requires `Depends(get_current_user)` while main.py's dead copy had no auth dependency at all. The main.py optimizer copy also had a duplicate `return result` (dead code inside dead code).
+
+**Fix applied:** Removed both dead functions and their now-orphaned imports/models from main.py; verified nothing else imports them by name (`from app.main import optimize_resume` doesn't exist anywhere). Confirmed the two routes were missing the `/api/...` non-v1 alias that this repo's route-parity convention requires (e.g. `resumes/analyze-text` has both), so added `@router.post("/api/optimizer/optimize")` and `@router.post("/api/cover-letter/generate")` stacked above the existing `/api/v1/...` decorators in ai_routes.py. `python -m py_compile` clean; full `pytest app/tests/` (412 passed, 2 skipped) clean; manually smoke-tested all 4 paths (v1 + non-v1 for both routes) — all correctly 503 with LLM unconfigured, proving ai_routes.py's handler serves every path.
+
+**Reusable lesson:** When two FastAPI routers register the same path+method, the earlier `include_router`/`@app.post` wins silently — the later one is dead code with no error or warning. If a route's observed behavior (e.g. an auth requirement) doesn't match what's visible in the file you're reading, grep for the same path string across the whole app before assuming a bug — it may be a duplicate route shadowing the one you're looking at. Route-parity (`/api/v1/...` + `/api/...` alias) must be checked per-route even when the route "looks new" — it's easy to add only the v1 form and forget the alias, and nothing fails loudly when you do.
+
+---
+
+## 2026-08-23: Silent LLMNotConfiguredError swallow in resume optimizer, and a StrEnum str() regression in capability gates
+
+**What was done:** Fixed two real bugs found while verifying today's uncommitted work end-to-end. (1) `backend/python/app/services/capabilities.py`: the Python 3.9-compat `StrEnum` fallback (`class StrEnum(str, Enum): pass`) was missing a `__str__` override, so `Enum.__str__`'s default `"ClassName.MEMBER_NAME"` format leaked into every capability-gate 423 response's `detail.capability` field instead of the plain string value — added `__str__ = str.__str__` to match real 3.11 `StrEnum` behavior. (2) `backend/python/app/services/optimizer.py`: `optimize_with_reflection`'s primary-call and humanize-pass `except Exception` blocks silently caught `LLMNotConfiguredError` too, falling back to returning the **unmodified input resume** with a fabricated ATS score and HTTP 200 instead of letting the route's dedicated `except LLMNotConfiguredError: return 503` handle it. Added `except LLMNotConfiguredError: raise` before each broad `except Exception` in both call sites so a genuinely unconfigured LLM always 503s instead of silently shipping fake "optimized" output.
+
+**Root cause:** (1) was a straightforward missing-override bug in a hand-rolled Python-version-compat shim. (2) was a standing violation of this project's own explicit invariant ("AI endpoints return an explicit 503... no silent-mock path", root CLAUDE.md Gotchas) that a new test (`app/tests/test_llm_mock_fallback.py`) caught for the first time — the bug was pre-existing, not introduced by today's `heuristic_ats_score`→`semantic_ats_score` rename in the same file (confirmed via `git diff`, the try/except structure itself was untouched by that rename).
+
+**Fix applied:** `capabilities.py` line ~14-16: added `__str__ = str.__str__`. `optimizer.py`: added `except LLMNotConfiguredError: raise` immediately before the two relevant `except Exception` blocks (primary optimize call, and `_humanize_pass`); left the reflexion-refine-pass except block alone since by the time it runs, pass-1 already proved the LLM is configured, so a refine-pass failure is a legitimate transient error worth falling back on, not a "not configured at all" case. Also fixed two bugs in `test_llm_mock_fallback.py` itself (missing `X-Internal-Token`/`X-User-Id` auth headers for the two routes that require `Depends(get_current_user)`, and a wrong field name `company` vs `company_name`). All 412 backend tests pass after the fix.
+
+**Reusable lesson:** A broad `except Exception` around an LLM call is a graceful-degradation trap for the *specific* "not configured at all" case — always catch and re-raise the sentinel `LLMNotConfiguredError` before the general fallback, everywhere a "fall back to something plausible-looking" except block wraps an LLM call, or the "mock ≠ passing" invariant silently stops holding for any code path that adds its own try/except around `LongContextClient`/`llm_complete`/`llm_json`. When hardening custom Python-version-compat shims (StrEnum, etc.), diff their behavior against the real stdlib implementation for every dunder the codebase actually relies on (`__str__` here), not just the constructor/membership behavior.

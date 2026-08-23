@@ -10,6 +10,7 @@ from collections import Counter
 from typing import Any
 
 from app.guardrails.pii_detector import check_pii
+from app.services.embedding_service import embed_texts, cosine_similarity
 
 logger = logging.getLogger(__name__)
 
@@ -170,20 +171,16 @@ def _tfidf_cosine_similarity(text_a: str, text_b: str) -> float:
 
 
 def semantic_similarity_score(resume_text: str, job_description: str) -> dict:
-    """Compute semantic similarity between resume and JD using TF-IDF cosine similarity.
-    Returns a dict with score (0-100 int), raw_similarity (0.0-1.0), and interpretation.
+    """Compute semantic similarity between resume and JD using embedding similarity.
+    
+    Uses embedding-based similarity (BAAI/bge-small-en-v1.5 via fastembed) for
+    true semantic understanding. Falls back to TF-IDF cosine similarity if embeddings
+    are unavailable.
+    
+    Returns a dict with score (0-100 int), raw_similarity (-1.0 to 1.0), and interpretation.
     """
-    raw = _tfidf_cosine_similarity(resume_text, job_description)
-    score = round(raw * 100)
-    if score >= 75:
-        interp = "Strong semantic match — resume language closely mirrors the JD"
-    elif score >= 50:
-        interp = "Moderate semantic match — some alignment but gaps in terminology"
-    elif score >= 30:
-        interp = "Weak semantic match — resume language diverges from JD significantly"
-    else:
-        interp = "Very low semantic match — major terminology mismatch with target role"
-    return {"score": score, "raw_similarity": raw, "interpretation": interp}
+    result = semantic_ats_score(resume_text, job_description)
+    return result
 
 
 def categorize_jd_keywords(job_description: str) -> dict:
@@ -426,6 +423,55 @@ def per_ats_estimate(checks: list, keyword_match_pct: int | None) -> dict:
         "confidence": f"±{band}",
         "plateau_note": plateau,
     }
+
+
+def semantic_ats_score(resume_text: str, job_description: str) -> dict:
+    """Compute semantic ATS score using embedding-based similarity.
+    
+    Uses sentence-transformers/BGE embeddings to compute true semantic
+    similarity between resume and job description, making it much harder
+    to game than the heuristic keyword-based scorer.
+    
+    Returns dict with score (0-100 int), raw_similarity (-1.0 to 1.0),
+    and interpretation.
+    """
+    # Ensure inputs are strings
+    resume_text = resume_text or ""
+    job_description = job_description or ""
+    
+    # Generate embeddings for both texts
+    vectors = embed_texts([resume_text, job_description])
+    if vectors is None or len(vectors) < 2:
+        # Fall back to TF-IDF semantic similarity
+        raw = _tfidf_cosine_similarity(resume_text, job_description)
+        score = round(raw * 100)
+        if score >= 75:
+            interp = "Strong semantic match — resume language closely mirrors the JD"
+        elif score >= 50:
+            interp = "Moderate semantic match — some alignment but gaps in terminology"
+        elif score >= 30:
+            interp = "Weak semantic match — resume language diverges from JD significantly"
+        else:
+            interp = "Very low semantic match — major terminology mismatch with target role"
+        return {"score": score, "raw_similarity": raw, "interpretation": interp, "method": "tfidf_fallback"}
+    
+    resume_vec = vectors[0]
+    jd_vec = vectors[1]
+    
+    raw_sim = cosine_similarity(resume_vec, jd_vec)
+    # Map cosine similarity [-1, 1] to score [0, 100]
+    score = round((raw_sim + 1) / 2 * 100)
+    
+    if score >= 80:
+        interp = "Strong semantic match — resume content closely aligns with job requirements"
+    elif score >= 60:
+        interp = "Moderate semantic match — some relevant alignment but significant gaps"
+    elif score >= 40:
+        interp = "Weak semantic match — resume language diverges from JD; major rework needed"
+    else:
+        interp = "Very low semantic match — resume is not well-suited for this job description"
+    
+    return {"score": score, "raw_similarity": raw_sim, "interpretation": interp, "method": "embedding"}
 
 
 # AI Phrase Blacklist - Words and phrases that sound AI-generated or cliché
