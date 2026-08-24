@@ -1,8 +1,8 @@
 # JobTayari Deployment Readiness Report
 
-**Review date:** 25 August 2026  
-**Repository:** `Harshodai/tayari-skill-boost`  
-**Reviewed release:** `7a988b3030ba9190452f7226b80b910ca4bc7793`  
+**Review date:** 25 August 2026
+**Repository:** `Harshodai/tayari-skill-boost`
+**Reviewed release:** `7a988b3030ba9190452f7226b80b910ca4bc7793`
 **Decision:** **NOT PRODUCTION READY**
 
 ## Executive summary
