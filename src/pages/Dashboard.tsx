@@ -100,11 +100,11 @@ const Dashboard = () => {
       };
     }
     return {
-      title: "Apply with one click",
-      desc: `Let AutoPilot run Optimizer → Cover Letter → Apply for your ${savedJobs.length} saved job${savedJobs.length === 1 ? "" : "s"}.`,
-      cta: "Run AutoPilot",
-      to: "/jobs/autopilot",
-      icon: Zap,
+      title: "Review your next application",
+      desc: `Open the review queue for your ${savedJobs.length} saved job${savedJobs.length === 1 ? "" : "s"}. Inspect the generated materials before any external action.`,
+      cta: "Open Review Queue",
+      to: "/review-queue",
+      icon: CheckCircle2,
     };
   })();
 
@@ -227,32 +227,29 @@ const Dashboard = () => {
             label="Resume Score"
             value={latestScore !== null ? `${latestScore}%` : "—"}
             icon={<FileText className="w-4 h-4" />}
-            trend={latestScore !== null ? { value: 12, direction: "up", label: "vs last scan" } : undefined}
-            sparklineData={analyses.length > 0 ? [...analyses.map(a => a.overall_score).reverse()] : [45, 55, 63, 72, latestScore || 0]}
+            description={analyses.length > 1 ? `${Math.abs(analyses[0].overall_score - analyses[1].overall_score)} pts vs previous scan` : analyses.length === 1 ? "Latest recorded scan" : "No recorded scan"}
+            sparklineData={analyses.length > 1 ? [...analyses.map(a => a.overall_score).reverse()] : undefined}
             colorScheme={latestScore !== null && latestScore >= 80 ? "success" : latestScore !== null && latestScore >= 60 ? "warning" : "default"}
           />
           <StatsCard
             label="Saved Jobs"
             value={savedJobs.length}
             icon={<Briefcase className="w-4 h-4" />}
-            trend={{ value: 8, direction: "up", label: "vs last week" }}
-            sparklineData={[2, 3, 5, 4, 7, 6, savedJobs.length]}
+            description={savedJobs.length > 0 ? "Saved in your workspace" : "No saved jobs yet"}
             colorScheme="primary"
           />
           <StatsCard
             label="Practice Sessions"
             value={interviews.length}
             icon={<Mic className="w-4 h-4" />}
-            trend={interviews.length > 0 ? { value: 20, direction: "up", label: "practice run" } : undefined}
-            sparklineData={[0, 1, 1, 2, 2, interviews.length]}
+            description={interviews.length > 0 ? "Recorded practice sessions" : "No sessions yet"}
             colorScheme="default"
           />
           <StatsCard
             label="AutoPilot Runs"
             value={runs.length}
             icon={<Zap className="w-4 h-4" />}
-            trend={runs.length > 0 ? { value: 100, direction: "up", label: "agents active" } : { value: 0, direction: "neutral", label: "idle" }}
-            sparklineData={runs.length > 0 ? [0, 1, 2, runs.length] : [0, 0, 0, 0]}
+            description={runs.length > 0 ? "Recorded workspace runs" : "No recorded runs"}
             colorScheme={runs.length > 0 ? "success" : "default"}
           />
         </StatsGrid>
@@ -423,13 +420,13 @@ const Dashboard = () => {
               </CardDescription>
             </div>
             <Badge variant="secondary" className="text-xs">
-              8 Tools Active
+              Workspace tools
             </Badge>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { title: "Company Radar", desc: "15-min ATS career alerts", icon: Radar, to: "/radar" },
+                { title: "Company Radar", desc: "Review company signals", icon: Radar, to: "/radar" },
                 { title: "Voice Coach", desc: "WPM, filler & STAR feedback", icon: Mic, to: "/interview/voice-coach" },
                 { title: "Salary Negotiation", desc: "H1B benchmarks & scripts", icon: DollarSign, to: "/negotiation" },
                 { title: "Skill Gap Radar", desc: "Free resource mapping", icon: Target, to: "/skill-gap-radar" },

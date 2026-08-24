@@ -125,6 +125,10 @@ grep -q 'SMTP_HOST: ${SMTP_HOST:-}' docker-compose.aws.yml
 grep -q 'SMTP provider is not configured for production notification delivery' backend/python/app/services/notifications.py
 grep -q 'post-persistence billing debit failed' backend/python/app/services/submission_receipt.py
 grep -q 'LLM_PROVIDER=openrouter requires OPENROUTER_API_KEY' backend/python/app/services/llm_service.py
+# Production LLM runtime must not contain deterministic fabricated-output helpers.
+! grep -RIn --include='*.py' '_mock_text' backend/python/app >/dev/null 2>&1
+grep -q 'class MockProvider' backend/python/app/services/llm_service.py
+grep -q 'raise LLMNotConfiguredError' backend/python/app/services/llm_service.py
 test -f backend/python/app/tests/test_llm_provider_configuration.py
 grep -q 'billing database unavailable' backend/go/internal/billing/billing.go
 grep -q 'TestBilling_ProductionRequiresDurableStorage' backend/go/internal/billing/billing_test.go

@@ -120,3 +120,69 @@
 ## Current execution order
 
 The first implementation slice is **M1-01 through M1-06**. It closes the most dangerous exposure path before any product polish or cloud launch work. The next slice is **M2-01 through M2-05**, because a polished automation product that can submit without a server-side consent boundary is not safe to ship.
+
+
+## M7 — Competitive outperformance: nxtjob.ai and jobstep.io
+
+**Purpose:** Use the public strengths of nxtjob.ai and jobstep.io as a benchmark, while making JobTayari materially more trustworthy, evidence-driven, and end-to-end than either point of comparison. This is a product strategy and validation backlog, not a request to copy competitors’ branding, claims, or unverified outcome numbers.
+
+### Competitive benchmark captured on 2026-08-25
+
+| Competitor | Public strengths to match or learn from | JobTayari response and intended advantage |
+|---|---|---|
+| [nxtjob.ai][nxtjob-home] | Senior-professional positioning; a simple “job search strategy” narrative; hidden-market and decision-maker networking language; a nine-agent story spanning discovery, tailoring, networking, pitching, content, interviews, and negotiation; free-to-paid progression and coaching. | Keep JobTayari’s audience and launch scope honest, then expose the existing observable resume-to-interview chain. Use the knowledge graph and evidence-backed networking workflow to make recommendations explainable rather than presenting a large agent roster as proof of execution. Maintain candidate-controlled review and never auto-send outreach or submit applications without explicit authorization. |
+| [jobstep.io][jobstep-home] | Low-friction four-step funnel; visually clear resume score, job-match percentages, tailored resume and cover-letter workflow, centralized application dashboard; prominent trust, privacy, localization, reviews, and “start free” messaging. | Make JobTayari’s primary path equally legible: resume → fit analysis → tailor → review → track → interview. Outperform the single-score pattern with confidence bands, per-dimension evidence, anti-stuffing penalties, provenance, and an explicit explanation of what the system does not know. Surface the already-built guardrails, receipts, and human approval boundary in the product experience. |
+
+The competitor evidence above is based on public landing-page and pricing/homepage claims and must not be treated as independently verified performance evidence. NxtJob’s page publicly claims a senior-professional focus, hidden jobs, direct decision-maker access, nine specialized agents, and outcome-oriented interview messaging; its [pricing page][nxtjob-pricing] lists a free tier, a ₹15,000/month Nova tier, a coaching-oriented Signature Program, one-time purchase language, and a non-refundable policy. JobStep’s homepage publicly claims 120,000+ users, 689,231+ applications created, an average of 3x more replies, AI-scored job matching, and Swiss/GDPR/EU-data privacy positioning. Its direct `/en/pricing` URL returned 404 during review, so no exact JobStep price is recorded here. These claims require validation before they are used in product, pricing, or marketing decisions.
+
+### Work items
+
+- [ ] **M7-01 / P1 — Maintain a 90-day competitor scorecard.** Track nxtjob.ai, jobstep.io, Jobscan, Teal, Huntr, Simplify, and other relevant alternatives across onboarding time, resume analysis, job discovery, tailoring, tracker quality, networking, interview preparation, negotiation, privacy, approval boundaries, provenance, pricing, and evidence quality. Record page URL, capture date, observed behavior, and whether each item is a vendor claim or verified behavior.
+- [ ] **M7-02 / P1 — Match JobStep’s clarity without copying its unsupported outcome claims.** Define one primary JobTayari funnel with a four-to-six-step progress model and a single next action at each stage. The UI must show real backend state, loading/error/empty states, and no fabricated scores, names, company data, reviews, or conversion claims.
+- [ ] **M7-03 / P0 — Build the defensible trust-first scoring experience.** Replace the exposed single ATS number with structural score, semantic job fit, evidence strength, experience relevance, achievement quality, seniority alignment, keyword coverage, stuffing penalty, unsupported-claim penalty, confidence band, and human-readable rationale. Add adversarial tests for keyword stuffing, repeated job-description text, unsupported claims, prompt injection, and malformed provider output.
+- [ ] **M7-04 / P1 — Productize senior-career strategy without an “agent theater” dependency.** Add an evidence-backed target-market brief that explains recommended roles, companies, industries, decision-maker hypotheses, and reasons grounded in the user’s resume, target job, and graph evidence. The system must distinguish verified facts, inferred suggestions, and unknowns.
+- [ ] **M7-05 / P1 — Strengthen hidden-market discovery and referral intelligence.** Extend the existing tiered, circuit-breakered search and social graph into a reviewable workflow for company pages, referral paths, hiring-manager discovery, and unposted-opportunity hypotheses. Store source URLs, timestamps, confidence, and consent state; never imply that an unverified role or contact is real.
+- [ ] **M7-06 / P0 — Make networking assistance safer and more useful than competitor automation claims.** Generate personalized outreach drafts, follow-up sequences, and referral context, but require candidate review before every send. Add tests for prompt injection, wrong-recipient binding, duplicate sends, replayed approvals, rate limits, and unverifiable contact data.
+- [ ] **M7-07 / P1 — Connect interview and negotiation preparation to the same application record.** Every tailored application should carry its job description, resume version, evidence summary, interview preparation plan, follow-up tasks, and negotiation context into the reviewable application timeline. Measure whether this reduces repeated work and improves downstream interview readiness without claiming causal lift prematurely.
+- [ ] **M7-08 / P0 — Turn privacy and operational truth into a visible moat.** Publish and test provider provenance, data-retention behavior, self-hosted/local-LLM mode, deletion scope, browser-session cleanup, receipt verification, and candidate-controlled approval boundaries. The public experience must clearly distinguish verified evidence, candidate-confirmed information, illustrative fixtures, and unavailable data.
+- [ ] **M7-09 / P1 — Design a transparent free-to-paid experiment.** Benchmark JobStep’s “start free” funnel and NxtJob’s free-to-premium/coaching ladder, then propose JobTayari packaging based on actual infrastructure cost, user value, and privacy commitments. Do not copy pricing, scarcity, refund, or outcome language without product-owner and legal review.
+- [ ] **M7-10 / P1 — Establish a competitive proof dashboard.** Use synthetic and opt-in real-user cohorts to measure time to first useful result, resume-fact preservation, job-match precision, tailoring acceptance rate, unsupported-claim rate, keyword-stuffing rate, provenance coverage, review completion, application duplication rate, interview-prep completion, and verified downstream outcomes. Report confidence intervals and sample sizes; never turn a small sample into a universal “3x” claim.
+- [ ] **M7-11 / P2 — Clarify the JobTayari category narrative.** Test positioning that combines JobStep’s simple end-to-end funnel with NxtJob’s strategic senior-search orientation, but anchor the promise in JobTayari’s real differentiators: an observable resume-to-interview chain, evidence-backed skill graph, reflective optimization, tiered job discovery, guardrail-gated Apply Assist, candidate control, and self-hosted privacy.
+- [ ] **M7-12 / P1 — Add a release gate for competitor-derived claims.** Any public statement comparing JobTayari with nxtjob.ai or jobstep.io must include a dated source, claim classification, verification status, and owner. Marketing copy must not imply that JobTayari has higher response rates, better placement, more users, or superior provider quality until the corresponding evidence artifact exists.
+
+### M7 exit gate
+
+JobTayari should not claim to outperform either competitor until the primary funnel is demonstrably simpler, the scoring output is more transparent, the application workflow is safer and more observable, and a dated benchmark shows improvement on agreed metrics. The exit artifact must include the competitor scorecard, product comparison, synthetic evaluation results, opt-in outcome methodology, privacy/truthfulness review, and a list of claims that remain unverified.
+
+[nxtjob-home]: https://nxtjob.ai/
+[nxtjob-pricing]: https://nxtjob.ai/pricing
+[jobstep-home]: https://www.jobstep.io/en
+[jobstep-pricing]: https://www.jobstep.io/en/pricing
+
+
+## M8 — Profitability validation and paid-pilot execution
+
+**Purpose:** Convert the profitability thesis into measured evidence before expanding product scope, infrastructure spend, or acquisition spend. The current conclusion is **potentially profitable, not yet proven profitable**.
+
+- [ ] **M8-01 / P0 — Instrument the paid funnel.** Measure visitor → signup → first useful result → first tailored application → paid conversion, segmented by acquisition channel and product entry point.
+- [ ] **M8-02 / P0 — Measure contribution margin by workflow.** Attribute LLM tokens, provider calls, scraping, browser minutes, storage, email, payment fees, and support time to resume analysis, job search, tailoring, review, and interview preparation.
+- [ ] **M8-03 / P0 — Run a bounded paid pilot.** Recruit an opt-in cohort, test transparent pricing around the proposed ₹999–₹1,999/month consumer range, record willingness to pay, and avoid unverified placement or response-rate claims.
+- [ ] **M8-04 / P0 — Prove repeat usage.** Track second-application rate, weekly/monthly retention, churn reason, reactivation, and number of useful career tasks per paid user. Do not rely on resume-upload conversion alone as evidence of recurring value.
+- [ ] **M8-05 / P1 — Set durable cost ceilings.** Enforce per-user, per-tenant, provider, job-run, document-token, and browser-execution budgets that survive service restarts. Alert before a user or provider becomes structurally loss-making.
+- [ ] **M8-06 / P1 — Establish acquisition payback gates.** Report CAC, contribution LTV, LTV/CAC, payback period, organic share, referral rate, and support burden by channel. Do not scale a paid channel until payback is inside the approved target window.
+- [ ] **M8-07 / P1 — Package the narrow paid product first.** Start with resume analysis, job-fit analysis, reflective tailoring, cover letter, review queue, application tracking, and interview preparation. Keep high-cost scraping, browser execution, and broad Career OS surfaces bounded or separately priced until economics are proven.
+- [ ] **M8-08 / P1 — Test a privacy-led premium lane.** After consumer workflow evidence exists, evaluate higher-value plans for self-hosted/local-LLM deployments, career coaches, universities, outplacement providers, and private cohorts. Include implementation, support, security, and procurement costs in the model.
+- [ ] **M8-09 / P1 — Maintain a monthly economics review.** Reconcile actual revenue, refunds, provider spend, infrastructure spend, support hours, active paid users, gross margin, churn, and cash runway against the scenario model. Update assumptions only from measured data.
+
+### M8 decision gates
+
+| Gate | Minimum decision evidence |
+|---|---|
+| Paid value | Users pay for the bounded workflow without unsupported outcome claims. |
+| Unit economics | Measured variable cost remains below price with a safety margin after fees, refunds, and support. |
+| Retention | Users return for multiple applications or career tasks; churn reasons are known. |
+| Distribution | At least one channel has repeatable CAC with acceptable contribution payback. |
+| Trust | No unresolved severe truthfulness, privacy, approval-boundary, or duplicate-action incident. |
+| Scale | Provider, queue, browser, and storage budgets remain enforceable during restart and failure tests. |
+
+**M8 exit gate:** JobTayari may expand acquisition or scope only after a paid pilot demonstrates repeat usage, positive contribution margin, acceptable CAC payback, and trustworthy product behavior. The approved business conclusion must state the actual cohort size, measurement period, pricing, cost basis, churn definition, and confidence limits.

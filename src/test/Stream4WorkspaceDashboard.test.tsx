@@ -125,7 +125,9 @@ describe("Stream 4: Workspace & Dashboard Implementation Tests", () => {
       renderWithProviders(<Dashboard />);
 
       expect(screen.getByText("Jobseeker AI Command Center")).toBeInTheDocument();
-      expect(screen.getByText("8 Tools Active")).toBeInTheDocument();
+      expect(screen.getByText("Workspace tools")).toBeInTheDocument();
+      expect(screen.queryByText("8 Tools Active")).not.toBeInTheDocument();
+      expect(screen.queryByText("vs last week")).not.toBeInTheDocument();
       expect(screen.getByText("Company Radar")).toBeInTheDocument();
       expect(screen.getByText("Voice Coach")).toBeInTheDocument();
       expect(screen.getByText("Salary Negotiation")).toBeInTheDocument();
