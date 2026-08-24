@@ -30,7 +30,7 @@
 ## M0 — Baseline and controls
 
 - [x] **M0-01** Preserve the v3 adversarial audit and evidence log.
-- [ ] **M0-02** Add a `make audit` or equivalent command that runs the security, type, unit, integration, and route-gate checks without mutating the worktree.
+- [x] **M0-02** Add a `make audit` or equivalent command that runs the security, type, unit, integration, and route-gate checks without mutating the worktree. `make audit` now fails closed on frontend lint, runs frontend/Python/Go tests, builds the frontend, and runs the production promotion contract; the command passed with 186 frontend tests, 930 Python tests plus 4 skips, Go tests/vet, build, and 66/66 promotion checks.
 - [ ] **M0-03** Add a clean-worktree guard around frontend and macOS packaging commands.
 - [ ] **M0-04** Record the current baseline: frontend lint failures, dependency audit findings, Python test failures, E2E prerequisites, Go tests/vet, and deployment validation.
 

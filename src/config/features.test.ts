@@ -20,6 +20,13 @@ describe('Feature Flags Configuration', () => {
         expect(getNavLinks().find((link) => link.href === '/automations')).toBeUndefined();
     });
 
+    it('keeps disabled interview-prep routes out of the release scope', () => {
+        const appSource = readFileSync(join(process.cwd(), 'src', 'App.tsx'), 'utf8');
+        expect(appSource).toContain('{features.interviewPrep ? (');
+        expect(appSource).toContain('<Route path="/interview/experiences" element={<Navigate to="/resume" replace />} />');
+        expect(appSource).toContain('<Route path="/interview/coding" element={<Navigate to="/resume" replace />} />');
+    });
+
     it('exposes the candidate-controlled Tay Workspace as a distinct capability', () => {
         expect(features.taskWorkspace).toBe(true);
         expect(getNavLinks().find((link) => link.href === '/tay')?.label).toBe('Tay Workspace');

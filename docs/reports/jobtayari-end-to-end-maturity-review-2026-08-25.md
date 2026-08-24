@@ -181,3 +181,12 @@ The material blockers are operational rather than a lack of feature code. The re
 [10]: https://www.youtube.com/watch?v=byTd6bxFRag "Hands-on test of Jobright AI agent"
 [11]: https://www.youtube.com/watch?v=M3kX_S4VDTU "Yoodli interview and communication coaching demo"
 [12]: https://www.youtube.com/watch?v=yRxpu1xnEvc "ATS keyword-stuffing critique video"
+
+
+## Implementation pass completed in this loop
+
+Two low-risk, evidence-backed improvements were implemented rather than only recommended. First, the disabled `interviewPrep` release flag now gates `/interview/experiences` and `/interview/coding`, redirecting to `/resume` when the capability is disabled. The route behavior is covered by a feature-registry regression test, preventing direct-route access from silently bypassing the intended release scope. The application tracker routes remain available because they are part of the candidate-controlled application workflow rather than the disabled interview-preparation module.
+
+Second, the repository `Makefile` audit target was hardened. Frontend lint no longer uses `|| true`, so errors fail closed; the target now runs frontend lint and tests, Go tests/vet, Python feature tests, the production build, and the promotion gate using the repository’s active package commands. The `.PHONY` declaration now includes `audit`, and M0-02 is recorded as complete in the master TODO.
+
+The post-change validation passed with **49 frontend test files / 186 tests**, **930 Python tests plus 4 skips**, Go tests/vet, frontend build, zero ESLint errors, `git diff --check`, and the **66/66 promotion contract**. The remaining 392 ESLint findings are warnings and should be reduced by risk, starting with authentication, AI, browser, connector, billing, and user-data paths.

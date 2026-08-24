@@ -181,8 +181,17 @@ const App = () => (
               <Route path="/interview" element={<ProtectedRoute><InterviewBoard /></ProtectedRoute>} />
               <Route path="/interview/kanban" element={<ProtectedRoute><InterviewBoard /></ProtectedRoute>} />
               <Route path="/applications" element={<ProtectedRoute><InterviewBoard /></ProtectedRoute>} />
-              <Route path="/interview/experiences" element={<ProtectedRoute><InterviewExperiences /></ProtectedRoute>} />
-              <Route path="/interview/coding" element={<ProtectedRoute><CodingPractice /></ProtectedRoute>} />
+              {features.interviewPrep ? (
+                <>
+                  <Route path="/interview/experiences" element={<ProtectedRoute><InterviewExperiences /></ProtectedRoute>} />
+                  <Route path="/interview/coding" element={<ProtectedRoute><CodingPractice /></ProtectedRoute>} />
+                </>
+              ) : (
+                <>
+                  <Route path="/interview/experiences" element={<Navigate to="/resume" replace />} />
+                  <Route path="/interview/coding" element={<Navigate to="/resume" replace />} />
+                </>
+              )}
 
               {/* Conditionally Rendered Routes */}
               {features.careerRoadmap && (

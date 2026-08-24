@@ -6,7 +6,7 @@
         build-frontend build-backend build-python \
         dev-frontend dev-backend dev-python \
         test test-frontend test-backend test-python test-e2e \
-        compile build-local lint
+        compile build-local lint audit
 
 # Default target when calling `make` without arguments
 .DEFAULT_GOAL := help
@@ -136,19 +136,23 @@ build-local: compile ## Alias for compile
 
 lint: ## Run linter checks for frontend and Go code
 	@echo "$(BLUE)Linting frontend...$(RESET)"
-	npm run lint || true
+	pnpm run lint
 	@echo "$(BLUE)Linting Go code...$(RESET)"
 	cd backend/go && go vet ./...
 
 audit: ## Run complete security scan, typecheck, unit, integration, and build verification
 	@echo "$(BLUE)Running production security scan...$(RESET)"
 	SECURITY_BASELINE_ENFORCE=true node scripts/security_scan.mjs
+	@echo "$(BLUE)Running frontend lint (fail-closed)...$(RESET)"
+	pnpm run lint
 	@echo "$(BLUE)Running frontend Vitest suite...$(RESET)"
-	npx vitest run
+	pnpm run test
 	@echo "$(BLUE)Running Go backend test suite...$(RESET)"
 	cd backend/go && go test ./... && go vet ./...
 	@echo "$(BLUE)Running Python AI test suite...$(RESET)"
-	cd backend/python && .venv/bin/pytest
+	PYTHONPATH=backend/python python3 -m pytest -q backend/python/app/tests backend/python/tests
 	@echo "$(BLUE)Running frontend production build...$(RESET)"
-	npm run build
+	pnpm run build
+	@echo "$(BLUE)Running production promotion contract...$(RESET)"
+	pnpm run promotion:gate
 	@echo "$(GREEN)All audit checks and test suites passed successfully!$(RESET)"
