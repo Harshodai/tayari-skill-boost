@@ -6,6 +6,7 @@ import io
 import json
 import logging
 import os
+from ipaddress import ip_address
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
@@ -21,9 +22,20 @@ from slowapi.middleware import SlowAPIMiddleware
 
 
 def rate_limit_key(request: Request) -> str:
-    """Use user-plus-IP for authenticated calls and IP for anonymous calls."""
+    """Use user-plus-IP for authenticated calls and IP for anonymous calls.
+
+    The production Python service is reachable only through the Go gateway. That
+    gateway resolves the client address after evaluating trusted proxy CIDRs and
+    forwards the canonical address in ``X-Tayari-Client-IP``. Falling back to the
+    TCP peer keeps direct local-development calls working without trusting an
+    arbitrary forwarded header.
+    """
     user_id = (request.headers.get("X-User-Id") or "").strip()
-    ip = get_remote_address(request)
+    forwarded_ip = (request.headers.get("X-Tayari-Client-IP") or "").strip()
+    try:
+        ip = str(ip_address(forwarded_ip)) if forwarded_ip else get_remote_address(request)
+    except ValueError:
+        ip = get_remote_address(request)
     return f"user:{user_id}:ip:{ip}" if user_id else f"anon:ip:{ip}"
 
 

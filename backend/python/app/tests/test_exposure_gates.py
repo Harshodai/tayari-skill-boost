@@ -57,6 +57,17 @@ def test_rate_limit_key_is_user_and_ip_scoped():
     assert user_a_ip_1 != user_b_ip_1
 
 
+def test_rate_limit_key_uses_validated_gateway_client_ip_over_container_peer():
+    gateway_a = rate_limit_key(_request_with_headers({"X-Tayari-Client-IP": "198.51.100.7"}, "172.19.0.8"))
+    gateway_b = rate_limit_key(_request_with_headers({"X-Tayari-Client-IP": "198.51.100.8"}, "172.19.0.8"))
+    malformed = rate_limit_key(_request_with_headers({"X-Tayari-Client-IP": "not-an-ip"}, "172.19.0.8"))
+
+    assert gateway_a == "anon:ip:198.51.100.7"
+    assert gateway_b == "anon:ip:198.51.100.8"
+    assert gateway_a != gateway_b
+    assert malformed == "anon:ip:172.19.0.8"
+
+
 def test_private_browser_control_route_rejects_anonymous_requests():
     response = client.get("/api/v1/browser/automation/runs/synthetic-run/control")
     assert response.status_code == 401

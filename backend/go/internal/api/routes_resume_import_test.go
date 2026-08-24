@@ -103,6 +103,29 @@ func TestAnalyzeText_ForwardsCustomInstructions(t *testing.T) {
 	}
 }
 
+func TestAnalyzeText_ForwardsCanonicalClientIPToAI(t *testing.T) {
+	upstream := fakeAIServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("X-Tayari-Client-IP"); got != "203.0.113.42" {
+			t.Fatalf("expected canonical client IP to reach Python, got %q", got)
+		}
+		_, _ = io.WriteString(w, `{}`)
+	})
+	defer upstream.Close()
+
+	server := newHermesServer(t, upstream.URL)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/public/analyze-text", strings.NewReader(`{
+        "resume_text":"Experienced backend engineer.",
+        "job_description":"Build distributed systems."
+    }`))
+	request.Header.Set("Content-Type", "application/json")
+	request.RemoteAddr = "203.0.113.42:49152"
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, request)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 // -------------------------------------------------------------------
 // handleOptimizeResume field forwarding
 // -------------------------------------------------------------------

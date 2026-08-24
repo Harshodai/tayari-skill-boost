@@ -72,7 +72,7 @@ const moreGroups = (): Group[] => [
   {
     label: "Apply",
     items: [
-      { title: "Apply agent", url: "/apply-agent", icon: Bot, enabled: features.jobSearch },
+      { title: "Apply agent", url: "/apply-agent", icon: Bot, enabled: features.applyAgent },
       { title: "AutoPilot", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
       { title: "Agent questions", url: "/questions", icon: HelpCircle, enabled: features.jobSearch },
       { title: "Review queue", url: "/review-queue", icon: ClipboardCheck, enabled: true },

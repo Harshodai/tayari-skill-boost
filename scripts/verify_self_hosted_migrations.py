@@ -70,6 +70,10 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/50-20260823_whatsapp_approval_replies.sql",
         "zz-50-20260823_whatsapp_approval_replies.sql",
     ),
+    "backend/db/migrations/20260824_02_public_data_access_hardening.sql": (
+        "supabase-local/volumes/db/init/51-20260824_public_data_access_hardening.sql",
+        "zz-51-20260824_public_data_access_hardening.sql",
+    ),
 }
 
 

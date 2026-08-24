@@ -471,14 +471,18 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/apply-agent"
-                element={
-                  <ProtectedRoute>
-                    <ApplyAgent />
-                  </ProtectedRoute>
-                }
-              />
+              {features.applyAgent ? (
+                <Route
+                  path="/apply-agent"
+                  element={
+                    <ProtectedRoute>
+                      <ApplyAgent />
+                    </ProtectedRoute>
+                  }
+                />
+              ) : (
+                <Route path="/apply-agent" element={<Navigate to="/jobs" replace />} />
+              )}
 
 
 

@@ -301,6 +301,7 @@ services:
       - ./volumes/db/init/48-20260821_task_control_leases.sql:/docker-entrypoint-initdb.d/migrations/zz-48-20260821_task_control_leases.sql:Z
       - ./volumes/db/init/49-20260823_billing_credits.sql:/docker-entrypoint-initdb.d/migrations/zz-49-20260823_billing_credits.sql:Z
       - ./volumes/db/init/50-20260823_whatsapp_approval_replies.sql:/docker-entrypoint-initdb.d/migrations/zz-50-20260823_whatsapp_approval_replies.sql:Z
+      - ./volumes/db/init/51-20260824_public_data_access_hardening.sql:/docker-entrypoint-initdb.d/migrations/zz-51-20260824_public_data_access_hardening.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:

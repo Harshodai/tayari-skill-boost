@@ -194,6 +194,18 @@ func (s *Server) getXUserHeaders(r *http.Request) map[string]string {
 	if ok && user != nil {
 		headers["X-User-Id"] = user.ID.String()
 	}
+
+	// The Python AI service sees the Go container as its TCP peer. Propagate the
+	// gateway-resolved client address so its shared rate limiter remains fair per
+	// real user/IP instead of collapsing every anonymous browser into one bucket.
+	// Resolver input is trusted only after the Go boundary evaluates
+	// TRUSTED_PROXY_CIDRS; Python accepts this header only behind its internal
+	// service-token gate in production.
+	if s.publicRateLimiter != nil && s.publicRateLimiter.ipResolver != nil {
+		if clientIP := s.publicRateLimiter.ipResolver.Resolve(r); clientIP != "" {
+			headers["X-Tayari-Client-IP"] = clientIP
+		}
+	}
 	return headers
 }
 

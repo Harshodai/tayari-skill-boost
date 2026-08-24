@@ -146,6 +146,27 @@ This is `supabase-local/`'s `db` service (container `supabase-db`), not a
 standalone `postgres` service — commands below target it by its compose
 service name `db`.
 
+#### Mandatory authorization migration for existing databases
+
+The mounted initialization SQL runs only when PostgreSQL creates a new data
+volume. It does **not** retrofit an existing self-hosted production database.
+Before exposing an upgraded database to browser traffic, take a verified backup,
+apply the current authorization hardening migration as the table-owning
+`supabase_admin` role, and run the release gate. This closes the direct
+PostgREST path that otherwise bypasses Go's ownership checks.
+
+```bash
+# Run from the checked-out release revision after verifying a backup.
+docker compose exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \\
+  < backend/db/migrations/20260824_02_public_data_access_hardening.sql
+
+# Must pass before restoring public traffic.
+scripts/check_public_table_rls.sh
+```
+
+Treat every future schema migration as an explicit deployment step as well:
+new-volume initialization is not a substitute for upgrading a live database.
+
 `wal_level` and `archive_mode` are both `postmaster`-context settings — a
 `pg_reload_conf()` alone does **not** apply them, only a full server
 restart does. Skipping the restart leaves WAL archiving silently off even

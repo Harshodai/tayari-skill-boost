@@ -24,6 +24,9 @@ const CONFIG = {
     interviewPrep: [false, false],
     // Job search interface and autopilot integration
     jobSearch: [true, true],
+    // Glass-box Apply Agent remains preview-only until its data model and
+    // gateway workflow are reconciled with the durable agent-run schema.
+    applyAgent: [false, true],
     // Blog content section
     blog: [true, true],
     // Pricing page and subscription info
