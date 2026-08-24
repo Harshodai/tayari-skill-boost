@@ -51,12 +51,13 @@ function ListItem({
   to: string; 
   title: string; 
   children: React.ReactNode; 
-  icon: React.ComponentType<any>; 
+  icon: React.ComponentType<{ className?: string }>;
   onClick?: () => void;
 }) {
   return (
     <Link
       to={to}
+      role="menuitem"
       onClick={onClick}
       className="block select-none rounded-lg p-2.5 leading-none no-underline outline-none transition-all duration-200 hover:bg-muted/80 focus:bg-muted/80 group/item"
     >
@@ -93,6 +94,20 @@ export function Header() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [mobileMenuOpen]);
+
   const handleMouseEnter = (menu: "features" | "resources") => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setActiveMenu(menu);
@@ -108,6 +123,32 @@ export function Header() {
     e.preventDefault();
     e.stopPropagation();
     setActiveMenu(activeMenu === menu ? null : menu);
+  };
+
+  const closeMenuAndRestoreFocus = (menu: "features" | "resources") => {
+    setActiveMenu(null);
+    requestAnimationFrame(() => document.getElementById(`${menu}-trigger`)?.focus());
+  };
+
+  const handleMenuTriggerKeyDown = (menu: "features" | "resources", e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeMenuAndRestoreFocus(menu);
+      return;
+    }
+
+    if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      setActiveMenu(menu);
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`#${menu}-menu [role="menuitem"]`)?.focus());
+    }
+  };
+
+  const handleMobileMenuToggleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "Escape" && mobileMenuOpen) {
+      e.preventDefault();
+      setMobileMenuOpen(false);
+    }
   };
 
   // Close dropdown on navigation
@@ -158,10 +199,12 @@ export function Header() {
             >
               <button
                 type="button"
+                id="features-trigger"
                 aria-haspopup="menu"
                 aria-expanded={activeMenu === "features"}
                 aria-controls="features-menu"
                 onClick={(e) => handleToggleClick("features", e)}
+                onKeyDown={(e) => handleMenuTriggerKeyDown("features", e)}
                 className={cn(
                   "inline-flex items-center gap-1.5 bg-transparent hover:bg-muted/50 rounded-full h-9 px-3.5 text-sm font-medium transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   activeMenu === "features" || 
@@ -179,7 +222,7 @@ export function Header() {
 
               {/* Features Dropdown Card */}
               {activeMenu === "features" && (
-                <div id="features-menu" role="menu" className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[550px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-4 z-50 animate-fade-in">
+                <div id="features-menu" role="menu" onKeyDown={(e) => e.key === "Escape" && closeMenuAndRestoreFocus("features")} className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[550px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-4 z-50 animate-fade-in">
                   <div className="grid grid-cols-2 gap-3">
                     {primaryNavigationFeatures.resumeOptimizer && (
                       <ListItem to="/resume" title="Resume Optimizer" icon={FileText}>
@@ -274,10 +317,12 @@ export function Header() {
             >
               <button
                 type="button"
+                id="resources-trigger"
                 aria-haspopup="menu"
                 aria-expanded={activeMenu === "resources"}
                 aria-controls="resources-menu"
                 onClick={(e) => handleToggleClick("resources", e)}
+                onKeyDown={(e) => handleMenuTriggerKeyDown("resources", e)}
                 className={cn(
                   "inline-flex items-center gap-1.5 bg-transparent hover:bg-muted/50 rounded-full h-9 px-3.5 text-sm font-medium transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   activeMenu === "resources" || 
@@ -294,7 +339,7 @@ export function Header() {
 
               {/* Resources Dropdown Card */}
               {activeMenu === "resources" && (
-                <div id="resources-menu" role="menu" className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[280px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-3 z-50 animate-fade-in">
+                <div id="resources-menu" role="menu" onKeyDown={(e) => e.key === "Escape" && closeMenuAndRestoreFocus("resources")} className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[280px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-3 z-50 animate-fade-in">
                   <div className="flex flex-col gap-2">
                     {primaryNavigationFeatures.blog && (
                       <ListItem to="/blog" title="Career Blog" icon={BookOpen}>
@@ -391,6 +436,7 @@ export function Header() {
               )}
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              onKeyDown={handleMobileMenuToggleKeyDown}
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-navigation"
@@ -402,7 +448,7 @@ export function Header() {
 
         {/* Mobile Dropdown Menu */}
         {mobileMenuOpen && (
-          <div id="mobile-navigation" role="dialog" aria-label="Mobile navigation" className="lg:hidden py-4 border-t border-border/40 animate-fade-in bg-background/95 backdrop-blur-md absolute top-full left-0 right-0 shadow-lg max-h-[85vh] overflow-y-auto">
+          <div id="mobile-navigation" role="dialog" aria-label="Mobile navigation" onKeyDown={(e) => e.key === "Escape" && setMobileMenuOpen(false)} className="lg:hidden py-4 border-t border-border/40 animate-fade-in bg-background/95 backdrop-blur-md absolute top-full left-0 right-0 shadow-lg max-h-[85vh] overflow-y-auto">
             <nav aria-label="Mobile navigation links" className="flex flex-col gap-5 px-4 pb-4">
               {/* Group 1: Features */}
               <div>

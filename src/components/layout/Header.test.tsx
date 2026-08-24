@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 import { Header } from "./Header";
@@ -19,13 +19,32 @@ describe("Header accessibility contract", () => {
 
     expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeInTheDocument();
-    const features = screen.getByRole("button", { name: /features/i });
-    expect(features).toHaveAttribute("aria-haspopup", "menu");
-    expect(features).toHaveAttribute("aria-expanded", "false");
+    const featuresMenuTrigger = screen.getByRole("button", { name: /features/i });
+    expect(featuresMenuTrigger).toHaveAttribute("aria-haspopup", "menu");
+    expect(featuresMenuTrigger).toHaveAttribute("aria-expanded", "false");
 
-    fireEvent.click(features);
-    expect(features).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(featuresMenuTrigger);
+    expect(featuresMenuTrigger).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("menu")).toHaveAttribute("id", "features-menu");
+  });
+
+  it("opens a menu from the keyboard and restores focus when Escape closes it", async () => {
+    render(
+      <MemoryRouter>
+        <Header />
+      </MemoryRouter>,
+    );
+
+    const featuresMenuTrigger = screen.getByRole("button", { name: /features/i });
+    featuresMenuTrigger.focus();
+    fireEvent.keyDown(featuresMenuTrigger, { key: "ArrowDown" });
+
+    const firstMenuItem = screen.getByRole("menuitem", { name: /resume optimizer/i });
+    await waitFor(() => expect(firstMenuItem).toHaveFocus());
+
+    fireEvent.keyDown(firstMenuItem, { key: "Escape" });
+    await waitFor(() => expect(featuresMenuTrigger).toHaveFocus());
+    expect(featuresMenuTrigger).toHaveAttribute("aria-expanded", "false");
   });
 
   it("labels the mobile navigation trigger", () => {
@@ -38,6 +57,9 @@ describe("Header accessibility contract", () => {
     const trigger = screen.getByRole("button", { name: /open menu/i });
     expect(trigger).toHaveAttribute("aria-controls", "mobile-navigation");
     fireEvent.click(trigger);
-    expect(screen.getByRole("dialog", { name: "Mobile navigation" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Mobile navigation" });
+    expect(dialog).toBeInTheDocument();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Mobile navigation" })).not.toBeInTheDocument();
   });
 });

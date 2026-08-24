@@ -185,9 +185,11 @@
     @apply transition-all duration-300 ease-out;
   }
 
-  .card-hover:hover {
-    @apply -translate-y-1;
-    box-shadow: var(--shadow-glow);
+  @media (hover: hover) and (pointer: fine) {
+    .card-hover:hover {
+      @apply -translate-y-1;
+      box-shadow: var(--shadow-glow);
+    }
   }
 
   .animate-float {
@@ -407,6 +409,16 @@
     @apply font-display;
     letter-spacing: -0.028em;
   }
+
+  :where(a, button, input:not([type="hidden"]), select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 3px solid hsl(var(--ring));
+    outline-offset: 3px;
+  }
+
+  #root {
+    min-height: 100dvh;
+    overflow-x: clip;
+  }
 }
 
 /* Carousel touch optimization */
@@ -465,8 +477,10 @@
       background-color var(--motion-base) var(--ease-out-strong);
   }
 
-  .interactive-lift:hover {
-    transform: translateY(-2px);
+  @media (hover: hover) and (pointer: fine) {
+    .interactive-lift:hover {
+      transform: translateY(-2px);
+    }
   }
 
   .interactive-lift:active {
