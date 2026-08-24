@@ -76,7 +76,7 @@ const COLUMNS = [
   { id: "saved", label: "Saved", dotColor: "bg-slate-400 shadow-slate-400/50", headerBg: "bg-slate-500/10 border-slate-500/20", badgeBg: "bg-slate-500/15 text-slate-300" },
   { id: "applied", label: "Applied", dotColor: "bg-blue-400 shadow-blue-400/50", headerBg: "bg-blue-500/10 border-blue-500/20", badgeBg: "bg-blue-500/15 text-blue-300" },
   { id: "phone_screen", label: "Phone Screen", dotColor: "bg-amber-400 shadow-amber-400/50", headerBg: "bg-amber-500/10 border-amber-500/20", badgeBg: "bg-amber-500/15 text-amber-300" },
-  { id: "interview", label: "Interview", dotColor: "bg-indigo-400 shadow-indigo-400/50", headerBg: "bg-indigo-500/10 border-indigo-500/20", badgeBg: "bg-indigo-500/15 text-indigo-300" },
+  { id: "interview", label: "Interview", dotColor: "bg-primary shadow-primary/50", headerBg: "bg-primary/10 border-primary/20", badgeBg: "bg-primary/15 text-primary" },
   { id: "offer", label: "Offer", dotColor: "bg-emerald-400 shadow-emerald-400/50", headerBg: "bg-emerald-500/10 border-emerald-500/20", badgeBg: "bg-emerald-500/15 text-emerald-300" },
   { id: "rejected", label: "Rejected", dotColor: "bg-rose-400 shadow-rose-400/50", headerBg: "bg-rose-500/10 border-rose-500/20", badgeBg: "bg-rose-500/15 text-rose-300" },
 ];
@@ -847,7 +847,7 @@ const InterviewBoard = () => {
                                 </Badge>
                               )}
                               {app.voice_notes && app.voice_notes.length > 0 && (
-                                <Badge variant="outline" className="text-[9px] py-0 px-1.5 bg-violet-500/5 text-violet-500 border-violet-500/10">
+                                <Badge variant="outline" className="text-[9px] py-0 px-1.5 bg-accent/5 text-accent border-accent/10">
                                   <Mic className="w-2.5 h-2.5 mr-1" />
                                   {app.voice_notes.length}
                                 </Badge>
@@ -1101,7 +1101,7 @@ const InterviewBoard = () => {
                             onClick={handleGenerateInterviewQuestions}
                             disabled={isGeneratingIQ}
                             size="sm"
-                            className="bg-gradient-to-r from-violet-600 to-primary text-white"
+                            className="bg-gradient-to-r from-accent to-primary text-white"
                           >
                             {isGeneratingIQ ? (
                               <>

@@ -89,6 +89,7 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
   const [answer, setAnswer] = useState<PetTopic | null>(null);
   const [miss, setMiss] = useState(false);
   const [greeting, setGreeting] = useState(true);
+  const [bubbleHover, setBubbleHover] = useState(false);
   const lastInteraction = useRef(Date.now());
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -364,8 +365,9 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
       className={cn(
         "fixed z-40 flex max-w-[min(24rem,calc(100vw-1.5rem))] flex-col gap-2",
         left ? "left-3 items-start md:left-6" : "right-3 items-end md:right-6",
-        // clears the mobile tab bar and safe-area inset
-        "bottom-[calc(5.5rem+env(safe-area-inset-bottom))] md:bottom-8",
+        // clears the mobile tab bar/safe-area inset, and on desktop sits high
+        // enough that the greeting bubble never overlaps a hero's CTA row
+        "bottom-[calc(5.5rem+env(safe-area-inset-bottom))] md:bottom-24",
         "animate-in fade-in slide-in-from-bottom-4 duration-500",
         className,
       )}
@@ -727,39 +729,43 @@ export function TayariPet({ to = "/dashboard", className }: TayariPetProps) {
       )}
 
       <div className={cn("flex items-end gap-2", left && "flex-row-reverse")}>
-        {/* Speech bubble */}
-        <div
-          className={cn(
-            "relative hidden flex-1 rounded-2xl border border-border/60 bg-card/80 p-3 shadow-lg backdrop-blur-md sm:block",
-            left ? "pl-8" : "pr-8",
-            greeting && "border-primary/40",
-          )}
-        >
-          <p className="text-xs leading-relaxed text-foreground/90">{bubbleText}</p>
-          <button
-            type="button"
-            onClick={() => {
-              wake();
-              setGreeting(false);
-              setTipIndex((i) => (i + 1) % tips.length);
-              track("tip_shown", { target: "manual" });
-            }}
-            aria-label="Show next tip"
+        {/* Speech bubble — only while greeting or hovered/focused, so it never
+            permanently competes with in-flow page content (it used to sit over
+            hero CTAs at common laptop widths). */}
+        {(greeting || bubbleHover) && !open && (
+          <div
             className={cn(
-              "absolute top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-              left ? "left-2" : "right-2",
+              "relative hidden flex-1 rounded-2xl border border-border/60 bg-card/80 p-3 shadow-lg backdrop-blur-md sm:block",
+              left ? "pl-8" : "pr-8",
+              greeting && "border-primary/40",
             )}
           >
-            <ChevronRight className={cn("h-3.5 w-3.5", left && "rotate-180")} aria-hidden />
-          </button>
-          <span
-            aria-hidden
-            className={cn(
-              "absolute bottom-4 h-2.5 w-2.5 rotate-45 border-border/60 bg-card/80",
-              left ? "-left-1 border-b border-l" : "-right-1 border-b border-r",
-            )}
-          />
-        </div>
+            <p className="text-xs leading-relaxed text-foreground/90">{bubbleText}</p>
+            <button
+              type="button"
+              onClick={() => {
+                wake();
+                setGreeting(false);
+                setTipIndex((i) => (i + 1) % tips.length);
+                track("tip_shown", { target: "manual" });
+              }}
+              aria-label="Show next tip"
+              className={cn(
+                "absolute top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                left ? "left-2" : "right-2",
+              )}
+            >
+              <ChevronRight className={cn("h-3.5 w-3.5", left && "rotate-180")} aria-hidden />
+            </button>
+            <span
+              aria-hidden
+              className={cn(
+                "absolute bottom-4 h-2.5 w-2.5 rotate-45 border-border/60 bg-card/80",
+                left ? "-left-1 border-b border-l" : "-right-1 border-b border-r",
+              )}
+            />
+          </div>
+        )}
 
         {/* The pet itself */}
         <div className="relative">

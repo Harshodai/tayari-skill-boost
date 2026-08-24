@@ -163,7 +163,7 @@ export function Header() {
                 aria-controls="features-menu"
                 onClick={(e) => handleToggleClick("features", e)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 bg-transparent hover:bg-muted/50 rounded-full h-9 px-3.5 text-sm font-medium transition-all duration-200 outline-none select-none",
+                  "inline-flex items-center gap-1.5 bg-transparent hover:bg-muted/50 rounded-full h-9 px-3.5 text-sm font-medium transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   activeMenu === "features" || 
                   location.pathname.startsWith("/resume") || 
                   location.pathname.startsWith("/interview") || 
@@ -241,7 +241,7 @@ export function Header() {
               <Link
                 to="/jobs"
                 className={cn(
-                  "inline-flex h-9 w-max items-center justify-center rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-200 outline-none select-none",
+                  "inline-flex h-9 w-max items-center justify-center rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   location.pathname === "/jobs"
                     ? "text-primary bg-primary/5 font-semibold"
                     : "text-muted-foreground/80 hover:text-foreground hover:bg-muted/50"
@@ -256,7 +256,7 @@ export function Header() {
               <Link
                 to="/roadmap"
                 className={cn(
-                  "inline-flex h-9 w-max items-center justify-center rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-200 outline-none select-none",
+                  "inline-flex h-9 w-max items-center justify-center rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   location.pathname === "/roadmap"
                     ? "text-primary bg-primary/5 font-semibold"
                     : "text-muted-foreground/80 hover:text-foreground hover:bg-muted/50"
@@ -279,7 +279,7 @@ export function Header() {
                 aria-controls="resources-menu"
                 onClick={(e) => handleToggleClick("resources", e)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 bg-transparent hover:bg-muted/50 rounded-full h-9 px-3.5 text-sm font-medium transition-all duration-200 outline-none select-none",
+                  "inline-flex items-center gap-1.5 bg-transparent hover:bg-muted/50 rounded-full h-9 px-3.5 text-sm font-medium transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   activeMenu === "resources" || 
                   location.pathname.startsWith("/blog") || 
                   location.pathname.startsWith("/faq") || 

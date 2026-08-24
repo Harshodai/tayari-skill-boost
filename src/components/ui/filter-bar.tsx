@@ -238,7 +238,7 @@ function FilterChip({
                 aria-selected={selected}
                 className={cn(
                   "flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm",
-                  "outline-none transition-colors",
+                  "outline-none transition-colors data-[highlighted]:bg-muted/60",
                   selected ? "text-primary bg-primary/5" : "text-foreground hover:bg-muted/60"
                 )}
                 onSelect={(e) => {
@@ -329,7 +329,7 @@ function SortSelect({
                 value={opt.value}
                 className={cn(
                   "flex cursor-pointer items-center px-3 py-2 text-sm outline-none transition-colors",
-                  "text-foreground hover:bg-muted/60 data-[state=checked]:text-primary data-[state=checked]:bg-primary/5"
+                  "text-foreground hover:bg-muted/60 data-[highlighted]:bg-muted/60 data-[state=checked]:text-primary data-[state=checked]:bg-primary/5"
                 )}
               >
                 <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>

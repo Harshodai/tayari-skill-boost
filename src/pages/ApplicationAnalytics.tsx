@@ -130,10 +130,10 @@ export function ApplicationAnalytics() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription className="text-xs font-medium font-medium">Interviews Scheduled</CardDescription>
-              <CardTitle className="text-2xl font-bold text-purple-500">{funnel.interviews_scheduled}</CardTitle>
+              <CardTitle className="text-2xl font-bold text-accent">{funnel.interviews_scheduled}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-xs text-purple-600 font-medium">
+              <div className="text-xs text-accent font-medium">
                 {funnel.interview_rate}% Conversion Rate
               </div>
             </CardContent>
@@ -190,7 +190,7 @@ export function ApplicationAnalytics() {
                       <TableCell className="font-medium text-sm">{row.tier}</TableCell>
                       <TableCell className="text-center font-mono">{row.applications}</TableCell>
                       <TableCell className="text-center font-mono text-blue-500 font-bold">{row.responses}</TableCell>
-                      <TableCell className="text-center font-mono text-purple-500 font-bold">{row.interviews}</TableCell>
+                      <TableCell className="text-center font-mono text-accent font-bold">{row.interviews}</TableCell>
                       <TableCell className="text-center">
                         <Badge variant="outline" className="font-mono text-emerald-600 bg-emerald-500/10">
                           {row.callback_rate}
@@ -229,9 +229,9 @@ export function ApplicationAnalytics() {
                 <div className="text-xs text-blue-500 font-semibold">2. Recruiter Response</div>
                 <div className="text-xl font-bold text-blue-500 mt-1">{funnel.responses_received}</div>
               </div>
-              <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                <div className="text-xs text-purple-500 font-semibold">3. Interview Rounds</div>
-                <div className="text-xl font-bold text-purple-500 mt-1">{funnel.interviews_scheduled}</div>
+              <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
+                <div className="text-xs text-accent font-semibold">3. Interview Rounds</div>
+                <div className="text-xl font-bold text-accent mt-1">{funnel.interviews_scheduled}</div>
               </div>
               <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                 <div className="text-xs text-emerald-500 font-semibold">4. Offer Extended</div>

@@ -60,7 +60,7 @@ export const TayariComputerControlRoom = () => {
     <div className="mx-auto max-w-6xl space-y-6 p-6 font-sans text-slate-100">
       <div className="flex flex-col justify-between gap-4 border-b border-slate-800 pb-4 md:flex-row md:items-center">
         <div>
-          <h1 className="flex items-center gap-3 text-2xl font-extrabold tracking-tight"><Monitor className="h-7 w-7 text-indigo-400" /> Application Assistant Control Room</h1>
+          <h1 className="flex items-center gap-3 text-2xl font-extrabold tracking-tight"><Monitor className="h-7 w-7 text-primary" /> Application Assistant Control Room</h1>
           <p className="mt-1 text-sm text-slate-400">Inspect durable, candidate-owned run events and safety status. Live browser streaming remains a separate capability.</p>
         </div>
         <Badge className="w-fit border border-amber-800 bg-amber-950 text-amber-200" variant="secondary"><AlertTriangle className="mr-1 h-3 w-3" /> No live session is implied</Badge>
@@ -86,7 +86,7 @@ export const TayariComputerControlRoom = () => {
               <div className="flex gap-1.5"><div className="h-3 w-3 rounded-full bg-red-500" /><div className="h-3 w-3 rounded-full bg-amber-500" /><div className="h-3 w-3 rounded-full bg-emerald-500" /></div>
               <label htmlFor="browser-run-id" className="sr-only">Browser run ID</label>
               <Input id="browser-run-id" value={runId} onChange={(event) => setRunId(event.target.value)} placeholder="Paste a browser run ID" className="h-8 flex-1 border-slate-700 bg-slate-900 font-mono text-xs text-slate-100" aria-describedby="browser-run-help" />
-              <Button type="submit" size="sm" disabled={isLoading} className="bg-indigo-600 hover:bg-indigo-500">{isLoading ? <LoaderCircle className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}{isLoading ? 'Loading' : 'Load run'}</Button>
+              <Button type="submit" size="sm" disabled={isLoading} className="bg-primary hover:bg-primary/90">{isLoading ? <LoaderCircle className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}{isLoading ? 'Loading' : 'Load run'}</Button>
               <Badge className={shownStatus ? statusClass[shownStatus] : 'bg-slate-800 text-slate-300'}>{shownStatus?.toUpperCase() ?? 'OFFLINE'}</Badge>
             </form>
             <div className="flex min-h-80 flex-col justify-center border-b border-slate-800 bg-slate-950 p-6">
@@ -99,7 +99,7 @@ export const TayariComputerControlRoom = () => {
         </div>
 
         <Card className="border-slate-800 bg-slate-900 p-4 text-slate-100">
-          <CardHeader className="border-b border-slate-800 p-0 pb-3"><CardTitle className="flex items-center gap-2 text-sm font-bold"><Terminal className="h-4 w-4 text-indigo-400" /> Required safety sequence</CardTitle></CardHeader>
+          <CardHeader className="border-b border-slate-800 p-0 pb-3"><CardTitle className="flex items-center gap-2 text-sm font-bold"><Terminal className="h-4 w-4 text-primary" /> Required safety sequence</CardTitle></CardHeader>
           <CardContent className="space-y-3 p-0 pt-3 font-mono text-xs">
             {previewSafeguards.map((safeguard) => <div key={safeguard.step} className="space-y-1 rounded border border-slate-800 bg-slate-950 p-3"><div className="flex items-center justify-between text-slate-500"><span>Gate {safeguard.step}</span><Badge className="bg-slate-800 text-[10px] text-slate-300">REQUIRED</Badge></div><p className="font-semibold text-slate-200">{safeguard.action}</p><p className="leading-relaxed text-slate-400">{safeguard.detail}</p></div>)}
           </CardContent>
@@ -114,7 +114,7 @@ function EmptyRunState() {
 }
 
 function RunStateSummary({ state, stopState }: { state: BrowserControlState; stopState: string }) {
-  return <div className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-100">{state.current_step || 'No current step recorded'}</p><p className="mt-1 font-mono text-xs text-slate-400">Run {state.run_id}</p></div><div className="text-right"><p className="text-2xl font-bold text-indigo-300">{state.progress}%</p><p className="text-xs text-slate-400">durable progress record</p></div></div><div className="grid gap-2 sm:grid-cols-3"><StatusItem label="Cancellation" value={stopState} tone={state.cancellation_requested ? 'amber' : 'slate'} /><StatusItem label="Worker lease" value={state.lease_active ? 'Active' : 'Inactive'} tone={state.lease_active ? 'blue' : 'slate'} /><StatusItem label="Events" value={`${state.events.length} recorded`} tone="slate" /></div><div className="space-y-2"><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Recent durable events</p>{state.events.length === 0 ? <p className="rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-400">No durable events have been recorded for this run yet.</p> : <div className="max-h-40 space-y-2 overflow-y-auto pr-1">{state.events.map((event) => <div key={event.sequence_no} className="rounded border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-3"><p className="font-mono text-xs font-semibold text-slate-200">{event.event_type}</p><span className="text-[10px] text-slate-500">{formatEventTime(event.created_at)}</span></div><p className="mt-1 break-words font-mono text-[11px] text-slate-400">{formatEventPayload(event.payload)}</p></div>)}</div>}</div></div>;
+  return <div className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-100">{state.current_step || 'No current step recorded'}</p><p className="mt-1 font-mono text-xs text-slate-400">Run {state.run_id}</p></div><div className="text-right"><p className="text-2xl font-bold text-primary">{state.progress}%</p><p className="text-xs text-slate-400">durable progress record</p></div></div><div className="grid gap-2 sm:grid-cols-3"><StatusItem label="Cancellation" value={stopState} tone={state.cancellation_requested ? 'amber' : 'slate'} /><StatusItem label="Worker lease" value={state.lease_active ? 'Active' : 'Inactive'} tone={state.lease_active ? 'blue' : 'slate'} /><StatusItem label="Events" value={`${state.events.length} recorded`} tone="slate" /></div><div className="space-y-2"><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Recent durable events</p>{state.events.length === 0 ? <p className="rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-400">No durable events have been recorded for this run yet.</p> : <div className="max-h-40 space-y-2 overflow-y-auto pr-1">{state.events.map((event) => <div key={event.sequence_no} className="rounded border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-3"><p className="font-mono text-xs font-semibold text-slate-200">{event.event_type}</p><span className="text-[10px] text-slate-500">{formatEventTime(event.created_at)}</span></div><p className="mt-1 break-words font-mono text-[11px] text-slate-400">{formatEventPayload(event.payload)}</p></div>)}</div>}</div></div>;
 }
 
 function StatusItem({ label, value, tone }: { label: string; value: string; tone: 'slate' | 'amber' | 'blue' }) {
@@ -124,6 +124,6 @@ function StatusItem({ label, value, tone }: { label: string; value: string; tone
 
 function formatEventPayload(payload: Record<string, unknown>) { const rendered = JSON.stringify(payload); return rendered && rendered !== '{}' ? rendered : 'No additional detail'; }
 function formatEventTime(value: string) { const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString(); }
-function SafetyItem({ icon, title, text }: { icon: ReactNode; title: string; text: string }) { return <Card className="border-slate-800 bg-slate-900 text-slate-100"><CardContent className="flex gap-3 p-4"><span className="text-indigo-300">{icon}</span><div><p className="text-sm font-semibold">{title}</p><p className="mt-1 text-xs leading-relaxed text-slate-400">{text}</p></div></CardContent></Card>; }
+function SafetyItem({ icon, title, text }: { icon: ReactNode; title: string; text: string }) { return <Card className="border-slate-800 bg-slate-900 text-slate-100"><CardContent className="flex gap-3 p-4"><span className="text-primary">{icon}</span><div><p className="text-sm font-semibold">{title}</p><p className="mt-1 text-xs leading-relaxed text-slate-400">{text}</p></div></CardContent></Card>; }
 
 export default TayariComputerControlRoom;

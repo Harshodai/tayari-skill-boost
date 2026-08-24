@@ -99,7 +99,7 @@ export function CommandPalette() {
 
         <CommandGroup heading="Tools & Generators">
           <CommandItem onSelect={() => runCommand(() => navigate("/typst-studio"))}>
-            <Sparkles className="mr-2 h-4 w-4 text-indigo-500" />
+            <Sparkles className="mr-2 h-4 w-4 text-primary" />
             <span>Typst Resume Studio</span>
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => navigate("/answer-bank"))}>

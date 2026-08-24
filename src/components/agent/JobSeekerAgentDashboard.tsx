@@ -126,12 +126,12 @@ export const JobSeekerAgentDashboard: React.FC = () => {
   return (
     <div className="w-full max-w-7xl mx-auto p-6 space-y-6">
       {/* Header Banner */}
-      <Card className="border border-indigo-800 bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 text-white shadow-2xl">
+      <Card className="border border-primary/30 bg-gradient-to-r from-slate-950 via-primary/10 to-slate-950 text-white shadow-2xl">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="p-3 bg-indigo-500/20 rounded-xl border border-indigo-400/30">
-                <Briefcase className="w-8 h-8 text-indigo-400" />
+              <div className="p-3 bg-primary/20 rounded-xl border border-primary/30">
+                <Briefcase className="w-8 h-8 text-primary" />
               </div>
               <div>
                 <CardTitle className="text-2xl font-bold flex items-center gap-2">
@@ -144,7 +144,7 @@ export const JobSeekerAgentDashboard: React.FC = () => {
               <Badge className="bg-emerald-950 text-emerald-300 border-emerald-800">
                 Playwright Auto-Scraper: Ready
               </Badge>
-              <Badge className="bg-purple-950 text-purple-300 border-purple-800">
+              <Badge className="bg-accent/10 text-accent border-accent/30">
                 Computer Use Form Filler: Ready
               </Badge>
             </div>
@@ -155,16 +155,16 @@ export const JobSeekerAgentDashboard: React.FC = () => {
       {/* Tabs Menu */}
       <Tabs defaultValue="search" className="w-full">
         <TabsList className="grid grid-cols-4 bg-slate-900 border border-slate-800 p-1 rounded-lg">
-          <TabsTrigger value="search" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+          <TabsTrigger value="search" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <Search className="w-4 h-4 mr-2" /> Job Scraping
           </TabsTrigger>
-          <TabsTrigger value="tailor" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+          <TabsTrigger value="tailor" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <FileText className="w-4 h-4 mr-2" /> CodeAct Resume Customizer
           </TabsTrigger>
-          <TabsTrigger value="autofill" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+          <TabsTrigger value="autofill" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <Send className="w-4 h-4 mr-2" /> Auto-Application Filler
           </TabsTrigger>
-          <TabsTrigger value="prep" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+          <TabsTrigger value="prep" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <BookOpen className="w-4 h-4 mr-2" /> Swarm Interview Prep
           </TabsTrigger>
         </TabsList>
@@ -185,7 +185,7 @@ export const JobSeekerAgentDashboard: React.FC = () => {
                 placeholder="Location (e.g. Remote)"
                 className="w-48 bg-slate-950 border-slate-800"
               />
-              <Button onClick={handleSearch} disabled={loading} className="bg-indigo-600 hover:bg-indigo-500">
+              <Button onClick={handleSearch} disabled={loading} className="bg-primary hover:bg-primary/90">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4 mr-2" />} Scrape Jobs
               </Button>
             </div>
@@ -232,15 +232,15 @@ export const JobSeekerAgentDashboard: React.FC = () => {
                 className="bg-slate-950 border-slate-800 text-slate-100"
               />
             </div>
-            <Button onClick={() => handleTailor(targetCompany)} disabled={loading} className="bg-purple-600 hover:bg-purple-500">
+            <Button onClick={() => handleTailor(targetCompany)} disabled={loading} className="bg-accent hover:bg-accent/90">
               Run CodeAct Resume Tailoring
             </Button>
 
             {tailorResult ? (
               <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-purple-400">Customized Application Package</span>
-                  <Badge className="bg-purple-950 text-purple-300">Score: {tailorResult.ats_match_score}%</Badge>
+                  <span className="font-bold text-accent">Customized Application Package</span>
+                  <Badge className="bg-accent/10 text-accent">Score: {tailorResult.ats_match_score}%</Badge>
                 </div>
                 <div className="bg-black p-3 rounded font-mono text-xs text-emerald-300">
                   <pre className="whitespace-pre-wrap">{tailorResult.codeact_repl_output?.stdout || tailorResult.codeact_repl_output?.error || 'No output captured.'}</pre>
@@ -271,7 +271,7 @@ export const JobSeekerAgentDashboard: React.FC = () => {
                 <div className="space-y-1 text-slate-300">
                   {(Array.isArray(autofillResult.actions_taken) ? autofillResult.actions_taken : []).map((act: string, idx: number) => (
                     <div key={idx} className="flex items-center gap-2">
-                      <span className="text-indigo-400">✓</span> {act}
+                      <span className="text-primary">✓</span> {act}
                     </div>
                   ))}
                 </div>

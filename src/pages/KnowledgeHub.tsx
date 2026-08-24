@@ -109,7 +109,7 @@ export default function KnowledgeHub() {
       case "substack": return "bg-orange-500/10 text-orange-500 hover:bg-orange-500/20 border-orange-500/20";
       case "twitter":
       case "x": return "bg-slate-500/10 text-slate-800 dark:text-slate-200 hover:bg-slate-500/20 border-slate-500/20";
-      default: return "bg-violet-500/10 text-violet-500 hover:bg-violet-500/20 border-violet-500/20";
+      default: return "bg-accent/10 text-accent hover:bg-accent/20 border-accent/20";
     }
   };
 
@@ -280,7 +280,7 @@ export default function KnowledgeHub() {
                   >
                     {save.is_interview_related && (
                       <div className="absolute top-0 right-0 w-24 h-24 overflow-hidden pointer-events-none">
-                        <div className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[9px] font-bold uppercase tracking-wider py-1 text-center rotate-45 translate-x-7 translate-y-3 shadow-sm w-36 flex items-center justify-center gap-1">
+                        <div className="bg-gradient-to-r from-accent to-primary text-white text-[9px] font-bold uppercase tracking-wider py-1 text-center rotate-45 translate-x-7 translate-y-3 shadow-sm w-36 flex items-center justify-center gap-1">
                           <Sparkles className="w-2.5 h-2.5" /> Prep
                         </div>
                       </div>

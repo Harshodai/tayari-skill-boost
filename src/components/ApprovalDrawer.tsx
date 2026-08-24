@@ -91,7 +91,7 @@ export const ApprovalDrawer: React.FC = () => {
     return (
       <Button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 bg-indigo-600 hover:bg-indigo-500 font-bold shadow-xl z-50"
+        className="fixed bottom-6 right-6 bg-primary hover:bg-primary/90 font-bold shadow-xl z-50"
       >
         <ShieldCheck className="w-4 h-4 mr-2" /> View HITL Action Approvals ({pendingApprovals.length})
       </Button>
@@ -112,7 +112,7 @@ export const ApprovalDrawer: React.FC = () => {
         </div>
 
         {actionStatus && (
-          <div className="p-3 bg-indigo-950 border border-indigo-800 text-indigo-300 rounded text-xs">
+          <div className="p-3 bg-primary/10 border border-primary/30 text-primary rounded text-xs">
             Action marked as <span className="font-bold">{actionStatus}</span>. Request sent to approval API.
           </div>
         )}
@@ -146,7 +146,7 @@ export const ApprovalDrawer: React.FC = () => {
 
               {/* Editable Pre-Filled Fields */}
               <div className="space-y-3 border-t border-slate-800 pt-3">
-                <h4 className="text-xs font-semibold text-indigo-400 flex items-center gap-1">
+                <h4 className="text-xs font-semibold text-primary flex items-center gap-1">
                   <Edit3 className="w-3.5 h-3.5" /> Edit Pre-Filled Form Values
                 </h4>
                 {Object.entries(editableFields).map(([key, val]) => {

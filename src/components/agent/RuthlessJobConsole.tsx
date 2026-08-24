@@ -354,7 +354,7 @@ export const RuthlessJobConsole: React.FC = () => {
                 <div className="font-bold text-blue-400">Target Recruiter: {outreachResult.recruiter_name} ({outreachResult.company})</div>
                 {outreachResult.email_sequence.map((em: any, idx: number) => (
                   <div key={idx} className="p-3 rounded bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-indigo-400 font-bold">{em.step}</div>
+                    <div className="text-primary font-bold">{em.step}</div>
                     <pre className="text-slate-300 whitespace-pre-wrap">{em.content}</pre>
                   </div>
                 ))}
@@ -416,15 +416,15 @@ export const RuthlessJobConsole: React.FC = () => {
                 className="bg-slate-950 border-slate-800 text-slate-100 text-xs"
               />
             </div>
-            <Button onClick={handleCopilot} disabled={loading} className="bg-purple-600 hover:bg-purple-500 font-bold">
+            <Button onClick={handleCopilot} disabled={loading} className="bg-accent hover:bg-accent/90 font-bold">
               Generate Instant Copilot STAR Answer ({"<"}1.5s)
             </Button>
 
             {copilotResult && (
               <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3 font-mono text-xs">
-                <div className="flex justify-between items-center text-purple-400 font-bold">
+                <div className="flex justify-between items-center text-accent font-bold">
                   <span>Question: "{copilotResult.question}"</span>
-                  <Badge className="bg-purple-950 text-purple-300">Latency: {copilotResult.response_time}</Badge>
+                  <Badge className="bg-accent/10 text-accent">Latency: {copilotResult.response_time}</Badge>
                 </div>
                 <div className="bg-black p-3 rounded text-slate-200 border border-slate-800 whitespace-pre-wrap">
                   {copilotResult.star_method_answer}

@@ -286,11 +286,11 @@ export const AutonomousCareerConsole: React.FC = () => {
     <div className="w-full max-w-7xl mx-auto p-6 space-y-6">
       {/* Header */}
       <Card className="border border-slate-800 bg-slate-950 text-white shadow-xl">
-        <CardHeader className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-slate-800">
+        <CardHeader className="bg-gradient-to-r from-slate-900 via-primary/10 to-slate-900 border-b border-slate-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="p-3 bg-indigo-500/20 rounded-xl border border-indigo-500/30">
-                <Building2 className="w-8 h-8 text-indigo-400" />
+              <div className="p-3 bg-primary/20 rounded-xl border border-primary/30">
+                <Building2 className="w-8 h-8 text-primary" />
               </div>
               <div>
                 <CardTitle className="text-2xl font-bold flex items-center gap-2">
@@ -306,7 +306,7 @@ export const AutonomousCareerConsole: React.FC = () => {
               <Badge className="bg-emerald-950 text-emerald-300 border-emerald-800">
                 Kanban Interview Board: Active
               </Badge>
-              <Badge className="bg-purple-950 text-purple-300 border-purple-800">
+              <Badge className="bg-accent/10 text-accent border-accent/30">
                 25+ Portals: Supported
               </Badge>
             </div>
@@ -316,22 +316,22 @@ export const AutonomousCareerConsole: React.FC = () => {
 
       <Tabs defaultValue="board" className="w-full">
         <TabsList className="grid grid-cols-6 bg-slate-900 border border-slate-800 p-1 rounded-lg">
-          <TabsTrigger value="board" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+          <TabsTrigger value="board" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <SquareKanban className="w-4 h-4 mr-2" /> Interview Board
           </TabsTrigger>
-          <TabsTrigger value="email" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+          <TabsTrigger value="email" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <Inbox className="w-4 h-4 mr-2" /> Email Connector
           </TabsTrigger>
-          <TabsTrigger value="ats" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+          <TabsTrigger value="ats" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <ShieldCheck className="w-4 h-4 mr-2" /> HITL ATS Review
           </TabsTrigger>
-          <TabsTrigger value="apply" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+          <TabsTrigger value="apply" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <Zap className="w-4 h-4 mr-2" /> Universal Portals
           </TabsTrigger>
-          <TabsTrigger value="negotiate" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+          <TabsTrigger value="negotiate" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <DollarSign className="w-4 h-4 mr-2" /> AI Compensation
           </TabsTrigger>
-          <TabsTrigger value="copilot" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+          <TabsTrigger value="copilot" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             <Mic className="w-4 h-4 mr-2" /> Live Copilot
           </TabsTrigger>
         </TabsList>
@@ -340,7 +340,7 @@ export const AutonomousCareerConsole: React.FC = () => {
         <TabsContent value="board" className="mt-4">
           <Card className="border border-slate-800 bg-slate-900 text-slate-100 p-6 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-bold text-indigo-400 flex items-center gap-2">
+              <h3 className="text-lg font-bold text-primary flex items-center gap-2">
                 <SquareKanban className="w-5 h-5" /> Application & Interview Kanban Pipeline
               </h3>
               <Button size="sm" onClick={fetchInterviewBoard} className="bg-slate-800 hover:bg-slate-700">
@@ -362,7 +362,7 @@ export const AutonomousCareerConsole: React.FC = () => {
                       {stageCards.map((cd: any) => (
                         <div key={cd.card_id} className="p-3 rounded bg-slate-900 border border-slate-800 space-y-2 text-xs">
                           <div className="font-bold text-slate-100">{cd.company}</div>
-                          <div className="text-[11px] text-indigo-300">{cd.role}</div>
+                          <div className="text-[11px] text-primary">{cd.role}</div>
                           <div className="text-[10px] text-slate-400 flex items-center gap-1">
                             <Calendar className="w-3 h-3 text-emerald-400" /> {cd.interview_date}
                           </div>
@@ -373,7 +373,7 @@ export const AutonomousCareerConsole: React.FC = () => {
                           )}
                           <div className="flex gap-1 pt-1">
                             {stage !== 'OFFER_STAGE' && (
-                              <Button size="sm" onClick={() => handleMoveKanbanCard(cd.card_id, 'OFFER_STAGE')} className="h-6 text-[9px] bg-purple-900 hover:bg-purple-800">
+                              <Button size="sm" onClick={() => handleMoveKanbanCard(cd.card_id, 'OFFER_STAGE')} className="h-6 text-[9px] bg-accent hover:bg-accent/90">
                                 Move to Offer
                               </Button>
                             )}
@@ -417,7 +417,7 @@ export const AutonomousCareerConsole: React.FC = () => {
                         <span>{inv.company}: {inv.subject}</span>
                         <span className="text-emerald-400">{inv.proposed_date}</span>
                       </div>
-                      <div className="text-slate-400 text-[11px]">Meeting Link: <span className="text-indigo-400">{inv.meeting_link}</span></div>
+                      <div className="text-slate-400 text-[11px]">Meeting Link: <span className="text-primary">{inv.meeting_link}</span></div>
                       <div className="p-2.5 bg-black rounded border border-slate-800 text-slate-300">
                         <div className="text-[10px] text-slate-500 uppercase mb-1"># Generated Communication Auto-Reply Draft</div>
                         <pre className="whitespace-pre-wrap">{inv.auto_reply_draft.body}</pre>
@@ -454,7 +454,7 @@ export const AutonomousCareerConsole: React.FC = () => {
               </div>
             </div>
 
-            <Button onClick={handleATSPrepare} disabled={loading} className="bg-indigo-600 hover:bg-indigo-500 font-semibold">
+            <Button onClick={handleATSPrepare} disabled={loading} className="bg-primary hover:bg-primary/90 font-semibold">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4 mr-2" />} Prepare ATS Optimization Proposal (HITL)
             </Button>
 
@@ -519,7 +519,7 @@ export const AutonomousCareerConsole: React.FC = () => {
                   {universalResult.applications.map((ap: any) => (
                     <div key={ap.app_id} className="p-3 rounded bg-slate-950 border border-slate-800 flex justify-between items-center">
                       <div>
-                        <span className="text-indigo-400 font-bold">{ap.app_id}</span> • Portal: <span className="text-slate-200 font-bold">{ap.portal}</span> • <span className="text-slate-400">{ap.url}</span>
+                        <span className="text-primary font-bold">{ap.app_id}</span> • Portal: <span className="text-slate-200 font-bold">{ap.portal}</span> • <span className="text-slate-400">{ap.url}</span>
                       </div>
                       <Badge className="bg-emerald-950 text-emerald-300">ATS Match: {ap.ats_match_score}%</Badge>
                     </div>
@@ -573,7 +573,7 @@ export const AutonomousCareerConsole: React.FC = () => {
               </div>
             </div>
 
-            <Button onClick={handleAINegotiate} disabled={loading} className="bg-purple-600 hover:bg-purple-500 font-semibold">
+            <Button onClick={handleAINegotiate} disabled={loading} className="bg-accent hover:bg-accent/90 font-semibold">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4 mr-2" />} Generate AI Salary Negotiation Strategy
             </Button>
 
@@ -586,13 +586,13 @@ export const AutonomousCareerConsole: React.FC = () => {
             {aiNegotiationResult && aiNegotiationResult.llm_available !== false && (
               <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3 text-xs font-mono">
                 <div className="flex items-center justify-between">
-                  <div className="text-purple-300 font-bold text-sm">
+                  <div className="text-accent font-bold text-sm">
                     Base Offer: ${aiNegotiationResult.current_offer?.toLocaleString?.()} → Target Counter: ${aiNegotiationResult.target_counter_offer?.toLocaleString?.()}
                   </div>
                   <Badge className="bg-amber-950 text-amber-300 border-amber-800">Sample output — not from a live model</Badge>
                 </div>
                 <div className="bg-slate-900 p-3 rounded text-slate-300 border border-slate-800">
-                  <div className="text-[10px] text-purple-400 uppercase mb-1 font-bold"># AI Dynamic Strategy</div>
+                  <div className="text-[10px] text-accent uppercase mb-1 font-bold"># AI Dynamic Strategy</div>
                   <p className="whitespace-pre-wrap">{aiNegotiationResult.ai_negotiation_strategy}</p>
                 </div>
                 <div className="bg-black p-3 rounded text-slate-200 border border-slate-800">
@@ -626,7 +626,7 @@ export const AutonomousCareerConsole: React.FC = () => {
               />
             </div>
 
-            <Button onClick={handleCopilot} disabled={loading} className="bg-indigo-600 hover:bg-indigo-500 font-semibold">
+            <Button onClick={handleCopilot} disabled={loading} className="bg-primary hover:bg-primary/90 font-semibold">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4 mr-2" />} Generate AI STAR-Method Answer
             </Button>
 
@@ -639,7 +639,7 @@ export const AutonomousCareerConsole: React.FC = () => {
             {copilotResult && (
               <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2 text-xs font-mono">
                 <div className="flex items-center justify-between">
-                  <div className="font-bold text-indigo-400">Question: "{copilotResult.question}"</div>
+                  <div className="font-bold text-primary">Question: "{copilotResult.question}"</div>
                   <Badge className="bg-amber-950 text-amber-300 border-amber-800">Sample output — not from a live model</Badge>
                 </div>
                 <div className="p-3 bg-black rounded text-slate-200 whitespace-pre-wrap">{copilotResult.star_answer}</div>

@@ -77,7 +77,7 @@ export const AgentConsole: React.FC = () => {
   return (
     <div className="w-full max-w-7xl mx-auto p-6 space-y-6">
       <Card className="border-2 shadow-xl bg-slate-950 text-slate-100">
-        <CardHeader className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-slate-800">
+        <CardHeader className="bg-gradient-to-r from-slate-900 via-primary/10 to-slate-900 border-b border-slate-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
@@ -94,7 +94,7 @@ export const AgentConsole: React.FC = () => {
               <Badge variant="outline" className="border-emerald-500/50 bg-emerald-950/40 text-emerald-300">
                 CodeAct REPL: Active
               </Badge>
-              <Badge variant="outline" className="border-purple-500/50 bg-purple-950/40 text-purple-300">
+              <Badge variant="outline" className="border-accent/50 bg-accent/10 text-accent">
                 Subagent Swarm: 4 Workers
               </Badge>
               <Badge variant="outline" className="border-blue-500/50 bg-blue-950/40 text-blue-300">
@@ -162,7 +162,7 @@ export const AgentConsole: React.FC = () => {
             {agentData.memory_summary && (
               <Card className="border border-slate-800 bg-slate-900/60 text-slate-200">
                 <CardHeader className="pb-3 border-b border-slate-800">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2 text-purple-400">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2 text-accent">
                     <Brain className="w-4 h-4" /> Agent Cognitive Memory
                   </CardTitle>
                 </CardHeader>

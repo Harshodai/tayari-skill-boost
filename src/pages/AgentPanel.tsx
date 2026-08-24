@@ -313,7 +313,7 @@ export default function AgentPanel() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border/40 pb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent flex items-center gap-3">
               <Brain className="w-8 h-8 text-primary" />
               Digital Employee Board
             </h1>
@@ -724,7 +724,7 @@ export default function AgentPanel() {
                   let prefix = "[INFO]";
                   
                   if (event.type === "task_started" || event.type === "step_started") {
-                    color = "text-indigo-400";
+                    color = "text-primary";
                     prefix = "[SYSTEM]";
                   } else if (event.type === "step_completed") {
                     color = "text-zinc-400";

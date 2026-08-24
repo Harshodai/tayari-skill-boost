@@ -61,7 +61,7 @@ const workflowItems: WorkflowItem[] = [
     detail: "Generate role-specific questions and practice notes.",
     href: "/interview/prep",
     icon: MessageSquareText,
-    tone: "text-violet-500",
+    tone: "text-accent",
   },
   {
     label: "Practice with a person",
@@ -89,7 +89,7 @@ const workflowItems: WorkflowItem[] = [
     detail: "Turn a reflection into a sanitized learning card.",
     href: "/interview/experiences",
     icon: Users,
-    tone: "text-indigo-500",
+    tone: "text-primary",
   },
   {
     label: "Read company blogs",

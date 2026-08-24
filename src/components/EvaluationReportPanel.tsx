@@ -58,12 +58,12 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
       {/* Header */}
-      <div className="px-6 py-5 border-b border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 flex justify-between items-center">
+      <div className="px-6 py-5 border-b border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900 to-primary/10 flex justify-between items-center">
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold text-white tracking-tight">Career-Ops Agent Evaluation</h2>
             {report.archetype && (
-              <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+              <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
                 {report.archetype} Archetype
               </span>
             )}
@@ -121,7 +121,7 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
         {/* Block A: Role Summary */}
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-            <Target className="w-4 h-4 text-indigo-400" /> Block A: Role Summary
+            <Target className="w-4 h-4 text-primary" /> Block A: Role Summary
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-xl bg-slate-950/30 border border-slate-850">
@@ -261,7 +261,7 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
         {blockF.stories && blockF.stories.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-              <FileText className="w-4 h-4 text-violet-400" /> Block F: Mapped STAR+R Stories
+              <FileText className="w-4 h-4 text-accent" /> Block F: Mapped STAR+R Stories
             </h3>
             <div className="space-y-3">
               {blockF.stories.map((st: any, idx: number) => (
@@ -276,8 +276,8 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
                       <p className="text-slate-300"><strong>Action:</strong> {st.action}</p>
                       <p className="text-slate-300"><strong>Result:</strong> {st.result}</p>
                     </div>
-                    <div className="p-3.5 rounded-lg bg-indigo-500/5 border border-indigo-500/10 space-y-1">
-                      <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">STAR Reflection</span>
+                    <div className="p-3.5 rounded-lg bg-primary/5 border border-primary/10 space-y-1">
+                      <span className="text-[10px] font-bold text-primary uppercase tracking-wider">STAR Reflection</span>
                       <p className="text-slate-300 leading-relaxed italic">"{st.reflection}"</p>
                     </div>
                   </div>

@@ -86,7 +86,7 @@ export function CalibratedFitCard({
             </Badge>
           )}
           {transitionType === "cross_domain" && (
-            <Badge variant="secondary" className="text-[10px] bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
+            <Badge variant="secondary" className="text-[10px] bg-accent/10 text-accent dark:text-accent border-accent/20">
               Cross-Domain Weighting
             </Badge>
           )}

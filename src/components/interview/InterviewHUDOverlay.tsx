@@ -38,7 +38,7 @@ export function InterviewHUDOverlay({ active = true, onClose }: InterviewHUDOver
       <div className="fixed bottom-6 right-6 z-50 animate-bounce">
         <Button 
           onClick={() => setMinimized(false)}
-          className="rounded-full shadow-2xl bg-gradient-to-r from-primary to-indigo-600 text-white font-bold px-5 py-6 border border-white/20 flex items-center gap-2"
+          className="rounded-full shadow-2xl bg-gradient-to-r from-primary to-primary/70 text-white font-bold px-5 py-6 border border-white/20 flex items-center gap-2"
         >
           <Sparkles className="w-5 h-5 animate-pulse text-amber-300" />
           <span>Interview Co-Pilot Active</span>
@@ -99,7 +99,7 @@ export function InterviewHUDOverlay({ active = true, onClose }: InterviewHUDOver
 
               <div className="grid grid-cols-1 gap-2 pt-1">
                 <div className="p-2 bg-slate-900/80 rounded border border-slate-800">
-                  <span className="font-bold text-indigo-400 block mb-0.5">S — Situation:</span>
+                  <span className="font-bold text-primary block mb-0.5">S — Situation:</span>
                   <span className="text-slate-300">{activeHint.situation}</span>
                 </div>
                 <div className="p-2 bg-slate-900/80 rounded border border-slate-800">

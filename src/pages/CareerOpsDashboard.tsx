@@ -124,6 +124,15 @@ export const CareerOpsDashboard: React.FC = () => {
     return () => clearTimeout(t);
   }, [toast]);
 
+  useEffect(() => {
+    if (!evaluateAppId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEvaluateAppId(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [evaluateAppId]);
+
   const fetchStats = async () => {
     try {
       const data = await getCareerOpsStats();
@@ -339,8 +348,17 @@ export const CareerOpsDashboard: React.FC = () => {
         {/* Evaluate Drawer */}
         {evaluateAppId && (
           <div className="fixed inset-0 z-50 flex justify-end">
-            <div className="absolute inset-0 bg-background/80 backdrop-blur-xs" onClick={() => setEvaluateAppId(null)} />
-            <div className="relative w-[500px] max-w-full h-full bg-card border-l border-border shadow-2xl overflow-y-auto">
+            <div
+              className="absolute inset-0 bg-background/80 backdrop-blur-xs"
+              onClick={() => setEvaluateAppId(null)}
+              aria-hidden="true"
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Evaluation report"
+              className="relative w-[500px] max-w-full h-full bg-card border-l border-border shadow-2xl overflow-y-auto"
+            >
               <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border p-4 flex items-center justify-between z-10">
                 <span className="text-sm font-bold text-foreground">Evaluation Report</span>
                 <Button variant="ghost" size="icon" onClick={() => setEvaluateAppId(null)} className="h-8 w-8 text-muted-foreground hover:text-foreground">
@@ -393,7 +411,7 @@ export const CareerOpsDashboard: React.FC = () => {
             </div>
             <div className="p-4 rounded-xl bg-card border border-border space-y-1">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Scans</span>
-              <p className="text-2xl font-extrabold text-violet-500 tabular-nums">{stats.active_scans}</p>
+              <p className="text-2xl font-extrabold text-accent tabular-nums">{stats.active_scans}</p>
             </div>
           </div>
         )}

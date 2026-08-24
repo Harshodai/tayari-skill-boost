@@ -10,8 +10,8 @@ export const AchievementsBadge: React.FC = () => {
 
   return (
     <section role="region" aria-label="Achievements progress" className="flex flex-col items-start space-y-2 p-4" style={{ backgroundColor: 'var(--secondary)' }}>
-      <div className="text-sm font-medium text-indigo-800">Level {level}</div>
-      <div className="w-full bg-indigo-200 rounded h-2 overflow-hidden">
+      <div className="text-sm font-medium text-primary">Level {level}</div>
+      <div className="w-full bg-primary/20 rounded h-2 overflow-hidden">
         <div
           data-testid="xp-bar"
           className="h-2"
@@ -19,7 +19,7 @@ export const AchievementsBadge: React.FC = () => {
         />
       </div>
       {achievements.length > 0 && (
-        <ul className="mt-2 text-xs text-indigo-700 list-disc list-inside">
+        <ul className="mt-2 text-xs text-primary list-disc list-inside">
           {achievements.map((a, i) => (
             <li key={i}>{a}</li>
           ))}

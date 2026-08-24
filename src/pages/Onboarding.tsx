@@ -239,7 +239,7 @@ export default function Onboarding() {
         {/* Wizard Progress */}
         <div className="flex justify-between items-center border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-600 rounded-lg text-white font-bold">{step}</div>
+            <div className="p-2 bg-primary rounded-lg text-white font-bold">{step}</div>
             <div>
               <h1 className="text-xl font-bold">Branching Onboarding Wizard</h1>
               <p className="text-xs text-slate-400">Configure your personal agentic career operations strategy</p>
@@ -251,7 +251,7 @@ export default function Onboarding() {
                 <WifiOff className="w-3 h-3 mr-1" /> Local Mode
               </Badge>
             )}
-            <Badge className="bg-indigo-950 text-indigo-300 border-indigo-800">
+            <Badge className="bg-primary/10 text-primary border-primary/30">
               Step {step} of 3
             </Badge>
           </div>
@@ -311,7 +311,7 @@ export default function Onboarding() {
           <Card className="bg-slate-900 border-slate-800 text-slate-100 p-6 space-y-6">
             <CardHeader className="p-0 space-y-2">
               <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                <GitBranch className="w-6 h-6 text-indigo-400" /> Select Your Career Transition Track
+                <GitBranch className="w-6 h-6 text-primary" /> Select Your Career Transition Track
               </CardTitle>
               <CardDescription className="text-slate-400">
                 Choose the transition path that matches your current goal to customize agent algorithms.
@@ -325,21 +325,21 @@ export default function Onboarding() {
                 onClick={() => setTransitionType("same_domain")}
                 className={`p-6 rounded-xl border cursor-pointer transition flex flex-col justify-between space-y-4 ${
                   transitionType === "same_domain"
-                    ? "bg-indigo-950/40 border-indigo-500 shadow-lg shadow-indigo-950/50"
+                    ? "bg-primary/10 border-primary shadow-lg shadow-primary/20"
                     : "bg-slate-950 border-slate-800 hover:border-slate-700"
                 }`}
               >
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <Briefcase className="w-8 h-8 text-indigo-400" />
-                    {transitionType === "same_domain" && <CheckCircle2 className="w-5 h-5 text-indigo-400" />}
+                    <Briefcase className="w-8 h-8 text-primary" />
+                    {transitionType === "same_domain" && <CheckCircle2 className="w-5 h-5 text-primary" />}
                   </div>
                   <h3 className="text-lg font-bold text-slate-100">Job Change (Same Domain)</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
                     Optimize for title promotion or senior level advancement in your existing functional domain.
                   </p>
                 </div>
-                <Badge className="w-max bg-indigo-950 text-indigo-300">Level Advancement</Badge>
+                <Badge className="w-max bg-primary/10 text-primary">Level Advancement</Badge>
               </div>
 
               {/* Branch 2: Cross-Domain */}
@@ -348,26 +348,26 @@ export default function Onboarding() {
                 onClick={() => setTransitionType("cross_domain")}
                 className={`p-6 rounded-xl border cursor-pointer transition flex flex-col justify-between space-y-4 ${
                   transitionType === "cross_domain"
-                    ? "bg-purple-950/40 border-purple-500 shadow-lg shadow-purple-950/50"
+                    ? "bg-accent/10 border-accent shadow-lg shadow-accent/20"
                     : "bg-slate-950 border-slate-800 hover:border-slate-700"
                 }`}
               >
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <ArrowRightLeft className="w-8 h-8 text-purple-400" />
-                    {transitionType === "cross_domain" && <CheckCircle2 className="w-5 h-5 text-purple-400" />}
+                    <ArrowRightLeft className="w-8 h-8 text-accent" />
+                    {transitionType === "cross_domain" && <CheckCircle2 className="w-5 h-5 text-accent" />}
                   </div>
                   <h3 className="text-lg font-bold text-slate-100">Domain Change (Cross-Industry)</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
                     Pivot to a new industry or domain using transferable technical competencies and skill-gap translation.
                   </p>
                 </div>
-                <Badge className="w-max bg-purple-950 text-purple-300">Skill-Gap Translation</Badge>
+                <Badge className="w-max bg-accent/10 text-accent">Skill-Gap Translation</Badge>
               </div>
             </div>
 
             <div className="flex justify-end pt-4">
-              <Button onClick={() => setStep(2)} className="bg-indigo-600 hover:bg-indigo-500 font-semibold px-6">
+              <Button onClick={() => setStep(2)} className="bg-primary hover:bg-primary/90 font-semibold px-6">
                 Next: Role Configuration <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -381,11 +381,11 @@ export default function Onboarding() {
               <CardTitle className="text-2xl font-bold flex items-center gap-2">
                 {transitionType === "same_domain" ? (
                   <>
-                    <Briefcase className="w-6 h-6 text-indigo-400" /> Current Title Alignment & Target Level
+                    <Briefcase className="w-6 h-6 text-primary" /> Current Title Alignment & Target Level
                   </>
                 ) : (
                   <>
-                    <Layers className="w-6 h-6 text-purple-400" /> Skill-Gap Translation & Transferable Competencies
+                    <Layers className="w-6 h-6 text-accent" /> Skill-Gap Translation & Transferable Competencies
                   </>
                 )}
               </CardTitle>
@@ -476,7 +476,7 @@ export default function Onboarding() {
                     transferableSkills.map((sk, i) => (
                       <Badge
                         key={i}
-                        className="bg-indigo-950 text-indigo-300 border border-indigo-800 flex items-center gap-1 cursor-pointer"
+                        className="bg-primary/10 text-primary border border-primary/30 flex items-center gap-1 cursor-pointer"
                         onClick={() => handleRemoveSkill(sk)}
                       >
                         {sk} <span className="text-xs ml-1 hover:text-red-400">×</span>
@@ -493,7 +493,7 @@ export default function Onboarding() {
               <Button onClick={() => setStep(1)} variant="outline" className="border-slate-800 text-slate-300">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
-              <Button onClick={() => setStep(3)} className="bg-indigo-600 hover:bg-indigo-500 font-semibold px-6">
+              <Button onClick={() => setStep(3)} className="bg-primary hover:bg-primary/90 font-semibold px-6">
                 Next: Review & Launch <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -503,14 +503,14 @@ export default function Onboarding() {
         {/* Step 3: Complete & Launch */}
         {step === 3 && (
           <Card className="bg-slate-900 border-slate-800 text-slate-100 p-6 space-y-6 text-center">
-            <div className="p-4 bg-indigo-950/50 w-max mx-auto rounded-full text-indigo-400">
+            <div className="p-4 bg-primary/10 w-max mx-auto rounded-full text-primary">
               <Sparkles className="w-10 h-10" />
             </div>
             <div className="space-y-2">
               <h2 className="text-2xl font-bold">Onboarding Configuration Complete</h2>
               <p className="text-slate-400 text-sm max-w-md mx-auto">
                 Your agentic career operations pipeline is configured for{" "}
-                <span className="text-indigo-400 font-bold">
+                <span className="text-primary font-bold">
                   {transitionType === "same_domain" ? "Same Domain Level Advancement" : "Cross-Industry Domain Pivot"}
                 </span>.
               </p>

@@ -13,7 +13,7 @@ const WORKFLOW_STEPS = [
     label: "Review",
     description: "Keep the choices, materials, and final decision visible to you.",
     icon: PauseCircle,
-    tone: "border-indigo-300/25 bg-indigo-400/10 text-indigo-100",
+    tone: "border-primary/25 bg-primary/10 text-primary",
   },
   {
     label: "Receipt",
@@ -112,7 +112,7 @@ export function CandidateControlSection() {
             transition={{ duration: 0.65, ease: "easeOut", delay: reduceMotion ? 0 : 0.1 }}
             className="relative mx-auto w-full max-w-3xl"
           >
-            <div aria-hidden="true" className="absolute -inset-5 rounded-[2rem] bg-gradient-to-br from-cyan-300/15 via-indigo-400/10 to-emerald-300/10 blur-3xl" />
+            <div aria-hidden="true" className="absolute -inset-5 rounded-[2rem] bg-gradient-to-br from-cyan-300/15 via-primary/10 to-emerald-300/10 blur-3xl" />
             <div className="relative overflow-hidden rounded-[1.55rem] border border-slate-700/80 bg-[#08111F] shadow-[0_28px_90px_rgba(2,6,23,0.48)]">
               <div className="flex items-center justify-between border-b border-slate-800/90 bg-slate-900/80 px-4 py-3 sm:px-5">
                 <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">

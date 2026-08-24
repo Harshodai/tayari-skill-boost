@@ -11,7 +11,11 @@ export function Logo({ className, showText = true }: LogoProps) {
   return (
     <Link 
       to="/" 
-      className={cn("flex items-center gap-2.5 group select-none outline-none", className)}
+      className={cn(
+        "flex items-center gap-2.5 group select-none outline-none rounded-lg",
+        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        className
+      )}
     >
       <div
         className={cn(

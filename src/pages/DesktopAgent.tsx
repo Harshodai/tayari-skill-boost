@@ -97,14 +97,14 @@ export default function DesktopAgent() {
   return (
     <main className="min-h-screen bg-[#080d1c] text-slate-100">
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
-        <div className="absolute left-[18%] top-[-18rem] h-[42rem] w-[42rem] rounded-full bg-indigo-500/16 blur-[130px]" />
+        <div className="absolute left-[18%] top-[-18rem] h-[42rem] w-[42rem] rounded-full bg-primary/16 blur-[130px]" />
         <div className="absolute bottom-[-24rem] right-[-10rem] h-[38rem] w-[38rem] rounded-full bg-cyan-400/10 blur-[130px]" />
       </div>
 
       <div className="relative mx-auto flex min-h-screen max-w-[1600px] flex-col px-4 py-4 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 backdrop-blur-xl sm:px-5">
           <Link to="/" className="flex items-center gap-3 font-display text-lg font-semibold tracking-tight text-white">
-            <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-indigo-300/20 bg-indigo-300/10"><img src={tayAgentAvatar} alt="" className="h-full w-full object-cover object-top" /></span>
+            <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-primary/20 bg-primary/10"><img src={tayAgentAvatar} alt="" className="h-full w-full object-cover object-top" /></span>
             Job Tayari <span className="hidden text-slate-500 sm:inline">Workspace</span>
           </Link>
           <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -124,7 +124,7 @@ export default function DesktopAgent() {
               <NavItem to="/resume" icon={FileText} label="Resume studio" />
               <NavItem to="/jobs" icon={TerminalSquare} label="Opportunity desk" />
             </nav>
-            <div className="mt-6 rounded-xl border border-indigo-300/15 bg-gradient-to-br from-indigo-300/10 to-cyan-300/5 p-3.5">
+            <div className="mt-6 rounded-xl border border-primary/15 bg-gradient-to-br from-primary/10 to-cyan-300/5 p-3.5">
               <p className="text-sm font-semibold text-slate-100">Review stays with you.</p>
               <p className="mt-1.5 text-xs leading-5 text-slate-400">Tay prepares work, surfaces activity and routes you to review—not hidden submission.</p>
             </div>
@@ -137,7 +137,7 @@ export default function DesktopAgent() {
                 <h1 className="font-display text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">A review-first agent workspace with visible boundaries.</h1>
                 <p className="mt-3 text-sm leading-6 text-slate-400 sm:text-base">Bring Job Tayari’s career operations into a focused workspace: files stay selected by you, browser work stays reviewable, and every run has a clear stop point.</p>
               </div>
-              <div className="relative mx-auto h-28 w-28 shrink-0 overflow-hidden rounded-[1.5rem] border border-indigo-300/20 bg-gradient-to-b from-indigo-300/10 to-slate-950 shadow-[0_18px_46px_rgba(79,70,229,.23)] sm:mx-0">
+              <div className="relative mx-auto h-28 w-28 shrink-0 overflow-hidden rounded-[1.5rem] border border-primary/20 bg-gradient-to-b from-primary/10 to-slate-950 shadow-[0_18px_46px_hsl(var(--primary)/0.23)] sm:mx-0">
                 <img src={tayAgentAvatar} alt="Tay, the Job Tayari agent" className="h-full w-full object-cover object-top" />
               </div>
             </div>
@@ -148,8 +148,8 @@ export default function DesktopAgent() {
 
             <div className="mt-7 rounded-2xl border border-slate-700/80 bg-[#0b1020] p-4 shadow-inner sm:p-5">
               <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-white">What should Tay prepare?</p><p className="mt-1 text-xs text-slate-500">Agent work runs through the existing authenticated Job Tayari API.</p></div><span className="hidden rounded-full border border-emerald-300/15 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-emerald-200 sm:inline">Review-first</span></div>
-              <textarea value={task} onChange={(event) => setTask(event.target.value)} placeholder="For example: Prepare a tailored application brief for this role and identify the parts I should review." className="mt-4 min-h-32 w-full resize-y rounded-xl border border-slate-700 bg-slate-950 p-3.5 text-sm leading-6 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-indigo-300/60 focus:ring-2 focus:ring-indigo-300/15" />
-              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex flex-wrap gap-2">{files.map((file) => <button key={file.path} onClick={() => void desktop?.revealFile(file.path)} className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 transition hover:border-slate-500 hover:text-white">{file.name}</button>)}<Button type="button" variant="ghost" size="sm" onClick={() => void chooseFiles()} className="text-slate-300 hover:bg-slate-800 hover:text-white"><FolderOpen className="mr-2 h-3.5 w-3.5" />Attach files</Button></div><Button type="button" onClick={() => void runTask()} disabled={running} className="bg-indigo-300 text-slate-950 hover:bg-indigo-200">{running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}{running ? "Preparing…" : "Ask Tay"}</Button></div>
+              <textarea value={task} onChange={(event) => setTask(event.target.value)} placeholder="For example: Prepare a tailored application brief for this role and identify the parts I should review." className="mt-4 min-h-32 w-full resize-y rounded-xl border border-slate-700 bg-slate-950 p-3.5 text-sm leading-6 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-primary/60 focus:ring-2 focus:ring-primary/15" />
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex flex-wrap gap-2">{files.map((file) => <button key={file.path} onClick={() => void desktop?.revealFile(file.path)} className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 transition hover:border-slate-500 hover:text-white">{file.name}</button>)}<Button type="button" variant="ghost" size="sm" onClick={() => void chooseFiles()} className="text-slate-300 hover:bg-slate-800 hover:text-white"><FolderOpen className="mr-2 h-3.5 w-3.5" />Attach files</Button></div><Button type="button" onClick={() => void runTask()} disabled={running} className="bg-primary text-slate-950 hover:bg-primary/90">{running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}{running ? "Preparing…" : "Ask Tay"}</Button></div>
             </div>
 
             {error && <div role="alert" className="mt-4 flex items-start gap-2.5 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm leading-6 text-rose-100"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
@@ -167,5 +167,5 @@ export default function DesktopAgent() {
 }
 
 function NavItem({ to, icon: Icon, label, active = false }: { to: string; icon: typeof Bot; label: string; active?: boolean }) {
-  return <Link to={to} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${active ? "bg-indigo-300/12 text-indigo-100 shadow-[inset_0_0_0_1px_rgba(165,180,252,.14)]" : "text-slate-400 hover:bg-slate-900 hover:text-slate-100"}`}><Icon className="h-4 w-4" />{label}</Link>;
+  return <Link to={to} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${active ? "bg-primary/12 text-primary shadow-[inset_0_0_0_1px_rgba(165,180,252,.14)]" : "text-slate-400 hover:bg-slate-900 hover:text-slate-100"}`}><Icon className="h-4 w-4" />{label}</Link>;
 }

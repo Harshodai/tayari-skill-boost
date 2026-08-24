@@ -269,10 +269,11 @@ export default function AdvisorDashboard() {
               <Search className="h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search candidates by name, email or role..."
+                placeholder="Search candidates by name, email or role…"
+                aria-label="Search candidates"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-transparent text-sm w-full outline-none"
+                className="bg-transparent text-sm w-full outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
               />
             </div>
 
@@ -281,7 +282,8 @@ export default function AdvisorDashboard() {
               <select
                 value={selectedCohort}
                 onChange={(e) => setSelectedCohort(e.target.value)}
-                className="bg-background border border-border/60 text-sm rounded-lg px-3 py-2 outline-none cursor-pointer"
+                aria-label="Filter by cohort"
+                className="bg-background border border-border/60 text-sm rounded-lg px-3 py-2 outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">All Cohorts</option>
                 {cohorts.map((c) => (
