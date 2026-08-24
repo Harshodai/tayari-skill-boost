@@ -6,7 +6,7 @@
         build-frontend build-backend build-python \
         dev-frontend dev-backend dev-python \
         test test-frontend test-backend test-python test-e2e \
-        compile build-local lint audit baseline staging-integration staging-integration-plan staging-integration-contract
+        compile build-local lint audit baseline todo-status staging-integration staging-integration-plan staging-integration-contract
 
 # Default target when calling `make` without arguments
 .DEFAULT_GOAL := help
@@ -161,6 +161,9 @@ audit: ## Run complete security scan, typecheck, unit, integration, and build ve
 
 baseline: ## Capture static readiness and environment-gate evidence without mutation
 	bash scripts/repository_baseline.sh
+
+todo-status: ## Report all unchecked remediation TODOs without contacting services
+	python3 scripts/verify_todos_status.py
 
 staging-integration: ## Run the live non-production DB/Auth/Redis integration gate
 	./scripts/staging_integration_gate.sh
