@@ -1,6 +1,6 @@
 # Tayari — Final Staging-to-Production Go/No-Go Command Document
 
-**Version:** 1.0 — 24 August 2026  
+**Version:** 1.0 — 24 August 2026
 **Purpose:** This is the single operating document for deciding which Tayari features may be enabled during final staging, which must remain restricted, and what evidence is required before a sincere public-production launch.
 
 ## 1. Decision Standard

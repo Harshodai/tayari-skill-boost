@@ -1,7 +1,7 @@
 # Tayari Staging Launch Command Plan
 
-**Version:** 1.0 — 24 August 2026  
-**Decision standard:** This document governs whether Tayari may enter a **controlled staging environment**. It is not permission to launch to public production.  
+**Version:** 1.0 — 24 August 2026
+**Decision standard:** This document governs whether Tayari may enter a **controlled staging environment**. It is not permission to launch to public production.
 **Rule:** Any failed, missing, ambiguous, or manually waived **red gate** is a **no-go**. There is no “we will fix it after staging” exception for authorization, secret handling, data integrity, or truthful user-facing claims.
 
 ## 1. Definition of “Ready for Staging”

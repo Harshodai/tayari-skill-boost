@@ -1,7 +1,7 @@
 # Tayari Skill Boost — Production-Readiness Audit and Hardening Report
 
-**Audit date:** 24 August 2026  
-**Audited baseline:** `b32840d` on `main`, plus the pre-existing working tree and the audit changes described below.  
+**Audit date:** 24 August 2026
+**Audited baseline:** `b32840d` on `main`, plus the pre-existing working tree and the audit changes described below.
 **Assessment:** **Conditional release approval only after the database migration is applied to every existing environment and the release checklist passes.**
 
 ## Executive Summary
