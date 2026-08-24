@@ -106,3 +106,12 @@ The current release is structurally prepared for the next staging evidence pass,
 - [`scripts/live_provider_verify.py`](../../scripts/live_provider_verify.py)
 - [`scripts/local-docker-smoke.sh`](../../scripts/local-docker-smoke.sh)
 - [`scripts/production_promotion_gate.sh`](../../scripts/production_promotion_gate.sh)
+
+
+## Reproducible live-staging runner added
+
+A fail-closed runner is now available at [`scripts/staging_integration_gate.sh`](../../scripts/staging_integration_gate.sh) and through `make staging-integration`. It refuses to run unless the operator explicitly sets `STAGING_ENVIRONMENT=staging` and `STAGING_CONFIRM=I_UNDERSTAND_STAGING_ONLY`, and it requires explicit staging URLs and managed-service configuration rather than using production or example defaults.
+
+When configured, the runner first executes strict live provider readiness, then runs `tests/integration/backend_test.py` against `BASE_URL`, and optionally runs the hostile staging suite when `RUN_HOSTILE_STAGING=true`. It writes a per-run summary, provider-readiness evidence, backend integration log, and hostile-suite log under `test-results/staging-live/`.
+
+The runner’s safety check was executed in this environment and correctly returned exit code `78` with `STAGING_ENVIRONMENT=staging is required`. No external service was contacted. A real staging result requires the approved target and secret-manager injection described in this report.

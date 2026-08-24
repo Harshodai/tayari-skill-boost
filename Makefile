@@ -6,7 +6,7 @@
         build-frontend build-backend build-python \
         dev-frontend dev-backend dev-python \
         test test-frontend test-backend test-python test-e2e \
-        compile build-local lint audit
+        compile build-local lint audit staging-integration
 
 # Default target when calling `make` without arguments
 .DEFAULT_GOAL := help
@@ -156,3 +156,6 @@ audit: ## Run complete security scan, typecheck, unit, integration, and build ve
 	@echo "$(BLUE)Running production promotion contract...$(RESET)"
 	pnpm run promotion:gate
 	@echo "$(GREEN)All audit checks and test suites passed successfully!$(RESET)"
+
+staging-integration: ## Run the live non-production DB/Auth/Redis integration gate
+	./scripts/staging_integration_gate.sh
