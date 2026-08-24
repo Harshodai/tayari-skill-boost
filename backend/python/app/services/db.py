@@ -304,6 +304,78 @@ async def update_agent_run(run_id: str, **fields) -> bool:
         return False
 
 
+async def persist_application_stage_envelope(envelope: dict) -> bool:
+    """Persist one bounded M9-01 stage envelope idempotently.
+
+    The schema is additive; an unavailable/older database returns False rather
+    than changing the user-visible workflow result. The envelope builder is
+    responsible for excluding raw resume/job/provider content before this call.
+    """
+    required = ("application_id", "user_id", "stage_key", "stage_version")
+    if any(not envelope.get(key) for key in required):
+        return False
+    pool = await get_pool()
+    if not pool:
+        return False
+    import json as _json
+    try:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO application_stage_envelopes (
+                    application_id, run_id, user_id, tenant_id, stage_key,
+                    stage_version, profile_snapshot_hash, job_identity_key,
+                    job_source_url, job_provenance, artifact_hash,
+                    artifact_version, artifact_provenance, approval_state,
+                    failure_state, input_hash, output_hash, observed_at
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb,
+                    $11, $12, $13::jsonb, $14, $15::jsonb, $16, $17, $18
+                )
+                ON CONFLICT (application_id, stage_key, stage_version)
+                DO UPDATE SET
+                    run_id = EXCLUDED.run_id,
+                    tenant_id = EXCLUDED.tenant_id,
+                    profile_snapshot_hash = EXCLUDED.profile_snapshot_hash,
+                    job_identity_key = EXCLUDED.job_identity_key,
+                    job_source_url = EXCLUDED.job_source_url,
+                    job_provenance = EXCLUDED.job_provenance,
+                    artifact_hash = EXCLUDED.artifact_hash,
+                    artifact_version = EXCLUDED.artifact_version,
+                    artifact_provenance = EXCLUDED.artifact_provenance,
+                    approval_state = EXCLUDED.approval_state,
+                    failure_state = EXCLUDED.failure_state,
+                    input_hash = EXCLUDED.input_hash,
+                    output_hash = EXCLUDED.output_hash,
+                    observed_at = EXCLUDED.observed_at,
+                    updated_at = now()
+                WHERE application_stage_envelopes.user_id = EXCLUDED.user_id
+                """,
+                envelope["application_id"],
+                envelope.get("run_id"),
+                envelope["user_id"],
+                envelope.get("tenant_id"),
+                envelope["stage_key"],
+                envelope["stage_version"],
+                envelope.get("profile_snapshot_hash"),
+                envelope.get("job_identity_key"),
+                envelope.get("job_source_url"),
+                _json.dumps(envelope.get("job_provenance") or {}),
+                envelope.get("artifact_hash"),
+                envelope.get("artifact_version"),
+                _json.dumps(envelope.get("artifact_provenance") or {}),
+                envelope.get("approval_state", "not_required"),
+                _json.dumps(envelope.get("failure_state")) if envelope.get("failure_state") is not None else None,
+                envelope.get("input_hash"),
+                envelope.get("output_hash"),
+                envelope.get("observed_at"),
+            )
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("app.services.db: stage envelope persistence failed (%s)", exc)
+        return False
+
+
 async def append_log(run_id: str, step: str, message: str, at: str | None = None) -> bool:
     """Append a log entry to the ``agent_runs.logs`` jsonb array."""
     from datetime import datetime, timezone

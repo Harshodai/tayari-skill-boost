@@ -153,6 +153,19 @@ case "$PYTHON_BASE_URL" in
   *) echo "ERROR: PYTHON_BASE_URL must be HTTPS or loopback HTTP." >&2; exit 78 ;;
 esac
 
+# Defense in depth: staging attestation is necessary but not sufficient. Refuse
+# obvious production host labels even if an operator accidentally exports the
+# wrong URL alongside the staging attestation variables.
+for target_name in TARGET_BASE_URL PYTHON_BASE_URL; do
+  target_value="${!target_name}"
+  case "$target_value" in
+    *production*|*://prod.*|*://prod-*|*://prod/*)
+      echo "ERROR: $target_name looks production-scoped; refusing staging execution." >&2
+      exit 78
+      ;;
+  esac
+done
+
 EVIDENCE_DIR="${STAGING_EVIDENCE_DIR:-$ROOT_DIR/test-results/staging-live}"
 mkdir -p "$EVIDENCE_DIR"
 run_id="$(date -u +%Y%m%dT%H%M%SZ)-$$"

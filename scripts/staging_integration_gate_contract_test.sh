@@ -47,4 +47,20 @@ set -e
 [[ "$invalid_target_rc" -eq 78 ]]
 grep -Fq 'TARGET_BASE_URL must be HTTPS or loopback HTTP' "$TMP_DIR/target.txt"
 
+set +e
+STAGING_ENVIRONMENT=staging \
+STAGING_CONFIRM=I_UNDERSTAND_STAGING_ONLY \
+TARGET_BASE_URL=https://production.example.invalid \
+PYTHON_BASE_URL=https://staging.example.invalid \
+BASE_URL=https://staging.example.invalid/api \
+DATABASE_URL='postgresql://redacted' \
+REDIS_URL='redis://redacted' \
+SUPABASE_URL=https://staging.example.invalid \
+SUPABASE_ANON_KEY=redacted \
+  "$GATE" > "$TMP_DIR/production-looking.txt" 2>&1
+production_target_rc=$?
+set -e
+[[ "$production_target_rc" -eq 78 ]]
+grep -Fq 'looks production-scoped' "$TMP_DIR/production-looking.txt"
+
 echo "PASS: staging integration gate contract tests"

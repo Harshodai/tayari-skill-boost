@@ -27,6 +27,8 @@ separate state that is never inferred from agent self-reporting.
 """
 import asyncio
 import concurrent.futures
+import hashlib
+import json
 import logging
 import os
 import uuid
@@ -49,6 +51,7 @@ from app.services.db import (
     create_agent_run as _db_create_agent_run,
     load_agent_run as _db_load_agent_run,
     update_agent_run as _db_update_agent_run,
+    persist_application_stage_envelope as _db_persist_stage_envelope,
 )
 from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LongContextClient
 from app.services.job_agent import smart_search
@@ -61,6 +64,7 @@ from app.services.linkedin_policy import assert_not_linkedin_automation, LinkedI
 from app.services.submission_receipt import build_receipt, build_failed_receipt, build_prepared_receipt, save_receipt
 from app.services.ats_tiers import can_auto_submit as _can_auto_submit, should_prepare_only as _should_prepare_only, should_skip as _should_skip_ats, tier_for_url as _tier_for_url
 from app.middleware.operation_budget import BudgetRule, OperationBudget, OperationBudgetUnavailable
+from app.services.workflow_stage_envelope import build_stage_envelope as _build_stage_envelope_impl
 from app.services.application_lifecycle import (
     APPROVED as _LIFECYCLE_APPROVED,
     ATTEMPTED as _LIFECYCLE_ATTEMPTED,
@@ -100,6 +104,37 @@ def _gate_passed(gate_result: dict) -> bool:
     return bool(gate_result.get("all_passed", False))
 
 
+class _BlockedStageEnvelope:
+    """Explicit non-evidence marker for legacy calls without verified ownership."""
+
+    def __init__(self, stage_key: str):
+        self.stage_key = stage_key
+
+    def to_dict(self) -> dict:
+        return {
+            "stage_key": self.stage_key,
+            "stage_version": 1,
+            "approval_state": "not_required",
+            "status": "blocked_missing_verified_user",
+        }
+
+
+def _build_stage_envelope(**kwargs):
+    """Build durable evidence only for a verified user, never a synthetic owner."""
+    if not str(kwargs.get("user_id") or "").strip():
+        return _BlockedStageEnvelope(str(kwargs.get("stage_key") or "unknown"))
+    return _build_stage_envelope_impl(**kwargs)
+
+
+def _sha256_text(value: object) -> str:
+    """Hash a bounded identity/artifact representation without persisting raw content."""
+    if isinstance(value, str):
+        payload = value.encode("utf-8")
+    else:
+        payload = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 def _set_application_lifecycle(application: dict, new_state: str) -> None:
     """Apply a canonical state transition with an optimistic version bump.
 
@@ -112,6 +147,14 @@ def _set_application_lifecycle(application: dict, new_state: str) -> None:
     next_state = _transition_lifecycle(current, new_state, version=version)
     application["lifecycle_state"] = next_state.state
     application["lifecycle_version"] = next_state.version
+
+
+async def _persist_stage_envelope(envelope: dict) -> None:
+    """Persist bounded stage evidence without blocking the application package."""
+    try:
+        await _db_persist_stage_envelope(envelope)
+    except Exception as exc:  # noqa: BLE001 - durable evidence is best-effort until staging
+        logger.warning("autopilot: stage envelope persistence failed: %s", exc)
 
 
 async def _safe_save_receipt(receipt: dict) -> bool:
@@ -330,6 +373,8 @@ async def run_autopilot(
         "applications": [],
     }
     try:
+        profile_snapshot_hash = _sha256_text(profile or {})
+        resume_input_hash = _sha256_text(resume_text)
         # ---- 1. LOAD ----------------------------------------------------
         _update_run(run_id, status="running", progress=5, current_step="LOAD")
         _log(run_id, "LOAD", "Loading your profile and resume")
@@ -465,8 +510,10 @@ async def run_autopilot(
                 cover = await _cover_letter(tailored_text, job, candidate_name)
                 _log(run_id, "LETTER", f"Cover letter written for {job['company']}")
 
+                application_id = str(uuid.uuid4())
+                job_identity_record = job.get("job_identity") or {}
                 application = {
-                    "application_id": str(uuid.uuid4()),
+                    "application_id": application_id,
                     "job": {k: v for k, v in job.items() if not k.startswith("_")},
                     "tailored_resume_text": tailored_text,
                     "cover_letter": cover,
@@ -481,7 +528,71 @@ async def run_autopilot(
                     "submission_mode": "assisted",
                     "apply_url": job.get("url", ""),
                     "created_at": datetime.now(timezone.utc).isoformat(),
+                    "stage_envelopes": [
+                        _build_stage_envelope(
+                            application_id=application_id,
+                            user_id=str(config.get("user_id") or ""),
+                            run_id=run_id,
+                            stage_key="resume_ingested",
+                            profile_snapshot_hash=profile_snapshot_hash,
+                            artifact_hash=resume_input_hash,
+                            artifact_version="resume-input-v1",
+                            artifact_provenance={"source": "candidate_input"},
+                            input_hash=resume_input_hash,
+                            output_hash=resume_input_hash,
+                        ).to_dict(),
+                        _build_stage_envelope(
+                            application_id=application_id,
+                            user_id=str(config.get("user_id") or ""),
+                            run_id=run_id,
+                            stage_key="job_discovered",
+                            profile_snapshot_hash=profile_snapshot_hash,
+                            job_identity_key=str(job_identity_record.get("key") or ""),
+                            job_source_url=job_identity_record.get("source_url"),
+                            job_provenance={
+                                "provider": job_identity_record.get("provider", "unknown"),
+                                "source_url": job_identity_record.get("source_url"),
+                                "observed_at": job_identity_record.get("observed_at"),
+                            },
+                            input_hash=resume_input_hash,
+                            output_hash=_sha256_text(job_identity_record),
+                        ).to_dict(),
+                    ],
                 }
+                application["stage_envelopes"].append(
+                    _build_stage_envelope(
+                        application_id=application_id,
+                        user_id=str(config.get("user_id") or ""),
+                        run_id=run_id,
+                        stage_key="fit_analyzed",
+                        profile_snapshot_hash=profile_snapshot_hash,
+                        job_identity_key=str(job_identity_record.get("key") or ""),
+                        job_source_url=job_identity_record.get("source_url"),
+                        job_provenance={"provider": job_identity_record.get("provider", "unknown")},
+                        input_hash=resume_input_hash,
+                        output_hash=_sha256_text({"before": base_score, "after": ats_after}),
+                    ).to_dict()
+                )
+                application["stage_envelopes"].append(
+                    _build_stage_envelope(
+                        application_id=application_id,
+                        user_id=str(config.get("user_id") or ""),
+                        run_id=run_id,
+                        stage_key="resume_tailored",
+                        profile_snapshot_hash=profile_snapshot_hash,
+                        job_identity_key=str(job_identity_record.get("key") or ""),
+                        job_source_url=job_identity_record.get("source_url"),
+                        job_provenance={"provider": job_identity_record.get("provider", "unknown")},
+                        artifact_hash=_sha256_text(tailored_text),
+                        artifact_version="tailored-resume-v1",
+                        artifact_provenance={"policy_version": "candidate-controlled-v1"},
+                        input_hash=resume_input_hash,
+                        output_hash=_sha256_text(tailored_text),
+                    ).to_dict()
+                )
+
+                for envelope in application["stage_envelopes"]:
+                    _schedule_db_flush(lambda envelope=envelope: _persist_stage_envelope(envelope))
 
                 # ---- QUALITY GATE (K4, Review Mode) -------------------------
                 # Run guardrails on the tailored resume before any submit. A
@@ -491,7 +602,45 @@ async def run_autopilot(
                     tailored_text, resume_text, job.get("description")
                 )
                 application["quality_gate_result"] = gate_result
+                application["stage_envelopes"].append(
+                    _build_stage_envelope(
+                        application_id=application_id,
+                        user_id=str(config.get("user_id") or ""),
+                        run_id=run_id,
+                        stage_key="cover_letter_created",
+                        profile_snapshot_hash=profile_snapshot_hash,
+                        job_identity_key=str(job_identity_record.get("key") or ""),
+                        job_source_url=job_identity_record.get("source_url"),
+                        job_provenance={"provider": job_identity_record.get("provider", "unknown")},
+                        artifact_hash=_sha256_text(cover),
+                        artifact_version="cover-letter-v1",
+                        artifact_provenance={"policy_version": "grounded-draft-v1"},
+                        input_hash=_sha256_text(tailored_text),
+                        output_hash=_sha256_text(cover),
+                    ).to_dict()
+                )
+                application["stage_envelopes"].append(
+                    _build_stage_envelope(
+                        application_id=application_id,
+                        user_id=str(config.get("user_id") or ""),
+                        run_id=run_id,
+                        stage_key="review_package_created",
+                        profile_snapshot_hash=profile_snapshot_hash,
+                        job_identity_key=str(job_identity_record.get("key") or ""),
+                        job_source_url=job_identity_record.get("source_url"),
+                        job_provenance={"provider": job_identity_record.get("provider", "unknown")},
+                        artifact_hash=_sha256_text({"resume": tailored_text, "cover_letter": cover}),
+                        artifact_version="review-package-v1",
+                        artifact_provenance={"policy_version": "candidate-review-required-v1"},
+                        approval_state="pending_review",
+                        input_hash=_sha256_text({"resume": tailored_text, "cover_letter": cover}),
+                        output_hash=_sha256_text(gate_result),
+                    ).to_dict()
+                )
                 gate_ok = _gate_passed(gate_result)
+                review_envelope = application["stage_envelopes"][-1]
+                review_envelope["approval_state"] = "pending_review" if gate_ok else "rejected"
+                _schedule_db_flush(lambda envelope=review_envelope: _persist_stage_envelope(envelope))
                 _log(
                     run_id,
                     "QUALITY_GATE",
