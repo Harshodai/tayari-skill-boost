@@ -78,7 +78,7 @@ def find_recruiter_intel(company_name: str, job_title: str) -> Dict[str, Any]:
     res = generate_recruiter_intelligence(company_name, job_title)
     return {
         "company": res.company_name,
-        "role": res.job_title,
+        "role": job_title,
         "recruiter_name": "Hiring Team",
         "patterns": res.suggested_emails,
         "cold_email": {

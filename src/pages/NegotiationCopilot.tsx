@@ -159,6 +159,16 @@ export function NegotiationCopilot() {
                   </div>
 
                   {/* Counter Templates */}
+                  {result.llm_available === false ? (
+                    <Alert variant="destructive" role="alert" className="text-left">
+                      <AlertTitle>Draft emails unavailable</AlertTitle>
+                      <AlertDescription>
+                        The compensation benchmark above is real, but no AI provider is configured to draft the
+                        counter-offer emails and call script right now. Nothing was fabricated — try again once the
+                        AI service is available.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
                   <Tabs defaultValue="appreciation" className="w-full">
                     <TabsList className="w-full justify-start">
                       <TabsTrigger value="appreciation">
@@ -214,6 +224,7 @@ export function NegotiationCopilot() {
                       </div>
                     </TabsContent>
                   </Tabs>
+                  )}
                 </div>
               )}
             </CardContent>

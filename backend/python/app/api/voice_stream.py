@@ -49,19 +49,22 @@ async def synthesize_speech(text: str) -> bytes:
         return b""
 
 async def generate_llm_response(prompt: str, system_message: str) -> str:
-    """Helper to query the LLM compatibly with the project's config."""
+    """Helper to query the LLM compatibly with the project's config.
+
+    Raises on failure — callers must send an honest error frame rather than
+    treating a fallback string as a real generated interview question. This
+    used to swallow every failure (including an unconfigured provider) and
+    return "Thank you for that response. Let's move on to the next
+    question.", sent to the client tagged type:"llm_text" — indistinguishable
+    from a real AI-generated question.
+    """
     from app.services.llm_service import llm_complete
-    try:
-        response = await llm_complete(
-            system_message=system_message,
-            user_message=prompt,
-            max_tokens=300,
-            temperature=0.7
-        )
-        return response
-    except Exception as e:
-        logger.error(f"Error generating LLM response: {e}")
-        return "Thank you for that response. Let's move on to the next question."
+    return await llm_complete(
+        system_message=system_message,
+        user_message=prompt,
+        max_tokens=300,
+        temperature=0.7
+    )
 
 def analyze_speech_telemetry(transcript: str, duration_seconds: float) -> Dict[str, Any]:
     """Analyzes WPM, filler words, and STAR compliance heuristics."""
@@ -131,8 +134,17 @@ async def websocket_endpoint(websocket: WebSocket):
         system_msg = "You are a professional mock interviewer. Keep questions concise and realistic."
         prompt = f"Generate the first interview question for a candidate interviewing for a {target_role} role at {company_name}."
         
-        current_question = await generate_llm_response(prompt, system_msg)
-        
+        try:
+            current_question = await generate_llm_response(prompt, system_msg)
+        except Exception as e:
+            logger.error(f"Failed to generate opening interview question: {e}")
+            await websocket.send_json({
+                "type": "error",
+                "error": "ai_service_unavailable",
+                "message": "Could not generate an interview question right now.",
+            })
+            return
+
         # Send text back to client
         await websocket.send_json({
             "type": "llm_text",
@@ -174,18 +186,28 @@ async def websocket_endpoint(websocket: WebSocket):
 
                             # Generate next question
                             prompt = f"The candidate responded: '{user_text}'. Now ask the next follow-up question for {target_role} at {company_name}."
-                            next_q = await generate_llm_response(prompt, system_msg)
+                            try:
+                                next_q = await generate_llm_response(prompt, system_msg)
+                            except Exception as gen_err:
+                                logger.error(f"Failed to generate follow-up question: {gen_err}")
+                                await websocket.send_json({
+                                    "type": "error",
+                                    "error": "ai_service_unavailable",
+                                    "message": "Could not generate the next interview question right now.",
+                                })
+                                turn_start_time = time.time()
+                                continue
                             current_question = next_q
 
                             await websocket.send_json({
                                 "type": "llm_text",
                                 "text": next_q
                             })
-                            
+
                             audio_bytes = await synthesize_speech(next_q)
                             if audio_bytes:
                                 await websocket.send_bytes(audio_bytes)
-                            
+
                             turn_start_time = time.time()
                     except Exception as parse_err:
                         logger.error(f"Mock parser error: {parse_err}")
@@ -252,7 +274,18 @@ async def websocket_endpoint(websocket: WebSocket):
 
                             # Generate next interviewer question
                             prompt = f"The candidate was asked: '{current_question}'. They responded: '{full_response}'. Ask the next interview question for a {target_role}."
-                            next_q = await generate_llm_response(prompt, system_msg)
+                            try:
+                                next_q = await generate_llm_response(prompt, system_msg)
+                            except Exception as gen_err:
+                                logger.error(f"Failed to generate follow-up question: {gen_err}")
+                                await websocket.send_json({
+                                    "type": "error",
+                                    "error": "ai_service_unavailable",
+                                    "message": "Could not generate the next interview question right now.",
+                                })
+                                accumulated_transcript = []
+                                turn_start_time = time.time()
+                                continue
                             current_question = next_q
 
                             await websocket.send_json({

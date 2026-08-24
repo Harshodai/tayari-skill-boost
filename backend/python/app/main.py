@@ -1190,7 +1190,7 @@ async def negotiation_endpoint(payload: NegotiationRequest):
         )
     except Exception as exc:
         logger.error("negotiation failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="Negotiation strategy generation failed.") from exc
 
 
 class SkillGapRequest(BaseModel):
@@ -1245,6 +1245,7 @@ class OutreachRequest(BaseModel):
 async def outreach_endpoint(payload: OutreachRequest):
     """Generate recruiter cold email and LinkedIn note."""
     from app.services.outreach_copilot import generate_recruiter_outreach
+    from app.services.llm_service import LLMNotConfiguredError
     try:
         return await generate_recruiter_outreach(
             recruiter_name=payload.recruiter_name,
@@ -1252,9 +1253,12 @@ async def outreach_endpoint(payload: OutreachRequest):
             target_role=payload.target_role,
             candidate_proof_points=payload.candidate_proof_points,
         )
+    except LLMNotConfiguredError as exc:
+        logger.error("outreach generate: LLM not configured/available: %s", exc)
+        raise HTTPException(status_code=503, detail="ai_service_unavailable") from exc
     except Exception as exc:
         logger.error("outreach generate failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="Outreach generation failed.") from exc
 
 
 class FunnelAnalyticsRequest(BaseModel):
@@ -1510,7 +1514,11 @@ async def interview_copilot_hint_endpoint(payload: dict):
     """Generate real-time STAR response hints during live interview."""
     from app.services.live_interview_copilot import CopilotHintRequest, generate_interview_hint
     req = CopilotHintRequest(**payload)
-    res = await generate_interview_hint(req)
+    try:
+        res = await generate_interview_hint(req)
+    except LLMNotConfiguredError as exc:
+        logger.error("interview/copilot-hint: LLM not configured: %s", exc)
+        raise HTTPException(status_code=503, detail="ai_service_unavailable") from exc
     return res.dict()
 
 
@@ -1718,8 +1726,11 @@ async def live_copilot_endpoint(payload: dict):
     """Generate instant bulleted STAR framework hints and metrics for live interviewer questions."""
     from app.services.live_interview_copilot import LiveCopilotRequest, generate_live_copilot_hints
     req = LiveCopilotRequest(**payload)
-    res = await generate_live_copilot_hints(req)
-    return res
+    try:
+        return await generate_live_copilot_hints(req)
+    except LLMNotConfiguredError as exc:
+        logger.error("interview/copilot: LLM not configured: %s", exc)
+        raise HTTPException(status_code=503, detail="ai_service_unavailable") from exc
 
 
 # ---------------------------------------------------------------------------

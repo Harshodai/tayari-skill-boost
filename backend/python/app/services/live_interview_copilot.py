@@ -49,43 +49,33 @@ async def generate_live_copilot_hints(req: LiveCopilotRequest) -> LiveCopilotRes
         f"}}\n"
     )
 
-    try:
-        raw_res = await llm_complete(prompt=prompt, system_prompt="You are a fast live interview assistant. Output valid JSON only.")
-        import json
-        clean_json = raw_res.strip()
-        if clean_json.startswith("```json"):
-            clean_json = clean_json[7:]
-        if clean_json.endswith("```"):
-            clean_json = clean_json[:-3]
-        data = json.loads(clean_json.strip())
-        return LiveCopilotResponse(
-            detected_question_type=data.get("detected_question_type", "General"),
-            instant_hints=data.get("instant_hints", ["Focus on clear impact", "Mention specific technologies used"]),
-            star_framework=data.get("star_framework", {
-                "situation": "Briefly describe context at previous role",
-                "task": "Highlight key problem or challenge",
-                "action": "Detail your specific individual contribution",
-                "result": "State quantitative impact and metrics"
-            }),
-            suggested_metrics=data.get("suggested_metrics", ["Improved system throughput", "Delivered on schedule"])
-        )
-    except Exception as e:
-        # Fallback instant hints if LLM fails or is offline
-        return LiveCopilotResponse(
-            detected_question_type="Behavioral/Technical",
-            instant_hints=[
-                "Start with a 1-sentence executive summary of your answer.",
-                "Structure using STAR: Situation -> Task -> Action -> Result.",
-                f"Highlight relevant experience in {', '.join(req.target_skills[:2]) if req.target_skills else 'software architecture'}."
-            ],
-            star_framework={
-                "situation": "Set the scene and context",
-                "task": "Explain the objective",
-                "action": "Step-by-step actions you performed",
-                "result": "Measurable metrics achieved"
-            },
-            suggested_metrics=["Increased performance by 35%", "Zero-downtime deployment"]
-        )
+    # ponytail: this used to catch LLMNotConfiguredError under a bare
+    # `except Exception`, along with every other failure mode, and return a
+    # fully fabricated STAR hint set with invented specific metrics
+    # ("Increased performance by 35%") as if the LLM had produced it. That
+    # made the route's own `except LLMNotConfiguredError -> 503` handler
+    # (ai_routes.py) unreachable dead code. Both LLMNotConfiguredError and any
+    # other failure (timeout, malformed JSON) now propagate honestly — see the
+    # sibling `stream_live_copilot_hints` below, which already did this right.
+    raw_res = await llm_complete(prompt=prompt, system_prompt="You are a fast live interview assistant. Output valid JSON only.")
+    import json
+    clean_json = raw_res.strip()
+    if clean_json.startswith("```json"):
+        clean_json = clean_json[7:]
+    if clean_json.endswith("```"):
+        clean_json = clean_json[:-3]
+    data = json.loads(clean_json.strip())
+    return LiveCopilotResponse(
+        detected_question_type=data.get("detected_question_type", "General"),
+        instant_hints=data.get("instant_hints", ["Focus on clear impact", "Mention specific technologies used"]),
+        star_framework=data.get("star_framework", {
+            "situation": "Briefly describe context at previous role",
+            "task": "Highlight key problem or challenge",
+            "action": "Detail your specific individual contribution",
+            "result": "State quantitative impact and metrics"
+        }),
+        suggested_metrics=data.get("suggested_metrics", ["Improved system throughput", "Delivered on schedule"])
+    )
 
 
 class CopilotHintRequest(BaseModel):

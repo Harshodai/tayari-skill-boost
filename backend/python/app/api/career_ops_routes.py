@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 from app.services import portal_scanner, career_ops_evaluator, pattern_analyzer, followup_tracker
 from app.services.db import get_pool
+from app.services.llm_service import LLMNotConfiguredError
 
 logger = logging.getLogger(__name__)
 
@@ -82,14 +83,18 @@ class StoryBankUpdateRequest(BaseModel):
 async def evaluate_job(payload: dict = Body(...), x_user_id: str = Depends(get_current_user)):
     parsed = EvaluateRequest.from_mapped(payload)
     user_id = get_required_user_id(x_user_id)
-    report = await career_ops_evaluator.evaluate_job_candidate(
-        user_id=user_id,
-        resume_text=parsed.resume_text,
-        title=parsed.title,
-        company=parsed.company,
-        location=parsed.location,
-        description=parsed.description
-    )
+    try:
+        report = await career_ops_evaluator.evaluate_job_candidate(
+            user_id=user_id,
+            resume_text=parsed.resume_text,
+            title=parsed.title,
+            company=parsed.company,
+            location=parsed.location,
+            description=parsed.description
+        )
+    except LLMNotConfiguredError as exc:
+        logger.error("career-ops evaluate: LLM not configured: %s", exc)
+        raise HTTPException(status_code=503, detail="ai_service_unavailable") from exc
     
     # Save the report if application_id is provided
     if parsed.application_id:

@@ -137,11 +137,19 @@ async def analyze_rejection_patterns(user_id: str) -> dict:
     
     try:
         synthesis = await llm_json(PATTERN_ANALYSIS_SYSTEM_PROMPT, json.dumps(llm_payload), tier="fast")
+        llm_available = True
     except Exception as exc:
         logger.error("Failed to run pattern analyzer LLM synthesis: %s", exc)
-        synthesis = {"score_threshold_rationale": "Maintain a personal score floor of 4.0.", "recommendations": []}
-        
+        # ponytail: this used to return a specific, plausible-looking
+        # threshold ("Maintain a personal score floor of 4.0") as if it were
+        # derived from the candidate's real application data. It was a static
+        # fallback presented as personalized analysis. Explicit unavailability
+        # instead — the deterministic funnel/averages above are still real.
+        synthesis = {"score_threshold_rationale": None, "recommendations": []}
+        llm_available = False
+
     return {
+        "llm_available": llm_available,
         "total_analyzed": total,
         "funnel": funnel,
         "outcomes": stage_outcomes,

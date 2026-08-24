@@ -12,9 +12,17 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from app.services.llm_service import llm_complete
+from pydantic import BaseModel, Field
+
+from app.services.llm_service import llm_json, LLMNotConfiguredError
 
 logger = logging.getLogger(__name__)
+
+
+class NegotiationDraft(BaseModel):
+    warm_appreciation_email: str = Field(min_length=1, max_length=2000)
+    data_backed_email: str = Field(min_length=1, max_length=2000)
+    verbal_script: str = Field(min_length=1, max_length=1500)
 
 
 # H1B & Industry Compensation Benchmark Data Baseline
@@ -78,35 +86,7 @@ Provide:
 3. Word-for-word Verbal Phone Call Negotiation Script
 """
 
-    llm_response = await llm_complete(system_prompt, user_prompt, max_tokens=1200)
-
-    # Standard email templates as robust fallbacks
-    email_appreciation = f"""Dear Hiring Team,
-
-Thank you so much for extending the offer for the {role} position at {company}! I am incredibly excited about the team's vision and the impact I can make.
-
-Based on market data for senior roles in {location} and my specific achievements, I was hoping we could explore adjusting the base compensation closer to ${target_base:,.0f}. I am confident this investment will yield immense value to the team.
-
-I am eager to finalize details and look forward to your thoughts.
-
-Best regards,"""
-
-    email_data_backed = f"""Dear Hiring Manager,
-
-Thank you again for the offer to join {company} as {role}. I am thrilled about the opportunity.
-
-Before signing, I reviewed industry compensation benchmarks for {role} roles in {location}. Given my technical experience and proven track record, I would like to request:
-1. Base Salary: ${target_base:,.0f}
-2. Equity / Annual Grant: ${target_equity:,.0f}
-
-If we can reach this target package, I would be delighted to accept immediately and turn down other active processes.
-
-Warmly,"""
-
-    verbal_script = f"""Candidate Script for Recruiter Call:
-"Hi [Recruiter Name], thank you for laying out the offer for {company}! I am super aligned with the team's goals. I took time to evaluate the full compensation package against market rates for {role} positions in {location}. To make this an easy yes today, can we adjust the base salary to ${target_base:,.0f}? If we can meet that number, I am ready to sign today." """
-
-    return {
+    base_response: Dict[str, Any] = {
         "company": company,
         "role": role,
         "current_offer": {
@@ -121,10 +101,31 @@ Warmly,"""
             "equity": target_equity,
             "total_first_year": target_base + target_equity + signon_offer,
         },
+    }
+
+    # ponytail: this used to call the LLM, discard the real response into an
+    # unused "ai_guidance" field, and always serve identical hardcoded
+    # negotiation emails/script as the actual output — the "elite negotiation
+    # coach" persona in the prompt never actually wrote what the candidate
+    # sent. The dollar amounts above are real (computed from the candidate's
+    # own offer + a static benchmark table) and stay outside the LLM call;
+    # only the persuasive prose is LLM-authored, and only served when real.
+    try:
+        draft = await llm_json(system_prompt, user_prompt, response_model=NegotiationDraft, max_tokens=1200)
+    except LLMNotConfiguredError:
+        return {
+            **base_response,
+            "llm_available": False,
+            "emails": None,
+            "verbal_script": None,
+        }
+
+    return {
+        **base_response,
+        "llm_available": True,
         "emails": {
-            "warm_appreciation": email_appreciation,
-            "data_backed": email_data_backed,
+            "warm_appreciation": draft.warm_appreciation_email,
+            "data_backed": draft.data_backed_email,
         },
-        "verbal_script": verbal_script,
-        "ai_guidance": llm_response,
+        "verbal_script": draft.verbal_script,
     }

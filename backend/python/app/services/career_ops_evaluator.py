@@ -150,22 +150,31 @@ async def evaluate_job_candidate(
     {jd_condensed}
     """
     
-    try:
-        # Run Blocks A-F via LLM
-        eval_data = await _engine_llm().map_reduce_json(
-            resume_text, prompt, kind="resume", system=EVALUATOR_SYSTEM_PROMPT, tier="smart"
-        )
-    except Exception as exc:
-        logger.error("Failed Blocks A-F Career-Ops evaluation: %s", exc)
-        eval_data = {}
-        
+    # ponytail: Blocks A-F used to swallow ANY failure (including an
+    # unconfigured LLM) into `eval_data = {}` and return 200 with an empty
+    # evaluation — indistinguishable from "the candidate genuinely has no
+    # findings" rather than "the evaluation never ran." A missing evaluation
+    # must fail loudly, not silently render as a clean report.
+    eval_data = await _engine_llm().map_reduce_json(
+        resume_text, prompt, kind="resume", system=EVALUATOR_SYSTEM_PROMPT, tier="smart"
+    )
+
     # Run Block G Legitimacy Check
     try:
         legitimacy = await check_job_legitimacy(title, company, location, description)
     except Exception as exc:
         logger.error("Failed Block G legitimacy check: %s", exc)
-        legitimacy = {"legitimacy_tier": "Proceed with Caution", "signals": [], "context_notes": ""}
-        
+        # ponytail: "Proceed with Caution" used to be returned as if it were a
+        # real signal-derived verdict when the check simply errored. An
+        # explicit "Unavailable" tier makes clear this is a missing check, not
+        # a judgment the system actually made about this employer.
+        legitimacy = {
+            "legitimacy_tier": "Unavailable",
+            "signals": [],
+            "context_notes": "Legitimacy check failed — treat as unverified, not as a safety signal.",
+            "check_failed": True,
+        }
+
     eval_data["block_g"] = legitimacy
     
     # Generate Cover Letter Draft (Career-Ops style)

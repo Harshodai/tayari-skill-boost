@@ -89,7 +89,7 @@ class StrategicAnalyzer:
             return await self._llm_analysis(resume_text, jd_text)
         except Exception as exc:  # pylint: disable=broad-except
             print(f"[StrategicAnalyzer] LLM call failed: {exc}, falling back")
-            return self._fallback_analysis(resume_text, jd_text)
+            return self._fallback_analysis(resume_text, jd_text, reason="LLM request failed")
 
     async def _llm_analysis(self, resume_text: str, jd_text: str) -> StrategicAnalysisResponse:
         """
@@ -149,14 +149,23 @@ class StrategicAnalyzer:
             )
         except (json.JSONDecodeError, TypeError) as exc:
             print(f"[StrategicAnalyzer] Failed to parse LLM output: {exc}")
-            return self._fallback_analysis("", "")
+            return self._fallback_analysis("", "", reason="LLM response could not be parsed")
 
     @staticmethod
-    def _fallback_analysis(resume_text: str, jd_text: str) -> StrategicAnalysisResponse:
-        """Fallback analysis when no LLM is available."""
+    def _fallback_analysis(
+        resume_text: str, jd_text: str, reason: str = "No LLM configured"
+    ) -> StrategicAnalysisResponse:
+        """Generic, honestly-labeled fallback for a TRANSIENT failure only.
+
+        ponytail: this used to always say "No LLM configured" even when the
+        real cause was a transient request/parse failure with an LLM that
+        *was* configured — misleading about why the analysis is generic. The
+        hard-fail-when-truly-unconfigured path above (LLMNotConfiguredError)
+        never reaches this method at all.
+        """
         return StrategicAnalysisResponse(
             hidden_skills=[],
-            strengths=["No LLM configured. Please set LLM_API_URL and LLM_API_KEY for deeper insights."],
+            strengths=[f"AI analysis unavailable ({reason}). Showing generic guidance instead."],
             templates=[
                 "[Action verb] [quantifiable result] by [method] using [tool/technology].",
                 "Led [initiative] resulting in [metric], leveraging [skill/tool].",
@@ -166,5 +175,5 @@ class StrategicAnalyzer:
                 "Emphasize metrics in the experience section.",
                 "Add a zwischennotes to make results tangible.",
             ],
-            ai_risk_flags=["LLM analysis not available. Generic analysis mode."],
+            ai_risk_flags=[f"AI analysis not available ({reason}). Generic analysis mode."],
         )
