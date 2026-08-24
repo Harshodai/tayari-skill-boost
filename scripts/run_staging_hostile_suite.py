@@ -99,6 +99,10 @@ class StagingHostileSuiteRunner:
             "run_id": str(uuid.uuid4()),
             "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "environment": "staging-hostile-verification",
+            # synthetic=true marks this bundle as produced by a local test run.
+            # The verifier rejects synthetic bundles in --mode=production so they
+            # cannot be used as real promotion evidence.
+            "synthetic": True,
             "status": "PENDING",
             "git_commit": _git_commit(),
             "operator_attestation": "Automated staging hostile suite executed in local test mode; evidence generated from synthetic adversarial probes against application code paths.",

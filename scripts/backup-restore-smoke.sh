@@ -31,6 +31,27 @@ command -v pg_dump >/dev/null 2>&1 || { echo "pg_dump is required" >&2; exit 1; 
 command -v pg_restore >/dev/null 2>&1 || { echo "pg_restore is required" >&2; exit 1; }
 command -v psql >/dev/null 2>&1 || { echo "psql is required" >&2; exit 1; }
 
+# ---------------------------------------------------------------------------
+# SCOPE DECLARATION
+# This drill covers the public schema only. For the full recovery domain
+# inventory (auth, storage, secrets, Redis, OAuth, release artifacts),
+# see docs/recovery-inventory.md.
+# ---------------------------------------------------------------------------
+echo "SCOPE: This drill covers public schema only. See docs/recovery-inventory.md for full recovery domain inventory."
+
+# ---------------------------------------------------------------------------
+# KNOWN GAPS (domains intentionally outside this drill)
+# These echo statements appear in the output so CI logs record the explicit
+# acknowledgement that the PASS below is partial, not complete-service proof.
+# ---------------------------------------------------------------------------
+echo "KNOWN GAP: auth.users not in portable dump — Supabase managed (auth.* schemas excluded by --schema=public)"
+echo "KNOWN GAP: auth.sessions / auth.refresh_tokens / auth.identities not in portable dump — Supabase managed"
+echo "KNOWN GAP: storage.objects (uploaded resumes/files) not in portable dump — object storage is not a SQL schema"
+echo "KNOWN GAP: Redis/Celery queue state not in portable dump — not a PostgreSQL domain"
+echo "KNOWN GAP: Secrets/env config not verified — must be re-injected from operator secret store after restore"
+echo "KNOWN GAP: OAuth client registrations not verified — provider config lives outside this database"
+echo "KNOWN GAP: Stripe webhook endpoint config not verified — Stripe-side configuration not in dump"
+
 # Back up only the application schema. Supabase-managed schemas such as
 # realtime/auth/storage contain extension-owned functions that are not portable
 # into a disposable restore database under the application database owner.
@@ -64,5 +85,13 @@ psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc '
        $$tenants$$, $$cohorts$$, $$memberships$$, $$push_subscriptions$$,
        $$agent_tasks$$, $$agent_router_events$$, $$stripe_webhook_events$$
      ]);' | grep -qx schema-ok
+
+# RLS verification: confirm that Row Level Security policies were restored.
+# A fresh restore of the public schema must include all RLS policies that were
+# present in the source; a count of zero indicates the dump was missing policy
+# definitions or pg_restore failed to replay them.
+psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc \
+  "SELECT CASE WHEN COUNT(*) > 0 THEN 'rls-ok' ELSE 'rls-missing' END FROM pg_policies WHERE schemaname = 'public'" \
+  | grep -qx rls-ok
 
 echo "backup/restore smoke: PASS"

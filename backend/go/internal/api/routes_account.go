@@ -43,17 +43,27 @@ func (s *Server) deleteSupabaseUser(ctx context.Context, userID string) error {
 	return fmt.Errorf("GoTrue admin delete: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 }
 
+// exportCategoryResult records the outcome of a single export category so the
+// manifest.json can surface per-category success/failure to the caller.
+type exportCategoryResult struct {
+	Name     string `json:"name"`
+	Status   string `json:"status"`             // "ok" | "error"
+	RowCount int    `json:"row_count"`
+	Error    string `json:"error,omitempty"`    // non-empty when Status == "error"
+}
+
 // exportJSONRows runs a query expected to return a single JSON array column
 // (typically `SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (...) t`)
-// and returns it as raw JSON. Failures are logged and degrade to an empty
-// array so one missing/renamed table can't fail the whole export.
-func (s *Server) exportJSONRows(ctx context.Context, query string, args ...interface{}) json.RawMessage {
+// and returns it as raw JSON plus any error. The caller decides how to handle
+// the failure — unlike the old implementation, this function does NOT silently
+// substitute [] and must not be used to mask DB errors from the export manifest.
+func (s *Server) exportJSONRows(ctx context.Context, query string, args ...interface{}) (json.RawMessage, error) {
 	var raw []byte
 	if err := s.DB.Conn.QueryRowContext(ctx, query, args...).Scan(&raw); err != nil {
-		log.Printf("handleExportAccount: query failed (%s): %v", query, err)
-		return json.RawMessage("[]")
+		log.Printf("handleExportAccount: query failed: %v", err)
+		return json.RawMessage("[]"), err
 	}
-	return json.RawMessage(raw)
+	return json.RawMessage(raw), nil
 }
 
 // handleDeleteAccount performs a hard cascade delete of all user data (GDPR B3).
@@ -173,6 +183,26 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 			log.Printf("handleDeleteAccount: GoTrue admin delete failed, falling back to direct SQL: %v", err)
 			if _, derr := s.DB.Conn.ExecContext(r.Context(), `DELETE FROM auth.users WHERE id=$1`, uid); derr != nil {
 				log.Printf("handleDeleteAccount: fallback auth.users delete failed: %v", derr)
+				// ponytail: this used to fall through to the 200 "deleted"
+				// response below even when BOTH the GoTrue admin delete and
+				// the direct-SQL fallback failed — a user could be told
+				// their account was deleted while their auth identity row
+				// (and therefore sign-in access) still existed. All of the
+				// user's application data above is genuinely gone (the
+				// cascade transaction already committed), but the identity
+				// revocation itself did not complete, so the response must
+				// say so rather than claim full success.
+				// A 2xx status here would satisfy fetch's response.ok check
+				// and the frontend would treat this as a clean success
+				// (apiFetch/checkResponse only throws on non-2xx) --
+				// deliberately non-2xx so the caller's error path fires.
+				log.Printf("[GDPR] Account data deleted but auth identity revocation FAILED: user_id=%s at %s", uid, time.Now().UTC().Format(time.RFC3339))
+				s.respondJSON(w, http.StatusInternalServerError, map[string]string{
+					"error":   "Your account data was deleted, but we could not fully revoke your sign-in access. Contact support with this reference so we can complete it manually.",
+					"status":  "deletion_incomplete_auth_revocation_failed",
+					"user_id": uid,
+				})
+				return
 			}
 		}
 	}
@@ -186,6 +216,17 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 
 // handleExportAccount gathers all user data and returns a ZIP export (GDPR B3).
 // GET /api/v1/account/export  |  GET /api/account/export
+//
+// Export format: the ZIP contains two files:
+//   - tayari_data_export.json — the user data (all successfully queried categories)
+//   - manifest.json           — per-category status list; overall_status is
+//                               "complete" when every category succeeded, or
+//                               "partial" when one or more queries failed.
+//
+// On a partial export the response header X-Export-Status is set to "partial"
+// (HTTP 200 is still returned so clients can download the partial ZIP + manifest).
+// Callers MUST inspect X-Export-Status and manifest.json before treating the
+// export as a complete GDPR export.
 func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(contextKeyUser).(*models.User)
 	if !ok || user == nil {
@@ -201,45 +242,90 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 		"user_id":        uid,
 	}
 
-	// Profile
+	// categoryResults collects per-category outcomes for manifest.json.
+	var categoryResults []exportCategoryResult
+
+	// addCategory runs exportJSONRows for the given name+query, records the
+	// outcome in categoryResults, and sets export[name] only on success.
+	addCategory := func(name, query string, args ...interface{}) {
+		raw, err := s.exportJSONRows(ctx, query, args...)
+		if err != nil {
+			categoryResults = append(categoryResults, exportCategoryResult{
+				Name:   name,
+				Status: "error",
+				Error:  err.Error(),
+			})
+			return
+		}
+		// Count rows by attempting to unmarshal into a generic slice.
+		var rows []json.RawMessage
+		rowCount := 0
+		if jerr := json.Unmarshal(raw, &rows); jerr == nil {
+			rowCount = len(rows)
+		}
+		categoryResults = append(categoryResults, exportCategoryResult{
+			Name:     name,
+			Status:   "ok",
+			RowCount: rowCount,
+		})
+		export[name] = raw
+	}
+
+	// Profile — separate query (single object, not an array).
 	var profileJSON []byte
 	if err := s.DB.Conn.QueryRowContext(ctx,
 		`SELECT row_to_json(p) FROM public.profiles p WHERE id=$1`, uid,
 	).Scan(&profileJSON); err == nil {
 		export["profile"] = json.RawMessage(profileJSON)
+		categoryResults = append(categoryResults, exportCategoryResult{
+			Name: "profile", Status: "ok", RowCount: 1,
+		})
+	} else {
+		categoryResults = append(categoryResults, exportCategoryResult{
+			Name: "profile", Status: "error", Error: err.Error(),
+		})
 	}
 
-	// Resumes
-	rows, err := s.DB.Conn.QueryContext(ctx,
+	// Resumes — multi-column query with explicit row scanning.
+	resumeResult := exportCategoryResult{Name: "resumes", Status: "ok"}
+	resumeRows, err := s.DB.Conn.QueryContext(ctx,
 		`SELECT id, title, original_text, created_at FROM resumes WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2`, uid, maxExportRows)
-
-	if err == nil {
-		defer rows.Close()
+	if err != nil {
+		resumeResult.Status = "error"
+		resumeResult.Error = err.Error()
+	} else {
+		defer resumeRows.Close()
 		resumes := []map[string]interface{}{}
-		for rows.Next() {
+		for resumeRows.Next() {
 			var id int
 			var title, text string
 			var createdAt time.Time
-			if err := rows.Scan(&id, &title, &text, &createdAt); err == nil {
+			if err := resumeRows.Scan(&id, &title, &text, &createdAt); err == nil {
 				resumes = append(resumes, map[string]interface{}{
 					"id": id, "title": title, "original_text": text,
 					"created_at": createdAt.Format(time.RFC3339),
 				})
 			}
 		}
-		if err := rows.Err(); err != nil {
+		if err := resumeRows.Err(); err != nil {
 			log.Printf("handleExportAccount: resumes rows iteration failed: %v", err)
-			s.respondError(w, http.StatusInternalServerError, "Failed to export account data")
-			return
+			resumeResult.Status = "error"
+			resumeResult.Error = err.Error()
+		} else {
+			resumeResult.RowCount = len(resumes)
+			export["resumes"] = resumes
 		}
-		export["resumes"] = resumes
 	}
+	categoryResults = append(categoryResults, resumeResult)
 
-	// Applications
+	// Applications — multi-column query with explicit row scanning.
+	appResult := exportCategoryResult{Name: "applications", Status: "ok"}
 	appRows, err := s.DB.Conn.QueryContext(ctx,
 		`SELECT application_id, title, company, stage, status, created_at FROM applications WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2`, uid, maxExportRows)
-
-	if err == nil {
+	if err != nil {
+		appResult.Status = "error"
+		appResult.Error = err.Error()
+	} else {
 		defer appRows.Close()
 		apps := []map[string]interface{}{}
 		for appRows.Next() {
@@ -255,96 +341,132 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := appRows.Err(); err != nil {
 			log.Printf("handleExportAccount: applications rows iteration failed: %v", err)
-			s.respondError(w, http.StatusInternalServerError, "Failed to export account data")
-			return
+			appResult.Status = "error"
+			appResult.Error = err.Error()
+		} else {
+			appResult.RowCount = len(apps)
+			export["applications"] = apps
 		}
-		export["applications"] = apps
 	}
+	categoryResults = append(categoryResults, appResult)
 
-	export["autopilot_runs"] = s.exportJSONRows(ctx,
+	// json_agg categories — all use exportJSONRows.
+	addCategory("autopilot_runs",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT run_id, config, status, progress, current_step, logs, applications_created, error, created_at, updated_at
 			FROM autopilot_runs WHERE user_id=$1 ORDER BY created_at DESC) t`, uid)
 
-	export["autopilot_schedules"] = s.exportJSONRows(ctx,
+	addCategory("autopilot_schedules",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT schedule_id, frequency, config, active, next_run_at, last_run_at, created_at
 			FROM autopilot_schedules WHERE user_id=$1 ORDER BY created_at DESC) t`, uid)
 
-	export["job_descriptions"] = s.exportJSONRows(ctx,
+	addCategory("job_descriptions",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT id, title, company, text, created_at
 			FROM job_descriptions WHERE user_id=$1 ORDER BY created_at DESC) t`, uid)
 
-	export["saved_jobs"] = s.exportJSONRows(ctx,
+	addCategory("saved_jobs",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT id, dedupe_key, job, status, saved_at, updated_at
 			FROM saved_jobs WHERE user_id=$1 ORDER BY saved_at DESC) t`, uid)
 
-	export["user_skill_analyses"] = s.exportJSONRows(ctx,
+	addCategory("user_skill_analyses",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT id, resume_id, target_role, matched_skills, missing_skills, created_at
 			FROM user_skill_analyses WHERE user_id=$1 ORDER BY created_at DESC) t`, uid)
 
-	export["conversations"] = s.exportJSONRows(ctx,
+	addCategory("conversations",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT id, title, messages, summary, context_type, related_job_id, is_archived, created_at, updated_at
 			FROM conversations WHERE user_id=$1 ORDER BY updated_at DESC) t`, uid)
 
-	export["user_job_feedback"] = s.exportJSONRows(ctx,
+	addCategory("user_job_feedback",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT id, job_id, job_title, company_name, feedback_type, feedback_source, metadata, created_at
 			FROM user_job_feedback WHERE user_id=$1 ORDER BY created_at DESC) t`, uid)
 
-	export["communications"] = s.exportJSONRows(ctx,
+	addCategory("communications",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT id, application_id, comm_type, job_title, company_name, subject, body, response_status, created_at, responded_at
 			FROM communications WHERE user_id=$1 ORDER BY created_at DESC) t`, uid)
 
-	export["connections"] = s.exportJSONRows(ctx,
+	addCategory("connections",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT id, requester_id, addressee_id, status, created_at, updated_at
 			FROM connections WHERE requester_id=$1 OR addressee_id=$1 ORDER BY created_at DESC) t`, uid)
 
-	export["shared_interview_questions"] = s.exportJSONRows(ctx,
+	addCategory("shared_interview_questions",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT q.id, q.company, q.role, q.question_text, q.answer_text, q.category, q.visibility,
 			       (SELECT COUNT(*) FROM question_upvotes qu WHERE qu.question_id = q.id) AS upvotes,
 			       q.created_at, q.updated_at
 			FROM shared_interview_questions q WHERE q.user_id=$1 ORDER BY q.created_at DESC) t`, uid)
 
-	export["application_outcomes"] = s.exportJSONRows(ctx,
+	addCategory("application_outcomes",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT id, application_id, recruiter_reply, phone_screen, technical_interview, final_interview,
 			       offer_received, offer_accepted, salary_offered, outcome_date, notes, created_at, updated_at
 			FROM application_outcomes WHERE user_id=$1 ORDER BY created_at DESC) t`, uid)
 
-	export["memberships"] = s.exportJSONRows(ctx,
+	addCategory("memberships",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT id, tenant_id, role, created_at
 			FROM memberships WHERE user_id=$1 ORDER BY created_at DESC) t`, uid)
 
-	export["push_subscriptions"] = s.exportJSONRows(ctx,
+	addCategory("push_subscriptions",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT id, endpoint, created_at
 			FROM push_subscriptions WHERE user_id=$1 ORDER BY created_at DESC) t`, uid)
 
-	export["user_subscriptions"] = s.exportJSONRows(ctx,
+	addCategory("user_subscriptions",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT plan, status, stripe_customer_id, stripe_subscription_id, metered_limit, requests_used, current_period_end, created_at, updated_at
 			FROM user_subscriptions WHERE user_id=$1) t`, uid)
 
-	export["privacy_audit_log"] = s.exportJSONRows(ctx,
+	addCategory("privacy_audit_log",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT id, action, resource, detail, created_at
 			FROM privacy_audit_log WHERE user_id=$1 ORDER BY created_at DESC) t`, uid)
+
+	// Build overall export status from per-category results.
+	overallStatus := "complete"
+	for _, cat := range categoryResults {
+		if cat.Status != "ok" {
+			overallStatus = "partial"
+			break
+		}
+	}
+
+	// Build manifest.
+	type manifest struct {
+		SchemaVersion string                 `json:"schema_version"`
+		ExportedAt    string                 `json:"exported_at"`
+		UserID        string                 `json:"user_id"`
+		OverallStatus string                 `json:"overall_status"`
+		Categories    []exportCategoryResult `json:"categories"`
+	}
+	exportedAt, _ := export["exported_at"].(string)
+	m := manifest{
+		SchemaVersion: "2026-08-14",
+		ExportedAt:    exportedAt,
+		UserID:        uid,
+		OverallStatus: overallStatus,
+		Categories:    categoryResults,
+	}
+	manifestJSON, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		log.Printf("handleExportAccount: manifest marshal failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Export generation failed")
+		return
+	}
 
 	exportJSON, err := json.MarshalIndent(export, "", "  ")
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, "Export generation failed")
 		return
 	}
-	if len(exportJSON) > maxExportBytes {
+	if len(exportJSON)+len(manifestJSON) > maxExportBytes {
 		log.Printf("handleExportAccount: export for %s exceeded %d bytes", uid, maxExportBytes)
 		s.respondError(w, http.StatusRequestEntityTooLarge, "Export exceeds the maximum supported size")
 		return
@@ -352,14 +474,25 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	f, err := zw.Create("tayari_data_export.json")
-	if err != nil {
-		log.Printf("handleExportAccount: zip create failed: %v", err)
+
+	writeZipFile := func(name string, data []byte) error {
+		f, err := zw.Create(name)
+		if err != nil {
+			return fmt.Errorf("zip create %s: %w", name, err)
+		}
+		if _, err := f.Write(data); err != nil {
+			return fmt.Errorf("zip write %s: %w", name, err)
+		}
+		return nil
+	}
+
+	if err := writeZipFile("tayari_data_export.json", exportJSON); err != nil {
+		log.Printf("handleExportAccount: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Export generation failed")
 		return
 	}
-	if _, err := f.Write(exportJSON); err != nil {
-		log.Printf("handleExportAccount: zip write failed: %v", err)
+	if err := writeZipFile("manifest.json", manifestJSON); err != nil {
+		log.Printf("handleExportAccount: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Export generation failed")
 		return
 	}
@@ -372,6 +505,12 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="tayari_export.zip"`)
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", buf.Len()))
+	// X-Export-Status signals whether every category was successfully queried.
+	// "partial" means at least one category failed; inspect manifest.json for
+	// details. Callers MUST NOT treat a "partial" export as a complete GDPR
+	// export without re-requesting the failed categories.
+	w.Header().Set("X-Export-Status", overallStatus)
 	w.WriteHeader(http.StatusOK)
-	w.Write(buf.Bytes())
+	w.Write(buf.Bytes()) //nolint:errcheck
 }
+

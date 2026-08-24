@@ -33,7 +33,7 @@ import {
   ExternalLink
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { API_URL, apiFetchResponse, exportUserData, deleteUserAccount } from "@/api";
+import { API_URL, apiFetchResponse, exportUserData, deleteUserAccount, ApiError } from "@/api";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { profileSchema, changePasswordSchema } from "@/lib/schemas";
@@ -92,8 +92,14 @@ const Settings = () => {
       } catch {
         localStorage.removeItem('auth_token');
       }
-    } catch {
-      toast({ title: "Deletion Failed", description: "Error processing account deletion.", variant: "destructive" });
+    } catch (err) {
+      // ponytail: the backend distinguishes "nothing happened" from "your
+      // data was deleted but auth-identity revocation failed" (see
+      // routes_account.go) -- surface its real message instead of a generic
+      // one, since a user who was actually mostly-deleted needs to know that,
+      // not just that "an error" occurred.
+      const description = err instanceof ApiError ? err.message : "Error processing account deletion.";
+      toast({ title: "Deletion Failed", description, variant: "destructive" });
     } finally {
       setIsDeletingAccount(false);
     }

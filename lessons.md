@@ -4,6 +4,205 @@ This document details key findings, architectural decisions, and lessons learned
 
 ---
 
+## 2026-08-25 — REL-003: SBOM/provenance controls existed but had no evidence-chain enforcement
+
+### What was done
+- Audited all SBOM/provenance tooling: `build-images.sh` already passes `--provenance=true --sbom=true` to `docker buildx`; `.github/workflows/build.yml` sets `provenance: mode=max` and `sbom: true` on every matrix image build.
+- Confirmed that `docs/release-evidence/` had a provider-readiness README but no SBOM/provenance evidence section or runbook.
+- Created `scripts/verify_sbom_provenance.sh` — a standalone gate script that (1) discovers cosign/syft/grype/trivy on the host, (2) verifies or generates an SBOM via cosign verify-attestation (preferred) or syft (fallback), (3) checks SLSA provenance attestation, (4) runs a vuln scan, (5) writes a JSON evidence record to `docs/release-evidence/sbom-YYYYMMDD-<short-sha>.json`.
+- Verified: `bash -n scripts/verify_sbom_provenance.sh && echo 'SYNTAX OK'` → **SYNTAX OK** ✔
+- Verified: `bash scripts/verify_sbom_provenance.sh --dry-run && echo 'DRY-RUN OK'` → **DRY-RUN OK** ✔ (exits 0, lists what would be verified, does not touch registry)
+- Appended REL-003 section to `docs/release-evidence/README.md` with per-image runbook, dry-run instructions, and tool requirements table.
+- Ran Go suite: `go build ./... && go vet ./... && go test ./internal/capabilities/... -v` → **PASS** (cached, all 4 tests green).
+
+### Root cause
+- The build toolchain correctly requested SBOM and provenance generation at image build time, but no script existed to verify those attestations post-push and record a real, non-placeholder hash into the release evidence ledger. The promotion checklist had no SBOM evidence step.
+
+### Fix applied
+- Added `scripts/verify_sbom_provenance.sh` (new file, ~200 lines): cosign-first SBOM attestation verification, syft fallback, SLSA provenance check, grype/trivy vuln scan, JSON evidence output. `--dry-run` mode exits 0 for CI without registry access.
+- Appended REL-003 runbook section to `docs/release-evidence/README.md`.
+
+### Reusable lesson
+- Requesting SBOM/provenance at build time (docker buildx flags) is only half the control — the evidence chain is only closed when a post-push verification step records real attestation hashes into a persisted, reviewable ledger before promotion.
+- Always pair a `--dry-run` / offline mode with any release gate script so CI jobs that lack registry credentials can still verify the script is syntactically and logically correct without failing the pipeline.
+
+---
+
+## 2026-08-25 — AUTO-001: Worker/scheduler idempotency contract had no executable proof
+
+
+### What was done
+- Read the full Celery topology: `app/celery_app.py`, `app/tasks/automation.py`, `app/tasks/automation_events.py`, `app/services/run_control.py`. Confirmed `task_acks_late=True`, `task_reject_on_worker_lost=True`, `worker_prefetch_multiplier=1`, hard time-limit 900s — at-least-once delivery with bounded re-queue on crash.
+- Created `docs/worker-topology.md` (282 lines): full idempotency/cancellation/side-effect documentation for every Celery beat entry and task type, global runtime guarantees table, known gap inventory.
+- Created `backend/python/tests/test_worker_idempotency.py` (218 lines, 4 tests):
+  - `test_worker_duplicate_task_idempotent` — same run_id submitted twice; `_autopilot_store` keyed on run_id has exactly one entry, no duplication.
+  - `test_worker_cancellation_stops_work` — `request_cancellation` → `revoke_worker_task` calls `celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")` exactly once.
+  - `test_worker_no_external_effect_when_capability_disabled` — when `WORKSPACE_AUTOMATIONS=false`, `dispatch_events` task returns `{"status":"disabled_by_launch_scope"}` without touching dispatch service.
+  - `test_worker_emit_scheduled_no_external_effect_when_capability_disabled` — same for `emit_scheduled`.
+- Verified: `pytest tests/test_worker_idempotency.py -v` → **4 passed in 1.48s**.
+
+### Root cause
+- There was no executable test proving that duplicate delivery, cancellation, and capability-disabled short-circuits all work correctly. The idempotency guarantee was present in the code (DB upsert keying on run_id, `task_acks_late`, etc.) but was only documented as comments and runtime config — no test could catch a regression.
+
+### Fix applied
+- `docs/worker-topology.md`: full worker topology document; every task's idempotency mechanism, cancellation path, external-side-effect classification, and known gaps are itemized.
+- `backend/python/tests/test_worker_idempotency.py`: 4 tests using eager Celery execution, mocked DB pool, and mocked capability check — no broker, no network required.
+
+### Reusable lesson
+- An at-least-once queue + DB upsert is only idempotent if tested. Write a duplicate-delivery test for every worker that has external side effects; a regression to idempotency is otherwise invisible until a production duplicate send or double-apply occurs.
+- Test the capability-disabled short-circuit path explicitly — it's the last line of defense before an external API call, and it can silently disappear if the capability module is refactored.
+
+---
+
+## 2026-08-25 — OPS-008: Live provider readiness existed but was not a named release artifact
+
+### What was done
+- Confirmed `scripts/live_provider_verify.py` exists and has full read-only probe harness for Go/Python health, LLM, Stripe, Firecrawl, Apify, Gmail/Calendar/Drive, observability, queue, and Supabase auth. Distinguishes `pass`, `degraded`, `blocked_by_configuration`, `blocked_by_policy`.
+- Created `scripts/release_provider_check.sh`: wraps `live_provider_verify.py` with `--dry-run` and `--environment` flags; saves output to `docs/release-evidence/provider-readiness-$(date +%Y%m%d).json`; exits 1 if any REQUIRED provider (`go-gateway`, `python-ai`, `queue`, `supabase`) is `blocked` or `degraded`; WARNING-tier providers (`llm`, `stripe`, etc.) are recorded but don't fail the gate.
+- Created `docs/release-evidence/README.md`: provider tier table, evidence bundle schema, how-to-generate instructions, and EV-008 release checklist.
+- Created `docs/release-evidence/provider-readiness-20260825.json`: placeholder structure showing the expected output format.
+- Verified: `bash -n scripts/release_provider_check.sh` exits 0 (syntax OK). `--dry-run` exits 0 with clear output showing what WOULD be verified.
+
+### Root cause
+- `live_provider_verify.py` was written but never named in the evidence program. A release could be promoted without ever running it. A degraded required provider (e.g., Supabase auth unreachable in the target environment) would be invisible to the release gate.
+
+### Fix applied
+- `scripts/release_provider_check.sh`: opinionated wrapper with required-vs-warning tier enforcement; saves evidence artifact.
+- `docs/release-evidence/README.md`: documents the artifact as mandatory before any promotion.
+
+### Reusable lesson
+- A read-only probe harness is only a release gate if it is named as one. Name the script, define the required-vs-warning tiers explicitly, and make the CI/release checklist require the output artifact. "We have a script that could check this" is not the same as "we require proof before promoting."
+
+---
+
+## 2026-08-25 — DATA-007: Data export silently substituted [] for failed queries
+
+### What was done
+- Confirmed the finding is **real** by reading `backend/go/internal/api/routes_account.go`:
+  - `exportJSONRows` (lines 50–57 before fix): returned `json.RawMessage("[]")` on any DB error and logged it — the error was never surfaced to the caller or included in the export. A failed query was indistinguishable from a legitimately empty result set.
+  - `handleExportAccount` used `export["category"] = s.exportJSONRows(...)` for 13 categories, silently masking every query failure as an empty array.
+  - No manifest, no per-category status, no `X-Export-Status` header — the ZIP always claimed to be complete.
+- Fixed `exportJSONRows` to return `(json.RawMessage, error)` — callers must handle the error.
+- Rewrote `handleExportAccount` to:
+  - Track per-category results via `exportCategoryResult{Name, Status, RowCount, Error}`.
+  - Build `manifest.json` (added as a second file in the ZIP) listing every category with its `status` ("ok"|"error"), `row_count`, and `error` message.
+  - Compute `overall_status` ("complete"|"partial") from category results.
+  - Set `X-Export-Status` response header to the overall status — HTTP 200 is returned so partial exports are still downloadable, but the header and manifest make the incompleteness explicit.
+- Added three tests to `routes_account_test.go`:
+  - `TestExportAccount_QueryFailure_NotSilent` — all-fail DB → ZIP has manifest.json with error entries, `X-Export-Status: partial` (DATA-007 regression test).
+  - `TestExportAccount_AllSuccess` — custom `exportSuccessDriver` returning `[]` for all queries → manifest `overall_status=complete`, all categories `ok`.
+  - `TestExportAccount_Unauthenticated` — no auth → 401.
+- Verification:
+  - `go build ./...` → exit 0
+  - `go vet ./...` → exit 0
+  - `go test ./internal/api/ -run TestExportAccount` → **3/3 PASS**
+  - `go test ./internal/api/ -run TestDeleteAccount` → **4/4 PASS** (pre-existing tests unaffected)
+  - 6 pre-existing failures in other tests (`TestResumeGeneratePdf_*`, `TestVerificationSubmit_*`, `TestMetaWhatsAppProvider*`) are sandbox network-restriction failures (dial EPERM), unrelated to this change.
+
+### Root cause
+- `exportJSONRows` was designed as a "best-effort" helper: return `[]` on DB error so one bad table doesn't abort the whole export. This intent is reasonable for resilience, but the implementation had no way for the caller to distinguish "no data" from "query failed" — the error was logged and discarded. The export handler then wrote the silent `[]` into the ZIP and returned HTTP 200, making a partial or entirely failed export look complete.
+
+### Fix applied
+- `exportJSONRows`: changed return type from `json.RawMessage` to `(json.RawMessage, error)`.
+- `handleExportAccount`: added `addCategory` closure that records per-category status; builds and writes `manifest.json` to the ZIP; sets `X-Export-Status` header.
+- Design choice: HTTP 200 with `X-Export-Status: partial` (not HTTP 207 or 500) — clients can still download and inspect the partial data, the header signals incompleteness, and the manifest identifies which categories failed. This was chosen over HTTP 207 (Multi-Status) because ZIP is a binary response, not a multi-part HTTP body, so the standard Multi-Status semantics don't apply cleanly.
+
+### Reusable lesson
+- A "best-effort degrades to empty" pattern is only safe when the caller can distinguish empty-because-no-data from empty-because-error. If the caller can't tell, the correct fix is to propagate the error and let the caller decide the policy — not to absorb it silently.
+- Always include a machine-readable manifest in bulk/export responses so that partial success is detectable without inspecting the data payload. HTTP headers alone are insufficient because they are not persisted with the downloaded file.
+
+---
+
+## 2026-08-25 — OPS-007: Backup/restore drill covered only public schema, not auth/storage/config
+
+### What was done
+- Read `scripts/backup-restore-smoke.sh` in full (69 lines): confirmed it runs `pg_dump --schema=public`, restores via `pg_restore`, and verifies 14 tables exist. Comments explicitly acknowledge auth/storage exclusion.
+- Searched `scripts/` for all `.sh`/`.py` files mentioning auth.users, storage, backup, restore — found no script covering `auth.*` schema or `storage.objects`.
+- Read all four backup/restore scripts: `backup.sh`, `backup-hosted.sh`, `restore.sh`, `restore-drill.sh`. Every pg_dump invocation uses `--schema=public`; none cover auth, storage, or Redis.
+- Created `docs/recovery-inventory.md`: 8 domains fully enumerated (application DB, auth identities, file storage, migrations/RLS, secrets, Redis/Celery, OAuth config, release artifacts). Each domain has: backup owner, RPO, RTO, restore mechanism, validation query, coverage status, intentional-exclusion rationale.
+- Identified 3 launch blockers: auth.* backup (self-hosted), file storage backup (none documented), backup-hosted.sh cron schedule (not automated).
+- Extended `scripts/backup-restore-smoke.sh` (69→98 lines): added SCOPE header echo, 7 KNOWN GAP echoes, and an RLS `pg_policies` count check (`rls-ok` gate). Zero restore-logic changes.
+- Verified bash syntax: `bash -n scripts/backup-restore-smoke.sh` → exit 0, SYNTAX OK.
+
+### Root cause
+- The finding is **real**. `pg_dump --schema=public` is the correct portability choice for a Supabase-managed target, but no script or document enumerated what is *not* covered. The script's own comments said "not portable" without specifying which domains this affects operationally.
+- No backup path exists for `auth.*` (user accounts) or `storage.*` (uploaded files) in self-hosted deployments. Those are launch-blocking gaps.
+
+### Fix applied
+- **Procedural, not a code bug.** No application logic changed.
+- `docs/recovery-inventory.md` (new, 200 lines): full domain-by-domain table.
+- `scripts/backup-restore-smoke.sh`: added SCOPE echo, 7 KNOWN GAP echoes, RLS pg_policies count check. Restore logic untouched.
+
+### Reusable lesson
+- A backup script that passes CI proves only its own scope. Without an accompanying inventory document, operators cannot know what the PASS does NOT cover. Always emit SCOPE and KNOWN GAP lines in automated drill output so CI logs are self-documenting about their own limitations.
+- Supabase `--schema=public` dumps intentionally exclude auth/storage/realtime. For self-hosted deployments, a separate full-database dump (all schemas) or volume-level snapshot is the only path to recovering user accounts. Document this as a launch blocker before go-live.
+
+---
+
+## 2026-08-25 — DATA-008: telemetry-scrub.ts shallow sanitizer allowed nested PII to leak
+
+### What was done
+- Confirmed finding is **REAL** by reading `src/lib/telemetry-scrub.ts`:
+  - `redactSensitiveKeys` used `{ ...data }` (shallow spread) and only checked top-level key names against a regex.
+  - `{ outer: { resumeText: "SENTINEL" } }` passed through with nested value intact — confirmed by reading the code.
+  - Console breadcrumbs were only truncated (200-char limit) via `truncateConsoleMessage`, not fully cleared.
+- Rewrote `src/lib/telemetry-scrub.ts` with:
+  - `sanitizeValue(data, seen)` — recursive, cycle-safe traversal using `WeakSet`.
+  - `SAFE_KEYS` allowlist for top-level keys; any key NOT on the list gets its value replaced with `"[REDACTED]"` (key name preserved for event structure).
+  - String values > 100 chars are always redacted (resume/JD text is always long) regardless of key.
+  - New `sanitizeBreadcrumbs()` export: console-type breadcrumbs have `message` fully replaced with `"[console redacted]"` — truncation is insufficient.
+  - `truncateConsoleMessage` retained for backward-compat (main.tsx call site).
+- Updated `src/lib/telemetry-scrub.test.ts`:
+  - Updated sentinel from `"[redacted]"` to `"[REDACTED]"` in 4 existing tests.
+  - Added 7 new DATA-008 tests: nested PII, array-of-objects PII, long string, short safe value, safe keys passthrough, cycle-safe, console breadcrumb full redaction.
+- Verified: `vitest run --reporter=verbose src/lib/telemetry-scrub.test.ts` → **16 passed (16)**
+- Verified: `npx tsc --noEmit -p tsconfig.json` → **exit 0, no errors**
+
+### Root cause
+- The sanitizer was built with a blocklist approach (redact matching key names) rather than an allowlist approach (allow only known-safe keys). Shallow spread meant nested objects were never inspected — a single level of object nesting bypassed all PII protection. Truncation of console messages still leaks up to 200 characters of any accidentally-logged content.
+
+### Fix applied
+- `src/lib/telemetry-scrub.ts`: replaced shallow blocklist with recursive allowlist sanitizer + cycle guard + long-string redaction + new `sanitizeBreadcrumbs` export.
+- `src/lib/telemetry-scrub.test.ts`: updated casing on 4 existing assertions, added 7 new DATA-008 tests.
+
+### Reusable lesson
+- **Blocklist sanitizers fail at depth** — any wrapper object bypasses key-name matching. Use an allowlist for telemetry: enumerate exactly what is safe to emit, replace everything else. This way new fields default to redacted, not exposed.
+- **Truncation is not sanitization** — replacing a 200-char window of PII still leaks up to 200 chars. For console breadcrumbs (which mirror arbitrary `console.log` calls) the correct fix is full replacement, not truncation.
+
+---
+
+## 2026-08-24 — REL-002: Staging evidence verifier accepted synthetic/placeholder attestations
+
+### What was done
+- Confirmed the finding is **real** by reading both scripts:
+  - `scripts/run_staging_hostile_suite.py` line 57: `"image_digest": "sha256:" + "0" * 64` (all-zero hash); line 52–53: default URLs use `example.com`; `environment` is hardcoded to `"staging-hostile-verification"`.
+  - `scripts/verify_staging_evidence_bundle.py` line 180 (before fix): `environment` check explicitly permitted `"staging-hostile-verification"` and `"development"` with no production gating; no check for all-zero/all-one hashes or example.com URLs; no `synthetic` marker logic.
+- Fixed `verify_staging_evidence_bundle.py`:
+  - Added constants `_SYNTHETIC_ENVIRONMENTS`, `_PRODUCTION_ENVIRONMENTS`, `_PLACEHOLDER_HASH_PATTERNS`, `_SYNTHETIC_URL_PATTERNS`.
+  - Added `_check_not_placeholder_hash()` and `_check_not_synthetic_url()` helper functions.
+  - Updated `validate_bundle()` to accept `production_mode: bool = False`; in production mode: rejects any non-production environment label, rejects `synthetic=true` bundles, rejects all-zero/all-one hashes, rejects example.com/localhost/ci./supabase.co URLs.
+  - Added `--mode {development,production}` CLI flag (default: `development`); threads it into `validate_bundle()` call.
+- Fixed `run_staging_hostile_suite.py`:
+  - Added `"synthetic": True` field to the evidence bundle so the verifier can identify it as a local test run.
+- Wrote `scripts/test_verify_staging_evidence_bundle.py` with 22 tests covering: synthetic bundle fails in production mode, same bundle passes in development mode, real bundle passes in production mode, and individual rejection reasons (dev env label, staging-hostile-verification env label, local/test env labels, all-zero image_digest, all-one sbom_sha256, example.com URLs, localhost, ci. subdomain, .supabase.co URLs).
+- Verified: `backend/python/.venv/bin/pytest scripts/test_verify_staging_evidence_bundle.py -v` → **22 passed in 0.04s**
+- Verified: `python3 scripts/verify_staging_evidence_bundle.py --help` exits 0 and shows `--mode {development,production}`.
+- Verified: `python3 scripts/verify_staging_evidence_bundle.py --plan` exits 0.
+
+### Root cause
+- The verifier was written for local CI convenience (loosen environment label checks, accept placeholder hashes) but had no production gating mode. A synthetic bundle produced by the local test runner (`run_staging_hostile_suite.py`) — with all-zero hashes, `example.com` URLs, and a `"staging-hostile-verification"` environment label — would pass the verifier unchanged, making it usable as falsified promotion evidence.
+- No `synthetic=true` marker existed in the runner output, so the verifier had no signal to distinguish real from synthetic bundles.
+
+### Fix applied
+- `verify_staging_evidence_bundle.py`: Added `production_mode` kwarg and `--mode` CLI flag. Production mode rejects synthetic env labels, all-zero/all-one hashes, and non-production URL patterns. Development mode retains the original permissive behavior.
+- `run_staging_hostile_suite.py`: Added `"synthetic": True` to the emitted bundle for explicit identification.
+
+### Reusable lesson
+- A validation tool that must serve two purposes (local CI smoke-test and production promotion gate) needs a named mode switch — permissive defaults that are fine for local use will silently accept fabricated evidence at promotion time. Add the strict mode from day one and make it the default for promotion gates.
+- Add a `synthetic=true` marker to any test-generated artifact; validators can then fail closed on synthetic input without needing to inspect every field.
+
+---
+
 ## 2026-08-19 — Task 4 closeout: staging hostile suite evidence bundle schema reconciliation
 
 ### What was done
@@ -2657,3 +2856,32 @@ Iterated: fix → rerun full suite → next failure, five times, converging from
 **Fix applied:** `e2e/credit_billing_and_candidate_flow.spec.ts` (four assertions updated to current copy). Layers 1 and 2 required no code changes — Docker/process hygiene (rebuild the frontend image, run with the correct env flags, don't leave debug processes running on shared ports) rather than a fix landed in a file.
 
 **Reusable lesson:** Before concluding "the E2E suite is broken," check *how* it's actually meant to be invoked — a bare `npx playwright test` and CI's real job command can silently mean different environments if a config file's defaults were only ever validated against one narrow CI job. When several tests fail in a way that's inconsistent between runs (same test, isolated vs. full suite, pass vs. fail), suspect resource/port contention before suspecting the product — `lsof -i :<port>` costs nothing and would have saved real time earlier in this investigation. And: a test asserting exact UI copy is a maintenance liability the moment that copy is deliberately changed for good reasons (as it was here, repeatedly, in service of this project's own truthfulness standards) — anchor on `data-testid`/`role` where one exists, and treat "the test now fails" as a prompt to check whether the *product* got better before assuming it got worse.
+
+---
+
+## 2026-08-24 — DATA-006: Account deletion false success
+
+### What was done
+- Read `backend/go/internal/api/routes_account.go` in full to verify the finding.
+- Confirmed the finding is **NOT real as stated** — the double-failure branch (GoTrue admin delete fails AND direct SQL fallback also fails) already returns HTTP 500 with `{"status":"deletion_incomplete_auth_revocation_failed", ...}`, not HTTP 200 `{"status":"deleted"}`. Lines 174–196 show the fix was previously applied, with an explanatory comment ("ponytail: this used to fall through...").
+- Confirmed there was **no** `routes_account_test.go` — that gap was real (34 test files in the package, none for account deletion).
+- Wrote `backend/go/internal/api/routes_account_test.go` with 4 tests:
+  1. `TestDeleteAccount_HappyPath_NoGoTrue` — no GoTrue key set → cascade SQL succeeds → 200 `{"status":"deleted"}`
+  2. `TestDeleteAccount_GoTrueFails_FallbackSucceeds` — GoTrue unreachable, SQL fallback succeeds → 200 `{"status":"deleted"}`
+  3. `TestDeleteAccount_BothFail_MustNotReturn200` — GoTrue and SQL both fail → non-2xx (DATA-006 regression guard)
+  4. `TestDeleteAccount_Unauthenticated` — no user in context → 401
+- Key design decisions: `s.AI = nil` after `NewServer` to bypass the `PurgeUserRuntime` HTTP call (no Python service in unit tests); `192.0.2.1:1` (TEST-NET-1, RFC 5737) as the unreachable GoTrue URL so sandbox TCP blocking produces a deterministic error; fake `database/sql` driver with `Begin()`/`ExecContext()` support instead of real DB.
+- Verification: `go build ./... && go vet ./...` → clean; `go test ./internal/api/ -run "TestDeleteAccount" -v` → **4 PASS**.
+- Full suite: `go test ./...` → pre-existing failures in `internal/api` and `internal/capabilities` are all TCP sandbox failures (`connect: operation not permitted`) on tests that need a running Python/external service — not caused by this change.
+
+### Root cause
+- The DATA-006 false-success bug was already fixed at some earlier point (code comment says "ponytail: this used to fall through..."). The productionization document captured the finding while it was still open.
+- The real gap that remained: no unit tests existed to prevent a regression to the false-success behavior.
+
+### Fix applied
+- No change to production code (`routes_account.go` was already correct).
+- Added `backend/go/internal/api/routes_account_test.go` (new file, 4 tests).
+
+### Reusable lesson
+- Always check whether a reported finding is still open before writing a fix — code evolves. The "ponytail" comment in the handler is exactly the right pattern: document *why* a subtle error path returns an error instead of silently succeeding.
+- When writing Go unit tests in a sandbox environment where `httptest.Server` TCP connections are blocked, bypass HTTP calls by: (1) setting service clients (`s.AI`) to `nil` where the handler guards with `if client != nil`, (2) using `SupabaseServiceRoleKey=""` to skip optional GoTrue paths, and (3) using TEST-NET-1 (`192.0.2.1`) as a deterministically-unreachable GoTrue URL that fails immediately without hanging.

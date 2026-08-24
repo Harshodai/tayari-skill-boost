@@ -4,6 +4,18 @@
 This tool does not call providers by default. It validates operator-supplied,
 redacted evidence produced by real staging runs and fails closed when required
 categories, scenario results, or environment attestations are missing.
+
+Modes
+-----
+development (default)
+    Permissive: accepts staging-hostile-verification / development environment
+    labels, placeholder hashes, and example.com URLs.  Bundles marked
+    ``synthetic=true`` are always accepted in this mode.
+
+production
+    Strict promotion gate: rejects synthetic/placeholder bundles, all-zero or
+    all-one SHA-256 hashes, example/localhost URLs, and any non-production
+    environment label.  Use this mode for real promotion checks.
 """
 from __future__ import annotations
 
@@ -24,6 +36,33 @@ REQUIRED_CATEGORIES = {
     "kill_switch_deadline_verification",
     "account_deletion_privacy_purge",
 }
+
+# Environments that are only valid in development/synthetic mode.
+_SYNTHETIC_ENVIRONMENTS = {
+    "staging-hostile-verification",
+    "development",
+    "local",
+    "test",
+}
+# Production environments that are accepted in --mode=production.
+_PRODUCTION_ENVIRONMENTS = {"staging", "final-staging", "production"}
+# Sentinel hashes that signal placeholder/synthetic values (all-zero or all-one).
+_PLACEHOLDER_HASH_PATTERNS = (
+    re.compile(r"^0{64}$"),
+    re.compile(r"^1{64}$"),
+    re.compile(r"^sha256:0{64}$"),
+    re.compile(r"^sha256:1{64}$"),
+)
+# URL substrings that betray a non-production deployment target.
+_SYNTHETIC_URL_PATTERNS = (
+    "example.com",
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    "ci.",
+    ".supabase.co",
+)
+
 REQUIRED_SCENARIOS = {
     "rate_limit_flood_protection": {
         "python_ats_score_flood_429_verification",
@@ -111,13 +150,59 @@ def _check_url(name: str, value: str, *, require_https: bool) -> None:
         _fail(f"{name} must not point at a local/private operator endpoint")
 
 
-def validate_bundle(payload: dict, *, require_live: bool) -> dict:
+def _check_not_placeholder_hash(name: str, value: str) -> None:
+    """Reject sentinel hashes (all-zero or all-one) in production mode."""
+    for pat in _PLACEHOLDER_HASH_PATTERNS:
+        if pat.fullmatch(value):
+            _fail(
+                f"environment_attestation.{name} is a placeholder/synthetic hash "
+                f"({value!r}); production bundles require real digest values"
+            )
+
+
+def _check_not_synthetic_url(name: str, value: str) -> None:
+    """Reject URLs that contain markers of non-production deployments."""
+    lower = value.lower()
+    for marker in _SYNTHETIC_URL_PATTERNS:
+        if marker in lower:
+            _fail(
+                f"environment_attestation.{name} ({value!r}) contains a "
+                f"non-production URL marker ({marker!r}); production bundles must "
+                f"reference real deployment targets"
+            )
+
+
+def validate_bundle(payload: dict, *, require_live: bool, production_mode: bool = False) -> dict:
     if payload.get("schema") != "tayari.staging-evidence.v1":
         _fail("unsupported evidence schema; expected tayari.staging-evidence.v1")
     if payload.get("status") != "PASS":
         _fail("evidence bundle status must be PASS")
-    if payload.get("environment") not in {"staging", "staging-hostile-verification", "development"}:
-        _fail("evidence bundle must identify staging environment")
+
+    env = payload.get("environment", "")
+    is_synthetic = bool(payload.get("synthetic"))
+
+    if production_mode:
+        # Strict gate: bundles claiming a non-production environment are rejected.
+        if env not in _PRODUCTION_ENVIRONMENTS:
+            _fail(
+                f"production mode requires environment to be one of "
+                f"{sorted(_PRODUCTION_ENVIRONMENTS)!r}; got {env!r}. "
+                f"If this is a local test run, use --mode=development or add "
+                f"synthetic=true to the bundle and re-run without --mode=production."
+            )
+        # Synthetic bundles must never pass a production promotion gate.
+        if is_synthetic:
+            _fail(
+                "production mode rejects bundles marked synthetic=true; "
+                "synthetic bundles are only valid in development mode"
+            )
+    else:
+        # Development mode: accept staging-hostile-verification / development but
+        # reject anything truly unknown.
+        all_known = _PRODUCTION_ENVIRONMENTS | _SYNTHETIC_ENVIRONMENTS
+        if env not in all_known:
+            _fail(f"evidence bundle must identify a known environment; got {env!r}")
+
     if not payload.get("run_id") or not payload.get("generated_at"):
         _fail("run_id and generated_at are required")
     if not payload.get("git_commit") or not re.fullmatch(r"[0-9a-f]{40}", str(payload["git_commit"])):
@@ -171,6 +256,14 @@ def validate_bundle(payload: dict, *, require_live: bool) -> dict:
     if not re.fullmatch(r"[0-9a-f]{64}", str(attestation["provider_config_hash"])):
         _fail("provider_config_hash must be a SHA-256 digest")
 
+    if production_mode:
+        # In production mode apply the additional strict attestation checks.
+        _check_not_placeholder_hash("image_digest", str(attestation["image_digest"]))
+        _check_not_placeholder_hash("sbom_sha256", str(attestation["sbom_sha256"]))
+        _check_not_placeholder_hash("provider_config_hash", str(attestation["provider_config_hash"]))
+        _check_not_synthetic_url("target_base_url", str(attestation["target_base_url"]))
+        _check_not_synthetic_url("python_base_url", str(attestation["python_base_url"]))
+
     if require_live and os.getenv("ALLOW_LIVE_PROVIDER_VERIFY", "false").lower() != "true":
         _fail("live validation requires ALLOW_LIVE_PROVIDER_VERIFY=true")
 
@@ -179,6 +272,9 @@ def validate_bundle(payload: dict, *, require_live: bool) -> dict:
         "schema": payload["schema"],
         "run_id": payload["run_id"],
         "git_commit": payload["git_commit"],
+        "environment": env,
+        "synthetic": is_synthetic,
+        "production_mode": production_mode,
         "categories": sorted(seen),
         "bundle_sha256": hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest(),
         "live_validation": require_live,
@@ -204,18 +300,30 @@ def plan() -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--plan", action="store_true", help="print requirements without reading a bundle")
     parser.add_argument("--bundle", type=Path, help="redacted staging evidence JSON")
     parser.add_argument("--require-live", action="store_true", help="require live-provider authorization and HTTPS endpoints")
+    parser.add_argument(
+        "--mode",
+        choices=["development", "production"],
+        default="development",
+        help=(
+            "Validation mode: 'development' (default) is permissive and accepts "
+            "staging-hostile-verification / development environment labels, placeholder "
+            "hashes, and example.com URLs. 'production' is the strict promotion gate that "
+            "rejects any synthetic/placeholder attestation."
+        ),
+    )
     args = parser.parse_args()
+    production_mode = args.mode == "production"
     try:
         if args.plan:
             print(json.dumps(plan(), indent=2, sort_keys=True))
             return 0
         if not args.bundle:
             _fail("--bundle is required unless --plan is used")
-        result = validate_bundle(_load(args.bundle), require_live=args.require_live)
+        result = validate_bundle(_load(args.bundle), require_live=args.require_live, production_mode=production_mode)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     except ValueError as exc:
