@@ -80,26 +80,27 @@ class FollowupGenerator:
         return stale_apps
 
     @staticmethod
-    def draft_followup_message(company: str, role: str, candidate_name: str, followup_number: int = 1) -> Dict[str, Any]:
-        """Draft a polite, concise follow-up email."""
+    def draft_followup_message(company: str, role: str, candidate_name: str | None, followup_number: int = 1) -> Dict[str, Any]:
+        """Draft a polite, concise follow-up email without inventing identity."""
+        candidate_label = (candidate_name or "").strip()
+        subject_suffix = f" - {candidate_label}" if candidate_label else ""
+        signoff = f"Best regards,\n{candidate_label}" if candidate_label else "Best regards,"
         if followup_number == 1:
-            subject = f"Following up: {role} Application at {company} - {candidate_name}"
+            subject = f"Following up: {role} Application at {company}{subject_suffix}"
             body = (
                 f"Hi {company} Hiring Team,\n\n"
                 f"I hope you're having a great week. I'm following up on my application for the {role} position "
                 f"submitted recently. I remain very enthusiastic about the opportunity to contribute to {company}.\n\n"
-                f"Please let me know if you need any additional information or work samples from my end.\n\n"
-                f"Best regards,\n{candidate_name}"
+                f"Please let me know if you need any additional information or work samples from my end.\n\n{signoff}"
             )
         else:
-            subject = f"Re: {role} Application at {company} - {candidate_name}"
+            subject = f"Re: {role} Application at {company}{subject_suffix}"
 
             body = (
                 f"Hi {company} Hiring Team,\n\n"
                 f"I wanted to quickly check in one final time regarding my application for the {role} role. "
                 f"I understand you are busy reviewing candidates, but I remain very interested in the position.\n\n"
-                f"Thank you for your time and consideration.\n\n"
-                f"Best regards,\n{candidate_name}"
+                f"Thank you for your time and consideration.\n\n{signoff}"
             )
 
         return {

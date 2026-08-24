@@ -67,6 +67,8 @@ class OperationBudget:
         if rule is None:
             return True
         current = now if now is not None else time.time()
+        if self.fail_closed and self._redis is None:
+            raise OperationBudgetUnavailable("Redis quota backend unavailable")
         if self._redis is not None:
             bucket = int(current // rule.window_seconds)
             key = f"tayari:op-budget:{operation}:{identity}:{bucket}"

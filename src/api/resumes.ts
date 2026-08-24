@@ -8,6 +8,9 @@ import type {
   CreateJDRequest,
   AnalyzeRequest,
   ImportedJobDescription,
+  ResumeOptimizationResponse,
+  DeepATSResponse,
+  TruthfulnessResponse,
 } from "./types";
 import type { ParsedResume, ResumeAnalysisResult } from "../types/resume";
 
@@ -53,8 +56,8 @@ export async function uploadResumeMultipart(file: File): Promise<Resume> {
   });
 }
 
-export async function analyzeResume(payload: AnalyzeRequest): Promise<Record<string, any>> {
-  return apiFetch<Record<string, any>>("/v1/analyze", {
+export async function analyzeResume(payload: AnalyzeRequest): Promise<AnalysisResult> {
+  return apiFetch<AnalysisResult>("/v1/analyze", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -82,8 +85,8 @@ export interface OptimizeResumeOptions {
   jdUrl?: string;
 }
 
-export async function optimizeResume(id: number | string, opts?: OptimizeResumeOptions): Promise<Record<string, any>> {
-  return apiFetch<Record<string, any>>(`/v1/resumes/${id}/optimize`, {
+export async function optimizeResume(id: number | string, opts?: OptimizeResumeOptions): Promise<ResumeOptimizationResponse> {
+  return apiFetch<ResumeOptimizationResponse>(`/v1/resumes/${id}/optimize`, {
     method: "POST",
     body: JSON.stringify({
       job_description: opts?.jobDescription,
@@ -94,8 +97,8 @@ export async function optimizeResume(id: number | string, opts?: OptimizeResumeO
   });
 }
 
-export async function deepATS(id: number | string, jobDescription?: string): Promise<Record<string, any>> {
-  return apiFetch<Record<string, any>>(`/v1/resumes/${id}/ats-deep`, {
+export async function deepATS(id: number | string, jobDescription?: string): Promise<DeepATSResponse> {
+  return apiFetch<DeepATSResponse>(`/v1/resumes/${id}/ats-deep`, {
     method: "POST",
     body: JSON.stringify({ job_description: jobDescription }),
   });
@@ -169,15 +172,15 @@ export async function exportResume(id: number | string): Promise<Blob> {
   return response.blob();
 }
 
-export async function simulateAtsParsing(resumeText: string): Promise<any> {
-  return apiFetch<any>("/v1/ats/simulate", {
+export async function simulateAtsParsing(resumeText: string): Promise<DeepATSResponse> {
+  return apiFetch<DeepATSResponse>("/v1/ats/simulate", {
     method: "POST",
     body: JSON.stringify({ resume_text: resumeText }),
   });
 }
 
-export async function verifyResumeTruthfulness(originalText: string, optimizedText: string): Promise<any> {
-  return apiFetch<any>("/v1/guardrails/truth-check", {
+export async function verifyResumeTruthfulness(originalText: string, optimizedText: string): Promise<TruthfulnessResponse> {
+  return apiFetch<TruthfulnessResponse>("/v1/guardrails/truth-check", {
     method: "POST",
     body: JSON.stringify({ original_text: originalText, optimized_text: optimizedText }),
   });

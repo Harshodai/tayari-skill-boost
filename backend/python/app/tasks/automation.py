@@ -143,17 +143,17 @@ def _persist_final(run_id: str, status: str, error: str | None = None) -> None:
     _safe_async(_go())
 
 
-def _load_user_context(user_id: str) -> tuple[dict | None, str, str]:
+def _load_user_context(user_id: str) -> tuple[dict | None, str, str | None]:
     """Load profile + most recent resume for ``user_id`` from Postgres.
 
     Returns ``(profile, resume_text, candidate_name)``. Any failure or
-    missing DB yields ``(None, "", "Candidate")``.
+    missing DB yields ``(None, "", None)``; no synthetic identity is returned.
     """
-    async def _load() -> tuple[dict | None, str, str]:
+    async def _load() -> tuple[dict | None, str, str | None]:
         from app.services.db import get_pool
         pool = await get_pool()
         if not pool:
-            return None, "", "Candidate"
+            return None, "", None
         async with pool.acquire() as conn:
             prof = await conn.fetchrow(
                 """SELECT full_name, headline, summary, skills, desired_roles,
@@ -169,7 +169,7 @@ def _load_user_context(user_id: str) -> tuple[dict | None, str, str]:
             )
         profile = dict(prof) if prof else None
         resume_text = (resume["resume_text"] if resume else "") or ""
-        candidate_name = (profile or {}).get("full_name") or "Candidate"
+        candidate_name = (profile or {}).get("full_name") or None
         return profile, resume_text, candidate_name
 
     try:

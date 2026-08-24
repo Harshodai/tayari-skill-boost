@@ -1,7 +1,4 @@
 import { API_URL, apiFetchRaw, apiFetchResponse } from "@/api";
-declare const chrome: any;
-declare const process: { env: Record<string, string | undefined> };
-
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +10,23 @@ import { checkRateLimit, recordFailedAttempt, resetRateLimit } from "@/lib/rate-
 const USE_SELF_HOSTED = import.meta.env.VITE_USE_SELF_HOSTED === 'true';
 const EXTENSION_ID = import.meta.env.VITE_EXTENSION_ID || "tayari-extension-id";
 
+interface LocalAuthUserData {
+  id?: string;
+  email?: string;
+  full_name?: string;
+  created_at?: string;
+  role?: string;
+}
+
+type LocalAuthResponse = {
+  error?: unknown;
+  token?: unknown;
+};
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -23,7 +37,7 @@ interface AuthContextType {
   signInWithGithub: () => Promise<{ error: string | null }>;
   signInWithLinkedin: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
-  setUserFromToken: (token: string, userData: any) => void;
+  setUserFromToken: (token: string, userData: LocalAuthUserData) => void;
   completeAuthCallback: (callbackUrl: string) => Promise<{ error: string | null }>;
 }
 
@@ -40,7 +54,7 @@ function createMockSession(token: string, user: User): Partial<Session> {
 }
 
 // Helper to create a mock user from backend data
-function createMockUser(userData: any): User {
+function createMockUser(userData: LocalAuthUserData): User {
   return {
     id: userData.id || 'local-user',
     email: userData.email,
@@ -64,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   // Exposed function to set user from token (used by AuthCallback)
-  const setUserFromToken = (token: string, userData: any) => {
+  const setUserFromToken = (token: string, userData: LocalAuthUserData) => {
     const mockUser = createMockUser(userData);
     setUser(mockUser);
     setSession(createMockSession(token, mockUser) as Session);
@@ -198,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.removeEventListener("auth:unauthorized", onUnauthorized);
       };
     }
-  }, []);
+  }, [completeAuthCallback]);
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
     try {
@@ -219,34 +233,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const contentType = res.headers.get("content-type");
-        let data: any = {};
+        let data: LocalAuthResponse = {};
         let rawBody = "";
 
         if (contentType && contentType.includes("application/json")) {
-          data = await res.json();
+          data = await res.json() as LocalAuthResponse;
         } else {
           rawBody = await res.text();
         }
 
+        const serverError = typeof data.error === "string" ? data.error : "";
         if (res.status === 401) {
-          return { error: data.error || 'Invalid email or password. Please try again.' };
+          return { error: serverError || 'Invalid email or password. Please try again.' };
         }
 
         if (!res.ok) {
-          return { error: data.error || rawBody || `Authentication failed (HTTP ${res.status})` };
+          return { error: serverError || rawBody || `Authentication failed (HTTP ${res.status})` };
         }
 
-        if (!data.token) {
+        if (typeof data.token !== "string" || !data.token) {
           return { error: "Invalid server response: missing token" };
         }
 
-        localStorage.setItem('auth_token', data.token);
-        syncTokenToExtension(data.token);
+        const token = data.token;
+        localStorage.setItem('auth_token', token);
+        syncTokenToExtension(token);
 
         // Fetch user data to set state properly
         try {
           const userRes = await apiFetchResponse(`/me`, {
-            headers: { Authorization: `Bearer ${data.token}` }
+                          headers: { Authorization: `Bearer ${token}` }
+
           });
 
           if (!userRes.ok) {
@@ -261,8 +278,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const userData = await userRes.json();
           const mockUser = createMockUser(userData);
           setUser(mockUser);
-          setSession(createMockSession(data.token, mockUser) as Session);
-          syncTokenToExtension(data.token);
+          setSession(createMockSession(token, mockUser) as Session);
+          syncTokenToExtension(token);
           return { error: null };
         } catch (err) {
           localStorage.removeItem('auth_token');
@@ -285,8 +302,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       await resetRateLimit(email);
       return { error: null };
-    } catch (err: any) {
-      return { error: err.message || 'Authentication failed' };
+    } catch (err: unknown) {
+      return { error: errorMessage(err, 'Authentication failed') };
     }
   };
 
@@ -316,8 +333,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (error) return { error: getGenericAuthError(error.message) };
       return { error: null };
-    } catch (err: any) {
-      return { error: err.message || 'Signup failed' };
+    } catch (err: unknown) {
+      return { error: errorMessage(err, 'Signup failed') };
     }
   };
 
@@ -354,8 +371,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: getGenericAuthError(msg) };
       }
       return { error: null };
-    } catch (err: any) {
-      return { error: getGenericAuthError(err?.message || "Google sign-in failed") };
+    } catch (err: unknown) {
+      return { error: getGenericAuthError(errorMessage(err, "Google sign-in failed")) };
     }
   };
   const socialLogin = async (provider: "google" | "github" | "linkedin_oidc"): Promise<{ error: string | null }> => {
@@ -388,6 +405,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// This hook intentionally shares the context module so existing consumers keep one auth contract.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

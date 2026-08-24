@@ -6,7 +6,7 @@
         build-frontend build-backend build-python \
         dev-frontend dev-backend dev-python \
         test test-frontend test-backend test-python test-e2e \
-        compile build-local lint audit staging-integration
+        compile build-local lint audit baseline staging-integration staging-integration-plan staging-integration-contract
 
 # Default target when calling `make` without arguments
 .DEFAULT_GOAL := help
@@ -155,7 +155,18 @@ audit: ## Run complete security scan, typecheck, unit, integration, and build ve
 	pnpm run build
 	@echo "$(BLUE)Running production promotion contract...$(RESET)"
 	pnpm run promotion:gate
+	@echo "$(BLUE)Running staging gate safety contract...$(RESET)"
+	bash scripts/staging_integration_gate_contract_test.sh
 	@echo "$(GREEN)All audit checks and test suites passed successfully!$(RESET)"
+
+baseline: ## Capture static readiness and environment-gate evidence without mutation
+	bash scripts/repository_baseline.sh
 
 staging-integration: ## Run the live non-production DB/Auth/Redis integration gate
 	./scripts/staging_integration_gate.sh
+
+staging-integration-plan: ## Print staging prerequisites without contacting services
+	./scripts/staging_integration_gate.sh --plan
+
+staging-integration-contract: ## Verify staging gate safety and configuration contracts
+	bash scripts/staging_integration_gate_contract_test.sh

@@ -20,7 +20,7 @@ import {
   MessageSquare, Mail, MoreHorizontal
 } from "lucide-react";
 import type { ResumeAnalysisResult } from "@/types/resume";
-import type { GuardrailResult } from "@/api/types";
+import type { DeepATSResponse, GuardrailResult, ResumeOptimizationResponse } from "@/api/types";
 import { SlideUp } from "@/components/ui/motion";
 import { Progress } from "@/components/ui/progress";
 import { optimizeResume, deepATS, exportResume } from "@/api";
@@ -52,6 +52,10 @@ const ATS_PARSER_PROFILES: AtsParserProfile[] = [
   { name: "Taleo", key: "taleo", offset: 1, desc: "Keyword heavy sorting algorithm" },
 ];
 
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 const ResumeResults = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -69,9 +73,9 @@ const ResumeResults = () => {
   );
   const [appliedSuggestions, setAppliedSuggestions] = useState<string[]>([]);
   const [optimizedText, setOptimizedText] = useState<string | null>(null);
-  const [optimizationResult, setOptimizationResult] = useState<any>(null);
+  const [optimizationResult, setOptimizationResult] = useState<ResumeOptimizationResponse | null>(null);
   const [guardrails, setGuardrails] = useState<GuardrailResult | null>(null);
-  const [deepScore, setDeepScore] = useState<any>(null);
+  const [deepScore, setDeepScore] = useState<DeepATSResponse | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isDeepATS, setIsDeepATS] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -112,8 +116,8 @@ const ResumeResults = () => {
       setOptimizationResult(res);
       if (res?.guardrails) setGuardrails(res.guardrails as GuardrailResult);
       toast.success("Resume optimized!");
-    } catch (err: any) {
-      const msg = err.message || "Optimization failed";
+    } catch (err: unknown) {
+      const msg = errorMessage(err, "Optimization failed");
       setOptimizeError(msg);
       toast.error(msg);
     } finally { setIsOptimizing(false); }
@@ -127,8 +131,8 @@ const ResumeResults = () => {
       const res = await deepATS(resumeId, jobDescription);
       setDeepScore(res);
       toast.success("Deep ATS analysis complete!");
-    } catch (err: any) {
-      const msg = err.message || "Deep ATS failed";
+    } catch (err: unknown) {
+      const msg = errorMessage(err, "Deep ATS failed");
       setDeepATSError(msg);
       toast.error(msg);
     } finally { setIsDeepATS(false); }
@@ -147,8 +151,8 @@ const ResumeResults = () => {
       a.click();
       window.URL.revokeObjectURL(url);
       toast.success("Resume exported!");
-    } catch (err: any) {
-      const msg = err.message || "Export failed";
+    } catch (err: unknown) {
+      const msg = errorMessage(err, "Export failed");
       setExportError(msg);
       toast.error(msg);
     } finally { setIsExporting(false); }
@@ -496,7 +500,7 @@ const ResumeResults = () => {
                   </div>
                   {deepScore.checks && (
                     <div className="space-y-2">
-                      {Object.entries(deepScore.checks).map(([key, val]: [string, any]) => (
+                      {Object.entries(deepScore.checks).map(([key, val]) => (
                         <div key={key} className="flex items-center justify-between text-sm py-1 border-b border-border/40 last:border-0">
                           <span className="capitalize text-muted-foreground">{key.replace(/_/g, " ")}</span>
                           <Badge variant={val?.passed ? "default" : "destructive"} className="text-xs">
@@ -639,7 +643,7 @@ const ResumeResults = () => {
                         STAR Bullet Analysis
                       </h4>
                       <div className="space-y-2">
-                        {optimizationResult.star_analysis.bullets_needing_improvement.slice(0, 4).map((b: any, idx: number) => (
+                        {optimizationResult.star_analysis.bullets_needing_improvement.slice(0, 4).map((b, idx) => (
                           <div key={idx} className="bg-muted/20 rounded-lg p-2.5 text-xs space-y-1">
                             <div className="flex items-center justify-between">
                               <span className="text-muted-foreground font-mono truncate max-w-[220px]">{b.bullet}</span>
@@ -675,7 +679,7 @@ const ResumeResults = () => {
                           <div>
                             <span className="text-[10px] font-bold text-primary uppercase tracking-wider block mb-1">Hard Skills</span>
                             <div className="flex flex-wrap gap-1">
-                              {optimizationResult.keyword_matrix.hard_skills_matrix.slice(0, 12).map((item: any) => (
+                              {optimizationResult.keyword_matrix.hard_skills_matrix.slice(0, 12).map((item) => (
                                 <Badge
                                   key={item.keyword}
                                   variant="outline"
@@ -696,7 +700,7 @@ const ResumeResults = () => {
                           <div>
                             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Soft Skills</span>
                             <div className="flex flex-wrap gap-1">
-                              {optimizationResult.keyword_matrix.soft_skills_matrix.slice(0, 8).map((item: any) => (
+                              {optimizationResult.keyword_matrix.soft_skills_matrix.slice(0, 8).map((item) => (
                                 <Badge
                                   key={item.keyword}
                                   variant="outline"
@@ -768,7 +772,7 @@ const ResumeResults = () => {
                     </h4>
                     {optimizationResult.removed_ai_phrases?.length > 0 ? (
                       <div className="grid grid-cols-2 gap-1.5 text-xs">
-                        {optimizationResult.removed_ai_phrases.map((item: any, idx: number) => (
+                        {optimizationResult.removed_ai_phrases.map((item, idx) => (
                           <div key={idx} className="bg-muted/20 rounded p-2 flex items-center justify-between">
                             <span className="line-through text-muted-foreground font-mono text-[11px]">{item.buzzword}</span>
                             <span className="text-primary font-bold text-xs">→</span>

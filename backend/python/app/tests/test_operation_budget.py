@@ -4,7 +4,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from app.middleware.operation_budget import BudgetRule, OperationBudget, OperationBudgetMiddleware
+from app.middleware.operation_budget import BudgetRule, OperationBudget, OperationBudgetMiddleware, OperationBudgetUnavailable
 
 
 class FakeRedisPipeline:
@@ -31,6 +31,13 @@ class FakeRedis:
     def pipeline(self, transaction=True):
         assert transaction is True
         return self.pipeline_instance
+
+
+@pytest.mark.asyncio
+async def test_production_operation_budget_fails_closed_without_redis():
+    budget = OperationBudget({"ai": BudgetRule(limit=1, window_seconds=60)}, fail_closed=True)
+    with pytest.raises(OperationBudgetUnavailable, match="Redis quota backend unavailable"):
+        await budget.consume("ai", "user:a", now=100.0)
 
 
 @pytest.mark.asyncio

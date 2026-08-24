@@ -89,6 +89,7 @@ except ImportError:
 from app.services.circuit_breaker import circuit_breaker
 from app.guardrails import PipelineGate
 from app.telemetry import stage_complete, stage_fail
+from app.telemetry.product_events import ProductEventError, record_product_event
 from app.services.llm_service import active_engine, llm_complete, llm_json, LLMNotConfiguredError
 from app.services.one_shot_engine import OneShotRequest
 from app.services.communication import CommunicationGenerator
@@ -470,7 +471,7 @@ class AutopilotRunRequest(BaseModel):
     run_config: dict
     profile: Optional[dict] = None
     resume_text: str = ""
-    candidate_name: str = "Candidate"
+    candidate_name: Optional[str] = None
 
 
 _AUTOPILOT_QUEUE_CAPACITY = max(
@@ -513,6 +514,15 @@ async def autopilot_run(
             payload.candidate_name,
         )
     )
+    try:
+        record_product_event(
+            "review_package_created",
+            user_id=_user_id,
+            properties={"workflow": "autopilot", "status": "queued"},
+            trace_id=run_id,
+        )
+    except ProductEventError as exc:
+        logger.warning("product event rejected for run %s: %s", run_id, exc)
     return {"run_id": run_id, "status": "queued"}
 
 

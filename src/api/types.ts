@@ -204,6 +204,62 @@ export interface GuardrailResult {
   };
 }
 
+export interface OptimizationSummary {
+  semantic_score_before?: number;
+  semantic_score_after?: number;
+  avg_star_score?: number;
+  buzzwords_cleaned?: number;
+}
+
+export interface StarBulletReview {
+  bullet: string;
+  star_score?: number;
+  star_grade?: string;
+  suggestion?: string;
+}
+
+export interface KeywordMatrixItem {
+  keyword: string;
+  in_resume: boolean;
+}
+
+export interface ResumeOptimizationResponse {
+  [key: string]: unknown;
+  optimized_text?: string;
+  optimized_resume?: string;
+  result?: string;
+  new_heuristic_score?: number;
+  refinement_passes?: number;
+  guardrails?: GuardrailResult;
+  alignment_report?: { is_aligned?: boolean };
+  optimization_summary?: OptimizationSummary;
+  semantic_similarity_after?: { interpretation?: string };
+  star_analysis?: { bullets_scored?: number; bullets_needing_improvement?: StarBulletReview[] };
+  keyword_matrix?: {
+    hard_skill_coverage?: number;
+    hard_skills_matrix?: KeywordMatrixItem[];
+    soft_skills_matrix?: KeywordMatrixItem[];
+  };
+  injectable_keywords?: string[];
+  non_injectable_keywords?: string[];
+  removed_ai_phrases?: Array<{ buzzword: string; replacement?: string }>;
+  metric_suggestions?: string[];
+}
+
+export interface DeepATSResponse {
+  [key: string]: unknown;
+  score?: number;
+  ats_score?: number;
+  checks?: Record<string, { passed?: boolean }>;
+  recommendations?: string[];
+}
+
+export interface TruthfulnessResponse {
+  [key: string]: unknown;
+  all_passed?: boolean;
+  violations?: string[];
+}
+
 export interface OptimizeResponse {
   optimized_resume?: string;
   result?: string;

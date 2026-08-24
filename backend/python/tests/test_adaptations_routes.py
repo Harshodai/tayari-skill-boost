@@ -108,7 +108,8 @@ def test_followup_check_endpoint():
     assert res.status_code == 200
     data = res.json()
     assert data["stale_applications_count"] == 1
-    assert "Candidate" in data["drafts"][0]["subject"]
+    assert "Candidate" not in data["drafts"][0]["subject"]
+    assert data["drafts"][0]["subject"] == "Following up: Dev Application at Acme"
 
 
 def test_followup_check_endpoint_uses_provided_candidate_name():

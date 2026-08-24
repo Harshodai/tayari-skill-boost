@@ -237,6 +237,38 @@ def _extract_jd_title(job_description: str) -> str:
     return ""
 
 
+def _keyword_stuffing_evidence(resume_text: str, job_description: str | None) -> dict:
+    """Measure repeated JD terms without treating repetition as relevance.
+
+    Unsupported-claim checking requires candidate-source provenance and is
+    therefore explicitly reported as not evaluated here rather than guessed.
+    """
+    if not job_description or not job_description.strip():
+        return {
+            "status": "not_evaluated",
+            "repeated_terms": [],
+            "stuffing_penalty": 0,
+            "reason": "job description is required",
+        }
+    jd_terms = _tokenize(job_description)
+    resume_tokens = re.findall(r"[a-zA-Z][a-zA-Z+#./\\-]{1,}", (resume_text or "").lower())
+    resume_terms = Counter(token for token in resume_tokens if token in jd_terms)
+    repeated = sorted(
+        (term, count)
+        for term, count in resume_terms.items()
+        if term in jd_terms and count >= 4
+    )
+    excess = sum(count - 3 for _, count in repeated)
+    penalty = min(20, round(excess * 2))
+    return {
+        "status": "evaluated",
+        "repeated_terms": [{"term": term, "count": count} for term, count in repeated[:20]],
+        "stuffing_penalty": penalty,
+        "reason": "repeated job-description terms are capped and reduce the diagnostic score"
+        if penalty else "no material repeated-term signal detected",
+    }
+
+
 def heuristic_ats_score(resume_text: str, job_description: str | None = None) -> dict:
     text = resume_text or ""
 
@@ -349,11 +381,24 @@ def heuristic_ats_score(resume_text: str, job_description: str | None = None) ->
 
     total_weight = sum(c["weight"] for c in checks)
     earned = sum(c["weight"] for c in checks if c["passed"])
-    score = round(100 * earned / max(total_weight, 1))
+    score_before_penalties = round(100 * earned / max(total_weight, 1))
+    stuffing = _keyword_stuffing_evidence(text, job_description)
+    score = max(0, score_before_penalties - stuffing["stuffing_penalty"])
 
     return {
         "score": score,
         "ats_score": score,
+        "score_before_penalties": score_before_penalties,
+        "evidence": {
+            "keyword_coverage_pct": keyword_score_pct,
+            "stuffing": stuffing,
+            "unsupported_claims": {
+                "status": "not_evaluated",
+                "penalty": 0,
+                "reason": "claim verification requires source-linked candidate evidence",
+            },
+            "confidence": per_ats_estimate(checks, keyword_score_pct)["confidence"],
+        },
         "category_scores": checks,
         "word_count": word_count,
         "sections_found": found_sections,

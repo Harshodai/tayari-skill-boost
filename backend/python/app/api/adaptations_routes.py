@@ -43,7 +43,7 @@ class ProfileExpandRequest(BaseModel):
 
 class FollowupCheckRequest(BaseModel):
     applications: List[Dict[str, Any]] = Field(default_factory=list)
-    candidate_name: str = "Candidate"
+    candidate_name: Optional[str] = None
 
 
 class CodeGraphIndexRequest(BaseModel):
@@ -63,7 +63,7 @@ class NegotiationRequest(BaseModel):
     role: str
     offered_salary: int
     target_salary: int
-    candidate_name: str = "Candidate"
+    candidate_name: Optional[str] = None
 
 
 class SquadRunRequest(BaseModel):

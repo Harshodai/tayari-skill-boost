@@ -42,17 +42,17 @@ class NegotiationEngine:
         role: str,
         offered_salary: int,
         target_salary: int,
-        candidate_name: str = "Candidate"
+        candidate_name: str | None = None
     ) -> Dict[str, Any]:
-        """Generate tailored counter-offer negotiation email script."""
+        """Generate a counter-offer draft without inventing candidate identity."""
         diff = target_salary - offered_salary
+        signoff = f"Best regards,\n{candidate_name.strip()}" if candidate_name and candidate_name.strip() else "Best regards,"
         script = (
             f"Dear {company} Recruiting Team,\n\n"
             f"Thank you so much for extending the offer for the {role} position! I am thrilled about the prospect of joining {company}.\n\n"
             f"Based on my target compensation and market data for {role} roles, I would like to request a base salary of ${target_salary:,} (an adjustment of ${diff:,} from the initial ${offered_salary:,} offer).\n\n"
             f"Given my technical background and ability to deliver immediate impact, I am confident this alignment reflects the value I will bring.\n\n"
-            f"Thank you again, and I look forward to working together!\n\n"
-            f"Best regards,\n{candidate_name}"
+            f"Thank you again, and I look forward to working together!\n\n{signoff}"
         )
 
         return {

@@ -10,8 +10,8 @@ fully automatically as a background task:
   4. TAILOR   - rewrite the resume per job (LLM) to maximize the ATS score
   5. SCORE    - re-score the tailored resume against the job description
   6. LETTER   - generate a personalized cover letter per job
-  7. APPLY    - optionally auto‑apply via a browser stub and create a tracked
-               application package (auto‑applied status)
+  7. APPLY    - optionally run a separately guarded browser attempt and create
+               a tracked application package with evidence-derived status
 
 State model (WS-C): ``_autopilot_store`` remains a read‑through in‑process cache
 for hot polling by the Go backend. State is mirrored to the ``agent_runs``
@@ -20,12 +20,15 @@ process are visible to the FastAPI process. ALL DB ops are guarded: when
 ``DATABASE_URL`` is unset, asyncpg is missing, or no ``user_id`` is known,
 persistence degrades to a no‑op and the in‑memory behavior is unchanged.
 NOTE: actual form submission on external job boards is not possible via their
-public APIs – the APPLY step produces a complete, tracked application package
-(tailored resume + cover letter + apply link) and marks it applied in the tracker.
+public APIs. The APPLY step produces a complete, tracked application package
+(tailored resume + cover letter + apply link); any browser attempt remains
+``attempted`` until a receipt is captured, and external verification is a
+separate state that is never inferred from agent self-reporting.
 """
 import asyncio
 import concurrent.futures
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
@@ -50,12 +53,24 @@ from app.services.db import (
 from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LongContextClient
 from app.services.job_agent import smart_search
 from app.services.job_providers import search_jobs
+from app.services.job_identity import attach_job_identity
 from app.services.optimizer import optimize_with_reflection
 from app.services.job_application_automation import apply_job
 from app.services.browser_library import Browser
 from app.services.linkedin_policy import assert_not_linkedin_automation, LinkedInAutomationBlocked
 from app.services.submission_receipt import build_receipt, build_failed_receipt, build_prepared_receipt, save_receipt
 from app.services.ats_tiers import can_auto_submit as _can_auto_submit, should_prepare_only as _should_prepare_only, should_skip as _should_skip_ats, tier_for_url as _tier_for_url
+from app.middleware.operation_budget import BudgetRule, OperationBudget, OperationBudgetUnavailable
+from app.services.application_lifecycle import (
+    APPROVED as _LIFECYCLE_APPROVED,
+    ATTEMPTED as _LIFECYCLE_ATTEMPTED,
+    CANDIDATE_CONFIRMED as _LIFECYCLE_CANDIDATE_CONFIRMED,
+    FAILED as _LIFECYCLE_FAILED,
+    PREPARED as _LIFECYCLE_PREPARED,
+    RECEIPT_CONFIRMED as _LIFECYCLE_RECEIPT_CONFIRMED,
+    REVIEWED as _LIFECYCLE_REVIEWED,
+    transition as _transition_lifecycle,
+)
 
 from app.guardrails.gate import PipelineGate
 
@@ -83,6 +98,20 @@ def _summarize_gate(gate_result: dict) -> str:
 def _gate_passed(gate_result: dict) -> bool:
     """SRP: True only when every hard-block guardrail passed."""
     return bool(gate_result.get("all_passed", False))
+
+
+def _set_application_lifecycle(application: dict, new_state: str) -> None:
+    """Apply a canonical state transition with an optimistic version bump.
+
+    The legacy ``status`` field remains the presentation/API compatibility field;
+    lifecycle state is the durable contract used to prevent direct claims of
+    approval, attempt, receipt, or external verification.
+    """
+    current = application.get("lifecycle_state", _LIFECYCLE_PREPARED)
+    version = int(application.get("lifecycle_version", 1))
+    next_state = _transition_lifecycle(current, new_state, version=version)
+    application["lifecycle_state"] = next_state.state
+    application["lifecycle_version"] = next_state.version
 
 
 async def _safe_save_receipt(receipt: dict) -> bool:
@@ -234,7 +263,7 @@ def _is_dream_company(company: str, dream_companies: list) -> bool:
     return any(d.lower() in c or c in d.lower() for d in dream_companies if d.strip())
 
 
-async def _cover_letter(resume_text: str, job: dict, candidate_name: str) -> str:
+async def _cover_letter(resume_text: str, job: dict, candidate_name: str | None) -> str:
     # ponytail: chunked via long_context (spec 2026-08-02) — resume in full via
     # map_reduce, JD condensed, instead of [:5000]/[:2500] head-slices.
     jd_condensed = (
@@ -242,8 +271,9 @@ async def _cover_letter(resume_text: str, job: dict, candidate_name: str) -> str
         if job.get("description")
         else ""
     )
+    candidate_label = (candidate_name or "").strip()
     user_msg = (
-        f"CANDIDATE NAME: {candidate_name}\n"
+        f"CANDIDATE NAME: {candidate_label or '[not provided — do not invent]'}\n"
         f"RESUME:\n{LONG_TEXT_PLACEHOLDER}\n\n"
         f"JOB: {job['title']} at {job['company']}\n"
         f"JOB DESCRIPTION:\n{jd_condensed}\n\n"
@@ -267,12 +297,12 @@ async def run_autopilot(
     config: dict,
     profile: dict | None,
     resume_text: str,
-    candidate_name: str = "Candidate",
+    candidate_name: str | None = None,
 ) -> None:
     """Main background pipeline. State mirrored to in‑memory cache + agent_runs."""
     config = config or {}
     user_id = config.get("user_id")
-    if user_id and not check_daily_llm_budget(str(user_id), estimated_tokens=10_000):
+    if user_id and not await check_daily_llm_budget_async(str(user_id), estimated_tokens=10_000):
         _autopilot_store[run_id] = {
             "run_id": run_id,
             "user_id": user_id,
@@ -323,7 +353,8 @@ async def run_autopilot(
             _log(run_id, "SEARCH", f"Smart-searching jobs for '{title or 'profile-derived role'}'")
             result = await smart_search(title, location, profile, resume_text, top_n=10)
             for j in result["results"]:
-                key = (j["title"].lower(), j["company"].lower())
+                j = attach_job_identity(j)
+                key = j["job_identity"]["key"]
                 if key in seen:
                     continue
                 seen.add(key)
@@ -336,7 +367,8 @@ async def run_autopilot(
                 hits = [j for j in batch if _is_dream_company(j["company"], [company])]
                 added = 0
                 for j in hits:
-                    key = (j["title"].lower(), j["company"].lower())
+                    j = attach_job_identity(j)
+                    key = j["job_identity"]["key"]
                     if key not in seen:
                         seen.add(key)
                         j.setdefault("match_score", None)
@@ -360,9 +392,9 @@ async def run_autopilot(
             if rid != run_id and run_data.get("applications"):
                 for app in run_data["applications"]:
                     job = app.get("job", {})
-                    prior_keys.add((job.get("title", "").lower(), job.get("company", "").lower()))
+                    prior_keys.add(job.get("job_identity", {}).get("key") or attach_job_identity(job)["job_identity"]["key"])
         before_dedupe = len(all_jobs)
-        all_jobs = [j for j in all_jobs if (j["title"].lower(), j["company"].lower()) not in prior_keys]
+        all_jobs = [j for j in all_jobs if j.get("job_identity", {}).get("key") not in prior_keys]
         if before_dedupe != len(all_jobs):
             _log(run_id, "SELECT", f"Skipped {before_dedupe - len(all_jobs)} jobs you already applied to")
 
@@ -444,6 +476,8 @@ async def run_autopilot(
                     "ats_score_after": ats_after,
                     "is_dream_company": job.get("is_dream_company", False),
                     "status": "ready_to_submit",
+                    "lifecycle_state": _LIFECYCLE_PREPARED,
+                    "lifecycle_version": 1,
                     "submission_mode": "assisted",
                     "apply_url": job.get("url", ""),
                     "created_at": datetime.now(timezone.utc).isoformat(),
@@ -557,6 +591,7 @@ async def run_autopilot(
                     applications.append(application)
                     continue
                 if config.get("auto_apply", False) and gate_ok and not approved:
+                    _set_application_lifecycle(application, _LIFECYCLE_REVIEWED)
                     application["status"] = "awaiting_approval"
                     _log(
                         run_id,
@@ -565,6 +600,10 @@ async def run_autopilot(
                         f"{job['title']} @ {job['company']} — nothing was submitted.",
                     )
                 if config.get("auto_apply", False) and gate_ok and approved:
+                    # Approval backends may return a previously reviewed decision;
+                    # materialize the canonical review edge before confirmation.
+                    _set_application_lifecycle(application, _LIFECYCLE_REVIEWED)
+                    _set_application_lifecycle(application, _LIFECYCLE_CANDIDATE_CONFIRMED)
                     # The atomic UPDATE ... RETURNING is the only operation that
                     # turns review consent into a one-use server token.
                     try:
@@ -601,6 +640,7 @@ async def run_autopilot(
                             approval_token,
                         )
                     if not guard:
+                        _set_application_lifecycle(application, _LIFECYCLE_REVIEWED)
                         application["status"] = "approval_expired_or_replayed"
                         _log(
                             run_id,
@@ -616,6 +656,8 @@ async def run_autopilot(
                         # "submitted_unverified" instead of quietly becoming
                         # "applied". Self-reported success is the lie this
                         # whole product exists to stop telling.
+                        _set_application_lifecycle(application, _LIFECYCLE_APPROVED)
+                        _set_application_lifecycle(application, _LIFECYCLE_ATTEMPTED)
                         evidence = Browser.apply_job_with_evidence(
                             job,
                             tailored_text,
@@ -641,6 +683,7 @@ async def run_autopilot(
                             "ats_vendor": receipt["ats_vendor"],
                         }
                         if receipt["verified"]:
+                            _set_application_lifecycle(application, _LIFECYCLE_RECEIPT_CONFIRMED)
                             application["status"] = "applied"
                             _log(
                                 run_id,
@@ -657,6 +700,7 @@ async def run_autopilot(
                                 f"confirmation — marked unverified so you can check it yourself.",
                             )
                         else:
+                            _set_application_lifecycle(application, _LIFECYCLE_FAILED)
                             application["status"] = "apply_failed"
                             # WS-02: a failed run still gets a receipt row so
                             # the UI can render the distinct "Submission failed"
@@ -687,6 +731,7 @@ async def run_autopilot(
                             )
                     except Exception as exc:
                         logger.error("Auto‑apply failed for %s: %s", job.get("company"), exc)
+                        _set_application_lifecycle(application, _LIFECYCLE_FAILED)
                         application["status"] = "apply_failed"
                         failed_receipt = build_failed_receipt(
                             run_id=run_id,
@@ -800,6 +845,7 @@ def validate_status_transition(current_stage: str, new_stage: str) -> bool:
 
 _DAILY_TOKEN_USAGE: Dict[str, int] = {}
 DEFAULT_DAILY_LLM_TOKEN_BUDGET = 50000
+_DAILY_LLM_BUDGET: OperationBudget | None = None
 
 
 def check_daily_llm_budget(user_id: str, estimated_tokens: int = 1000) -> bool:
@@ -813,3 +859,54 @@ def check_daily_llm_budget(user_id: str, estimated_tokens: int = 1000) -> bool:
         return False
     _DAILY_TOKEN_USAGE[key] = used + estimated_tokens
     return True
+
+
+async def check_daily_llm_budget_async(user_id: str, estimated_tokens: int = 1000) -> bool:
+    """Consume the AutoPilot daily token budget from the shared quota backend.
+
+    Production refuses admission when Redis is not configured or unavailable;
+    development/test environments retain the bounded local fallback used by
+    unit tests. The Redis bucket is keyed by user and UTC day and survives
+    worker restarts and multiple replicas.
+    """
+    global _DAILY_LLM_BUDGET
+    if not user_id or estimated_tokens < 0:
+        return False
+    production = os.getenv("ENV", "development").lower() == "production"
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    if production and not redis_url:
+        return False
+    if _DAILY_LLM_BUDGET is None:
+        _DAILY_LLM_BUDGET = OperationBudget(
+            rules={"autopilot_daily_tokens": BudgetRule(DEFAULT_DAILY_LLM_TOKEN_BUDGET, 86_400)},
+            redis_url=redis_url or None,
+            fail_closed=production,
+        )
+    try:
+        return await _consume_token_budget(user_id, estimated_tokens)
+    except OperationBudgetUnavailable:
+        return False
+
+
+async def _consume_token_budget(user_id: str, estimated_tokens: int) -> bool:
+    """Consume N token units using an atomic Redis counter when available."""
+    budget = _DAILY_LLM_BUDGET
+    if budget is None:
+        return False
+    rule = budget.rules["autopilot_daily_tokens"]
+    now = datetime.now(timezone.utc).timestamp()
+    bucket = int(now // rule.window_seconds)
+    if budget._redis is not None:
+        key = f"tayari:op-budget:autopilot_daily_tokens:user:{user_id}:{bucket}"
+        try:
+            pipe = budget._redis.pipeline(transaction=True)
+            pipe.incrby(key, estimated_tokens)
+            pipe.expire(key, rule.window_seconds + 1)
+            count, _ = await pipe.execute()
+            return int(count) <= rule.limit
+        except Exception as exc:
+            if budget.fail_closed:
+                raise OperationBudgetUnavailable("Redis token quota backend unavailable") from exc
+    # Development fallback uses the same bounded process-local lock and is
+    # intentionally not accepted as production evidence.
+    return check_daily_llm_budget(user_id, estimated_tokens)

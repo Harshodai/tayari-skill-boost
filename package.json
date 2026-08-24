@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:release": "bash scripts/require_clean_worktree.sh && vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint src",
     "lint:budget": "node scripts/lint_warning_budget.mjs",
@@ -21,7 +22,7 @@
     "desktop:dev": "concurrently -k \"pnpm dev\" \"wait-on http://127.0.0.1:8080 && cross-env ELECTRON_START_URL=http://127.0.0.1:8080 electron .\"",
     "desktop:build": "node scripts/build-desktop.mjs --mac --arm64",
     "desktop:build:mac": "node scripts/build-desktop.mjs --mac --arm64",
-    "desktop:build:mac:release": "node scripts/build-desktop.mjs --mac --arm64 --config.mac.notarize=true",
+    "desktop:build:mac:release": "bash scripts/require_clean_worktree.sh && node scripts/build-desktop.mjs --mac --arm64 --config.mac.notarize=true",
     "desktop:build:win": "node scripts/build-desktop.mjs --win --x64",
     "desktop:build:linux": "node scripts/build-desktop.mjs --linux --x64",
     "desktop:build:all": "node scripts/build-desktop.mjs --mac --arm64 --win --x64 --linux --x64",
