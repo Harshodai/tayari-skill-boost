@@ -42,9 +42,12 @@ export function RecruiterOutreach() {
         const data = await resp.json();
         setResult(data);
         toast.success("Outreach Campaign Generated!");
+      } else {
+        const errBody = await resp.json().catch(() => null);
+        toast.error(errBody?.detail || "Could not generate the outreach campaign. Please try again.");
       }
     } catch {
-      // Keep existing preview
+      toast.error("Could not reach the server. Check your connection and try again.");
     } finally {
       setGenerating(false);
     }

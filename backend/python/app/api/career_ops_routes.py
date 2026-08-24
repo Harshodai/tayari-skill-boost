@@ -101,8 +101,16 @@ async def evaluate_job(payload: dict = Body(...), x_user_id: str = Depends(get_c
         pool = await get_pool()
         if pool:
             try:
-                # Calculate dream_score out of 5 based on some criteria, or just save evaluation report
-                # Let's save report
+                # ponytail: this used to hardcode `dream_score = 4` on every
+                # evaluation regardless of what the evaluation actually found
+                # — a fabricated, plausible-looking score presented as if
+                # computed. The evaluator's LLM schema has no scoring field to
+                # draw a real value from (a real fix needs a schema/prompt
+                # decision, tracked separately), and other writers of this
+                # column (routes_review_queue.go) treat it as a 0-100 scale
+                # while this literal `4` implied 0-5 — a second reason not to
+                # write a guessed value on a different scale. Leave the
+                # column untouched; only write what was actually computed.
                 report_json = json.dumps(report)
                 async with pool.acquire() as conn:
                     await conn.execute(
@@ -110,7 +118,6 @@ async def evaluate_job(payload: dict = Body(...), x_user_id: str = Depends(get_c
                         UPDATE public.applications
                         SET evaluation_report = $3::jsonb,
                             legitimacy_assessment = $4::jsonb,
-                            dream_score = 4, -- Default default score multiplier
                             updated_at = now()
                         WHERE user_id = $1 AND application_id = $2
                         """,

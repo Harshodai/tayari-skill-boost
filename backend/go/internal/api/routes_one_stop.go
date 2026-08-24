@@ -41,6 +41,13 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 		r.Post("/api/v1/outreach/generate", s.handleOneStopProxy("/api/v1/outreach/generate"))
 		r.Post("/api/outreach/generate", s.handleOneStopProxy("/api/v1/outreach/generate"))
 
+		// RecruiterOutreach.tsx has always called this path; it was never
+		// registered here, so every request 404'd before ever reaching
+		// python-ai's handler (a separate, network-layer bug from the
+		// AttributeError crash fixed in recruiter_intelligence.py).
+		r.Post("/api/v1/recruiter/patterns", s.handleOneStopProxy("/api/v1/recruiter/patterns"))
+		r.Post("/api/recruiter/patterns", s.handleOneStopProxy("/api/v1/recruiter/patterns"))
+
 		r.Post("/api/v1/analytics/funnel", s.handleOneStopProxy("/api/v1/analytics/funnel"))
 		r.Post("/api/analytics/funnel", s.handleOneStopProxy("/api/v1/analytics/funnel"))
 
