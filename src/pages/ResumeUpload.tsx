@@ -111,7 +111,6 @@ const ResumeUpload = () => {
 
         const text = await extractTextFromFile(resumeFile);
         setResumeText(text);
-        console.log("Extracted resume text:", text.substring(0, 200) + "...");
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to parse file";
         setParsingError(message);

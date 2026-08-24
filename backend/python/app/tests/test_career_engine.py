@@ -84,3 +84,40 @@ async def test_ai_salary_negotiation():
     assert res["llm_available"] is True
     assert res["target_counter_offer"] > 200000
     assert "OpenAI" in res["counter_offer_script"]
+
+@pytest.mark.asyncio
+async def test_recruiter_cold_outreach_no_fabrication_when_unconfigured():
+    engine = AutonomousCareerEngine()
+    # ponytail: regression test for a real fabrication bug — this method used
+    # to return a hardcoded static template ("Having led engineering
+    # initiatives in high-scale systems...") for every candidate/company/role
+    # regardless of LLM availability, presented as an AI-drafted email. It must
+    # now be honest: no LLM configured -> no draft, explicit llm_available flag.
+    with patch("app.agent.autonomous_career_engine.llm_complete", new_callable=AsyncMock, side_effect=LLMNotConfiguredError("unconfigured")):
+        res = await engine.generate_recruiter_cold_outreach(company="Acme", recruiter_name="Jane", job_title="Senior Engineer")
+        assert res["llm_available"] is False
+        assert res["sequence"] == []
+
+    with patch("app.agent.autonomous_career_engine.llm_complete", new_callable=AsyncMock, return_value="Subject: Senior Engineer at Acme\n\nHi Jane, ..."):
+        res = await engine.generate_recruiter_cold_outreach(company="Acme", recruiter_name="Jane", job_title="Senior Engineer")
+    assert res["llm_available"] is True
+    assert res["sequence"][0]["email"].startswith("Subject:")
+
+@pytest.mark.asyncio
+async def test_interview_copilot_does_not_fabricate_on_provider_error():
+    engine = AutonomousCareerEngine()
+    # ponytail: regression test for a real fabrication bug — a bare
+    # `except Exception` used to return a canned generic STAR answer for ANY
+    # provider failure (timeout, rate limit, malformed response), not just a
+    # missing configuration. Both failure modes must now propagate honestly.
+    with patch("app.agent.autonomous_career_engine.llm_complete", new_callable=AsyncMock, side_effect=LLMNotConfiguredError("unconfigured")):
+        with pytest.raises(LLMNotConfiguredError):
+            await engine.generate_interview_copilot_response("Tell me about a time you failed.", "Senior Engineer")
+
+    with patch("app.agent.autonomous_career_engine.llm_complete", new_callable=AsyncMock, side_effect=TimeoutError("provider timed out")):
+        with pytest.raises(TimeoutError):
+            await engine.generate_interview_copilot_response("Tell me about a time you failed.", "Senior Engineer")
+
+    with patch("app.agent.autonomous_career_engine.llm_complete", new_callable=AsyncMock, return_value="**Situation**: ..."):
+        res = await engine.generate_interview_copilot_response("Tell me about a time you failed.", "Senior Engineer")
+    assert res["star_answer"] == "**Situation**: ..."

@@ -1,176 +1,80 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Rocket, Star, ArrowRight, Quote, ShieldCheck } from "lucide-react";
+import { ArrowRight, ClipboardCheck, History, ShieldCheck, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
-import { CountUp } from "@/components/ui/count-up";
 
-import { useEffect, useState } from "react";
-import { dashboardStats } from "@/api";
-import type { DashboardStats } from '@/api/types';
-
-/**
- * Honest social proof. No borrowed logos, no invented "hired at" claims.
- * Every number below is either read live from the platform or clearly
- * labelled as a product capability rather than a customer outcome.
- */
-/**
- * Testimonials are intentionally empty until real, attributable quotes exist.
- * Invented personas are worse than no social proof: one reader who recognises
- * the pattern discredits every other number on the page.
- */
-const testimonials: {
-  quote: string;
-  name: string;
-  role: string;
-  detail: string;
-}[] = [];
-
-const aspirationalCards = [
+const journeyCards = [
   {
-    title: "Tailor, apply, track — one chain",
-    description: "AutoPilot saves the role, rewrites your resume against the JD, drafts the letter, and files it in your pipeline. You approve every step.",
-    icon: Rocket,
-    cta: "See how it works",
+    title: "Keep the role in context",
+    description:
+      "A serious application begins with more than a title. Keep the role requirements, your materials, and the next decision close together instead of rebuilding context each time.",
+    icon: Sparkles,
+    cta: "Explore role discovery",
+    href: "/jobs",
+  },
+  {
+    title: "Prepare from the real work",
+    description:
+      "Use the role and your experience as the starting point for a resume, a draft, or an interview answer—then make the final version your own.",
+    icon: ClipboardCheck,
+    cta: "Review a resume",
     href: "/resume",
   },
   {
-    title: "Interviews, decoded",
-    description: "Behavioral, system design, coding — practice with an AI coach that's already read your resume and the job description.",
-    icon: Star,
-    cta: "Practice now",
-    href: "/interview/prep",
-  },
-  {
-    title: "Own your data",
-    description: "Run Tayari on your own machine with a local model. No resume, no salary number, no email leaves your infrastructure.",
-    icon: Sparkles,
-    cta: "Read the docs",
-    href: "/methodology",
+    title: "Leave a learning trail",
+    description:
+      "Track where you are, what you used, and what happened next. A clear record turns every attempt into context for the one that follows.",
+    icon: History,
+    cta: "Open the tracker",
+    href: "/interview",
   },
 ];
 
-
 export function SocialProofSection() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [statsError, setStatsError] = useState(false);
-  useEffect(() => {
-    dashboardStats()
-      .then((data) => {
-        if (data && typeof data === "object") {
-          setStats(data);
-        } else {
-          setStatsError(true);
-        }
-      })
-      .catch(() => {
-        setStatsError(true);
-      });
-  }, []);
-
-  const liveStats = [
-    { value: stats?.resumes_count, suffix: "", label: "Resumes optimized" },
-    { value: stats?.applications_count, suffix: "", label: "Applications tracked" },
-    { value: stats?.saved_jobs_count, suffix: "", label: "Roles saved" },
-    { value: stats?.interviews_count, suffix: "", label: "Interview sessions" },
-  ];
-
   return (
-    <section className="py-20 lg:py-28 border-t border-border/40">
+    <section className="border-t border-border/40 py-20 lg:py-28" aria-labelledby="evidence-title">
       <div className="container mx-auto px-4">
-        {/* Live counters — read from the platform, not marketing copy */}
-        <div className="text-center mb-10">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground inline-flex items-center gap-2">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Live platform activity
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            Candidate-owned context
           </p>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border/40 rounded-2xl overflow-hidden border border-border/40 mb-6">
-          {liveStats.map((s) => (
-            <div key={s.label} className="bg-card/60 backdrop-blur-sm p-8 text-center">
-              <div className="font-display text-4xl font-bold text-gradient mb-2 flex justify-center items-baseline">
-                {stats ? <CountUp end={s.value ?? 0} suffix={s.suffix} duration={2} /> : "—"}
-              </div>
-              <div className="text-sm text-muted-foreground">{s.label}</div>
-            </div>
-          ))}
-        </div>
-        <p role={statsError ? "status" : undefined} className="text-center text-xs text-muted-foreground mb-20">
-          {statsError
-            ? "Live platform activity is unavailable; no customer figures are shown."
-            : stats
-              ? "Counters read directly from this deployment's database and update as the platform is used."
-              : "Loading live platform activity…"}
-        </p>
-
-        {/* Testimonials */}
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <h2 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-4 tracking-tight">
-            What early users say.
+          <h2 id="evidence-title" className="mt-4 font-display text-balance text-4xl font-bold tracking-tight text-foreground md:text-5xl">
+            Build progress you can explain.
           </h2>
-          <p className="text-lg text-muted-foreground">
-            {testimonials.length === 0
-              ? "We're still in early access, so there are no customer quotes here yet. When there are, they'll carry a real name and a measured outcome."
-              : "Quotes from named beta users, with the outcome they actually measured."}
+          <p className="mt-5 text-pretty text-lg leading-8 text-muted-foreground">
+            Job Tayari does not promise an offer. It gives your search an understandable structure, so your time, preparation, and decisions remain connected from one opportunity to the next.
+          </p>
+          <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Your personal activity belongs in your signed-in workspace. This public page stays focused on how the workflow helps rather than presenting unverified customer figures.
           </p>
         </div>
 
-        {testimonials.length > 0 && (
-          <div className="grid md:grid-cols-3 gap-6 mb-20">
-            {testimonials.map((t) => (
-              <Card key={t.name} className="border-border/50 bg-card/60 backdrop-blur-sm">
-                <CardContent className="pt-8 pb-8 flex flex-col h-full">
-                  <Quote className="w-6 h-6 text-primary/60 mb-4" />
-                  <p className="text-foreground/90 leading-relaxed mb-6 flex-1">"{t.quote}"</p>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">{t.role}</p>
-                    <p className="text-xs text-primary mt-1">{t.detail}</p>
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
+          {journeyCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <Card
+                key={card.title}
+                className="group relative overflow-hidden border-border/50 bg-card/60 backdrop-blur-sm transition duration-200 hover:-translate-y-1 hover:border-primary/40"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                <CardContent className="relative flex h-full flex-col pb-8 pt-8">
+                  <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+                    <Icon className="h-6 w-6" aria-hidden="true" />
                   </div>
+                  <h3 className="font-display text-xl font-semibold tracking-tight text-foreground">{card.title}</h3>
+                  <p className="mb-6 mt-3 flex-1 leading-relaxed text-muted-foreground">{card.description}</p>
+                  <Button variant="ghost" className="-ml-3 w-fit hover:bg-primary/10 hover:text-primary" asChild>
+                    <Link to={card.href}>
+                      {card.cta}
+                      <ArrowRight className="ml-1 h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+                    </Link>
+                  </Button>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        )}
-
-
-        {/* Section header */}
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <h2 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-4 tracking-tight">
-            From application to offer.
-          </h2>
-          <p className="text-lg text-muted-foreground">
-            One platform. Every step. Built by people who've sat on both sides of the table.
-          </p>
-        </div>
-
-        {/* Cards */}
-        <div className="grid md:grid-cols-3 gap-6">
-          {aspirationalCards.map((card) => (
-            <Card
-              key={card.title}
-              className="group relative overflow-hidden border-border/50 bg-card/60 backdrop-blur-sm hover:border-primary/40 transition-all duration-500 hover:-translate-y-1"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <CardContent className="relative pt-8 pb-8 flex flex-col h-full">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-6">
-                  <card.icon className="w-6 h-6 text-primary" />
-                </div>
-                <h3 className="font-display text-xl font-semibold text-foreground mb-3 tracking-tight">
-                  {card.title}
-                </h3>
-                <p className="text-muted-foreground mb-6 flex-1 leading-relaxed">
-                  {card.description}
-                </p>
-                <Button variant="ghost" className="w-fit -ml-3 group/btn hover:bg-primary/10 hover:text-primary" asChild>
-                  <Link to={card.href}>
-                    {card.cta}
-                    <ArrowRight className="w-4 h-4 ml-1 transition-transform group-hover/btn:translate-x-1" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

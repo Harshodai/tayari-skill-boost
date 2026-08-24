@@ -3,6 +3,7 @@ import { Layout } from "@/components/layout";
 import {
   HeroSection,
   CandidateControlSection,
+  CareerOperatingRhythm,
   FeaturesSection,
   ProductsSection,
   SocialProofSection,
@@ -18,6 +19,8 @@ const Index = () => {
     <Layout>
       <HeroSection />
       <CandidateControlSection />
+
+      <CareerOperatingRhythm />
 
       <FeaturesSection />
 

@@ -230,11 +230,28 @@ Candidate"""
         """
         Generate professional recruiter cold email sequence.
         """
-        email_1 = f"Subject: {job_title} Application - {company}\n\nDear {recruiter_name},\n\nI recently submitted my application for the {job_title} role at {company}. Having led engineering initiatives in high-scale systems, I would welcome the opportunity to discuss how my experience aligns with your team's goals.\n\nBest regards,\nCandidate"
+        prompt = f"""Draft a short, professional cold outreach email from a job candidate to a recruiter.
+- Recruiter: {recruiter_name}
+- Company: {company}
+- Role: {job_title}
+
+Write only the email body, ready to send."""
+
+        llm_available = True
+        try:
+            email_1 = await asyncio.wait_for(llm_complete("", prompt), timeout=10.0)
+        except LLMNotConfiguredError:
+            # ponytail: do not fabricate a "personalized" outreach draft when no
+            # LLM is configured; a static template presented as AI-drafted copy
+            # is the exact silent-fallback the AI-integrity gate forbids.
+            llm_available = False
+            email_1 = None
+
         return {
             "company": company,
             "recruiter": recruiter_name,
-            "sequence": [{"step": "Initial Contact", "email": email_1}]
+            "llm_available": llm_available,
+            "sequence": [{"step": "Initial Contact", "email": email_1}] if llm_available else []
         }
 
     async def generate_interview_copilot_response(self, question: str, role: str) -> Dict[str, Any]:
@@ -242,14 +259,12 @@ Candidate"""
         Generate STAR-method interview response based on user profile and target role.
         """
         prompt = f"Provide a concise STAR-method answer for the interview question: '{question}' for a candidate applying to role: '{role}'."
-        try:
-            star_answer = await asyncio.wait_for(llm_complete("", prompt), timeout=10.0)
-        except LLMNotConfiguredError:
-            # ponytail: propagate unavailability unchanged so the route can map it
-            # to HTTP 503; never fabricate a STAR answer when no LLM is configured.
-            raise
-        except Exception:
-            star_answer = f"**Situation**: In my recent engineering projects...\n**Task**: Address key challenges for {role}.\n**Action**: Implemented robust architecture and automated testing.\n**Result**: Improved reliability and team velocity."
+        # ponytail: let both LLMNotConfiguredError and any other provider
+        # failure (timeout, rate limit, malformed response) propagate to the
+        # route unchanged. The route maps LLMNotConfiguredError to 503 and any
+        # other exception to a generic 500 — neither path fabricates a STAR
+        # answer for a question the model never actually answered.
+        star_answer = await asyncio.wait_for(llm_complete("", prompt), timeout=10.0)
 
         return {
             "question": question,

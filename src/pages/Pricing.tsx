@@ -44,7 +44,7 @@ export const DEFAULT_PACKS: CreditPackItem[] = [
     price: 19,
     priceFormatted: "$19",
     unitPrice: "$1.90/sub",
-    description: "Perfect for focused, high-precision applications to priority roles.",
+    description: "A focused batch for roles that deserve a considered, verified application workflow.",
     popular: false,
     bestValue: false,
     features: [
@@ -65,7 +65,7 @@ export const DEFAULT_PACKS: CreditPackItem[] = [
     price: 49,
     priceFormatted: "$49",
     unitPrice: "$1.40/sub",
-    description: "Our most popular pack for active search across multiple high-match roles.",
+    description: "A practical batch for an active search across several well-considered roles.",
     popular: true,
     bestValue: false,
     features: [
@@ -87,7 +87,7 @@ export const DEFAULT_PACKS: CreditPackItem[] = [
     price: 99,
     priceFormatted: "$99",
     unitPrice: "$0.99/sub",
-    description: "Maximum efficiency and lowest cost per verified submission for aggressive searches.",
+    description: "The lowest listed unit cost for a sustained search with a clear review and receipt workflow.",
     popular: false,
     bestValue: true,
     features: [
@@ -292,13 +292,13 @@ const Pricing = () => {
               </div>
             )}
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold mb-4">
-              <Coins className="w-3.5 h-3.5" /> Pay Only Per Verified Submission
+              <Coins className="w-3.5 h-3.5" /> Pay only for a verified record
             </div>
             <h1 className="font-display text-balance text-4xl md:text-5xl font-bold mb-4 tracking-tight">
-              Pay for <span className="text-gradient">Proof</span>, Never Subscriptions
+              Pay for a <span className="text-gradient">visible record</span>, not idle calendar time
             </h1>
             <p className="text-balance text-xl text-muted-foreground max-w-2xl mx-auto">
-              Job tracking and resume tailoring are free forever. Purchase credit packs only when you want automated, verified ATS submissions.
+              Start with the available free career tools. Credit packs apply only to supported workflows that return a verified ATS submission record.
             </p>
 
             {/* User credit balance callout */}
@@ -318,7 +318,7 @@ const Pricing = () => {
             )}
           </div>
 
-          {/* Zero Risk Guarantee Highlight Banner */}
+          {/* Transparent credit-policy banner */}
           <div
             data-testid="zero-risk-guarantee"
             className="max-w-4xl mx-auto mb-16 p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center shadow-sm"
@@ -327,10 +327,10 @@ const Pricing = () => {
               <ShieldCheck className="w-8 h-8" />
             </div>
             <h2 className="font-display text-balance text-xl md:text-2xl font-bold text-emerald-500 mb-2">
-              Zero Risk: 1 Credit is debited ONLY when a verified submission receipt with ATS confirmation code is generated. Failed or unverifiable applications are $0.00 / 0 credits.
+              Transparent credit policy: 1 credit is debited only when a verified submission receipt with an ATS confirmation code is generated. Failed or unverifiable applications are $0.00 / 0 credits.
             </h2>
             <p className="text-balance text-sm text-muted-foreground max-w-2xl mx-auto">
-              Never pay for broken application portals, CAPTCHAs, or lost submissions. If our agent cannot capture verifiable ATS confirmation proof, you pay nothing.
+              When the workflow cannot capture verifiable ATS confirmation proof, it does not debit a submission credit. Check the receipt status rather than treating an uncertain outcome as complete.
             </p>
           </div>
 
@@ -351,7 +351,7 @@ const Pricing = () => {
                   {isPopular && (
                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
                       <span className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow">
-                        Most Popular
+                        Active search
                       </span>
                     </div>
                   )}
@@ -462,10 +462,10 @@ const Pricing = () => {
               <div className="glass rounded-2xl p-6 border border-border/50">
                 <div className="flex items-center gap-2 mb-3">
                   <X className="w-5 h-5 text-primary" />
-                  <h3 className="font-display font-semibold text-sm">Zero Cancellation Friction</h3>
+                  <h3 className="font-display font-semibold text-sm">No recurring billing</h3>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  No recurring charges, no calendar clocks ticking down, and no dark patterns when you land your dream role. There is nothing to cancel.
+                  Credit packs do not create a recurring monthly charge. Your search can move at its own pace without a subscription clock to manage.
                 </p>
               </div>
               <div className="glass rounded-2xl p-6 border border-border/50">
@@ -488,23 +488,23 @@ const Pricing = () => {
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Building2 className="w-5 h-5 text-primary" />
                   </div>
-                  <h3 className="font-display text-xl font-bold">For Career Centers & Bootcamps</h3>
+                  <h3 className="font-display text-xl font-bold">For career programmes</h3>
                 </div>
                 <p className="text-muted-foreground mb-4 text-sm">
-                  Universities, bootcamps, and outplacement programs. Empower your cohorts with bulk verified submission credits, audit reporting, and SSO.
+                  Universities, bootcamps, and outplacement programmes can start with a scoped conversation about candidate workflows, cohort visibility, and practical rollout requirements.
                 </p>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                    Cohort dashboards with per-student verified receipts
+                    Candidate workflows and receipt requirements scoped to your programme
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                    Volume credit packs & centralized billing
+                    Cohort pricing and billing options discussed before rollout
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                    SSO & custom career advisors roles
+                    Advisor and access requirements assessed for your environment
                   </li>
                 </ul>
               </div>
@@ -533,7 +533,7 @@ const Pricing = () => {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  We'll respond within one business day with institutional cohort options.
+                  We will respond with the information needed to explore a scoped programme conversation.
                 </p>
               </form>
             </div>

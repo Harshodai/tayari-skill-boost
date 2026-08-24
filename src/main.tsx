@@ -1,12 +1,29 @@
 import * as Sentry from "@sentry/react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
+import { redactSensitiveKeys, truncateConsoleMessage } from "./lib/telemetry-scrub";
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN || "",
   environment: import.meta.env.VITE_SENTRY_ENVIRONMENT || "development",
   integrations: [Sentry.browserTracingIntegration()],
   tracesSampleRate: 0.2,
+  sendDefaultPii: false,
+  beforeBreadcrumb(breadcrumb) {
+    if (breadcrumb.category === "console" && typeof breadcrumb.message === "string") {
+      breadcrumb.message = truncateConsoleMessage(breadcrumb.message);
+    }
+    breadcrumb.data = redactSensitiveKeys(breadcrumb.data);
+    return breadcrumb;
+  },
+  beforeSend(event) {
+    event.extra = redactSensitiveKeys(event.extra);
+    if (event.request) {
+      delete event.request.data;
+      delete event.request.cookies;
+    }
+    return event;
+  },
 });
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { TenantProvider } from "./contexts/TenantContext";

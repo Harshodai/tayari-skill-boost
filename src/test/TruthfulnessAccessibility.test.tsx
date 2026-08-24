@@ -21,7 +21,7 @@ describe("truthfulness and accessibility release contracts", () => {
   it("labels the receipt card as illustrative rather than a live submission", () => {
     render(<ReceiptShowcase />);
     expect(screen.getByText(/Illustrative UI example — no application was submitted/i)).toBeInTheDocument();
-    expect(screen.getByText(/Supported submission workflows can record a receipt/i)).toBeInTheDocument();
+    expect(screen.getByText(/When a supported workflow receives an external confirmation/i)).toBeInTheDocument();
     expect(screen.queryByText(/Every submission produces an immutable receipt/i)).not.toBeInTheDocument();
   });
 
@@ -41,7 +41,7 @@ describe("truthfulness and accessibility release contracts", () => {
 
   it("removes unsupported user-count and hiring guarantees from conversion copy", () => {
     renderWithRouter(<CTASection />);
-    expect(screen.getByText(/Build a reviewable job-search workflow/i)).toBeInTheDocument();
+    expect(screen.getByText(/build a career-search rhythm around context, preparation, review, and learning/i)).toBeInTheDocument();
     expect(screen.queryByText(/Join thousands of engineers/i)).not.toBeInTheDocument();
   });
 
@@ -49,7 +49,7 @@ describe("truthfulness and accessibility release contracts", () => {
     renderWithRouter(<FreeAtsScan />);
     expect(screen.getByLabelText("Your Resume")).toBeInTheDocument();
     expect(screen.getByLabelText("Job Description")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /scan my resume/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /review my resume/i })).toBeEnabled();
   });
 
   it("renders privacy retention controls without absolute local-only guarantees", () => {

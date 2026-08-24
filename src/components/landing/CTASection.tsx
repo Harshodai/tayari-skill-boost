@@ -13,23 +13,22 @@ export function CTASection() {
 
           <div className="relative px-6 py-20 lg:py-28 text-center">
             <h2 className="font-display text-balance text-4xl md:text-6xl font-bold text-foreground mb-6 tracking-tight leading-[1.05]">
-              Take full control of
+              Make the next move
               <br />
-              <span className="text-gradient">your engineering search.</span>
+              <span className="text-gradient">one you can stand behind.</span>
             </h2>
             <p className="text-balance text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-              Build a reviewable job-search workflow instead of relying on spray-and-pray.
-              Start with the available free tools; plan limits and provider costs are shown before use.
+              Start with one clear signal, then build a career-search rhythm around context, preparation, review, and learning. Begin free; plan limits and provider costs are shown before use.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <Button size="xl" asChild className="min-w-[200px] font-semibold active:scale-[0.98]">
                 <Link to="/auth?mode=signup">
-                  Get started free
+                  Start my career rhythm
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild className="active:scale-[0.98]">
-                <Link to="/contact">Talk to us</Link>
+                <Link to="/free-scan">Start with a free scan</Link>
               </Button>
             </div>
           </div>

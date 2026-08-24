@@ -64,10 +64,10 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchBranding = async () => {
-    // Only attempt branding fetch when the self-hosted Go backend is wired up.
-    // On Lovable preview/prod we don't ship a tenant API, so skip silently
-    // instead of polluting the console with HTML-parse errors.
-    if (!import.meta.env.VITE_API_URL) {
+    // Only attempt branding fetch when the self-hosted Go backend is enabled.
+    // Hosted previews can have an API URL for other product services without
+    // shipping the tenant route, so skip the optional request silently there.
+    if (import.meta.env.VITE_USE_SELF_HOSTED !== "true" || !import.meta.env.VITE_API_URL) {
       setIsLoading(false);
       return;
     }

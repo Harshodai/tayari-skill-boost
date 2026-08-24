@@ -3,9 +3,9 @@ import { ArrowRight, Check, FileSearch, ShieldCheck, Sparkles } from "lucide-rea
 import { Button } from "@/components/ui/button";
 
 const CHECKPOINTS = [
-  "Choose the opportunities worth your time",
-  "Review the work before you move forward",
-  "Keep a visible record of each completed action",
+  "Choose opportunities with the right context",
+  "Review the work before a meaningful action",
+  "Keep the record you need for the next decision",
 ];
 
 export function HeroSection() {
@@ -27,27 +27,27 @@ export function HeroSection() {
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
               </span>
               <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Candidate-controlled career operations
+              Career operations, on your terms
             </div>
 
             <h1 className="font-display text-balance text-5xl font-bold leading-[0.98] tracking-[-0.055em] text-foreground sm:text-6xl lg:text-7xl">
-              A job search you can <span className="text-gradient">inspect</span> before anything goes out.
+              Turn a scattered job search into a <span className="text-gradient">deliberate rhythm.</span>
             </h1>
 
             <p className="mx-auto mt-7 max-w-xl text-balance text-base leading-7 text-muted-foreground sm:text-lg lg:mx-0 lg:pr-6">
-              Tailor your materials, organise your opportunities, and move through every application with visible review steps—not promises you cannot verify.
+              Choose roles with context, prepare work you can stand behind, and keep every meaningful decision visible. Job Tayari helps you move deliberately—not just faster.
             </p>
 
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
               <Button size="xl" asChild className="group min-w-[190px] shadow-glow transition-all active:scale-[0.98] active:translate-y-0.5">
                 <Link to="/auth?mode=signup">
-                  Build my review loop
+                  Start my career rhythm
                   <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild className="transition-all active:scale-[0.98] active:translate-y-0.5">
                 <Link to="/free-scan">
-                  Try a free ATS scan
+                  Start with a free ATS scan
                 </Link>
               </Button>
             </div>
@@ -75,7 +75,7 @@ export function HeroSection() {
                 </div>
                 <div className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-medium text-muted-foreground">
                   <ShieldCheck className="h-3.5 w-3.5 text-success" />
-                  Review loop active
+                  Your review loop
                 </div>
               </div>
 
@@ -86,7 +86,7 @@ export function HeroSection() {
                   loop
                   muted
                   playsInline
-                  aria-label="Animated workflow showing a matched role, candidate review, and recorded receipt"
+                  aria-label="Animated workflow showing a matched role, candidate review, and a recorded receipt"
                 >
                   <source src="/animations/candidate-review-loop.mp4" type="video/mp4" />
                 </video>
@@ -100,22 +100,22 @@ export function HeroSection() {
                 <div className="flex items-start gap-3">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><FileSearch className="h-4 w-4" /></span>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Fit before volume</p>
-                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Start with relevant roles and materials you can stand behind.</p>
+                    <p className="text-sm font-semibold text-foreground">Context before volume</p>
+                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Start with roles and materials you can genuinely stand behind.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning/10 text-warning"><ShieldCheck className="h-4 w-4" /></span>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Proof, not guesswork</p>
-                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Keep the workflow visible instead of relying on a black box.</p>
+                    <p className="text-sm font-semibold text-foreground">Your decision stays visible</p>
+                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Review important work instead of relying on a black box.</p>
                   </div>
                 </div>
               </div>
             </div>
 
             <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">
-              Sensitive answers and final decisions stay with you.
+              Sensitive answers and final decisions stay in your hands.
             </p>
           </div>
         </div>

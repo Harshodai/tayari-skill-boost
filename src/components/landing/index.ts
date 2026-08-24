@@ -1,5 +1,6 @@
 export { HeroSection } from "./HeroSection";
 export { CandidateControlSection } from "./CandidateControlSection";
+export { CareerOperatingRhythm } from "./CareerOperatingRhythm";
 export { FeaturesSection } from "./FeaturesSection";
 export { ProductsSection } from "./ProductsSection";
 export { SocialProofSection } from "./SocialProofSection";

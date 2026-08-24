@@ -95,10 +95,10 @@ export default function FreeAtsScan() {
         <div className="container mx-auto px-4 max-w-4xl">
           <div className="text-center mb-10">
             <h1 className="font-display text-balance text-3xl md:text-4xl font-bold mb-3 tracking-tight">
-              Free <span className="text-gradient">ATS Resume Scan</span>
+              See the <span className="text-gradient">signals worth checking</span> before you apply.
             </h1>
             <p className="text-balance text-muted-foreground text-lg">
-              Paste your resume and a job description to see how you score. No signup required.
+              Compare your resume with a role, then use the heuristic results to guide a more deliberate review. No signup required.
             </p>
           </div>
 
@@ -146,7 +146,7 @@ export default function FreeAtsScan() {
               className="px-8 active:scale-[0.98]"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Zap className="w-5 h-5 mr-2" />}
-              {loading ? "Scanning..." : "Scan My Resume"}
+              {loading ? "Scanning..." : "Review my resume"}
             </Button>
             {loading && (
               <Button type="button" size="lg" variant="outline" onClick={cancelScan} className="active:scale-[0.98]">
@@ -178,7 +178,7 @@ export default function FreeAtsScan() {
             <div className="space-y-6 mb-8">
               <Card className="text-center">
                 <CardHeader>
-                  <CardTitle className="font-display text-lg">ATS Match Score</CardTitle>
+                  <CardTitle className="font-display text-lg">Role-alignment signal</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className={`text-6xl font-black mb-4 font-mono tabular-nums ${scoreColor}`}>
@@ -186,9 +186,9 @@ export default function FreeAtsScan() {
                   </div>
                   <Progress value={score} className="h-3 mb-4" />
                   <p className="text-balance text-muted-foreground text-sm">
-                    {score >= 80 ? "Strong match! Your resume is well-aligned with this role." :
-                     score >= 60 ? "Decent match. Some improvements could boost your callback rate." :
-                     "Low match. Significant tailoring needed for this role."}
+                    {score >= 80 ? "Strong alignment signal. Review the role-specific details before you decide the materials are ready." :
+                     score >= 60 ? "Some signals align and some deserve a closer look. Use the gaps to guide a focused revision." :
+                     "Lower alignment signal. Consider whether this role is the right target and which truthful details need clearer context."}
                   </p>
                 </CardContent>
               </Card>
@@ -237,7 +237,7 @@ export default function FreeAtsScan() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="font-display text-lg text-destructive flex items-center gap-2">
-                      <X className="w-5 h-5" /> Missing Keywords
+                      <X className="w-5 h-5" /> Terms to review
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -278,9 +278,9 @@ export default function FreeAtsScan() {
 
           {result && (
             <div className="text-center py-10 border-t border-border">
-              <h2 className="font-display text-balance text-2xl font-bold mb-3 tracking-tight">Want the full picture?</h2>
+              <h2 className="font-display text-balance text-2xl font-bold mb-3 tracking-tight">Ready to turn this signal into a better next step?</h2>
               <p className="text-balance text-muted-foreground mb-6 max-w-md mx-auto">
-                Sign up for additional scans, deeper section analysis, AI-assisted drafting, and personalized optimization within the limits shown for your plan.
+                Create an account to keep this work in context, continue with deeper analysis, and prepare your materials within the limits shown for your plan.
               </p>
               <div className="flex items-center justify-center gap-4">
                 <Button size="lg" asChild className="active:scale-[0.98]">
@@ -301,7 +301,7 @@ export default function FreeAtsScan() {
             <div className="text-center py-10">
               <p className="text-muted-foreground text-sm">
                 Already have an account?{" "}
-                <Link to="/auth" className="text-primary hover:underline">Log in</Link> for unlimited scans and deeper analysis.
+                <Link to="/auth" className="text-primary hover:underline">Log in</Link> to continue your review with the limits shown in your account.
               </p>
             </div>
           )}

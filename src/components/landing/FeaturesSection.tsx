@@ -257,10 +257,10 @@ export function FeaturesSection() {
         <div className="text-center max-w-2xl mx-auto mb-16">
           <SlideUp>
             <h2 className="text-section font-bold text-foreground mb-4 font-display text-balance tracking-tight">
-              Engineering-Grade Application Pipeline
+              The tools behind better next decisions
             </h2>
             <p className="text-muted-foreground text-lg text-balance">
-              A verifiable, candidate-in-the-loop toolchain that analyzes requirements, prepares evidence-based materials, and keeps you in full control.
+              Each workspace does a distinct job in your career-search rhythm: make the work clearer, reduce repeat effort, and leave the meaningful call with you.
             </p>
           </SlideUp>
         </div>
@@ -278,12 +278,12 @@ export function FeaturesSection() {
                   <div>
                     <h3 className="text-2xl font-bold mb-2 font-display">Resume Optimizer</h3>
                     <p className="text-muted-foreground text-sm leading-relaxed max-w-sm">
-                      AI tailors your skills, highlights, and formatting against target job descriptions in real-time, boosting ATS match rates and keyword density instantly.
+                      Compare your resume with a target role, surface the gaps worth checking, and refine the details before you decide what represents your experience.
                     </p>
                   </div>
                   <Button size="sm" asChild className="group">
                     <Link to="/resume">
-                      Optimize Resume
+                      Review my resume
                       <ArrowRight className="w-4 h-4 ml-1.5 transition-transform group-hover:translate-x-0.5" />
                     </Link>
                   </Button>
@@ -308,7 +308,7 @@ export function FeaturesSection() {
                 <div>
                   <h3 className="text-xl font-bold mb-2 font-display">Interview Coach</h3>
                   <p className="text-muted-foreground text-sm leading-relaxed">
-                    Practice interview scenarios with resume-aware behavioral analysis. Real-time feedback guides you on structure.
+                      Practise important stories with your experience in view, then use structured feedback to make your examples clearer and more specific.
                   </p>
                 </div>
               </div>
@@ -331,7 +331,7 @@ export function FeaturesSection() {
                 <div>
                   <h3 className="text-xl font-bold mb-2 font-display">Smart Job Matcher</h3>
                   <p className="text-muted-foreground text-sm leading-relaxed">
-                    Matches roles based on your skills profile, parsing salaries, remote options, and fit metrics.
+                      Bring role requirements, work preferences, and fit signals into one place so you can decide which opportunities deserve your attention.
                   </p>
                 </div>
               </div>
@@ -356,7 +356,7 @@ export function FeaturesSection() {
               <div>
                 <h3 className="text-xl font-bold mb-2 font-display">Browser Extension</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  Save jobs from LinkedIn, Indeed, and Greenhouse in a single click. Auto-fill application forms instantly.
+                  Keep roles you discover in one working record, so the context you found on the job board is still there when you are ready to prepare.
                 </p>
               </div>
             </div>
@@ -375,19 +375,19 @@ export function FeaturesSection() {
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
                   <Zap className="w-6 h-6 animate-pulse-slow" />
                 </div>
-                <Badge variant="success">AutoPilot</Badge>
+                  <Badge variant="success">Review first</Badge>
               </div>
               <div>
                 <h3 className="text-xl font-bold mb-2 font-display">AutoPilot</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  Let AI agents assist the application chain: scan, optimize, generate outreach, and prepare drafts for review.
+                  Let assistance organise the preparation work—scan, optimise, and draft—while preserving a review step before an important action.
                 </p>
               </div>
             </div>
             <div className="mt-6 space-y-4">
               <AutoPilotMockup />
               <Button size="sm" variant="outline" asChild className="w-full">
-                <Link to="/jobs/autopilot">Launch AutoPilot</Link>
+                  <Link to="/jobs/autopilot">Explore the preparation flow</Link>
               </Button>
             </div>
           </SpotlightCard>

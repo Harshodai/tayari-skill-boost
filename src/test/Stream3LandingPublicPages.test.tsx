@@ -56,11 +56,12 @@ describe("Stream 3 - Landing & Public Pages Implementation Tests", () => {
     });
   });
 
-  describe("FeaturesSection engineering copy and score formatting", () => {
-    it("renders specific engineering pipeline header copy", () => {
+  describe("FeaturesSection outcome-led copy and score formatting", () => {
+    it("renders specific outcome-led feature header copy", () => {
       renderWithRouter(<FeaturesSection />);
 
-      expect(screen.getByText("Engineering-Grade Application Pipeline")).toBeInTheDocument();
+      expect(screen.getByText("The tools behind better next decisions")).toBeInTheDocument();
+      expect(screen.getByText(/leave the meaningful call with you/i)).toBeInTheDocument();
       expect(screen.queryByText("Everything You Need to Succeed")).not.toBeInTheDocument();
     });
   });

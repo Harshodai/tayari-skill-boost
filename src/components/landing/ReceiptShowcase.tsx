@@ -16,8 +16,8 @@ const RECEIPT_SAMPLE = {
 };
 
 const DIFFERENTIATORS = [
-  "Verified means the external system returned a confirmation; otherwise the state remains unverified.",
-  "Failed and missing receipt are distinct states; a missing receipt is not presented as pending.",
+  "A verified state means the external system returned a confirmation; otherwise the record stays explicitly unverified.",
+  "Failed and missing receipts remain distinct, so uncertainty is not disguised as progress.",
   "Receipt fields and retention depend on the enabled workflow and deployment configuration.",
 ];
 
@@ -28,10 +28,10 @@ export function ReceiptShowcase() {
         <div className="max-w-3xl mx-auto text-center mb-12">
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground inline-flex items-center gap-2 mb-4">
             <Receipt className="w-3.5 h-3.5" />
-            Provenance, not promises
+            Context you can return to
           </p>
           <h2 className="font-display text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4 tracking-tight">
-            A receipt pattern you can inspect before you trust it.
+            Keep the context that makes the next move clearer.
           </h2>
         </div>
 
@@ -126,7 +126,7 @@ export function ReceiptShowcase() {
 
           {/* Caption */}
           <p className="text-center text-sm text-muted-foreground mt-5 leading-relaxed">
-            Supported submission workflows can record a receipt when the external system returns a confirmation. Fields, screenshots, and retention depend on the workflow and deployment; this card is illustrative, not a live receipt.
+            When a supported workflow receives an external confirmation, Job Tayari can retain a receipt alongside the role and materials. That context helps you retrace the work, not just count another submission. Fields, screenshots, and retention depend on the workflow and deployment; this card is illustrative, not a live receipt.
           </p>
 
           {/* Differentiators */}

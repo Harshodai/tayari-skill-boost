@@ -19,7 +19,7 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
-describe("Pricing Page - Credit Packs & Zero Risk Guarantee", () => {
+describe("Pricing Page - Credit Packs & Transparent Credit Policy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(AuthContext, "useAuth").mockReturnValue({
@@ -88,7 +88,7 @@ describe("Pricing Page - Credit Packs & Zero Risk Guarantee", () => {
     expect(screen.getByText("Pro Pack")).toBeInTheDocument();
     expect(screen.getByText("$49")).toBeInTheDocument();
     expect(screen.getByText("($1.40/sub)")).toBeInTheDocument();
-    expect(screen.getByText("Most Popular")).toBeInTheDocument();
+    expect(screen.getAllByText("Active search").length).toBeGreaterThan(0);
 
     // Power pack checks
     expect(screen.getByText("Power Pack")).toBeInTheDocument();
@@ -96,7 +96,7 @@ describe("Pricing Page - Credit Packs & Zero Risk Guarantee", () => {
     expect(screen.getByText("($0.99/sub)")).toBeInTheDocument();
   });
 
-  it("renders the Zero Risk Guarantee message prominently", async () => {
+  it("renders the transparent credit policy prominently", async () => {
     render(
       <MemoryRouter>
         <Pricing />
@@ -106,7 +106,7 @@ describe("Pricing Page - Credit Packs & Zero Risk Guarantee", () => {
     const guarantee = screen.getByTestId("zero-risk-guarantee");
     expect(guarantee).toBeInTheDocument();
     expect(guarantee.textContent).toContain(
-      "Zero Risk: 1 Credit is debited ONLY when a verified submission receipt with ATS confirmation code is generated. Failed or unverifiable applications are $0.00 / 0 credits."
+      "Transparent credit policy: 1 credit is debited only when a verified submission receipt with an ATS confirmation code is generated. Failed or unverifiable applications are $0.00 / 0 credits."
     );
   });
 

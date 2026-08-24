@@ -33,18 +33,18 @@ describe("FreeAtsScan Page", () => {
   it("renders page inputs, guidance, and primary scan action", () => {
     renderFreeAtsScan();
 
-    expect(screen.getByText(/Free/i)).toBeInTheDocument();
-    expect(screen.getByText(/ATS Resume Scan/i)).toBeInTheDocument();
+    expect(screen.getByText(/signals worth checking/i)).toBeInTheDocument();
+    expect(screen.getByText(/heuristic results/i)).toBeInTheDocument();
     expect(screen.getByLabelText("Your Resume")).toBeInTheDocument();
     expect(screen.getByLabelText("Job Description")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Scan My Resume/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Review my resume/i })).toBeEnabled();
     expect(screen.getByText(/Paste only the text needed for this scan; do not include secrets/i)).toBeInTheDocument();
   });
 
   it("shows validation error if inputs are empty upon scanning", async () => {
     renderFreeAtsScan();
 
-    fireEvent.click(screen.getByRole("button", { name: /Scan My Resume/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Review my resume/i }));
 
     expect(await screen.findByText(/Please fill in both fields before scanning/i)).toBeInTheDocument();
   });
@@ -76,10 +76,10 @@ describe("FreeAtsScan Page", () => {
       target: { value: "Looking for Senior Frontend Engineer with TypeScript, React, and Go." },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Scan My Resume/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Review my resume/i }));
 
     expect(await screen.findByText("85%")).toBeInTheDocument();
-    expect(screen.getByText("Strong match! Your resume is well-aligned with this role.")).toBeInTheDocument();
+    expect(screen.getByText("Strong alignment signal. Review the role-specific details before you decide the materials are ready.")).toBeInTheDocument();
     expect(screen.getByText("TypeScript")).toBeInTheDocument();
     expect(screen.getByText("React")).toBeInTheDocument();
     expect(screen.getByText("Kubernetes")).toBeInTheDocument();
@@ -109,7 +109,7 @@ describe("FreeAtsScan Page", () => {
       target: { value: "Senior Backend Developer" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Scan My Resume/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Review my resume/i }));
 
     expect(
       await screen.findByText(/Rate limit reached\. Please wait a moment before trying again, or create a free account for higher limits\./i)
@@ -137,7 +137,7 @@ describe("FreeAtsScan Page", () => {
       target: { value: "Short JD" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Scan My Resume/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Review my resume/i }));
 
     expect(
       await screen.findByText(/Invalid input\. Please check your resume and job description text and try again\./i)
