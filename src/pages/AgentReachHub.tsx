@@ -105,7 +105,7 @@ export function AgentReachHub() {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  const fetchDoctorStatus = async () => {
+  const fetchDoctorStatus = async (announceFailure = false) => {
     try {
       const resp = await apiFetchResponse("/v1/agent-reach/doctor", {
         headers: getAuthHeaders(),
@@ -115,9 +115,11 @@ export function AgentReachHub() {
         setDoctorReport(data);
       } else {
         setDoctorReport(null);
+        if (announceFailure) toast.error("Could not run the diagnostic check. Try again in a moment.");
       }
     } catch {
       setDoctorReport(null);
+      if (announceFailure) toast.error("Could not reach the server for the diagnostic check.");
     }
   };
 
@@ -275,7 +277,7 @@ export function AgentReachHub() {
             </p>
           </div>
 
-          <Button variant="outline" onClick={fetchDoctorStatus} className="gap-2 shrink-0">
+          <Button variant="outline" onClick={() => void fetchDoctorStatus(true)} className="gap-2 shrink-0">
             <Stethoscope className="w-4 h-4 text-emerald-500" />
             Job Tayari Jobseeker Doctor ({doctorReport?.active_channels || 15}/15 Active)
           </Button>

@@ -98,13 +98,20 @@ export default function Pipeline() {
           method: "POST",
           body: JSON.stringify({ dedupe_key: id, status: stage, stage }),
         });
-      } catch {
+      } catch (apiError) {
+        // ponytail: this used to swallow the error entirely in self-hosted
+        // mode (no Supabase fallback available there), resolving the
+        // mutation as a success — onSuccess fired, the query cache
+        // invalidated, and the card visually stayed in its new column until
+        // the next refetch silently reverted it, with no toast ever shown.
         if (!USE_SELF_HOSTED) {
           const { error } = await supabase
             .from("saved_jobs")
             .update({ stage })
             .eq("id", id);
           if (error) throw error;
+        } else {
+          throw apiError;
         }
       }
     },

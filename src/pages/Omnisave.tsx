@@ -310,8 +310,10 @@ export default function Omnisave() {
     setActivityLoading(true);
     try {
       setActivity(await fetchOmniSaveActivity(50));
+      setError(null);
     } catch {
       setActivity([]);
+      setError("Activity could not be refreshed. Try again in a moment.");
     } finally {
       setActivityLoading(false);
     }

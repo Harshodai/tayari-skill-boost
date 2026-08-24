@@ -69,43 +69,24 @@ export function CompanyRadar() {
           description: `Scanned ${data.companies_scanned} company boards and found ${data.total_matches_found} matching roles.`,
         });
       } else {
-        // Demo fallback
-        setResults([
-          {
-            company: "Stripe",
-            count: 2,
-            jobs: [
-              { title: "Senior Backend Engineer - Infrastructure", company: "Stripe", location: "San Francisco, CA (Hybrid)", url: "https://stripe.com/jobs", ats_source: "Greenhouse" },
-              { title: "Staff AI Engineer - Payments Platform", company: "Stripe", location: "Remote - US", url: "https://stripe.com/jobs", ats_source: "Greenhouse" },
-            ],
-          },
-          {
-            company: "OpenAI",
-            count: 1,
-            jobs: [
-              { title: "Full Stack Engineer - ChatGPT Experience", company: "OpenAI", location: "San Francisco, CA", url: "https://openai.com/careers", ats_source: "Lever" },
-            ],
-          },
-        ]);
+        // ponytail: this used to fall back to hardcoded fake Stripe/OpenAI
+        // job listings (specific fake titles, real company domains) on any
+        // non-2xx response, presented indistinguishably from a real scan
+        // result. A candidate could believe these were real open roles.
+        setResults(null);
+        toast({
+          title: "Scan failed",
+          description: "The company radar scan could not complete. Try again in a moment.",
+          variant: "destructive",
+        });
       }
     } catch {
-      setResults([
-        {
-          company: "Stripe",
-          count: 2,
-          jobs: [
-            { title: "Senior Backend Engineer - Infrastructure", company: "Stripe", location: "San Francisco, CA (Hybrid)", url: "https://stripe.com/jobs", ats_source: "Greenhouse" },
-            { title: "Staff AI Engineer - Payments Platform", company: "Stripe", location: "Remote - US", url: "https://stripe.com/jobs", ats_source: "Greenhouse" },
-          ],
-        },
-        {
-          company: "OpenAI",
-          count: 1,
-          jobs: [
-            { title: "Full Stack Engineer - ChatGPT Experience", company: "OpenAI", location: "San Francisco, CA", url: "https://openai.com/careers", ats_source: "Lever" },
-          ],
-        },
-      ]);
+      setResults(null);
+      toast({
+        title: "Scan failed",
+        description: "Could not reach the server to run the company radar scan.",
+        variant: "destructive",
+      });
     } finally {
       setScanning(false);
     }
