@@ -1780,8 +1780,17 @@ func (s *Server) handleImportProfilePDF(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	// Optionally update profile if fields extracted
+	// ponytail: these writes used to be fire-and-forget — a failed UPDATE
+	// still returned 200 with the extracted result, so the caller had no way
+	// to know the headline/skills were never actually persisted to their
+	// profile (a false-success shape). Logging failures here rather than
+	// changing the response contract, since callers already treat this as a
+	// best-effort profile enrichment step, not the primary action of the
+	// request (the AI extraction itself, already error-handled above).
 	if headline, ok := result["headline"].(string); ok && headline != "" {
-		s.DB.Conn.ExecContext(r.Context(), "UPDATE profiles SET headline=$1, updated_at=NOW() WHERE user_id=$2", headline, user.ID)
+		if _, execErr := s.DB.Conn.ExecContext(r.Context(), "UPDATE profiles SET headline=$1, updated_at=NOW() WHERE user_id=$2", headline, user.ID); execErr != nil {
+			log.Printf("handleImportProfilePDF: failed to save headline: %v", execErr)
+		}
 	}
 	if skills, ok := result["skills"].([]interface{}); ok && len(skills) > 0 {
 		var skillStrings []string
@@ -1792,7 +1801,9 @@ func (s *Server) handleImportProfilePDF(w http.ResponseWriter, r *http.Request) 
 		}
 		if len(skillStrings) > 0 {
 			jsonSkills, _ := json.Marshal(skillStrings)
-			s.DB.Conn.ExecContext(r.Context(), "UPDATE profiles SET skills=$1, updated_at=NOW() WHERE user_id=$2", string(jsonSkills), user.ID)
+			if _, execErr := s.DB.Conn.ExecContext(r.Context(), "UPDATE profiles SET skills=$1, updated_at=NOW() WHERE user_id=$2", string(jsonSkills), user.ID); execErr != nil {
+				log.Printf("handleImportProfilePDF: failed to save skills: %v", execErr)
+			}
 		}
 	}
 	s.respondJSON(w, http.StatusOK, result)

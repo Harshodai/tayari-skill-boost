@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -194,7 +195,14 @@ func (s *Server) handleAPIKeyUsage(w http.ResponseWriter, r *http.Request) {
 	usage := []usageRow{}
 	for rows.Next() {
 		var u usageRow
-		rows.Scan(&u.Endpoint, &u.StatusCode, &u.ResponseMs, &u.CreatedAt)
+		// ponytail: an unchecked Scan error used to append a zero-valued row
+		// (empty endpoint, status 0, zero time) into the response as if it
+		// were a real usage record — silently wrong data indistinguishable
+		// from a genuine row with an empty endpoint.
+		if err := rows.Scan(&u.Endpoint, &u.StatusCode, &u.ResponseMs, &u.CreatedAt); err != nil {
+			log.Printf("api_keys usage: scan failed: %v", err)
+			continue
+		}
 		usage = append(usage, u)
 	}
 	s.respondJSON(w, http.StatusOK, usage)
@@ -269,13 +277,23 @@ func (s *Server) handlePublicOptimize(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, statusCode, fmt.Sprintf("AI service error: %v", err))
 	}
 
-	s.DB.Conn.ExecContext(r.Context(),
+	// ponytail: these are audit/usage-tracking writes, not the response the
+	// caller sees — a failure here must not block or alter the actual API
+	// response (handled by the err == nil check below). But a silently
+	// dropped api_usage row means billing/rate-limit tracking for this key
+	// undercounts with no way to notice, so log the failure instead of
+	// discarding it entirely.
+	if _, execErr := s.DB.Conn.ExecContext(r.Context(),
 		`INSERT INTO api_usage (api_key_id, endpoint, status_code, ip_address, response_ms)
 		 VALUES ($1, $2, $3, $4, $5)`,
-		ak.ID, "/api/v1/public/optimize", statusCode, r.RemoteAddr, elapsed)
+		ak.ID, "/api/v1/public/optimize", statusCode, r.RemoteAddr, elapsed); execErr != nil {
+		log.Printf("api_keys: failed to record api_usage row: %v", execErr)
+	}
 
-	s.DB.Conn.ExecContext(r.Context(),
-		`UPDATE api_keys SET last_used_at=now() WHERE id=$1`, ak.ID)
+	if _, execErr := s.DB.Conn.ExecContext(r.Context(),
+		`UPDATE api_keys SET last_used_at=now() WHERE id=$1`, ak.ID); execErr != nil {
+		log.Printf("api_keys: failed to update last_used_at: %v", execErr)
+	}
 
 	if err == nil {
 		s.respondJSON(w, http.StatusOK, result)

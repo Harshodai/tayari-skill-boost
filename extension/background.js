@@ -279,6 +279,8 @@ async function getAuthConfig() {
 // PROFILE DATA CACHING (for autofill)
 // ============================================================
 
+let lastProfileFetchFailed = false;
+
 async function getProfileData() {
   // Check cache first
   const cache = await chrome.storage.local.get([PROFILE_CACHE_KEY, `${PROFILE_CACHE_KEY}_timestamp`]);
@@ -310,7 +312,13 @@ async function getProfileData() {
     
     return autofillData;
   } catch (e) {
+    // ponytail: falling back to a stale cache is reasonable (it's real,
+    // previously-fetched data, not fabricated) — but the caller had no way
+    // to know the fresh fetch failed and this might be outdated before
+    // autofilling it into a real job application. Surface it via the module
+    // flag below so the get_profile_data response can flag staleness.
     console.error('Tayari: Failed to fetch profile', e);
+    lastProfileFetchFailed = true;
     return cachedData || null; // Return stale cache as fallback
   }
 }
@@ -992,15 +1000,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         break;
       }
       case 'get_profile_data': {
+        lastProfileFetchFailed = false;
         const profile = await getProfileData();
-        sendResponse({ profile });
+        sendResponse({ profile, stale: lastProfileFetchFailed && !!profile });
         break;
       }
-      
+
       case 'refresh_profile': {
         await invalidateProfileCache();
+        lastProfileFetchFailed = false;
         const profile = await getProfileData();
-        sendResponse({ profile });
+        sendResponse({ profile, stale: lastProfileFetchFailed && !!profile });
         break;
       }
       
@@ -1200,7 +1210,18 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         });
       }
     } catch (e) {
+      // ponytail: the two sibling failure branches above (job not detected,
+      // save rejected) both notify the user; this path used to only log to
+      // the console, so a user clicking "Save Job to Tayari" on a page with
+      // no content script injected (or any other thrown error) saw nothing
+      // happen at all, with no indication the click didn't work.
       console.error('Context menu save failed', e);
+      chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'icons/icon128.png',
+        title: 'Failed to Save Job',
+        message: 'Could not save this job. Try reloading the page and saving again.'
+      });
     }
   }
 });

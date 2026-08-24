@@ -604,16 +604,31 @@
 
   let profileData = null;
   let autofillEnabled = true;
+  // ponytail: distinguishes "the background call itself failed" from
+  // "the call succeeded but there's genuinely no profile data" — the click
+  // handler below used to show "make sure your profile is complete" for
+  // BOTH cases, misattributing a communication failure (extension context
+  // invalidated, service worker asleep) to an incomplete profile.
+  let lastProfileLoadFailed = false;
+  // ponytail: distinguishes "background served last known cache because a
+  // fresh fetch just failed" from a normal fresh load — the profile object
+  // itself is identical in shape either way, so without this flag a stale
+  // (possibly outdated) profile silently autofills into a real application
+  // with no indication it wasn't just fetched.
+  let lastProfileWasStale = false;
 
   async function loadProfileData() {
     try {
       const response = await chrome.runtime.sendMessage({ action: 'get_profile_data' });
+      lastProfileLoadFailed = false;
+      lastProfileWasStale = !!(response && response.stale);
       if (response && response.profile) {
         profileData = response.profile;
         return profileData;
       }
     } catch (e) {
       console.error('Tayari: Failed to load profile data', e);
+      lastProfileLoadFailed = true;
     }
     return null;
   }
@@ -674,7 +689,13 @@
   }
 
   function autofillForm() {
-    if (!profileData || !autofillEnabled) return { filled: 0, fields: [] };
+    // ponytail: this used to return {filled, fields} with no `success` key
+    // at all. popup.js's Autofill button checks `result.success` and always
+    // fell into the "❌ Autofill failed" branch — even on a fully successful
+    // fill — because `success` was always undefined. The in-page floating
+    // panel's own button checks `result.filled > 0` directly so it was never
+    // affected, which is why this went unnoticed.
+    if (!profileData || !autofillEnabled) return { success: false, filled: 0, fields: [], error: 'Profile data not available.' };
     
     const results = [];
     let filledCount = 0;
@@ -760,7 +781,7 @@
       }
     }
 
-    return { filled: filledCount, fields: results };
+    return { success: true, filled: filledCount, fields: results };
   }
 
   // ====================================================================
@@ -947,8 +968,15 @@
         if (result.filled > 0) {
           btn.innerHTML = `<span class="tayari-icon">✅</span> ${result.filled} Fields Filled`;
           btn.classList.add('tayari-btn-success');
-          status.textContent = result.fields.map((field) => `✓ ${String(field.field || '').slice(0, 160)}`).join('\n');
+          const fieldList = result.fields.map((field) => `✓ ${String(field.field || '').slice(0, 160)}`).join('\n');
+          status.textContent = lastProfileWasStale
+            ? `${fieldList}\n⚠️ Using your last-known profile — a fresh sync failed. Double-check these fields before submitting.`
+            : fieldList;
           status.classList.add('tayari-status-success');
+        } else if (lastProfileLoadFailed) {
+          btn.innerHTML = '<span class="tayari-icon">❌</span> Autofill Failed';
+          status.textContent = 'Could not load your profile data. Check your connection and try again.';
+          status.classList.add('tayari-status-warning');
         } else {
           btn.innerHTML = '<span class="tayari-icon">⚠️</span> No Fields Found';
           status.textContent = 'No matching form fields found. Make sure your profile is complete in Tayari.';
