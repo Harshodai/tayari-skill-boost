@@ -1,7 +1,7 @@
 # Tayari Real-User Staging Protocol
 
-**Applies to:** real candidate resumes, real public job-post URLs, authenticated user accounts, and user-initiated AutoPilot/approval interactions.  
-**Decision rule:** No real participant may be invited until every red item in this protocol is closed with recorded evidence.  
+**Applies to:** real candidate resumes, real public job-post URLs, authenticated user accounts, and user-initiated AutoPilot/approval interactions.
+**Decision rule:** No real participant may be invited until every red item in this protocol is closed with recorded evidence.
 **Scope rule:** This protocol tests what is actually supported by the current codebase. It does **not** authorize automated employer submissions, real payments, production messaging, browser/computer control, or the preview-only Apply Agent.
 
 ## 1. Current Interaction Surface: What Can Be Tested Honestly
