@@ -1,11 +1,13 @@
 """Integration tests for Master Adaptations API Gateway routes."""
 
 import pytest
+from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 import httpx
 from app.main import app
 from app.services.profile_expander import ProfileExpander
 from app.services.codegraph_service import CodeGraphEngine
+from app.services.llm_service import LLMNotConfiguredError
 
 client = TestClient(app)
 
@@ -164,7 +166,25 @@ def test_negotiation_script_endpoint():
 
 
 def test_squad_run_endpoint():
-    res = client.post("/api/v1/adaptations/squad-run", json={"resume_text": "CV", "jd_text": "JD", "company": "Acme", "role": "Dev"})
+    # ponytail: this used to hit the real OptimizerAgent -> live LLM chain and
+    # assert status == "completed" unconditionally -- only passed with a real
+    # LLM provider configured, non-deterministic in CI. Mock at the agent
+    # boundary so this route-contract test doesn't depend on a live provider;
+    # see test_squad_run_endpoint_reports_failure_without_llm for the
+    # fail-closed path this route must also honor.
+    fake_optimizer_result = {
+        "agent": "OptimizerAgent",
+        "action": "optimize_resume",
+        "payload": {"optimized_text": "Tailored resume text.", "changes": ["Added Python keyword"], "estimated_score": 82},
+    }
+    fake_truth_result = {
+        "agent": "TruthGateAgent",
+        "action": "check_authenticity",
+        "payload": {"is_truthful": True, "risk_score": 5, "flags": []},
+    }
+    with patch("app.a2a.agent_squad.handle_optimizer_message", new_callable=AsyncMock, return_value=fake_optimizer_result), \
+         patch("app.a2a.agent_squad.handle_truth_gate_message", new_callable=AsyncMock, return_value=fake_truth_result):
+        res = client.post("/api/v1/adaptations/squad-run", json={"resume_text": "CV", "jd_text": "JD", "company": "Acme", "role": "Dev"})
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "completed"
@@ -173,3 +193,18 @@ def test_squad_run_endpoint():
     assert data["submission_permitted"] is False
     assert "optimizer" in data["outputs"]
     assert "truth_gate" in data["outputs"]
+
+
+def test_squad_run_endpoint_reports_failure_without_llm():
+    # ponytail: proves the route surfaces the orchestrator's real fail-closed
+    # status rather than a generic 500 or a fabricated success — an
+    # unconfigured/unavailable optimizer must produce an honest
+    # status:"failed" response, still 200 (the squad run itself completed;
+    # its outcome is "no reviewable package"), never status:"completed".
+    with patch("app.a2a.agent_squad.handle_optimizer_message", new_callable=AsyncMock, side_effect=LLMNotConfiguredError("unconfigured")):
+        res = client.post("/api/v1/adaptations/squad-run", json={"resume_text": "CV", "jd_text": "JD", "company": "Acme", "role": "Dev"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "failed"
+    assert data["agents_executed"] == []
+    assert data["submission_permitted"] is False
