@@ -7,7 +7,7 @@ const EXTENSION_ID = import.meta.env.VITE_EXTENSION_ID || "tayari-extension-id";
 const PAGE_BRIDGE_SOURCE = "jobtayari-extension-page-bridge-v1";
 const PAGE_BRIDGE_ACTIONS = new Set(["get_version", "omnisave_preferences_get", "omnisave_preferences_set", "omnisave_sync_now", "extension_session_handoff"]);
 
-function sendPageBridgeMessage(action: string, payload: Record<string, unknown> = {}) {
+function sendPageBridgeMessage(action: string, payload: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
   if (!PAGE_BRIDGE_ACTIONS.has(action)) return Promise.resolve({ success: false, error: "Unsupported browser-companion action." });
   return new Promise<Record<string, unknown>>((resolve) => {
     const requestId = typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;

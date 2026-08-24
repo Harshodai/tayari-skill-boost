@@ -302,7 +302,8 @@ export default function Omnisave() {
       return;
     }
     void getOmniSavePreferences().then((result) => {
-      setFullHistoryEnabled(Boolean(result?.preferences?.fullHistoryEnabled));
+      const prefs = (result as { preferences?: { fullHistoryEnabled?: boolean } } | undefined)?.preferences;
+      setFullHistoryEnabled(Boolean(prefs?.fullHistoryEnabled));
     }).catch(() => setFullHistoryEnabled(false));
   }, [extensionStatus.installed, getOmniSavePreferences]);
 

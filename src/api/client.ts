@@ -86,14 +86,18 @@ export async function clearPrivacyLedger(): Promise<Record<string, unknown>> {
   });
 }
 
-export async function apiFetchResponse(
+/**
+ * Raw fetch against the gateway that does NOT run checkResponse — no global
+ * 401 handling, no token clearing. Use for auth endpoints (login/register)
+ * where a 401/409 is an expected form error, not an expired session.
+ */
+export async function apiFetchRaw(
   path: string,
   options: RequestInit = {}
 ): Promise<Response> {
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
-  let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    return await fetch(`${API_URL}${path}`, {
       ...options,
       headers: {
         ...getHeaders(isFormData),
@@ -103,9 +107,17 @@ export async function apiFetchResponse(
   } catch {
     throw new BackendUnavailableError();
   }
+}
+
+export async function apiFetchResponse(
+  path: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const response = await apiFetchRaw(path, options);
   await checkResponse(response);
   return response;
 }
+
 
 export async function apiFetch<T>(
   path: string,

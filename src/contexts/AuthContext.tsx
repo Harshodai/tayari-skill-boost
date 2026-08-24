@@ -1,4 +1,4 @@
-import { API_URL, apiFetchResponse } from "@/api";
+import { API_URL, apiFetchRaw, apiFetchResponse } from "@/api";
 declare const chrome: any;
 declare const process: { env: Record<string, string | undefined> };
 
@@ -205,7 +205,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (USE_SELF_HOSTED) {
         // Note: For self-hosted, we allow the server to handle rate limiting (429)
 
-        const res = await apiFetchResponse(`/auth/login`, {
+        // apiFetchRaw: a 401 here means "wrong password", not an expired
+        // session — it must not trigger the global logout handler.
+        const res = await apiFetchRaw(`/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
@@ -224,6 +226,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data = await res.json();
         } else {
           rawBody = await res.text();
+        }
+
+        if (res.status === 401) {
+          return { error: data.error || 'Invalid email or password. Please try again.' };
         }
 
         if (!res.ok) {
@@ -287,13 +293,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, name: string): Promise<{ error: string | null }> => {
     try {
       if (USE_SELF_HOSTED) {
-        const res = await apiFetchResponse(`/auth/register`, {
+        const res = await apiFetchRaw(`/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, name })
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Signup failed');
+        const data = await res.json().catch(() => ({} as { error?: string }));
+        if (res.status === 429) return { error: 'Too many attempts. Please try again later.' };
+        if (!res.ok) return { error: data.error || `Signup failed (HTTP ${res.status})` };
         return { error: null }; // Usually requires login after
       }
 

@@ -68,7 +68,7 @@ export async function callApi(
   return data;
 }
 
-export function toolError(text: string, structuredContent?: unknown): { content: { type: "text"; text: string }[]; isError: true; structuredContent?: unknown } {
+export function toolError(text: string, structuredContent?: Record<string, unknown>): { content: { type: "text"; text: string }[]; isError: true; structuredContent?: Record<string, unknown> } {
   return { content: [{ type: "text", text }], ...(structuredContent === undefined ? {} : { structuredContent }), isError: true };
 }
 
