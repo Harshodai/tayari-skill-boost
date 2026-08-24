@@ -57,7 +57,7 @@ async def generate_live_copilot_hints(req: LiveCopilotRequest) -> LiveCopilotRes
     # (ai_routes.py) unreachable dead code. Both LLMNotConfiguredError and any
     # other failure (timeout, malformed JSON) now propagate honestly — see the
     # sibling `stream_live_copilot_hints` below, which already did this right.
-    raw_res = await llm_complete(prompt=prompt, system_prompt="You are a fast live interview assistant. Output valid JSON only.")
+    raw_res = await llm_complete(system_message="You are a fast live interview assistant. Output valid JSON only.", user_message=prompt)
     import json
     clean_json = raw_res.strip()
     if clean_json.startswith("```json"):
@@ -195,7 +195,7 @@ async def stream_live_copilot_hints(req: LiveCopilotRequest):
     )
 
     try:
-        raw_res = await llm_complete(prompt=prompt, system_prompt="You are a fast live interview assistant. Output valid JSON only.")
+        raw_res = await llm_complete(system_message="You are a fast live interview assistant. Output valid JSON only.", user_message=prompt)
     except LLMNotConfiguredError as exc:
         yield {"type": "error", "error": "ai_service_unavailable", "message": "LLM not configured"}
         return

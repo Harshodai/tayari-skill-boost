@@ -177,6 +177,14 @@ test('3. Candidate Answer Bank Match (API)', async ({ request }) => {
   // 8. Live Interview Audio Copilot (API)
   // -------------------------------------------------------------------------
   test('8. Live Interview Audio Copilot STAR Generator (API)', async ({ request }) => {
+    // ponytail: this used to assert 200 unconditionally, which only ever
+    // passed in an environment with a live LLM provider configured -- a real
+    // CI/staging checkout without secrets gets an honest 503
+    // ai_service_unavailable from this route (see live_interview_copilot.py,
+    // fixed earlier to never fabricate a STAR answer on failure) and this
+    // test must not treat that as a bug. Accept either outcome, but require
+    // each to be internally honest: 200 must carry real STAR content, 503
+    // must carry the documented error shape, never a partial/garbled body.
     expect(userToken).toBeTruthy();
     const res = await request.post(`${API_URL}/v1/interview/copilot`, {
       headers: { Authorization: `Bearer ${userToken}` },
@@ -186,8 +194,12 @@ test('3. Candidate Answer Bank Match (API)', async ({ request }) => {
         target_role: 'Senior Staff Infrastructure Engineer',
       },
     });
-    expect(res.status()).toBe(200);
+    expect([200, 503]).toContain(res.status());
     const data = await res.json();
+    if (res.status() === 503) {
+      expect(data.error).toBe('ai_service_unavailable');
+      return;
+    }
     expect(data.star_framework.situation).toBeDefined();
     expect(data.star_framework.task).toBeDefined();
     expect(data.star_framework.action).toBeDefined();

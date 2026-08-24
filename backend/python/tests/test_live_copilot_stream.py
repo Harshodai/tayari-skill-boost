@@ -1,6 +1,14 @@
 """Tests for the Moat-2 live copilot: stream generator, hint, voice analysis.
 
 Pure tests: llm_complete is monkeypatched; nothing network-bound.
+
+ponytail: these mocks used to be defined as `(prompt, system_prompt=None)`,
+matching a wrong call the production code was making
+(llm_complete(prompt=..., system_prompt=...) against a real function whose
+actual params are system_message/user_message) -- the tests were certifying
+a live production bug (a permanent TypeError, masked by a bare `except
+Exception` that fabricated fallback content on every single call) as correct
+behavior instead of catching it. Fixed to match the real signature.
 """
 import pytest
 
@@ -30,7 +38,7 @@ def _req():
 
 @pytest.mark.asyncio
 async def test_stream_yields_progressive_events(monkeypatch):
-    async def fake_llm_complete(prompt, system_prompt=None):
+    async def fake_llm_complete(system_message, user_message):
         return (
             '{"detected_question_type":"Behavioral","instant_hints":["Hint A"],'
             '"star_framework":{"situation":"S","task":"T","action":"A","result":"R"},'
@@ -49,7 +57,7 @@ async def test_stream_yields_progressive_events(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_stream_emits_error_event_on_unconfigured_llm(monkeypatch):
-    async def raise_unconfigured(prompt, system_prompt=None):
+    async def raise_unconfigured(system_message, user_message):
         raise LLMNotConfiguredError("no LLM")
 
     monkeypatch.setattr(f"{MODULE}.llm_complete", raise_unconfigured)
@@ -62,7 +70,7 @@ async def test_stream_emits_error_event_on_unconfigured_llm(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_stream_emits_error_event_on_invalid_llm_output(monkeypatch):
-    async def fake_llm_complete(prompt, system_prompt=None):
+    async def fake_llm_complete(system_message, user_message):
         return "not json at all"
 
     monkeypatch.setattr(f"{MODULE}.llm_complete", fake_llm_complete)
@@ -75,7 +83,7 @@ async def test_stream_emits_error_event_on_invalid_llm_output(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_generate_interview_hint_maps_target_role(monkeypatch):
-    async def fake_llm_complete(prompt, system_prompt=None):
+    async def fake_llm_complete(system_message, user_message):
         return '{"detected_question_type":"Technical","instant_hints":["H"],"star_framework":{},"suggested_metrics":[]}'
 
     monkeypatch.setattr(f"{MODULE}.llm_complete", fake_llm_complete)

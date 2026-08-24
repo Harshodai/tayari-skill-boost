@@ -116,13 +116,14 @@ test.describe.serial('Tayari Skill Boost — Credit Billing, Candidate Flow & Lo
     await expect(starterCard.getByText('$1.90/sub').first()).toBeVisible();
     await expect(starterCard.getByRole('button', { name: /Buy 10 Credits/i })).toBeVisible();
 
-    // Verify Pro Pack (35 credits, $49, $1.40/sub, Popular badge)
+    // Verify Pro Pack (35 credits, $49, $1.40/sub, "Active search" badge --
+    // renamed from "Most Popular" as part of the product-story copy pass)
     const proCard = page.getByTestId('pricing-card-pro');
     await expect(proCard).toBeVisible();
     await expect(proCard.getByText('Pro Pack')).toBeVisible();
     await expect(proCard.getByText('$49', { exact: true })).toBeVisible();
     await expect(proCard.getByText('$1.40/sub').first()).toBeVisible();
-    await expect(proCard.getByText('Most Popular', { exact: true })).toBeVisible();
+    await expect(proCard.getByText('Active search', { exact: true })).toBeVisible();
     await expect(proCard.getByRole('button', { name: /Buy 35 Credits/i })).toBeVisible();
 
     // Verify Power Pack (100 credits, $99, $0.99/sub, Best Value badge)
@@ -134,8 +135,16 @@ test.describe.serial('Tayari Skill Boost — Credit Billing, Candidate Flow & Lo
     await expect(powerCard.getByText('Best Value', { exact: true })).toBeVisible();
     await expect(powerCard.getByRole('button', { name: /Buy 100 Credits/i })).toBeVisible();
 
-    // Verify refund / 0-charge safety policy statements
-    await expect(page.getByText('Zero Risk: 1 Credit is debited ONLY when a verified submission receipt').first()).toBeVisible();
+    // Verify refund / 0-charge safety policy statement. Anchored on the
+    // stable data-testid rather than exact copy -- the "Zero Risk" framing
+    // was reworded to "Transparent credit policy" as part of a truthfulness
+    // pass (unconditional "zero risk" is exactly the kind of claim the
+    // project's own truthfulness rules forbid), and copy is expected to
+    // keep evolving independent of this test's job (verifying the
+    // debit-only-on-verified-receipt policy is stated at all).
+    const creditPolicyBanner = page.getByTestId('zero-risk-guarantee');
+    await expect(creditPolicyBanner).toBeVisible();
+    await expect(creditPolicyBanner.getByText(/debited only when a verified submission receipt/i)).toBeVisible();
   });
 
   // ---------------------------------------------------------------------------
@@ -147,7 +156,10 @@ test.describe.serial('Tayari Skill Boost — Credit Billing, Candidate Flow & Lo
     await expect(page).toHaveURL(/\/free-scan/);
 
     // 3b. Verify empty input validation
-    const scanButton = page.getByRole('button', { name: /Scan My Resume/i });
+    // "Review my resume" -- renamed from "Scan My Resume" as part of the
+    // same truthfulness copy pass ("review" doesn't imply an authoritative
+    // pass/fail verdict the way "scan" can read).
+    const scanButton = page.getByRole('button', { name: /Review my resume/i });
     await expect(scanButton).toBeVisible();
     await scanButton.click();
     await expect(page.locator('text=Please fill in both fields before scanning.').first()).toBeVisible();
@@ -188,10 +200,14 @@ test.describe.serial('Tayari Skill Boost — Credit Billing, Candidate Flow & Lo
     // Trigger ATS Scan
     await scanButton.click();
 
-    // Verify ATS match score rendering
-    await expect(page.locator('text=ATS Match Score').first()).toBeVisible({ timeout: 10000 });
+    // Verify ATS match score rendering. "ATS Match Score" / "Strong match!"
+    // were reworded to "Role-alignment signal" / "Strong alignment signal..."
+    // as part of a truthfulness copy pass -- softer "signal" framing instead
+    // of an absolute match claim, and an explicit prompt to review rather
+    // than trust the number outright.
+    await expect(page.locator('text=Role-alignment signal').first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator('text=87%').first()).toBeVisible();
-    await expect(page.locator('text=Strong match!').first()).toBeVisible();
+    await expect(page.locator('text=Strong alignment signal').first()).toBeVisible();
     await expect(page.locator('text=React').first()).toBeVisible();
     await expect(page.locator('text=TypeScript').first()).toBeVisible();
   });
