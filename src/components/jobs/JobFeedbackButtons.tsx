@@ -43,7 +43,12 @@ export function JobFeedbackButtons({
         metadata,
       });
     } catch {
-      // ponytail: silent — preference signal is best-effort, don't spam the user.
+      // ponytail: still best-effort — no toast, don't spam the user for a
+      // low-stakes preference signal. But the button previously stayed
+      // visually "selected" even when the write never landed, silently
+      // claiming a click succeeded when it didn't; revert so the UI is
+      // honest about what actually got recorded.
+      setSelected(null);
     }
   };
 

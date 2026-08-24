@@ -101,12 +101,14 @@ export function useDashboardData(userId?: string) {
     queryKey: ["funnel-data", userId],
     enabled: !!userId,
     queryFn: async () => {
-      try {
-        const data = await getFunnelData();
-        return data ?? { saved: 0, applied: 0, interview: 0, offer: 0 };
-      } catch {
-        return { saved: 0, applied: 0, interview: 0, offer: 0 };
-      }
+      // ponytail: this used to swallow the error and return
+      // {saved:0, applied:0, interview:0, offer:0} — a legitimate-looking
+      // "no applications yet" empty state indistinguishable from a real
+      // failure, and excluded from the isError aggregate below so the
+      // Retry banner could never catch it either. Let it throw like every
+      // sibling query here so a real failure is actually surfaced.
+      const data = await getFunnelData();
+      return data ?? { saved: 0, applied: 0, interview: 0, offer: 0 };
     },
   });
 
@@ -121,7 +123,8 @@ export function useDashboardData(userId?: string) {
     analysesQuery.isError ||
     savedJobsQuery.isError ||
     roadmapQuery.isError ||
-    interviewsQuery.isError;
+    interviewsQuery.isError ||
+    funnelQuery.isError;
   const refetch = () =>
     Promise.all([
       analysesQuery.refetch(),

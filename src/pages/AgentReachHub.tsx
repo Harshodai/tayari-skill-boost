@@ -135,6 +135,7 @@ export function AgentReachHub() {
         toast.success("Browser Cookie Engine Inspected!");
       } else {
         setCookieBrowsers({});
+        toast.error("Could not inspect browser cookies. Try again in a moment.");
       }
     } catch {
       setCookieBrowsers({});
@@ -171,10 +172,13 @@ export function AgentReachHub() {
         setResult(data);
         toast.success("Candidate Intelligence Extracted & Knowledge Graph Updated!");
       } else {
-        toast.info("Using Fallback Extraction");
+        // ponytail: this used to say "Using Fallback Extraction" without ever
+        // updating `result` — a stale or fake prior result stayed on screen
+        // while the toast implied a fresh extraction had actually happened.
+        toast.error("Extraction failed. Try again in a moment.");
       }
     } catch {
-      toast.info("Using Live Preview Extraction");
+      toast.error("Could not reach the server to extract this URL.");
     } finally {
       setLoading(false);
     }
@@ -200,8 +204,11 @@ export function AgentReachHub() {
         toast.error("Transcription service temporarily busy");
       }
     } catch {
-      setTranscribeResult("Audio transcript processed for segment. Focuses on cloud microservices architecture, Kubernetes orchestration, and system design interview strategies.");
-      toast.info("Using Local Audio Pipeline");
+      // ponytail: this used to fabricate a canned transcript sentence about
+      // "cloud microservices architecture, Kubernetes orchestration..."
+      // regardless of what the actual audio contained, presented as if it
+      // were a real transcription of the candidate's file.
+      toast.error("Could not reach the server to transcribe this audio.");
     } finally {
       setTranscribeLoading(false);
     }
@@ -224,16 +231,15 @@ export function AgentReachHub() {
         setSearchResults(data.results || []);
         toast.success("Exa AI Search Results Retrieved!");
       } else {
-        toast.info("Search service unavailable, using fallback results");
-        setSearchResults([
-          { title: `Semantic Result: ${searchQuery}`, url: "https://exa.ai", snippet: "High-level distributed system design, Redis cluster caching strategies, and event-driven architecture breakdown." }
-        ]);
+        // ponytail: this used to fall back to a hardcoded fake search hit
+        // ("Semantic Result: <query>" at url "https://exa.ai") indistinguishable
+        // from a real Exa AI result — same class as the CompanyRadar bug.
+        setSearchResults([]);
+        toast.error("Search failed. Try again in a moment.");
       }
     } catch {
-      toast.info("Search service unavailable, using fallback results");
-      setSearchResults([
-        { title: `Semantic Result: ${searchQuery}`, url: "https://exa.ai", snippet: "High-level distributed system design, Redis cluster caching strategies, and event-driven architecture breakdown." }
-      ]);
+      setSearchResults([]);
+      toast.error("Could not reach the server to run this search.");
     } finally {
       setSearchLoading(false);
     }

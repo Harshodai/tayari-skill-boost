@@ -3,6 +3,7 @@ import { RefreshCw, ThumbsUp, Briefcase, Building2, Tag } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import { getPreferences, refreshPreferences, type PreferenceProfile } from "@/api";
 
 // -------------------------------------------------------------------
@@ -54,7 +55,9 @@ export function PreferenceProfileCard() {
       const res = await refreshPreferences();
       setProfile(res ?? EMPTY_PROFILE);
     } catch {
-      // ignore — toast not warranted for a Settings nicety
+      // ponytail: this used to fail silently on an explicit Refresh click —
+      // the spinner just stopped with no indication whether it worked.
+      toast.error("Could not refresh your preference profile. Try again in a moment.");
     } finally {
       setRefreshing(false);
     }
