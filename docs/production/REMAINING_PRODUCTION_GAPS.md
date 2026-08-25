@@ -2,7 +2,7 @@
 
 **Review date:** 2026-08-25
 
-**Current release identity:** `d60c40ccbee416306f123a4905df83ed4bc9440f` is equal to `origin/main`; the current worktree was clean immediately after the production-handoff push.
+**Current release identity:** `0b0c00ccb21f44b0bece629ee49dc622a4f2c4d4` is equal to `origin/main`; the current worktree was clean immediately after the end-to-end implementation push.
 
 **Decision:** **NOT READY FOR PRODUCTION — staging candidate only.**
 
