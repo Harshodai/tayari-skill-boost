@@ -268,7 +268,7 @@ func (s *Server) handlePublicOptimize(w http.ResponseWriter, r *http.Request) {
 		"job_description": req.JobDescription,
 		"original_text":   req.ResumeText,
 	}
-	result, err := s.AI.PostJSON("/api/v1/optimizer/optimize", payload)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/optimizer/optimize", payload, s.getXUserHeaders(r))
 	elapsed := time.Since(start).Milliseconds()
 
 	statusCode := http.StatusOK

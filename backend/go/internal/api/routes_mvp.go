@@ -176,7 +176,7 @@ func (s *Server) handleJobSearch(w http.ResponseWriter, r *http.Request) {
 		req["user_id"] = user.ID.String()
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/jobs/search", req)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/jobs/search", req, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleJobSearch: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Job search failed")
@@ -199,7 +199,7 @@ func (s *Server) handleAgentSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	req["user_id"] = user.ID.String()
 
-	result, err := s.AI.PostJSON("/api/v1/jobs/agent-search", req)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/jobs/agent-search", req, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleAgentSearch: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Agent search failed")
@@ -385,7 +385,7 @@ func (s *Server) handleAutopilotStart(w http.ResponseWriter, r *http.Request) {
 		"resume_text":    req.ResumeText,
 		"candidate_name": req.CandidateName,
 	}
-	result, err := s.AI.PostJSON("/api/v1/autopilot/run", pythonPayload)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/autopilot/run", pythonPayload, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleAutopilotStart: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to start autopilot")
@@ -837,7 +837,7 @@ func (s *Server) handleDownloadApplicationResume(w http.ResponseWriter, r *http.
 		s.respondError(w, http.StatusBadRequest, "No tailored resume available")
 		return
 	}
-	result, err := s.AI.PostJSON("/api/v1/export/docx", map[string]interface{}{"text": resumeText, "title": "Tailored Resume"})
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/export/docx", map[string]interface{}{"text": resumeText, "title": "Tailored Resume"}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleDownloadApplicationResume: export failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to export resume")
@@ -1055,7 +1055,7 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 
 	// ponytail: forward every input the UI collects so the Python engine's
 	// custom_instructions/target_role/jd_url handling is actually reachable.
-	result, err := s.AI.PostJSON("/api/v1/optimizer/optimize", map[string]interface{}{
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/optimizer/optimize", map[string]interface{}{
 		"resume_text":         resumeText,
 		"job_description":     req.JobDescription,
 		"custom_instructions": req.CustomInstructions,
@@ -1065,7 +1065,7 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 		"current_industry":    currentIndustry,
 		"target_industry":     targetIndustry,
 		"transferable_skills": transferableSkills,
-	})
+	}, s.getXUserHeaders(r))
 
 	if err != nil {
 		log.Printf("handleOptimizeResume: AI call failed: %v", err)
@@ -1166,7 +1166,7 @@ func (s *Server) handleExportResume(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	result, err := s.AI.PostJSON("/api/v1/export/docx", map[string]interface{}{"text": resumeText, "title": "Resume"})
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/export/docx", map[string]interface{}{"text": resumeText, "title": "Resume"}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleExportResume: export failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Export failed")
@@ -1263,11 +1263,11 @@ func (s *Server) handleJobSearchGET(w http.ResponseWriter, r *http.Request) {
 			topN = n
 		}
 	}
-	result, err := s.AI.PostJSON("/api/v1/jobs/search", map[string]interface{}{
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/jobs/search", map[string]interface{}{
 		"query":    query,
 		"location": location,
 		"top_n":    topN,
-	})
+	}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleJobSearchGET: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Job search failed")
@@ -1367,14 +1367,14 @@ func (s *Server) handleCoverLetterGenerate(w http.ResponseWriter, r *http.Reques
 		s.respondError(w, http.StatusBadRequest, "Job description is required")
 		return
 	}
-	result, err := s.AI.PostJSON("/api/v1/cover-letter/generate", map[string]interface{}{
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/cover-letter/generate", map[string]interface{}{
 		"resume_text":     resumeText,
 		"job_title":       jobTitle,
 		"company":         companyName,
 		"job_description": jobDescription,
 		"tone":            tone,
 		"personal_notes":  personalNotes,
-	})
+	}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleCoverLetterGenerate: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Cover letter generation failed")
@@ -1447,7 +1447,7 @@ func (s *Server) handleCommunicationGenerate(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/communication/generate", map[string]interface{}{
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/communication/generate", map[string]interface{}{
 		"comm_type":         commType,
 		"resume_text":       resumeText,
 		"job_title":         jobTitle,
@@ -1456,7 +1456,7 @@ func (s *Server) handleCommunicationGenerate(w http.ResponseWriter, r *http.Requ
 		"discussion_points": discussionPoints,
 		"offer_details":     offerDetails,
 		"days_since":        int(daysSince),
-	})
+	}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleCommunicationGenerate: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Communication generation failed")
@@ -1743,7 +1743,7 @@ func (s *Server) handleResumeKnowledgeGraph(w http.ResponseWriter, r *http.Reque
 		s.respondError(w, http.StatusNotFound, "Resume not found")
 		return
 	}
-	result, err := s.AI.PostJSON("/api/v1/resume/knowledge-graph", map[string]interface{}{"resume_text": resumeText})
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/resume/knowledge-graph", map[string]interface{}{"resume_text": resumeText}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleResumeKnowledgeGraph: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Knowledge graph extraction failed")
@@ -1773,7 +1773,7 @@ func (s *Server) handleImportProfilePDF(w http.ResponseWriter, r *http.Request) 
 		s.respondError(w, http.StatusInternalServerError, "Failed to read file")
 		return
 	}
-	result, err := s.AI.PostJSON("/api/v1/profile/import-text", map[string]interface{}{"resume_text": string(data)})
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/profile/import-text", map[string]interface{}{"resume_text": string(data)}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleImportProfilePDF: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Profile import failed")
@@ -1827,7 +1827,7 @@ func (s *Server) handleDownloadResumeDocx(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/export/docx", map[string]interface{}{"text": resumeText, "title": "Resume"})
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/export/docx", map[string]interface{}{"text": resumeText, "title": "Resume"}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleDownloadResumeDocx: export failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Export failed")
@@ -1877,7 +1877,7 @@ func (s *Server) handleDownloadVersionDocx(w http.ResponseWriter, r *http.Reques
 		optText = parsedJSON
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/export/docx", map[string]interface{}{"text": optText, "title": "Optimized Resume"})
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/export/docx", map[string]interface{}{"text": optText, "title": "Optimized Resume"}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleDownloadVersionDocx: export failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Export failed")
@@ -1924,7 +1924,7 @@ func (s *Server) handleGenerateResumePdf(w http.ResponseWriter, r *http.Request)
 		s.respondError(w, http.StatusBadRequest, "applied_suggestions exceeds 50 items")
 		return
 	}
-	result, err := s.AI.PostJSON("/api/v1/resumes/generate-pdf", req)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/resumes/generate-pdf", req, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleGenerateResumePdf: generate failed: %v", err)
 		s.proxyAIError(w, err)
@@ -1960,9 +1960,9 @@ func (s *Server) handleLinkedInAnalyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/linkedin/analyze", map[string]interface{}{
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/linkedin/analyze", map[string]interface{}{
 		"profile_text": req.ProfileText,
-	})
+	}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleLinkedInAnalyze: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "LinkedIn analysis failed")
@@ -2168,7 +2168,7 @@ func (s *Server) handleAgentReachExtract(w http.ResponseWriter, r *http.Request)
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
 	}
-	result, err := s.AI.PostJSON("/api/v1/hermes/extract", body)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/hermes/extract", body, s.getXUserHeaders(r))
 	if err != nil || result == nil {
 		s.respondJSON(w, http.StatusOK, map[string]interface{}{
 			"status":           "extracted",

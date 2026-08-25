@@ -65,7 +65,7 @@ func (s *Server) handleCreateSave(w http.ResponseWriter, r *http.Request) {
 		"note":   req.Note,
 		"source": req.Source,
 	}
-	enriched, err := s.AI.PostJSON("/api/v1/saves/analyze", aiPayload)
+	enriched, err := s.AI.PostJSONWithHeaders("/api/v1/saves/analyze", aiPayload, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleCreateSave: AI enrichment failed (continuing): %v", err)
 	} else {

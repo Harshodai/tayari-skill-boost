@@ -167,7 +167,7 @@ func (s *Server) handleHermesScrape(w http.ResponseWriter, r *http.Request) {
 		log.Printf("handleHermesScrape: sync=true requested; this may exceed the 30s AI client timeout — recommend async")
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/hermes/scrape", json.RawMessage(body))
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/hermes/scrape", json.RawMessage(body), s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleHermesScrape: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Hermes scrape failed")

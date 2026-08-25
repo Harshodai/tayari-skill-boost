@@ -139,9 +139,9 @@ func (s *Server) handleVerificationSubmit(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	aiResult, err := s.AI.PostJSON("/api/v1/verification/submit", map[string]interface{}{
+	aiResult, err := s.AI.PostJSONWithHeaders("/api/v1/verification/submit", map[string]interface{}{
 		"resume_text": resumeText,
-	})
+	}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleVerificationSubmit: AI scoring failed: %v", err)
 		if status, ok := extractAIStatus(err); ok {

@@ -171,7 +171,7 @@ func (s *Server) handleExtensionQuickATS(w http.ResponseWriter, r *http.Request)
 		"custom_instructions": req.CustomInstructions,
 	}
 
-	aiResp, err := s.AI.PostJSON("/api/v1/resumes/analyze-text", aiReq)
+	aiResp, err := s.AI.PostJSONWithHeaders("/api/v1/resumes/analyze-text", aiReq, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleExtensionQuickATS: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "ATS check failed")

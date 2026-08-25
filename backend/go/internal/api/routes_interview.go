@@ -16,7 +16,7 @@ func (s *Server) handleInterviewCopilotHint(w http.ResponseWriter, r *http.Reque
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
 	}
-	result, err := s.AI.PostJSON("/api/v1/interview/copilot-hint", body)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/interview/copilot-hint", body, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleInterviewCopilotHint: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Live interview copilot failed")
@@ -34,7 +34,7 @@ func (s *Server) handleInterviewVoiceFeedback(w http.ResponseWriter, r *http.Req
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body = make(map[string]interface{})
 	}
-	result, err := s.AI.PostJSON("/api/v1/interview/voice-feedback", body)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/interview/voice-feedback", body, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleInterviewVoiceFeedback: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Voice analysis failed")

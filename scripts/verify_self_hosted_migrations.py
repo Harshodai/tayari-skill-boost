@@ -74,6 +74,10 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/51-20260824_public_data_access_hardening.sql",
         "zz-51-20260824_public_data_access_hardening.sql",
     ),
+    "backend/db/migrations/20260825_01_candidate_spine_envelope.sql": (
+        "supabase-local/volumes/db/init/52-20260825_candidate_spine_envelope.sql",
+        "zz-52-20260825_candidate_spine_envelope.sql",
+    ),
 }
 
 

@@ -123,7 +123,7 @@ func (s *Server) handleImportJobDescription(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/job-descriptions/import", map[string]string{"url": strings.TrimSpace(req.URL)})
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/job-descriptions/import", map[string]string{"url": strings.TrimSpace(req.URL)}, s.getXUserHeaders(r))
 	if err != nil {
 		errMsg := err.Error()
 		status := http.StatusBadGateway
@@ -197,7 +197,7 @@ func (s *Server) handleAnalyzeResume(w http.ResponseWriter, r *http.Request) {
 		"custom_instructions": req.CustomInstructions,
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/resumes/analyze-text", aiReq)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/resumes/analyze-text", aiReq, s.getXUserHeaders(r))
 	if err != nil || result == nil {
 		log.Printf("handleAnalyzeResume: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "ai_service_unavailable")

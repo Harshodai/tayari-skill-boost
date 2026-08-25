@@ -160,7 +160,7 @@ func (s *Server) handleGetSkillsGap(w http.ResponseWriter, r *http.Request) {
 		Location:       location,
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/career-intelligence/skills-gap", payload)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/career-intelligence/skills-gap", payload, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleGetSkillsGap: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "AI skill gap analysis failed")
@@ -263,7 +263,7 @@ func (s *Server) handleGetLearningPath(w http.ResponseWriter, r *http.Request) {
 		Location:       location,
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/career-intelligence/learning-path", payload)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/career-intelligence/learning-path", payload, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleGetLearningPath: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "AI learning path generation failed")
@@ -308,7 +308,7 @@ func (s *Server) handleGetSalaryBenchmark(w http.ResponseWriter, r *http.Request
 		Location:   location,
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/career-intelligence/salary-benchmark", payload)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/career-intelligence/salary-benchmark", payload, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleGetSalaryBenchmark: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "AI salary benchmarking failed")

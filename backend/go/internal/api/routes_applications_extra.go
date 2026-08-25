@@ -189,7 +189,7 @@ func (s *Server) handleApplicationInterviewQuestions(w http.ResponseWriter, r *h
 		},
 		"jd": notes,
 	}
-	result, err := s.AI.PostJSON("/api/v1/applications/interview-questions", aiPayload)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/applications/interview-questions", aiPayload, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleApplicationInterviewQuestions: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "AI interview questions failed")
@@ -226,11 +226,11 @@ func (s *Server) handleParseEmail(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusUnprocessableEntity, "email_text is required")
 		return
 	}
-	result, err := s.AI.PostJSON("/api/v1/gmail/parse-email", map[string]interface{}{
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/gmail/parse-email", map[string]interface{}{
 		"email_text":   req.EmailText,
 		"subject":      req.Subject,
 		"from_address": req.FromAddress,
-	})
+	}, s.getXUserHeaders(r))
 	if err != nil {
 		s.respondError(w, http.StatusBadGateway, "AI email parse failed")
 		return
@@ -291,10 +291,10 @@ func (s *Server) handleAddVoiceNote(w http.ResponseWriter, r *http.Request) {
 		contentType = "audio/webm"
 	}
 	transcript := ""
-	aiResp, aiErr := s.AI.PostJSON("/api/v1/voice/transcribe", map[string]interface{}{
+	aiResp, aiErr := s.AI.PostJSONWithHeaders("/api/v1/voice/transcribe", map[string]interface{}{
 		"file":         fname,
 		"content_type": contentType,
-	})
+	}, s.getXUserHeaders(r))
 	if aiErr == nil {
 		if t, ok := aiResp["transcript"].(string); ok {
 			transcript = t
@@ -594,7 +594,7 @@ func (s *Server) handleApplicationPrep(w http.ResponseWriter, r *http.Request) {
 	_ = appID
 	var req map[string]interface{}
 	_ = DecodeAndValidate(r, &req)
-	result, err := s.AI.PostJSON("/api/v1/interview/prep", req)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/interview/prep", req, s.getXUserHeaders(r))
 	if err != nil {
 		s.respondError(w, http.StatusBadGateway, "AI prep failed")
 		return

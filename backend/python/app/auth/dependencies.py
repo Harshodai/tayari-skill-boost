@@ -123,7 +123,12 @@ async def get_current_user(
                     return str(UUID(x_user_id.strip()))
                 except (ValueError, AttributeError):
                     return x_user_id.strip()
-            return "00000000-0000-0000-0000-000000000000"
+            # A valid internal token with no forwarded user identity must fail
+            # closed, not synthesize one: CLAUDE.md bans default_user/synthetic
+            # identities, and a fabricated UUID here previously masked a real
+            # Go-side bug (call sites that dropped X-User-Id) as a silent
+            # misattribution instead of a loud failure.
+            raise HTTPException(status_code=401, detail="X-User-Id is required with the internal service token")
 
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(

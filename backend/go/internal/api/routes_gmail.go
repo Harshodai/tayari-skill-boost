@@ -326,11 +326,11 @@ func (s *Server) handleGmailSync(w http.ResponseWriter, r *http.Request) {
 			msg.Subject, msg.From, msg.Body)
 
 		// Call Python AI to parse
-		aiResult, err := s.AI.PostJSON("/api/v1/gmail/parse-email", map[string]interface{}{
+		aiResult, err := s.AI.PostJSONWithHeaders("/api/v1/gmail/parse-email", map[string]interface{}{
 			"email_text":   body,
 			"subject":      msg.Subject,
 			"from_address": msg.From,
-		})
+		}, s.getXUserHeaders(r))
 		if err != nil {
 			skipped++
 			continue
@@ -535,11 +535,11 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 
 		for _, msg := range messages {
 			bodyText := fmt.Sprintf("Subject: %s\nFrom: %s\n\n%s", msg.Subject, msg.From, msg.Body)
-			aiResult, err := s.AI.PostJSON("/api/v1/gmail/parse-email", map[string]interface{}{
+			aiResult, err := s.AI.PostJSONWithHeaders("/api/v1/gmail/parse-email", map[string]interface{}{
 				"email_text":   bodyText,
 				"subject":      msg.Subject,
 				"from_address": msg.From,
-			})
+			}, s.getXUserHeaders(r))
 			if err != nil {
 				continue
 			}

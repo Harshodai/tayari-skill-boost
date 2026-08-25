@@ -79,7 +79,7 @@ func (s *Server) handleCreateResumeVariant(w http.ResponseWriter, r *http.Reques
 		"resume_text":     req.OriginalText,
 		"job_description": "", // no JD for general scoring on creation
 	}
-	scores, err := s.AI.PostJSON("/api/v1/predictive/score", pythonPayload)
+	scores, err := s.AI.PostJSONWithHeaders("/api/v1/predictive/score", pythonPayload, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleCreateResumeVariant: AI score failed: %v", err)
 		// Never fabricate a numeric score when the AI engine is unavailable.
@@ -171,7 +171,7 @@ func (s *Server) handleListResumeVariants(w http.ResponseWriter, r *http.Request
 			"resume_text":     v.OriginalText,
 			"job_description": "",
 		}
-		scores, err := s.AI.PostJSON("/api/v1/predictive/score", pythonPayload)
+		scores, err := s.AI.PostJSONWithHeaders("/api/v1/predictive/score", pythonPayload, s.getXUserHeaders(r))
 		if err != nil {
 			// Do not turn a provider outage into a believable score. The list
 			// endpoint still returns the variant, but the score is explicitly

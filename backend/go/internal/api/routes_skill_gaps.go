@@ -38,7 +38,7 @@ func (s *Server) handleSkillGaps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := s.AI.PostJSON("/api/v1/skill-gaps", json.RawMessage(body))
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/skill-gaps", json.RawMessage(body), s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleSkillGaps: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Skill-gap analysis failed")
