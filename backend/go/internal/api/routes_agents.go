@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 
+	"tayari-backend/internal/ai"
 	"tayari-backend/internal/auth"
 	"tayari-backend/internal/models"
 
@@ -47,7 +48,31 @@ func (s *Server) routesAgents(r chi.Router) {
 		// TestRouteParity_BidirectionalAliases.
 		r.Post("/api/v1/agent-runs/{runId}/take-over", s.handleAgentRunTakeOver)
 		r.Post("/api/agent-runs/{runId}/take-over", s.handleAgentRunTakeOver)
+
+		// app/routes/agent.py's diagnostic runtime snapshot (model-tier
+		// availability, bounded swarm policy) — no secrets, prompts, or
+		// browser credentials. Consumed by src/pages/DesktopAgent.tsx via
+		// src/api/agent.ts's getAgentRuntime(); had no Go proxy at all until
+		// this fix, so every visit to /desktop or /tay hit a real 404.
+		r.Get("/api/v1/ai/agent/runtime", s.handleAgentRuntime)
+		r.Get("/api/ai/agent/runtime", s.handleAgentRuntime)
 	})
+}
+
+func (s *Server) handleAgentRuntime(w http.ResponseWriter, r *http.Request) {
+	headers := s.getXUserHeaders(r)
+	result, err := s.AI.GetJSONWithHeaders("/api/v1/ai/agent/runtime", headers)
+	if err != nil {
+		log.Printf("agent runtime: AI call failed: %v", err)
+		var apiErr *ai.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+			s.respondError(w, apiErr.StatusCode, apiErr.Body)
+			return
+		}
+		s.respondError(w, http.StatusBadGateway, "Agent runtime service unavailable")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
 }
 
 // handleAgentRunTakeOver pauses a running/queued apply-agent run and, in the
