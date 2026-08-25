@@ -1,8 +1,8 @@
 # Remaining Production-Readiness Gaps
 
-**Review date:** 2026-08-23
+**Review date:** 2026-08-25
 
-**Current release identity:** `768f633486cd9adfa30b71471b442eee87681dd0` is equal to `origin/main`; the current worktree also contains uncommitted hardening and documentation changes.
+**Current release identity:** `255cc7113ecdc43eb5087e33a55e528aafc2f269` is equal to `origin/main`; the current worktree is clean apart from the new audit addendum being prepared for the next completion loop.
 
 **Decision:** **NOT READY FOR PRODUCTION — staging candidate only.**
 
@@ -23,7 +23,7 @@ The remaining release blockers are principally **environmental and operational r
 | PROD-005 | Cloud backup/PITR and measured recovery absent | A local restore does not prove off-host durability, managed PITR, production-shaped restore, or launch RPO/RTO | Exact launch backup with checksum/retention; distinct managed restore; schema/RLS/Auth/key-row validation; measured RPO/RTO; cleanup and approval record | **NOT VERIFIED** |
 | PROD-006 | Kubernetes production admission absent | No protected production context, external secret manager, signed/attested registry images, network policy, rollout, or rollback evidence exists | Explicit context check; external secrets; signed digest images; ingress/network policy; staged rollout; worker drain/reclaim; rollback and two-person approval evidence | **BLOCKED** |
 | PROD-012 | Live Stripe acceptance absent | Local billing integrity tests cannot prove real test-mode checkout, webhook signature verification, replay/idempotency, refunds, or account configuration | Test-mode checkout/webhook matrix with no production instruments; signature/replay/idempotency evidence; billing-disabled verification; owner approval | **RESOLVED LOCALLY; live acceptance pending** |
-| PROD-015 | Reviewed release artifact is not yet cut | Current `HEAD` matches `origin/main`, but the latest Docker/rate-limit/billing/docs changes remain uncommitted; therefore no exact SHA can represent the full candidate | Review diff; exclude logs/secrets/generated output; commit/push or otherwise identify the approved SHA; build all images from it; record digests/SBOM/provenance | **OPEN / BLOCKED** |
+| PROD-015 | Reviewed release artifact is not yet cut | The current source SHA is known, but immutable image digests, SBOM, attestation, and deployment evidence are not tied to it | Review diff; exclude logs/secrets/generated output; build all images from the reviewed SHA; record digests/SBOM/provenance and approval | **OPEN / BLOCKED** |
 
 ## P2 release-enabling gaps
 

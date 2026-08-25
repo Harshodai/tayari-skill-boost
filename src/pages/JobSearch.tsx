@@ -38,6 +38,7 @@ import {
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes, isBackendUnavailable } from "@/api";
+import type { JobSearchResult, RoleIntelligence, PreparationMaterial } from "@/api/jobs";
 import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
 import { useAutomation } from "@/contexts/AutomationContext";
@@ -66,39 +67,12 @@ const ATS_NAMES: Record<string, string> = {
   fountain: "Fountain",
 };
 
-interface Job {
-  title: string;
-  company: string;
-  location?: string;
-  url?: string;
-  source?: string;
-  snippet?: string;
-  description?: string;
-  job_type?: string;
-  posted_at?: string;
-  salary?: string;
-  score?: number;
-  fit_score?: number;
-  match_score?: number;
-  matched_skills?: string[];
-  match_reason?: string;
-  match_reasons?: string[];
-  missing_skills?: string[];
+type Job = JobSearchResult & {
+  role_intelligence?: RoleIntelligence;
+  preparation_material?: PreparationMaterial;
   dedupe_key?: string;
   ats_provider?: string;
-  role_intelligence?: {
-    family?: string | null;
-    expanded_queries?: string[];
-    adjacent_roles?: string[];
-  };
-  preparation_material?: {
-    status?: string;
-    role_family?: string | null;
-    focus_areas?: string[];
-    evidence_to_prepare?: string[];
-    practice_prompts?: string[];
-  };
-}
+};
 
 const scoreColor = (s: number) =>
   s >= 80 ? "text-success" : s >= 60 ? "text-warning" : "text-destructive";
@@ -275,7 +249,7 @@ const JobSearch = () => {
   const filtered = useMemo(
     () =>
       results.filter((j: any) => {
-        const s = j.score || j.fit_score || 0;
+        const s = j.score ?? j.fit_score ?? j.match_score ?? 0;
         if (s < minScore) return false;
         if (remoteOnly && j.location && !/remote/i.test(j.location)) return false;
         if (hideGhostJobs) {

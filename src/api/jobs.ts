@@ -35,15 +35,67 @@ export async function deleteJD(id: number | string): Promise<void> {
   await checkResponse(response);
 }
 
-export async function searchJobs(payload: Record<string, any>): Promise<Record<string, any>> {
-  return apiFetch<Record<string, any>>("/jobs/search", {
+export interface RoleIntelligence {
+  family?: string | null;
+  expanded_queries?: string[];
+  adjacent_roles?: string[];
+  confidence?: "high" | "medium" | "low" | "unknown";
+  clarification_question?: string | null;
+}
+
+export interface PreparationMaterial {
+  status?: "draft" | "grounded" | "unavailable";
+  role_family?: string | null;
+  focus_areas?: string[];
+  evidence_to_prepare?: string[];
+  practice_prompts?: string[];
+  grounded_in?: string;
+}
+
+export interface JobSearchResult {
+  title: string;
+  company: string;
+  location?: string;
+  url?: string;
+  source?: string;
+  snippet?: string;
+  description?: string;
+  job_type?: string;
+  posted_at?: string;
+  salary?: string;
+  score?: number | null;
+  fit_score?: number | null;
+  match_score?: number | null;
+  matched_skills?: string[];
+  missing_skills?: string[];
+  match_reason?: string;
+  role_intelligence?: RoleIntelligence;
+  preparation_material?: PreparationMaterial;
+  [key: string]: unknown;
+}
+
+export interface JobSearchResponse {
+  query?: string;
+  location?: string;
+  total_found?: number;
+  engine?: string;
+  role_intelligence?: RoleIntelligence;
+  results?: JobSearchResult[];
+  jobs?: JobSearchResult[];
+  report?: { jobs?: JobSearchResult[] };
+  agent_trace?: Array<{ step: string; detail: string; at?: string }>;
+  [key: string]: unknown;
+}
+
+export async function searchJobs(payload: Record<string, unknown>): Promise<JobSearchResponse> {
+  return apiFetch<JobSearchResponse>("/jobs/search", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function agentSearch(payload: Record<string, any>): Promise<any> {
-  return apiFetch<any>("/jobs/agent-search", {
+export async function agentSearch(payload: Record<string, unknown>): Promise<JobSearchResponse> {
+  return apiFetch<JobSearchResponse>("/jobs/agent-search", {
     method: "POST",
     body: JSON.stringify(payload),
   });
