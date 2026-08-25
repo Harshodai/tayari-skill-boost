@@ -18,6 +18,11 @@ YELLOW  := \033[33m
 BLUE    := \033[34m
 RESET   := \033[0m
 
+# Prefer the repository-managed Python runtime when present. The codebase uses
+# Python 3.10+ type syntax, so falling back to an older system interpreter can
+# make the audit fail during test collection before any test runs.
+PYTHON  ?= $(if $(wildcard backend/python/.venv/bin/python),backend/python/.venv/bin/python,python3)
+
 ## -----------------------------------------------------------------------------
 ## 💡 Help & Info
 ## -----------------------------------------------------------------------------
@@ -150,7 +155,7 @@ audit: ## Run complete security scan, typecheck, unit, integration, and build ve
 	@echo "$(BLUE)Running Go backend test suite...$(RESET)"
 	cd backend/go && go test ./... && go vet ./...
 	@echo "$(BLUE)Running Python AI test suite...$(RESET)"
-	PYTHONPATH=backend/python python3 -m pytest -q backend/python/app/tests backend/python/tests
+	PYTHONPATH=backend/python $(PYTHON) -m pytest -q backend/python/app/tests backend/python/tests
 	@echo "$(BLUE)Running frontend production build...$(RESET)"
 	pnpm run build
 	@echo "$(BLUE)Running production promotion contract...$(RESET)"

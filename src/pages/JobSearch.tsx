@@ -126,7 +126,6 @@ const JobSearch = () => {
   const [hideGhostJobs, setHideGhostJobs] = useState(false);
   const [visibleAgentEvents, setVisibleAgentEvents] = useState<any[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [alertOn, setAlertOn] = useState(false);
   // Mobile master-detail: below lg the list and detail share the viewport.
   const [mobileDetail, setMobileDetail] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -507,17 +506,12 @@ const JobSearch = () => {
                   </div>
                   <Switch checked={remoteOnly} onCheckedChange={setRemoteOnly} />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Bell className="w-4 h-4 text-muted-foreground" /> Daily alert
+                <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/20 p-2.5">
+                  <Bell className="mt-0.5 w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-sm font-medium">Daily alerts</div>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">Save this search first, then use the bell beside it to enable or disable durable alerts.</p>
                   </div>
-                  <Switch
-                    checked={alertOn}
-                    onCheckedChange={(v) => {
-                      setAlertOn(v);
-                      if (v) toast.success("Daily alert enabled for this search");
-                    }}
-                  />
                 </div>
               </div>
             </div>
@@ -531,7 +525,6 @@ const JobSearch = () => {
                 setLocation(s.location || "");
                 setRemoteOnly(s.remote_only);
                 setMinScore(s.min_score);
-                setAlertOn(s.alert_enabled);
                 toast.info(`Loaded "${s.name}"`);
               }}
             />

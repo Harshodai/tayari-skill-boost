@@ -27,6 +27,22 @@ describe('Feature Flags Configuration', () => {
         expect(appSource).toContain('<Route path="/interview/coding" element={<Navigate to="/resume" replace />} />');
     });
 
+    it('keeps every high-risk disabled route behind its declared release gate', () => {
+        const appSource = readFileSync(join(process.cwd(), 'src', 'App.tsx'), 'utf8');
+        const featureSource = readFileSync(join(process.cwd(), 'src', 'config', 'features.ts'), 'utf8');
+        expect(featureSource).toContain('computerControl: [false, true]');
+        expect(featureSource).toContain('desktopAgent: [false, true]');
+        expect(featureSource).toContain('voiceCoach: [false, false]');
+        expect(featureSource).toContain('applyAgent: [false, true]');
+        expect(appSource).toContain('{features.computerControl ? (');
+        expect(appSource).toContain('{features.desktopAgent ? (');
+        expect(appSource).toContain('{features.voiceCoach && (');
+        expect(appSource).toContain('{features.applyAgent ? (');
+        expect(appSource).toContain('<Route path="/control-room/*" element={<Navigate to="/resume" replace />} />');
+        expect(appSource).toContain('<Route path="/desktop/*" element={<Navigate to="/resume" replace />} />');
+        expect(appSource).toContain('<Route path="/apply-agent" element={<Navigate to="/jobs" replace />} />');
+    });
+
     it('exposes the candidate-controlled Tay Workspace as a distinct capability', () => {
         expect(features.taskWorkspace).toBe(true);
         expect(getNavLinks().find((link) => link.href === '/tay')?.label).toBe('Tay Workspace');
