@@ -137,8 +137,9 @@ describe("Pricing Page - Credit Packs & Transparent Credit Policy", () => {
     );
 
     const balanceElem = await screen.findByTestId("user-credit-balance");
-    expect(balanceElem).toBeInTheDocument();
-    expect(balanceElem.textContent).toContain("42 Verified Submission Credits");
+    await waitFor(() => {
+      expect(balanceElem.textContent).toContain("42 Verified Submission Credits");
+    });
   });
 
   it("gracefully falls back to default packs when billing is self-hosted or endpoint fails", async () => {
