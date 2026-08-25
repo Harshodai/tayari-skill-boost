@@ -76,6 +76,22 @@ func TestBillingRoutes_DebitRejectsForeignUserID(t *testing.T) {
 	}
 }
 
+func TestSafeBillingReturnURLRejectsForeignOrigins(t *testing.T) {
+	configured := "https://tayari.example/pricing"
+	if got := safeBillingReturnURL(configured, "https://evil.example/collect"); got != configured {
+		t.Fatalf("expected configured URL for foreign origin, got %q", got)
+	}
+	if got := safeBillingReturnURL(configured, "https://tayari.example/receipt"); got != "https://tayari.example/receipt" {
+		t.Fatalf("expected same-origin URL to be preserved, got %q", got)
+	}
+	if got := safeBillingReturnURL(configured, "https://tayari.example@evil.example/collect"); got != configured {
+		t.Fatalf("expected userinfo/foreign host URL to be rejected, got %q", got)
+	}
+	if got := safeBillingReturnURL(configured, ""); got != configured {
+		t.Fatalf("expected empty request to use configured URL, got %q", got)
+	}
+}
+
 func TestBillingRoutes_GetCreditPacks(t *testing.T) {
 	s := &Server{}
 	b := billing.NewBillingService(nil)

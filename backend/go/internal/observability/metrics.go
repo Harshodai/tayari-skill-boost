@@ -22,6 +22,7 @@ type Metrics struct {
 	requestByStatus   map[string]uint64
 	providerErrors    map[string]uint64
 	budgetExceeded    uint64
+	billingEvents     map[string]uint64
 	queueAgeSeconds   float64
 	lastQueueRecorded time.Time
 }
@@ -31,6 +32,7 @@ func NewMetrics() *Metrics {
 		requestByMethod: make(map[string]uint64),
 		requestByStatus: make(map[string]uint64),
 		providerErrors:  make(map[string]uint64),
+		billingEvents:   make(map[string]uint64),
 	}
 }
 
@@ -82,6 +84,25 @@ func (m *Metrics) RecordBudgetExceeded() {
 	m.mu.Unlock()
 }
 
+// RecordBillingEvent records only a bounded, aggregate monetization lifecycle
+// event. It deliberately rejects arbitrary labels and never accepts user, price,
+// payment, or provider identifiers.
+func (m *Metrics) RecordBillingEvent(event string) {
+	if m == nil {
+		return
+	}
+	allowed := map[string]struct{}{
+		"checkout_attempt": {}, "checkout_created": {}, "checkout_failed": {},
+		"credit_purchase_fulfilled": {}, "credit_debit": {}, "credit_refund": {},
+	}
+	if _, ok := allowed[event]; !ok {
+		return
+	}
+	m.mu.Lock()
+	m.billingEvents[event]++
+	m.mu.Unlock()
+}
+
 func (m *Metrics) SetQueueAgeSeconds(age float64) {
 	if m == nil {
 		return
@@ -114,6 +135,10 @@ func (m *Metrics) Snapshot() map[string]any {
 	for key, value := range m.providerErrors {
 		providerErrors[key] = value
 	}
+	billingEvents := make(map[string]uint64, len(m.billingEvents))
+	for key, value := range m.billingEvents {
+		billingEvents[key] = value
+	}
 
 	counters := map[string]any{
 		"requests_total":        m.requestTotal,
@@ -121,6 +146,7 @@ func (m *Metrics) Snapshot() map[string]any {
 		"llm_errors_total":      uint64(0),
 		"budget_exceeded_total": m.budgetExceeded,
 		"queue_age_seconds":     m.queueAgeSeconds,
+		"billing_events":        billingEvents,
 	}
 	return map[string]any{
 		"service":                    "go-backend",

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -88,20 +89,50 @@ func (s *Server) handleCreateCheckoutSession(b *billing.BillingService) http.Han
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Plan == "" {
 			req.Plan = "pro"
 		}
+		configuredReturnURL := ""
+		if s.Config != nil {
+			configuredReturnURL = strings.TrimRight(s.Config.FrontendURL, "/") + "/pricing"
+		}
+		req.ReturnURL = safeBillingReturnURL(configuredReturnURL, req.ReturnURL)
 		if req.ReturnURL == "" {
-			req.ReturnURL = s.Config.FrontendURL + "/pricing"
+			s.respondError(w, http.StatusInternalServerError, "billing return URL is not configured")
+			return
 		}
 
-		url, err := b.CreateCheckoutSession(user.ID.String(), user.Email, req.Plan, req.ReturnURL)
+		s.metrics.RecordBillingEvent("checkout_attempt")
+		checkoutURL, err := b.CreateCheckoutSession(user.ID.String(), user.Email, req.Plan, req.ReturnURL)
 		if err != nil {
+			s.metrics.RecordBillingEvent("checkout_failed")
 			s.respondError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
+		s.metrics.RecordBillingEvent("checkout_created")
 		s.respondJSON(w, http.StatusOK, map[string]string{
-			"url": url,
+			"url": checkoutURL,
 		})
+
 	}
+}
+
+func safeBillingReturnURL(configured, requested string) string {
+	configured = strings.TrimSpace(configured)
+	requested = strings.TrimSpace(requested)
+	if configured == "" {
+		return ""
+	}
+	if requested == "" {
+		return configured
+	}
+	base, baseErr := url.Parse(configured)
+	candidate, candidateErr := url.Parse(requested)
+	if baseErr != nil || candidateErr != nil || base.Scheme == "" || base.Host == "" || candidate.Scheme == "" || candidate.Host == "" {
+		return configured
+	}
+	if !strings.EqualFold(base.Scheme, candidate.Scheme) || !strings.EqualFold(base.Host, candidate.Host) || candidate.User != nil {
+		return configured
+	}
+	return requested
 }
 
 func (s *Server) handleCreatePortalSession(b *billing.BillingService) http.HandlerFunc {

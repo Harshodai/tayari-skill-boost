@@ -399,6 +399,11 @@ func (b *BillingService) RecordUsage(userID string, count int) (bool, error) {
 
 // CreateCheckoutSession initiates a live one-time Stripe Checkout flow for a credit pack.
 func (b *BillingService) CreateCheckoutSession(userID, userEmail, plan, returnURL string) (string, error) {
+	// Billing is an explicit deployment capability. Never create a live Stripe
+	// session merely because a secret happens to be present in the environment.
+	if !IsBillingEnabled() {
+		return "", errors.New("billing is not enabled for this deployment")
+	}
 	if stripe.Key == "" {
 		return "", errors.New("stripe API key is not configured on server")
 	}

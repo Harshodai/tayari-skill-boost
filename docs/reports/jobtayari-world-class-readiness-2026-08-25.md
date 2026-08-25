@@ -59,6 +59,12 @@ The Desktop Agent workspace now reports the authenticated runtime’s actual def
 
 Tayari should **not** copy an unrestricted “use my browser credentials” model. The correct product boundary is a user-controlled companion with extension-owned PKCE, short-lived origin- and tab-scoped bridge grants, bounded observations, redaction, explicit autofill approval, revocation, and a permanent prohibition on transferring Chrome cookies or saved passwords to the backend. The user may take over for login, CAPTCHA, OTP/MFA, legal declarations, work authorization, sponsorship, salary, EEO, and final submission. This preserves user agency and prevents a convenience feature from becoming credential exfiltration or autonomous application submission.
 
+## Profitability loop completed
+
+The billing surface now fails closed at the service boundary when `BILLING_ENABLED` is false, even if a Stripe secret is accidentally present. This prevents a deployment capability mistake from creating live payment sessions. Checkout return URLs are constrained to the configured frontend origin, rejecting foreign hosts and userinfo-based redirect tricks. The existing protected metrics registry now records only bounded aggregate lifecycle counters for checkout attempts, checkout creation/failure, credit fulfillment, credit debit, and credit refund; it never accepts user IDs, price IDs, payment identifiers, or arbitrary labels. This gives operators the minimum reliable funnel signal needed to compare checkout reliability and verified-value consumption without creating a second analytics system or leaking user data.
+
+This is a profitability enabler, not proof of revenue. Revenue impact requires real Stripe configuration, a controlled offer experiment, acquisition attribution, retention/cohort data, support/refund rates, provider/model cost per successful workflow, and verified conversion measurement.
+
 ## Validation completed in this loop
 
 The focused backend orchestration, provider, semantic-role, memory, and AgentRouter suite passed **39 tests**. The frontend test suite and production build passed. The canonical `make audit` passed end to end, including the production security scan with zero unresolved critical/high findings, the **66/66 promotion gate**, the staging contract, frontend checks, Go checks, Python checks, build, and deployment-contract checks. Chrome companion integration tests passed **2/2**, and extension validation passed. The working tree was inspected with `git diff --check` and no whitespace errors were found.

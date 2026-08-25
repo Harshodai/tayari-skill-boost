@@ -295,11 +295,24 @@ func TestBilling_UnknownFeatureFailsClosed(t *testing.T) {
 	}
 }
 
+func TestBilling_DisabledCheckoutFailsClosedEvenWithStripeKey(t *testing.T) {
+	t.Setenv("BILLING_ENABLED", "false")
+	t.Setenv("ENV", "development")
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_provider_gate")
+
+	svc := NewBillingService(nil)
+	if _, err := svc.CreateCheckoutSession("user-1", "candidate@example.com", "pro", "https://tayari.example/return"); err == nil || err.Error() != "billing is not enabled for this deployment" {
+		t.Fatalf("expected disabled billing to fail closed, got %v", err)
+	}
+}
+
 func TestBilling_ProductionRequiresStripePriceID(t *testing.T) {
 	os.Setenv("ENV", "production")
+	os.Setenv("BILLING_ENABLED", "true")
 	os.Setenv("STRIPE_SECRET_KEY", "sk_test_provider_gate")
 	os.Unsetenv("STRIPE_PRICE_PRO_ID")
 	defer os.Unsetenv("ENV")
+	defer os.Unsetenv("BILLING_ENABLED")
 	defer os.Unsetenv("STRIPE_SECRET_KEY")
 
 	svc := NewBillingService(nil)

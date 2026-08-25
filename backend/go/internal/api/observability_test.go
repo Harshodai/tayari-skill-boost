@@ -10,6 +10,26 @@ import (
 	"tayari-backend/internal/observability"
 )
 
+func TestMetricsBillingEventsAreBoundedAndAggregateOnly(t *testing.T) {
+	metrics := observability.NewMetrics()
+	metrics.RecordBillingEvent("checkout_attempt")
+	metrics.RecordBillingEvent("credit_debit")
+	metrics.RecordBillingEvent("user-123")
+
+	snapshot := metrics.Snapshot()
+	counters, ok := snapshot["counters"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected counters map, got %#v", snapshot["counters"])
+	}
+	events, ok := counters["billing_events"].(map[string]uint64)
+	if !ok {
+		t.Fatalf("expected billing event map, got %#v", counters["billing_events"])
+	}
+	if events["checkout_attempt"] != 1 || events["credit_debit"] != 1 || len(events) != 2 {
+		t.Fatalf("unexpected bounded billing events: %#v", events)
+	}
+}
+
 func TestMetricsHandlerRequiresInternalToken(t *testing.T) {
 	srv := newSmokeServer(t)
 	srv.Config.MetricsToken = "metrics-test-token"
