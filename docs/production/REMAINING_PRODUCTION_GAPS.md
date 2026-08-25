@@ -2,7 +2,7 @@
 
 **Review date:** 2026-08-25
 
-**Current release identity:** `255cc7113ecdc43eb5087e33a55e528aafc2f269` is equal to `origin/main`; the current worktree is clean apart from the new audit addendum being prepared for the next completion loop.
+**Current release identity:** `8eecc44c98743f3e698e34e798b62f9ef867a15f` is equal to `origin/main`; the current worktree was clean at the start of this readiness review.
 
 **Decision:** **NOT READY FOR PRODUCTION — staging candidate only.**
 
