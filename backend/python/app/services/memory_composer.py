@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from app.services.db import get_pool
@@ -38,6 +39,16 @@ SEMANTIC_RESULT_LIMIT = 5
 SEMANTIC_MIN_SIMILARITY = 0.6
 
 PENDING_SUMMARY_MARKER = "[PENDING_SUMMARIZATION]"
+
+
+@dataclass(frozen=True)
+class MemorySnapshot:
+    """Prompt-ready memory plus safe provenance for user-facing traces."""
+
+    context: str
+    tiers_used: tuple[str, ...]
+    truncated: bool
+    char_budget: int
 
 
 async def _fetch_working(user_id: str, conversation_id: Optional[str]) -> str:
@@ -153,41 +164,62 @@ async def _fetch_semantic(user_id: str, query: str) -> str:
         return ""
 
 
+async def compose_context_snapshot(
+    user_id: Optional[str],
+    query: str = "",
+    conversation_id: Optional[str] = None,
+    char_budget: int = DEFAULT_CONTEXT_CHAR_BUDGET,
+) -> MemorySnapshot:
+    """Compose prioritized memory and report which layers actually contributed.
+
+    The context order is working → procedural → episodic → semantic. Storage or
+    embedding failures degrade to an empty tier, while the snapshot makes that
+    result visible to callers without exposing private memory contents.
+    """
+    if not user_id:
+        return MemorySnapshot("", (), False, char_budget)
+
+    tier_values: list[tuple[str, str]] = []
+    working = await _fetch_working(user_id, conversation_id)
+    if working:
+        tier_values.append(("working", working))
+    procedural = await _fetch_procedural(user_id)
+    if procedural:
+        tier_values.append(("procedural", procedural))
+    episodic = await _fetch_episodic(user_id)
+    if episodic:
+        tier_values.append(("episodic", episodic))
+    if query:
+        semantic = await _fetch_semantic(user_id, query)
+        if semantic:
+            tier_values.append(("semantic", semantic))
+
+    if not tier_values:
+        return MemorySnapshot("", (), False, char_budget)
+
+    composed = "\n".join(value for _, value in tier_values)
+    context = _truncate_to_budget(composed, char_budget)
+    return MemorySnapshot(
+        context=context,
+        tiers_used=tuple(name for name, _ in tier_values),
+        truncated=len(context) < len(composed),
+        char_budget=char_budget,
+    )
+
+
 async def compose_context(
     user_id: Optional[str],
     query: str = "",
     conversation_id: Optional[str] = None,
     char_budget: int = DEFAULT_CONTEXT_CHAR_BUDGET,
 ) -> str:
-    """Return a prioritized, token-budgeted memory context string.
-
-    Tiers are composed working → procedural → episodic → semantic and
-    truncated to ``char_budget``. Returns "" when there's nothing to inject
-    (no user_id, DB off, no signals). Never raises.
-    """
-    if not user_id:
-        return ""
-
-    tiers: list[str] = []
-    working = await _fetch_working(user_id, conversation_id)
-    if working:
-        tiers.append(working)
-    procedural = await _fetch_procedural(user_id)
-    if procedural:
-        tiers.append(procedural)
-    episodic = await _fetch_episodic(user_id)
-    if episodic:
-        tiers.append(episodic)
-    if query:
-        semantic = await _fetch_semantic(user_id, query)
-        if semantic:
-            tiers.append(semantic)
-
-    if not tiers:
-        return ""
-
-    composed = "\n".join(tiers)
-    return _truncate_to_budget(composed, char_budget)
+    """Return the existing string contract for prompt callers."""
+    return (await compose_context_snapshot(
+        user_id=user_id,
+        query=query,
+        conversation_id=conversation_id,
+        char_budget=char_budget,
+    )).context
 
 
 def _truncate_to_budget(text: str, budget: int) -> str:
@@ -199,6 +231,9 @@ def _truncate_to_budget(text: str, budget: int) -> str:
     if len(text) <= budget:
         return text
     return text[:budget].rsplit(" ", 1)[0] + "…"
+
+
+__all__ = ["MemorySnapshot", "compose_context", "compose_context_snapshot"]
 
 
 if __name__ == "__main__":  # ponytail: self-check, no DB needed

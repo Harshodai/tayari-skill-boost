@@ -49,6 +49,7 @@ export interface PreparationMaterial {
   focus_areas?: string[];
   evidence_to_prepare?: string[];
   practice_prompts?: string[];
+  counterfactuals?: string[];
   grounded_in?: string;
 }
 
@@ -84,6 +85,9 @@ export interface JobSearchResponse {
   jobs?: JobSearchResult[];
   report?: { jobs?: JobSearchResult[] };
   agent_trace?: Array<{ step: string; detail: string; at?: string }>;
+  memory_used?: boolean;
+  memory_tiers_used?: string[];
+  memory_truncated?: boolean;
   [key: string]: unknown;
 }
 

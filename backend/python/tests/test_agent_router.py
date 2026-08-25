@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.services.agent_router import AgentRouter
+from app.services.ai_orchestration import SwarmStep
 from app.services import agent_db
 
 
@@ -39,6 +40,28 @@ async def test_agent_router_execute_step():
         res = await router.execute_agent_step("sys", "user", is_json=True)
         assert res == {"status": "ok"}
         new_mock_json.assert_called_once_with("sys", "user", tier="fast")
+
+
+@pytest.mark.asyncio
+async def test_agent_router_execute_swarm_returns_failure_isolated_outcomes():
+    router = AgentRouter(user_id="user-123")
+
+    async def worker(step):
+        if step.role == "broken":
+            raise RuntimeError("specialist failed")
+        return step.role
+
+    outcomes = await router.execute_swarm(
+        [SwarmStep("one", "research", {}), SwarmStep("two", "broken", {})],
+        worker,
+        max_parallel=2,
+        timeout_seconds=1,
+    )
+
+    assert [item.status for item in outcomes] == ["completed", "failed"]
+    assert outcomes[0].output == "research"
+    assert outcomes[1].error == "specialist failed"
+
 
 
 @pytest.mark.asyncio

@@ -194,15 +194,53 @@ def expand_role_queries(primary: str | None, limit: int = 6) -> list[str]:
     return queries
 
 
+_AMBIGUOUS_ROLE_TERMS = {
+    "engineer", "developer", "analyst", "scientist", "architect", "manager", "designer",
+}
+
+
 def role_expansion_explanation(primary: str | None) -> dict:
-    """Return the explainable role-family metadata used by search responses."""
-    family = role_family(primary)
-    if not family:
-        return {"family": None, "expanded_queries": [str(primary or "").strip()] if primary else []}
+    """Return transparent family, confidence, and clarification metadata.
+
+    Exact known aliases receive high confidence; substring matches receive
+    medium confidence. Unknown or generic role terms are never expanded and
+    receive a clarification question only when the query is genuinely broad.
+    """
+    original = str(primary or "").strip()
+    normalized = _normalize_role(original)
+    family = role_family(original)
+    if not original:
+        return {
+            "family": None,
+            "expanded_queries": [],
+            "adjacent_roles": [],
+            "confidence": "unknown",
+            "clarification_question": "What role family should I prioritize (for example, backend, data, platform, or ML)?",
+        }
+
+    if family:
+        aliases = {_normalize_role(alias) for alias in ROLE_FAMILIES[family]["aliases"]}
+        confidence = "high" if normalized in aliases else "medium"
+        return {
+            "family": family,
+            "expanded_queries": expand_role_queries(original),
+            "adjacent_roles": ROLE_FAMILIES[family]["adjacent"],
+            "confidence": confidence,
+            "clarification_question": None,
+        }
+
+    clarification = None
+    if normalized in _AMBIGUOUS_ROLE_TERMS or len(normalized.split()) == 1 and normalized.endswith("er"):
+        clarification = (
+            f"Should I keep '{original}' broad, or focus it on a specialty such as backend, "
+            "data/platform, ML, frontend, or another domain?"
+        )
     return {
-        "family": family,
-        "expanded_queries": expand_role_queries(primary),
-        "adjacent_roles": ROLE_FAMILIES[family]["adjacent"],
+        "family": None,
+        "expanded_queries": [original],
+        "adjacent_roles": [],
+        "confidence": "low" if clarification else "unknown",
+        "clarification_question": clarification,
     }
 
 

@@ -4,6 +4,7 @@ import os
 import stat
 import tempfile
 import urllib.parse
+import hashlib
 from collections import OrderedDict
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
@@ -14,7 +15,8 @@ from app.agent.agent_engine import GeneralistAgentEngine, _is_safe_url
 from app.agent.job_seeker_agent import JobSeekerAgentEngine
 from app.agent.autonomous_career_engine import AutonomousCareerEngine
 from app.auth.dependencies import get_current_user
-from app.services.llm_service import LLMNotConfiguredError
+from app.services.llm_service import LLMNotConfiguredError, routing_snapshot
+from app.services.ai_orchestration import SUPPORTED_TIERS
 
 logger = logging.getLogger(__name__)
 
@@ -217,6 +219,38 @@ async def run_agent_task(req: AgentRunRequest, user_id: str = Depends(get_curren
     except Exception as e:
         logger.exception("Agent run error")
         raise HTTPException(status_code=500, detail="Agent execution failed.")
+
+@router.get("/runtime")
+async def get_agent_runtime(user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
+    """Return safe runtime capabilities for the authenticated workspace.
+
+    This is intentionally diagnostic rather than an execution endpoint. It
+    exposes model-tier availability and bounded swarm policy without secrets,
+    prompts, browser credentials, or claims that a provider is live when it is
+    not configured.
+    """
+    return {
+        "success": True,
+        "data": {
+            "model_routing": routing_snapshot(),
+            "supported_tiers": list(SUPPORTED_TIERS),
+            "swarm": {
+                "enabled": True,
+                "max_specialists": 12,
+                "max_parallel": 6,
+                "per_step_timeout_seconds": 600,
+                "failure_isolation": True,
+                "autonomous_sensitive_actions": False,
+            },
+            "memory": {
+                "layers": ["working", "procedural", "episodic", "semantic"],
+                "owner_scoped": True,
+                "best_effort_degradation": True,
+                "credentials_and_passwords": False,
+            },
+        },
+    }
+
 
 @router.get("/tools")
 async def list_agent_tools(user_id: str = Depends(get_current_user)) -> Dict[str, Any]:

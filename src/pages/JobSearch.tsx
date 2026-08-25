@@ -38,7 +38,7 @@ import {
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchJobs, agentSearch, saveJob, listSavedJobs, getProfile, listResumes, isBackendUnavailable } from "@/api";
-import type { JobSearchResult, RoleIntelligence, PreparationMaterial } from "@/api/jobs";
+import type { JobSearchResponse, JobSearchResult, RoleIntelligence, PreparationMaterial } from "@/api/jobs";
 import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
 import { useAutomation } from "@/contexts/AutomationContext";
@@ -100,6 +100,12 @@ const JobSearch = () => {
   const [hideGhostJobs, setHideGhostJobs] = useState(false);
   const [visibleAgentEvents, setVisibleAgentEvents] = useState<any[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [roleIntelligence, setRoleIntelligence] = useState<RoleIntelligence | null>(null);
+  const [memoryInfo, setMemoryInfo] = useState<{ used: boolean; tiers: string[]; truncated: boolean }>({
+    used: false,
+    tiers: [],
+    truncated: false,
+  });
   // Mobile master-detail: below lg the list and detail share the viewport.
   const [mobileDetail, setMobileDetail] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -164,6 +170,12 @@ const JobSearch = () => {
         top_n: 20,
       });
       const jobs: Job[] = res?.report?.jobs || res?.jobs || [];
+      setRoleIntelligence(res?.role_intelligence || null);
+      setMemoryInfo({
+        used: res?.memory_used === true,
+        tiers: res?.memory_tiers_used || [],
+        truncated: res?.memory_truncated === true,
+      });
       setResults(jobs);
       setSelectedIdx(0);
       if (jobs.length === 0) toast.info("No jobs matched. Try broader keywords.");
@@ -218,7 +230,14 @@ const JobSearch = () => {
       });
 
       const events = res?.events || [];
-      const finalJobs = res?.result?.report?.jobs || res?.result?.jobs || [];
+      const agentResult = res?.result as JobSearchResponse | undefined;
+      const finalJobs: Job[] = agentResult?.report?.jobs || agentResult?.jobs || res?.report?.jobs || res?.jobs || [];
+      setRoleIntelligence(agentResult?.role_intelligence || res?.role_intelligence || null);
+      setMemoryInfo({
+        used: agentResult?.memory_used === true,
+        tiers: agentResult?.memory_tiers_used || [],
+        truncated: agentResult?.memory_truncated === true,
+      });
 
       // Stream events one by one for visual effect
       for (let i = 0; i < events.length; i++) {
@@ -394,6 +413,34 @@ const JobSearch = () => {
               </div>
             )}
           </div>
+        </Card>
+      )}
+
+      {(roleIntelligence || memoryInfo.used) && (
+        <Card className="mb-4 border-primary/20 bg-primary/[0.03] p-3 md:p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="text-sm font-semibold">Search intelligence</span>
+            {roleIntelligence?.confidence && (
+              <Badge variant="outline" className="text-[10px]">Role confidence: {roleIntelligence.confidence}</Badge>
+            )}
+            {roleIntelligence?.family && (
+              <Badge variant="secondary" className="text-[10px]">Family: {roleIntelligence.family}</Badge>
+            )}
+            {memoryInfo.used && (
+              <Badge variant="outline" className="text-[10px]">
+                Memory used{memoryInfo.truncated ? " · budgeted" : ""}
+              </Badge>
+            )}
+          </div>
+          {roleIntelligence?.clarification_question && (
+            <p className="mt-2 text-xs text-foreground/80">{roleIntelligence.clarification_question}</p>
+          )}
+          {memoryInfo.used && memoryInfo.tiers.length > 0 && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Personalization layers: {memoryInfo.tiers.join(" · ")}. Private memory is used only to improve ranking context.
+            </p>
+          )}
         </Card>
       )}
 
@@ -789,6 +836,14 @@ const JobSearch = () => {
                           <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Evidence to prepare</div>
                           <ul className="space-y-1 text-xs text-foreground/80">
                             {selected.preparation_material.evidence_to_prepare?.slice(0, 3).map((item) => <li key={item} className="flex gap-2"><span className="text-primary">•</span><span>{item}</span></li>)}
+                          </ul>
+                        </div>
+                      )}
+                      {(selected.preparation_material.counterfactuals || []).length > 0 && (
+                        <div>
+                          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">How the match could improve</div>
+                          <ul className="space-y-1 text-xs text-foreground/80">
+                            {selected.preparation_material.counterfactuals?.slice(0, 3).map((item) => <li key={item} className="flex gap-2"><span className="text-accent">↗</span><span>{item}</span></li>)}
                           </ul>
                         </div>
                       )}

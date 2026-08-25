@@ -47,6 +47,7 @@ from pydantic import BaseModel, ValidationError
 import httpx
 
 from app.services.hermes import config as hermes_config
+from app.services.ai_orchestration import SUPPORTED_TIERS, normalize_tier
 from app.telemetry import metrics
 
 logger = logging.getLogger(__name__)
@@ -338,26 +339,36 @@ def _env(key: str, default: str = "") -> str:
 
 
 def _tier_model(var: str, tier: str, default: str) -> str:
-    """Resolve the model name for ``tier``, falling back to the single-model var.
+    """Resolve a model for a named quality tier without silently changing installs.
 
-    Call sites already annotate cost/quality intent (``tier="fast"`` for
-    classification, ranking, and drafting; ``tier="smart"`` for the reflexion
-    optimizer). This maps that intent onto ``<VAR>_FAST`` / ``<VAR>_SMART``.
-
-    When neither suffixed var is set, every tier resolves to ``<VAR>`` exactly
-    as before — routing is opt-in per deployment and never silently changes the
-    model an existing install is using.
+    ``cheap`` and ``fast`` prefer their own deployment overrides. ``deep`` can
+    use a dedicated override and otherwise falls back to the existing smart
+    override. If no suffixed variable is present, the original unsuffixed model
+    remains the fallback, preserving existing deployments exactly.
     """
-    suffix = "SMART" if tier == "smart" else "FAST"
-    return _env(f"{var}_{suffix}") or _env(var, default)
+    resolved = normalize_tier(tier)
+    suffixes = {
+        "cheap": ("CHEAP", "FAST"),
+        "fast": ("FAST",),
+        "smart": ("SMART",),
+        "deep": ("DEEP", "SMART"),
+        "hermes": (),
+    }.get(resolved, ("FAST",))
+    for suffix in suffixes:
+        configured = _env(f"{var}_{suffix}")
+        if configured:
+            return configured
+    return _env(var, default)
 
 
 def build_provider(tier: str = "default") -> LLMProvider:
-    """Return the best available provider for the given tier.
+    """Return the configured provider for a named routing tier.
 
-    ``tier`` selects the model within the chosen provider (see ``_tier_model``);
-    it does not switch providers, except for ``"hermes"``.
+    Tier selection chooses a model override within the configured provider; it
+    does not silently fail over to a different provider. ``hermes`` remains an
+    explicit provider tier for scraping/agent runtimes.
     """
+    tier = normalize_tier(tier)
     # Hermes tier — always honoured when available
     if tier == "hermes" and hermes_config.HERMES_AGENT_URL:
         return HermesProvider()
@@ -424,10 +435,42 @@ def _hermes_active() -> bool:
 
 
 def active_engine() -> str:
-    """Snapshot the active engine label (for /health)."""
+    """Snapshot the default active engine label (for /health)."""
     if _hermes_active():
         return f"hermes-{hermes_config.HERMES_MODEL}"
     return build_provider().active_engine_label()
+
+
+def routing_snapshot() -> dict[str, Any]:
+    """Return safe, non-secret routing diagnostics for an authenticated UI.
+
+    The snapshot reports configured provider/model labels and whether each named
+    tier is available. API keys, endpoint URLs, prompts, and user data are never
+    returned. A missing provider is represented as ``unconfigured`` rather than
+    as a fabricated model capability.
+    """
+    provider_name = _env("LLM_PROVIDER").lower() or "auto"
+    tiers: dict[str, dict[str, str | bool]] = {}
+    for tier in SUPPORTED_TIERS:
+        try:
+            provider = build_provider(tier)
+            tiers[tier] = {
+                "available": not isinstance(provider, MockProvider),
+                "engine": provider.active_engine_label(),
+            }
+        except Exception as exc:  # noqa: BLE001 - diagnostics must never break a request
+            tiers[tier] = {
+                "available": False,
+                "engine": "unconfigured",
+                "reason": str(exc)[:160] or exc.__class__.__name__,
+            }
+    return {
+        "provider_mode": provider_name,
+        "default_engine": active_engine(),
+        "tiers": tiers,
+        "fallback_policy": "explicit_only",
+        "secrets_exposed": False,
+    }
 
 
 def is_llm_configured() -> bool:

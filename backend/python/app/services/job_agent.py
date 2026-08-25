@@ -135,7 +135,7 @@ def expand_queries(primary: str, profile: dict | None) -> list:
 
 
 def _preparation_material(job: dict, role_meta: dict) -> dict:
-    """Build a bounded, role-specific preparation starter from verified job signals."""
+    """Build bounded, role-specific preparation and explainable next steps."""
     missing = [str(skill) for skill in (job.get("missing_skills") or []) if skill][:6]
     matched = [str(skill) for skill in (job.get("matched_skills") or []) if skill][:6]
     focus_areas = missing or matched or [role_meta.get("family") or job.get("title") or "target role"]
@@ -147,12 +147,17 @@ def _preparation_material(job: dict, role_meta: dict) -> dict:
         f"Prepare one truthful example, metric, or artifact that supports {skill}."
         for skill in focus_areas[:4]
     ]
+    counterfactuals = [
+        f"If you can substantiate {skill} with truthful evidence, this match may improve; do not claim experience you do not have."
+        for skill in missing[:4]
+    ]
     return {
         "status": "draft",
         "role_family": role_meta.get("family"),
         "focus_areas": focus_areas,
         "evidence_to_prepare": evidence,
         "practice_prompts": prompts,
+        "counterfactuals": counterfactuals,
         "grounded_in": "matched job requirements and candidate skill signals",
     }
 
@@ -329,10 +334,14 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
     # token-budgeted string across working/procedural/episodic/semantic tiers,
     # replacing the two scattered helpers. Degrades to "" when DB/user absent.
     memory_context = ""
+    memory_snapshot = None
     preferences = None
     if user_id:
-        from app.services.memory_composer import compose_context
-        memory_context = await compose_context(user_id, query=(query or ""), conversation_id=conversation_id)
+        from app.services.memory_composer import compose_context_snapshot
+        memory_snapshot = await compose_context_snapshot(
+            user_id, query=(query or ""), conversation_id=conversation_id
+        )
+        memory_context = memory_snapshot.context
         preferences = await _load_user_preferences(user_id)  # kept for ranking-side use
 
     effective_query = (query or "").strip()
@@ -514,6 +523,8 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
         "results": annotated,
         "agent_trace": trace,
         "memory_used": bool(memory_context),
+        "memory_tiers_used": list(memory_snapshot.tiers_used) if memory_snapshot else [],
+        "memory_truncated": memory_snapshot.truncated if memory_snapshot else False,
     }
 
 

@@ -11,6 +11,7 @@ from typing import Any, Callable
 
 from app.services.agent_db import create_runtime_approval, get_runtime_approval, create_agent_router_event
 from app.services.llm_service import llm_complete, llm_json
+from app.services.ai_orchestration import SwarmOutcome, SwarmStep, run_bounded_swarm, normalize_tier
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +32,10 @@ class AgentRouter:
         is_json: bool = False,
     ) -> Any:
         """Execute a step of the agent via the configured LLM/Hermes runtime."""
-        # Map runtimes to tiers
-        tier = "fast"
-        if runtime_id == "hermes":
-            tier = "hermes"
+        # Runtime names are explicit quality/provider intents. Unknown values
+        # fail closed to the safe fast tier rather than selecting an arbitrary
+        # model or provider.
+        tier = normalize_tier(runtime_id)
         
         logger.info(
             "AgentRouter executing step for user %s, agent %s using runtime %s",
@@ -75,6 +76,43 @@ class AgentRouter:
                     payload_json={"runtime_id": runtime_id}
                 )
             raise
+
+    async def execute_swarm(
+        self,
+        steps: list[SwarmStep],
+        worker: Callable[[SwarmStep], Any],
+        max_parallel: int = 3,
+        timeout_seconds: float = 120.0,
+    ) -> list[SwarmOutcome]:
+        """Run bounded independent specialist steps and emit lifecycle events.
+
+        The harness is fan-out/fan-in only: it does not grant tools, persist
+        secrets, or approve external actions. A caller must still enforce its
+        own tool policy and human review before any sensitive operation.
+        """
+        if self.task_id:
+            await create_agent_router_event(
+                user_id=self.user_id,
+                task_id=self.task_id,
+                event_type="swarm_started",
+                summary=f"Started bounded specialist swarm ({len(steps)} steps)",
+                payload_json={"step_count": len(steps), "max_parallel": max_parallel},
+            )
+        outcomes = await run_bounded_swarm(
+            steps, worker, max_parallel=max_parallel, timeout_seconds=timeout_seconds
+        )
+        if self.task_id:
+            counts: dict[str, int] = {}
+            for outcome in outcomes:
+                counts[outcome.status] = counts.get(outcome.status, 0) + 1
+            await create_agent_router_event(
+                user_id=self.user_id,
+                task_id=self.task_id,
+                event_type="swarm_completed",
+                summary="Bounded specialist swarm completed with per-step statuses",
+                payload_json={"status_counts": counts},
+            )
+        return outcomes
 
     async def request_tool_execution(
         self,
