@@ -303,6 +303,9 @@ services:
       - ./volumes/db/init/50-20260823_whatsapp_approval_replies.sql:/docker-entrypoint-initdb.d/migrations/zz-50-20260823_whatsapp_approval_replies.sql:Z
       - ./volumes/db/init/51-20260824_public_data_access_hardening.sql:/docker-entrypoint-initdb.d/migrations/zz-51-20260824_public_data_access_hardening.sql:Z
       - ./volumes/db/init/52-20260825_candidate_spine_envelope.sql:/docker-entrypoint-initdb.d/migrations/zz-52-20260825_candidate_spine_envelope.sql:Z
+      - ./volumes/db/init/53-20260825_practice_outcomes.sql:/docker-entrypoint-initdb.d/migrations/zz-53-20260825_practice_outcomes.sql:Z
+      - ./volumes/db/init/54-20260825_agent_task_children.sql:/docker-entrypoint-initdb.d/migrations/zz-54-20260825_agent_task_children.sql:Z
+      - ./volumes/db/init/55-20260825_memory_correction_controls.sql:/docker-entrypoint-initdb.d/migrations/zz-55-20260825_memory_correction_controls.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:

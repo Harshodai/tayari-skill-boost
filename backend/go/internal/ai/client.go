@@ -13,6 +13,22 @@ import (
 	"time"
 )
 
+// APIError preserves the Python service's real HTTP status code and response
+// body. A client-caused 4xx (bad request, validation failure, not found) is
+// not the same fact as the service being unreachable — callers that blanket
+// every error into 502 "service unavailable" mask an actionable, correct
+// error behind a false "the backend is down" claim. Callers that want the
+// real status can `errors.As(err, &apiErr)`; callers that don't change
+// nothing, since Error() renders identically to the old untyped message.
+type APIError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("AI service returned %d: %s", e.StatusCode, e.Body)
+}
+
 // Client communicates with the Python AI service.
 type Client struct {
 	BaseURL       string
@@ -82,7 +98,7 @@ func (c *Client) ParseDocument(fileData []byte, fileType string) (map[string]int
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(body))
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(body)}
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -111,7 +127,7 @@ func (c *Client) AnalyzeResume(resumeText, jdText string) (map[string]interface{
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -143,7 +159,7 @@ func (c *Client) PostJSONWithHeaders(endpoint string, payload interface{}, heade
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -170,7 +186,7 @@ func (c *Client) PutJSONWithHeaders(endpoint string, payload interface{}, header
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -198,7 +214,7 @@ func (c *Client) PatchJSONWithHeaders(endpoint string, payload interface{}, head
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -224,7 +240,7 @@ func (c *Client) GetJSONWithHeaders(endpoint string, headers map[string]string) 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -246,7 +262,7 @@ func (c *Client) DeleteJSONWithHeaders(endpoint string, headers map[string]strin
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -271,7 +287,7 @@ func (c *Client) GetBlob(endpoint string, headers map[string]string) (*http.Resp
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
 	}
 	return resp, nil
 }
@@ -291,7 +307,7 @@ func (c *Client) DeleteNoContent(endpoint string, headers map[string]string) err
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+		return &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
 	}
 	return nil
 }
@@ -329,7 +345,7 @@ func (c *Client) PostStream(ctx context.Context, endpoint string, payload interf
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
 	}
 	return resp, nil
 }
@@ -354,7 +370,7 @@ func (c *Client) PostJSONWithContext(ctx context.Context, endpoint string, paylo
 	defer resp.Body.Close()
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("AI service returned %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {

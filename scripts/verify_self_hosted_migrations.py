@@ -78,6 +78,18 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/52-20260825_candidate_spine_envelope.sql",
         "zz-52-20260825_candidate_spine_envelope.sql",
     ),
+    "backend/db/migrations/20260825150000_practice_outcomes.sql": (
+        "supabase-local/volumes/db/init/53-20260825_practice_outcomes.sql",
+        "zz-53-20260825_practice_outcomes.sql",
+    ),
+    "backend/db/migrations/20260825140000_agent_task_children.sql": (
+        "supabase-local/volumes/db/init/54-20260825_agent_task_children.sql",
+        "zz-54-20260825_agent_task_children.sql",
+    ),
+    "backend/db/migrations/20260825130000_memory_correction_controls.sql": (
+        "supabase-local/volumes/db/init/55-20260825_memory_correction_controls.sql",
+        "zz-55-20260825_memory_correction_controls.sql",
+    ),
 }
 
 

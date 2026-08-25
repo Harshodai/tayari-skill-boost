@@ -1,4 +1,4 @@
--- Consent-gated preparation outcome signals for fresh local bootstrap.
+-- Consent-gated preparation outcome signals. Store bounded outcome metadata only.
 CREATE TABLE IF NOT EXISTS public.practice_outcomes (
     id                   UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id              UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
