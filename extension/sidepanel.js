@@ -9,6 +9,17 @@ function setAgentStatus(text, kind = '') { $('agent-status').textContent = text;
 function escapeText(value) { return value == null ? '' : String(value); }
 function escapeHtml(value) { return escapeText(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
 function safeHttpsUrl(value) { try { const url = new URL(String(value || '')); return url.protocol === 'https:' ? url.href : ''; } catch { return ''; } }
+const ROLE_FAMILIES = [
+  { family: 'data engineering', matches: ['data engineer', 'software engineer data', 'data platform', 'data infrastructure', 'data pipeline', 'analytics engineer', 'etl developer', 'big data engineer'], adjacent: ['backend engineer', 'machine learning engineer', 'data analyst'] },
+  { family: 'software engineering', matches: ['software engineer', 'software developer', 'backend engineer', 'platform engineer', 'full stack engineer', 'distributed systems engineer'], adjacent: ['data platform engineer', 'site reliability engineer'] },
+  { family: 'machine learning engineering', matches: ['machine learning engineer', 'ml engineer', 'applied scientist', 'ai engineer', 'ml platform engineer'], adjacent: ['data scientist', 'data engineer', 'software engineer'] },
+];
+function roleFamilyInfo(title) {
+  const normalized = String(title || '').toLowerCase().replace(/[^a-z0-9+#]+/g, ' ').trim();
+  const definition = ROLE_FAMILIES.find((item) => item.matches.some((match) => normalized === match || normalized.includes(match)));
+  if (!definition) return { family: '', variants: title ? [title] : [], adjacent: [] };
+  return { family: definition.family, variants: [title, ...definition.matches.filter((match) => match !== normalized).slice(0, 5)], adjacent: definition.adjacent };
+}
 async function loadEvidence() {
   const result = await send('list_research_notes');
   const notes = result?.notes || [];
@@ -62,6 +73,12 @@ async function refresh() {
   $('bridge-status').textContent = `Desktop bridge: ${desktopBridge}`;
   renderComputerBridge(bridgeStatus);
   const job = current.job || {};
+  const roleInfo = roleFamilyInfo(job.title);
+  $('role-intelligence').classList.toggle('hidden', !job.detected);
+  $('role-family').textContent = job.detected
+    ? (roleInfo.family ? `This page belongs to the ${roleInfo.family} family. Tayari can prepare across nearby titles without treating them as identical.` : 'Tayari will preserve this exact title and use the page plus your approved profile context.')
+    : '';
+  $('role-variants').innerHTML = roleInfo.variants.map((variant) => `<span class="chip">${escapeHtml(variant)}</span>`).join('');
   $('job-title').textContent = job.detected ? escapeText(job.title || 'Untitled role') : 'No supported job detected';
   $('job-company').textContent = job.detected ? escapeText(job.company || 'Company not detected') : '';
   $('job-meta').textContent = job.detected ? [job.location, job.platform].filter(Boolean).join(' / ') : '';
@@ -88,7 +105,25 @@ $('analyze').addEventListener('click', async () => { const result = await run('q
 $('approval-check').addEventListener('change', (event) => { $('fill').disabled = !event.target.checked; });
 $('fill').addEventListener('click', async () => { if (!$('approval-check').checked || !current.tab?.id) return; const result = await run('approved_autofill', { tabId: current.tab.id, approved: true }); if (result?.success) $('approval-check').checked = false; $('fill').disabled = true; });
 $('use-selection').addEventListener('click', async () => { const result = await send('get_page_context', { tabId: current.tab?.id }); const selection = result?.context?.selection || ''; if (!selection) return setAgentStatus('Select text on the page first.', 'error'); $('agent-prompt').value = `Explain this selected text and relate it to my job search:\n\n${selection}`; setAgentStatus('Selection added to the prompt.', 'ok'); });
-$('plan-task').addEventListener('click', async () => { setAgentStatus('Building a reviewable plan...'); const request = { prompt: $('agent-prompt').value, mode: $('agent-mode').value, includeTabs: $('include-tabs').checked, tabId: current.tab?.id }; const result = await send('create_agent_task', request); if (!result?.success) return setAgentStatus(result?.error || 'Could not create task.', 'error'); activeTaskRequest = request; renderPlan(result); setAgentStatus('Plan ready for your approval.', 'ok'); });
+async function createPlanFromPrompt(prompt, mode = 'draft') {
+  setAgentStatus('Building a reviewable plan...');
+  const request = { prompt, mode, includeTabs: $('include-tabs').checked, tabId: current.tab?.id };
+  const result = await send('create_agent_task', request);
+  if (!result?.success) return setAgentStatus(result?.error || 'Could not create task.', 'error');
+  activeTaskRequest = request;
+  renderPlan(result);
+  setAgentStatus('Plan ready for your approval.', 'ok');
+}
+$('plan-task').addEventListener('click', async () => { await createPlanFromPrompt($('agent-prompt').value, $('agent-mode').value); });
+$('prepare-role').addEventListener('click', async () => {
+  const job = current.job || {};
+  const roleInfo = roleFamilyInfo(job.title);
+  const variants = roleInfo.variants.slice(0, 6).join(', ');
+  const prompt = `Prepare a role-specific interview and application evidence packet for ${job.title || 'this role'} at ${job.company || 'the company'}. Use the approved page context and my Tayari profile. Search across these semantic title variants when useful: ${variants}. Identify the most important skills, evidence gaps, truthful stories to prepare, and three practice prompts. Draft only; do not send, submit, or change the page.`;
+  $('agent-prompt').value = prompt;
+  $('agent-mode').value = 'draft';
+  await createPlanFromPrompt(prompt, 'draft');
+});
 $('approve-plan').addEventListener('click', async () => { const result = await send('approve_agent_plan', { taskId: activeTask?.id }); if (!result?.success) return setAgentStatus(result?.error || 'Plan approval failed.', 'error'); $('approve-plan').disabled = true; $('takeover-task').classList.remove('hidden'); $('open-desktop-task').classList.remove('hidden'); setAgentStatus('Plan approved. Running read-only page analysis...'); const answer = await send('answer_approved_page', { taskId: activeTask?.id, ...activeTaskRequest }); if (!answer?.success) return setAgentStatus(answer?.error || 'Read-only answer failed.', 'error'); renderAnswer(answer); setAgentStatus('Read-only answer ready for review.', 'ok'); });
 $('reject-plan').addEventListener('click', async () => { const result = await send('reject_agent_plan', { taskId: activeTask?.id }); if (!result?.success) return setAgentStatus(result?.error || 'Plan rejection failed.', 'error'); $('plan-card').classList.add('hidden'); activeTask = null; activeTaskRequest = null; setAgentStatus('Plan rejected.', 'ok'); });
 $('takeover-task').addEventListener('click', async () => { const result = await send('takeover_agent_task', { taskId: activeTask?.id }); setAgentStatus(result?.success ? 'Takeover requested. The worker must pause.' : (result?.error || 'Takeover failed.'), result?.success ? 'ok' : 'error'); });

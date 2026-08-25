@@ -2,6 +2,10 @@
 textarea, select { width: 100%; box-sizing: border-box; border: 1px solid var(--border, #d7dce5); border-radius: 10px; background: var(--surface, #fff); color: inherit; padding: 10px; font: inherit; margin: 8px 0; }
 textarea { resize: vertical; min-height: 72px; }
 .control-row { display: flex; gap: 8px; align-items: center; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; border: 1px solid #d8d2ff; border-radius: 999px; padding: 4px 8px; background: #f4f1ff; color: #5141a5; font-size: 11px; line-height: 1.2; }
+.full-width { width: 100%; }
+.small { font-size: 11px; }
 .control-row select { flex: 1; margin: 0; }
 .check-inline { font-size: 11px; white-space: nowrap; color: var(--muted, #687386); }
 .check-inline input { accent-color: #5a45d6; }
@@ -16,6 +20,7 @@ textarea { resize: vertical; min-height: 72px; }
 #plan-steps li { margin: 7px 0; line-height: 1.35; }
 @media (prefers-color-scheme: dark) {
   textarea, select { background: #171a21; border-color: #343b49; }
+  .chip { background: #28233f; border-color: #5a4c9e; color: #d7d0ff; }
   .evidence-item { background: rgba(25,29,38,.65); border-color: #343b49; }
   .danger { background: #351f22; color: #ffb0b0; border-color: #78454b; }
 }

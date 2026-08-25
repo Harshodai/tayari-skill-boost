@@ -33,6 +33,7 @@ import {
   Globe,
   Target,
   ArrowUpRight,
+  BookOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -85,6 +86,18 @@ interface Job {
   missing_skills?: string[];
   dedupe_key?: string;
   ats_provider?: string;
+  role_intelligence?: {
+    family?: string | null;
+    expanded_queries?: string[];
+    adjacent_roles?: string[];
+  };
+  preparation_material?: {
+    status?: string;
+    role_family?: string | null;
+    focus_areas?: string[];
+    evidence_to_prepare?: string[];
+    practice_prompts?: string[];
+  };
 }
 
 const scoreColor = (s: number) =>
@@ -758,6 +771,62 @@ const JobSearch = () => {
                     isLiveAtSource={true}
                     transitionType={(profile as any)?.transition_type}
                   />
+
+                  {selected.role_intelligence && (
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-lg bg-primary/10 p-2"><Sparkles className="w-4 h-4 text-primary" /></div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold uppercase tracking-wider text-primary">Semantic role family</div>
+                          <p className="mt-1 text-sm text-foreground">
+                            {selected.role_intelligence.family
+                              ? `Searching across ${selected.role_intelligence.family} titles, not just this exact wording.`
+                              : "This role was searched using the exact title and your profile context."}
+                          </p>
+                        </div>
+                      </div>
+                      {selected.role_intelligence.expanded_queries && selected.role_intelligence.expanded_queries.length > 1 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {selected.role_intelligence.expanded_queries.slice(0, 6).map((variant) => (
+                            <Badge key={variant} variant="secondary" className="text-[10px]">{variant}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {selected.preparation_material && (
+                    <div className="rounded-xl border border-border/70 bg-card/70 p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-lg bg-accent/10 p-2"><BookOpen className="w-4 h-4 text-accent" /></div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Preparation material</div>
+                          <p className="mt-1 text-sm font-medium text-foreground">Build evidence for this role before you apply.</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(selected.preparation_material.focus_areas || []).slice(0, 6).map((focus) => (
+                          <Badge key={focus} variant="outline" className="text-[10px]">{focus}</Badge>
+                        ))}
+                      </div>
+                      {(selected.preparation_material.practice_prompts || []).length > 0 && (
+                        <div>
+                          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Practice prompts</div>
+                          <ul className="space-y-1 text-xs text-foreground/80">
+                            {selected.preparation_material.practice_prompts?.slice(0, 3).map((prompt) => <li key={prompt} className="flex gap-2"><span className="text-primary">•</span><span>{prompt}</span></li>)}
+                          </ul>
+                        </div>
+                      )}
+                      {(selected.preparation_material.evidence_to_prepare || []).length > 0 && (
+                        <div>
+                          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Evidence to prepare</div>
+                          <ul className="space-y-1 text-xs text-foreground/80">
+                            {selected.preparation_material.evidence_to_prepare?.slice(0, 3).map((item) => <li key={item} className="flex gap-2"><span className="text-primary">•</span><span>{item}</span></li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Action bar */}
                   <div className="flex flex-wrap gap-2">

@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LongContextClient
 from app.services.job_providers import search_jobs
 from app.services.llm_service import llm_complete, extract_json, active_engine
-from app.services.skill_taxonomy import taxonomy_overlap
+from app.services.skill_taxonomy import expand_role_queries, role_expansion_explanation, taxonomy_overlap
 from app.services.embedding_service import embed_texts, cosine_similarity
 from app.services.portal_scanner import annotate_jobs_with_ats
 
@@ -122,17 +122,39 @@ async def derive_query(profile: dict | None, resume_text: str | None) -> str:
 
 
 def expand_queries(primary: str, profile: dict | None) -> list:
-    """Multi-query expansion (advanced retrieval pattern): search several related
-    role formulations so the GATHER stage casts a wider, smarter net."""
-    queries = [primary]
+    """Expand a role into close title variants while preserving user intent."""
+    queries = expand_role_queries(primary, limit=6)
     if profile:
         for role in (profile.get("desired_roles") or [])[:3]:
-            if role.lower() != primary.lower():
+            if role and role.lower() not in {item.lower() for item in queries}:
                 queries.append(role)
         headline = (profile.get("headline") or "").strip()
-        if headline and headline.lower() != primary.lower() and len(queries) < 3:
+        if headline and headline.lower() not in {item.lower() for item in queries}:
             queries.append(headline[:60])
-    return queries[:3]
+    return queries[:6]
+
+
+def _preparation_material(job: dict, role_meta: dict) -> dict:
+    """Build a bounded, role-specific preparation starter from verified job signals."""
+    missing = [str(skill) for skill in (job.get("missing_skills") or []) if skill][:6]
+    matched = [str(skill) for skill in (job.get("matched_skills") or []) if skill][:6]
+    focus_areas = missing or matched or [role_meta.get("family") or job.get("title") or "target role"]
+    prompts = [
+        f"Describe a measurable project where you used {skill}. What changed because of your work?"
+        for skill in focus_areas[:3]
+    ]
+    evidence = [
+        f"Prepare one truthful example, metric, or artifact that supports {skill}."
+        for skill in focus_areas[:4]
+    ]
+    return {
+        "status": "draft",
+        "role_family": role_meta.get("family"),
+        "focus_areas": focus_areas,
+        "evidence_to_prepare": evidence,
+        "practice_prompts": prompts,
+        "grounded_in": "matched job requirements and candidate skill signals",
+    }
 
 
 def _candidate_tokens(profile: dict | None, resume_text: str | None) -> set:
@@ -331,7 +353,9 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
     # Multi-query expansion: search related role formulations in parallel-ish
     queries = expand_queries(effective_query, profile)
     if len(queries) > 1:
-        log_step("PLAN", f"Expanded into {len(queries)} query variants: "
+        role_meta = role_expansion_explanation(effective_query)
+        family_note = f" for the {role_meta['family']} family" if role_meta.get("family") else ""
+        log_step("PLAN", f"Expanded into {len(queries)} semantic query variants{family_note}: "
                          + ", ".join(f"'{q}'" for q in queries))
 
     # Optional Hermes server-side scrape (WS-F): run the tiered scraper against
@@ -471,13 +495,22 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
     log_step("RANK", f"AI scored {len(scored)} jobs against your profile")
 
     annotated = await annotate_jobs_with_ats(ranked)
-    log_step("REPORT", f"Returning top {len(annotated)} matches sorted by fit")
+    role_meta = role_expansion_explanation(effective_query)
+    for job in annotated:
+        job["role_intelligence"] = {
+            "family": role_meta.get("family"),
+            "expanded_queries": role_meta.get("expanded_queries", []),
+            "adjacent_roles": role_meta.get("adjacent_roles", []),
+        }
+        job["preparation_material"] = _preparation_material(job, role_meta)
+    log_step("REPORT", f"Returning top {len(annotated)} matches sorted by fit with role-bound preparation material")
 
     return {
         "query": effective_query,
         "location": location,
         "total_found": len(jobs),
         "engine": active_engine(),
+        "role_intelligence": role_meta,
         "results": annotated,
         "agent_trace": trace,
         "memory_used": bool(memory_context),

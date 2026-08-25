@@ -116,6 +116,96 @@ TAXONOMY: dict = {
     "search": (["information retrieval", "ranking"], ["elasticsearch"]),
 }
 
+# Role-family aliases sit beside the skill graph: they widen search intent without
+# pretending that adjacent titles are identical. The primary title is always kept
+# first, and callers can display the family/alias rationale to the candidate.
+ROLE_FAMILIES: dict[str, dict[str, list[str]]] = {
+    "data engineering": {
+        "aliases": [
+            "data engineer",
+            "software engineer data",
+            "software engineer, data",
+            "data platform engineer",
+            "data infrastructure engineer",
+            "data pipeline engineer",
+            "analytics engineer",
+            "etl developer",
+            "big data engineer",
+        ],
+        "adjacent": ["backend engineer", "machine learning engineer", "data analyst"],
+    },
+    "software engineering": {
+        "aliases": [
+            "software engineer",
+            "software developer",
+            "backend engineer",
+            "platform engineer",
+            "full stack engineer",
+            "full-stack engineer",
+            "distributed systems engineer",
+        ],
+        "adjacent": ["data platform engineer", "site reliability engineer", "developer productivity engineer"],
+    },
+    "machine learning engineering": {
+        "aliases": [
+            "machine learning engineer",
+            "ml engineer",
+            "applied scientist",
+            "ai engineer",
+            "ml platform engineer",
+            "machine learning platform engineer",
+        ],
+        "adjacent": ["data scientist", "data engineer", "software engineer"],
+    },
+}
+
+
+def _normalize_role(value: str | None) -> str:
+    return re.sub(r"[^a-z0-9+#]+", " ", str(value or "").lower()).strip()
+
+
+def role_family(primary: str | None) -> str | None:
+    """Return the canonical role family for a natural-language title."""
+    normalized = _normalize_role(primary)
+    if not normalized:
+        return None
+    for family, definition in ROLE_FAMILIES.items():
+        aliases = [_normalize_role(alias) for alias in definition["aliases"]]
+        if normalized in aliases or any(alias in normalized for alias in aliases):
+            return family
+    return None
+
+
+def expand_role_queries(primary: str | None, limit: int = 6) -> list[str]:
+    """Expand a title into close aliases while preserving the user's exact query."""
+    original = str(primary or "").strip()
+    if not original:
+        return []
+    family = role_family(original)
+    if not family:
+        return [original]
+    definition = ROLE_FAMILIES[family]
+    queries: list[str] = [original]
+    for alias in definition["aliases"] + definition["adjacent"]:
+        if _normalize_role(alias) != _normalize_role(original) and alias not in queries:
+            queries.append(alias)
+        if len(queries) >= limit:
+            break
+    return queries
+
+
+def role_expansion_explanation(primary: str | None) -> dict:
+    """Return the explainable role-family metadata used by search responses."""
+    family = role_family(primary)
+    if not family:
+        return {"family": None, "expanded_queries": [str(primary or "").strip()] if primary else []}
+    return {
+        "family": family,
+        "expanded_queries": expand_role_queries(primary),
+        "adjacent_roles": ROLE_FAMILIES[family]["adjacent"],
+    }
+
+
 # Build reverse lookup: surface form -> canonical
 _SURFACE_TO_CANONICAL: dict = {}
 for canonical, (synonyms, _adj) in TAXONOMY.items():
