@@ -1,35 +1,44 @@
 # Next-agent kickoff prompt
 
-Copy everything below the line into a fresh Claude Code session in this repo to continue the productionization work. It's written to stand alone — the new session has no memory of the prior one.
+Copy everything below the line into a fresh Claude Code session in this repo to continue the work. It's written to stand alone — the new session has no memory of the prior ones.
 
 ---
 
-You're continuing work on Tayari Skill Boost (an AI job-prep platform — Go gateway, Python AI engine, React frontend, self-hosted Supabase, browser extension). A prior session did a long, thorough pass fixing "fabrication and silent failure" bugs across the whole stack and closed out Phase 0 of a productionization program. Read these two files **in full** before doing anything else:
+You're continuing work on Tayari Skill Boost (an AI job-prep platform — Go gateway, Python AI engine, React frontend, self-hosted Supabase, browser extension). Two prior sessions (2026-08-24 and 2026-08-25) did long, thorough passes: fixed "fabrication and silent failure" bugs across the whole stack, closed Section 15 of the productionization program, then closed the remaining public-beta S0 release gates with real live evidence (endpoint inventory, hostile-staging suite, backup/restore drill, rollback/promotion drill) and found+fixed three more real bugs along the way, including one that meant the release image literally could not build. The release-gate decision is now **`PUBLIC BETA GO` (technical readiness) — see `TAYARI_RELEASE_GATE.md`**, up from `INTERNAL DEMO ONLY`. Read these files **in full** before doing anything else:
 
-1. **`HANDOFF_2026-08-24.md`** (repo root) — what was done, current verified state, exact commands to run the E2E suite correctly, and two environmental traps to avoid repeating.
-2. **`lessons.md`** (repo root, the last ~10 dated entries from 2026-08-24) — the detailed evidence and reasoning behind every fix, one entry per batch.
+1. **`HANDOFF_2026-08-24.md`** (repo root) — §1-8 cover 2026-08-24 (fabrication sweep, E2E suite fixes, two environmental traps to avoid repeating); **§9 covers 2026-08-25 and is the most recent state** — read it first if you're short on time.
+2. **`TAYARI_RELEASE_GATE.md`** (repo root) — the current, authoritative release decision and evidence table. Don't trust any older summary of "what's blocking" over this file.
+3. **`lessons.md`** (repo root, dated entries from 2026-08-24 and 2026-08-25) — the detailed command-level evidence and reasoning behind every fix. Don't re-derive something that's already here.
 
-Then read **`RUTHLESS_USER_SERVING_PRODUCTIONIZATION_PROGRAM_2026-08-24.md`** (repo root) in full — it's the operating document. Section 15 ("Specialist-Guided Omission Pass") is where you pick up; Phase 0 is done.
+`RUTHLESS_USER_SERVING_PRODUCTIONIZATION_PROGRAM_2026-08-24.md` and `TAYARI_REMEDIATION_TODOS.md`'s Section 15 are now **fully closed** (commit `88c5c85`) — do not re-open or redo that work. Verify with `git show --stat 88c5c85` and the corresponding `lessons.md` entries before assuming otherwise.
 
-## Your task
+## Current baseline (verify yourself, don't trust this blindly)
 
-Work through Section 15's findings, most severe first, the same way the prior session worked: read the cited code yourself and confirm the finding is real before fixing it (don't trust the document blindly — verify), fix it minimally and correctly, add or update a test, verify the fix live where practical (not just unit tests — this repo has a real local Docker stack, use it), and log every fix as a new dated entry in `lessons.md` with root cause + reusable lesson, matching the existing entries' format and honesty standard (no fabricated "PASS" claims — every claim needs real command output behind it).
+```bash
+cd backend/go && go build ./... && go vet ./... && go test ./...   # expect: 280 passed
+cd backend/python && JWT_SECRET="your-super-secret-jwt-token-with-at-least-32-characters-long" \
+  AI_INTERNAL_TOKEN="cc1b182c7692a3baededd1181438cfa1dca2434839d539f99c6d280e98d8d583" \
+  .venv/bin/python -m pytest app/ tests/ -q                        # expect: 951 passed, 4 skipped
+```
 
-Start with the P0s:
+`git log --oneline -1` should show `44fc3cf` or later, already on `origin/main`.
 
-- **DATA-006** — `backend/go/internal/api/routes_account.go`: account deletion can return `200 {"status":"deleted"}` even when the GoTrue deletion and its SQL fallback both fail. Fix so failure is never reported as success.
-- **REL-002** — the staging evidence verifier (`scripts/verify_staging_evidence_bundle.py` and related) accepts synthetic/placeholder attestations as real deployment proof. Make it reject fake domains, zero-hashes, and non-production environment labels for anything claiming to be final-staging/production evidence.
-- **CAP-001** — `backend/go/internal/capabilities/capabilities.go`: the always-on `workspace.task_control` capability's safety invariant ("can't reach submission when other capabilities are off") is currently a comment, not a test. Build the executable proof the document asks for.
+## What's actually left (in priority order)
 
-Then the P1s (DATA-007, DATA-008, OPS-007, OPS-008, AUTO-001) and P2 (REL-003) — full detail on each is in the document's §15.2 through §15.9.
+1. **Provision real production infrastructure.** This is the real next step and it needs the operator (human), not more code archaeology — an AWS account, a real domain, a real image registry, TLS. A draft `deploy/aws/.env` exists locally (gitignored, mode 600, **not in git** — check with the operator before assuming it's still there) with 4 real generated secrets and explicit `FILL-ME-IN` markers for everything that needs a real decision. Once those are filled, run `scripts/build-images.sh` against a real registry, then `deploy/aws/provision.sh` + `deploy/aws/deploy.sh`. Do not provision real cloud infra or spend real money unilaterally — confirm with the user at each hard-to-reverse step.
+2. **Kill-switch live timing.** `AutonomousBrowser` capability stays correctly disabled by default; M2-07's unit/contract proof already satisfies the S0 gate, so this is optional polish, not a blocker. Only pursue it if explicitly asked, and don't force the safety flag on without discussing it first.
+3. **Apple signing/notarization** — only relevant if macOS desktop distribution is wanted. Needs the operator's own Apple Developer credentials; you cannot and should not handle credentials directly. Separately scoped from the web beta per `TAYARI_RELEASE_GATE.md`'s own risk table.
+4. **M7/M8/M9** (`TAYARI_REMEDIATION_TODOS.md`) — competitive positioning, paid-pilot profitability, feature-maturity roadmap. Real business/product execution over weeks — not something to fabricate progress on in one session. If asked to work on these, scope honestly: most items need real users, real time-series data, or real business decisions, not code.
 
-## Rules that applied to the prior session and should apply to you
+## Rules that applied to prior sessions and should apply to you
 
-- **Never commit unless the user explicitly asks.** Never push, ever, without being asked. Leave your work staged/uncommitted for review by default.
-- **Rebuild Docker images after touching Go/frontend source before trusting a live test against them** — `docker compose build go-backend frontend && docker compose up -d go-backend frontend`. The containers don't hot-reload compiled/built code.
-- **Run the E2E suite the way §4 of `HANDOFF_2026-08-24.md` describes**, not bare `npx playwright test` — the default config points at fake stub URLs that only work for one narrow CI job.
-- **Check `lsof -i :<port>`** before concluding a flaky test result means a real bug — this repo's dev ports (8080, 8083, 8085, 8002) are easy to double-bind across a long session.
-- **A missing test is a gap you say out loud**, not a thing you silently skip. If writing a proper test is disproportionate to the fix (e.g. needs a DB-mocking harness that doesn't exist yet), say so explicitly and note it as a follow-up rather than skipping silently or inventing a fake-passing test.
-- **REL-001 (cutting an immutable release tag) is the user's call, not yours** — don't tag or push a release candidate unilaterally even if all gates look green.
+- **Never commit or push unless the user explicitly asks.** Leave work staged/uncommitted for review by default.
+- **Rebuild Docker images after touching Go/frontend source before trusting a live test against them** — `docker compose build <service> && docker compose up -d <service>`. Containers don't hot-reload compiled/built code.
+- **Run the E2E suite the way §4 of `HANDOFF_2026-08-24.md` describes**, not bare `npx playwright test` — the default config points at fake stub URLs.
+- **Use the project's `.venv/bin/python`, not system `python3`**, for any script involving `app.*` imports — a stale system Python literally caused a false "0 routes discovered" result in this repo before (see `lessons.md`, 2026-08-25).
+- **Check `lsof -i :<port>`** before concluding a flaky test result means a real bug.
+- **A missing test is a gap you say out loud**, not a thing you silently skip.
+- **Never fabricate a "PASS" claim.** Every result in `lessons.md` and `TAYARI_RELEASE_GATE.md` has real command output behind it — including cases where the first restore/build attempt genuinely failed and had to be redone properly (see `lessons.md`'s backup-restore and rollback entries). If something can't be verified live, say so explicitly rather than asserting it.
+- **Real infrastructure/credential/money decisions are the operator's call, not yours** — this applies to cloud provisioning, image registry pushes to a real (non-local) registry, Apple signing, and cutting an immutable release tag alike.
 
-Work through it the same way: read the actual code, verify the finding, fix minimally, test, verify live, log it. Be ruthless about finding the *real* bug, not the first plausible one — several fixes in the prior session turned out to have a second, deeper layer once the first fix removed a mask hiding it.
+Work the same way the prior sessions did: read the actual code, verify a finding is real before fixing it, fix minimally, test, verify live where practical, log it in `lessons.md` with root cause + reusable lesson. Be ruthless about finding the *real* bug, not the first plausible one — several fixes across both prior sessions turned out to have a second, deeper layer once the first fix removed a mask that was hiding it.
