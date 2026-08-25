@@ -5,13 +5,16 @@ import { resolve } from "node:path";
 describe("Manus-style task workflow contracts", () => {
   it("routes natural-language intake into a durable reviewed task", () => {
     const source = readFileSync(resolve(process.cwd(), "src/pages/DesktopAgent.tsx"), "utf8");
+    const recipes = readFileSync(resolve(process.cwd(), "src/lib/agent/taskRecipes.ts"), "utf8");
 
     expect(source).toContain("createTask({");
     expect(source).toContain("createTaskPlan(created.id");
-    expect(source).toContain("candidate_context.read");
-    expect(source).toContain("risk_tier: \"read\"");
-    expect(source).toContain("requires_approval: true");
+    expect(source).toContain("toTaskPlanSteps(recipe)");
     expect(source).toContain("navigate(`/tay/tasks/${created.id}`)");
+    expect(recipes).toContain("candidate_context.read");
+    expect(recipes).toContain("risk_tier: \"read\"");
+    expect(recipes).toContain("requires_approval: true");
+    expect(recipes).not.toContain('risk_tier: "submission"');
   });
 
   it("keeps execution controls and submission boundaries in the control room", () => {

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
@@ -61,6 +61,32 @@ def normalize_job_url(url: str | None) -> str:
     )
     path = parts.path.rstrip("/") or "/"
     return urlunsplit((parts.scheme.lower(), netloc, path, query, ""))
+
+
+def freshness_status(
+    observed_at: str | datetime | None,
+    *,
+    now: datetime | None = None,
+    fresh_for: timedelta = timedelta(hours=72),
+) -> str:
+    """Classify source freshness without fetching or inferring provider state."""
+    if not observed_at:
+        return "unknown"
+    try:
+        timestamp = observed_at if isinstance(observed_at, datetime) else datetime.fromisoformat(str(observed_at).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return "unknown"
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    reference = now or datetime.now(timezone.utc)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone.utc)
+    age = reference - timestamp.astimezone(timezone.utc)
+    if age <= fresh_for:
+        return "fresh"
+    if age <= fresh_for * 2:
+        return "aging"
+    return "stale"
 
 
 def job_identity(job: dict) -> dict:

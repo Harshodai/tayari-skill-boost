@@ -29,7 +29,7 @@ APPROVAL_STATES: Final = (
     "consumed",
 )
 _HASH_LENGTH = 64
-_ALLOWED_PROVENANCE_KEYS = frozenset({"source", "source_url", "provider", "parser_version", "policy_version", "confidence", "observed_at"})
+_ALLOWED_PROVENANCE_KEYS = frozenset({"source", "source_url", "provider", "parser_version", "policy_version", "confidence", "observed_at", "freshness"})
 
 
 class InvalidStageEnvelope(ValueError):

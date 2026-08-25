@@ -1,4 +1,6 @@
-from app.services.job_identity import attach_job_identity, job_identity, normalize_job_url
+from datetime import datetime, timedelta, timezone
+
+from app.services.job_identity import attach_job_identity, freshness_status, job_identity, normalize_job_url
 
 
 def test_normalize_job_url_removes_tracking_and_fragment():
@@ -28,3 +30,12 @@ def test_attach_identity_does_not_mutate_input_and_preserves_observed_provenance
     assert "job_identity" not in original
     assert enriched["job_identity"]["source_url"] == "https://jobs.example.com/42"
     assert enriched["job_identity"]["observed_at"].endswith("+00:00")
+
+
+def test_freshness_status_is_deterministic_and_fail_closed():
+    now = datetime(2026, 8, 25, 12, tzinfo=timezone.utc)
+    assert freshness_status(now - timedelta(hours=12), now=now) == "fresh"
+    assert freshness_status(now - timedelta(hours=100), now=now) == "aging"
+    assert freshness_status(now - timedelta(hours=200), now=now) == "stale"
+    assert freshness_status("not-a-timestamp", now=now) == "unknown"
+    assert freshness_status(None, now=now) == "unknown"

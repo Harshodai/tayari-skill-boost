@@ -50,6 +50,7 @@ import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner"
 import { buildApplyChain } from "@/lib/automation/applyChain";
 import { toast } from "sonner";
 import { WelcomeTour } from "@/components/onboarding/WelcomeTour";
+import { TASK_RECIPES } from "@/lib/agent/taskRecipes";
 
 
 const Dashboard = () => {
@@ -218,6 +219,25 @@ const Dashboard = () => {
                 Launch One-Shot Console <ArrowRight className="w-4 h-4 ml-2" />
               </Link>
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* Ruthless Automation Center */}
+        <Card className="mb-6 border-primary/25 bg-gradient-to-r from-primary/8 via-card to-card">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2"><Zap className="w-4 h-4 text-primary" /> Ruthless Automation Center</CardTitle>
+              <CardDescription>Choose a bounded lane. Tay prepares the work, records the evidence, and stops before an external write.</CardDescription>
+            </div>
+            <Button asChild size="sm" variant="outline"><Link to="/tay">Open Desktop Assist</Link></Button>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              {TASK_RECIPES.map((recipe) => {
+                const Icon = recipe.id === "application_packet" ? FileText : recipe.id === "opportunity_sweep" ? Briefcase : recipe.id === "interview_sprint" ? Mic : Mail;
+                return <Link key={recipe.id} to={`/tay?lane=${recipe.id}`} className="group rounded-xl border border-border/60 bg-background/45 p-3 transition-colors hover:border-primary/40 hover:bg-accent/30"><div className="flex items-center gap-2 text-xs font-semibold text-foreground group-hover:text-primary"><Icon className="w-4 h-4 text-primary" />{recipe.title}</div><p className="mt-1.5 text-[11px] leading-5 text-muted-foreground">{recipe.promise}</p></Link>;
+              })}
+            </div>
           </CardContent>
         </Card>
 

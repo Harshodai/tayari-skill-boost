@@ -56,7 +56,7 @@ from app.services.db import (
 from app.llm.long_context import LONG_TEXT_PLACEHOLDER, LongContextClient
 from app.services.job_agent import smart_search
 from app.services.job_providers import search_jobs
-from app.services.job_identity import attach_job_identity
+from app.services.job_identity import attach_job_identity, freshness_status
 from app.services.optimizer import optimize_with_reflection
 from app.services.job_application_automation import apply_job
 from app.services.browser_library import Browser
@@ -512,6 +512,13 @@ async def run_autopilot(
 
                 application_id = str(uuid.uuid4())
                 job_identity_record = job.get("job_identity") or {}
+                job_freshness = freshness_status(job_identity_record.get("observed_at"))
+                job_provenance = {
+                    "provider": job_identity_record.get("provider", "unknown"),
+                    "source_url": job_identity_record.get("source_url"),
+                    "observed_at": job_identity_record.get("observed_at"),
+                    "freshness": job_freshness,
+                }
                 application = {
                     "application_id": application_id,
                     "job": {k: v for k, v in job.items() if not k.startswith("_")},
@@ -549,11 +556,7 @@ async def run_autopilot(
                             profile_snapshot_hash=profile_snapshot_hash,
                             job_identity_key=str(job_identity_record.get("key") or ""),
                             job_source_url=job_identity_record.get("source_url"),
-                            job_provenance={
-                                "provider": job_identity_record.get("provider", "unknown"),
-                                "source_url": job_identity_record.get("source_url"),
-                                "observed_at": job_identity_record.get("observed_at"),
-                            },
+                            job_provenance=job_provenance,
                             input_hash=resume_input_hash,
                             output_hash=_sha256_text(job_identity_record),
                         ).to_dict(),
@@ -568,7 +571,7 @@ async def run_autopilot(
                         profile_snapshot_hash=profile_snapshot_hash,
                         job_identity_key=str(job_identity_record.get("key") or ""),
                         job_source_url=job_identity_record.get("source_url"),
-                        job_provenance={"provider": job_identity_record.get("provider", "unknown")},
+                        job_provenance=job_provenance,
                         input_hash=resume_input_hash,
                         output_hash=_sha256_text({"before": base_score, "after": ats_after}),
                     ).to_dict()
@@ -582,7 +585,7 @@ async def run_autopilot(
                         profile_snapshot_hash=profile_snapshot_hash,
                         job_identity_key=str(job_identity_record.get("key") or ""),
                         job_source_url=job_identity_record.get("source_url"),
-                        job_provenance={"provider": job_identity_record.get("provider", "unknown")},
+                        job_provenance=job_provenance,
                         artifact_hash=_sha256_text(tailored_text),
                         artifact_version="tailored-resume-v1",
                         artifact_provenance={"policy_version": "candidate-controlled-v1"},
@@ -611,7 +614,7 @@ async def run_autopilot(
                         profile_snapshot_hash=profile_snapshot_hash,
                         job_identity_key=str(job_identity_record.get("key") or ""),
                         job_source_url=job_identity_record.get("source_url"),
-                        job_provenance={"provider": job_identity_record.get("provider", "unknown")},
+                        job_provenance=job_provenance,
                         artifact_hash=_sha256_text(cover),
                         artifact_version="cover-letter-v1",
                         artifact_provenance={"policy_version": "grounded-draft-v1"},
@@ -628,7 +631,7 @@ async def run_autopilot(
                         profile_snapshot_hash=profile_snapshot_hash,
                         job_identity_key=str(job_identity_record.get("key") or ""),
                         job_source_url=job_identity_record.get("source_url"),
-                        job_provenance={"provider": job_identity_record.get("provider", "unknown")},
+                        job_provenance=job_provenance,
                         artifact_hash=_sha256_text({"resume": tailored_text, "cover_letter": cover}),
                         artifact_version="review-package-v1",
                         artifact_provenance={"policy_version": "candidate-review-required-v1"},

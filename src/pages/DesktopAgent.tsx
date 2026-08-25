@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { AlertCircle, ArrowRight, Bot, CheckCircle2, ChevronRight, FileText, FolderOpen, Globe2, Loader2, Play, RefreshCw, ShieldCheck, Square, TerminalSquare } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { AlertCircle, BellRing, Bot, CheckCircle2, ChevronRight, FileText, FolderOpen, Globe2, Loader2, Play, RefreshCw, Search, ShieldCheck, Square, TerminalSquare, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { apiFetch, BackendUnavailableError, createTask, createTaskPlan } from "@/api";
+import { BackendUnavailableError, createTask, createTaskPlan, listTasks, type TaskRun } from "@/api";
+import { getTaskRecipe, isTaskRecipeId, TASK_RECIPES, toTaskPlanSteps, type TaskRecipeId } from "@/lib/agent/taskRecipes";
 import tayAgentAvatar from "@/assets/tay-agent.png";
 
 type DesktopStatus = Awaited<ReturnType<NonNullable<typeof window.tayariDesktop>["status"]>>;
@@ -17,6 +18,8 @@ const ACTIONS = [
 export default function DesktopAgent() {
   const desktop = window.tayariDesktop;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedLane = searchParams.get("lane");
   const [status, setStatus] = useState<DesktopStatus | null>(null);
   const [files, setFiles] = useState<LocalFile[]>([]);
   const [task, setTask] = useState("");
@@ -24,6 +27,16 @@ export default function DesktopAgent() {
   const [serviceAction, setServiceAction] = useState<"start" | "stop" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
+  const [recipeId, setRecipeId] = useState<TaskRecipeId>(() => isTaskRecipeId(requestedLane) ? requestedLane : "application_packet");
+  const [recentTasks, setRecentTasks] = useState<TaskRun[]>([]);
+
+  const recipe = getTaskRecipe(recipeId);
+
+  useEffect(() => {
+    void listTasks()
+      .then(({ tasks }) => setRecentTasks(tasks.slice(0, 5)))
+      .catch(() => setRecentTasks([]));
+  }, []);
 
   const serviceLabel = useMemo(() => {
     if (!desktop) return "Web workspace";
@@ -33,12 +46,12 @@ export default function DesktopAgent() {
     return "Local services stopped";
   }, [desktop, status]);
 
-  const refreshStatus = async () => {
+  const refreshStatus = useCallback(async () => {
     if (!desktop) return;
     setStatus(await desktop.status());
-  };
+  }, [desktop]);
 
-  useEffect(() => { void refreshStatus(); }, []);
+  useEffect(() => { void refreshStatus(); }, [refreshStatus]);
 
   const chooseFiles = async () => {
     if (!desktop) {
@@ -59,15 +72,11 @@ export default function DesktopAgent() {
     setRunning(true);
     try {
       const created = await createTask({
-        title: goal.slice(0, 80),
-        objective: goal,
+        title: `${recipe.title}: ${goal.slice(0, 56)}`,
+        objective: `${recipe.objective}\n\nCandidate request: ${goal}`,
       });
-      await createTaskPlan(created.id, [
-        { id: "review_goal", title: "Review the requested objective", requires_approval: false },
-        { id: "candidate_context", title: "Read your saved profile and latest resume", tool: "candidate_context.read", risk_tier: "read", requires_approval: false },
-        { id: "prepare_materials", title: "Prepare a reviewable draft", requires_approval: true },
-        { id: "human_review", title: "Pause for your approval before any external action", requires_approval: true },
-      ]);
+      await createTaskPlan(created.id, toTaskPlanSteps(recipe));
+      setRecentTasks((previous) => [created, ...previous.filter((task) => task.id !== created.id)].slice(0, 5));
       setResult(created);
       navigate(`/tay/tasks/${created.id}`);
     } catch (caught) {
@@ -147,7 +156,15 @@ export default function DesktopAgent() {
             </div>
 
             <div className="mt-7 rounded-2xl border border-slate-700/80 bg-[#0b1020] p-4 shadow-inner sm:p-5">
-              <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-white">What should Tay prepare?</p><p className="mt-1 text-xs text-slate-500">Agent work runs through the existing authenticated Job Tayari API.</p></div><span className="hidden rounded-full border border-emerald-300/15 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-emerald-200 sm:inline">Review-first</span></div>
+              <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-white">Choose an automation lane</p><p className="mt-1 text-xs text-slate-500">Every lane creates a durable plan and stops at a candidate-owned review boundary.</p></div><span className="hidden rounded-full border border-emerald-300/15 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-emerald-200 sm:inline">Review-first</span></div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {TASK_RECIPES.map((item) => {
+                  const Icon = item.id === "application_packet" ? FileText : item.id === "opportunity_sweep" ? Search : item.id === "interview_sprint" ? Video : BellRing;
+                  const selected = item.id === recipeId;
+                  return <button key={item.id} type="button" onClick={() => setRecipeId(item.id)} className={`rounded-xl border p-3 text-left transition ${selected ? "border-primary/60 bg-primary/10 shadow-[0_0_0_1px_rgba(165,180,252,.12)]" : "border-slate-800 bg-slate-950/60 hover:border-slate-600"}`} aria-pressed={selected}><div className="flex items-center gap-2"><Icon className={`h-4 w-4 ${selected ? "text-primary" : "text-slate-500"}`} /><span className="text-sm font-semibold text-slate-100">{item.title}</span></div><p className="mt-1.5 text-xs leading-5 text-slate-400">{item.description}</p><p className="mt-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">{item.promise}</p></button>;
+                })}
+              </div>
+              <div className="mt-4 rounded-lg border border-primary/15 bg-primary/5 px-3 py-2.5 text-xs leading-5 text-slate-300"><span className="font-semibold text-primary">{recipe.title}:</span> {recipe.steps.length} bounded steps, {recipe.steps.filter((step) => step.requires_approval).length} explicit review gates, and no autonomous submission or sending.</div>
               <textarea value={task} onChange={(event) => setTask(event.target.value)} placeholder="For example: Prepare a tailored application brief for this role and identify the parts I should review." className="mt-4 min-h-32 w-full resize-y rounded-xl border border-slate-700 bg-slate-950 p-3.5 text-sm leading-6 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-primary/60 focus:ring-2 focus:ring-primary/15" />
               <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex flex-wrap gap-2">{files.map((file) => <button key={file.path} onClick={() => void desktop?.revealFile(file.path)} className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 transition hover:border-slate-500 hover:text-white">{file.name}</button>)}<Button type="button" variant="ghost" size="sm" onClick={() => void chooseFiles()} className="text-slate-300 hover:bg-slate-800 hover:text-white"><FolderOpen className="mr-2 h-3.5 w-3.5" />Attach files</Button></div><Button type="button" onClick={() => void runTask()} disabled={running} className="bg-primary text-slate-950 hover:bg-primary/90">{running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}{running ? "Preparing…" : "Ask Tay"}</Button></div>
             </div>
@@ -158,7 +175,8 @@ export default function DesktopAgent() {
 
           <aside className="space-y-5">
             <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 backdrop-blur-xl"><p className="text-sm font-semibold text-white">Service status</p><p className="mt-1.5 text-xs leading-5 text-slate-400">The web workspace uses the authenticated JobTayari API. The optional desktop app can launch the local service stack, but setup and permissions remain visible.</p><div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/70 p-3 text-xs"><p className="text-slate-500">API endpoint</p><p className="mt-1 break-all font-mono text-slate-200">{status?.apiBaseUrl ?? "Checking…"}</p></div><div className="mt-3 grid grid-cols-2 gap-2"><Button type="button" variant="outline" disabled={!desktop || serviceAction !== null || status?.apiReachable} onClick={() => void controlServices("start")} className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">{serviceAction === "start" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Start"}</Button><Button type="button" variant="outline" disabled={!desktop || serviceAction !== null || !status?.apiReachable} onClick={() => void controlServices("stop")} className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">{serviceAction === "stop" ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Square className="mr-1.5 h-3.5 w-3.5" />Stop</>}</Button></div></section>
-            <section className="rounded-2xl border border-amber-300/15 bg-amber-300/5 p-4"><p className="text-sm font-semibold text-amber-100">Before a browser action</p><ol className="mt-3 space-y-2 text-xs leading-5 text-slate-400"><li className="flex gap-2"><span className="font-semibold text-amber-200">01</span>Confirm the target site and role.</li><li className="flex gap-2"><span className="font-semibold text-amber-200">02</span>Watch the browser-review stream.</li><li className="flex gap-2"><span className="font-semibold text-amber-200">03</span>Use the stop control if the work no longer matches your intent.</li></ol><Link to="/tay" className="mt-4 inline-flex items-center text-xs font-semibold text-amber-100 hover:text-white">Open task review <ChevronRight className="ml-1 h-3.5 w-3.5" /></Link></section>
+            <section className="rounded-2xl border border-amber-300/15 bg-amber-300/5 p-4"><p className="text-sm font-semibold text-amber-100">Ruthless guardrails</p><ol className="mt-3 space-y-2 text-xs leading-5 text-slate-400"><li className="flex gap-2"><span className="font-semibold text-amber-200">01</span>Only candidate-owned context and approved sources can be used.</li><li className="flex gap-2"><span className="font-semibold text-amber-200">02</span>Every risky step pauses with a durable approval or takeover.</li><li className="flex gap-2"><span className="font-semibold text-amber-200">03</span>No credentials, OTPs, CAPTCHAs, legal declarations, sends, or submissions are automated.</li><li className="flex gap-2"><span className="font-semibold text-amber-200">04</span>Stop means server-side cancellation, not merely hiding the UI.</li></ol><Link to="/tay" className="mt-4 inline-flex items-center text-xs font-semibold text-amber-100 hover:text-white">Open task review <ChevronRight className="ml-1 h-3.5 w-3.5" /></Link></section>
+            <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 backdrop-blur-xl"><div className="flex items-center justify-between"><p className="text-sm font-semibold text-white">Recent automation plans</p><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">{recentTasks.length}</span></div><div className="mt-3 space-y-2">{recentTasks.length === 0 ? <p className="text-xs leading-5 text-slate-500">No plans loaded yet. Start a lane above and its full execution record will appear in the control room.</p> : recentTasks.map((recent) => <Link key={recent.id} to={`/tay/tasks/${recent.id}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs transition hover:border-slate-600"><span className="truncate text-slate-300">{recent.title}</span><span className="shrink-0 text-slate-500">{recent.status.replaceAll("_", " ")}</span></Link>)}</div></section>
           </aside>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/layout";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,10 +83,15 @@ export function ApplyAgent() {
               <Eye className="mr-1 h-3.5 w-3.5" /> Glass box
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">
-            The agent reads the posting, matches your resume, drafts the form answers and shows
-            every step it took. You review and submit — it never clicks submit for you.
-          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              The agent reads the posting, matches your resume, drafts the form answers and shows
+              every step it took. You review and submit — it never clicks submit for you.
+            </p>
+            <Button asChild variant="outline" className="shrink-0">
+              <Link to="/tay">Open Desktop Assist</Link>
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
@@ -155,6 +161,11 @@ export function ApplyAgent() {
                 Facts are only reused from your resume. Anything the resume doesn't cover is
                 reported as a gap instead of invented.
               </p>
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-muted-foreground">
+                <p className="font-semibold text-foreground">Need a broader run?</p>
+                <p className="mt-1">Desktop Assist can also sweep opportunities, run a role-specific interview sprint, and prepare pipeline follow-ups. Each automation creates a visible plan and pauses before any external write.</p>
+                <Link to="/tay" className="mt-2 inline-flex font-medium text-primary hover:underline">Open the automation lanes →</Link>
+              </div>
             </CardContent>
           </Card>
 
