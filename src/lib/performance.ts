@@ -52,7 +52,7 @@ export function initPerformanceMonitoring() {
   });
 
   observe(["largest-contentful-paint"], (entries) => {
-    const lastEntry = entries.at(-1);
+    const lastEntry = entries[entries.length - 1];
     if (lastEntry) recordMetric("LCP", lastEntry.startTime);
   });
 
@@ -69,7 +69,7 @@ export function initPerformanceMonitoring() {
 
   if ("PerformanceEventTiming" in window) {
     observe(["event"], (entries) => {
-      const lastEntry = entries.at(-1) as (PerformanceEntry & { duration?: number }) | undefined;
+      const lastEntry = entries[entries.length - 1] as (PerformanceEntry & { duration?: number }) | undefined;
       if (lastEntry?.duration) recordMetric("INP", lastEntry.duration);
     });
   }

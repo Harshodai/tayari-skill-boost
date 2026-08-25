@@ -48,7 +48,7 @@ export function buildApplyChain(job: ApplyChainJob): ChainStep[] {
         // a raw string would silently drop the JD.
         const result = await optimizeResume(resume.id, { jobDescription: jd });
         ctx.optimizedText = result?.optimized_text || result?.text || "";
-        const score = result?.ats_score_after ?? result?.score;
+        const score = (result?.ats_score_after ?? result?.score) as number | undefined;
         return score ? `ATS match now ${Math.round(score)}%` : `Tailored "${resume.title}"`;
       },
     },
