@@ -9,7 +9,13 @@ import asyncio
 import logging
 from typing import Any, Callable
 
-from app.services.agent_db import create_runtime_approval, get_runtime_approval, create_agent_router_event
+from app.services.agent_db import (
+    create_agent_router_event,
+    create_agent_task_child,
+    create_runtime_approval,
+    get_runtime_approval,
+    update_agent_task_child,
+)
 from app.services.llm_service import llm_complete, llm_json
 from app.services.ai_orchestration import SwarmOutcome, SwarmStep, run_bounded_swarm, normalize_tier
 
@@ -90,6 +96,7 @@ class AgentRouter:
         secrets, or approve external actions. A caller must still enforce its
         own tool policy and human review before any sensitive operation.
         """
+        child_ids: dict[str, str] = {}
         if self.task_id:
             await create_agent_router_event(
                 user_id=self.user_id,
@@ -98,9 +105,31 @@ class AgentRouter:
                 summary=f"Started bounded specialist swarm ({len(steps)} steps)",
                 payload_json={"step_count": len(steps), "max_parallel": max_parallel},
             )
+            for step in steps:
+                child_id = await create_agent_task_child(
+                    user_id=self.user_id,
+                    task_id=self.task_id,
+                    step_id=step.step_id,
+                    role=step.role,
+                    input_value=step.input,
+                )
+                if child_id:
+                    child_ids[step.step_id] = child_id
         outcomes = await run_bounded_swarm(
             steps, worker, max_parallel=max_parallel, timeout_seconds=timeout_seconds
         )
+        if child_ids:
+            await asyncio.gather(*(
+                update_agent_task_child(
+                    user_id=self.user_id,
+                    child_id=child_ids[outcome.step_id],
+                    status=outcome.status,
+                    output_value=outcome.output,
+                    error_text=outcome.error,
+                )
+                for outcome in outcomes
+                if outcome.step_id in child_ids
+            ))
         if self.task_id:
             counts: dict[str, int] = {}
             for outcome in outcomes:

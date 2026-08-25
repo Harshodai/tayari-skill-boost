@@ -15,6 +15,7 @@ import { BoomerangCard } from "@/components/outcomes/BoomerangCard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { ReceiptCard, SubmissionReceiptItem } from "@/components/receipts/ReceiptCard";
 import { ReceiptStatus } from "@/components/receipts/ReceiptBadge";
+import { PracticeOutcomePanel } from "@/components/outcomes/PracticeOutcomePanel";
 
 type Stage = "saved" | "applied" | "interview" | "offer" | "rejected";
 
@@ -426,6 +427,8 @@ export default function Outcomes() {
             </Card>
 
             <BoomerangCard userId={userId} offers={funnel.offers} />
+
+            {userId && <PracticeOutcomePanel />}
 
             <p className="text-xs text-muted-foreground">
               "Applied" counts a role once its pipeline stage moved past Saved, or once a

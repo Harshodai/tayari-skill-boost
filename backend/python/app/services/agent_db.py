@@ -4,6 +4,7 @@ Uses the central asyncpg pool from app.services.db.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from typing import Any
@@ -384,6 +385,83 @@ async def update_agent_task_status(
         return True
     except Exception as exc:
         logger.error("Failed to update agent task status: %s", exc)
+        return False
+
+
+def _swarm_digest(value: Any) -> str:
+    serialized = json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+async def create_agent_task_child(
+    user_id: str,
+    task_id: str,
+    step_id: str,
+    role: str,
+    input_value: Any,
+    attempt_number: int = 1,
+) -> str | None:
+    """Persist a bounded child identity and input digest, never raw child input."""
+    if not user_id or not task_id or not step_id or not role or attempt_number < 1:
+        return None
+    pool = await get_pool()
+    if not pool:
+        return None
+    try:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO agent_task_children
+                    (user_id, task_id, step_id, role, attempt_number, status, input_digest, started_at)
+                VALUES ($1, $2, $3, $4, $5, 'running', $6, NOW())
+                ON CONFLICT (task_id, step_id, attempt_number) DO UPDATE SET
+                    status = 'running',
+                    input_digest = EXCLUDED.input_digest,
+                    started_at = NOW(),
+                    finished_at = NULL,
+                    error_text = NULL,
+                    updated_at = NOW()
+                RETURNING child_id
+                """,
+                user_id, task_id, step_id, role, attempt_number, _swarm_digest(input_value),
+            )
+        return str(row["child_id"]) if row else None
+    except Exception as exc:
+        logger.warning("Failed to create agent task child: %s", exc)
+        return None
+
+
+async def update_agent_task_child(
+    user_id: str,
+    child_id: str,
+    status: str,
+    output_value: Any = None,
+    error_text: str | None = None,
+) -> bool:
+    """Update child lifecycle with a digest only; raw specialist output is discarded."""
+    if status not in {"queued", "running", "completed", "failed", "timed_out", "cancelled"}:
+        return False
+    pool = await get_pool()
+    if not pool:
+        return False
+    output_digest = _swarm_digest(output_value) if output_value is not None else None
+    try:
+        async with pool.acquire() as conn:
+            result = await conn.execute(
+                """
+                UPDATE agent_task_children
+                SET status = $3,
+                    output_digest = $4,
+                    error_text = LEFT($5, 240),
+                    finished_at = CASE WHEN $3 IN ('completed', 'failed', 'timed_out', 'cancelled') THEN NOW() ELSE finished_at END,
+                    updated_at = NOW()
+                WHERE child_id = $1 AND user_id = $2
+                """,
+                child_id, user_id, status, output_digest, error_text,
+            )
+        return result.endswith("1")
+    except Exception as exc:
+        logger.warning("Failed to update agent task child: %s", exc)
         return False
 
 

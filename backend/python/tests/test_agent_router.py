@@ -65,6 +65,34 @@ async def test_agent_router_execute_swarm_returns_failure_isolated_outcomes():
 
 
 @pytest.mark.asyncio
+async def test_agent_router_execute_swarm_persists_digest_only_child_lifecycle(monkeypatch):
+    router = AgentRouter(user_id="user-123", task_id="task-456")
+
+    created = AsyncMock(side_effect=["child-one", "child-two"])
+    updated = AsyncMock(return_value=True)
+    events = AsyncMock(return_value=True)
+    monkeypatch.setattr("app.services.agent_router.create_agent_task_child", created)
+    monkeypatch.setattr("app.services.agent_router.update_agent_task_child", updated)
+    monkeypatch.setattr("app.services.agent_router.create_agent_router_event", events)
+
+    async def worker(step):
+        return {"specialist": step.role, "private_output": "never persisted"}
+
+    outcomes = await router.execute_swarm(
+        [SwarmStep("one", "research", {"job_id": "opaque-1"}), SwarmStep("two", "verify", {"job_id": "opaque-1"})],
+        worker,
+        max_parallel=2,
+        timeout_seconds=1,
+    )
+
+    assert [item.status for item in outcomes] == ["completed", "completed"]
+    assert created.await_count == 2
+    assert updated.await_count == 2
+    assert {call.kwargs["status"] for call in updated.await_args_list} == {"completed"}
+    assert all(call.kwargs["output_value"]["private_output"] == "never persisted" for call in updated.await_args_list)
+
+
+@pytest.mark.asyncio
 async def test_agent_router_tool_approval_approved():
     """request_tool_execution returns True if approval is approved."""
     router = AgentRouter(user_id="user-123", task_id="task-456", agent_id="my-agent")
@@ -289,6 +317,39 @@ async def test_agent_db_update_agent_task_status(monkeypatch):
     )
     assert success is True
     fake_conn.execute.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_agent_db_task_children_store_digests_and_owner_scope(monkeypatch):
+    fake_pool = MagicMock()
+    fake_conn = AsyncMock()
+    fake_pool.acquire.return_value = FakeContextManager(fake_conn)
+    monkeypatch.setattr(agent_db, "get_pool", AsyncMock(return_value=fake_pool))
+
+    fake_conn.fetchrow.return_value = {"child_id": "child-uuid-1"}
+    child_id = await agent_db.create_agent_task_child(
+        user_id="user-1",
+        task_id="task-uuid-1",
+        step_id="opportunity_discoverer",
+        role="discoverer",
+        input_value={"job_id": "opaque-job"},
+    )
+    assert child_id == "child-uuid-1"
+    insert_query = fake_conn.fetchrow.call_args.args[0]
+    assert "input_digest" in insert_query
+    assert "ON CONFLICT (task_id, step_id, attempt_number)" in insert_query
+    assert "opaque-job" not in insert_query
+
+    fake_conn.execute.return_value = "UPDATE 1"
+    assert await agent_db.update_agent_task_child(
+        user_id="user-1",
+        child_id="child-uuid-1",
+        status="completed",
+        output_value={"private": "not persisted"},
+    ) is True
+    update_query = fake_conn.execute.call_args.args[0]
+    assert "output_digest" in update_query
+    assert "user_id = $2" in update_query
 
 
 @pytest.mark.asyncio

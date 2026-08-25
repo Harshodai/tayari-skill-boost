@@ -131,6 +131,33 @@ export async function deleteMemoryControl(controlId: string): Promise<{ deleted:
   });
 }
 
+export interface PracticeOutcome {
+  id: string;
+  application_id?: string | null;
+  practice_session_id: string;
+  completion_status: "started" | "partial" | "completed" | "skipped" | string;
+  confidence: number;
+  interview_outcome: "unknown" | "no_interview" | "screen" | "technical" | "onsite" | "offer" | "rejected" | string;
+  correction_note?: string | null;
+  consent_acknowledged: boolean;
+  expires_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export async function recordPracticeOutcome(input: Omit<PracticeOutcome, "id" | "created_at" | "updated_at">): Promise<PracticeOutcome> {
+  const response = await apiFetch<{ outcome: PracticeOutcome }>("/v1/preparation/outcomes", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return response.outcome;
+}
+
+export async function listPracticeOutcomes(limit = 100): Promise<PracticeOutcome[]> {
+  const response = await apiFetch<{ outcomes: PracticeOutcome[] }>(`/v1/preparation/outcomes?limit=${Math.max(1, Math.min(limit, 200))}`);
+  return response.outcomes || [];
+}
+
 export interface ChainStage {
   key: string;
   label: string;

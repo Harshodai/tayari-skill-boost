@@ -58,6 +58,12 @@ func (s *Server) RegisterMemoryRoutes(r chi.Router) {
 			r.Delete("/api/v1/preferences/controls/{controlId}", s.handleMemoryProxyDELETEPath("/api/v1/preferences/controls/"))
 			r.Delete("/api/preferences/controls/{controlId}", s.handleMemoryProxyDELETEPath("/api/v1/preferences/controls/"))
 
+			// Preparation outcomes (consent-gated progress metadata)
+			r.Post("/api/v1/preparation/outcomes", s.handleMemoryProxyPOST("/api/v1/preparation/outcomes"))
+			r.Post("/api/preparation/outcomes", s.handleMemoryProxyPOST("/api/v1/preparation/outcomes"))
+			r.Get("/api/v1/preparation/outcomes", s.handleMemoryProxyGET("/api/v1/preparation/outcomes"))
+			r.Get("/api/preparation/outcomes", s.handleMemoryProxyGET("/api/v1/preparation/outcomes"))
+
 	})
 }
 
