@@ -49,9 +49,15 @@ var chainStagesQueries = []chainQuery{
 }
 
 // RegisterChainRoutes wires the chain endpoint under both prefixes (parity).
+// handleChain reads the caller's identity from context, so this route must
+// run behind authMiddleware — it never did before this fix (the function was
+// entirely unregistered until 2026-08-25, so the gap was never exercised).
 func (s *Server) RegisterChainRoutes(r chi.Router) {
-	r.Get("/api/v1/chain/{userId}", s.handleChain)
-	r.Get("/api/chain/{userId}", s.handleChain)
+	r.Group(func(r chi.Router) {
+		r.Use(s.authMiddleware)
+		r.Get("/api/v1/chain/{userId}", s.handleChain)
+		r.Get("/api/chain/{userId}", s.handleChain)
+	})
 }
 
 // countOrZero runs a COUNT query and returns 0 on any error (SRP: isolates

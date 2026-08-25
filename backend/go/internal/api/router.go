@@ -144,6 +144,9 @@ func (s *Server) routes() {
 	s.routesAnalytics(s.Router)
 	s.routesTenant(s.Router)
 	s.routesPush(s.Router)
+	s.RegisterSkillGapRoutes(s.Router)  // POST /skill-gaps (was dead — defined since 4998855, never wired)
+	s.routesApplicationsExtra(s.Router) // notes/interview-questions/parse-email/voice/stage (was dead)
+	s.RegisterChainRoutes(s.Router)     // GET /chain/{userId}, Dashboard pipeline strip (was dead)
 
 }
 

@@ -17,42 +17,55 @@ import (
 	"tayari-backend/internal/models"
 )
 
-// routesApplicationsExtra registers archive-ported per-application feature routes.
+// routesApplicationsExtra registers archive-ported per-application feature
+// routes. This function was defined but never called from anywhere (found
+// 2026-08-25 during a sweep of all route-registration functions after the
+// same class of bug turned up twice elsewhere the same day) — every route
+// below has been a live 404 since it was written.
+//
+// The Kanban-style applications CRUD this file also defines
+// (handleListApplicationsKanban / handleCreateApplicationKanban /
+// handleUpdateApplicationKanban / handleDeleteApplicationKanban) is
+// deliberately NOT wired here: routes_handlers.go's routesApplications
+// (which IS registered) already owns GET/POST /api/v1/applications and
+// GET/PUT/DELETE /api/v1/applications/{id} with different handlers —
+// registering both would panic chi on a duplicate route. Nothing in the
+// frontend calls the bare (non-v1) Kanban paths either (checked), so they
+// stay unregistered rather than half-wired without their v1 twin, which
+// would violate this repo's route-parity rule for no benefit.
+// Every handler here reads the caller's identity from context (contextKeyUser),
+// so the whole group must run behind authMiddleware — it never did before
+// this fix (the function was entirely unregistered until 2026-08-25).
 func (s *Server) routesApplicationsExtra(r chi.Router) {
-	// Custom notes
-	r.Post("/api/applications/{id}/notes", s.handleAddNote)
-	r.Delete("/api/applications/{id}/notes/{nid}", s.handleDeleteNote)
-	r.Post("/api/v1/applications/{id}/notes", s.handleAddNote)
-	r.Delete("/api/v1/applications/{id}/notes/{nid}", s.handleDeleteNote)
+	r.Group(func(r chi.Router) {
+		r.Use(s.authMiddleware)
 
-	// Interview-questions research
-	r.Post("/api/applications/{id}/interview-questions", s.handleApplicationInterviewQuestions)
-	r.Post("/api/v1/applications/{id}/interview-questions", s.handleApplicationInterviewQuestions)
+		// Custom notes — consumed by src/api/autopilot.ts (addApplicationNote /
+		// deleteApplicationNote), used from ApplicationAnalytics/Omnisave.
+		r.Post("/api/applications/{id}/notes", s.handleAddNote)
+		r.Delete("/api/applications/{id}/notes/{nid}", s.handleDeleteNote)
+		r.Post("/api/v1/applications/{id}/notes", s.handleAddNote)
+		r.Delete("/api/v1/applications/{id}/notes/{nid}", s.handleDeleteNote)
 
-	// AI email-paste → Kanban stage
-	r.Post("/api/applications/parse-email", s.handleParseEmail)
-	r.Post("/api/v1/applications/parse-email", s.handleParseEmail)
+		// Interview-questions research — consumed by src/api/autopilot.ts.
+		r.Post("/api/applications/{id}/interview-questions", s.handleApplicationInterviewQuestions)
+		r.Post("/api/v1/applications/{id}/interview-questions", s.handleApplicationInterviewQuestions)
 
-	// Voice notes
-	r.Post("/api/applications/{id}/voice", s.handleAddVoiceNote)
-	r.Get("/api/applications/{id}/voice/{nid}", s.handleGetVoiceNote)
-	r.Post("/api/v1/applications/{id}/voice", s.handleAddVoiceNote)
-	r.Get("/api/v1/applications/{id}/voice/{nid}", s.handleGetVoiceNote)
+		// AI email-paste → Kanban stage — consumed by src/api/autopilot.ts.
+		r.Post("/api/applications/parse-email", s.handleParseEmail)
+		r.Post("/api/v1/applications/parse-email", s.handleParseEmail)
 
-	// Kanban applications CRUD (archive compatible)
-	r.Get("/api/applications", s.handleListApplicationsKanban)
-	r.Post("/api/applications", s.handleCreateApplicationKanban)
-	r.Put("/api/applications/{id}", s.handleUpdateApplicationKanban)
-	r.Delete("/api/applications/{id}", s.handleDeleteApplicationKanban)
-	r.Patch("/api/applications/{id}/stage", s.handleUpdateApplicationStage)
-	r.Post("/api/applications/{id}/prep", s.handleApplicationPrep)
-	// v1
-	r.Get("/api/v1/applications", s.handleListApplicationsKanban)
-	r.Post("/api/v1/applications", s.handleCreateApplicationKanban)
-	r.Put("/api/v1/applications/{id}", s.handleUpdateApplicationKanban)
-	r.Delete("/api/v1/applications/{id}", s.handleDeleteApplicationKanban)
-	r.Patch("/api/v1/applications/{id}/stage", s.handleUpdateApplicationStage)
-	r.Post("/api/v1/applications/{id}/prep", s.handleApplicationPrep)
+		// Voice notes — consumed by src/api/autopilot.ts.
+		r.Post("/api/applications/{id}/voice", s.handleAddVoiceNote)
+		r.Get("/api/applications/{id}/voice/{nid}", s.handleGetVoiceNote)
+		r.Post("/api/v1/applications/{id}/voice", s.handleAddVoiceNote)
+		r.Get("/api/v1/applications/{id}/voice/{nid}", s.handleGetVoiceNote)
+
+		// Kanban stage transition — consumed by src/api/autopilot.ts. Does not
+		// collide with routesApplications (which has no PATCH route).
+		r.Patch("/api/applications/{id}/stage", s.handleUpdateApplicationStage)
+		r.Patch("/api/v1/applications/{id}/stage", s.handleUpdateApplicationStage)
+	})
 }
 
 // -------------------------------------------------------------------
@@ -85,7 +98,7 @@ func (s *Server) handleAddNote(w http.ResponseWriter, r *http.Request) {
 		UPDATE applications
 		SET notes_log = COALESCE(notes_log, '[]'::jsonb) || $1::jsonb,
 		    updated_at = NOW()
-		WHERE application_id=$2::uuid AND user_id=$3`,
+		WHERE (application_id::text=$2 OR id::text=$2) AND user_id=$3`,
 		string(noteJSON), appID, user.ID)
 	if err != nil {
 		log.Printf("handleAddNote: update failed: %v", err)
@@ -94,7 +107,7 @@ func (s *Server) handleAddNote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var notesLogRaw []byte
-	err = s.DB.Conn.QueryRowContext(r.Context(), "SELECT notes_log FROM applications WHERE application_id=$1::uuid AND user_id=$2", appID, user.ID).Scan(&notesLogRaw)
+	err = s.DB.Conn.QueryRowContext(r.Context(), "SELECT notes_log FROM applications WHERE (application_id::text=$1 OR id::text=$1) AND user_id=$2", appID, user.ID).Scan(&notesLogRaw)
 	var notesLog []interface{}
 	if err == nil {
 		_ = json.Unmarshal(notesLogRaw, &notesLog)
@@ -123,7 +136,7 @@ func (s *Server) handleDeleteNote(w http.ResponseWriter, r *http.Request) {
 		    WHERE elem->>'id' != $1
 		),
 		updated_at = NOW()
-		WHERE application_id=$2::uuid AND user_id=$3`,
+		WHERE (application_id::text=$2 OR id::text=$2) AND user_id=$3`,
 		nid, appID, user.ID)
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, "Failed to delete note")
@@ -131,7 +144,7 @@ func (s *Server) handleDeleteNote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var notesLogRaw []byte
-	err = s.DB.Conn.QueryRowContext(r.Context(), "SELECT notes_log FROM applications WHERE application_id=$1::uuid AND user_id=$2", appID, user.ID).Scan(&notesLogRaw)
+	err = s.DB.Conn.QueryRowContext(r.Context(), "SELECT notes_log FROM applications WHERE (application_id::text=$1 OR id::text=$1) AND user_id=$2", appID, user.ID).Scan(&notesLogRaw)
 	var notesLog []interface{}
 	if err == nil {
 		_ = json.Unmarshal(notesLogRaw, &notesLog)
@@ -164,7 +177,7 @@ func (s *Server) handleApplicationInterviewQuestions(w http.ResponseWriter, r *h
 	)
 	err := s.DB.Conn.QueryRowContext(r.Context(), `
 		SELECT COALESCE(title,''), COALESCE(company,''), COALESCE(notes,''), COALESCE(location,'')
-		FROM applications WHERE application_id=$1::uuid AND user_id=$2`,
+		FROM applications WHERE (application_id::text=$1 OR id::text=$1) AND user_id=$2`,
 		appID, user.ID,
 	).Scan(&title, &company, &notes, &location)
 	if err != nil {
@@ -200,7 +213,7 @@ func (s *Server) handleApplicationInterviewQuestions(w http.ResponseWriter, r *h
 	resultJSON, _ := json.Marshal(result)
 	_, _ = s.DB.Conn.ExecContext(r.Context(), `
 		UPDATE applications SET interview_research=$1::jsonb, updated_at=NOW()
-		WHERE application_id=$2::uuid AND user_id=$3`,
+		WHERE (application_id::text=$2 OR id::text=$2) AND user_id=$3`,
 		string(resultJSON), appID, user.ID)
 
 	s.respondJSON(w, http.StatusOK, result)
@@ -314,7 +327,7 @@ func (s *Server) handleAddVoiceNote(w http.ResponseWriter, r *http.Request) {
 		UPDATE applications
 		SET voice_notes = COALESCE(voice_notes, '[]'::jsonb) || $1::jsonb,
 		    updated_at = NOW()
-		WHERE application_id=$2::uuid AND user_id=$3`,
+		WHERE (application_id::text=$2 OR id::text=$2) AND user_id=$3`,
 		string(vnJSON), appID, user.ID)
 	if err != nil {
 		log.Printf("handleAddVoiceNote: update failed: %v", err)
@@ -341,7 +354,7 @@ func (s *Server) handleGetVoiceNote(w http.ResponseWriter, r *http.Request) {
 	var voiceNotes json.RawMessage
 	err := s.DB.Conn.QueryRowContext(r.Context(), `
 		SELECT COALESCE(voice_notes, '[]'::jsonb)
-		FROM applications WHERE application_id=$1::uuid AND user_id=$2`,
+		FROM applications WHERE (application_id::text=$1 OR id::text=$1) AND user_id=$2`,
 		appID, user.ID,
 	).Scan(&voiceNotes)
 	if err != nil {
@@ -575,7 +588,7 @@ func (s *Server) handleUpdateApplicationStage(w http.ResponseWriter, r *http.Req
 	}
 	_, err := s.DB.Conn.ExecContext(r.Context(), `
 		UPDATE applications SET stage=$1, status=$1, updated_at=NOW()
-		WHERE application_id=$2::uuid AND user_id=$3`,
+		WHERE (application_id::text=$2 OR id::text=$2) AND user_id=$3`,
 		req.Stage, appID, user.ID)
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, "Failed to update stage")
