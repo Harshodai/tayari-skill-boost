@@ -1,0 +1,69 @@
+flowchart LR
+  %% Public edge
+  U[Candidate browser\nWeb app / Chrome Companion] --> DNS[DNS A/AAAA record]
+  DNS --> TLS[Caddy\n80/443\nAutomatic TLS + HTTPS redirect]
+
+  subgraph EDGE[Public edge trust boundary]
+    TLS --> FE[Frontend container\nNginx static assets\nNo provider secrets]
+    TLS --> GW[Go Gateway\n:8080 internal\nJWT, CORS, rate limits, owner checks]
+    FE -->|/api/*| GW
+  end
+
+  subgraph APP[Private application network]
+    GW -->|X-AI-Internal-Token\ncanonical user/request context| AI[Python AI API\n:8000 internal\nFastAPI + guardrails + model routing]
+    GW --> DB[(Supabase/PostgreSQL\nSystem of record\nRLS/Auth/Storage)]
+    AI --> DB
+    AI --> REDIS[(Redis\nCelery queue/cache\nNot source of truth)]
+    WORKER[Celery worker\nbounded durable tasks\nreview-first actions] --> REDIS
+    WORKER --> DB
+    WORKER --> AI
+  end
+
+  subgraph AIINT[AI and workflow control plane]
+    AI --> ROUTER[Explicit model tiers\ncheap / fast / smart / deep / hermes]
+    ROUTER --> LLM[Approved LLM providers\nquota + timeout + cost envelope]
+    AI --> SWARM[Bounded specialist swarm\nmax parallelism + timeout\nchild lifecycle + digests]
+    SWARM --> WORKER
+    AI --> MEM[Memory layers\nworking / procedural / episodic / semantic\nowner-scoped + correction/expiry]
+    MEM --> DB
+    AI --> PREP[Role intelligence +\npreparation outcomes]
+    PREP --> DB
+  end
+
+  subgraph EXTERNAL[Explicitly authorized external integrations]
+    AI -. read-only/test scope .-> SCRAPE[Approved search/scraping providers]
+    GW -. test mode only .-> STRIPE[Stripe test mode\nwebhook signature + idempotency]
+    GW -. capability disabled by default .-> CONN[Connectors\nGmail/Calendar/etc. one at a time]
+    U -. PKCE + origin/tab grant\nno cookies/passwords .-> BROWSER[Chrome Companion local bridge\nmanual handoff for sensitive fields]
+  end
+
+  subgraph OPS[Operations and recovery boundary]
+    GW --> METRICS[Protected /metrics\nbounded labels]
+    AI --> LOGS[Redacted logs/traces]
+    WORKER --> METRICS
+    METRICS --> OBS[Dashboards + alerts + paging]
+    DB --> PITR[Managed backup/PITR\ndistinct-target restore]
+    REDIS --> RBACK[Queue recovery only\nnot system of record]
+    PITR --> RESTORE[Recovery drill\nRPO/RTO evidence]
+  end
+
+  subgraph RELEASE[Release and supply chain]
+    CI[Protected CI/CD\nGitHub OIDC + manual approval] --> IMAGES[Immutable image digests\nSBOM + provenance + attestation]
+    IMAGES --> TLS
+    IMAGES --> FE
+    IMAGES --> GW
+    IMAGES --> AI
+    IMAGES --> WORKER
+    IMAGES --> REDIS
+  end
+
+  classDef public fill:#e8f3ff,stroke:#2563eb,color:#0f172a;
+  classDef private fill:#ecfdf5,stroke:#059669,color:#0f172a;
+  classDef data fill:#fff7ed,stroke:#ea580c,color:#0f172a;
+  classDef external fill:#f5f3ff,stroke:#7c3aed,color:#0f172a;
+  classDef ops fill:#fefce8,stroke:#ca8a04,color:#0f172a;
+  class U,DNS,TLS,FE,GW,CI,IMAGES public;
+  class AI,WORKER,ROUTER,SWARM,MEM,PREP private;
+  class DB,REDIS,PITR,RBACK,RESTORE data;
+  class LLM,SCRAPE,STRIPE,CONN,BROWSER external;
+  class METRICS,LOGS,OBS ops;

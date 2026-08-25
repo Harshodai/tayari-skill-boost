@@ -15,6 +15,8 @@ The shared issue register is [`../../PRODUCTION_ISSUES.md`](../../PRODUCTION_ISS
 | Artifact | Purpose | Current status |
 |---|---|---|
 | `ARCHITECTURE.md` | Service boundaries, trust boundaries, dependency graph, and operating topology | Created; repository-aligned |
+| `tayari-production-architecture.mmd` / `.png` | Renderable production deployment topology and trust-boundary diagram | Created; repository-aligned |
+| `TAYARI_PRODUCTION_SETUP_GUIDE.md` | Operator setup, release, migrations, observability, recovery, scaling, browser safety, and launch gates | Created; staging and external gates explicit |
 
 | `PRODUCT_SPEC.md` | Public release scope, target users, critical product goals, and explicit internal-only surfaces | Created; public scope explicit |
 | `FEATURE_MATRIX.md` | Feature-by-feature success, failure, permission, accessibility, and E2E coverage | Created; live gaps explicit |
