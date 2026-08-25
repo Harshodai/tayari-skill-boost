@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, ThumbsUp, Briefcase, Building2, Tag } from "lucide-react";
+import { RefreshCw, ThumbsUp, Briefcase, Building2, Tag, Clock3, Trash2, ShieldQuestion } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { getPreferences, refreshPreferences, type PreferenceProfile } from "@/api";
+import { deleteMemoryControl, getPreferences, listMemoryControls, refreshPreferences, updateMemoryControl, type MemoryControl, type PreferenceProfile } from "@/api";
 
 // -------------------------------------------------------------------
 // M4 — preference profile visualization for the Settings page.
@@ -31,13 +31,18 @@ export function PreferenceProfileCard() {
   const [profile, setProfile] = useState<PreferenceProfile>(EMPTY_PROFILE);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [controls, setControls] = useState<MemoryControl[]>([]);
+  const [controlAction, setControlAction] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await getPreferences();
-        if (!cancelled) setProfile(res ?? EMPTY_PROFILE);
+        const [res, learnedControls] = await Promise.all([getPreferences(), listMemoryControls()]);
+        if (!cancelled) {
+          setProfile(res ?? EMPTY_PROFILE);
+          setControls(learnedControls);
+        }
       } catch {
         // ponytail: silent — no profile yet is a normal state for new users.
       } finally {
@@ -48,6 +53,33 @@ export function PreferenceProfileCard() {
       cancelled = true;
     };
   }, []);
+
+  const handleToggleControl = async (control: MemoryControl) => {
+    setControlAction(control.id);
+    try {
+      const updated = await updateMemoryControl(control.id, { is_active: !control.is_active });
+      setControls((items) => items.map((item) => item.id === updated.id ? updated : item));
+      toast.success(updated.is_active ? "Signal restored to your preference profile." : "Signal excluded from future personalization.");
+    } catch {
+      toast.error("Could not update this preference signal.");
+    } finally {
+      setControlAction(null);
+    }
+  };
+
+  const handleDeleteControl = async (control: MemoryControl) => {
+    if (!window.confirm("Delete this learned preference signal? It will no longer be used for personalization.")) return;
+    setControlAction(control.id);
+    try {
+      await deleteMemoryControl(control.id);
+      setControls((items) => items.filter((item) => item.id !== control.id));
+      toast.success("Preference signal deleted.");
+    } catch {
+      toast.error("Could not delete this preference signal.");
+    } finally {
+      setControlAction(null);
+    }
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -149,6 +181,33 @@ export function PreferenceProfileCard() {
             )}
           </>
         )}
+
+        <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
+          <div className="flex items-start gap-2">
+            <ShieldQuestion className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">Control what Job Tayari remembers</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Disable a signal when it is stale, or delete it permanently. Disabled and expired signals are excluded from future preference learning.</p>
+            </div>
+          </div>
+          {controls.length > 0 ? (
+            <div className="mt-4 space-y-2">
+              {controls.slice(0, 8).map((control) => (
+                <div key={control.id} className="flex flex-col gap-2 rounded-lg border border-border/50 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-foreground">{control.job_title || control.feedback_type}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">{control.company_name || control.job_id} · {control.feedback_source} · {control.confidence.replaceAll("_", " ")}</p>
+                    {control.expires_at && <p className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground"><Clock3 className="h-3 w-3" /> Expires {new Date(control.expires_at).toLocaleDateString()}</p>}
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button type="button" variant="outline" size="sm" disabled={controlAction === control.id} onClick={() => void handleToggleControl(control)} className="h-8 text-xs">{control.is_active ? "Disable" : "Restore"}</Button>
+                    <Button type="button" variant="ghost" size="sm" disabled={controlAction === control.id} onClick={() => void handleDeleteControl(control)} className="h-8 text-xs text-destructive hover:text-destructive"><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <p className="mt-3 text-xs text-muted-foreground">No individually learned signals are available yet.</p>}
+        </div>
       </CardContent>
     </Card>
   );

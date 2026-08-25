@@ -12,6 +12,7 @@ is the derived view (ponytail: YAGNI a separate user_preference_profiles table).
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Optional
 
 from fastapi import Depends, APIRouter, HTTPException, Header
@@ -20,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from app.services.preference_learning import run_preference_learning
 from app.services.event_log import log_feedback_event, list_feedback_events, VALID_FEEDBACK_TYPES
+from app.services.memory_controls import delete_memory_control, list_memory_controls, update_memory_control
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,12 @@ def _require_user(x_user_id: Optional[str]) -> str:
     if not x_user_id:
         raise HTTPException(status_code=401, detail="X-User-Id header is required")
     return x_user_id
+
+
+class MemoryControlUpdateRequest(BaseModel):
+    is_active: Optional[bool] = None
+    confidence: Optional[str] = Field(default=None, pattern="^(user_confirmed|user_inferred|system_inferred)$")
+    expires_at: Optional[datetime] = None
 
 
 class FeedbackRequest(BaseModel):
@@ -73,6 +81,47 @@ async def post_feedback(
         metadata=payload.metadata,
     )
     return {"success": ok}
+
+
+@preference_router.get("/controls")
+async def get_memory_controls(
+    x_user_id: str = Depends(get_current_user),
+    limit: int = 100,
+) -> dict:
+    user_id = _require_user(x_user_id)
+    return {"controls": await list_memory_controls(user_id, limit=limit)}
+
+
+@preference_router.patch("/controls/{control_id}")
+async def patch_memory_control(
+    control_id: str,
+    payload: MemoryControlUpdateRequest,
+    x_user_id: str = Depends(get_current_user),
+) -> dict:
+    user_id = _require_user(x_user_id)
+    if payload.is_active is None and payload.confidence is None and payload.expires_at is None:
+        raise HTTPException(status_code=400, detail="at least one correction field is required")
+    control = await update_memory_control(
+        user_id,
+        control_id,
+        is_active=payload.is_active,
+        confidence=payload.confidence,
+        expires_at=payload.expires_at,
+    )
+    if control is None:
+        raise HTTPException(status_code=404, detail="memory control not found")
+    return {"control": control}
+
+
+@preference_router.delete("/controls/{control_id}")
+async def remove_memory_control(
+    control_id: str,
+    x_user_id: str = Depends(get_current_user),
+) -> dict:
+    user_id = _require_user(x_user_id)
+    if not await delete_memory_control(user_id, control_id):
+        raise HTTPException(status_code=404, detail="memory control not found")
+    return {"deleted": True, "control_id": control_id}
 
 
 @preference_router.get("/feedback")

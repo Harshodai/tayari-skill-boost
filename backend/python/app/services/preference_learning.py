@@ -131,7 +131,13 @@ async def run_preference_learning(user_id: str) -> dict:
                 uuid.UUID(user_id),
             )
             rows = await conn.fetch(
-                "SELECT feedback_type, metadata FROM user_job_feedback WHERE user_id = $1::uuid",
+                """
+                SELECT feedback_type, metadata
+                FROM user_job_feedback
+                WHERE user_id = $1::uuid
+                  AND is_active = TRUE
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                """,
                 uuid.UUID(user_id),
             )
     except Exception as exc:  # noqa: BLE001

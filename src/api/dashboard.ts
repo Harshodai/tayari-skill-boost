@@ -95,6 +95,42 @@ export async function refreshPreferences(): Promise<PreferenceProfile> {
   return apiFetch<PreferenceProfile>("/v1/preferences/refresh", { method: "POST" });
 }
 
+export interface MemoryControl {
+  id: string;
+  job_id: string;
+  job_title?: string | null;
+  company_name?: string | null;
+  feedback_type: "liked" | "disliked" | "applied" | "skipped" | "saved" | string;
+  feedback_source: "manual" | "auto_detected" | string;
+  confidence: "user_confirmed" | "user_inferred" | "system_inferred" | string;
+  is_active: boolean;
+  expires_at?: string | null;
+  corrected_at?: string | null;
+  created_at?: string | null;
+}
+
+export async function listMemoryControls(limit = 100): Promise<MemoryControl[]> {
+  const response = await apiFetch<{ controls: MemoryControl[] }>(`/v1/preferences/controls?limit=${Math.max(1, Math.min(limit, 200))}`);
+  return response.controls || [];
+}
+
+export async function updateMemoryControl(
+  controlId: string,
+  input: { is_active?: boolean; confidence?: MemoryControl["confidence"]; expires_at?: string | null },
+): Promise<MemoryControl> {
+  const response = await apiFetch<{ control: MemoryControl }>(`/v1/preferences/controls/${encodeURIComponent(controlId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  return response.control;
+}
+
+export async function deleteMemoryControl(controlId: string): Promise<{ deleted: boolean; control_id: string }> {
+  return apiFetch<{ deleted: boolean; control_id: string }>(`/v1/preferences/controls/${encodeURIComponent(controlId)}`, {
+    method: "DELETE",
+  });
+}
+
 export interface ChainStage {
   key: string;
   label: string;

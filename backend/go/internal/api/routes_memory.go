@@ -49,8 +49,15 @@ func (s *Server) RegisterMemoryRoutes(r chi.Router) {
 		r.Post("/api/preferences/refresh", s.handleMemoryProxyPOST("/api/v1/preferences/refresh"))
 		r.Post("/api/v1/preferences/feedback", s.handleMemoryProxyPOST("/api/v1/preferences/feedback"))
 		r.Post("/api/preferences/feedback", s.handleMemoryProxyPOST("/api/v1/preferences/feedback"))
-		r.Get("/api/v1/preferences/feedback", s.handleMemoryProxyGET("/api/v1/preferences/feedback"))
-		r.Get("/api/preferences/feedback", s.handleMemoryProxyGET("/api/v1/preferences/feedback"))
+					r.Get("/api/v1/preferences/feedback", s.handleMemoryProxyGET("/api/v1/preferences/feedback"))
+			r.Get("/api/preferences/feedback", s.handleMemoryProxyGET("/api/v1/preferences/feedback"))
+			r.Get("/api/v1/preferences/controls", s.handleMemoryProxyGET("/api/v1/preferences/controls"))
+			r.Get("/api/preferences/controls", s.handleMemoryProxyGET("/api/v1/preferences/controls"))
+			r.Patch("/api/v1/preferences/controls/{controlId}", s.handleMemoryProxyPATCHPath("/api/v1/preferences/controls/"))
+			r.Patch("/api/preferences/controls/{controlId}", s.handleMemoryProxyPATCHPath("/api/v1/preferences/controls/"))
+			r.Delete("/api/v1/preferences/controls/{controlId}", s.handleMemoryProxyDELETEPath("/api/v1/preferences/controls/"))
+			r.Delete("/api/preferences/controls/{controlId}", s.handleMemoryProxyDELETEPath("/api/v1/preferences/controls/"))
+
 	})
 }
 
