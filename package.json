@@ -28,6 +28,7 @@
     "desktop:build:all": "node scripts/build-desktop.mjs --mac --arm64 --win --x64 --linux --x64",
     "extension:package": "node scripts/package-extension.mjs",
     "extension:validate": "node scripts/validate-extension.mjs",
+    "test:extension": "node --test extension/tests/*.integration.mjs",
     "docker:smoke": "bash scripts/local-docker-smoke.sh",
     "docker:down": "bash scripts/local-docker-smoke.sh --down"
   },
