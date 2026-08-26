@@ -56,6 +56,12 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - AI_INTERNAL_TOKEN=${AI_INTERNAL_TOKEN:-}
       - APPROVAL_SIGNING_KEY=${APPROVAL_SIGNING_KEY:-}
+      # Internal Compose DNS name for the Go gateway, read by
+      # submission_receipt.py's debit_submission_credit() to call back into
+      # Go's billing endpoint. Without this it falls back to
+      # http://127.0.0.1:8080, which is wrong inside a container — every
+      # credit debit connection-refuses silently.
+      - GO_BACKEND_URL=http://go-backend:8080
       - ENV=${ENV:-development}
       # Defaults preserve the historical dev behavior (single-process, live
       # reload) for anyone not setting these. Set UVICORN_RELOAD=false in a
@@ -121,6 +127,8 @@ services:
       - OPENROUTER_MODEL_SMART=${OPENROUTER_MODEL_SMART:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # See python-ai's environment block above for why this is required.
+      - GO_BACKEND_URL=http://go-backend:8080
     depends_on:
       redis:
         condition: service_healthy
@@ -315,6 +323,8 @@ services:
       - OPENROUTER_MODEL_SMART=${OPENROUTER_MODEL_SMART:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # See python-ai's environment block above for why this is required.
+      - GO_BACKEND_URL=http://go-backend:8080
     depends_on:
       redis:
         condition: service_healthy

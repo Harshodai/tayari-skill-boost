@@ -35,6 +35,8 @@ anonymous:
   - POST /api/v1/analytics/performance
   - POST /api/public/analyze-text
   - POST /api/v1/public/analyze-text
+  - POST /api/skill-gaps
+  - POST /api/v1/skill-gaps
   - POST /api/security/check-breached-password
   - POST /api/v1/security/check-breached-password
   - GET /api/oauth/gmail/callback

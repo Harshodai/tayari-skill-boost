@@ -24,6 +24,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:?AI_INTERNAL_TOKEN is required}
       APPROVAL_SIGNING_KEY: ${APPROVAL_SIGNING_KEY:?APPROVAL_SIGNING_KEY is required}
+      # Internal Compose DNS name for the Go gateway, read by
+      # submission_receipt.py's debit_submission_credit() to call back into
+      # Go's billing endpoint. Without this it falls back to
+      # http://127.0.0.1:8080, which is wrong inside a container.
+      GO_BACKEND_URL: http://go-backend:8080
       UVICORN_RELOAD: "false"
       UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
       LLM_PROVIDER: ${LLM_PROVIDER:?LLM_PROVIDER is required}
@@ -61,6 +66,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:?AI_INTERNAL_TOKEN is required}
       APPROVAL_SIGNING_KEY: ${APPROVAL_SIGNING_KEY:?APPROVAL_SIGNING_KEY is required}
+      # See python-ai's environment block above for why this is required.
+      GO_BACKEND_URL: http://go-backend:8080
       LLM_PROVIDER: ${LLM_PROVIDER:?LLM_PROVIDER is required}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
@@ -92,6 +99,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:?AI_INTERNAL_TOKEN is required}
       APPROVAL_SIGNING_KEY: ${APPROVAL_SIGNING_KEY:?APPROVAL_SIGNING_KEY is required}
+      # See python-ai's environment block above for why this is required.
+      GO_BACKEND_URL: http://go-backend:8080
       LLM_PROVIDER: ${LLM_PROVIDER:?LLM_PROVIDER is required}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}

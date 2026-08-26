@@ -33,6 +33,13 @@ jobs:
           # not ship the optional covdata helper used by aggregate profiles.
           GO_COVERAGE_MIN=20 bash ../../scripts/check_go_coverage.sh
 
+      - name: Vulnerability Check (govulncheck)
+        working-directory: backend/go
+        # Fails the build on any dependency vulnerability actually reachable
+        # from our call graph (govulncheck distinguishes "reachable" from
+        # merely "present in go.sum but never called").
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
   python-build:
     name: Python AI Service & Integrations Lint
     runs-on: ubuntu-latest

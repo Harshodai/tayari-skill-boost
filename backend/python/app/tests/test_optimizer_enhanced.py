@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from app.api import ai_routes
 from app.api.ai_routes import OptimizerRequest, _transition_payload, _validate_public_url
+from app.services.llm_service import LLMNotConfiguredError
 from app.services.optimizer import (
     analyze_keyword_gaps,
     remove_ai_buzzwords,
@@ -288,3 +289,45 @@ async def test_estimated_score_ignores_llm_self_report_prompt_injection():
     assert result["estimated_score"] == result["new_heuristic_score"], (
         "estimated_score must equal the deterministic heuristic score"
     )
+
+
+@pytest.mark.asyncio
+async def test_primary_llm_failure_propagates_instead_of_faking_success():
+    """Regression test for the bare `except Exception` that used to swallow
+    ANY failure of the primary optimization call (timeout, 429, malformed
+    JSON) and silently return the user's unmodified input resume dressed up
+    as "optimized" — no llm_available flag, no error signal. The route
+    (ai_routes.optimize_resume) already turns a propagated exception into an
+    honest 502 ("Optimization failed"); this proves the service layer no
+    longer intercepts that failure and fakes a 200 instead."""
+    with mock.patch("app.services.optimizer.LongContextClient") as MockClient:
+        instance = MockClient.return_value
+        instance.condense = mock.AsyncMock(side_effect=lambda text, **_: text)
+        instance.map_reduce_json = mock.AsyncMock(side_effect=TimeoutError("provider timed out"))
+
+        with pytest.raises(TimeoutError):
+            await optimize_with_reflection(
+                resume_text="Experienced backend engineer with Go and Python.",
+                job_description="Backend role requiring Go and Python.",
+            )
+
+
+@pytest.mark.asyncio
+async def test_primary_llm_not_configured_still_propagates_as_llmnotconfigured():
+    """LLMNotConfiguredError from the primary call must keep propagating as
+    itself (not be swallowed or re-wrapped) so ai_routes.py's dedicated
+    `except LLMNotConfiguredError -> 503 ai_service_unavailable` handler
+    fires, per this project's hard rule that AI endpoints never silently
+    succeed when unconfigured."""
+    with mock.patch("app.services.optimizer.LongContextClient") as MockClient:
+        instance = MockClient.return_value
+        instance.condense = mock.AsyncMock(side_effect=lambda text, **_: text)
+        instance.map_reduce_json = mock.AsyncMock(
+            side_effect=LLMNotConfiguredError("no provider configured")
+        )
+
+        with pytest.raises(LLMNotConfiguredError):
+            await optimize_with_reflection(
+                resume_text="Experienced backend engineer with Go and Python.",
+                job_description="Backend role requiring Go and Python.",
+            )

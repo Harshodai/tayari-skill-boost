@@ -90,6 +90,10 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/55-20260825_memory_correction_controls.sql",
         "zz-55-20260825_memory_correction_controls.sql",
     ),
+    "backend/db/migrations/20260826090000_fix_preference_summary_refresh_owner.sql": (
+        "supabase-local/volumes/db/init/56-20260826_fix_preference_summary_refresh_owner.sql",
+        "zz-56-20260826_fix_preference_summary_refresh_owner.sql",
+    ),
 }
 
 

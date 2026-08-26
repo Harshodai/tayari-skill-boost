@@ -64,6 +64,17 @@ def assert_safe_public_url(url: str) -> None:
     if _is_private_ip(host):
         raise TranscribeError(f"SSRF Blocked: IP address '{host}' is private/internal.")
 
+    # `_is_private_ip` only catches literal IP hosts. A DNS hostname (e.g. a Docker
+    # Compose service name, or any public-looking name that resolves to a private
+    # address) sails through the checks above untouched, since `_is_private_ip`
+    # raises/returns False for non-IP strings. Resolve it and validate every
+    # returned address is globally routable, reusing the vetted implementation
+    # from the agent engine instead of duplicating DNS-resolution logic here.
+    from app.agent.agent_engine import _is_safe_url
+
+    if not _is_safe_url(parsed.geturl()):
+        raise TranscribeError(f"SSRF Blocked: Host '{host}' does not resolve to a public address.")
+
 
 async def download_audio_file(url: str, out_dir: Path) -> Path:
     """Download audio file using yt-dlp safely."""

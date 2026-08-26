@@ -562,13 +562,22 @@ async def optimize_with_reflection(
         # resume back as if it had been "optimized".
         raise
     except Exception as exc:
-        logger.warning("Primary optimization LLM call failed: %s. Falling back to input resume.", exc)
-        optimized = resume_text
-        meta = {
-            "changes": ["Fallback: Optimization LLM call encountered error"],
-            "keywords_added": [],
-            "estimated_score": semantic_before["score"],
-        }
+        # ponytail (2026-08-26): this used to catch every failure here
+        # (timeout, 429 rate-limit, malformed JSON) and silently return the
+        # user's UNMODIFIED input resume as "optimized" — no llm_available
+        # flag, no error signal, just the original text disguised as a
+        # result. This is the PRIMARY generate call: if it fails there is no
+        # real optimized content to fall back to (unlike the reflexion
+        # refine pass below, which legitimately keeps pass-1's real output
+        # when only the *refinement* fails — that is genuine partial
+        # success, not fabrication). Re-raise so ai_routes.py's
+        # optimizer/optimize handler — which already distinguishes
+        # LLMNotConfiguredError (503 ai_service_unavailable) from any other
+        # exception (502 "Optimization failed") — can turn this into an
+        # honest error instead of a fake 200, matching the pattern already
+        # fixed in live_interview_copilot.py and its four siblings.
+        logger.error("Primary optimization LLM call failed: %s", exc)
+        raise
     heuristic = semantic_ats_score(optimized, jd)
     alignment_report = validate_master_alignment(optimized, resume_text)
     passes = 1

@@ -18,26 +18,29 @@ import (
 // -------------------------------------------------------------------
 
 func (s *Server) routesReviewQueue(r chi.Router) {
-	// Review Queue CRUD
-	r.Get("/api/v1/review-queue", s.handleListReviewQueue)
-	r.Get("/api/v1/review-queue/{id}", s.handleGetReviewQueueItem)
-	r.Put("/api/v1/review-queue/{id}/approve", s.handleApproveReviewQueueItem)
-	r.Put("/api/v1/review-queue/{id}/reject", s.handleRejectReviewQueueItem)
-	r.Put("/api/v1/review-queue/{id}/modify", s.handleModifyReviewQueueItem)
-	r.Put("/api/v1/review-queue/{id}/submit", s.handleSubmitApplication)
-	r.Post("/api/v1/review-queue/bulk-action", s.handleBulkReviewQueueAction)
-	r.Get("/api/v1/review-queue/stats", s.handleReviewQueueStats)
-	r.Get("/api/v1/review-queue/history/{id}", s.handleReviewQueueHistory)
-	// Archive-compatible aliases
-	r.Get("/api/review-queue", s.handleListReviewQueue)
-	r.Get("/api/review-queue/{id}", s.handleGetReviewQueueItem)
-	r.Put("/api/review-queue/{id}/approve", s.handleApproveReviewQueueItem)
-	r.Put("/api/review-queue/{id}/reject", s.handleRejectReviewQueueItem)
-	r.Put("/api/review-queue/{id}/modify", s.handleModifyReviewQueueItem)
-	r.Put("/api/review-queue/{id}/submit", s.handleSubmitApplication)
-	r.Post("/api/review-queue/bulk-action", s.handleBulkReviewQueueAction)
-	r.Get("/api/review-queue/stats", s.handleReviewQueueStats)
-	r.Get("/api/review-queue/history/{id}", s.handleReviewQueueHistory)
+	r.Group(func(r chi.Router) {
+		r.Use(s.authMiddleware)
+		// Review Queue CRUD
+		r.Get("/api/v1/review-queue", s.handleListReviewQueue)
+		r.Get("/api/v1/review-queue/{id}", s.handleGetReviewQueueItem)
+		r.Put("/api/v1/review-queue/{id}/approve", s.handleApproveReviewQueueItem)
+		r.Put("/api/v1/review-queue/{id}/reject", s.handleRejectReviewQueueItem)
+		r.Put("/api/v1/review-queue/{id}/modify", s.handleModifyReviewQueueItem)
+		r.Put("/api/v1/review-queue/{id}/submit", s.handleSubmitApplication)
+		r.Post("/api/v1/review-queue/bulk-action", s.handleBulkReviewQueueAction)
+		r.Get("/api/v1/review-queue/stats", s.handleReviewQueueStats)
+		r.Get("/api/v1/review-queue/history/{id}", s.handleReviewQueueHistory)
+		// Archive-compatible aliases
+		r.Get("/api/review-queue", s.handleListReviewQueue)
+		r.Get("/api/review-queue/{id}", s.handleGetReviewQueueItem)
+		r.Put("/api/review-queue/{id}/approve", s.handleApproveReviewQueueItem)
+		r.Put("/api/review-queue/{id}/reject", s.handleRejectReviewQueueItem)
+		r.Put("/api/review-queue/{id}/modify", s.handleModifyReviewQueueItem)
+		r.Put("/api/review-queue/{id}/submit", s.handleSubmitApplication)
+		r.Post("/api/review-queue/bulk-action", s.handleBulkReviewQueueAction)
+		r.Get("/api/review-queue/stats", s.handleReviewQueueStats)
+		r.Get("/api/review-queue/history/{id}", s.handleReviewQueueHistory)
+	})
 }
 
 // -------------------------------------------------------------------

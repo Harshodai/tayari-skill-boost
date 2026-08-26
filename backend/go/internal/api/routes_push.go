@@ -10,10 +10,17 @@ import (
 	"github.com/google/uuid"
 )
 
+// routesPush wires the push-notification endpoints. Both handlers read the
+// caller's identity from context, so this must run behind authMiddleware —
+// it never did before this fix, so every request 401'd unconditionally and
+// push registration/sending was dead for every user.
 func (s *Server) routesPush(r chi.Router) {
-	// Protected push routes
-	r.Post("/api/v1/push/register", s.handlePushRegister)
-	r.Post("/api/v1/push/send", s.handlePushSend)
+	r.Group(func(r chi.Router) {
+		r.Use(s.authMiddleware)
+		// Protected push routes
+		r.Post("/api/v1/push/register", s.handlePushRegister)
+		r.Post("/api/v1/push/send", s.handlePushSend)
+	})
 }
 
 type PushRegisterRequest struct {

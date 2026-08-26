@@ -174,15 +174,42 @@ func (s *Server) handleApplicationInterviewQuestions(w http.ResponseWriter, r *h
 		company  string
 		notes    string
 		location string
+		job      models.JSONMap
 	)
 	err := s.DB.Conn.QueryRowContext(r.Context(), `
-		SELECT COALESCE(title,''), COALESCE(company,''), COALESCE(notes,''), COALESCE(location,'')
+		SELECT COALESCE(title,''), COALESCE(company,''), COALESCE(notes,''), COALESCE(location,''), job
 		FROM applications WHERE (application_id::text=$1 OR id::text=$1) AND user_id=$2`,
 		appID, user.ID,
-	).Scan(&title, &company, &notes, &location)
+	).Scan(&title, &company, &notes, &location, &job)
 	if err != nil {
 		s.respondError(w, http.StatusNotFound, "Application not found")
 		return
+	}
+	// Applications created via handleCreateApplication (the live
+	// POST /api/v1/applications path) only populate the `job` JSONB column —
+	// the plain title/company/location/notes text columns stay empty. Fall
+	// back to extracting from `job` so this endpoint isn't silently useless
+	// for every application created that way. Same fallback pattern as
+	// handleListApplications above.
+	if title == "" && job != nil {
+		if t, ok := job["title"].(string); ok {
+			title = t
+		}
+	}
+	if company == "" && job != nil {
+		if c, ok := job["company"].(string); ok {
+			company = c
+		}
+	}
+	if location == "" && job != nil {
+		if l, ok := job["location"].(string); ok {
+			location = l
+		}
+	}
+	if notes == "" && job != nil {
+		if d, ok := job["description"].(string); ok {
+			notes = d
+		}
 	}
 
 	// Load profile for summary

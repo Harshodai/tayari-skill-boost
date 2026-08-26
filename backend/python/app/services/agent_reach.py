@@ -326,7 +326,7 @@ async def extract_rss_content(url: str, client: httpx.AsyncClient) -> tuple[str,
     """Parse RSS/Atom feeds using feedparser."""
     try:
         import feedparser
-        res = await client.get(url, headers=UA_HEADER, timeout=10.0)
+        res = await _safe_redirect_get(client, url, headers=UA_HEADER, timeout=10.0)
         feed = feedparser.parse(res.text)
         title = feed.feed.get("title", "Tech RSS Feed")
         entries = []

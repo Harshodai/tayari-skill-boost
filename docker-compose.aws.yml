@@ -25,6 +25,11 @@ services:
       APPROVAL_SIGNING_KEY: ${APPROVAL_SIGNING_KEY:?APPROVAL_SIGNING_KEY is required}
       TAYARI_API_KEY: ${TAYARI_API_KEY:?TAYARI_API_KEY is required}
       AUTONOMOUS_SUBMIT_ENABLED: "false"
+      # Internal Compose DNS name for the Go gateway, read by
+      # submission_receipt.py's debit_submission_credit() to call back into
+      # Go's billing endpoint. Without this it falls back to
+      # http://127.0.0.1:8080, which is wrong inside a container.
+      GO_BACKEND_URL: http://go-backend:8080
       SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY is required}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -62,6 +67,8 @@ services:
       APPROVAL_SIGNING_KEY: ${APPROVAL_SIGNING_KEY:?APPROVAL_SIGNING_KEY is required}
       TAYARI_API_KEY: ${TAYARI_API_KEY:?TAYARI_API_KEY is required}
       AUTONOMOUS_SUBMIT_ENABLED: "false"
+      # See python-ai's environment block above for why this is required.
+      GO_BACKEND_URL: http://go-backend:8080
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       APIFY_API_TOKEN: ${APIFY_API_TOKEN:-}
