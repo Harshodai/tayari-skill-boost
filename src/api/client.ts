@@ -47,7 +47,20 @@ export function isBackendUnavailable(error: unknown): boolean {
 
 export function handleUnauthorized(): never {
   localStorage.removeItem("auth_token");
-  window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+  // Only force a global client-side sign-out in self-hosted mode, where the
+  // Go gateway issues and owns the user's ONLY session — a 401 there really
+  // does mean that session is invalid. In Supabase mode the Go gateway is a
+  // secondary API called with a forwarded Supabase token; a 401 from it
+  // means that one gateway call failed (e.g. a real deployment's Go/Supabase
+  // config drifted, or a specific route needs a scope this token lacks) —
+  // not that the user's actual Supabase session is invalid. Supabase's own
+  // client (AuthContext's onAuthStateChange) is the sole source of truth for
+  // that. Broadcasting auth:unauthorized here used to wipe the entire app's
+  // client-side auth state — including direct-Supabase features that never
+  // called the Go gateway at all — over a single unrelated 401.
+  if (USE_SELF_HOSTED) {
+    window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+  }
   throw new ApiError("Session expired", 401);
 }
 
