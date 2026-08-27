@@ -811,8 +811,59 @@ async function getActiveContext() {
     return { tab: { id: tab.id, title: tab.title || '', url: tab.url || '' }, job: { detected: false } };
   }
 }
+async function authorizeComputerBridgeAction(tabId) {
+  const bridge = await getComputerBridge();
+  if (!bridge) return { success: false, error: 'Connect this HTTPS tab to the browser bridge first.' };
+  if (!Number.isInteger(tabId) || tabId <= 0 || tabId !== bridge.tab_id) return { success: false, error: 'The reviewed tab is not the connected browser tab.' };
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || tab.id !== bridge.tab_id) return { success: false, error: 'The connected browser tab is not active.' };
+  let parsed;
+  try { parsed = new URL(tab.url || ''); } catch { return { success: false, error: 'The connected tab URL is unavailable.' }; }
+  if (parsed.protocol !== 'https:' || parsed.origin !== bridge.origin) return { success: false, error: 'The connected tab changed origin; reconnect is required.' };
+
+  const context = await getPageSnapshot(tabId);
+  if (!context) return { success: false, error: 'The connected tab did not provide a safe page observation.' };
+  const bounded = {
+    url: boundedText(context.url, 2048),
+    origin: bridge.origin,
+    title: boundedText(context.title, 240),
+    selection: boundedText(context.selection, 4000),
+    visibleText: boundedText(context.visibleText, 12000),
+    capturedAt: context.capturedAt || new Date().toISOString(),
+  };
+  const actionId = crypto.randomUUID();
+  const action = {
+    action_id: actionId,
+    run_id: bridge.run_id,
+    grant_id: bridge.grant.grant_id,
+    action_class: 'candidate_input',
+    kind: 'fill',
+    document_generation: 0,
+    origin: bridge.origin,
+    observation_sha256: await sha256Hex(JSON.stringify(bounded)),
+    params: { operation: 'approved_autofill' },
+  };
+  const config = await getConfig();
+  const response = await TayariSession.fetchJson(config, `v1/computer/runs/${encodeURIComponent(bridge.run_id)}/bridge/action/authorize`, {
+    method: 'POST',
+    body: JSON.stringify({ grant: bridge.grant, signature: bridge.signature, action, human_confirmed: true }),
+  });
+  if (!response.ok) return { success: false, error: 'Tayari rejected the reviewed browser action.' };
+  const authorization = await response.json();
+  if (authorization.success !== true || authorization.status !== 'authorized_for_local_execution') return { success: false, ...authorization };
+
+  try {
+    const execution = await chrome.tabs.sendMessage(tabId, { action: 'execute_authorized_bridge_action', bridgeAction: 'approved_autofill', approved: true });
+    return { ...execution, authorized: true, action_id: actionId, run_id: bridge.run_id };
+  } catch {
+    return { success: false, authorized: true, action_id: actionId, run_id: bridge.run_id, error: 'The server authorized the action, but the page did not execute it.' };
+  }
+}
+
 async function approvedAutofill(tabId) {
   if (!Number.isInteger(tabId) || tabId <= 0) return { success: false, error: 'No active page selected.' };
+  const bridge = await getComputerBridge();
+  if (bridge?.tab_id === tabId) return authorizeComputerBridgeAction(tabId);
   try {
     return await chrome.tabs.sendMessage(tabId, { action: 'autofill', approved: true });
   } catch {

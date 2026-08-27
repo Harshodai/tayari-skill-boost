@@ -187,11 +187,17 @@ def queue_autopilot(title: str, company: str, location: str = "", url: str = "",
 
     Note: This tool mutates the user's review queue state.
     """
-    # No backend route creates a review-queue item under any prefix — routes_review_queue.go
-    # only registers GET (list/item/stats/history) and PUT (approve/reject/modify/submit) plus
-    # POST .../bulk-action. There is no POST endpoint to enqueue a new item. Returning a clear
-    # error instead of guessing an endpoint that would silently 404.
-    return {"error": "queue_autopilot is not backed by a working endpoint yet — see routes_review_queue.go"}
+    return _post("/api/v1/review-queue/queue", {
+        "job": {
+            "title": title,
+            "company": company,
+            "location": location,
+            "description": job_description,
+            "url": url,
+        },
+        "apply_url": url,
+        "notes": "Queued by the Tayari MCP review workflow",
+    })
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))

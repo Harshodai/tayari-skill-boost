@@ -1097,6 +1097,18 @@
       return true;
     }
     
+    if (request.action === 'execute_authorized_bridge_action') {
+      if (request.bridgeAction !== 'approved_autofill' || request.approved !== true) {
+        sendResponse({ success: false, error: 'Only the reviewed candidate-input bridge action is supported.' });
+        return true;
+      }
+      loadProfileData().then(() => {
+        const result = autofillForm();
+        sendResponse({ ...result, execution: 'server_authorized_candidate_input' });
+      });
+      return true;
+    }
+
     if (request.action === 'autofill' || request.action === 'autofill_form') {
       if (request.approved !== true) {
         sendResponse({ success: false, error: 'Explicit approval is required before filling fields.' });

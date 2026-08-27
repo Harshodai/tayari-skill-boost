@@ -46,6 +46,7 @@ class ComputerRunPolicy(BaseModel):
     allowed_action_classes: tuple[ComputerActionClass, ...] = (
         ComputerActionClass.READ,
         ComputerActionClass.NAVIGATION,
+        ComputerActionClass.CANDIDATE_INPUT,
     )
     max_steps: int = Field(default=25, ge=1, le=100)
     grant_ttl_seconds: int = Field(default=300, ge=30, le=900)

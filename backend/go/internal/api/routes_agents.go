@@ -56,7 +56,42 @@ func (s *Server) routesAgents(r chi.Router) {
 		// this fix, so every visit to /desktop or /tay hit a real 404.
 		r.Get("/api/v1/ai/agent/runtime", s.handleAgentRuntime)
 		r.Get("/api/ai/agent/runtime", s.handleAgentRuntime)
+
+		// Python agent execution and career-automation routes. The frontend
+		// must reach these through the verified Go gateway rather than calling
+		// the Python service directly.
+		r.Post("/api/v1/ai/agent/run", s.handleAgentPythonPost("/api/v1/ai/agent/run"))
+		r.Post("/api/ai/agent/run", s.handleAgentPythonPost("/api/v1/ai/agent/run"))
+		r.Post("/api/v1/ai/agent/career/ats-prepare", s.handleAgentPythonPost("/api/v1/ai/agent/career/ats-prepare"))
+		r.Post("/api/ai/agent/career/ats-prepare", s.handleAgentPythonPost("/api/v1/ai/agent/career/ats-prepare"))
+		r.Post("/api/v1/ai/agent/career/ats-confirm", s.handleAgentPythonPost("/api/v1/ai/agent/career/ats-confirm"))
+		r.Post("/api/ai/agent/career/ats-confirm", s.handleAgentPythonPost("/api/v1/ai/agent/career/ats-confirm"))
+		r.Post("/api/v1/ai/agent/career/universal-apply", s.handleAgentPythonPost("/api/v1/ai/agent/career/universal-apply"))
+		r.Post("/api/ai/agent/career/universal-apply", s.handleAgentPythonPost("/api/v1/ai/agent/career/universal-apply"))
+
 	})
+}
+
+func (s *Server) handleAgentPythonPost(endpoint string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 256*1024))
+		if err != nil {
+			s.respondError(w, http.StatusBadRequest, "Failed to read agent request")
+			return
+		}
+		result, err := s.AI.PostJSONWithHeaders(endpoint, json.RawMessage(body), s.getXUserHeaders(r))
+		if err != nil {
+			log.Printf("agent Python POST %s: AI call failed: %v", endpoint, err)
+			var apiErr *ai.APIError
+			if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+				s.respondError(w, apiErr.StatusCode, apiErr.Body)
+				return
+			}
+			s.respondError(w, http.StatusBadGateway, "Agent service unavailable")
+			return
+		}
+		s.respondJSON(w, http.StatusOK, result)
+	}
 }
 
 func (s *Server) handleAgentRuntime(w http.ResponseWriter, r *http.Request) {

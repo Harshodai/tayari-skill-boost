@@ -82,6 +82,7 @@ function createBaseChrome() {
       async sendMessage(_tabId, request) {
         if (request.action === "get_page_context") return page;
         if (request.action === "detect_job") return job;
+        if (request.action === "execute_authorized_bridge_action") return { success: true, approved: request.approved === true, execution: "server_authorized_candidate_input" };
         if (request.action === "autofill") return { success: true, approved: request.approved === true };
         return { success: true };
       },
@@ -192,8 +193,9 @@ test("service worker bridge and task handlers enforce origin, approval, revocati
       async clear() { await local.remove("tayari_extension_session_v1"); },
       async fetchJson(config, path, init = {}) {
         apiCalls.push({ config, path, init });
-        if (path === "v1/computer/runs") return response({ run_id: "run-12345678901234567890", grant: "grant-1", signature: "sig-1", expires_at: new Date(Date.now() + 3600000).toISOString() });
+        if (path === "v1/computer/runs") return response({ run_id: "run-12345678901234567890", grant: { grant_id: "grant-12345678901234567890" }, signature: "sig-1", expires_at: new Date(Date.now() + 3600000).toISOString() });
         if (path.endsWith("/bridge/attach")) return response({ status: "granted" });
+        if (path.endsWith("/bridge/action/authorize")) return response({ success: true, status: "authorized_for_local_execution", action_id: "action-123" });
         if (path.endsWith("/bridge/observation")) return response({ status: "recorded" });
         if (path.endsWith("/revoke")) return response({ status: "revoked" });
         if (path === "v1/tasks") return response({ id: "task-12345678901234567890", status: "draft" });

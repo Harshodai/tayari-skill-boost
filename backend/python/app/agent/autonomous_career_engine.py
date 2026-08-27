@@ -1,11 +1,14 @@
 import asyncio
 import json
 import urllib.parse
+import uuid
 from typing import Dict, Any, List, Optional
 from app.agent.agent_engine import GeneralistAgentEngine
 from app.agent.email_connector import EmailConnector
 from app.agent.interview_board import InterviewBoardEngine
+from app.services.form_filler import FormFiller
 from app.services.llm_service import llm_complete, LLMNotConfiguredError
+from app.services.optimizer import optimize_with_reflection
 
 PORTAL_DOMAIN_MAP = {
     "greenhouse.io": "Greenhouse",
@@ -78,104 +81,140 @@ class AutonomousCareerEngine:
         }
 
     async def prepare_ats_keyword_optimization_hitl(self, resume_text: str, job_description: str) -> Dict[str, Any]:
-        """
-        Prepare sample ATS keyword proposal for preview before user review.
-        """
-        extracted_keywords = [
-            'Python', 'System Architecture', 'Kubernetes', 'High Availability',
-            'Microservices', 'Distributed Systems', 'PostgreSQL', 'gRPC', 'CI/CD Pipelines'
-        ]
-        approval_id = f"HITL-ATS-{len(self.pending_hitl_approvals) + 1:04d}"
+        """Run the real optimizer and hold its result for explicit review."""
+        if not resume_text.strip() or not job_description.strip():
+            raise ValueError("resume_text and job_description are required")
 
+        analysis = await optimize_with_reflection(
+            resume_text=resume_text,
+            job_description=job_description,
+        )
+        keyword_matrix = analysis.get("keyword_matrix") or {}
+        extracted_keywords = list(dict.fromkeys(
+            analysis.get("keywords_added")
+            or analysis.get("injectable_keywords")
+            or [
+                item["keyword"]
+                for key in ("hard_skills_matrix", "soft_skills_matrix", "domain_matrix")
+                for item in (keyword_matrix.get(key) or [])
+                if isinstance(item, dict) and item.get("keyword")
+            ]
+        ))[:30]
+        before = analysis.get("semantic_similarity_before")
+        if isinstance(before, dict):
+            before = before.get("score")
+        after = analysis.get("new_heuristic_score", analysis.get("estimated_score"))
+        approval_id = f"HITL-ATS-{uuid.uuid4().hex[:12].upper()}"
         proposal = {
             "approval_id": approval_id,
             "status": "PENDING_USER_APPROVAL",
-            "is_sample_data": True,
+            "is_sample_data": False,
             "extracted_keywords": extracted_keywords,
-            "resume_preview_with_keywords": f"{resume_text}\n\n[Candidate Technical Core]: {', '.join(extracted_keywords)}"
+            "predicted_ats_score_before": before,
+            "predicted_ats_score_after": after,
+            "resume_preview_with_keywords": analysis.get("optimized_text", ""),
+            "optimization_summary": analysis.get("optimization_summary", {}),
+            "alignment_report": analysis.get("alignment_report", {}),
         }
         self.pending_hitl_approvals[approval_id] = proposal
-
         return proposal
 
     async def confirm_ats_keyword_optimization_hitl(self, approval_id: str, approved: bool, custom_keywords: Optional[List[str]] = None) -> Dict[str, Any]:
-        """
-        Execute or decline the pending HITL keyword optimization based on user decision.
-        """
-        if approval_id not in self.pending_hitl_approvals:
+        """Accept or reject a real optimizer result after user review."""
+        item = self.pending_hitl_approvals.get(approval_id)
+        if item is None:
             return {"success": False, "error": f"Approval ID '{approval_id}' not found."}
-
-        item = self.pending_hitl_approvals[approval_id]
         if not approved:
             item["status"] = "REJECTED_BY_USER"
             return {"success": True, "status": "REJECTED_BY_USER", "message": "ATS Optimization cancelled by user."}
 
-        keywords_to_use = custom_keywords or item["extracted_keywords"]
-        item["status"] = "APPROVED_AND_APPLIED"
-        item["final_keywords"] = keywords_to_use
-
+        item["status"] = "APPROVED_AND_READY"
+        if custom_keywords:
+            item["approved_keywords"] = list(dict.fromkeys(custom_keywords))[:30]
         return {
             "success": True,
             "approval_id": approval_id,
-            "status": "APPROVED_AND_APPLIED",
-            "final_keywords": keywords_to_use
+            "status": item["status"],
+            "final_keywords": item.get("approved_keywords", item["extracted_keywords"]),
+            "final_ats_score": item.get("predicted_ats_score_after"),
+            "optimized_text": item.get("resume_preview_with_keywords", ""),
+            "message": "Optimized resume approved and ready for download or application review; nothing was submitted.",
         }
 
-    async def universal_batch_auto_apply(self, job_urls: List[str], candidate_profile: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Universal Batch Auto-Application for target job URLs.
-        """
+    async def universal_batch_auto_apply(
+        self,
+        job_urls: List[str],
+        candidate_profile: Dict[str, Any],
+        *,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Prepare bounded application forms for review without submitting them."""
         max_batch_size = 10
         target_urls = job_urls[:max_batch_size]
-
         application_log = []
-        for idx, url in enumerate(target_urls, 1):
-            detected_portal = "Universal Platform"
-            try:
-                parsed_url = urllib.parse.urlparse(url)
-                netloc = parsed_url.netloc.lower()
-                for domain, portal in PORTAL_DOMAIN_MAP.items():
-                    if netloc == domain or netloc.endswith("." + domain):
-                        detected_portal = portal
-                        break
-            except Exception:
-                pass
+        form_filler = FormFiller()
+        try:
+            for url in target_urls:
+                detected_portal = "Universal Platform"
+                try:
+                    parsed_url = urllib.parse.urlparse(url)
+                    netloc = parsed_url.netloc.lower()
+                    for domain, portal in PORTAL_DOMAIN_MAP.items():
+                        if netloc == domain or netloc.endswith("." + domain):
+                            detected_portal = portal
+                            break
+                except Exception:
+                    pass
 
-            # No click_coordinate is reported. It used to be derived from a
-            # hardcoded rectangle, so every row on every portal carried the
-            # identical "click coordinate" — a spatial-vision inspection that
-            # never happened.
-            try:
-                nav_res = await self.agent.browser.navigate(url)
-                success = nav_res.get("success", False)
+                tracking_id = f"FORM-PREP-{uuid.uuid4().hex[:12].upper()}"
+                try:
+                    result = await form_filler.execute_form_auto_fill(
+                        url,
+                        candidate_profile,
+                        user_id=user_id,
+                        run_id=tracking_id,
+                    )
+                    if result.get("success"):
+                        status = "FORM_PREPARED"
+                    elif result.get("needs_human"):
+                        status = "AWAITING_HUMAN_REVIEW"
+                    else:
+                        status = "FORM_PREPARATION_FAILED"
+                    application_log.append({
+                        "run_id": tracking_id,
+                        "url": url,
+                        "portal": detected_portal,
+                        "status": status,
+                        "submitted": False,
+                        "needs_human": bool(result.get("needs_human")),
+                        "questions_queued": result.get("questions_queued", 0),
+                        "actions_executed": result.get("actions_executed", []),
+                        "error": result.get("error"),
+                    })
+                except Exception as exc:
+                    application_log.append({
+                        "run_id": tracking_id,
+                        "url": url,
+                        "portal": detected_portal,
+                        "status": "FORM_PREPARATION_FAILED",
+                        "submitted": False,
+                        "needs_human": True,
+                        "questions_queued": 0,
+                        "actions_executed": [],
+                        "error": str(exc),
+                    })
+        finally:
+            await form_filler.close()
 
-                application_log.append({
-                    "app_id": f"EXEC-APP-{idx:03d}",
-                    "url": url,
-                    "portal": detected_portal,
-                    "status": "REACHED" if success else "NAVIGATION_FAILED",
-                    "hitl_verified": False
-                })
-            except Exception:
-                application_log.append({
-                    "app_id": f"EXEC-APP-{idx:03d}",
-                    "url": url,
-                    "portal": detected_portal,
-                    "status": "FAILED",
-                    "hitl_verified": False
-                })
-
-        # This routine only navigates to each posting — it fills no form and
-        # submits nothing — so it reports pages reached, never applications
-        # submitted. `total_submitted` is deliberately absent rather than 0:
-        # a key that does not exist cannot be rendered as a submission count.
+        prepared = sum(1 for item in application_log if item["status"] in {"FORM_PREPARED", "AWAITING_HUMAN_REVIEW"})
         return {
             "total_processed": len(application_log),
-            "total_reached": sum(1 for a in application_log if a["status"] == "REACHED"),
+            "total_prepared": prepared,
             "submitted": False,
-            "portals_covered": list(set(a["portal"] for a in application_log)),
+            "portals_covered": sorted({item["portal"] for item in application_log}),
             "all_supported_portals": list(PORTAL_DOMAIN_MAP.values()),
-            "applications": application_log
+            "applications": application_log,
+            "message": "Forms were prepared for human review. No application was submitted.",
         }
 
     async def generate_ai_salary_negotiation(self, current_offer: int, target_role: str, location: str, company: str) -> Dict[str, Any]:

@@ -471,7 +471,7 @@ export const AutonomousCareerConsole: React.FC = () => {
                 </div>
                 <div className="flex gap-3 pt-2">
                   <Button size="sm" onClick={() => handleATSConfirm(true)} className="bg-emerald-600 hover:bg-emerald-500">
-                    <CheckCircle2 className="w-4 h-4 mr-1" /> Approve & Apply Keywords
+                    <CheckCircle2 className="w-4 h-4 mr-1" /> Approve & Keep Optimized Resume
                   </Button>
                   <Button size="sm" onClick={() => handleATSConfirm(false)} variant="outline" className="border-red-800 text-red-400 hover:bg-red-950">
                     <XCircle className="w-4 h-4 mr-1" /> Decline Optimization
@@ -504,24 +504,25 @@ export const AutonomousCareerConsole: React.FC = () => {
               />
             </div>
 
-            <Button onClick={handleUniversalApply} disabled={loading} className="bg-emerald-600 hover:bg-emerald-500 font-semibold">
-              Launch Universal Batch Applications (5 Portals)
-            </Button>
+              <Button onClick={handleUniversalApply} disabled={loading} className="bg-emerald-600 hover:bg-emerald-500 font-semibold">
+              Prepare Application Forms for Review (up to 10)
+              </Button>
 
             {universalResult && (
               <div className="space-y-3 pt-4 font-mono text-xs">
-                {/* Navigation only — no form is filled and nothing is submitted. */}
                 <div className="text-amber-400 font-bold">
-                  Opened {universalResult.total_reached ?? 0} of {universalResult.total_processed ?? 0} postings
+                  Prepared {universalResult.total_prepared ?? 0} of {universalResult.total_processed ?? 0} forms
                   across Portals: {universalResult.portals_covered.join(', ')} — nothing submitted
                 </div>
                 <div className="space-y-2">
                   {universalResult.applications.map((ap: any) => (
-                    <div key={ap.app_id} className="p-3 rounded bg-slate-950 border border-slate-800 flex justify-between items-center">
+                    <div key={ap.run_id} className="p-3 rounded bg-slate-950 border border-slate-800 flex justify-between items-center">
                       <div>
-                        <span className="text-primary font-bold">{ap.app_id}</span> • Portal: <span className="text-slate-200 font-bold">{ap.portal}</span> • <span className="text-slate-400">{ap.url}</span>
+                        <span className="text-primary font-bold">{ap.run_id}</span> • Portal: <span className="text-slate-200 font-bold">{ap.portal}</span> • <span className="text-slate-400">{ap.url}</span>
                       </div>
-                      <Badge className="bg-emerald-950 text-emerald-300">ATS Match: {ap.ats_match_score}%</Badge>
+                      <Badge className={ap.status === 'FORM_PREPARED' ? 'bg-emerald-950 text-emerald-300' : 'bg-amber-950 text-amber-300'}>
+                        {ap.status}{ap.questions_queued ? ` · ${ap.questions_queued} question(s)` : ''}
+                      </Badge>
                     </div>
                   ))}
                 </div>

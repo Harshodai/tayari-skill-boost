@@ -343,18 +343,25 @@ async def ats_prepare(req: ATSPrepareRequest, user_id: str = Depends(get_current
     try:
         res = await _career_engine_for(user_id).prepare_ats_keyword_optimization_hitl(req.resume_text, req.job_description)
         return {"success": True, "data": res}
+    except LLMNotConfiguredError as exc:
+        logger.error("ATS prepare: LLM not configured/available: %s", exc)
+        raise HTTPException(status_code=503, detail="ATS optimization service unavailable.") from exc
     except Exception as e:
         logger.exception("ATS prepare error")
-        raise HTTPException(status_code=500, detail="ATS preparation failed.")
+        raise HTTPException(status_code=500, detail="ATS preparation failed.") from e
 
 @router.post("/career/ats-confirm")
 async def ats_confirm(req: ATSConfirmRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
         res = await _career_engine_for(user_id).confirm_ats_keyword_optimization_hitl(req.approval_id, req.approved, req.custom_keywords)
+        if res.get("success") is False:
+            raise HTTPException(status_code=404, detail=res.get("error", "ATS approval not found."))
         return {"success": True, "data": res}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("ATS confirm error")
-        raise HTTPException(status_code=500, detail="ATS confirmation failed.")
+        raise HTTPException(status_code=500, detail="ATS confirmation failed.") from e
 
 @router.post("/career/universal-apply")
 async def universal_apply(req: UniversalApplyRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
@@ -363,7 +370,11 @@ async def universal_apply(req: UniversalApplyRequest, user_id: str = Depends(get
             raise HTTPException(status_code=400, detail="Missing candidate_profile in request.")
         for url in req.job_urls:
             _validate_job_url(url)
-        res = await _career_engine_for(user_id).universal_batch_auto_apply(req.job_urls, req.candidate_profile)
+        res = await _career_engine_for(user_id).universal_batch_auto_apply(
+            req.job_urls,
+            req.candidate_profile,
+            user_id=user_id,
+        )
         return {"success": True, "data": res}
     except HTTPException:
         raise

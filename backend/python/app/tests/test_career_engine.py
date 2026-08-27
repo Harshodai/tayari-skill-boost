@@ -45,12 +45,27 @@ async def test_career_engine_email_and_board_sync():
 @pytest.mark.asyncio
 async def test_hitl_ats_optimization():
     engine = AutonomousCareerEngine()
-    proposal = await engine.prepare_ats_keyword_optimization_hitl("Base resume text", "Python Kubernetes Distributed Systems")
+    optimizer_result = {
+        "optimized_text": "Candidate\n\nEXPERIENCE\n- Built Python services",
+        "keywords_added": ["Python", "Kubernetes"],
+        "new_heuristic_score": 82,
+        "semantic_similarity_before": {"score": 0.31},
+        "keyword_matrix": {},
+        "optimization_summary": {"heuristic_score_after": 82},
+        "alignment_report": {"is_aligned": True},
+    }
+    with patch("app.agent.autonomous_career_engine.optimize_with_reflection", new_callable=AsyncMock, return_value=optimizer_result):
+        proposal = await engine.prepare_ats_keyword_optimization_hitl("Base resume text", "Python Kubernetes Distributed Systems")
+
     assert proposal["status"] == "PENDING_USER_APPROVAL"
+    assert proposal["is_sample_data"] is False
+    assert proposal["extracted_keywords"] == ["Python", "Kubernetes"]
+    assert proposal["predicted_ats_score_after"] == 82
     assert "approval_id" in proposal
 
     confirm_res = await engine.confirm_ats_keyword_optimization_hitl(proposal["approval_id"], approved=True)
-    assert confirm_res["status"] == "APPROVED_AND_APPLIED"
+    assert confirm_res["status"] == "APPROVED_AND_READY"
+    assert confirm_res["optimized_text"].startswith("Candidate")
 
 @pytest.mark.asyncio
 async def test_universal_batch_auto_apply():
@@ -62,10 +77,16 @@ async def test_universal_batch_auto_apply():
         "https://myworkdayjobs.com/delta/404",
         "https://bamboohr.com/epsilon/505"
     ]
-    with patch("app.agent.browser_operator.BrowserOperator.navigate", new_callable=AsyncMock, return_value={"success": True}):
-        res = await engine.universal_batch_auto_apply(urls, {"name": "Candidate"})
-        assert res["total_processed"] == 5
-        assert len(res["portals_covered"]) >= 4
+    form_result = {"success": True, "needs_human": False, "questions_queued": 0, "actions_executed": ["Filled email"]}
+    with patch("app.agent.autonomous_career_engine.FormFiller.execute_form_auto_fill", new_callable=AsyncMock, return_value=form_result), \
+         patch("app.agent.autonomous_career_engine.FormFiller.close", new_callable=AsyncMock):
+        res = await engine.universal_batch_auto_apply(urls, {"name": "Candidate"}, user_id="user-123")
+
+    assert res["total_processed"] == 5
+    assert res["total_prepared"] == 5
+    assert res["submitted"] is False
+    assert len(res["portals_covered"]) >= 4
+    assert all(item["status"] == "FORM_PREPARED" for item in res["applications"])
 
 @pytest.mark.asyncio
 async def test_ai_salary_negotiation():
