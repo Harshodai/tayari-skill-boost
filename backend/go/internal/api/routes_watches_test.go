@@ -85,6 +85,32 @@ func (c watchesFakeConn) QueryContext(ctx context.Context, query string, args []
 	return &watchesFakeRows{}, nil
 }
 
+var (
+	watchDeleteQueryMu sync.Mutex
+	watchDeleteQuery   string
+)
+
+type watchesFakeResult struct{}
+
+func (watchesFakeResult) LastInsertId() (int64, error) { return 0, nil }
+func (watchesFakeResult) RowsAffected() (int64, error) { return 1, nil }
+
+// ExecContext backs handleDeleteJobWatch's s.DB.Conn.Exec call. It only
+// records the literal query text — this is a real-Postgres operator-
+// resolution bug (uuid = text has no operator once $2 is a typed parameter,
+// as database/sql's extended protocol sends it), which a fake driver cannot
+// reproduce; asserting the cast is present in the query text is what a
+// stdlib-only fake driver CAN catch, and is enough to block a silent revert.
+func (c watchesFakeConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	if !strings.Contains(query, "DELETE FROM public.job_watches") {
+		return nil, errors.New("fake driver: unexpected query: " + query)
+	}
+	watchDeleteQueryMu.Lock()
+	watchDeleteQuery = query
+	watchDeleteQueryMu.Unlock()
+	return watchesFakeResult{}, nil
+}
+
 // watchesFakeRows answers the RETURNING clause with one canned row (unless
 // pre-marked done, which simulates zero rows matched by the WHERE clause).
 type watchesFakeRows struct{ done bool }
@@ -226,5 +252,42 @@ func TestUpdateJobWatch_RejectsEmptyBody(t *testing.T) {
 	watchUpdateArgsMu.Unlock()
 	if reached {
 		t.Error("empty-body PATCH should be rejected before it reaches the database")
+	}
+}
+
+// TestDeleteJobWatch_CastsWatchIDToText is a regression test for a live bug
+// found by browser end-to-end testing: DELETE /api/v1/watches/{id} 500'd on
+// every single call. `watch_id = $2` forces Postgres to type $2 as uuid; the
+// Go driver sends path-param strings as a typed text parameter (extended
+// protocol), and Postgres has no `uuid = text` operator without an explicit
+// cast — confirmed live via `PREPARE ... EXECUTE` reproduction against the
+// real Postgres container. Fixed by casting both sides: `watch_id::text =
+// $2 OR id::text = $2`. This test cannot exercise Postgres's real operator
+// resolution (the fake driver accepts any SQL text) — it only guards against
+// a silent revert of the cast in the query string itself.
+func TestDeleteJobWatch_CastsWatchIDToText(t *testing.T) {
+	watchDeleteQueryMu.Lock()
+	watchDeleteQuery = ""
+	watchDeleteQueryMu.Unlock()
+
+	server := newWatchesTestServer(t)
+	w := httptest.NewRecorder()
+	server.Router.ServeHTTP(w, watchesAuthReq(http.MethodDelete, "/api/v1/watches/11111111-1111-1111-1111-111111111111", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("DELETE /api/v1/watches/{id}: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	watchDeleteQueryMu.Lock()
+	query := watchDeleteQuery
+	watchDeleteQueryMu.Unlock()
+	if query == "" {
+		t.Fatal("delete did not reach the fake driver")
+	}
+	if !strings.Contains(query, "watch_id::text = $2") {
+		t.Errorf("DELETE query is missing the watch_id::text cast (would 500 against real Postgres): %s", query)
+	}
+	if !strings.Contains(query, "id::text = $2") {
+		t.Errorf("DELETE query is missing the id::text cast: %s", query)
 	}
 }

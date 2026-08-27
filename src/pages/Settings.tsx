@@ -39,6 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { profileSchema, changePasswordSchema } from "@/lib/schemas";
 import { z } from "zod";
 import { PreferenceProfileCard } from "@/components/PreferenceProfileCard";
+import { JobWatchesCard } from "@/components/JobWatchesCard";
 import { GoogleWorkspaceConnectCard } from "@/components/GoogleWorkspaceConnectCard";
 import { features } from "@/config/features";
 
@@ -762,6 +763,8 @@ const Settings = () => {
                 </div>
               </CardContent>
             </Card>
+
+            <JobWatchesCard />
 
             {/* M4 — learned career preference profile */}
             <PreferenceProfileCard />

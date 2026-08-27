@@ -1,0 +1,180 @@
+<!-- Lever Job Posting - Qonto Analytics Engineer (Real HTML snapshot from 2026-08-27) -->
+<!-- URL: https://jobs.lever.co/qonto/ebed5dab-630c-48ea-be8f-9e018797c193 -->
+
+<!-- Job Header Section (Job View) -->
+<div class="posting-container">
+  <div class="posting-header">
+    <a href="https://jobs.lever.co/qonto" class="posting-logo">
+      <img src="..." alt="Qonto logo">
+    </a>
+
+    <h1 class="posting-title">Analytics Engineer</h1>
+    <!-- NOTE: Job title is wrapped in h1, but selectors also check h2 and .posting-headline h2 -->
+
+    <div class="posting-categories">
+      <span>Paris</span>
+      <span>Barcelona</span>
+      <span>Belgrade</span>
+      <span>Berlin</span>
+      <span>Milan</span>
+    </div>
+
+    <div class="posting-meta">
+      <span>Tech & Data – Analytics Engineering</span>
+      <span>Full-time</span>
+      <span>Remote</span>
+    </div>
+
+    <a href="...apply" class="postings-btn">apply for this job</a>
+  </div>
+</div>
+
+<!-- Application Form Section -->
+<form method="POST" action="/apply">
+  <h2>Submit your application</h2>
+
+  <!-- Location Selector -->
+  <div>
+    <label>Which location are you applying for?</label>
+    <select name="[location-field-name]" class="opportunity-location">
+      <option selected>Select...</option>
+      <option value="1e4034bd-2c7d-42dc-9dcd-fdbd56565307">Paris</option>
+      <option value="21f43597-74da-46da-827f-e63ca0d08189">Barcelona</option>
+    </select>
+  </div>
+
+  <!-- Resume Upload -->
+  <div>
+    <label for="resume-upload-input">Resume/CV</label>
+    <input
+      id="resume-upload-input"
+      type="file"
+      name="resume"
+      class="application-file-input invisible-resume-upload">
+  </div>
+
+  <!-- Full Name -->
+  <div>
+    <label for="full-name">Full name</label>
+    <input
+      type="text"
+      name="name"
+      class="form-field">
+  </div>
+
+  <!-- Pronouns (Checkboxes) -->
+  <fieldset>
+    <legend>Pronouns</legend>
+    <label><input type="checkbox" name="pronouns" value="he/him"> He/him</label>
+    <label><input type="checkbox" name="pronouns" value="she/her"> She/her</label>
+    <label><input type="checkbox" name="pronouns" value="they/them"> They/them</label>
+  </fieldset>
+
+  <!-- Email -->
+  <div>
+    <label for="email">Email</label>
+    <input
+      type="email"
+      name="email"
+      class="form-field">
+  </div>
+
+  <!-- Phone -->
+  <div>
+    <label for="phone">Phone</label>
+    <input
+      type="text"
+      name="phone"
+      class="form-field">
+  </div>
+
+  <!-- Current Location -->
+  <div>
+    <label for="location-input">Current location</label>
+    <input
+      type="text"
+      name="location"
+      id="location-input"
+      class="location-input">
+    <input type="hidden" name="selectedLocation" id="selected-location">
+  </div>
+
+  <!-- Current Company -->
+  <div>
+    <label for="org">Current company</label>
+    <input
+      type="text"
+      name="org"
+      class="form-field">
+  </div>
+
+  <!-- Links Section -->
+  <fieldset>
+    <legend>Links</legend>
+
+    <!-- LinkedIn URL -->
+    <div>
+      <label for="linkedin">LinkedIn URL</label>
+      <input
+        type="text"
+        name="urls[LinkedIn]"
+        class="form-field">
+    </div>
+
+    <!-- GitHub URL -->
+    <div>
+      <label for="github">GitHub URL</label>
+      <input
+        type="text"
+        name="urls[GitHub]"
+        class="form-field">
+    </div>
+
+    <!-- Dribbble URL -->
+    <div>
+      <label for="dribbble">Dribbble URL</label>
+      <input
+        type="text"
+        name="urls[Dribbble]"
+        class="form-field">
+    </div>
+
+    <!-- Other Website -->
+    <div>
+      <label for="other-url">Other website</label>
+      <input
+        type="text"
+        name="urls[Other]"
+        class="form-field">
+    </div>
+  </fieldset>
+
+  <!-- Custom Question Textareas (Job-specific) -->
+  <fieldset>
+    <legend>DBT</legend>
+    <div>
+      <label>Have you worked on the last 12 month with dbt?</label>
+      <textarea
+        name="cards[f3ad563b-32eb-4213-9d23-8b7e1e07b185][field0]"
+        class="card-field-input"></textarea>
+    </div>
+
+    <div>
+      <label>What is the most exciting professional achievement...</label>
+      <textarea
+        name="cards[f3ad563b-32eb-4213-9d23-8b7e1e07b185][field1]"
+        class="card-field-input"></textarea>
+    </div>
+  </fieldset>
+
+  <!-- Consent Checkbox -->
+  <div>
+    <label>
+      <input type="checkbox" name="consent[marketing]" value="1">
+      Yes, Qonto can contact me about future job opportunities for up to 2 years
+    </label>
+  </div>
+
+  <!-- Submit Button -->
+  <button type="submit">Submit application</button>
+</form>

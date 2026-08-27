@@ -1,0 +1,180 @@
+<!--
+  ASHBY JOB APPLICATION PAGE - FIXTURE
+
+  Captured from: https://jobs.ashbyhq.com/cohere/8c035d3d-081d-4c8a-914a-72f4efaad254
+
+  IMPORTANT: This is a CLIENT-RENDERED REACT APP
+
+  The raw HTML fetched via curl/WebFetch shows only a minimal app shell with:
+  - <div id="root"></div> (empty placeholder)
+  - window.__appData with initial config (null for posting/jobBoard initially)
+  - Vite module loading script
+
+  The actual job page DOM is rendered client-side after JavaScript executes.
+
+  RENDERED DOM STRUCTURE (observed via browser):
+
+  Job Overview Page:
+  - Cohere company logo/link at top
+  - <h1> or heading: "Software Engineer Intern (Winter 2027)"
+  - Metadata section:
+    - "Location" label: "Canada; United States"
+    - "Employment Type" label: "Intern"
+    - "Location Type" label: "Remote"
+    - "Department" label: "Internships"
+  - Two tabs: "Overview" and "Application"
+  - "Apply for this Job" button/link (navigates to /application path)
+
+  Application Form Fields (rendered in React):
+  1. Name* (text input)
+     - Label: "Name" (required marker *)
+     - Placeholder: "Type here..."
+     - Type: text
+
+  2. Email* (email input)
+     - Label: "Email" (required marker *)
+     - Placeholder: "hello@example.com..."
+     - Type: email
+
+  3. Current company (text input)
+     - Label: "Current company"
+     - Placeholder: "Type here..."
+     - Type: text
+
+  4. Current location (text input)
+     - Label: "Current location"
+     - Placeholder: "Type here..."
+     - Type: text
+
+  5. Phone (tel input)
+     - Label: "Phone"
+     - Placeholder: "1-415-555-1234..."
+     - Type: tel (likely)
+
+  6. Resume* (file input)
+     - Label: "Resume" (required marker *)
+     - Upload dropzone interface
+
+  7. Additional information (textarea)
+     - Label: "Additional information"
+     - Placeholder: "Type here..."
+
+  8. When are you available for internship?* (text input)
+     - Label: "When are you available for internship?" (required marker *)
+     - Placeholder: "Type here..."
+
+  9. Which location are you the closest to? (text input)
+     - Label: "Which location are you the closest to?"
+     - Placeholder: "Type here..."
+
+  10. LinkedIn* (text input)
+      - Label: "LinkedIn" (required marker *)
+      - Placeholder: "Type here..."
+
+  11. Website (text input)
+      - Label: "Website"
+      - Placeholder: "Type here..."
+
+  12. Twitter (text input)
+      - Label: "Twitter"
+      - Placeholder: "Type here..." (likely)
+
+  SELECTOR FINDINGS:
+  - NO `.job-title`, `.company-name`, `.org-name`, `.location`, `.job-location`,
+    `.description`, `.job-description` classes detected
+  - Actual rendering uses dynamic React component structure
+  - Form fields do NOT have name/id attributes in Ashby's implementation
+  - Fields are matched by labels and placeholder text in the rendered DOM
+  - Input element attributes are minimal/synthetic (no data-field attributes)
+
+  APPLY BUTTON:
+  - Real element exists: Link/button with text "Apply for this Job"
+  - Navigates to: /cohere/8c035d3d-081d-4c8a-914a-72f4efaad254/application
+  - No consistent selector found in static HTML - depends on React component structure
+  - May need to target by link text or aria-label in runtime
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Jobs</title>
+  </head>
+  <body>
+    <div id="root">
+      <!-- React-rendered job application form goes here -->
+      <!-- Form structure observed from live rendering:
+
+      <div class="job-posting">
+        <div class="company-header">
+          <img src="cohere-logo.svg" alt="Cohere" />
+          <h1>Software Engineer Intern (Winter 2027)</h1>
+        </div>
+
+        <div class="job-metadata">
+          <div class="metadata-item">
+            <span class="label">Location</span>
+            <span class="value">Canada; United States</span>
+          </div>
+          <div class="metadata-item">
+            <span class="label">Employment Type</span>
+            <span class="value">Intern</span>
+          </div>
+          <div class="metadata-item">
+            <span class="label">Location Type</span>
+            <span class="value">Remote</span>
+          </div>
+          <div class="metadata-item">
+            <span class="label">Department</span>
+            <span class="value">Internships</span>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <a href="/cohere/...">Overview</a>
+          <a href="/cohere/.../application">Application</a>
+        </div>
+
+        <div class="application-form">
+          <div class="form-section">
+            <label for="name">Name *</label>
+            <input type="text" placeholder="Type here..." />
+          </div>
+
+          <div class="form-section">
+            <label for="email">Email *</label>
+            <input type="email" placeholder="hello@example.com..." />
+          </div>
+
+          <div class="form-section">
+            <label>Current company</label>
+            <input type="text" placeholder="Type here..." />
+          </div>
+
+          <div class="form-section">
+            <label>Current location</label>
+            <input type="text" placeholder="Type here..." />
+          </div>
+
+          <div class="form-section">
+            <label>Phone</label>
+            <input type="tel" placeholder="1-415-555-1234..." />
+          </div>
+
+          <div class="form-section">
+            <label>LinkedIn *</label>
+            <input type="text" placeholder="Type here..." />
+          </div>
+
+          <div class="form-section">
+            <label>Website</label>
+            <input type="text" placeholder="Type here..." />
+          </div>
+        </div>
+
+        <button class="apply-button">Apply for this Job</button>
+      </div>
+      -->
+    </div>
+  </body>
+</html>

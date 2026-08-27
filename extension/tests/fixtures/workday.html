@@ -1,0 +1,114 @@
+<!--
+  Workday Job Posting - Real Live Page Inspection
+  URL: https://amgen.wd1.myworkdayjobs.com/en-US/Careers/job/Machine-Learning-Engineer--AI-Studio_R-250796
+  Date: 2026-08-27
+
+  NOTE: This is a JavaScript SPA. Raw HTML fetched via curl/WebFetch shows an empty shell.
+  The content below is extracted from the rendered DOM via JavaScript inspection after
+  the page fully loaded in a browser. This shows the actual data-automation-id attributes
+  present in the rendered page.
+
+  Key Finding: Workday uses custom automation IDs that differ from the extension's current selectors.
+-->
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Machine Learning Engineer, AI Studio</title>
+</head>
+<body>
+  <!-- Header with navigation -->
+  <div data-automation-id="header">
+    <button data-automation-id="navigationItem-Amgen">Amgen</button>
+    <button data-automation-id="navigationItem-Search for Jobs">Search for Jobs</button>
+  </div>
+
+  <!-- Banner -->
+  <img data-automation-id="banner" src="..." alt="Amgen Career Banner">
+
+  <!-- Main Job Posting Content -->
+  <div data-automation-id="jobPostingPage">
+    <!-- Job Title Header -->
+    <h2 data-automation-id="jobPostingHeader">Machine Learning Engineer, AI Studio</h2>
+
+    <!-- Apply Button - NOTE: Uses "adventureButton" not "applyButton" -->
+    <a data-automation-id="adventureButton" href="/en-US/Careers/job/Machine-Learning-Engineer--AI-Studio_R-250796/apply">
+      Apply
+    </a>
+
+    <!-- Job Details Section -->
+    <div data-automation-id="job-posting-details">
+      <div data-automation-id="remoteType">
+        <span>remote type</span>
+        <span>Remote</span>
+      </div>
+
+      <!-- Location - NOTE: Uses "locations" not "jobLocation" -->
+      <div data-automation-id="locations">
+        <span>locations</span>
+        <span>United States - Remote</span>
+      </div>
+
+      <div data-automation-id="time">
+        <span>time type</span>
+        <span>Full time</span>
+      </div>
+
+      <div data-automation-id="postedOn">
+        <span>posted on</span>
+        <span>Posted 3 Days Ago</span>
+      </div>
+
+      <div data-automation-id="requisitionId">
+        <span>job requisition id</span>
+        <span>R-250796</span>
+      </div>
+    </div>
+
+    <!-- Job Description - NOTE: Uses "jobPostingDescription" not "jobDescription" -->
+    <div data-automation-id="jobPostingDescription">
+      <h3 data-automation-id="jobDescriptionHeader">Job Description</h3>
+      <h4>Join Amgen's Mission of Serving Patients</h4>
+      <p>At Amgen, if you feel like you're part of something bigger, it's because you are.
+         Our shared mission drives everything we do...</p>
+      <h4>What you will do</h4>
+      <p>The Machine Learning Engineer offers a unique opportunity to join a fun, innovative
+         engineering team...</p>
+    </div>
+
+    <!-- Similar Jobs -->
+    <h3 data-automation-id="similar-jobs-heading">Similar Jobs (1)</h3>
+    <div data-automation-id="similarJobsCard">
+      <!-- Similar job card content -->
+    </div>
+  </div>
+
+  <!-- Sidebar with Company Info -->
+  <div data-automation-id="jobSidebar">
+    <div data-automation-id="sidebar">
+      <div data-automation-id="imageSection">
+        <img data-automation-id="image" src="..." alt="Amgen Logo">
+      </div>
+      <div data-automation-id="richText">
+        <p>Amgen is committed to unlocking the potential of biology for patients suffering
+           from serious illness...</p>
+      </div>
+      <button data-automation-id="readMore">Read More</button>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div data-automation-id="footerContainer">
+    <h4 data-automation-id="followUs">Follow Us</h4>
+    <a data-automation-id="socialIcon" href="https://www.youtube.com/user/amgen"></a>
+    <a data-automation-id="socialIcon" href="https://twitter.com/amgen"></a>
+    <a data-automation-id="socialIcon" href="https://www.linkedin.com/company/amgen"></a>
+    <a data-automation-id="privacyLink" href="http://careers.amgen.com/en/privacystatement">
+      Amgen Privacy Policy
+    </a>
+  </div>
+
+  <!-- Workday Copyright -->
+  <div>© 2026 Workday, Inc. All rights reserved.</div>
+</body>
+</html>

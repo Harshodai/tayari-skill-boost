@@ -10,3 +10,4 @@ export * from "./verification";
 export * from "./tasks";
 export * from "./agent";
 export * from "./provenance";
+export * from "./watches";

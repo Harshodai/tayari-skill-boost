@@ -200,15 +200,25 @@
         ],
         location: [
           '[data-automation-id="jobLocation"]',
+          '[data-automation-id="locations"]',
           '.location'
         ],
         description: [
           '[data-automation-id="jobDescription"]',
+          '[data-automation-id="jobPostingDescription"]',
           '.job-description'
         ]
       },
+      // Live-verified 2026-08-27 against a real myworkdayjobs.com posting
+      // (see extension/tests/fixtures/workday-notes.md): that tenant used
+      // data-automation-id="adventureButton", data-automation-id="locations",
+      // and data-automation-id="jobPostingDescription" instead of the
+      // originally-assumed ids. Workday's automation-id naming is tenant-
+      // customizable, so both old and new ids are kept as fallbacks rather
+      // than replacing one company's evidence for another's.
       applyButton: [
-        '[data-automation-id="applyButton"]'
+        '[data-automation-id="applyButton"]',
+        '[data-automation-id="adventureButton"]'
       ]
     },
 
@@ -230,7 +240,13 @@
           '.description',
           '.job-description'
         ]
-      }
+      },
+      // Live-verified 2026-08-27 (extension/tests/fixtures/ashby-notes.md):
+      // Ashby's real "Apply for this Job" control links to an /application
+      // sub-path; there was previously no applyButton entry for Ashby at all.
+      applyButton: [
+        'a[href*="/application"]'
+      ]
     },
 
     smartrecruiters: {

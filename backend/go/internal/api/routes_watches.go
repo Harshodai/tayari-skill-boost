@@ -275,11 +275,16 @@ func (s *Server) handleDeleteJobWatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.DB != nil && s.DB.Conn != nil {
+		// watch_id::text cast is required: database/sql sends $2 as a typed
+		// text parameter (extended protocol), and Postgres has no uuid = text
+		// operator without an explicit cast — omitting it 500s on every
+		// delete, confirmed live via `PREPARE ... EXECUTE` reproduction.
 		_, err := s.DB.Conn.Exec(`
 			DELETE FROM public.job_watches
-			WHERE user_id = $1::uuid AND (watch_id = $2 OR id::text = $2)
+			WHERE user_id = $1::uuid AND (watch_id::text = $2 OR id::text = $2)
 		`, user.ID.String(), watchID)
 		if err != nil {
+			log.Printf("handleDeleteJobWatch: failed to delete watch: %v", err)
 			s.respondError(w, http.StatusInternalServerError, "failed to delete watch")
 			return
 		}
