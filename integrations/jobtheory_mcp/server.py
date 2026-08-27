@@ -4,6 +4,7 @@ import logging
 import urllib.parse
 from typing import Optional, List, Dict, Any
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 # Initialize FastMCP Server for Tayari AI Platform
 mcp = FastMCP(
@@ -113,25 +114,25 @@ def _post(path: str, payload: dict) -> dict:
 # MCP Tools Registration
 # -------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def get_user_profile() -> dict:
     """Retrieve the user's target roles, locations, salary floor, tone preferences, and skill inventory."""
-    return _get("/v1/profile")
+    return _get("/api/v1/profile")
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def search_jobs(query: str, location: str = "Remote", remote_only: bool = True, limit: int = 10) -> dict:
     """Search aggregated job boards and AI-rank results against the user's profile."""
-    return _post("/v1/jobs/search", {
+    return _post("/api/v1/jobs/search", {
         "query": query, "location": location, "remote_only": remote_only,
         "sources": ["remotive", "arbeitnow", "adzuna"], "limit": limit,
     })
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def company_research(company: str, role: str = "Software Engineer") -> dict:
     """AI briefing on a company: overview, salary estimate, and role requirements."""
-    res = _post("/v1/career-intelligence/salary-benchmark", {"target_role": role, "company": company, "location": "Remote"})
+    res = _post("/api/v1/career-intelligence/salary-benchmark", {"target_role": role, "company": company, "location": "Remote"})
     if isinstance(res, dict) and "error" in res:
         return res
     return {
@@ -141,11 +142,11 @@ def company_research(company: str, role: str = "Software Engineer") -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def save_job(title: str, company: str = "", location: str = "", url: str = "", description: str = "") -> dict:
     """Save a job to the user's saved list."""
     dedupe_key = f"{company}-{title}-{location or 'unknown'}"
-    return _post("/v1/jobs/save", {
+    return _post("/api/v1/jobs/save", {
         "dedupe_key": dedupe_key,
         "job": {
             "title": title, "company": company, "location": location, "url": url, "description": description,
@@ -154,21 +155,22 @@ def save_job(title: str, company: str = "", location: str = "", url: str = "", d
     })
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False))
 def add_application(title: str, company: str, location: str = "", url: str = "", stage: str = "saved") -> dict:
     """Add a job to the Interview Board (stages: saved, applied, phone_screen, interview, offer, rejected)."""
-    return _post("/v1/applications", {
-        "title": title, "company": company, "location": location, "url": url, "stage": stage,
+    return _post("/api/v1/applications", {
+        "job": {"title": title, "company": company, "location": location, "url": url},
+        "status": stage,
     })
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def list_applications(cursor: str = "", limit: int = 20) -> dict:
     """List applications on the user's Interview Board with cursor pagination."""
     params = {"limit": limit}
     if cursor:
         params["cursor"] = cursor
-    res = _get("/v1/applications", params=params)
+    res = _get("/api/v1/applications", params=params)
     if isinstance(res, list):
         return {"applications": res[:limit], "next_cursor": None, "total": len(res)}
     elif isinstance(res, dict):
@@ -179,28 +181,26 @@ def list_applications(cursor: str = "", limit: int = 20) -> dict:
     return res
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Queue Autopilot Application", readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False))
 def queue_autopilot(title: str, company: str, location: str = "", url: str = "", job_description: str = "") -> dict:
     """Review Mode: queue a job for application and auto-generate a tailored cover letter. Never auto-submits.
 
     Note: This tool mutates the user's review queue state.
     """
-    return _post("/v1/review-queue/queue", {
-        "job": {
-            "title": title, "company": company, "location": location, "url": url, "description": job_description,
-        },
-        "apply_url": url,
-        "notes": "Queued via MCP integration"
-    })
+    # No backend route creates a review-queue item under any prefix — routes_review_queue.go
+    # only registers GET (list/item/stats/history) and PUT (approve/reject/modify/submit) plus
+    # POST .../bulk-action. There is no POST endpoint to enqueue a new item. Returning a clear
+    # error instead of guessing an endpoint that would silently 404.
+    return {"error": "queue_autopilot is not backed by a working endpoint yet — see routes_review_queue.go"}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def optimize_resume(resume_id: str, job_description: str) -> dict:
     """Run Tayari's reflective optimizer loop on a resume against a job description.
 
     Returns score deltas (before/after) and the tailored text.
     """
-    path = f"/v1/resumes/{resume_id}/optimize"
+    path = f"/api/v1/resumes/{resume_id}/optimize"
     res = _post(path, {"job_description": job_description})
     if isinstance(res, dict) and "error" in res:
         return res
@@ -212,10 +212,10 @@ def optimize_resume(resume_id: str, job_description: str) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def check_guardrails(text: str) -> dict:
     """Run Tayari's authenticity guardrails (truthfulness check & keyword-stuffing detector) on resume or letter text."""
-    res = _post("/v1/guardrails/truth-check", {"text": text, "resume_text": text})
+    res = _post("/api/v1/guardrails/truth-check", {"text": text, "resume_text": text})
     if isinstance(res, dict) and "error" in res:
         return res
     return {
@@ -225,10 +225,10 @@ def check_guardrails(text: str) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def skill_gap(target_role: str) -> dict:
     """Analyze skill gaps for a target role against the user's inventory and recommend free learning resources."""
-    res = _post("/v1/career-intelligence/skills-gap", {"target_role": target_role})
+    res = _post("/api/v1/career-intelligence/skills-gap", {"target_role": target_role})
     if isinstance(res, dict) and "error" in res:
         return res
     return {
@@ -241,14 +241,14 @@ def skill_gap(target_role: str) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def query_knowledge_graph(question: str) -> dict:
     """Query the user's resume knowledge graph for skill relationships, project details, and experience nodes."""
-    res = _get("/v1/knowledge-hub/search", params={"question": question})
+    res = _post("/api/v1/knowledge-hub/query", {"query": question})
     if isinstance(res, dict) and "error" in res:
         return res
-    answer = res.get("answer", f"Knowledge graph query results for: {question}") if isinstance(res, dict) else f"Knowledge graph query results for: {question}"
-    nodes = res.get("nodes", []) if isinstance(res, dict) else (res if isinstance(res, list) else [])
+    answer = res.get("answer", "") if isinstance(res, dict) else ""
+    nodes = res.get("citations", []) if isinstance(res, dict) else []
     return {
         "answer": answer,
         "nodes": nodes

@@ -22,6 +22,12 @@ func (s *Server) routesKnowledgeHub(r chi.Router) {
 	r.Post("/api/v1/saves", s.handleCreateSave)
 	r.Get("/api/v1/saves", s.handleListSaves)
 	r.Delete("/api/v1/saves/{id}", s.handleDeleteSave)
+
+	// Knowledge Hub RAG query — proxies to the Python engine's citation-backed
+	// answer endpoint. Was never registered here, so both the frontend
+	// (src/api/ai.ts) and the jobtheory MCP server called a dead route.
+	r.Post("/api/v1/knowledge-hub/query", s.handleOneStopProxy("/api/v1/knowledge-hub/query"))
+	r.Post("/api/knowledge-hub/query", s.handleOneStopProxy("/api/v1/knowledge-hub/query"))
 }
 
 // -------------------------------------------------------------------
