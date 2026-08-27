@@ -64,6 +64,7 @@ except PermissionError as exc:
 class AgentRunRequest(BaseModel):
     goal: str
     max_steps: Optional[int] = Field(10, ge=1, le=50)
+    browser_urls: List[str] = Field(default_factory=list, max_length=3)
 
 # Job Seeker Requests
 class JobSearchRequest(BaseModel):
@@ -213,8 +214,8 @@ async def run_agent_task(req: AgentRunRequest, user_id: str = Depends(get_curren
         # derived from it instead of joining it verbatim (it could contain
         # separators or "..").
         workspace_dir = _workspace_for(user_id)
-        async with GeneralistAgentEngine(workspace_path=workspace_dir) as engine:
-            result = await engine.execute_task(goal=req.goal, max_steps=req.max_steps or 10)
+        async with GeneralistAgentEngine(workspace_path=workspace_dir, user_id=user_id) as engine:
+            result = await engine.execute_task(goal=req.goal, max_steps=req.max_steps or 10, browser_urls=req.browser_urls)
             return {"success": True, "data": result}
     except Exception as e:
         logger.exception("Agent run error")

@@ -13,6 +13,8 @@ import getSkillGapsTool from "./tools/get-skill-gaps";
 import getMarketSalaryTool from "./tools/get-market-salary";
 import checkCompanyTool from "./tools/check-company";
 import reportOutcomeTool from "./tools/report-outcome";
+import createTaskTool from "./tools/create-task";
+import { getTaskTool, approveTaskTool, stopTaskTool, getTaskArtifactsTool } from "./tools/task-control";
 
 // Build the Supabase issuer from the runtime Supabase URL. The URL is parsed
 // and its hostname is validated against the canonical single-label
@@ -80,5 +82,11 @@ export default defineMcp({
     checkCompanyTool,
     // Outcome loop (M2)
     reportOutcomeTool,
+    // Durable review-first task control
+    createTaskTool,
+    getTaskTool,
+    approveTaskTool,
+    stopTaskTool,
+    getTaskArtifactsTool,
   ],
 });

@@ -9,6 +9,7 @@ external side effect.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import uuid
@@ -46,7 +47,7 @@ def _lane_headings(lane: str) -> str:
     return headings.get(lane, headings["application_packet"])
 
 
-def build_draft_prompt(title: str, objective: str, steps: list[Any], candidate_context: dict[str, Any] | None = None) -> tuple[str, str]:
+def build_draft_prompt(title: str, objective: str, steps: list[Any], candidate_context: dict[str, Any] | None = None, input_files: list[dict[str, Any]] | None = None) -> tuple[str, str]:
     """Build a lane-aware prompt that cannot authorize external actions."""
     lane = _infer_lane(title, objective)
     system = (
@@ -65,12 +66,14 @@ def build_draft_prompt(title: str, objective: str, steps: list[Any], candidate_c
     )
     plan_text = json.dumps(steps, ensure_ascii=False, sort_keys=True)
     context_text = json.dumps(candidate_context or {}, ensure_ascii=False, sort_keys=True)
+    file_text = json.dumps(input_files or [], ensure_ascii=False, sort_keys=True)
     user = (
         f"Automation lane: {lane}\n"
         f"Task title: {title}\n"
         f"User objective: {objective}\n"
         f"Approved plan: {plan_text}\n"
-        f"Owner-approved candidate context from read-only tool: {context_text}\n\n"
+        f"Owner-approved candidate context from read-only tool: {context_text}\n"
+        f"Owner-selected file inputs (content extracted before this task ran): {file_text}\n\n"
         f"Return a concise Markdown draft with these headings: {_lane_headings(lane)} "
         "Keep claims tied to the supplied context and label assumptions, unknowns, "
         "candidate-confirmed information, and unavailable provider data explicitly."
@@ -97,7 +100,7 @@ async def _claim_tasks(pool: Any, worker_id: str) -> list[Any]:
             return list(await conn.fetch(
                 """
                 WITH claimable AS (
-                    SELECT id, (status='running') AS was_reclaimed
+                    SELECT id, user_id, title, objective, input_files, (status='running') AS was_reclaimed
                     FROM task_runs
                     WHERE status='queued'
                        OR (status='running' AND lease_expires_at IS NOT NULL AND lease_expires_at < now())
@@ -115,7 +118,7 @@ async def _claim_tasks(pool: Any, worker_id: str) -> list[Any]:
                 FROM claimable
                 WHERE run.id=claimable.id
                   AND (run.status='queued' OR (run.status='running' AND run.lease_expires_at < now()))
-                RETURNING run.id, run.user_id, run.title, run.objective, claimable.was_reclaimed
+                RETURNING run.id, run.user_id, run.title, run.objective, run.input_files, claimable.was_reclaimed
                 """,
                 worker_id,
                 CLAIM_LIMIT,
@@ -189,6 +192,43 @@ async def _load_candidate_context(conn: Any, user_id: str) -> dict[str, Any]:
     return context
 
 
+def _decode_input_files(raw: Any) -> list[dict[str, Any]]:
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return [{"name": "unknown", "read_error": "stored input files were invalid JSON"}]
+    if not isinstance(raw, list):
+        return [{"name": "unknown", "read_error": "stored input files were not an array"}]
+    extracted: list[dict[str, Any]] = []
+    from app.parsers.document_parser import ResumeParser
+    for item in raw[:10]:
+        if not isinstance(item, dict):
+            extracted.append({"name": "unknown", "read_error": "input file metadata was invalid"})
+            continue
+        name = str(item.get("name") or "unnamed file")[:240]
+        result: dict[str, Any] = {
+            "name": name,
+            "mime_type": str(item.get("mime_type") or "application/octet-stream")[:160],
+            "size_bytes": int(item.get("size_bytes") or 0),
+        }
+        if item.get("read_error"):
+            result["read_error"] = str(item["read_error"])[:300]
+            extracted.append(result)
+            continue
+        try:
+            payload = base64.b64decode(str(item.get("content_base64") or ""), validate=True)
+            parsed = ResumeParser.parse_file(payload, result["mime_type"] or name)
+            text = (parsed.raw_text or "").strip()[:30000]
+            result["text"] = text if text else "No extractable text was found in this file."
+        except Exception as exc:  # noqa: BLE001 - preserve truthful per-file failure
+            result["read_error"] = f"content extraction failed: {type(exc).__name__}"
+        extracted.append(result)
+    return extracted
+
+
 async def _load_approved_plan(conn: Any, task_id: str, user_id: str) -> list[Any] | None:
     row = await conn.fetchrow(
         """
@@ -234,6 +274,7 @@ async def _mark_failed(pool: Any, task: Any, worker_id: str, code: str, message:
 async def _execute_one(pool: Any, task: Any, worker_id: str) -> dict[str, Any]:
     task_id = str(task["id"])
     user_id = str(task["user_id"])
+    input_files = _decode_input_files(task.get("input_files"))
     async with pool.acquire() as conn:
         steps = await _load_approved_plan(conn, task_id, user_id)
         if steps is None:
@@ -252,6 +293,7 @@ async def _execute_one(pool: Any, task: Any, worker_id: str) -> dict[str, Any]:
             "executor": "draft_only_task_control",
             "lane": lane,
             "step_count": len(steps),
+            "input_file_count": len(input_files),
             "external_side_effect": False,
         })
         context = {}
@@ -282,7 +324,7 @@ async def _execute_one(pool: Any, task: Any, worker_id: str) -> dict[str, Any]:
                     "external_side_effect": False,
                 })
 
-    system, prompt = build_draft_prompt(str(task["title"]), str(task["objective"]), steps, context)
+    system, prompt = build_draft_prompt(str(task["title"]), str(task["objective"]), steps, context, input_files)
     try:
         draft = await llm_complete(system, prompt, tier="fast", max_tokens=1600, temperature=0.2)
     except LLMNotConfiguredError:

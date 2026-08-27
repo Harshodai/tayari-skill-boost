@@ -3,6 +3,8 @@ Maps surface forms to canonical skills and models skill adjacency so matching
 generalizes beyond exact keywords ('pandas' relates to 'data analysis', 'react'
 implies 'frontend'). Used by the hybrid job-matching pipeline.
 """
+from __future__ import annotations
+
 import re
 from typing import Union
 

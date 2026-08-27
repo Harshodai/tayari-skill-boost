@@ -1,7 +1,8 @@
-import os
 import json
 import logging
+import os
 import urllib.parse
+import uuid
 from typing import Optional, List, Dict, Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -110,9 +111,68 @@ def _post(path: str, payload: dict) -> dict:
         return _handle_api_error(e, path)
 
 
+def _task_path(task_id: str, suffix: str = "") -> str:
+    try:
+        normalized = str(uuid.UUID(task_id))
+    except (ValueError, AttributeError):
+        raise ValueError("task_id must be a UUID")
+    return f"/api/v1/tasks/{normalized}{suffix}"
+
+
 # -------------------------------------------------------------------
 # MCP Tools Registration
 # -------------------------------------------------------------------
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False))
+def create_task(title: str, objective: str) -> dict:
+    """Create a durable review-first task. It records intent but never submits or sends anything."""
+    return _post("/api/v1/tasks", {"title": title[:240], "objective": objective[:10000]})
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False))
+def create_task_plan(task_id: str, steps: List[Dict[str, Any]]) -> dict:
+    """Attach a candidate-reviewed plan to a durable task. Only candidate_context.read is executable by the draft worker."""
+    try:
+        return _post(_task_path(task_id, "/plan"), {"steps": steps})
+    except ValueError as exc:
+        return {"error": str(exc), "status": 400}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False))
+def approve_task_plan(task_id: str) -> dict:
+    """Approve a task plan so the existing durable draft executor can run it; external writes remain blocked."""
+    try:
+        return _post(_task_path(task_id, "/plan/approve"), {})
+    except ValueError as exc:
+        return {"error": str(exc), "status": 400}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
+def get_task(task_id: str) -> dict:
+    """Read a durable task's truthful server-side status."""
+    try:
+        return _get(_task_path(task_id))
+    except ValueError as exc:
+        return {"error": str(exc), "status": 400}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
+def get_task_artifacts(task_id: str) -> dict:
+    """Read reviewable task artifacts. Failed or incomplete tasks return no fabricated result."""
+    try:
+        return _get(_task_path(task_id, "/artifacts"))
+    except ValueError as exc:
+        return {"error": str(exc), "status": 400}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False))
+def stop_task(task_id: str) -> dict:
+    """Request server-side stop for a durable task."""
+    try:
+        return _post(_task_path(task_id, "/stop"), {})
+    except ValueError as exc:
+        return {"error": str(exc), "status": 400}
+
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def get_user_profile() -> dict:

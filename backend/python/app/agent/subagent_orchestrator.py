@@ -14,12 +14,14 @@ class Subagent:
         """Execute subagent task cleanly."""
         safe_task = json.dumps(task)
         res = await self.repl.execute(f"# Subagent execution\ntask_desc = {safe_task}\nprint('Task completed successfully for:', task_desc)")
+        succeeded = res.get("success") is True
         return {
             "subagent": self.name,
             "role": self.role,
             "task": task,
-            "status": "completed",
-            "output": res["stdout"].strip()
+            "status": "completed" if succeeded else "failed",
+            "output": res.get("stdout", "").strip(),
+            "error": res.get("error") if not succeeded else None,
         }
 
 class SubagentOrchestrator:

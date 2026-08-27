@@ -54,7 +54,9 @@ services:
       - OPENROUTER_MODEL_FAST=${OPENROUTER_MODEL_FAST:-}
       - OPENROUTER_MODEL_SMART=${OPENROUTER_MODEL_SMART:-}
       - JWT_SECRET=${JWT_SECRET}
-      - AI_INTERNAL_TOKEN=${AI_INTERNAL_TOKEN:-}
+      # Local Compose needs one shared gateway token; production must provide
+      # AI_INTERNAL_TOKEN explicitly through its secret-managed environment.
+      - AI_INTERNAL_TOKEN=${AI_INTERNAL_TOKEN:-local-compose-internal-token}
       - APPROVAL_SIGNING_KEY=${APPROVAL_SIGNING_KEY:-}
       # Internal Compose DNS name for the Go gateway, read by
       # submission_receipt.py's debit_submission_credit() to call back into
@@ -197,7 +199,9 @@ services:
     environment:
       - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres?sslmode=disable
       - AI_SERVICE_URL=http://python-ai:8000
-      - AI_INTERNAL_TOKEN=${AI_INTERNAL_TOKEN:-}
+      # Local Compose needs one shared gateway token; production must provide
+      # AI_INTERNAL_TOKEN explicitly through its secret-managed environment.
+      - AI_INTERNAL_TOKEN=${AI_INTERNAL_TOKEN:-local-compose-internal-token}
       - APPROVAL_SIGNING_KEY=${APPROVAL_SIGNING_KEY:-}
       - USE_SUPABASE=${USE_SUPABASE:-true}
       - JWT_SECRET=${JWT_SECRET}

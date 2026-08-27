@@ -6,6 +6,7 @@ import json
 import re
 from typing import Dict, Any, List, Optional
 from app.services.llm_service import LLMNotConfiguredError
+from app.schemas import Achievement, SkillEntity, TimelineEvent
 
 # ---------------------------------------------------------------------------
 # Instructor-backed typed extraction (Phase 3.3)

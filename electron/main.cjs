@@ -330,7 +330,25 @@ function registerIpcHandlers() {
     if (result.canceled) return [];
     selectedFilePaths.clear();
     for (const filePath of result.filePaths) selectedFilePaths.add(path.resolve(filePath));
-    return result.filePaths.map((filePath) => ({ name: path.basename(filePath), path: filePath }));
+    return Promise.all(result.filePaths.map(async (filePath) => {
+      const normalized = path.resolve(filePath);
+      const name = path.basename(normalized);
+      const extension = path.extname(name).toLowerCase();
+      const mime_type = extension === ".pdf" ? "application/pdf"
+        : extension === ".docx" ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          : extension === ".doc" ? "application/msword"
+            : extension === ".md" ? "text/markdown"
+              : "text/plain";
+      try {
+        const stat = await fs.stat(normalized);
+        if (!stat.isFile()) throw new Error("not a regular file");
+        if (stat.size > 2 * 1024 * 1024) throw new Error("file exceeds the 2 MiB limit");
+        const content_base64 = (await fs.readFile(normalized)).toString("base64");
+        return { name, path: normalized, mime_type, size_bytes: stat.size, content_base64 };
+      } catch (error) {
+        return { name, path: normalized, mime_type, size_bytes: 0, read_error: error instanceof Error ? error.message : "file could not be read" };
+      }
+    }));
   });
 
   ipcMain.handle("desktop:reveal-file", async (event, filePath) => {

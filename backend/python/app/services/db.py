@@ -8,6 +8,7 @@ no-ops so keyless/DB-less environments never break.
 """
 from __future__ import annotations
 
+import json as _json
 import logging
 from typing import Any
 

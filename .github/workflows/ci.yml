@@ -181,7 +181,7 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Run public Playwright E2E tests
-        run: pnpm run test:e2e -- e2e/public_routes.spec.ts
+        run: pnpm run test:e2e e2e/public_routes.spec.ts
 
   desktop-contract:
     name: macOS Desktop Contract

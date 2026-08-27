@@ -12,7 +12,7 @@
     "lint:budget": "node scripts/lint_warning_budget.mjs",
     "preview": "vite preview",
     "test": "vitest run --config vitest.config.ts",
-    "test:e2e": "playwright test --reporter=list",
+    "test:e2e": "playwright install chromium && playwright test --reporter=list",
     "security:scan": "node scripts/security_scan.mjs",
     "security:production": "SECURITY_BASELINE_ENFORCE=true node scripts/security_scan.mjs",
     "security:mcp": "node scripts/verify_mcp_write_gate.mjs",

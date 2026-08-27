@@ -28,7 +28,7 @@ async function loadEvidence() {
 function renderPlan(result) {
   activeTask = result?.task || null;
   $('plan-mode').textContent = result?.plan?.mode || '';
-  $('plan-steps').innerHTML = (result?.plan?.steps || []).map((step) => `<li>${escapeHtml(step)}</li>`).join('');
+  $('plan-steps').innerHTML = (result?.plan?.steps || []).map((step) => `<li>${escapeHtml(typeof step === 'string' ? step : step.title || step.detail || 'Unnamed step')}</li>`).join('');
   $('plan-warnings').innerHTML = (result?.plan?.warnings || []).length ? '<li>Page content contains instruction-like text. Treat it as untrusted data and review scope carefully.</li>' : '';
   $('plan-scope').textContent = `${result?.plan?.sourceCount || 0} approved source(s). Plan approval is required before execution. Final submission remains blocked.`;
   $('plan-card').classList.remove('hidden');
@@ -42,6 +42,12 @@ function renderAnswer(result) {
   $('answer-text').textContent = result?.answer || 'No answer returned.';
   $('answer-sources').innerHTML = (result?.sources || []).map((source) => { const url = safeHttpsUrl(source.url); return url ? `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title || url)}</a></li>` : `<li>${escapeHtml(source.title || 'Untrusted source URL omitted')}</li>`; }).join('') || '<li>No source metadata returned.</li>';
   $('answer-card').classList.remove('hidden');
+}
+function renderTaskArtifacts(result) {
+  const artifact = (result?.artifacts || []).find((item) => item && item.body);
+  if (!artifact) return false;
+  renderAnswer({ answer: artifact.body, sources: [] });
+  return true;
 }
 function renderComputerBridge(status) {
   const connected = status?.connected === true;
@@ -124,7 +130,7 @@ $('prepare-role').addEventListener('click', async () => {
   $('agent-mode').value = 'draft';
   await createPlanFromPrompt(prompt, 'draft');
 });
-$('approve-plan').addEventListener('click', async () => { const result = await send('approve_agent_plan', { taskId: activeTask?.id }); if (!result?.success) return setAgentStatus(result?.error || 'Plan approval failed.', 'error'); $('approve-plan').disabled = true; $('takeover-task').classList.remove('hidden'); $('open-desktop-task').classList.remove('hidden'); setAgentStatus('Plan approved. Running read-only page analysis...'); const answer = await send('answer_approved_page', { taskId: activeTask?.id, ...activeTaskRequest }); if (!answer?.success) return setAgentStatus(answer?.error || 'Read-only answer failed.', 'error'); renderAnswer(answer); setAgentStatus('Read-only answer ready for review.', 'ok'); });
+$('approve-plan').addEventListener('click', async () => { const result = await send('approve_agent_plan', { taskId: activeTask?.id }); if (!result?.success) return setAgentStatus(result?.error || 'Plan approval failed.', 'error'); $('approve-plan').disabled = true; $('takeover-task').classList.remove('hidden'); $('open-desktop-task').classList.remove('hidden'); setAgentStatus('Plan approved. Waiting for the durable task executor…'); });
 $('reject-plan').addEventListener('click', async () => { const result = await send('reject_agent_plan', { taskId: activeTask?.id }); if (!result?.success) return setAgentStatus(result?.error || 'Plan rejection failed.', 'error'); $('plan-card').classList.add('hidden'); activeTask = null; activeTaskRequest = null; setAgentStatus('Plan rejected.', 'ok'); });
 $('takeover-task').addEventListener('click', async () => { const result = await send('takeover_agent_task', { taskId: activeTask?.id }); setAgentStatus(result?.success ? 'Takeover requested. The worker must pause.' : (result?.error || 'Takeover failed.'), result?.success ? 'ok' : 'error'); });
 $('stop-task').addEventListener('click', async () => { if (!activeTask?.id) return setAgentStatus('No active task to stop.', 'error'); const result = await send('stop_agent_task', { taskId: activeTask.id }); setAgentStatus(result?.success ? 'Task stopped.' : (result?.error || 'Stop failed.'), result?.success ? 'ok' : 'error'); });
@@ -132,7 +138,7 @@ $('open-desktop-task').addEventListener('click', async () => { if (!activeTask?.
 $('capture-page').addEventListener('click', async () => { const result = await send('get_page_context', { tabId: current.tab?.id }); const context = result?.context; if (!context) return setAgentStatus('Page context is unavailable on this tab.', 'error'); const note = await send('save_research_note', { note: { title: context.title || 'Captured page', text: context.selection || context.visibleText, url: context.url } }); setAgentStatus(note?.success ? 'Page evidence saved locally.' : 'Evidence capture failed.', note?.success ? 'ok' : 'error'); await loadEvidence(); });
 $('save-selection').addEventListener('click', async () => { const result = await send('get_page_context', { tabId: current.tab?.id }); const context = result?.context; if (!context?.selection) return setAgentStatus('Select text on the page first.', 'error'); const note = await send('save_research_note', { note: { title: `Selection from ${context.title || 'page'}`, text: context.selection, url: context.url } }); setAgentStatus(note?.success ? 'Selection saved as evidence.' : 'Evidence capture failed.', note?.success ? 'ok' : 'error'); await loadEvidence(); });
 $('clear-evidence').addEventListener('click', async () => { const result = await send('clear_research_notes'); setAgentStatus(result?.success ? 'Local evidence shelf cleared.' : 'Could not clear evidence shelf.', result?.success ? 'ok' : 'error'); await loadEvidence(); });
-async function refreshActiveTask() { if (!activeTask?.id) return; const result = await send('get_agent_task_status', { taskId: activeTask.id }); if (!result?.success || !result.task) return; activeTask = result.task; $('plan-scope').textContent = `Task status: ${result.task.status}. Plan approval and policy controls remain visible; final submission is blocked.`; if (['stopped', 'completed', 'failed', 'expired'].includes(result.task.status)) $('takeover-task').classList.add('hidden'); }
+async function refreshActiveTask() { if (!activeTask?.id) return; const result = await send('get_agent_task_status', { taskId: activeTask.id }); if (!result?.success || !result.task) return; activeTask = result.task; $('plan-scope').textContent = `Task status: ${result.task.status}. Durable execution and policy controls remain visible; final submission is blocked.`; if (['stopped', 'completed', 'failed', 'expired'].includes(result.task.status)) $('takeover-task').classList.add('hidden'); if (result.task.status === 'completed') { const artifacts = await send('get_agent_task_artifacts', { taskId: activeTask.id }); if (!artifacts?.success) return setAgentStatus(artifacts?.error || 'Could not load the durable task result.', 'error'); if (renderTaskArtifacts(artifacts)) setAgentStatus('Durable task result ready for review.', 'ok'); } if (result.task.status === 'failed') setAgentStatus('Durable task failed; no fabricated result was shown.', 'error'); }
 chrome.runtime.onMessage.addListener((request) => { if (request.action === 'selection_context' && request.text) { $('agent-prompt').value = `Explain this selected text and relate it to my job search:\n\n${request.text.slice(0, 4000)}`; setAgentStatus('Selection added to the prompt.', 'ok'); } if (request.action === 'context_changed') void refresh(); });
 void refresh();
 setInterval(() => void refresh(), 6000);

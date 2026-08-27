@@ -15,9 +15,18 @@ import (
 	"tayari-backend/internal/capabilities"
 )
 
+type taskInputFile struct {
+	Name          string `json:"name"`
+	MimeType      string `json:"mime_type"`
+	SizeBytes     int64  `json:"size_bytes"`
+	ContentBase64 string `json:"content_base64,omitempty"`
+	ReadError     string `json:"read_error,omitempty"`
+}
+
 type taskCreateRequest struct {
-	Title     string `json:"title"`
-	Objective string `json:"objective"`
+	Title      string          `json:"title"`
+	Objective  string          `json:"objective"`
+	InputFiles []taskInputFile `json:"input_files"`
 }
 type taskPlanRequest struct {
 	Steps json.RawMessage `json:"steps"`
@@ -54,15 +63,16 @@ type actionRequest struct {
 	Payload    json.RawMessage `json:"payload"`
 }
 type taskRecord struct {
-	ID                  string     `json:"id"`
-	Title               string     `json:"title"`
-	Objective           string     `json:"objective"`
-	Status              string     `json:"status"`
-	StopRequestedAt     *time.Time `json:"stop_requested_at,omitempty"`
-	TakeoverRequestedAt *time.Time `json:"takeover_requested_at,omitempty"`
-	Version             int64      `json:"version"`
-	CreatedAt           time.Time  `json:"created_at"`
-	UpdatedAt           time.Time  `json:"updated_at"`
+	ID                  string          `json:"id"`
+	Title               string          `json:"title"`
+	Objective           string          `json:"objective"`
+	InputFiles          json.RawMessage `json:"input_files"`
+	Status              string          `json:"status"`
+	StopRequestedAt     *time.Time      `json:"stop_requested_at,omitempty"`
+	TakeoverRequestedAt *time.Time      `json:"takeover_requested_at,omitempty"`
+	Version             int64           `json:"version"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
 }
 type taskArtifactRecord struct {
 	ID           string          `json:"id"`
@@ -182,6 +192,32 @@ func validTaskText(value string, max int) bool {
 	return len(value) > 0 && len(value) <= max
 }
 
+func validateTaskInputFiles(files []taskInputFile) error {
+	if len(files) > 10 {
+		return fmt.Errorf("at most 10 input files are allowed")
+	}
+	var totalEncoded int
+	for _, file := range files {
+		if !validTaskText(file.Name, 240) {
+			return fmt.Errorf("each input file needs a name")
+		}
+		if file.SizeBytes < 0 || file.SizeBytes > 2*1024*1024 {
+			return fmt.Errorf("input file %q exceeds the 2 MiB limit", file.Name)
+		}
+		if len(file.ContentBase64) > 1024*1024 {
+			return fmt.Errorf("input file %q has an oversized content payload", file.Name)
+		}
+		if file.ReadError != "" && len(file.ContentBase64) > 0 {
+			return fmt.Errorf("input file %q cannot contain both content and a read error", file.Name)
+		}
+		totalEncoded += len(file.ContentBase64)
+	}
+	if totalEncoded > 4*1024*1024 {
+		return fmt.Errorf("combined input file content exceeds the 4 MiB limit")
+	}
+	return nil
+}
+
 func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	uid, ok := taskOwner(r)
 	if !ok {
@@ -196,8 +232,17 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, 400, "title and objective are required")
 		return
 	}
+	if err := validateTaskInputFiles(req.InputFiles); err != nil {
+		s.respondError(w, 400, err.Error())
+		return
+	}
+	inputFiles, err := json.Marshal(req.InputFiles)
+	if err != nil {
+		s.respondError(w, 400, "input files are invalid")
+		return
+	}
 	id := uuid.New().String()
-	_, err := s.DB.Conn.ExecContext(r.Context(), `INSERT INTO task_runs (id,user_id,title,objective,status) VALUES ($1,$2,$3,$4,'awaiting_plan_approval')`, id, uid, strings.TrimSpace(req.Title), strings.TrimSpace(req.Objective))
+	_, err = s.DB.Conn.ExecContext(r.Context(), `INSERT INTO task_runs (id,user_id,title,objective,input_files,status) VALUES ($1,$2,$3,$4,$5,'awaiting_plan_approval')`, id, uid, strings.TrimSpace(req.Title), strings.TrimSpace(req.Objective), inputFiles)
 	if err != nil {
 		s.respondError(w, 500, "failed to create task")
 		return
@@ -207,7 +252,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) writeTask(w http.ResponseWriter, r *http.Request, id, uid string, status int) {
 	var item taskRecord
-	err := s.DB.Conn.QueryRowContext(r.Context(), `SELECT id,title,objective,status,stop_requested_at,takeover_requested_at,version,created_at,updated_at FROM task_runs WHERE id=$1 AND user_id=$2`, id, uid).Scan(&item.ID, &item.Title, &item.Objective, &item.Status, &item.StopRequestedAt, &item.TakeoverRequestedAt, &item.Version, &item.CreatedAt, &item.UpdatedAt)
+	err := s.DB.Conn.QueryRowContext(r.Context(), `SELECT id,title,objective,input_files,status,stop_requested_at,takeover_requested_at,version,created_at,updated_at FROM task_runs WHERE id=$1 AND user_id=$2`, id, uid).Scan(&item.ID, &item.Title, &item.Objective, &item.InputFiles, &item.Status, &item.StopRequestedAt, &item.TakeoverRequestedAt, &item.Version, &item.CreatedAt, &item.UpdatedAt)
 	if err != nil {
 		s.respondError(w, 404, "task not found")
 		return
@@ -223,7 +268,7 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	if !s.taskDB(w) {
 		return
 	}
-	rows, err := s.DB.Conn.QueryContext(r.Context(), `SELECT id,title,objective,status,stop_requested_at,takeover_requested_at,version,created_at,updated_at FROM task_runs WHERE user_id=$1 ORDER BY updated_at DESC LIMIT 100`, uid)
+	rows, err := s.DB.Conn.QueryContext(r.Context(), `SELECT id,title,objective,input_files,status,stop_requested_at,takeover_requested_at,version,created_at,updated_at FROM task_runs WHERE user_id=$1 ORDER BY updated_at DESC LIMIT 100`, uid)
 	if err != nil {
 		s.respondError(w, 500, "failed to list tasks")
 		return
@@ -232,7 +277,8 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	result := []taskRecord{}
 	for rows.Next() {
 		var item taskRecord
-		if err := rows.Scan(&item.ID, &item.Title, &item.Objective, &item.Status, &item.StopRequestedAt, &item.TakeoverRequestedAt, &item.Version, &item.CreatedAt, &item.UpdatedAt); err == nil {
+		if err := rows.Scan(&item.ID, &item.Title, &item.Objective, &item.InputFiles, &item.Status, &item.StopRequestedAt, &item.TakeoverRequestedAt, &item.Version, &item.CreatedAt, &item.UpdatedAt); err == nil {
+
 			result = append(result, item)
 		}
 	}

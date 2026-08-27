@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -76,11 +77,20 @@ func main() {
 	defer auditWorker.Stop()
 
 	var authService auth.AuthService
-	if cfg.UseSupabase {
+	// The Docker smoke suite intentionally exercises the Go gateway's direct
+	// registration/login contract. TAYARI_E2E_TEST_MODE is rejected for
+	// production startup by ValidateForStartup, so this cannot alter production
+	// Supabase behavior or create a hidden auth bypass outside test mode.
+	e2eLocalAuth := strings.EqualFold(strings.TrimSpace(os.Getenv("TAYARI_E2E_TEST_MODE")), "true")
+	if cfg.UseSupabase && !e2eLocalAuth {
 		log.Println("Using Supabase Authentication Strategy")
 		authService = auth.NewSupabaseAuth(cfg, db)
 	} else {
-		log.Println("Using Local Postgres Authentication Strategy")
+		if cfg.UseSupabase {
+			log.Println("Using Local Postgres Authentication Strategy for E2E test mode")
+		} else {
+			log.Println("Using Local Postgres Authentication Strategy")
+		}
 		authService = auth.NewLocalAuth(db, cfg, auditWorker)
 	}
 

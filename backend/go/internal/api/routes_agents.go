@@ -68,6 +68,18 @@ func (s *Server) routesAgents(r chi.Router) {
 		r.Post("/api/ai/agent/career/ats-confirm", s.handleAgentPythonPost("/api/v1/ai/agent/career/ats-confirm"))
 		r.Post("/api/v1/ai/agent/career/universal-apply", s.handleAgentPythonPost("/api/v1/ai/agent/career/universal-apply"))
 		r.Post("/api/ai/agent/career/universal-apply", s.handleAgentPythonPost("/api/v1/ai/agent/career/universal-apply"))
+		r.Get("/api/v1/ai/agent/career/interview-board", s.handleAgentPythonGet("/api/v1/ai/agent/career/interview-board"))
+		r.Get("/api/ai/agent/career/interview-board", s.handleAgentPythonGet("/api/v1/ai/agent/career/interview-board"))
+		r.Post("/api/v1/ai/agent/career/interview-board/update", s.handleAgentPythonPost("/api/v1/ai/agent/career/interview-board/update"))
+		r.Post("/api/ai/agent/career/interview-board/update", s.handleAgentPythonPost("/api/v1/ai/agent/career/interview-board/update"))
+		r.Post("/api/v1/ai/agent/career/email-sync", s.handleAgentPythonPost("/api/v1/ai/agent/career/email-sync"))
+		r.Post("/api/ai/agent/career/email-sync", s.handleAgentPythonPost("/api/v1/ai/agent/career/email-sync"))
+		r.Post("/api/v1/ai/agent/career/ai-negotiate", s.handleAgentPythonPost("/api/v1/ai/agent/career/ai-negotiate"))
+		r.Post("/api/ai/agent/career/ai-negotiate", s.handleAgentPythonPost("/api/v1/ai/agent/career/ai-negotiate"))
+		r.Post("/api/v1/ai/agent/career/outreach", s.handleAgentPythonPost("/api/v1/ai/agent/career/outreach"))
+		r.Post("/api/ai/agent/career/outreach", s.handleAgentPythonPost("/api/v1/ai/agent/career/outreach"))
+		r.Post("/api/v1/ai/agent/career/copilot", s.handleAgentPythonPost("/api/v1/ai/agent/career/copilot"))
+		r.Post("/api/ai/agent/career/copilot", s.handleAgentPythonPost("/api/v1/ai/agent/career/copilot"))
 
 	})
 }
@@ -82,6 +94,23 @@ func (s *Server) handleAgentPythonPost(endpoint string) http.HandlerFunc {
 		result, err := s.AI.PostJSONWithHeaders(endpoint, json.RawMessage(body), s.getXUserHeaders(r))
 		if err != nil {
 			log.Printf("agent Python POST %s: AI call failed: %v", endpoint, err)
+			var apiErr *ai.APIError
+			if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+				s.respondError(w, apiErr.StatusCode, apiErr.Body)
+				return
+			}
+			s.respondError(w, http.StatusBadGateway, "Agent service unavailable")
+			return
+		}
+		s.respondJSON(w, http.StatusOK, result)
+	}
+}
+
+func (s *Server) handleAgentPythonGet(endpoint string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := s.AI.GetJSONWithHeaders(endpoint, s.getXUserHeaders(r))
+		if err != nil {
+			log.Printf("agent Python GET %s: AI call failed: %v", endpoint, err)
 			var apiErr *ai.APIError
 			if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
 				s.respondError(w, apiErr.StatusCode, apiErr.Body)

@@ -198,9 +198,10 @@ test("service worker bridge and task handlers enforce origin, approval, revocati
         if (path.endsWith("/bridge/action/authorize")) return response({ success: true, status: "authorized_for_local_execution", action_id: "action-123" });
         if (path.endsWith("/bridge/observation")) return response({ status: "recorded" });
         if (path.endsWith("/revoke")) return response({ status: "revoked" });
-        if (path === "v1/tasks") return response({ id: "task-12345678901234567890", status: "draft" });
+        if (path === "v1/tasks") return response({ id: "123e4567-e89b-12d3-a456-426614174000", status: "draft" });
         if (path.endsWith("/plan")) return response({ status: "planned" });
         if (path.endsWith("/plan/approve")) return response({ status: "queued" });
+        if (path.endsWith("/artifacts")) return response({ artifacts: [{ body: "# Durable result", provenance: { source: "configured_llm" } }] });
         if (path.endsWith("/stop")) return response({ status: "cancel_requested" });
         if (path.endsWith("/takeover")) return response({ status: "awaiting_takeover" });
         if (path.includes("/agent/page-answer")) return response({ answer: "Read-only answer", sources: [{ title: page.title, url: page.url }], read_only: true });
@@ -234,6 +235,13 @@ test("service worker bridge and task handlers enforce origin, approval, revocati
   const objective = JSON.parse(JSON.parse(apiCalls.find((call) => call.path === "v1/tasks").init.body).objective);
   assert.equal(objective.plan.finalSubmit, "blocked_by_default");
   assert.ok(objective.plan.steps.length >= 3);
+  assert.equal(typeof objective.plan.steps[0], "object");
+  assert.equal(objective.plan.steps[0].tool, "candidate_context.read");
+  const planCall = apiCalls.find((call) => call.path.endsWith("/plan"));
+  assert.equal(typeof JSON.parse(planCall.init.body).steps[0], "object");
+  const artifacts = await dispatch(message, { action: "get_agent_task_artifacts", taskId: "123e4567-e89b-12d3-a456-426614174000" }, { id: chrome.runtime.id, url: "chrome-extension://jobtayari-test/sidepanel.html" });
+  assert.equal(artifacts.success, true);
+  assert.equal(artifacts.artifacts[0].provenance.source, "configured_llm");
 
   const unapprovedFill = await dispatch(message, { action: "approved_autofill", tabId: 41, approved: false }, { id: chrome.runtime.id, url: "chrome-extension://jobtayari-test/sidepanel.html" });
   assert.equal(unapprovedFill.success, false);
