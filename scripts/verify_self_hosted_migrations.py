@@ -110,6 +110,10 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/60-20260827_job_watches_intelligence.sql",
         "zz-60-20260827_job_watches_intelligence.sql",
     ),
+    "backend/db/migrations/20260827_05_self_hosted_table_parity.sql": (
+        "supabase-local/volumes/db/init/61-20260827_self_hosted_table_parity.sql",
+        "zz-61-20260827_self_hosted_table_parity.sql",
+    ),
 }
 
 
