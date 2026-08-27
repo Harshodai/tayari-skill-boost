@@ -60,6 +60,11 @@ jobs:
           scripts/release_contract_test.sh
 
       - name: Render each environment
+        env:
+          TRUSTED_PROXY_CIDRS: '10.0.0.0/8'
+          LLM_PROVIDER: 'ci-placeholder'
+          LLM_MODEL_FAST: 'ci-fast'
+          LLM_MODEL_SMART: 'ci-smart'
         run: |
           set -euo pipefail
           mkdir -p rendered
