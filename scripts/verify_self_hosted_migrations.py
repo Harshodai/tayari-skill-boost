@@ -94,6 +94,14 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/56-20260826_fix_preference_summary_refresh_owner.sql",
         "zz-56-20260826_fix_preference_summary_refresh_owner.sql",
     ),
+    "backend/db/migrations/20260827_01_task_input_files.sql": (
+        "supabase-local/volumes/db/init/57-20260827_task_input_files.sql",
+        "zz-57-20260827_task_input_files.sql",
+    ),
+    "backend/db/migrations/20260827_02_agent_memory.sql": (
+        "supabase-local/volumes/db/init/58-20260827_agent_memory.sql",
+        "zz-58-20260827_agent_memory.sql",
+    ),
 }
 
 
