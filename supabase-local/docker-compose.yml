@@ -309,6 +309,8 @@ services:
       - ./volumes/db/init/56-20260826_fix_preference_summary_refresh_owner.sql:/docker-entrypoint-initdb.d/migrations/zz-56-20260826_fix_preference_summary_refresh_owner.sql:Z
       - ./volumes/db/init/57-20260827_task_input_files.sql:/docker-entrypoint-initdb.d/migrations/zz-57-20260827_task_input_files.sql:Z
       - ./volumes/db/init/58-20260827_agent_memory.sql:/docker-entrypoint-initdb.d/migrations/zz-58-20260827_agent_memory.sql:Z
+      - ./volumes/db/init/59-20260827_saved_searches_parity.sql:/docker-entrypoint-initdb.d/migrations/zz-59-20260827_saved_searches_parity.sql:Z
+      - ./volumes/db/init/60-20260827_job_watches_intelligence.sql:/docker-entrypoint-initdb.d/migrations/zz-60-20260827_job_watches_intelligence.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:

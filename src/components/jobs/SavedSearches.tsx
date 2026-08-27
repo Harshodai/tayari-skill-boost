@@ -8,6 +8,8 @@ import { Switch } from "@/components/ui/switch";
 import { Bell, Trash2, Search, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { createJobWatch, deleteJobWatch } from "@/api";
+import { suggestScheduleTier } from "@/lib/jobWatchIntelligence";
 
 interface SavedSearch {
   id: string;
@@ -17,6 +19,7 @@ interface SavedSearch {
   remote_only: boolean;
   min_score: number;
   alert_enabled: boolean;
+  job_watch_id: string | null;
 }
 
 interface Props {
@@ -65,20 +68,51 @@ export function SavedSearches({ current, onApply }: Props) {
     onError: (e: any) => toast.error(e?.message || "Could not save"),
   });
 
+  // Turning the bell on/off creates or deletes a real, backend-polled
+  // job_watches row (the same standing-watch system Settings > Preferences
+  // manages) instead of just flipping a column nothing reads server-side —
+  // alert_enabled used to be a UI-only flag with zero backend consumer.
   const toggleAlert = useMutation({
-    mutationFn: async ({ id, on }: { id: string; on: boolean }) => {
-      const { error } = await supabase
-        .from("saved_searches")
-        .update({ alert_enabled: on })
-        .eq("id", id);
-      if (error) throw error;
+    mutationFn: async (s: SavedSearch) => {
+      if (!s.alert_enabled) {
+        const watch = await createJobWatch({
+          query_title: s.query || s.name,
+          location: s.location || "Remote",
+          schedule_tier: suggestScheduleTier(s.query || s.name),
+        });
+        const { error } = await supabase
+          .from("saved_searches")
+          .update({ alert_enabled: true, job_watch_id: watch.watch_id })
+          .eq("id", s.id);
+        if (error) throw error;
+      } else {
+        if (s.job_watch_id) {
+          await deleteJobWatch(s.job_watch_id).catch(() => {
+            // ponytail: the watch may already be gone (e.g. deleted from
+            // Settings) — still clear the link so the saved search doesn't
+            // point at a dead watch_id forever.
+          });
+        }
+        const { error } = await supabase
+          .from("saved_searches")
+          .update({ alert_enabled: false, job_watch_id: null })
+          .eq("id", s.id);
+        if (error) throw error;
+      }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["saved-searches", user?.id] }),
+    onSuccess: (_data, s) => {
+      toast.success(s.alert_enabled ? "Daily alert turned off." : "Daily alert enabled — checked on a schedule that matches this search.");
+      qc.invalidateQueries({ queryKey: ["saved-searches", user?.id] });
+    },
+    onError: () => toast.error("Could not update this alert."),
   });
 
   const remove = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("saved_searches").delete().eq("id", id);
+    mutationFn: async (s: SavedSearch) => {
+      if (s.job_watch_id) {
+        await deleteJobWatch(s.job_watch_id).catch(() => {});
+      }
+      const { error } = await supabase.from("saved_searches").delete().eq("id", s.id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["saved-searches", user?.id] }),
@@ -138,7 +172,8 @@ export function SavedSearches({ current, onApply }: Props) {
                 </p>
               </button>
               <button
-                onClick={() => toggleAlert.mutate({ id: s.id, on: !s.alert_enabled })}
+                onClick={() => toggleAlert.mutate(s)}
+                disabled={toggleAlert.isPending}
                 aria-label="Toggle daily alert"
                 className={cn(
                   "p-1 rounded transition-colors",
@@ -148,7 +183,7 @@ export function SavedSearches({ current, onApply }: Props) {
                 <Bell className="w-3.5 h-3.5" fill={s.alert_enabled ? "currentColor" : "none"} />
               </button>
               <button
-                onClick={() => remove.mutate(s.id)}
+                onClick={() => remove.mutate(s)}
                 aria-label="Delete saved search"
                 className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive transition-opacity"
               >

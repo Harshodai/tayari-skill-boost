@@ -10,6 +10,7 @@ export interface JobWatch {
   schedule_tier: "hourly" | "daily" | "weekly" | string;
   is_active: boolean;
   last_run_at?: string | null;
+  last_match_count?: number | null;
   created_at: string;
 }
 

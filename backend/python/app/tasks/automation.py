@@ -280,6 +280,23 @@ TIER_INTERVALS = {
 }
 
 
+async def _count_watch_matches(title: str, location: str) -> int | None:
+    """Real (not simulated) job count for a standing watch, via the same
+    no-LLM provider aggregator the job-search API and MCP tool use.
+
+    Returns None (not 0) on any provider failure, so the UI can distinguish
+    "we checked and found nothing" from "the check itself failed" instead of
+    a false-looking zero.
+    """
+    try:
+        from app.services.job_providers import search_jobs
+        results = await search_jobs(title, location, limit=40)
+        return len(results)
+    except Exception as exc:  # noqa: BLE001 - a failed count must not block dispatch
+        logger.warning("run_standing_job_watches: match count failed for %r: %s", title, exc)
+        return None
+
+
 @celery_app.task(name="autopilot.run_standing_job_watches", bind=True)
 def run_standing_job_watches(self) -> dict:
     """Query active job_watches from Postgres and trigger scheduled autopilot runs.
@@ -322,9 +339,19 @@ def run_standing_job_watches(self) -> dict:
                     "standing_watch_id": str(w["watch_id"]),
                 }
                 run_scheduled.delay(user_id=user_id, config=config)
+
+                # Real match count, not a placeholder: a direct, no-LLM
+                # provider search (the same aggregator /api/v1/jobs/search
+                # and the jobtheory MCP's search_jobs tool use), so the
+                # Settings UI can show "N jobs found" instead of only a
+                # timestamp. Best-effort — a provider outage must not stop
+                # last_run_at from being stamped (that's what prevents a
+                # beat restart from double-firing this watch).
+                match_count = await _count_watch_matches(title, loc)
+
                 await conn.execute(
-                    "UPDATE public.job_watches SET last_run_at = $1, updated_at = $1 WHERE watch_id = $2",
-                    now, w["watch_id"],
+                    "UPDATE public.job_watches SET last_run_at = $1, last_match_count = $2, updated_at = $1 WHERE watch_id = $3",
+                    now, match_count, w["watch_id"],
                 )
                 triggered += 1
         return {"status": "success", "watches_triggered": triggered, "watches_skipped": skipped}

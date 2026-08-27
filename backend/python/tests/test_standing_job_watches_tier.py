@@ -61,13 +61,14 @@ def _watch(watch_id: str, tier: str, last_run_at):
     }
 
 
-def _run_task(rows, monkeypatch):
+def _run_task(rows, monkeypatch, match_count=5):
     """Run run_standing_job_watches against fake rows; return (result, conn, fake_delay)."""
     conn = FakeConn(rows)
     pool = FakePool(conn)
     import app.services.db as db_mod
     monkeypatch.setattr(db_mod, "get_pool", AsyncMock(return_value=pool))
-    with patch.object(automation_task.run_scheduled, "delay") as fake_delay:
+    with patch.object(automation_task.run_scheduled, "delay") as fake_delay, \
+         patch.object(automation_task, "_count_watch_matches", AsyncMock(return_value=match_count)):
         result = automation_task.run_standing_job_watches.apply().get()
     return result, conn, fake_delay
 
@@ -161,5 +162,59 @@ def test_multiple_watches_mixed_due_states(monkeypatch):
     assert result["watches_triggered"] == 2
     assert result["watches_skipped"] == 1
     assert fake_delay.call_count == 2
-    dispatched_ids = {args[1] for _, args in conn.executed}
+    dispatched_ids = {args[2] for _, args in conn.executed}
     assert dispatched_ids == {"due-hourly", "never-run"}
+
+
+def test_match_count_is_persisted_on_dispatch(monkeypatch):
+    """A real match count from _count_watch_matches is written alongside last_run_at."""
+    rows = [_watch("w-count", "hourly", None)]
+
+    result, conn, fake_delay = _run_task(rows, monkeypatch, match_count=14)
+
+    assert fake_delay.called is True
+    assert len(conn.executed) == 1
+    _, args = conn.executed[0]
+    # UPDATE ... SET last_run_at = $1, last_match_count = $2, ... WHERE watch_id = $3
+    assert args[1] == 14
+    assert args[2] == "w-count"
+
+
+def test_match_count_failure_does_not_block_dispatch(monkeypatch):
+    """A provider outage must not stop last_run_at from being stamped -- that
+    stamp is what prevents a beat restart from double-firing this watch."""
+    rows = [_watch("w-outage", "hourly", None)]
+
+    result, conn, fake_delay = _run_task(rows, monkeypatch, match_count=None)
+
+    assert fake_delay.called is True
+    assert result["watches_triggered"] == 1
+    _, args = conn.executed[0]
+    assert args[1] is None
+
+
+def test_count_watch_matches_returns_none_not_zero_on_provider_failure():
+    """None (checked, failed) must stay distinguishable from 0 (checked, no
+    matches) -- exercises the real try/except in _count_watch_matches
+    directly, not through the task-level mock used above."""
+    import asyncio
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("provider down")
+
+    with patch("app.services.job_providers.search_jobs", _boom):
+        result = asyncio.run(automation_task._count_watch_matches("Engineer", "Remote"))
+
+    assert result is None
+
+
+def test_count_watch_matches_returns_real_length_on_success():
+    import asyncio
+
+    async def _fake_search(*args, **kwargs):
+        return [{"title": "A"}, {"title": "B"}, {"title": "C"}]
+
+    with patch("app.services.job_providers.search_jobs", _fake_search):
+        result = asyncio.run(automation_task._count_watch_matches("Engineer", "Remote"))
+
+    assert result == 3

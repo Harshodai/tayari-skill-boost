@@ -116,7 +116,7 @@ func (c watchesFakeConn) ExecContext(ctx context.Context, query string, args []d
 type watchesFakeRows struct{ done bool }
 
 func (r *watchesFakeRows) Columns() []string {
-	return []string{"id", "watch_id", "user_id", "query_title", "location", "salary_floor", "schedule_tier", "is_active", "last_run_at", "created_at"}
+	return []string{"id", "watch_id", "user_id", "query_title", "location", "salary_floor", "schedule_tier", "is_active", "last_run_at", "last_match_count", "created_at"}
 }
 func (r *watchesFakeRows) Close() error { return nil }
 func (r *watchesFakeRows) Next(dest []driver.Value) error {
@@ -133,7 +133,8 @@ func (r *watchesFakeRows) Next(dest []driver.Value) error {
 	dest[6] = "daily"
 	dest[7] = false // reflects the PATCH toggling is_active -> false
 	dest[8] = time.Date(2026, 8, 27, 10, 0, 0, 0, time.UTC)
-	dest[9] = time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	dest[9] = int64(7)
+	dest[10] = time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 	return nil
 }
 

@@ -13,16 +13,17 @@ import (
 )
 
 type JobWatch struct {
-	ID           int     `json:"id"`
-	WatchID      string  `json:"watch_id"`
-	UserID       string  `json:"user_id"`
-	QueryTitle   string  `json:"query_title"`
-	Location     string  `json:"location"`
-	SalaryFloor  float64 `json:"salary_floor"`
-	ScheduleTier string  `json:"schedule_tier"`
-	IsActive     bool    `json:"is_active"`
-	LastRunAt    *string `json:"last_run_at,omitempty"`
-	CreatedAt    string  `json:"created_at"`
+	ID             int     `json:"id"`
+	WatchID        string  `json:"watch_id"`
+	UserID         string  `json:"user_id"`
+	QueryTitle     string  `json:"query_title"`
+	Location       string  `json:"location"`
+	SalaryFloor    float64 `json:"salary_floor"`
+	ScheduleTier   string  `json:"schedule_tier"`
+	IsActive       bool    `json:"is_active"`
+	LastRunAt      *string `json:"last_run_at,omitempty"`
+	LastMatchCount *int    `json:"last_match_count,omitempty"`
+	CreatedAt      string  `json:"created_at"`
 }
 
 func (s *Server) routesJobWatches(r chi.Router) {
@@ -56,7 +57,7 @@ func (s *Server) handleListJobWatches(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := s.DB.Conn.Query(`
-		SELECT id, watch_id, user_id, query_title, location, salary_floor, schedule_tier, is_active, last_run_at, created_at
+		SELECT id, watch_id, user_id, query_title, location, salary_floor, schedule_tier, is_active, last_run_at, last_match_count, created_at
 		FROM public.job_watches
 		WHERE user_id = $1::uuid
 		ORDER BY created_at DESC
@@ -71,6 +72,7 @@ func (s *Server) handleListJobWatches(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var wItem JobWatch
 		var lastRun sql.NullTime
+		var lastMatchCount sql.NullInt64
 		var createdAt sql.NullTime
 		if err := rows.Scan(
 			&wItem.ID,
@@ -82,11 +84,16 @@ func (s *Server) handleListJobWatches(w http.ResponseWriter, r *http.Request) {
 			&wItem.ScheduleTier,
 			&wItem.IsActive,
 			&lastRun,
+			&lastMatchCount,
 			&createdAt,
 		); err == nil {
 			if lastRun.Valid {
 				t := lastRun.Time.Format("2006-01-02T15:04:05Z07:00")
 				wItem.LastRunAt = &t
+			}
+			if lastMatchCount.Valid {
+				n := int(lastMatchCount.Int64)
+				wItem.LastMatchCount = &n
 			}
 			if createdAt.Valid {
 				wItem.CreatedAt = createdAt.Time.Format("2006-01-02T15:04:05Z07:00")
@@ -230,16 +237,17 @@ func (s *Server) handleUpdateJobWatch(w http.ResponseWriter, r *http.Request) {
 		UPDATE public.job_watches
 		SET %s
 		WHERE user_id = $%d::uuid AND (watch_id::text = $%d OR id::text = $%d)
-		RETURNING id, watch_id, user_id, query_title, location, salary_floor, schedule_tier, is_active, last_run_at, created_at
+		RETURNING id, watch_id, user_id, query_title, location, salary_floor, schedule_tier, is_active, last_run_at, last_match_count, created_at
 	`, strings.Join(setClauses, ", "), userIDArg, watchIDArg, watchIDArg)
 
 	var updated JobWatch
 	var lastRun sql.NullTime
+	var lastMatchCount sql.NullInt64
 	var createdAt sql.NullTime
 	err := s.DB.Conn.QueryRowContext(r.Context(), query, args...).Scan(
 		&updated.ID, &updated.WatchID, &updated.UserID, &updated.QueryTitle,
 		&updated.Location, &updated.SalaryFloor, &updated.ScheduleTier,
-		&updated.IsActive, &lastRun, &createdAt,
+		&updated.IsActive, &lastRun, &lastMatchCount, &createdAt,
 	)
 	if err == sql.ErrNoRows {
 		s.respondError(w, http.StatusNotFound, "watch not found")
@@ -253,6 +261,10 @@ func (s *Server) handleUpdateJobWatch(w http.ResponseWriter, r *http.Request) {
 	if lastRun.Valid {
 		t := lastRun.Time.Format("2006-01-02T15:04:05Z07:00")
 		updated.LastRunAt = &t
+	}
+	if lastMatchCount.Valid {
+		n := int(lastMatchCount.Int64)
+		updated.LastMatchCount = &n
 	}
 	if createdAt.Valid {
 		updated.CreatedAt = createdAt.Time.Format("2006-01-02T15:04:05Z07:00")

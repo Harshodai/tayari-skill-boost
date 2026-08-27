@@ -102,6 +102,14 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/58-20260827_agent_memory.sql",
         "zz-58-20260827_agent_memory.sql",
     ),
+    "backend/db/migrations/20260827_03_saved_searches_parity.sql": (
+        "supabase-local/volumes/db/init/59-20260827_saved_searches_parity.sql",
+        "zz-59-20260827_saved_searches_parity.sql",
+    ),
+    "backend/db/migrations/20260827_04_job_watches_intelligence.sql": (
+        "supabase-local/volumes/db/init/60-20260827_job_watches_intelligence.sql",
+        "zz-60-20260827_job_watches_intelligence.sql",
+    ),
 }
 
 
