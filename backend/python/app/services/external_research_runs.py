@@ -161,7 +161,8 @@ async def update_external_research_run(job_id: str, **fields: Any) -> bool:
     try:
         async with pool.acquire() as conn:
             result = await conn.execute(
-                f"UPDATE public.external_research_runs SET {', '.join(sets)} WHERE job_id=$1",  # noqa: S608
+                # Column names come exclusively from _ALLOWED_UPDATE_FIELDS; values remain bound parameters.
+                f"UPDATE public.external_research_runs SET {', '.join(sets)} WHERE job_id=$1",  # nosec B608
                 *args,
             )
         return result.endswith("1")
