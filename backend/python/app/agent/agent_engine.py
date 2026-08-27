@@ -67,12 +67,13 @@ class GeneralistAgentEngine:
     3. Advanced AI Swarm: Subagent Delegation, Reflection Engine, Episodic/Semantic Memory.
     """
 
-    def __init__(self, workspace_path: str = "./"):
+    def __init__(self, workspace_path: str = "./", user_id: Optional[str] = None):
         self.workspace_path = os.path.abspath(workspace_path)
+        self.user_id = user_id
         self.repl = CodeActREPL()
         self.mcp = MCPManager()
         self.browser = BrowserOperator()
-        self.memory = AgentMemory()
+        self.memory = AgentMemory(user_id=user_id)
         self.reflection = ReflectionEngine()
         self.orchestrator = SubagentOrchestrator()
 
@@ -275,7 +276,7 @@ class GeneralistAgentEngine:
             handler=navigate_web
         )
 
-    async def execute_task(self, goal: str, max_steps: int = 10) -> Dict[str, Any]:
+    async def execute_task(self, goal: str, max_steps: int = 10, browser_urls: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Execute high-level goal using Subagent Swarm, CodeAct REPL, Self-Reflection Engine, and Memory.
 
@@ -284,10 +285,33 @@ class GeneralistAgentEngine:
         """
         if not isinstance(max_steps, int) or max_steps < 1:
             raise ValueError("max_steps must be a positive integer")
+        memory_load = await self.memory.load()
         self.session_history.append({"role": "user", "content": goal})
         self.memory.store_knowledge("current_goal", goal)
 
         steps_log = []
+        browser_results: List[Dict[str, Any]] = []
+        requested_browser_urls = [str(url).strip() for url in (browser_urls or []) if str(url).strip()][:3]
+        if requested_browser_urls:
+            for url in requested_browser_urls:
+                info = _resolve_and_validate_url(url)
+                if not info:
+                    browser_results.append({"success": False, "url": url, "error": "Rejected URL: unsafe scheme or non-public address."})
+                    continue
+                try:
+                    result = await self.browser.navigate(info["target_url"], headers=info["headers"], validate_redirects=True)
+                    result["requested_url"] = url
+                    browser_results.append(result)
+                except Exception as exc:  # noqa: BLE001 - preserve per-URL failure
+                    browser_results.append({"success": False, "url": url, "error": f"Browser execution failed: {type(exc).__name__}"})
+            browser_step = {
+                "step": 0,
+                "action": "Live Browser Research",
+                "thought": "Browsing only the user-supplied HTTPS URLs; page content remains untrusted evidence.",
+                "browser_output": browser_results,
+            }
+            steps_log.append(browser_step)
+            self.memory.record_episode(0, "Live Browser Research", None, browser_results, all(item.get("success") is True for item in browser_results))
         plan = [
             f"Phase 1: Goal Analysis & Environment Inspection ({goal})",
             "Phase 2: Subagent Swarm Delegation (Research + Coder Agents)",
@@ -314,6 +338,7 @@ class GeneralistAgentEngine:
                 "steps": steps_log,
                 "error": f"Subagent delegation failed: {exc}",
                 "memory_summary": self.memory.get_summary(),
+                "memory_persistence": await self.memory.flush(),
             }
 
         step_1 = {
@@ -410,14 +435,29 @@ class GeneralistAgentEngine:
         steps_log.append(step_3)
         self.memory.record_episode(3, "MCP & Computer Use", None, mcp_res, step_3_succeeded)
 
-        # Final Summary
+        # Final Summary. Never claim complete when a required browser, REPL, MCP, or memory step failed.
+        memory_flush = await self.memory.flush()
         steps_log = steps_log[:max_steps]
+        browser_ok = all(item.get("success") is True for item in browser_results)
+        swarm_ok = all(item.get("status") == "completed" for item in swarm_results)
+        memory_ok = not self.user_id or memory_flush.get("status") == "persisted"
+        execution_status = "completed" if swarm_ok and repl_result.get("success") is True and step_3_succeeded and browser_ok and memory_ok else "partial"
         return {
-            "status": "completed",
+            "status": execution_status,
             "goal": goal,
             "total_steps": len(steps_log),
             "plan": plan,
             "steps": steps_log,
             "memory_summary": self.memory.get_summary(),
-            "swarm_execution": swarm_results
+            "swarm_execution": swarm_results,
+            "browser_results": browser_results,
+            "memory_persistence": {"load": memory_load, "flush": memory_flush},
+            "verification": {
+                "swarm_success": swarm_ok,
+                "repl_success": repl_result.get("success") is True,
+                "mcp_success": step_3_succeeded,
+                "browser_success": browser_ok,
+                "memory_success": memory_ok,
+                "complete": execution_status == "completed",
+            },
         }

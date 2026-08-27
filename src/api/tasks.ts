@@ -2,12 +2,19 @@ import { apiFetch } from './client';
 
 export type TaskStatus = 'draft' | 'planning' | 'awaiting_plan_approval' | 'queued' | 'running' | 'paused' | 'awaiting_action_approval' | 'awaiting_takeover' | 'completed' | 'stopped' | 'failed';
 export type RiskTier = 'read' | 'navigation' | 'draft' | 'sensitive' | 'external_write' | 'submission';
-export interface TaskRun { id: string; title: string; objective: string; status: TaskStatus; version: number; created_at: string; updated_at: string; stop_requested_at?: string; takeover_requested_at?: string; }
+export interface TaskInputFile {
+  name: string;
+  mime_type: string;
+  size_bytes: number;
+  content_base64?: string;
+  read_error?: string;
+}
+export interface TaskRun { id: string; title: string; objective: string; input_files?: TaskInputFile[]; status: TaskStatus; version: number; created_at: string; updated_at: string; stop_requested_at?: string; takeover_requested_at?: string; }
 export interface TaskEvent { sequence_no: number; event_type: string; payload: Record<string, unknown>; created_at: string; }
 export interface TaskPlan { task_id: string; version: number; steps: unknown[]; status: string; created_at: string; approved_at?: string; }
 export interface TaskArtifact { id: string; task_id: string; artifact_type: string; title: string; content_type: string; body: string; provenance: Record<string, unknown>; created_at: string; updated_at: string; }
 export interface ActionProposal { id: string; task_id: string; action_type: string; risk_tier: RiskTier; site_origin?: string; payload: Record<string, unknown>; status: string; decided_at?: string; created_at: string; }
-export const createTask = (input: { title: string; objective: string }) => apiFetch<TaskRun>('/v1/tasks', { method: 'POST', body: JSON.stringify(input) });
+export const createTask = (input: { title: string; objective: string; input_files?: TaskInputFile[] }) => apiFetch<TaskRun>('/v1/tasks', { method: 'POST', body: JSON.stringify(input) });
 export const listTasks = () => apiFetch<{ tasks: TaskRun[] }>('/v1/tasks');
 export const getTask = (id: string) => apiFetch<TaskRun>(`/v1/tasks/${encodeURIComponent(id)}`);
 export const listTaskEvents = (id: string) => apiFetch<{ events: TaskEvent[] }>(`/v1/tasks/${encodeURIComponent(id)}/events`);
