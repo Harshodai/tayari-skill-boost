@@ -507,6 +507,91 @@ var report_outcome_default = defineTool14({
   }
 });
 
+// src/lib/mcp/tools/create-task.ts
+import { defineTool as defineTool15 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z14 } from "npm:zod@^4.4.3";
+var create_task_default = defineTool15({
+  name: "create_task",
+  title: "Create durable task",
+  description: "Create a candidate-owned review-first task. Creation records intent only; it never submits, sends, or changes an external system.",
+  inputSchema: {
+    title: z14.string().trim().min(1).max(240),
+    objective: z14.string().trim().min(1).max(1e4)
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  handler: async ({ title, objective }, ctx) => {
+    const denied = requireMcpWriteTool(ctx, "create_task");
+    if (denied) return denied;
+    try {
+      const data = await callApi(ctx, "/api/v1/tasks", { body: { title, objective } });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { task: data } };
+    } catch (error) {
+      return toolError(error instanceof Error ? error.message : "Task creation failed");
+    }
+  }
+});
+
+// src/lib/mcp/tools/task-control.ts
+import { defineTool as defineTool16 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z15 } from "npm:zod@^4.4.3";
+var taskId = z15.string().uuid();
+async function writeTaskAction(ctx, name, path) {
+  const denied = requireMcpWriteTool(ctx, name);
+  if (denied) return denied;
+  try {
+    const data = await callApi(ctx, path);
+    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { task: data } };
+  } catch (error) {
+    return toolError(error instanceof Error ? error.message : `${name} failed`);
+  }
+}
+var getTaskTool = defineTool16({
+  name: "get_task",
+  title: "Get durable task",
+  description: "Read the signed-in user's durable task status and lifecycle state.",
+  inputSchema: { task_id: taskId },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ task_id }, ctx) => {
+    try {
+      const data = await callApi(ctx, `/api/v1/tasks/${encodeURIComponent(task_id)}`, { method: "GET" });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { task: data } };
+    } catch (error) {
+      return toolError(error instanceof Error ? error.message : "Task lookup failed");
+    }
+  }
+});
+var approveTaskTool = defineTool16({
+  name: "approve_task_plan",
+  title: "Approve task plan",
+  description: "Approve the latest candidate-owned task plan so the existing durable draft executor can run it. This never authorizes submission or external writes.",
+  inputSchema: { task_id: taskId },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  handler: async ({ task_id }, ctx) => writeTaskAction(ctx, "approve_task_plan", `/api/v1/tasks/${encodeURIComponent(task_id)}/plan/approve`)
+});
+var stopTaskTool = defineTool16({
+  name: "stop_task",
+  title: "Stop durable task",
+  description: "Request server-side stop for a candidate-owned durable task.",
+  inputSchema: { task_id: taskId },
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ task_id }, ctx) => writeTaskAction(ctx, "stop_task", `/api/v1/tasks/${encodeURIComponent(task_id)}/stop`)
+});
+var getTaskArtifactsTool = defineTool16({
+  name: "get_task_artifacts",
+  title: "Get task artifacts",
+  description: "Read the reviewable artifacts produced by the existing configured task executor; no artifact is fabricated when execution failed or is incomplete.",
+  inputSchema: { task_id: taskId },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ task_id }, ctx) => {
+    try {
+      const data = await callApi(ctx, `/api/v1/tasks/${encodeURIComponent(task_id)}/artifacts`, { method: "GET" });
+      return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { artifacts: data } };
+    } catch (error) {
+      return toolError(error instanceof Error ? error.message : "Task artifacts lookup failed");
+    }
+  }
+});
+
 // src/lib/mcp/index.ts
 function runtimeSupabaseUrl() {
   const runtime = globalThis.Deno?.env?.get?.("SUPABASE_URL");
@@ -559,7 +644,13 @@ var mcp_default = defineMcp({
     get_market_salary_default,
     check_company_default,
     // Outcome loop (M2)
-    report_outcome_default
+    report_outcome_default,
+    // Durable review-first task control
+    create_task_default,
+    getTaskTool,
+    approveTaskTool,
+    stopTaskTool,
+    getTaskArtifactsTool
   ]
 });
 
