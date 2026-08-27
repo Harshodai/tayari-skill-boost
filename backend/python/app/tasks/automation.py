@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from app.celery_app import celery_app
 from app.services.db import (
@@ -266,10 +267,30 @@ def run_agent_task(self, task_id: str, user_id: str, agent_id: str, config: dict
     return asyncio.run(_async_run())
 
 
+# The Celery beat only ticks this task hourly ("standing-job-watches-hourly"
+# in celery_app.py), so "hourly" is the finest real tier; "daily" matches the
+# column's own schema default (00-init-schema.sql) and the Go create handler's
+# default (routes_watches.go); "weekly" mirrors scheduler.py's FREQUENCY_DELTAS
+# for the sibling autopilot_schedules table. An unrecognized tier falls back
+# to "daily", the same default used everywhere else a tier is unset.
+TIER_INTERVALS = {
+    "hourly": timedelta(hours=1),
+    "daily": timedelta(days=1),
+    "weekly": timedelta(weeks=1),
+}
+
+
 @celery_app.task(name="autopilot.run_standing_job_watches", bind=True)
 def run_standing_job_watches(self) -> dict:
-    """Query active job_watches from Postgres and trigger scheduled autopilot runs."""
-    import os
+    """Query active job_watches from Postgres and trigger scheduled autopilot runs.
+
+    Each watch fires only when its own ``schedule_tier`` interval has elapsed
+    since ``last_run_at`` (a 'daily' watch does not fire on every hourly beat
+    tick). ``last_run_at`` is stamped immediately after each dispatch, inside
+    the same per-watch iteration, so a beat restart mid-run re-evaluates only
+    the watches it did not already stamp — it cannot double-fire a watch that
+    already ran this cycle.
+    """
     async def _execute():
         from app.services.db import get_pool
         pool = await get_pool()
@@ -277,23 +298,36 @@ def run_standing_job_watches(self) -> dict:
             return {"status": "skipped_no_db"}
         async with pool.acquire() as conn:
             watches = await conn.fetch(
-                """SELECT watch_id, user_id, query_title, location, salary_floor, schedule_tier
+                """SELECT watch_id, user_id, query_title, location, salary_floor,
+                          schedule_tier, last_run_at
                    FROM public.job_watches WHERE is_active = true"""
             )
-        triggered = 0
-        for w in watches:
-            user_id = str(w["user_id"])
-            title = w["query_title"]
-            loc = w["location"] or "Remote"
-            config = {
-                "user_id": user_id,
-                "job_titles": [title],
-                "location": loc,
-                "standing_watch_id": str(w["watch_id"]),
-            }
-            run_scheduled.delay(user_id=user_id, config=config)
-            triggered += 1
-        return {"status": "success", "watches_triggered": triggered}
+            now = datetime.now(timezone.utc)
+            triggered = 0
+            skipped = 0
+            for w in watches:
+                interval = TIER_INTERVALS.get(w["schedule_tier"], TIER_INTERVALS["daily"])
+                last_run_at = w["last_run_at"]
+                if last_run_at is not None and now - last_run_at < interval:
+                    skipped += 1
+                    continue
+
+                user_id = str(w["user_id"])
+                title = w["query_title"]
+                loc = w["location"] or "Remote"
+                config = {
+                    "user_id": user_id,
+                    "job_titles": [title],
+                    "location": loc,
+                    "standing_watch_id": str(w["watch_id"]),
+                }
+                run_scheduled.delay(user_id=user_id, config=config)
+                await conn.execute(
+                    "UPDATE public.job_watches SET last_run_at = $1, updated_at = $1 WHERE watch_id = $2",
+                    now, w["watch_id"],
+                )
+                triggered += 1
+        return {"status": "success", "watches_triggered": triggered, "watches_skipped": skipped}
 
     try:
         return asyncio.run(_execute())
