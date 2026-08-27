@@ -135,7 +135,8 @@ async def test_execute_task_listdir_failure_is_structured(tmp_path):
     engine = GeneralistAgentEngine(workspace_path=str(workspace))
     with mock.patch("app.agent.agent_engine.os.listdir", side_effect=OSError("permission denied")):
         res = await engine.execute_task(goal="listdir failure", max_steps=3)
-    assert res["status"] == "completed"
+    assert res["status"] == "partial"
+    assert res["verification"]["complete"] is False
     step_2 = next(s for s in res["steps"] if s["step"] == 2)
     assert step_2["result"]["success"] is False
     assert "Workspace inspection failed" in step_2["result"]["error"]
