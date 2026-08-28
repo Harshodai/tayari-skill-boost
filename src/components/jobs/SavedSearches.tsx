@@ -41,7 +41,7 @@ export function SavedSearches({ current, onApply }: Props) {
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as SavedSearch[];
+      return (data ?? []) as unknown as SavedSearch[];
     },
   });
 

@@ -9,7 +9,7 @@ async function writeTaskAction(ctx: ToolContext, name: string, path: string) {
   if (denied) return denied;
   try {
     const data = await callApi(ctx, path);
-    return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: { task: data } };
+    return { content: [{ type: "text" as const, text: JSON.stringify(data) }], structuredContent: { task: data } };
   } catch (error) {
     return toolError(error instanceof Error ? error.message : `${name} failed`);
   }

@@ -674,6 +674,7 @@ export type Database = {
           alert_enabled: boolean
           created_at: string
           id: string
+          job_watch_id: string | null
           location: string | null
           min_score: number
           name: string
@@ -686,6 +687,7 @@ export type Database = {
           alert_enabled?: boolean
           created_at?: string
           id?: string
+          job_watch_id?: string | null
           location?: string | null
           min_score?: number
           name: string
@@ -698,6 +700,7 @@ export type Database = {
           alert_enabled?: boolean
           created_at?: string
           id?: string
+          job_watch_id?: string | null
           location?: string | null
           min_score?: number
           name?: string

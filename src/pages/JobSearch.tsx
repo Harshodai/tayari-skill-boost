@@ -229,7 +229,7 @@ const JobSearch = () => {
         top_n: 20,
       });
 
-      const events = res?.events || [];
+      const events = (res?.events as unknown[]) || [];
       const agentResult = res?.result as JobSearchResponse | undefined;
       const finalJobs: Job[] = agentResult?.report?.jobs || agentResult?.jobs || res?.report?.jobs || res?.jobs || [];
       setRoleIntelligence(agentResult?.role_intelligence || res?.role_intelligence || null);

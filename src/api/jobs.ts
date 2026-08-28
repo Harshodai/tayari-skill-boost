@@ -70,6 +70,7 @@ export interface JobSearchResult {
   matched_skills?: string[];
   missing_skills?: string[];
   match_reason?: string;
+  match_reasons?: string[];
   role_intelligence?: RoleIntelligence;
   preparation_material?: PreparationMaterial;
   [key: string]: unknown;
