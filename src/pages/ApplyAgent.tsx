@@ -170,9 +170,10 @@ export function ApplyAgent() {
                 </div>
               ) : null}
 
-              <Button onClick={start} disabled={running} className="w-full">
-                {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                {running ? "Working — watch the log" : "Prepare application"}
+              <Button onClick={start} disabled={running || cloudOnlyUnavailable} className="w-full group">
+                {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />}
+                {cloudOnlyUnavailable ? "Needs the Job Tayari engine" : running ? "Working — watch the log" : "Prepare application"}
+
               </Button>
               <p className="flex items-start gap-2 text-xs text-muted-foreground">
                 <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
