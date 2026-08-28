@@ -112,6 +112,8 @@ export function ApplyAgent() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           <Card className={cloudOnlyUnavailable ? "opacity-60" : undefined}>
+            <CardHeader>
+
 
               <CardTitle className="text-lg">Prepare an application</CardTitle>
               <CardDescription>Paste the posting and your resume. Nothing is sent anywhere else.</CardDescription>
