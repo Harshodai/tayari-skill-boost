@@ -1,0 +1,1 @@
+ALTER TABLE public.saved_searches ADD COLUMN IF NOT EXISTS job_watch_id UUID;
