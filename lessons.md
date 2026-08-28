@@ -3635,3 +3635,23 @@ While sweeping for more self-hosted table-parity gaps, `agent_run_steps` (used b
 - Root cause: (1) `lib` was ES2020 so `String.replaceAll` was untyped; (2) `saved_searches.job_watch_id` existed only in self-hosted migrations, never in the Lovable-managed DB, so generated types omitted it; (3) `match_reasons` missing from `JobSearchResult` fell through to the `unknown` index signature; (4) inferred `type: string` in MCP tool content widened past `"text"`.
 - Fix: bumped tsconfig.app lib to ES2021; applied a cloud migration adding `job_watch_id`; added `match_reasons?: string[]` to `JobSearchResult`; `type: "text" as const` in task-control.
 - Lesson: schema parity cuts both ways — a column added only to `backend/db/migrations/` + the self-hosted init bundle is invisible to the Lovable-managed DB and its generated types.
+
+## 2026-08-28 — HANDOFF follow-ups (ApplyAgent gate, auth-reset audit, interaction polish)
+
+**What was done**
+- `src/pages/ApplyAgent.tsx`: took option (a) from HANDOFF_2026-08-28.md §5.1. The Apply Agent depends on
+  the Lovable-cloud `apply-agent` edge function plus `agent_runs`/`agent_run_steps`, neither of which
+  exist self-hosted. The page now gates on `USE_SELF_HOSTED`: renders `BackendUnavailableBanner`,
+  disables the submit button ("Needs the Job Tayari engine"), and skips the `listAgentRuns` query
+  (`enabled: !cloudOnlyUnavailable`) instead of letting the form fail on submit.
+- Audit of the `handleUnauthorized()` failure class (§5.3): the only global auth-reset broadcast left is
+  `src/api/client.ts`'s `auth:unauthorized`, already scoped to self-hosted-JWT mode; the only other
+  `dispatchEvent` in `src/` is `AppShell.tsx`'s synthetic ⌘K keydown (non-auth). Supabase's
+  `onAuthStateChange` in `AuthContext.tsx` is the single source of truth in cloud mode. No further
+  too-broad triggers found.
+- Interaction polish: animated/stateful recent-run rows in ApplyAgent (stagger, hover lift, active
+  highlight, chevron slide) and a focus-border transition on the shared `Input` primitive.
+
+**Lesson**
+A cloud-only feature should declare its dependency at render time, not at submit time — the gate is one
+flag plus a query `enabled`, and it turns a confusing failure into an honest, explainable state.
