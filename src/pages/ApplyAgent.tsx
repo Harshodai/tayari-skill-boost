@@ -106,9 +106,13 @@ export function ApplyAgent() {
           </div>
         </div>
 
+        {cloudOnlyUnavailable && (
+          <BackendUnavailableBanner feature="Apply Agent" variant="full" className="animate-fade-in" />
+        )}
+
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
+          <Card className={cloudOnlyUnavailable ? "opacity-60" : undefined}>
+
               <CardTitle className="text-lg">Prepare an application</CardTitle>
               <CardDescription>Paste the posting and your resume. Nothing is sent anywhere else.</CardDescription>
             </CardHeader>
