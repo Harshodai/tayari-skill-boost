@@ -205,24 +205,35 @@ export function ApplyAgent() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {runs.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No runs yet.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {cloudOnlyUnavailable
+                      ? "Run history lives in the Job Tayari engine — start it to see runs here."
+                      : "No runs yet."}
+                  </p>
                 ) : (
-                  runs.map((r) => (
+                  runs.map((r, i) => (
                     <button
                       key={r.id}
                       onClick={() => setActiveRunId(r.id)}
-                      className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/60"
+                      style={{ animationDelay: `${i * 40}ms` }}
+                      className={`group animate-fade-in flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-muted/60 active:scale-[0.99] ${
+                        activeRunId === r.id ? "border-primary/50 bg-primary/5" : ""
+                      }`}
                     >
                       <span className="truncate">
                         {r.job_title || "Application"}
                         {r.company ? ` · ${r.company}` : ""}
                       </span>
-                      <Badge variant="outline" className="ml-2 shrink-0 text-[10px]">
-                        {r.status.replace("_", " ")}
-                      </Badge>
+                      <span className="flex shrink-0 items-center gap-1">
+                        <Badge variant="outline" className="text-[10px]">
+                          {r.status.replace("_", " ")}
+                        </Badge>
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                      </span>
                     </button>
                   ))
                 )}
+
               </CardContent>
             </Card>
           </div>
