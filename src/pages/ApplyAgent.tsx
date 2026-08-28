@@ -8,11 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play, ShieldCheck, Eye, AlertTriangle, ExternalLink } from "lucide-react";
+import { Loader2, Play, ShieldCheck, Eye, AlertTriangle, ExternalLink, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { AgentLiveView } from "@/components/agent/AgentLiveView";
 import { listAgentRuns, startApplyAgent } from "@/lib/agent/applyAgent";
 import { isLinkedInUrl } from "@/lib/agent/linkedinUrl";
+import { USE_SELF_HOSTED } from "@/api";
+import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
 
 /** Glass-Box Apply Agent console: watch every step, submit yourself. */
 export function ApplyAgent() {
@@ -26,7 +28,17 @@ export function ApplyAgent() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: runs = [] } = useQuery({ queryKey: ["agent-runs"], queryFn: listAgentRuns });
+  // The Apply Agent runs on the Lovable Cloud `apply-agent` function plus the
+  // agent_runs/agent_run_steps tables, which are not part of the self-hosted
+  // stack. Gate the whole console instead of failing on submit.
+  const cloudOnlyUnavailable = USE_SELF_HOSTED;
+
+  const { data: runs = [] } = useQuery({
+    queryKey: ["agent-runs"],
+    queryFn: listAgentRuns,
+    enabled: !cloudOnlyUnavailable,
+  });
+
 
   const linkedinUrlInfo = isLinkedInUrl(jobUrl);
 
