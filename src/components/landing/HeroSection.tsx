@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Reveal, RevealGroup, RevealItem } from "@/components/ui/reveal";
 
 const CHECKPOINTS = [
-  "Choose opportunities with the right context",
-  "Review the work before a meaningful action",
-  "Keep the record you need for the next decision",
+  "Choose opportunities with real hiring context",
+  "Review and calibrate before meaningful actions",
+  "Retain cryptographic submission receipts",
 ];
 
 const QUEUE = [

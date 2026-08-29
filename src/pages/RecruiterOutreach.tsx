@@ -7,8 +7,23 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Linkedin, Copy, Check, Sparkles, Send, ExternalLink, ShieldCheck } from "lucide-react";
+import { Mail, Linkedin, Copy, Check, Sparkles, Send, ExternalLink, ShieldCheck, UserCheck } from "lucide-react";
 import { toast } from "sonner";
+
+const SAMPLE_OUTREACH_TARGETS = [
+  {
+    name: "Sarah Jenkins",
+    company: "Stripe",
+    role: "Staff Frontend Engineer",
+    points: "Architected micro-frontends serving 4.2M DAU, reduced LCP by 42%, and led 14-team Playwright test adoption.",
+  },
+  {
+    name: "Marcus Vance",
+    company: "Cloudflare",
+    role: "Lead Systems Engineer",
+    points: "Built high-throughput Go/Kafka event streamer handling 250k events/sec and cut database contention by 78%.",
+  },
+];
 
 export function RecruiterOutreach() {
   const [recruiterName, setRecruiterName] = useState("");
@@ -19,6 +34,15 @@ export function RecruiterOutreach() {
   const [result, setResult] = useState<any>(null);
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const loadSampleTarget = (target: typeof SAMPLE_OUTREACH_TARGETS[0]) => {
+    setRecruiterName(target.name);
+    setCompany(target.company);
+    setTargetRole(target.role);
+    setProofPoints(target.points);
+    setResult(null);
+    toast.success(`Loaded outreach target: ${target.name} @ ${target.company}`);
+  };
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +95,7 @@ export function RecruiterOutreach() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-bold tracking-tight">Recruiter Cold Outreach Engine</h1>
+              <h1 className="text-3xl font-bold tracking-tight font-display">Recruiter Cold Outreach Engine</h1>
               <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                 <Send className="w-3.5 h-3.5 mr-1" /> 3-Touch Drip Campaign
               </Badge>
@@ -80,12 +104,26 @@ export function RecruiterOutreach() {
               Find decision-maker email patterns and generate personalized, high-converting 3-touch outreach sequences.
             </p>
           </div>
+          <div className="flex flex-wrap gap-2">
+            {SAMPLE_OUTREACH_TARGETS.map((t) => (
+              <Button
+                key={t.name}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => loadSampleTarget(t)}
+                className="text-xs h-7 font-medium active:scale-[0.98]"
+              >
+                Sample: {t.company}
+              </Button>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Form Side */}
           <div className="lg:col-span-4 space-y-4">
-            <Card>
+            <Card className="shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Mail className="w-4 h-4 text-primary" /> Target Outreach Details
@@ -95,57 +133,59 @@ export function RecruiterOutreach() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleGenerate} className="space-y-4 text-sm">
+                <form onSubmit={handleGenerate} className="space-y-3.5 text-sm">
                   <div>
                     <label className="text-xs font-medium text-muted-foreground">Recruiter / Manager Name</label>
-                    <Input value={recruiterName} onChange={(e) => setRecruiterName(e.target.value)} className="mt-1" />
+                    <Input placeholder="e.g. Sarah Jenkins" value={recruiterName} onChange={(e) => setRecruiterName(e.target.value)} className="mt-1" />
                   </div>
 
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground">Company Name</label>
-                    <Input value={company} onChange={(e) => setCompany(e.target.value)} className="mt-1" />
+                    <label className="text-xs font-medium text-muted-foreground">Company Name *</label>
+                    <Input placeholder="e.g. Stripe, OpenAI" value={company} onChange={(e) => setCompany(e.target.value)} className="mt-1" />
                   </div>
 
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground">Target Role</label>
-                    <Input value={targetRole} onChange={(e) => setTargetRole(e.target.value)} className="mt-1" />
+                    <label className="text-xs font-medium text-muted-foreground">Target Role *</label>
+                    <Input placeholder="e.g. Staff Frontend Engineer" value={targetRole} onChange={(e) => setTargetRole(e.target.value)} className="mt-1" />
                   </div>
 
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground">Top Metric Achievement</label>
-                    <Textarea value={proofPoints} onChange={(e) => setProofPoints(e.target.value)} rows={3} className="mt-1 text-xs" />
+                    <label className="text-xs font-medium text-muted-foreground">Top Metric Achievement / Proof Point</label>
+                    <Textarea placeholder="e.g. Scaled GraphQL gateway to 4.2M DAU with sub-50ms p99 latency..." value={proofPoints} onChange={(e) => setProofPoints(e.target.value)} rows={3} className="mt-1 text-xs" />
                   </div>
 
-                  <Button type="submit" className="w-full gap-2" disabled={generating}>
-                    <Sparkles className="w-4 h-4" /> Generate Outreach Sequence
+                  <Button type="submit" className="w-full gap-2 font-semibold shadow-md active:scale-[0.98]" disabled={generating}>
+                    <Sparkles className="w-4 h-4" /> {generating ? "Generating Drip Sequence..." : "Generate Outreach Sequence"}
                   </Button>
                 </form>
               </CardContent>
             </Card>
 
             {/* Email Permutation Finder Card */}
-            <Card className="bg-primary/5 border-primary/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-bold flex items-center gap-2 text-primary">
-                  <ShieldCheck className="w-4 h-4" /> Inferred Corporate Email Patterns
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1.5 text-xs">
-                <div className="flex items-center justify-between font-mono bg-background p-2 rounded border">
-                  <span>{recruiterName.toLowerCase().replace(/\s+/g, ".")}@{company.toLowerCase()}.com</span>
-                  <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-500">90% match</Badge>
-                </div>
-                <div className="flex items-center justify-between font-mono bg-background p-2 rounded border">
-                  <span>{recruiterName.toLowerCase().replace(/\s+/g, "").charAt(0)}{recruiterName.toLowerCase().split(/\s+/).pop() || recruiterName.toLowerCase()}@{company.toLowerCase()}.com</span>
-                  <Badge variant="outline" className="text-[10px]">85% match</Badge>
-                </div>
-              </CardContent>
-            </Card>
+            {company && (
+              <Card className="bg-primary/5 border-primary/20 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-bold flex items-center gap-2 text-primary font-mono">
+                    <ShieldCheck className="w-4 h-4" /> Inferred Corporate Email Patterns
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between font-mono bg-background p-2 rounded-lg border text-[11px]">
+                    <span>{(recruiterName || "first.last").toLowerCase().replace(/\s+/g, ".")}@{company.toLowerCase().replace(/[^a-z0-9]/g, "")}.com</span>
+                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-500">90% match</Badge>
+                  </div>
+                  <div className="flex items-center justify-between font-mono bg-background p-2 rounded-lg border text-[11px]">
+                    <span>{(recruiterName || "flast").toLowerCase().replace(/\s+/g, "").charAt(0)}{(recruiterName || "last").toLowerCase().split(/\s+/).pop() || "last"}@{company.toLowerCase().replace(/[^a-z0-9]/g, "")}.com</span>
+                    <Badge variant="outline" className="text-[10px]">85% match</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Drip Sequence & Preview */}
           <div className="lg:col-span-8 space-y-4">
-            <Card>
+            <Card className="shadow-sm">
               <CardHeader className="pb-3 border-b border-border flex flex-row items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Linkedin className="w-4 h-4 text-blue-500" /> Multi-Touch Outreach Sequence
@@ -163,26 +203,26 @@ export function RecruiterOutreach() {
                 ) : (
                   <Tabs defaultValue="touch1" className="w-full">
                     <TabsList className="mb-4">
-                      <TabsTrigger value="touch1">Touch 1: Initial Pitch (Day 0)</TabsTrigger>
-                      <TabsTrigger value="touch2">Touch 2: Follow-up (Day 3)</TabsTrigger>
-                      <TabsTrigger value="touch3">Touch 3: Breakaway (Day 7)</TabsTrigger>
-                      <TabsTrigger value="linkedin">LinkedIn Note</TabsTrigger>
+                      <TabsTrigger value="touch1" className="text-xs">Touch 1: Initial Pitch (Day 0)</TabsTrigger>
+                      <TabsTrigger value="touch2" className="text-xs">Touch 2: Follow-up (Day 3)</TabsTrigger>
+                      <TabsTrigger value="touch3" className="text-xs">Touch 3: Breakaway (Day 7)</TabsTrigger>
+                      <TabsTrigger value="linkedin" className="text-xs">LinkedIn Note</TabsTrigger>
                     </TabsList>
 
                     {/* Touch 1 */}
                     <TabsContent value="touch1" className="space-y-3">
-                      <div className="flex items-center justify-between bg-muted/40 p-2 rounded border text-xs font-mono">
+                      <div className="flex items-center justify-between bg-muted/40 p-2 rounded-lg border text-xs font-mono">
                         <span>Subject: {result?.cold_email?.subject}</span>
                         <Button variant="ghost" size="sm" onClick={() => copyText(result?.cold_email?.subject, "sub1")}>
-                          {copiedKey === "sub1" ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                          {copiedKey === "sub1" ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
                         </Button>
                       </div>
-                      <Textarea readOnly value={result?.cold_email?.body} rows={8} className="font-mono text-xs" />
+                      <Textarea readOnly value={result?.cold_email?.body} rows={8} className="font-mono text-xs leading-relaxed" />
                       <div className="flex items-center gap-2">
-                        <Button size="sm" onClick={() => openGmail(result?.cold_email?.subject, result?.cold_email?.body)} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
+                        <Button size="sm" onClick={() => openGmail(result?.cold_email?.subject, result?.cold_email?.body)} className="gap-2 bg-red-600 hover:bg-red-700 text-white active:scale-[0.98]">
                           <Mail className="w-4 h-4" /> Open in Gmail
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => copyText(result?.cold_email?.body, "body1")} className="gap-2">
+                        <Button size="sm" variant="outline" onClick={() => copyText(result?.cold_email?.body, "body1")} className="gap-2 active:scale-[0.98]">
                           <Copy className="w-4 h-4" /> Copy Email Body
                         </Button>
                       </div>
@@ -190,30 +230,30 @@ export function RecruiterOutreach() {
 
                     {/* Touch 2 */}
                     <TabsContent value="touch2" className="space-y-3">
-                      <div className="flex items-center justify-between bg-muted/40 p-2 rounded border text-xs font-mono">
+                      <div className="flex items-center justify-between bg-muted/40 p-2 rounded-lg border text-xs font-mono">
                         <span>Subject: {result?.followup_1?.subject || "Re: Application follow-up"}</span>
                       </div>
-                      <Textarea readOnly value={result?.followup_1?.body} rows={6} className="font-mono text-xs" />
-                      <Button size="sm" variant="outline" onClick={() => copyText(result?.followup_1?.body, "body2")} className="gap-2">
+                      <Textarea readOnly value={result?.followup_1?.body} rows={6} className="font-mono text-xs leading-relaxed" />
+                      <Button size="sm" variant="outline" onClick={() => copyText(result?.followup_1?.body, "body2")} className="gap-2 active:scale-[0.98]">
                         <Copy className="w-4 h-4" /> Copy Follow-up 1
                       </Button>
                     </TabsContent>
 
                     {/* Touch 3 */}
                     <TabsContent value="touch3" className="space-y-3">
-                      <div className="flex items-center justify-between bg-muted/40 p-2 rounded border text-xs font-mono">
+                      <div className="flex items-center justify-between bg-muted/40 p-2 rounded-lg border text-xs font-mono">
                         <span>Subject: {result?.followup_2?.subject || "Final check-in"}</span>
                       </div>
-                      <Textarea readOnly value={result?.followup_2?.body} rows={6} className="font-mono text-xs" />
-                      <Button size="sm" variant="outline" onClick={() => copyText(result?.followup_2?.body, "body3")} className="gap-2">
+                      <Textarea readOnly value={result?.followup_2?.body} rows={6} className="font-mono text-xs leading-relaxed" />
+                      <Button size="sm" variant="outline" onClick={() => copyText(result?.followup_2?.body, "body3")} className="gap-2 active:scale-[0.98]">
                         <Copy className="w-4 h-4" /> Copy Breakaway Check
                       </Button>
                     </TabsContent>
 
                     {/* LinkedIn */}
                     <TabsContent value="linkedin" className="space-y-3">
-                      <Textarea readOnly value={result?.linkedin_note} rows={4} className="font-mono text-xs" />
-                      <Button size="sm" variant="outline" onClick={() => copyText(result?.linkedin_note, "li")} className="gap-2">
+                      <Textarea readOnly value={result?.linkedin_note} rows={4} className="font-mono text-xs leading-relaxed" />
+                      <Button size="sm" variant="outline" onClick={() => copyText(result?.linkedin_note, "li")} className="gap-2 active:scale-[0.98]">
                         <Copy className="w-4 h-4" /> Copy LinkedIn Note (Under 300 chars)
                       </Button>
                     </TabsContent>

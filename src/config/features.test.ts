@@ -50,13 +50,48 @@ describe('Feature Flags Configuration', () => {
     });
 
 
-    it('keeps the public navigation focused on the core application loop', () => {
+    it('keeps the public navigation focused on the 5 core release workflows', () => {
         expect(primaryNavigationFeatures.resumeOptimizer).toBe(true);
         expect(primaryNavigationFeatures.jobSearch).toBe(true);
         expect(primaryNavigationFeatures.coverLetter).toBe(true);
         expect(primaryNavigationFeatures.careerRoadmap).toBe(true);
+        expect(primaryNavigationFeatures.taskWorkspace).toBe(true);
         expect(primaryNavigationFeatures.negotiationCopilot).toBe(false);
         expect(primaryNavigationFeatures.portfolioGenerator).toBe(false);
+        expect(primaryNavigationFeatures.oneShotPipeline).toBe(false);
+        expect(primaryNavigationFeatures.agentReach).toBe(false);
+    });
+
+    it('filters nav links to primary navigation when primaryOnly is requested', () => {
+        const allLinks = getNavLinks();
+        const primaryLinks = getNavLinks({ primaryOnly: true });
+
+        expect(primaryLinks.length).toBeGreaterThan(0);
+        expect(primaryLinks.length).toBeLessThan(allLinks.length);
+
+        // Includes non-feature links (e.g. Home, FAQ, Contact)
+        expect(primaryLinks.some((l) => l.href === '/')).toBe(true);
+        expect(primaryLinks.some((l) => l.href === '/faq')).toBe(true);
+        expect(primaryLinks.some((l) => l.href === '/contact')).toBe(true);
+
+        // Includes the 5 core release workflows
+        expect(primaryLinks.some((l) => l.href === '/resume')).toBe(true);
+        expect(primaryLinks.some((l) => l.href === '/jobs')).toBe(true);
+        expect(primaryLinks.some((l) => l.href === '/jobs/autopilot')).toBe(true);
+        expect(primaryLinks.some((l) => l.href === '/cover-letter')).toBe(true);
+        expect(primaryLinks.some((l) => l.href === '/roadmap')).toBe(true);
+        expect(primaryLinks.some((l) => l.href === '/tay')).toBe(true);
+
+        // Excludes secondary and preview-only feature links
+        expect(primaryLinks.some((l) => l.href === '/one-shot')).toBe(false);
+        expect(primaryLinks.some((l) => l.href === '/agent-reach')).toBe(false);
+        expect(primaryLinks.some((l) => l.href === '/typst-studio')).toBe(false);
+        expect(primaryLinks.some((l) => l.href === '/answer-bank')).toBe(false);
+        expect(primaryLinks.some((l) => l.href === '/knowledge-hub')).toBe(false);
+        expect(primaryLinks.some((l) => l.href === '/communication')).toBe(false);
+        expect(primaryLinks.some((l) => l.href === '/career-ops')).toBe(false);
+        expect(primaryLinks.some((l) => l.href === '/career-intelligence')).toBe(false);
+        expect(primaryLinks.some((l) => l.href === '/automations')).toBe(false);
     });
 
     it('should have verification enabled (V3 badge is live)', () => {

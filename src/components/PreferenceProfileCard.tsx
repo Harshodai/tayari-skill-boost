@@ -196,7 +196,7 @@ export function PreferenceProfileCard() {
                 <div key={control.id} className="flex flex-col gap-2 rounded-lg border border-border/50 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="truncate text-xs font-medium text-foreground">{control.job_title || control.feedback_type}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">{control.company_name || control.job_id} · {control.feedback_source} · {control.confidence.replaceAll("_", " ")}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">{control.company_name || control.job_id} · {control.feedback_source} · {control.confidence.replace(/_/g, " ")}</p>
                     {control.expires_at && <p className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground"><Clock3 className="h-3 w-3" /> Expires {new Date(control.expires_at).toLocaleDateString()}</p>}
                   </div>
                   <div className="flex shrink-0 gap-2">

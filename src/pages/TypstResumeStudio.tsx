@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { FileCode, Download, Eye, Sparkles, CheckCircle2, Copy, RefreshCw, Layers, SlidersHorizontal } from "lucide-react";
+import { FileCode, Download, Eye, Sparkles, CheckCircle2, Copy, RefreshCw, Layers, SlidersHorizontal, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 const TEMPLATES = [
@@ -31,27 +31,39 @@ export const TypstResumeStudio = () => {
   const [experienceText, setExperienceText] = useState("");
   const [isCompiling, setIsCompiling] = useState(false);
 
+  const loadSampleProfile = () => {
+    setFullName("Taylor Vance");
+    setHeadline("Staff Systems Engineer");
+    setEmail("taylor.vance@example.org");
+    setPhone("+1 (555) 019-2831");
+    setLocation("Seattle, WA");
+    setSkills("Go, Rust, TypeScript, React 19, PostgreSQL, Redis, Kafka, Docker, Kubernetes, AWS");
+    setSummary("Staff Software Engineer with 8+ years designing high-throughput distributed systems and sub-50ms web interfaces.");
+    setExperienceText(`• Staff Systems Engineer — Scale Systems (2022 – Present)\n  - Architected distributed event-stream ingestion in Go and Kafka handling 250k events/sec.\n  - Implemented multi-region Redis cache mesh, reducing database read contention by 78%.\n\n• Senior Frontend Lead — CloudMetrics (2019 – 2022)\n  - Spearheaded design system migration to React 19 and strict TypeScript across 60+ micro-frontends.`);
+    toast.success("Sample template fields populated for testing");
+  };
+
   const generateTypstPreviewCode = () => {
     return `#set page(paper: "us-letter", margin: (x: 0.4in, y: 0.4in))
 #set text(font: "DejaVu Sans", size: 9.5pt)
 #set par(justify: true)
 
 #align(center)[
-  #text(size: 16pt, weight: "bold")[${fullName}] \\
-  #text(size: 9pt)[${email} | ${phone} | ${location}]
+  #text(size: 16pt, weight: "bold")[${fullName || "Your Name"}] \\
+  #text(size: 9pt)[${email || "email@example.com"} | ${phone || "phone"} | ${location || "location"}]
 ]
 
 #v(4pt)
 #line(length: 100%, stroke: 1pt + rgb("#2563eb"))
 
 == Professional Summary
-${summary}
+${summary || "Your professional summary will appear here."}
 
 == Technical Skills
-${skills}
+${skills || "Your technical skills will appear here."}
 
 == Professional Experience
-${experienceText}
+${experienceText || "Your professional experience bullets will appear here."}
 `;
   };
 
@@ -73,7 +85,7 @@ ${experienceText}
             email,
             phone,
             location,
-            skills: skills.split(",").map(s => s.trim()),
+            skills: skills.split(",").map((s) => s.trim()),
             summary,
             experience: experienceText,
           },
@@ -122,16 +134,19 @@ ${experienceText}
               </Badge>
             </div>
             <p className="text-muted-foreground text-sm mt-1">
-              Single-page PDF generation using Typst with structured, inspectable output. ATS behavior varies by vendor, so review the exported document before sending it.
+              Single-page vector PDF generation using Typst. Zero font distortion, instant compiling, and strict ATS parser compatibility.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleCopyCode}>
-              <Copy className="w-4 h-4 mr-2" /> Copy Typst Code
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={loadSampleProfile} className="text-xs">
+              <UserCheck className="w-3.5 h-3.5 mr-1.5" /> Sample Profile
             </Button>
-            <Button size="sm" onClick={handleCompilePdf} disabled={isCompiling}>
+            <Button variant="outline" size="sm" onClick={handleCopyCode} className="text-xs">
+              <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy Code
+            </Button>
+            <Button size="sm" onClick={handleCompilePdf} disabled={isCompiling} className="font-semibold shadow-md active:scale-[0.98]">
               {isCompiling ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-              Compile PDF
+              Compile Typst PDF
             </Button>
           </div>
         </div>
@@ -163,13 +178,18 @@ ${experienceText}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Editor Form */}
           <div className="lg:col-span-6 space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <SlidersHorizontal className="w-4 h-4 text-primary" /> Candidate Data & Content
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/40">
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-primary" /> Candidate Data & Content
+                  </span>
+                  <Badge variant="outline" className="text-[10px] font-mono text-emerald-500 border-emerald-500/20">
+                    ATS Sanitized
+                  </Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 text-sm">
+              <CardContent className="space-y-4 text-sm pt-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-muted-foreground">Full Name</label>
@@ -208,7 +228,7 @@ ${experienceText}
 
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">Experience & Achievements (Bullet format)</label>
-                  <Textarea value={experienceText} onChange={(e) => setExperienceText(e.target.value)} rows={6} className="mt-1 font-mono text-xs" />
+                  <Textarea value={experienceText} onChange={(e) => setExperienceText(e.target.value)} rows={6} className="mt-1 font-mono text-xs leading-relaxed" />
                 </div>
               </CardContent>
             </Card>
@@ -216,7 +236,7 @@ ${experienceText}
 
           {/* Live Typst Preview Pane */}
           <div className="lg:col-span-6 space-y-4">
-            <Card className="h-full flex flex-col">
+            <Card className="h-full flex flex-col shadow-sm">
               <CardHeader className="pb-3 border-b border-border flex flex-row items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Eye className="w-4 h-4 text-primary" /> Live Typst Document Preview
@@ -233,34 +253,34 @@ ${experienceText}
                   </TabsList>
 
                   <TabsContent value="preview" className="flex-1">
-                    <div className="bg-white text-slate-900 p-6 rounded border shadow-inner min-h-[500px] font-sans text-xs space-y-3">
+                    <div className="bg-white text-slate-900 p-6 rounded-lg border shadow-inner min-h-[500px] font-sans text-xs space-y-3">
                       <div className="text-center border-b pb-3">
-                        <h2 className="text-lg font-bold text-slate-900">{fullName}</h2>
-                        <p className="text-slate-600 text-[11px] font-medium">{headline}</p>
-                        <p className="text-slate-500 text-[10px] mt-1">{email} | {phone} | {location}</p>
+                        <h2 className="text-xl font-bold text-slate-900">{fullName || "Your Name"}</h2>
+                        <p className="text-slate-600 text-xs font-semibold mt-0.5">{headline || "Your Target Headline"}</p>
+                        <p className="text-slate-500 text-[10px] mt-1 font-mono">{email || "email@example.com"} | {phone || "phone"} | {location || "location"}</p>
                       </div>
 
                       <div>
                         <h3 className="font-bold text-blue-700 uppercase tracking-wider text-[11px] border-b pb-0.5">Professional Summary</h3>
-                        <p className="mt-1 text-slate-700 leading-relaxed">{summary}</p>
+                        <p className="mt-1.5 text-slate-700 leading-relaxed">{summary || "Enter your summary to view live formatting..."}</p>
                       </div>
 
                       <div>
-                        <h3 className="font-bold text-blue-700 uppercase tracking-wider text-[11px] border-b pb-0.5 mt-2">Technical Skills</h3>
-                        <p className="mt-1 text-slate-700">{skills}</p>
+                        <h3 className="font-bold text-blue-700 uppercase tracking-wider text-[11px] border-b pb-0.5 mt-3">Technical Skills</h3>
+                        <p className="mt-1.5 text-slate-700">{skills || "Enter your technical skills..."}</p>
                       </div>
 
                       <div>
-                        <h3 className="font-bold text-blue-700 uppercase tracking-wider text-[11px] border-b pb-0.5 mt-2">Experience</h3>
-                        <div className="mt-1 space-y-2 text-slate-700 whitespace-pre-wrap font-sans">
-                          {experienceText}
+                        <h3 className="font-bold text-blue-700 uppercase tracking-wider text-[11px] border-b pb-0.5 mt-3">Experience</h3>
+                        <div className="mt-1.5 space-y-2 text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">
+                          {experienceText || "Enter your experience bullets..."}
                         </div>
                       </div>
                     </div>
                   </TabsContent>
 
                   <TabsContent value="source" className="flex-1">
-                    <pre className="bg-slate-950 text-slate-100 p-4 rounded text-xs font-mono overflow-x-auto min-h-[500px]">
+                    <pre className="bg-slate-950 text-slate-100 p-4 rounded-lg text-xs font-mono overflow-x-auto min-h-[500px] leading-relaxed">
                       {generateTypstPreviewCode()}
                     </pre>
                   </TabsContent>

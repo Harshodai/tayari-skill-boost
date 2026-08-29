@@ -166,7 +166,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: TypeScript check
-        run: pnpm exec tsc --noEmit
+        run: pnpm exec tsc -b --noEmit
 
       - name: Build
         run: VITE_SUPABASE_URL=https://ci.example.supabase.co VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ci VITE_API_URL=https://api.example.com/api VITE_USE_SELF_HOSTED=false pnpm run build

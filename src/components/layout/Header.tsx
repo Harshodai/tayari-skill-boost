@@ -25,6 +25,7 @@ import {
   Mic,
   DollarSign,
   Globe,
+  Search,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
@@ -360,6 +361,18 @@ export function Header() {
 
           {/* Column 3: Actions */}
           <div className="hidden lg:flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("open:command-palette"))}
+              className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground hover:bg-muted/80 transition-all active:scale-[0.98]"
+              title="Open Command Palette (⌘K)"
+            >
+              <Search className="h-3.5 w-3.5" />
+              <span className="hidden xl:inline">Search tools</span>
+              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[10px] font-semibold text-foreground">
+                ⌘K
+              </kbd>
+            </button>
             <ThemeToggle />
             {user && <ActivityButton />}
             {user && (

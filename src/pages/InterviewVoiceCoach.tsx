@@ -3,7 +3,7 @@ import { AppShell } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, Volume2, Play, RefreshCw, Award, Zap, AlertTriangle, CheckCircle, Radio } from "lucide-react";
+import { Mic, MicOff, Volume2, Play, RefreshCw, Award, Zap, AlertTriangle, CheckCircle, Radio, Sparkles, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetchResponse, apiFetch } from "@/api";
 
@@ -26,12 +26,21 @@ interface VoiceAnalysis {
   coaching_tips: string[];
 }
 
+const PRESET_INTERVIEW_PROMPTS = [
+  "Tell me about a high-severity production outage you diagnosed and mitigated.",
+  "Describe how you designed a low-latency distributed caching layer.",
+  "How did you resolve a major technical disagreement with a staff architect?",
+];
+
+const SAMPLE_STAR_TRANSCRIPT = `During peak Black Friday traffic, our primary database cluster suffered sudden read-lock contention, spiking API latency to 4.2 seconds. As the lead on-call, I immediately isolated the root cause to an un-indexed analytics query, diverted read traffic to our secondary replica mesh, and enabled Redis caching for hot product catalogs. Within 8 minutes, p99 latency dropped back down to 38ms with zero lost orders. Afterwards, I authored a post-mortem and instituted query timeout circuit-breakers.`;
+
 export function InterviewVoiceCoach() {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<VoiceAnalysis | null>(null);
+  const [selectedPrompt, setSelectedPrompt] = useState(PRESET_INTERVIEW_PROMPTS[0]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const recognitionRef = useRef<any>(null);
@@ -101,6 +110,13 @@ export function InterviewVoiceCoach() {
     });
   };
 
+  const loadSampleAnswer = () => {
+    setTranscript(SAMPLE_STAR_TRANSCRIPT);
+    transcriptRef.current = SAMPLE_STAR_TRANSCRIPT;
+    setTimerSeconds(45);
+    toast.success("Sample STAR response loaded. Click Analyze to evaluate speech cadence.");
+  };
+
   const stopRecording = async () => {
     setIsRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
@@ -114,8 +130,6 @@ export function InterviewVoiceCoach() {
     const sampleTranscript = currentText.trim();
 
     if (!sampleTranscript) {
-      // ponytail: no fabricated fallback transcript — keep analysis empty and
-      // surface an actionable retry path when no speech was captured.
       setAnalysis(null);
       toast.error("No Speech Captured", {
         description: "We didn't hear your answer. Please check your microphone and try again.",
@@ -133,10 +147,6 @@ export function InterviewVoiceCoach() {
         active_engine?: string;
       }>("/v1/health").catch(() => null);
 
-      // ponytail: a null health payload (endpoint unreachable or not
-      // returning the expected shape) means we cannot verify a live LLM is
-      // configured — treat that as not-configured so the error path below
-      // applies to both explicit misconfiguration and unavailable health.
       const modelUnconfigured =
         !health ||
         typeof health !== "object" ||
@@ -145,8 +155,6 @@ export function InterviewVoiceCoach() {
         health?.active_engine === "mock-fallback";
 
       if (modelUnconfigured) {
-        // ponytail: never show synthetic STAR/score output when no real LLM is
-        // configured — surface the missing-config error path instead.
         setAnalysis(null);
         toast.error("AI Coach Not Configured", {
           description: "A live LLM must be configured before voice analysis can run.",
@@ -170,8 +178,6 @@ export function InterviewVoiceCoach() {
         setAnalysis(data);
         toast.success("Voice Analysis Complete");
       } else {
-        // ponytail: never populate synthetic scores or coaching text when the
-        // API fails; keep the transcript and show a retryable error instead.
         setAnalysis(null);
         toast.error("Voice Analysis Failed", {
           description: "Unable to analyze your response. Please check your connection and try again.",
@@ -179,8 +185,6 @@ export function InterviewVoiceCoach() {
         });
       }
     } catch {
-      // ponytail: thrown/network failures also clear stale analysis and surface
-      // a retryable error rather than fabricated feedback.
       setAnalysis(null);
       toast.error("Voice Analysis Failed", {
         description: "Unable to reach the coaching service. Please check your connection and try again.",
@@ -197,7 +201,7 @@ export function InterviewVoiceCoach() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-bold tracking-tight">AI Voice Interview Coach</h1>
+              <h1 className="text-3xl font-bold tracking-tight font-display">AI Voice Interview Coach</h1>
               <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                 <Radio className="w-3.5 h-3.5 mr-1 animate-pulse text-red-500" /> Real-Time Audio STT
               </Badge>
@@ -206,12 +210,36 @@ export function InterviewVoiceCoach() {
               Practice interview responses orally. AI analyzes speech cadence (WPM), filler word frequency, and STAR structure completeness.
             </p>
           </div>
+          <Button variant="outline" size="sm" onClick={loadSampleAnswer} className="text-xs">
+            <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Sample STAR Answer
+          </Button>
         </div>
+
+        {/* Prompt Selector */}
+        <Card className="border-border/60 bg-card/60 p-4 backdrop-blur-md">
+          <span className="text-xs font-mono font-semibold text-muted-foreground block mb-2">Target Interview Question:</span>
+          <div className="flex flex-wrap gap-2">
+            {PRESET_INTERVIEW_PROMPTS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setSelectedPrompt(p)}
+                className={`text-xs p-2 rounded-lg border text-left transition-all ${
+                  selectedPrompt === p
+                    ? "border-primary/40 bg-primary/10 text-primary font-semibold"
+                    : "border-border/50 bg-background/50 text-foreground/80 hover:bg-muted"
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Audio Recording Console */}
           <div className="lg:col-span-5 space-y-4">
-            <Card className="text-center p-6 flex flex-col items-center justify-center space-y-4 border-2 border-dashed">
+            <Card className="text-center p-6 flex flex-col items-center justify-center space-y-4 border-2 border-dashed shadow-sm">
               <div className="relative">
                 <div
                   className={`w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 ${
@@ -235,130 +263,119 @@ export function InterviewVoiceCoach() {
 
               <div className="flex items-center gap-3">
                 {!isRecording ? (
-                  <Button onClick={startRecording} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
+                  <Button onClick={startRecording} className="gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold active:scale-[0.98]">
                     <Mic className="w-4 h-4" /> Start Voice Recording
                   </Button>
                 ) : (
-                  <Button onClick={stopRecording} variant="destructive" className="gap-2">
+                  <Button onClick={stopRecording} variant="destructive" className="gap-2 active:scale-[0.98]">
                     <MicOff className="w-4 h-4" /> Stop & Analyze Response
+                  </Button>
+                )}
+                {transcript && !isRecording && (
+                  <Button onClick={stopRecording} disabled={isAnalyzing} variant="outline" className="gap-2">
+                    <RefreshCw className={`w-4 h-4 ${isAnalyzing ? "animate-spin" : ""}`} /> Analyze Transcript
                   </Button>
                 )}
               </div>
             </Card>
 
             {transcript && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">
-                    Speech Transcript
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2 border-b border-border/40">
+                  <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                    <span>Captured Transcript</span>
+                    <span className="font-mono text-xs text-muted-foreground">{transcript.split(/\s+/).length} words</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-foreground italic bg-muted/30 p-3 rounded border leading-relaxed">
-                    "{transcript}"
+                <CardContent className="pt-3">
+                  <p className="text-xs text-foreground/90 font-mono leading-relaxed whitespace-pre-wrap bg-muted/40 p-3 rounded-lg border">
+                    {transcript}
                   </p>
                 </CardContent>
               </Card>
             )}
           </div>
 
-          {/* Real-time Feedback Scorecard */}
+          {/* Analysis Results Pane */}
           <div className="lg:col-span-7 space-y-4">
-            {isAnalyzing ? (
+            {isAnalyzing && (
               <Card className="p-12 text-center flex flex-col items-center justify-center space-y-3">
                 <RefreshCw className="w-8 h-8 text-primary animate-spin" />
-                <p className="text-sm font-medium text-muted-foreground">
-                  Analyzing vocal pace, filler frequency, and STAR structure...
+                <p className="text-sm font-semibold">Analyzing Speech Patterns & STAR Structure...</p>
+              </Card>
+            )}
+
+            {!isAnalyzing && !analysis && (
+              <Card className="p-12 text-center text-muted-foreground space-y-2">
+                <Volume2 className="w-10 h-10 mx-auto text-muted-foreground/50 mb-2" />
+                <h3 className="font-semibold text-foreground">No Voice Feedback Yet</h3>
+                <p className="text-xs max-w-sm mx-auto">
+                  Record your oral answer or load a sample STAR response to receive real-time cadence scoring, filler word counts, and quadrant analysis.
                 </p>
               </Card>
-            ) : analysis ? (
+            )}
+
+            {!isAnalyzing && analysis && (
               <div className="space-y-4">
-                {/* Top Metrics Row */}
+                {/* Scorecards */}
                 <div className="grid grid-cols-3 gap-3">
                   <Card className="p-4 text-center">
-                    <div className="text-xs font-medium text-muted-foreground">Overall Score</div>
-                    <div className="text-3xl font-extrabold text-primary mt-1">{analysis.overall_score}/100</div>
-                    <Badge variant="outline" className="mt-1 text-[10px]">
-                      {analysis.overall_score >= 80 ? "Exceeds Bar" : "Meets Bar"}
-                    </Badge>
+                    <span className="text-[10px] uppercase font-mono text-muted-foreground">Cadence</span>
+                    <p className="text-2xl font-bold font-mono mt-1 text-primary">{analysis.wpm} WPM</p>
+                    <Badge variant="outline" className="text-[9px] mt-1">{analysis.wpm_status}</Badge>
                   </Card>
-
                   <Card className="p-4 text-center">
-                    <div className="text-xs font-medium text-muted-foreground">Speaking Pace</div>
-                    <div className="text-2xl font-bold text-foreground mt-1">{analysis.wpm} WPM</div>
-                    <Badge variant="secondary" className="mt-1 text-[10px]">
-                      {analysis.wpm_status}
-                    </Badge>
+                    <span className="text-[10px] uppercase font-mono text-muted-foreground">Filler Words</span>
+                    <p className="text-2xl font-bold font-mono mt-1 text-amber-500">{analysis.filler_word_count}</p>
+                    <span className="text-[10px] text-muted-foreground mt-1 block">Detected</span>
                   </Card>
-
                   <Card className="p-4 text-center">
-                    <div className="text-xs font-medium text-muted-foreground">Filler Words</div>
-                    <div className="text-2xl font-bold text-amber-500 mt-1">{analysis.filler_word_count}</div>
-                    <span className="text-[10px] text-muted-foreground block mt-1">
-                      {Object.keys(analysis.filler_words_found).join(", ") || "None"}
-                    </span>
+                    <span className="text-[10px] uppercase font-mono text-muted-foreground">Overall STAR</span>
+                    <p className="text-2xl font-bold font-mono mt-1 text-emerald-500">{analysis.overall_score}%</p>
+                    <span className="text-[10px] text-muted-foreground mt-1 block">Structure</span>
                   </Card>
                 </div>
 
-                {/* STAR Alignment Breakdown */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-amber-500" /> STAR Framework Coverage
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span>Situation / Context</span>
-                      <span className="font-semibold text-primary">{analysis.star_breakdown.situation}%</span>
+                {/* STAR Breakdown */}
+                <Card className="p-4 space-y-3">
+                  <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">STAR Quadrant Breakdown</h4>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="p-2 rounded bg-muted/40 border">
+                      <span className="text-[10px] text-muted-foreground font-mono">Situation</span>
+                      <p className="text-base font-bold font-mono text-foreground">{analysis.star_breakdown.situation}%</p>
                     </div>
-                    <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-primary h-full" style={{ width: `${analysis.star_breakdown.situation}%` }} />
+                    <div className="p-2 rounded bg-muted/40 border">
+                      <span className="text-[10px] text-muted-foreground font-mono">Task</span>
+                      <p className="text-base font-bold font-mono text-foreground">{analysis.star_breakdown.task}%</p>
                     </div>
-
-                    <div className="flex items-center justify-between">
-                      <span>Technical Action</span>
-                      <span className="font-semibold text-emerald-500">{analysis.star_breakdown.action}%</span>
+                    <div className="p-2 rounded bg-muted/40 border">
+                      <span className="text-[10px] text-muted-foreground font-mono">Action</span>
+                      <p className="text-base font-bold font-mono text-primary">{analysis.star_breakdown.action}%</p>
                     </div>
-                    <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-emerald-500 h-full" style={{ width: `${analysis.star_breakdown.action}%` }} />
+                    <div className="p-2 rounded bg-muted/40 border">
+                      <span className="text-[10px] text-muted-foreground font-mono">Result</span>
+                      <p className="text-base font-bold font-mono text-emerald-500">{analysis.star_breakdown.result}%</p>
                     </div>
-
-                    <div className="flex items-center justify-between">
-                      <span>Quantified Result</span>
-                      <span className="font-semibold text-blue-500">{analysis.star_breakdown.result}%</span>
-                    </div>
-                    <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-blue-500 h-full" style={{ width: `${analysis.star_breakdown.result}%` }} />
-                    </div>
-                  </CardContent>
+                  </div>
                 </Card>
 
-                {/* AI Coaching Tips */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <Award className="w-4 h-4 text-emerald-500" /> AI Coach Feedback
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-xs">
-                    {analysis.coaching_tips.map((tip, idx) => (
-                      <div key={idx} className="flex items-start gap-2 text-muted-foreground">
-                        <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                        <span>{tip}</span>
-                      </div>
-                    ))}
-                    <div className="mt-3 p-3 bg-primary/5 rounded border border-primary/20">
-                      <div className="font-semibold text-xs text-primary mb-1">Recommended Follow-up Question:</div>
-                      <div className="text-xs text-foreground font-medium">"{analysis.interviewer_followup}"</div>
-                    </div>
-                  </CardContent>
-                </Card>
+                {/* Coaching Tips */}
+                {analysis.coaching_tips.length > 0 && (
+                  <Card className="p-4 space-y-2 border-primary/20 bg-primary/5">
+                    <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5" /> AI Interviewer Coaching Notes
+                    </h4>
+                    <ul className="space-y-1.5 text-xs text-foreground/90">
+                      {analysis.coaching_tips.map((tip, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                          <span>{tip}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
+                )}
               </div>
-            ) : (
-              <Card className="p-12 text-center text-muted-foreground text-sm">
-                Record a 30-60 second oral answer to receive instant vocal analytics and STAR feedback.
-              </Card>
             )}
           </div>
         </div>

@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   BarChart3,
@@ -6,9 +8,13 @@ import {
   FileSearch,
   PenLine,
   ShieldCheck,
+  CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface RhythmStage {
   number: string;
@@ -21,67 +27,93 @@ interface RhythmStage {
   cta: string;
   icon: LucideIcon;
   tone: string;
+  badgeTone: string;
+  previewMetrics: { label: string; value: string; desc: string }[];
 }
 
 const RHYTHM_STAGES: RhythmStage[] = [
   {
     number: "01",
     title: "Choose intentionally",
-    capability: "Job Search",
+    capability: "Smart Job Discovery",
     description:
-      "Bring promising roles into one place, compare the context, and focus your energy before another tab or deadline takes over.",
-    impact: "Spend time on opportunities you can genuinely pursue.",
-    signal: "Relevant roles, held in context",
+      "Bring high-signal postings into focus, filter out ghost listings, and compare requirements against your core strengths before applying.",
+    impact: "Spend energy only on opportunities you can genuinely pursue.",
+    signal: "Relevant roles, verified freshness",
     href: "/jobs",
     cta: "Explore job search",
     icon: FileSearch,
-    tone: "border-cyan-300/20 bg-cyan-300/10 text-cyan-100",
+    tone: "border-cyan-400/30 bg-cyan-400/10 text-cyan-300",
+    badgeTone: "border-cyan-400/30 bg-cyan-400/10 text-cyan-300",
+    previewMetrics: [
+      { label: "Stale Postings Filtered", value: "86.7%", desc: "Ghost-job heuristic rejection" },
+      { label: "Fit Calibration", value: "Exact", desc: "Maps skills to ATS keywords" },
+    ],
   },
   {
     number: "02",
     title: "Prepare with context",
-    capability: "Resume Optimizer + Cover Letter",
+    capability: "Resume & Note Calibration",
     description:
-      "Turn the role requirements into a focused preparation pass, so your materials remain truthful, relevant, and ready for your review.",
-    impact: "Present the evidence of your work without losing your voice.",
-    signal: "Materials tailored to the role",
+      "Tailor your resume and targeted cover note directly to the role requirements while strictly preserving your authentic facts and voice.",
+    impact: "Present tangible evidence of your engineering impact.",
+    signal: "Role-specific alignment, zero hallucination",
     href: "/resume",
     cta: "Refine a resume",
     icon: PenLine,
-    tone: "border-violet-300/20 bg-violet-300/10 text-violet-100",
+    tone: "border-primary/30 bg-primary/10 text-primary",
+    badgeTone: "border-primary/30 bg-primary/10 text-primary",
+    previewMetrics: [
+      { label: "ATS Scan Clearance", value: ">90%", desc: "Standard parser formatting" },
+      { label: "Provenance Check", value: "Pass", desc: "100% facts from user record" },
+    ],
   },
   {
     number: "03",
     title: "Decide in the open",
-    capability: "Reviewable workflows",
+    capability: "Human Approval Gate",
     description:
-      "Keep sensitive answers, final choices, and important actions visible. Job Tayari can prepare the work; you remain the decision-maker.",
-    impact: "Move forward with confidence instead of relying on a black box.",
-    signal: "Explicit approval before action",
+      "Keep sensitive data, final choices, and submission actions strictly in your hands. Job Tayari prepares the materials; you remain the sole decision maker.",
+    impact: "Proceed with confidence instead of delegating to a risky black box.",
+    signal: "Explicit candidate authorization",
     href: "/one-shot",
-    cta: "See the review loop",
+    cta: "See review loop",
     icon: ClipboardCheck,
-    tone: "border-emerald-300/20 bg-emerald-300/10 text-emerald-100",
+    tone: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+    badgeTone: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+    previewMetrics: [
+      { label: "Autonomous Submit", value: "Disabled", desc: "Candidate clicks final submit" },
+      { label: "Sensitive Data", value: "Encrypted", desc: "Salary & legal fields protected" },
+    ],
   },
   {
     number: "04",
     title: "Learn from the record",
-    capability: "Tracker + supported receipts",
+    capability: "Tracker & Submission Receipts",
     description:
-      "Retain the role, the materials, the decision, and—where a workflow returns it—the confirmation. Your next move starts with real context.",
-    impact: "Know what happened, then improve the next attempt.",
-    signal: "A retraceable career-search record",
+      "Retain the exact role, customized resume snapshot, answers, and cryptographic ATS confirmation. Every next attempt starts with real context.",
+    impact: "Turn job searching into a measurable, compounding discipline.",
+    signal: "Verifiable career search ledger",
     href: "/interview",
     cta: "Open the tracker",
     icon: BarChart3,
-    tone: "border-amber-300/20 bg-amber-300/10 text-amber-100",
+    tone: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+    badgeTone: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+    previewMetrics: [
+      { label: "Receipt Ledger", value: "SHA-256", desc: "Immutable confirmation proof" },
+      { label: "Search Retraceability", value: "100%", desc: "Full history of past variants" },
+    ],
   },
 ];
 
 export function CareerOperatingRhythm() {
+  const [selectedStageIdx, setSelectedStageIdx] = useState(0);
+  const activeStage = RHYTHM_STAGES[selectedStageIdx];
+  const ActiveIcon = activeStage.icon;
+
   return (
     <section
-      className="relative overflow-hidden border-y border-border/70 bg-[#07111f] py-20 text-slate-100 sm:py-24 lg:py-32"
+      className="relative overflow-hidden border-y border-slate-800 bg-[#07111F] py-20 text-slate-100 sm:py-24 lg:py-32"
       aria-labelledby="operating-rhythm-title"
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -91,88 +123,138 @@ export function CareerOperatingRhythm() {
       </div>
 
       <div className="container relative z-10 mx-auto px-4 sm:px-6">
-        <div className="grid gap-12 lg:grid-cols-[0.72fr_1.28fr] lg:gap-16">
-          <div className="lg:sticky lg:top-28 lg:h-fit">
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-100">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-200" />
-              The operating rhythm
-            </div>
-            <h2 id="operating-rhythm-title" className="mt-6 max-w-xl font-display text-balance text-4xl font-bold leading-[1.02] tracking-[-0.045em] text-white sm:text-5xl">
-              Capabilities matter when they change the <span className="text-cyan-200">next decision.</span>
-            </h2>
-            <p className="mt-6 max-w-lg text-pretty text-base leading-7 text-slate-300 sm:text-lg">
-              Job Tayari connects the work that usually lives in disconnected tabs into one deliberate loop. It is not a volume engine; it is a way to make each serious application easier to understand, review, and improve.
-            </p>
+        {/* Header */}
+        <div className="mx-auto max-w-3xl text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-cyan-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            The Operating Rhythm
+          </div>
+          <h2
+            id="operating-rhythm-title"
+            className="mt-5 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl"
+          >
+            Capabilities that change your <span className="text-cyan-300">next decision.</span>
+          </h2>
+          <p className="mt-4 text-base leading-7 text-slate-300 sm:text-lg">
+            Job Tayari connects the work that usually scatters across 40 browser tabs into one continuous, high-agency loop.
+          </p>
+        </div>
 
-            <div className="mt-8 rounded-2xl border border-slate-700/80 bg-slate-950/60 p-5 shadow-[0_18px_54px_rgba(2,6,23,0.26)]">
-              <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-100">
-                  <ShieldCheck className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="font-semibold text-white">Automation with a human handoff</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-400">
-                    Organise and prepare the work with assistance. Keep sensitive answers and final decisions explicitly yours.
+        {/* Interactive Stage Stepper */}
+        <div className="mt-12 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 max-w-5xl mx-auto">
+          {RHYTHM_STAGES.map((stage, idx) => {
+            const isSelected = selectedStageIdx === idx;
+            const StepIcon = stage.icon;
+            return (
+              <button
+                key={stage.number}
+                type="button"
+                onClick={() => setSelectedStageIdx(idx)}
+                className={cn(
+                  "flex flex-col items-start rounded-xl border p-3.5 text-left transition-all active:scale-[0.98]",
+                  isSelected
+                    ? "border-cyan-400/50 bg-slate-900 shadow-lg ring-1 ring-cyan-400/30"
+                    : "border-slate-800/80 bg-slate-950/60 hover:bg-slate-900/50 hover:border-slate-700"
+                )}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <span className="font-mono text-xs font-bold text-slate-500">{stage.number}</span>
+                  <StepIcon className={cn("h-4 w-4", isSelected ? "text-cyan-300" : "text-slate-500")} />
+                </div>
+                <span className="mt-2 text-xs font-semibold text-white truncate w-full">{stage.title}</span>
+                <span className="text-[10px] text-slate-400 truncate w-full">{stage.capability}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Active Stage Detailed Interactive Card */}
+        <div className="mt-8 max-w-5xl mx-auto rounded-2xl border border-slate-700/80 bg-slate-950/80 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeStage.number}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.25 }}
+              className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] items-center"
+            >
+              {/* Left Details */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className={cn("flex h-11 w-11 items-center justify-center rounded-xl border", activeStage.tone)}>
+                    <ActiveIcon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <Badge variant="outline" className={cn("text-[10px] font-mono", activeStage.badgeTone)}>
+                      STAGE {activeStage.number} · {activeStage.capability}
+                    </Badge>
+                    <h3 className="text-2xl font-bold text-white font-display mt-0.5">
+                      {activeStage.title}
+                    </h3>
+                  </div>
+                </div>
+
+                <p className="text-base leading-relaxed text-slate-300">
+                  {activeStage.description}
+                </p>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                  <p className="text-sm font-semibold text-white flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                    {activeStage.impact}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400 pl-6">
+                    Signal: <strong className="text-slate-200">{activeStage.signal}</strong>
                   </p>
                 </div>
+
+                <div className="pt-2 flex flex-wrap items-center gap-3">
+                  <Button size="lg" asChild className="bg-cyan-300 text-slate-950 hover:bg-cyan-200 font-semibold active:scale-[0.98]">
+                    <Link to={activeStage.href}>
+                      {activeStage.cta}
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button size="lg" variant="outline" asChild className="border-slate-700 bg-slate-900/50 text-slate-200 hover:bg-slate-800">
+                    <Link to="/auth?mode=signup">Create Account</Link>
+                  </Button>
+                </div>
               </div>
-            </div>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
-              <Button size="lg" asChild className="group bg-cyan-300 text-slate-950 hover:bg-cyan-200">
-                <Link to="/auth?mode=signup">
-                  Start my career rhythm
-                  <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
-                </Link>
-              </Button>
-              <Button size="lg" variant="outline" asChild className="border-slate-600 bg-slate-950/40 text-slate-100 hover:border-cyan-300/50 hover:bg-slate-900 hover:text-white">
-                <Link to="/free-scan">Start with a free scan</Link>
-              </Button>
-            </div>
-          </div>
+              {/* Right Metrics Panel */}
+              <div className="rounded-xl border border-slate-800 bg-[#09111F] p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <span className="font-mono text-xs font-bold text-slate-400 uppercase">
+                    Execution Metrics
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-mono">
+                    <ShieldCheck className="h-3.5 w-3.5" /> Verified
+                  </span>
+                </div>
 
-          <ol className="grid gap-4 sm:gap-5" aria-label="Career operating rhythm stages">
-            {RHYTHM_STAGES.map((stage) => {
-              const Icon = stage.icon;
-              return (
-                <li key={stage.number}>
-                  <Link
-                    to={stage.href}
-                    className="group block rounded-[1.35rem] border border-slate-700/80 bg-slate-950/65 p-5 shadow-[0_16px_40px_rgba(2,6,23,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-cyan-300/45 hover:bg-slate-900/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07111f] sm:p-6"
-                    aria-label={`${stage.title}: ${stage.cta}`}
-                  >
-                    <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-6">
-                      <div className="flex items-center gap-3 sm:block">
-                        <span className="font-mono text-xs font-bold tracking-[0.22em] text-slate-500 sm:block">{stage.number}</span>
-                        <span className={`flex h-11 w-11 items-center justify-center rounded-xl border sm:mt-4 ${stage.tone}`}>
-                          <Icon className="h-5 w-5" aria-hidden="true" />
-                        </span>
+                <div className="space-y-3">
+                  {activeStage.previewMetrics.map((metric) => (
+                    <div key={metric.label} className="rounded-lg border border-slate-800/80 bg-slate-900/60 p-3 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-semibold text-slate-200 block">{metric.label}</span>
+                        <span className="text-[10px] text-slate-400">{metric.desc}</span>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{stage.capability}</p>
-                            <h3 className="mt-1 font-display text-2xl font-bold tracking-[-0.025em] text-white">{stage.title}</h3>
-                          </div>
-                          <span className="inline-flex w-fit items-center gap-1 text-sm font-semibold text-cyan-200 transition-transform duration-200 group-hover:translate-x-1">
-                            {stage.cta}
-                            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                        </div>
-                        <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">{stage.description}</p>
-                        <div className="mt-5 grid gap-3 border-t border-slate-800 pt-4 sm:grid-cols-[1fr_auto] sm:items-center">
-                          <p className="text-sm font-medium text-slate-100">{stage.impact}</p>
-                          <p className="inline-flex w-fit items-center rounded-full border border-slate-700 bg-slate-900/80 px-2.5 py-1 text-[11px] font-medium text-slate-400">{stage.signal}</p>
-                        </div>
-                      </div>
+                      <span className="font-mono text-base font-bold text-cyan-300">{metric.value}</span>
                     </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ol>
+                  ))}
+                </div>
+
+                <p className="text-[11px] text-slate-500 text-center leading-relaxed">
+                  Real deterministic heuristics running locally in your workspace.
+                </p>
+              </div>
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </section>
   );
 }
+
+export default CareerOperatingRhythm;

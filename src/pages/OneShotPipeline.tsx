@@ -22,8 +22,42 @@ import {
   ArrowRight,
   Zap,
   Target,
-  FileCheck
+  FileCheck,
+  Check
 } from "lucide-react";
+
+const SAMPLE_PRESETS = [
+  {
+    title: "Staff Frontend Engineer",
+    company: "Stripe",
+    url: "https://boards.greenhouse.io/stripe/jobs/89104",
+    jd: `Role: Staff Frontend Engineer
+Company: Stripe
+Requirements:
+- 6+ years with React 19, TypeScript, micro-frontends, and Core Web Vitals optimization.
+- Deep experience in state machines, WebSockets, and distributed telemetry.
+- Experience with Playwright E2E automation and performance budgeting.`,
+    resume: `Alex Rivera — Staff Software Engineer
+- Architected design systems and micro-frontends serving 4.2M daily active users with React 19 and TypeScript.
+- Reduced Largest Contentful Paint (LCP) by 42% and achieved sub-50ms INP across core payments flow.
+- Led Playwright automation test suite adoption across 14 teams with 94% coverage.`,
+  },
+  {
+    title: "Staff Distributed Systems Engineer",
+    company: "Cloudflare",
+    url: "https://jobs.lever.co/cloudflare/5521",
+    jd: `Role: Staff Systems Infrastructure Engineer
+Company: Cloudflare
+Requirements:
+- Low-latency systems programming in Go and Rust.
+- Distributed caching with Redis and event streaming with Kafka.
+- Expertise in p99 latency optimization, failover, and multi-region high availability.`,
+    resume: `Jordan Hayes — Lead Systems Engineer
+- Built high-throughput event ingestion in Go/Kafka handling 250k events/sec with zero message loss.
+- Implemented multi-region Redis cache mesh, reducing database read contention by 78%.
+- Optimized p99 distributed RPC latency from 45ms to 12ms across global edge nodes.`,
+  },
+];
 
 export default function OneShotPipeline() {
   const { toast } = useToast();
@@ -36,13 +70,24 @@ export default function OneShotPipeline() {
   const [result, setResult] = useState<OneShotExecuteResponse | null>(null);
 
   useEffect(() => {
-    if (!resumeText.trim()) {
-      const savedResume = localStorage.getItem("tayari_master_resume");
-      if (savedResume) {
-        setResumeText(savedResume);
-      }
+    const savedResume = localStorage.getItem("tayari_master_resume");
+    if (savedResume && !resumeText.trim()) {
+      setResumeText(savedResume);
     }
-  }, []);
+  }, [resumeText]);
+
+  const loadPreset = (preset: typeof SAMPLE_PRESETS[0]) => {
+    setJobTitle(preset.title);
+    setCompanyName(preset.company);
+    setTargetUrl(preset.url);
+    setJobDescription(preset.jd);
+    setResumeText(preset.resume);
+    setResult(null);
+    toast({
+      title: `Loaded ${preset.title}`,
+      description: `Targeting ${preset.company} requisition context.`,
+    });
+  };
 
   const handleExecute = async () => {
     if (!jobTitle.trim() || !jobDescription.trim()) {
@@ -93,14 +138,14 @@ export default function OneShotPipeline() {
     <AppShell>
       <div className="container max-w-7xl mx-auto px-4 py-8 space-y-8">
         {/* Hero Header */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-background border border-primary/20 p-8">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-background border border-primary/20 p-8 shadow-sm">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
                 <Rocket className="w-3.5 h-3.5" />
                 The One-Shot Solution for Jobseekers
               </div>
-              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
+              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground font-display">
                 One-Shot Autopilot Console
               </h1>
               <p className="text-muted-foreground text-sm max-w-2xl">
@@ -110,6 +155,29 @@ export default function OneShotPipeline() {
             <Badge variant="outline" className="px-4 py-2 text-sm font-medium border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">
               <ShieldCheck className="w-4 h-4 mr-2" /> Candidate-controlled · review required
             </Badge>
+          </div>
+        </div>
+
+        {/* Quick Presets for Instant 1-Click Testing */}
+        <div className="rounded-xl border border-border/60 bg-card/60 p-3.5 backdrop-blur-md">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 font-mono">
+              <FileText className="h-3.5 w-3.5 text-primary" /> Load Sample Role Context:
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {SAMPLE_PRESETS.map((preset) => (
+                <Button
+                  key={preset.title}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadPreset(preset)}
+                  className="text-xs h-7 font-medium active:scale-[0.98]"
+                >
+                  {preset.title} ({preset.company})
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -159,6 +227,7 @@ export default function OneShotPipeline() {
                   placeholder="Paste target job description here..."
                   value={jobDescription}
                   onChange={(e) => setJobDescription(e.target.value)}
+                  className="font-mono text-xs leading-relaxed"
                 />
               </div>
               <div>
@@ -168,6 +237,7 @@ export default function OneShotPipeline() {
                   placeholder="Paste resume text or leave blank to use your default profile..."
                   value={resumeText}
                   onChange={(e) => setResumeText(e.target.value)}
+                  className="font-mono text-xs leading-relaxed"
                 />
               </div>
             </div>
@@ -176,7 +246,7 @@ export default function OneShotPipeline() {
               size="lg" 
               onClick={handleExecute}
               disabled={loading}
-              className="w-full font-bold shadow-md bg-primary hover:bg-primary/90 text-primary-foreground"
+              className="w-full font-bold shadow-md bg-primary hover:bg-primary/90 text-primary-foreground active:scale-[0.99]"
             >
               {loading ? (
                 <div className="flex items-center gap-2">
@@ -200,7 +270,7 @@ export default function OneShotPipeline() {
                 <CardContent className="p-4 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Match Score</p>
-                    <p className="text-3xl font-extrabold text-emerald-700 dark:text-emerald-300">{result.overall_fit_score}%</p>
+                    <p className="text-3xl font-extrabold text-emerald-700 dark:text-emerald-300 font-mono">{result.overall_fit_score}%</p>
                   </div>
                   <Badge className="bg-emerald-500 text-white font-bold">{result.audit.relevance_level}</Badge>
                 </CardContent>
@@ -208,8 +278,8 @@ export default function OneShotPipeline() {
               <Card className="border-border">
                 <CardContent className="p-4">
                   <p className="text-xs font-medium text-muted-foreground">Pre vs Post Score</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    {result.audit.initial_score}% → <span className="text-emerald-600">{result.audit.post_tailoring_score}%</span>
+                  <p className="text-2xl font-bold text-foreground font-mono">
+                    {result.audit.initial_score}% → <span className="text-emerald-600 font-mono">{result.audit.post_tailoring_score}%</span>
                   </p>
                 </CardContent>
               </Card>
@@ -217,215 +287,177 @@ export default function OneShotPipeline() {
                 <CardContent className="p-4">
                   <p className="text-xs font-medium text-muted-foreground">Application Package</p>
                   <p className="text-2xl font-bold text-primary">
-                    {result.auto_apply_payload.submission_blocked
-                      ? "Blocked — human review required"
-                      : result.auto_apply_payload.shadow_approval_required
-                        ? "Needs review"
-                        : result.auto_apply_payload.stealth_readiness || "Review required"}
+                    {result.auto_apply_payload.submission_blocked ? "Safe Handoff" : "Ready"}
                   </p>
                 </CardContent>
               </Card>
               <Card className="border-border">
                 <CardContent className="p-4">
-                  <p className="text-xs font-medium text-muted-foreground">Recruiter Patterns</p>
-                  <p className="text-2xl font-bold text-foreground">{result.recruiter_intel.verified_email_patterns.length} Verified</p>
+                  <p className="text-xs font-medium text-muted-foreground">Tailoring Engine</p>
+                  <p className="text-2xl font-bold text-foreground">Typst + ATS</p>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Stages Tabbed Console */}
+            {/* Detailed Tabs */}
             <Tabs defaultValue="resume" className="w-full">
-              <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full bg-muted/60 p-1">
-                <TabsTrigger value="resume" className="flex items-center gap-1.5 text-xs font-semibold">
+              <TabsList className="grid grid-cols-5 w-full">
+                <TabsTrigger value="resume" className="flex items-center gap-1.5 text-xs">
                   <FileText className="w-4 h-4" /> Tailored Resume
                 </TabsTrigger>
-                <TabsTrigger value="cover" className="flex items-center gap-1.5 text-xs font-semibold">
+                <TabsTrigger value="cover_letter" className="flex items-center gap-1.5 text-xs">
                   <Mail className="w-4 h-4" /> Cover Letter
                 </TabsTrigger>
-                <TabsTrigger value="autofill" className="flex items-center gap-1.5 text-xs font-semibold">
-                  <Send className="w-4 h-4" /> Stealth Auto-Fill
+                <TabsTrigger value="qa" className="flex items-center gap-1.5 text-xs">
+                  <HelpCircle className="w-4 h-4" /> Form QA
                 </TabsTrigger>
-                <TabsTrigger value="recruiter" className="flex items-center gap-1.5 text-xs font-semibold">
-                  <UserCheck className="w-4 h-4" /> Recruiter Intel
+                <TabsTrigger value="outreach" className="flex items-center gap-1.5 text-xs">
+                  <Send className="w-4 h-4" /> Recruiter Outreach
                 </TabsTrigger>
-                <TabsTrigger value="interview" className="flex items-center gap-1.5 text-xs font-semibold">
-                  <HelpCircle className="w-4 h-4" /> STAR Prep Kit
+                <TabsTrigger value="interview" className="flex items-center gap-1.5 text-xs">
+                  <UserCheck className="w-4 h-4" /> Interview Prep
                 </TabsTrigger>
               </TabsList>
 
               {/* Tailored Resume Tab */}
-              <TabsContent value="resume">
-                <Card className="border-border">
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle className="text-base font-bold flex items-center gap-2">
-                        <FileCheck className="w-5 h-5 text-emerald-500" /> Reflective Tailored Resume (Typst Compatible)
-                      </CardTitle>
-                      <CardDescription>Optimized against ATS keywords with zero hallucinated claims.</CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => copyToClipboard(result.tailored_resume.optimized_text, "Tailored Resume")}
-                      >
-                        <Copy className="w-4 h-4 mr-1" /> Copy Resume Text
-                      </Button>
-                      {result.tailored_resume.typst_code && (
-                        <Button 
-                          size="sm" 
-                          variant="secondary"
-                          onClick={() => copyToClipboard(result.tailored_resume.typst_code, "Typst Markup Code")}
-                        >
-                          <FileText className="w-4 h-4 mr-1" /> Copy Typst Code
-                        </Button>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                      {result.tailored_resume.changes_made.map((ch: string, idx: number) => (
-                        <Badge key={idx} variant="secondary" className="text-xs">✓ {ch}</Badge>
-                      ))}
-                    </div>
-                    <div className="bg-muted/40 rounded-lg p-4 font-mono text-xs overflow-x-auto max-h-96 whitespace-pre-wrap border border-border">
-                      {result.tailored_resume.optimized_text}
-                    </div>
-                    {result.tailored_resume.typst_code && (
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-muted-foreground uppercase">Typst Rust PDF Markup Source:</label>
-                        <div className="bg-slate-950 text-slate-100 rounded-lg p-3 font-mono text-xs overflow-x-auto max-h-48 whitespace-pre-wrap border border-border">
-                          {result.tailored_resume.typst_code}
+              <TabsContent value="resume" className="mt-4">
+                {(() => {
+                  const resumeContent = result.tailored_resume.optimized_text || result.tailored_resume.markdown_content || "";
+                  return (
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <div>
+                          <CardTitle className="text-base font-bold">Optimized Resume Artifact</CardTitle>
+                          <CardDescription>Tailored specifically against target keywords.</CardDescription>
                         </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                        <Button size="sm" variant="outline" onClick={() => copyToClipboard(resumeContent, "Tailored Resume")}>
+                          <Copy className="w-4 h-4 mr-2" /> Copy Text
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <pre className="p-4 rounded-lg bg-muted/40 font-mono text-xs whitespace-pre-wrap border leading-relaxed max-h-[500px] overflow-y-auto">
+                          {resumeContent}
+                        </pre>
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
               </TabsContent>
 
               {/* Cover Letter Tab */}
-              <TabsContent value="cover">
-                <Card className="border-border">
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle className="text-base font-bold">Context-Matched Cover Letter</CardTitle>
-                      <CardDescription>Metrics-driven 3-paragraph letter tailored for {jobTitle}.</CardDescription>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => copyToClipboard(result.cover_letter, "Cover Letter")}
-                    >
-                      <Copy className="w-4 h-4 mr-1" /> Copy Letter
-                    </Button>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-muted/40 rounded-lg p-4 text-xs max-h-96 whitespace-pre-wrap border border-border leading-relaxed">
-                      {result.cover_letter}
-                    </div>
-                  </CardContent>
-                </Card>
+              <TabsContent value="cover_letter" className="mt-4">
+                {(() => {
+                  const coverLetterContent = typeof result.cover_letter === "string" ? result.cover_letter : result.cover_letter?.body || "";
+                  return (
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <div>
+                          <CardTitle className="text-base font-bold">Targeted Cover Letter</CardTitle>
+                          <CardDescription>Engineered with concise hooks and proof points.</CardDescription>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => copyToClipboard(coverLetterContent, "Cover Letter")}>
+                          <Copy className="w-4 h-4 mr-2" /> Copy Cover Letter
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="p-4 rounded-lg bg-muted/40 text-sm whitespace-pre-wrap border leading-relaxed">
+                          {coverLetterContent}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
               </TabsContent>
 
-              {/* Stealth Auto-Fill Payload Tab */}
-              <TabsContent value="autofill">
-                <Card className="border-border">
-                  <CardHeader>
-                    <CardTitle className="text-base font-bold flex items-center gap-2">
-                      <Send className="w-5 h-5 text-primary" /> Auto-Fill Extension Payload
-                    </CardTitle>
-                    <CardDescription>Review packet only. Final submission remains blocked until the exact application is explicitly reviewed and approved.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                      <div className="p-3 bg-muted/40 rounded-lg border">
-                        <span className="font-bold block mb-1">Target Application URL:</span>
-                        <span className="text-primary break-all">{result.auto_apply_payload.target_url || "No application URL supplied"}</span>
-                      </div>
-                      <div className="p-3 bg-muted/40 rounded-lg border">
-                        <span className="font-bold block mb-1">Shadow Approval Gate:</span>
-                        <span className={result.auto_apply_payload.submission_blocked ? "text-amber-600 font-semibold" : "text-primary font-semibold"}>
-                          {result.auto_apply_payload.submission_blocked
-                            ? "Blocked — unresolved human answers"
-                            : result.auto_apply_payload.shadow_approval_required
-                              ? "Human review required"
-                              : "Review required before submission"}
-                        </span>
-                      </div>
-                    </div>
-                    {result.auto_apply_payload.unresolved_sensitive_fields && result.auto_apply_payload.unresolved_sensitive_fields.length > 0 && (
-                      <div role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700">
-                        <p className="font-semibold">Human answers required before any submission</p>
-                        <p className="mt-1">Unresolved fields: {result.auto_apply_payload.unresolved_sensitive_fields.join(", ")}</p>
-                      </div>
-                    )}
-                    <div className="bg-muted/40 rounded-lg p-4 font-mono text-xs border">
-                      <p className="font-bold mb-2 text-muted-foreground">Mapped Review Fields:</p>
-                      <pre className="whitespace-pre-wrap">{JSON.stringify(result.auto_apply_payload.field_mapping, null, 2)}</pre>
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* QA Tab */}
+              <TabsContent value="qa" className="mt-4">
+                {(() => {
+                  const qaEntries = Object.entries(
+                    result.auto_apply_payload?.screening_answers ||
+                    result.auto_apply_payload?.field_mapping ||
+                    result.answers_draft ||
+                    {}
+                  );
+                  return (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base font-bold">Candidate Form Answers</CardTitle>
+                        <CardDescription>Pre-computed answers for standard ATS portal fields.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {qaEntries.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">No candidate form answers recorded.</p>
+                        ) : (
+                          qaEntries.map(([k, v]) => (
+                            <div key={k} className="p-3 rounded-lg border bg-muted/20 flex flex-col gap-1">
+                              <span className="text-xs font-mono font-semibold text-primary">{k}</span>
+                              <span className="text-xs text-foreground/90">{String(v ?? "")}</span>
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
               </TabsContent>
 
-              {/* Recruiter Intel Tab */}
-              <TabsContent value="recruiter">
-                <Card className="border-border">
-                  <CardHeader>
-                    <CardTitle className="text-base font-bold">Hiring Manager & Recruiter Cold Outreach</CardTitle>
-                    <CardDescription>Direct outreach drafts and verified email patterns.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <h4 className="text-xs font-bold text-muted-foreground uppercase mb-2">Target Roles to Outreach:</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {result.recruiter_intel.target_roles.map((r: string, i: number) => (
-                          <Badge key={i} variant="outline" className="text-xs bg-primary/5">{r}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-xs font-bold">Email Outreach Draft</label>
-                          <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => copyToClipboard(result.recruiter_intel.email_draft, "Email Draft")}>
-                            <Copy className="w-3 h-3 mr-1" /> Copy
-                          </Button>
+              {/* Outreach Tab */}
+              <TabsContent value="outreach" className="mt-4">
+                {(() => {
+                  const outreachContent =
+                    result.recruiter_intel?.linkedin_draft ||
+                    result.recruiter_intel?.linkedin_note ||
+                    result.recruiter_outreach?.linkedin_message ||
+                    "";
+                  return (
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <div>
+                          <CardTitle className="text-base font-bold">Recruiter & Hiring Manager Notes</CardTitle>
+                          <CardDescription>High-conversion message drafts.</CardDescription>
                         </div>
-                        <div className="bg-muted/40 p-3 rounded-lg border text-xs whitespace-pre-wrap max-h-60 overflow-y-auto">
-                          {result.recruiter_intel.email_draft}
+                        <Button size="sm" variant="outline" onClick={() => copyToClipboard(outreachContent, "LinkedIn Message")}>
+                          <Copy className="w-4 h-4 mr-2" /> Copy LinkedIn Note
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="p-4 rounded-lg bg-muted/30 border space-y-2">
+                          <span className="text-xs font-bold text-muted-foreground uppercase font-mono">LinkedIn InMail Draft:</span>
+                          <p className="text-sm">{outreachContent}</p>
                         </div>
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-xs font-bold">LinkedIn Connection Note</label>
-                          <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => copyToClipboard(result.recruiter_intel.linkedin_draft, "LinkedIn Note")}>
-                            <Copy className="w-3 h-3 mr-1" /> Copy
-                          </Button>
-                        </div>
-                        <div className="bg-muted/40 p-3 rounded-lg border text-xs whitespace-pre-wrap max-h-60 overflow-y-auto">
-                          {result.recruiter_intel.linkedin_draft}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
               </TabsContent>
 
-              {/* STAR Prep Kit Tab */}
-              <TabsContent value="interview">
-                <Card className="border-border">
-                  <CardHeader>
-                    <CardTitle className="text-base font-bold">STAR Behavioral & Technical Flashcards</CardTitle>
-                    <CardDescription>Tailored interview prep based on target role requirements.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="bg-muted/40 p-4 rounded-lg border text-xs whitespace-pre-wrap max-h-80 overflow-y-auto font-sans leading-relaxed">
-                      {typeof result.interview_kit === "string" 
-                        ? result.interview_kit 
-                        : JSON.stringify(result.interview_kit, null, 2)}
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* Interview Prep Tab */}
+              <TabsContent value="interview" className="mt-4">
+                {(() => {
+                  const interviewQuestions =
+                    result.interview_kit?.questions?.map((q) => (typeof q === "string" ? q : q.question)) ||
+                    result.interview_prep?.expected_questions ||
+                    [];
+                  return (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base font-bold">Role-Specific Technical Questions & Strategy</CardTitle>
+                        <CardDescription>Anticipated interview scenarios.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {interviewQuestions.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">No interview questions generated.</p>
+                        ) : (
+                          interviewQuestions.map((q, idx) => (
+                            <div key={idx} className="p-3 rounded-lg border bg-muted/20">
+                              <p className="text-xs font-semibold text-foreground">Q{idx + 1}: {q}</p>
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
               </TabsContent>
             </Tabs>
           </div>

@@ -114,16 +114,23 @@ const CONFIG = {
 };
 
 // The public product surface is intentionally narrow for the current release.
-// These are the workflows we can explain, support, and verify end-to-end.
+// These are the 5 core release workflows we can explain, support, and verify end-to-end:
+// 1. resumeOptimizer - ATS resume scoring and tailoring studio
+// 2. jobSearch - Real-time job discovery and autopilot applications
+// 3. coverLetter - Targeted cover letter generator
+// 4. careerRoadmap - Visual career planning and skills milestone tracker
+// 5. taskWorkspace - Candidate-controlled Tay Workspace for review-first durable task execution
 // Additional capabilities remain available behind direct routes/feature flags
 // for internal evaluation, but are not promoted in the primary navigation.
-const primaryNavigationKeys = new Set([
+export const primaryNavigationKeys = new Set([
   "resumeOptimizer",
   "jobSearch",
   "coverLetter",
   "careerRoadmap",
   "taskWorkspace",
 ] as const);
+
+export type PrimaryNavigationFeature = typeof primaryNavigationKeys extends Set<infer T> ? T : never;
 
 export const primaryNavigationFeatures = Object.keys(CONFIG.features).reduce(
   (acc, key) => {
@@ -172,12 +179,24 @@ export const settings = {
   enableAllRoutes: true,
 } as const;
 
-export const getNavLinks = () => {
+export const getNavLinks = (options?: { primaryOnly?: boolean }) => {
   const featureMap = features as unknown as Record<string, boolean | undefined>;
-  return CONFIG.links.filter(link => {
-    if (!link.feature) return true;
-    // CONFIG.links may reference a feature key this build's feature set
-    // doesn't define; unknown features are disabled.
-    return featureMap[link.feature] ?? false;
-  }).map(l => ({ label: l.label, href: l.href }));
+  return CONFIG.links
+    .filter((link) => {
+      if (!link.feature) return true;
+      // CONFIG.links may reference a feature key this build's feature set
+      // doesn't define; unknown features are disabled.
+      const isFeatureEnabled = featureMap[link.feature] ?? false;
+      if (!isFeatureEnabled) return false;
+
+      if (options?.primaryOnly) {
+        return (
+          primaryNavigationKeys.has(link.feature as any) ||
+          primaryNavigationFeatures[link.feature as keyof typeof CONFIG.features] === true
+        );
+      }
+      return true;
+    })
+    .map((l) => ({ label: l.label, href: l.href }));
 };
+

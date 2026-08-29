@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { AppShell } from "@/components/layout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,9 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ShieldCheck, Zap, Database, CheckCircle2, AlertCircle, Search } from "lucide-react";
+import { ShieldCheck, Zap, Database, CheckCircle2, AlertCircle, Search, Download, Upload, RefreshCw, Lock } from "lucide-react";
 import { fetchCandidateAnswers, matchCandidateBank, saveCandidateAnswers } from "@/api";
 import { toast } from "sonner";
+
+const PRESET_TEST_QUESTIONS = [
+  "Are you legally authorized to work in the United States?",
+  "Will you now or in the future require visa sponsorship?",
+  "What are your base salary expectations for this position?",
+  "What is your earliest possible start date or notice period?",
+  "Are you comfortable working in a hybrid or remote setup?",
+];
 
 export default function CandidateAnswerBank() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -16,6 +24,7 @@ export default function CandidateAnswerBank() {
   const [answersError, setAnswersError] = useState<string | null>(null);
   const [isSavingAnswers, setIsSavingAnswers] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -44,7 +53,7 @@ export default function CandidateAnswerBank() {
   }, []);
 
   // Tester state
-  const [testQuestion, setTestQuestion] = useState("Are you legally authorized to work in the United States?");
+  const [testQuestion, setTestQuestion] = useState(PRESET_TEST_QUESTIONS[0]);
   const [matchResult, setMatchResult] = useState<any>(null);
   const [isMatching, setIsMatching] = useState(false);
 
@@ -77,6 +86,36 @@ export default function CandidateAnswerBank() {
     }
   };
 
+  const exportAnswersJson = () => {
+    const blob = new Blob([JSON.stringify(answers, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `candidate_answer_bank_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Answer bank exported as JSON");
+  };
+
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (typeof parsed === "object" && parsed !== null) {
+          setAnswers((prev) => ({ ...prev, ...parsed }));
+          toast.success("Answers imported from JSON. Click Save to persist.");
+        }
+      } catch {
+        toast.error("Invalid JSON file format");
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   return (
     <AppShell>
       <div className="container mx-auto p-6 space-y-6">
@@ -93,9 +132,24 @@ export default function CandidateAnswerBank() {
             </p>
             {saveError && <div role="alert" className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{saveError}</div>}
           </div>
-          <Button onClick={handleSaveAnswers} disabled={isLoadingAnswers || isSavingAnswers}>
-            {isSavingAnswers ? "Saving…" : "Save private answers"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImportJson}
+              accept="application/json"
+              className="hidden"
+            />
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="text-xs">
+              <Upload className="w-3.5 h-3.5 mr-1.5" /> Import JSON
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportAnswersJson} className="text-xs">
+              <Download className="w-3.5 h-3.5 mr-1.5" /> Export JSON
+            </Button>
+            <Button onClick={handleSaveAnswers} disabled={isLoadingAnswers || isSavingAnswers} size="sm" className="font-semibold shadow-md active:scale-[0.98]">
+              {isSavingAnswers ? "Saving…" : "Save private answers"}
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -107,7 +161,7 @@ export default function CandidateAnswerBank() {
             {answersError && (
               <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{answersError}</div>
             )}
-              <Tabs defaultValue="legal" className="w-full" aria-disabled={isLoadingAnswers}>
+            <Tabs defaultValue="legal" className="w-full" aria-disabled={isLoadingAnswers}>
               <TabsList className="grid grid-cols-3 mb-4">
                 <TabsTrigger value="legal">Work Auth & Legal</TabsTrigger>
                 <TabsTrigger value="compensation">Salary & Notice</TabsTrigger>
@@ -130,6 +184,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="work_auth">US Work Authorization Status</Label>
                       <Input
                         id="work_auth"
+                        placeholder="e.g. Authorized to work for any US employer"
                         value={answers.work_authorization ?? ""}
                         onChange={(e) => setAnswers({ ...answers, work_authorization: e.target.value })}
                       />
@@ -138,6 +193,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="sponsorship_ans">Visa Sponsorship Response</Label>
                       <Input
                         id="sponsorship_ans"
+                        placeholder="e.g. No, I do not require visa sponsorship now or in the future"
                         value={answers.sponsorship_answer ?? ""}
                         onChange={(e) => setAnswers({ ...answers, sponsorship_answer: e.target.value })}
                       />
@@ -164,6 +220,7 @@ export default function CandidateAnswerBank() {
                         <Input
                           id="sal_min"
                           type="number"
+                          placeholder="e.g. 180000"
                           value={answers.target_salary_min ?? ""}
                           onChange={(e) => setAnswers({ ...answers, target_salary_min: e.target.value })}
                         />
@@ -173,6 +230,7 @@ export default function CandidateAnswerBank() {
                         <Input
                           id="sal_max"
                           type="number"
+                          placeholder="e.g. 230000"
                           value={answers.target_salary_max ?? ""}
                           onChange={(e) => setAnswers({ ...answers, target_salary_max: e.target.value })}
                         />
@@ -182,6 +240,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="sal_ans">Formatted Salary Response</Label>
                       <Input
                         id="sal_ans"
+                        placeholder="e.g. $190,000 - $230,000 base DOE"
                         value={answers.salary_answer ?? ""}
                         onChange={(e) => setAnswers({ ...answers, salary_answer: e.target.value })}
                       />
@@ -190,6 +249,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="notice_ans">Notice Period / Earliest Start Date</Label>
                       <Input
                         id="notice_ans"
+                        placeholder="e.g. 2 weeks notice upon signed offer"
                         value={answers.notice_period_answer ?? ""}
                         onChange={(e) => setAnswers({ ...answers, notice_period_answer: e.target.value })}
                       />
@@ -212,6 +272,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="gender">Gender</Label>
                       <Input
                         id="gender"
+                        placeholder="e.g. Male / Female / I decline to identify"
                         value={answers.gender ?? ""}
                         onChange={(e) => setAnswers({ ...answers, gender: e.target.value })}
                       />
@@ -220,6 +281,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="race">Race / Ethnicity</Label>
                       <Input
                         id="race"
+                        placeholder="e.g. Asian / White / I decline to identify"
                         value={answers.race_ethnicity ?? ""}
                         onChange={(e) => setAnswers({ ...answers, race_ethnicity: e.target.value })}
                       />
@@ -228,6 +290,7 @@ export default function CandidateAnswerBank() {
                       <Label htmlFor="veteran">Veteran Status</Label>
                       <Input
                         id="veteran"
+                        placeholder="e.g. I am not a protected veteran / I decline to identify"
                         value={answers.veteran_status ?? ""}
                         onChange={(e) => setAnswers({ ...answers, veteran_status: e.target.value })}
                       />
@@ -240,7 +303,7 @@ export default function CandidateAnswerBank() {
 
           {/* Tester Side Panel */}
           <div className="space-y-6">
-            <Card className="border-primary/20 bg-primary/5">
+            <Card className="border-primary/20 bg-primary/5 shadow-sm">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Search className="w-5 h-5 text-primary" /> Interactive QA Match Tester
@@ -250,7 +313,27 @@ export default function CandidateAnswerBank() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
+                {/* Presets */}
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-mono font-semibold text-muted-foreground">Preset Question Examples:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {PRESET_TEST_QUESTIONS.map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => {
+                          setTestQuestion(q);
+                          setMatchResult(null);
+                        }}
+                        className="text-[10px] text-left p-1.5 rounded bg-background/80 border hover:border-primary/40 truncate max-w-full text-foreground/80"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2">
                   <Label htmlFor="test_q">ATS Form Question</Label>
                   <Input
                     id="test_q"
@@ -259,7 +342,7 @@ export default function CandidateAnswerBank() {
                     onChange={(e) => setTestQuestion(e.target.value)}
                   />
                 </div>
-                <Button className="w-full" onClick={handleTestMatch} disabled={isMatching}>
+                <Button className="w-full font-semibold active:scale-[0.98]" onClick={handleTestMatch} disabled={isMatching}>
                   {isMatching ? "Testing Match..." : "Evaluate Answer Match"}
                 </Button>
 
@@ -288,7 +371,7 @@ export default function CandidateAnswerBank() {
                           <span className="font-semibold">{(matchResult.confidence * 100).toFixed(0)}%</span>
                         </div>
                         <div className="pt-2 border-t mt-2">
-                          <span className="text-muted-foreground block text-xs mb-1">Pre-filled Response:</span>
+                          <span className="text-muted-foreground block text-xs mb-1 font-mono">Pre-filled Response:</span>
                           <p className="font-medium bg-muted p-2 rounded text-xs">{matchResult.answer}</p>
                         </div>
                       </>

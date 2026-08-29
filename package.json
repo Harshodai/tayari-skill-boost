@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "typecheck": "tsc -b --noEmit",
     "build": "vite build",
     "build:release": "bash scripts/require_clean_worktree.sh && vite build",
     "build:dev": "vite build --mode development",

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play, ShieldCheck, Eye, AlertTriangle, ExternalLink, ChevronRight } from "lucide-react";
+import { Loader2, Play, ShieldCheck, Eye, AlertTriangle, ExternalLink, ChevronRight, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { AgentLiveView } from "@/components/agent/AgentLiveView";
 import { listAgentRuns, startApplyAgent } from "@/lib/agent/applyAgent";
@@ -107,7 +107,22 @@ export function ApplyAgent() {
         </div>
 
         {cloudOnlyUnavailable && (
-          <BackendUnavailableBanner feature="Apply Agent" variant="full" className="animate-fade-in" />
+          <div className="space-y-4">
+            <BackendUnavailableBanner feature="Apply Agent" variant="full" className="animate-fade-in" />
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-foreground">
+              <div className="flex items-start gap-3">
+                <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-primary">Self-Hosted Native Workspaces Available</p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Apply Agent uses cloud Edge Functions for legacy runs. In your self-hosted environment, use{" "}
+                    <Link to="/one-shot" className="font-medium text-primary underline underline-offset-2">One-Shot Autopilot Console</Link> or{" "}
+                    <Link to="/tay" className="font-medium text-primary underline underline-offset-2">Tay Workspace</Link>, which communicate directly with your local Go/Python AI backend.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="grid gap-6 lg:grid-cols-2">

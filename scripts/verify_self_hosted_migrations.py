@@ -114,6 +114,10 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/61-20260827_self_hosted_table_parity.sql",
         "zz-61-20260827_self_hosted_table_parity.sql",
     ),
+    "backend/db/migrations/20260828_01_self_hosted_pet_and_route_views.sql": (
+        "supabase-local/volumes/db/init/62-20260828_self_hosted_pet_and_route_views.sql",
+        "zz-62-20260828_self_hosted_pet_and_route_views.sql",
+    ),
 }
 
 

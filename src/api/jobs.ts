@@ -71,6 +71,9 @@ export interface JobSearchResult {
   missing_skills?: string[];
   match_reason?: string;
   match_reasons?: string[];
+  dedupe_key?: string;
+  external_id?: string;
+  source_channel?: string;
   role_intelligence?: RoleIntelligence;
   preparation_material?: PreparationMaterial;
   [key: string]: unknown;
@@ -86,6 +89,8 @@ export interface JobSearchResponse {
   jobs?: JobSearchResult[];
   report?: { jobs?: JobSearchResult[] };
   agent_trace?: Array<{ step: string; detail: string; at?: string }>;
+  events?: Array<{ type?: string; message?: string; [key: string]: unknown } | any>;
+  result?: JobSearchResponse;
   memory_used?: boolean;
   memory_tiers_used?: string[];
   memory_truncated?: boolean;

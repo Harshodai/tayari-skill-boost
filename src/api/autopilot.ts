@@ -129,35 +129,59 @@ export interface OneShotExecuteResponse {
     matched_keywords: string[];
     missing_keywords: string[];
     relevance_level: string;
+    [key: string]: unknown;
   };
   tailored_resume: {
     optimized_text: string;
-    changes_made: string[];
-    word_count: number;
+    changes_made?: string[];
+    word_count?: number;
     typst_code?: string;
+    ats_warnings?: string[];
+    markdown_content?: string;
   };
-  cover_letter: string;
+  cover_letter: string | { body: string; [key: string]: unknown };
   auto_apply_payload: {
-    target_url: string | null;
-    stealth_readiness: string;
-    field_mapping: Record<string, string | null>;
+    target_url?: string | null;
+    stealth_readiness?: string;
+    field_mapping?: Record<string, string | null>;
+    screening_answers?: Record<string, unknown>;
     answer_version?: number | null;
     answer_records?: Array<Record<string, unknown>>;
     unresolved_sensitive_fields?: string[];
-    shadow_approval_required: boolean;
+    shadow_approval_required?: boolean;
     submission_blocked?: boolean;
+    [key: string]: unknown;
   };
   recruiter_intel: {
-    company_name: string;
-    domain: string;
-    target_roles: string[];
-    verified_email_patterns: string[];
-    email_draft: string;
-    linkedin_draft: string;
-    outreach_strategy: string;
+    company?: string;
+    role?: string;
+    recruiter_name?: string;
+    patterns?: string[];
+    cold_email?: { subject: string; body: string };
+    followup_1?: { subject: string; body: string };
+    linkedin_note?: string;
+    linkedin_draft?: string;
+    email_draft?: string;
+    [key: string]: unknown;
   };
-  interview_kit: Record<string, any>;
-  proof_vault: any[];
+  interview_kit: {
+    questions?: Array<{
+      question: string;
+      category?: string;
+      source_bullet?: string;
+      star_suggested?: Record<string, unknown>;
+      [key: string]: unknown;
+    }>;
+    expected_questions?: string[];
+    interview_type?: string;
+    company_specific?: { company: string; principles: string[]; sample_questions: string[] } | null;
+    [key: string]: unknown;
+  };
+  proof_vault?: any[];
+  answers_draft?: Record<string, unknown>;
+  recruiter_outreach?: { linkedin_message?: string; [key: string]: unknown };
+  interview_prep?: { expected_questions?: string[]; [key: string]: unknown };
+  [key: string]: unknown;
 }
 
 export async function executeOneShotPipeline(payload: OneShotExecuteRequest): Promise<OneShotExecuteResponse> {
