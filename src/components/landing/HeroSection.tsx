@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Check, FileSearch, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Reveal, RevealGroup, RevealItem } from "@/components/ui/reveal";
 
 const CHECKPOINTS = [
   "Choose opportunities with the right context",
@@ -8,137 +9,203 @@ const CHECKPOINTS = [
   "Keep the record you need for the next decision",
 ];
 
+const QUEUE = [
+  {
+    company: "Stripe",
+    role: "Senior Product Engineer",
+    meta: "Prepared 2m ago · ATS match 94%",
+    state: "done" as const,
+  },
+  {
+    company: "Linear",
+    role: "Product Engineer",
+    meta: "Scanning the description for fit…",
+    state: "active" as const,
+  },
+  {
+    company: "Vercel",
+    role: "Frontend Engineer",
+    meta: "Next in queue — waiting for your review",
+    state: "queued" as const,
+  },
+];
+
 export function HeroSection() {
   return (
-    <section className="relative overflow-hidden border-b border-border bg-background pb-16 pt-24 text-foreground sm:pb-20 sm:pt-28 lg:pb-28 lg:pt-32">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-1/2 top-[-18rem] h-[46rem] w-[46rem] -translate-x-1/2 rounded-full bg-primary/10 blur-[120px]" />
-        <div className="absolute bottom-[-20rem] left-[-12rem] h-[34rem] w-[34rem] rounded-full bg-accent/8 blur-[110px]" />
-        <div className="absolute right-[-12rem] top-[24%] h-[28rem] w-[28rem] rounded-full bg-primary/5 blur-[110px]" />
-        <div className="absolute inset-0 opacity-[0.25] [background-image:linear-gradient(hsl(var(--border)/0.25)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--border)/0.25)_1px,transparent_1px)] [background-size:52px_52px] [mask-image:radial-gradient(ellipse_72%_68%_at_50%_32%,black,transparent)]" />
-      </div>
+    <section className="relative overflow-hidden bg-background pb-20 pt-20 text-foreground sm:pt-24 lg:pb-28">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-[0.55] [background-image:linear-gradient(hsl(var(--border))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--border))_1px,transparent_1px)] [background-size:64px_64px] [mask-image:radial-gradient(ellipse_70%_55%_at_50%_0%,black,transparent)]"
+      />
 
       <div className="container relative z-10 mx-auto px-4 sm:px-6">
-        <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16">
-          <div className="max-w-2xl text-center lg:text-left">
-            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3.5 py-1.5 text-sm font-medium text-primary shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_12px_40px_hsl(var(--primary)/0.16)]">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60 motion-reduce:hidden" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+        {/* ── Headline block ─────────────────────────────── */}
+        <div className="mx-auto max-w-4xl text-center">
+          <Reveal>
+            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-70 motion-reduce:hidden" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
               </span>
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
               Career operations, on your terms
-            </div>
+            </span>
+          </Reveal>
 
-            <h1 className="font-display text-balance text-5xl font-bold leading-[0.98] tracking-[-0.055em] text-foreground sm:text-6xl lg:text-7xl">
-              Turn a scattered job search into a <span className="text-gradient">deliberate rhythm.</span>
+          <Reveal delay={0.06}>
+            <h1 className="font-display mt-8 text-balance text-5xl font-bold leading-[0.92] tracking-[-0.045em] sm:text-6xl lg:text-8xl">
+              Job search, <span className="text-primary">deliberate.</span>
             </h1>
+          </Reveal>
 
-            <p className="mx-auto mt-7 max-w-xl text-balance text-base leading-7 text-muted-foreground sm:text-lg lg:mx-0 lg:pr-6">
-              Choose roles with context, prepare work you can stand behind, and keep every meaningful decision visible. Job Tayari helps you move deliberately—not just faster.
+          <Reveal delay={0.12}>
+            <p className="mx-auto mt-7 max-w-2xl text-balance text-lg font-medium leading-8 text-muted-foreground sm:text-xl">
+              Prepared applications, ATS-honest resumes, and a receipt for every action. You keep the judgment — Job Tayari removes the busywork.
             </p>
+          </Reveal>
 
-            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
-              <Button size="xl" asChild className="group min-w-[190px] shadow-glow transition-all active:scale-[0.98] active:translate-y-0.5">
+          <Reveal delay={0.18}>
+            <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Button
+                size="xl"
+                asChild
+                className="group w-full min-w-[210px] rounded-2xl text-base font-semibold shadow-glow transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 active:scale-[0.985] sm:w-auto"
+              >
                 <Link to="/auth?mode=signup">
                   Start my career rhythm
-                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" asChild className="transition-all active:scale-[0.98] active:translate-y-0.5">
-                <Link to="/free-scan">
-                  Start with a free ATS scan
-                </Link>
+              <Button
+                size="xl"
+                variant="secondary"
+                asChild
+                className="w-full rounded-2xl text-base font-semibold transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] sm:w-auto"
+              >
+                <Link to="/free-scan">Run a free ATS scan</Link>
               </Button>
             </div>
+          </Reveal>
 
-            <div className="mt-9 grid gap-3 text-left sm:grid-cols-3 lg:max-w-xl lg:grid-cols-1">
-              {CHECKPOINTS.map((checkpoint) => (
-                <div key={checkpoint} className="flex items-start gap-2.5 text-sm leading-5 text-muted-foreground">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-success/30 bg-success/10 text-success">
+          <RevealGroup className="mx-auto mt-10 grid max-w-3xl gap-3 text-left sm:grid-cols-3">
+            {CHECKPOINTS.map((checkpoint) => (
+              <RevealItem key={checkpoint}>
+                <div className="flex items-start gap-2.5 text-sm leading-6 text-muted-foreground">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
                     <Check className="h-3 w-3" />
                   </span>
                   <span>{checkpoint}</span>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="relative mx-auto w-full max-w-[680px] lg:mx-0">
-            <div aria-hidden="true" className="absolute -inset-6 rounded-[2rem] bg-gradient-to-br from-primary/15 via-accent/10 to-success/10 blur-3xl" />
-            <div className="relative overflow-hidden rounded-[1.4rem] border border-border/80 bg-card shadow-2xl ring-1 ring-border/60">
-              <div className="flex items-center justify-between border-b border-border bg-card/90 px-4 py-3 sm:px-5">
-                <div className="flex items-center gap-1.5" aria-hidden="true">
-                  <span className="h-2.5 w-2.5 rounded-full bg-destructive/70" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-warning/70" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-success/70" />
-                </div>
-                <div className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-medium text-muted-foreground">
-                  <ShieldCheck className="h-3.5 w-3.5 text-success" />
-                  Your review loop
-                </div>
-              </div>
-
-              <div className="relative aspect-video bg-background/90">
-                <video
-                  className="h-full w-full object-cover motion-reduce:hidden"
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  aria-label="Animated workflow showing a matched role, candidate review, and a recorded receipt"
-                >
-                  <source src="/animations/candidate-review-loop.mp4" type="video/mp4" />
-                </video>
-
-                <div className="absolute inset-0 hidden items-center justify-center p-6 motion-reduce:flex" aria-label="Candidate review workflow">
-                  <StaticWorkflow />
-                </div>
-              </div>
-
-              <div className="grid gap-3 border-t border-border bg-card/95 p-4 sm:grid-cols-2 sm:p-5">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><FileSearch className="h-4 w-4" /></span>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Context before volume</p>
-                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Start with roles and materials you can genuinely stand behind.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning/10 text-warning"><ShieldCheck className="h-4 w-4" /></span>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Your decision stays visible</p>
-                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Review important work instead of relying on a black box.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">
-              Sensitive answers and final decisions stay in your hands.
-            </p>
-          </div>
+              </RevealItem>
+            ))}
+          </RevealGroup>
         </div>
+
+        {/* ── Product spotlight ──────────────────────────── */}
+        <Reveal delay={0.1} y={28} className="mx-auto mt-20 max-w-6xl">
+          <div className="group/frame relative rounded-[2.5rem] border border-border bg-secondary p-3 shadow-2xl shadow-foreground/5 transition-transform duration-500 sm:p-6">
+            <div className="overflow-hidden rounded-[1.6rem] border border-border bg-background">
+              <div className="flex h-12 items-center justify-between border-b border-border px-4">
+                <div className="flex gap-2" aria-hidden="true">
+                  <span className="h-3 w-3 rounded-full bg-secondary" />
+                  <span className="h-3 w-3 rounded-full bg-secondary" />
+                  <span className="h-3 w-3 rounded-full bg-secondary" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
+                  Agent activity log
+                </span>
+                <span className="w-12" />
+              </div>
+
+              <div className="grid min-h-[380px] md:grid-cols-12">
+                <aside className="hidden space-y-6 border-r border-border p-6 md:col-span-3 md:block" aria-hidden="true">
+                  <div className="space-y-2">
+                    <div className="h-2 w-12 rounded-full bg-primary" />
+                    <div className="h-2 w-full rounded-full bg-secondary" />
+                  </div>
+                  <div className="space-y-3 pt-2">
+                    {["Pipeline", "Resume", "Receipts", "Outreach"].map((label) => (
+                      <div
+                        key={label}
+                        className="rounded-lg bg-secondary/70 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary"
+                      >
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                </aside>
+
+                <div className="p-6 sm:p-8 md:col-span-9">
+                  <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h2 className="font-display text-2xl font-bold tracking-tight">Active search</h2>
+                      <p className="text-sm text-muted-foreground">Product Engineer · Remote · US/EU</p>
+                    </div>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75 motion-reduce:hidden" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                      </span>
+                      Preparing…
+                    </span>
+                  </div>
+
+                  <RevealGroup className="space-y-3" stagger={0.1}>
+                    {QUEUE.map((item) => (
+                      <RevealItem key={item.company}>
+                        <div
+                          className={[
+                            "flex items-center justify-between gap-4 rounded-xl border p-4 transition-all duration-300",
+                            item.state === "done"
+                              ? "border-border bg-card hover:-translate-y-0.5 hover:shadow-md"
+                              : item.state === "active"
+                                ? "border-border/70 bg-card/60"
+                                : "border-border/40 bg-card/30",
+                          ].join(" ")}
+                        >
+                          <div className="flex min-w-0 items-center gap-4">
+                            <span
+                              className={[
+                                "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm font-bold",
+                                item.state === "queued" ? "opacity-40" : "",
+                              ].join(" ")}
+                              aria-hidden="true"
+                            >
+                              {item.company[0]}
+                            </span>
+                            <div className="min-w-0">
+                              <p
+                                className={[
+                                  "truncate font-semibold",
+                                  item.state === "done" ? "" : item.state === "active" ? "opacity-70" : "opacity-40",
+                                ].join(" ")}
+                              >
+                                {item.company} — {item.role}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">{item.meta}</p>
+                            </div>
+                          </div>
+                          {item.state === "done" && (
+                            <span className="hidden shrink-0 items-center gap-1.5 text-xs font-medium text-primary underline-offset-4 hover:underline sm:inline-flex">
+                              <ShieldCheck className="h-3.5 w-3.5" />
+                              View receipt
+                            </span>
+                          )}
+                        </div>
+                      </RevealItem>
+                    ))}
+                  </RevealGroup>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-4 text-center text-xs leading-5 text-muted-foreground">
+            Illustrative view. Sensitive answers and final submission always stay in your hands.
+          </p>
+        </Reveal>
       </div>
     </section>
   );
 }
 
-function StaticWorkflow() {
-  const steps = [
-    { label: "Match", tone: "border-primary/30 bg-primary/10 text-primary" },
-    { label: "Review", tone: "border-accent/30 bg-accent/10 text-accent-foreground" },
-    { label: "Receipt", tone: "border-warning/30 bg-warning/10 text-warning" },
-  ];
-
-  return (
-    <div className="grid w-full max-w-lg grid-cols-3 gap-3">
-      {steps.map((step, index) => (
-        <div key={step.label} className="relative">
-          <div className={`rounded-xl border p-3 text-center text-sm font-semibold ${step.tone}`}>{step.label}</div>
-          {index < steps.length - 1 && <ArrowRight className="absolute -right-4 top-1/2 hidden h-4 w-4 -translate-y-1/2 text-muted-foreground sm:block" />}
-        </div>
-      ))}
-    </div>
-  );
-}
+export default HeroSection;
