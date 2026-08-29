@@ -226,54 +226,53 @@
 
 @layer base {
   :root {
-    /* ── Neutrals (Light) ─────────────────────────────── */
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    /* ── Warm Paper (Light) ───────────────────────────── */
+    --background: 40 36% 95%;
+    --foreground: 60 4% 10%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card: 40 40% 98%;
+    --card-foreground: 60 4% 10%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 40 40% 98%;
+    --popover-foreground: 60 4% 10%;
 
-    /* ── Brand: Slate Blue (single-hue system — one brand color,
-       varied by lightness/saturation only, so nothing competes with it) ── */
-    --primary: 217 70% 42%;
-    --primary-foreground: 0 0% 100%;
-    --primary-dark: 217 70% 34%;
+    /* ── Brand: single red stamp accent ───────────────── */
+    --primary: 5 53% 49%;
+    --primary-foreground: 40 40% 98%;
+    --primary-dark: 5 53% 41%;
 
     /* ── Semantic surfaces ────────────────────────────── */
-    --secondary: 210 40% 96.5%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 39 26% 87%;
+    --secondary-foreground: 60 4% 10%;
 
-    --muted: 210 40% 96.5%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 39 26% 89%;
+    --muted-foreground: 40 6% 40%;
 
-    --accent: 217 24% 30%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 60 4% 10%;
+    --accent-foreground: 40 40% 98%;
 
     /* ── Status colours ───────────────────────────────── */
-    --success: 158 64% 42%;
-    --success-foreground: 0 0% 100%;
+    --success: 158 44% 32%;
+    --success-foreground: 40 40% 98%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
+    --warning: 33 78% 44%;
+    --warning-foreground: 40 40% 98%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 5 63% 45%;
+    --destructive-foreground: 40 40% 98%;
 
-    --info: 213 94% 55%;
-    --info-foreground: 0 0% 100%;
+    --info: 213 44% 40%;
+    --info-foreground: 40 40% 98%;
 
     /* ── Form / chrome ────────────────────────────────── */
-    --border: 214 32% 91%;
-    --input: 0 0% 99%;
-    --ring: 217 70% 42%;
+    --border: 38 22% 84%;
+    --input: 40 30% 97%;
+    --ring: 5 53% 49%;
 
     /* ── Radius scale ─────────────────────────────────── */
-    --radius: 0.625rem;
-    --radius-sm: 0.375rem;
-    --radius-lg: 0.875rem;
+    --radius: 0.875rem;
+    --radius-sm: 0.5rem;
+    --radius-lg: 1.25rem;
 
     /* ── Spacing scale ────────────────────────────────── */
     --space-xs: 0.25rem;
@@ -284,19 +283,20 @@
     --space-2xl: 3rem;
 
     /* ── Shadows ──────────────────────────────────────── */
-    --shadow-card: 0 1px 3px 0 hsl(222 47% 11% / 0.06), 0 1px 2px -1px hsl(222 47% 11% / 0.04);
-    --shadow-glow: 0 10px 40px -10px hsl(217 70% 42% / 0.25);
-    --shadow-glow-success: 0 10px 40px -10px hsl(158 64% 42% / 0.25);
+    --shadow-card: 0 1px 2px 0 hsl(40 12% 20% / 0.05), 0 8px 24px -12px hsl(40 12% 20% / 0.12);
+    --shadow-glow: 0 18px 50px -18px hsl(5 53% 49% / 0.35);
+    --shadow-glow-success: 0 18px 50px -18px hsl(158 44% 32% / 0.3);
 
     /* ── Sidebar ──────────────────────────────────────── */
-    --sidebar-background: 0 0% 99%;
-    --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 217 70% 42%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 96.5%;
-    --sidebar-accent-foreground: 222 47% 11%;
-    --sidebar-border: 214 32% 91%;
-    --sidebar-ring: 217 70% 42%;
+    --sidebar-background: 40 34% 96%;
+    --sidebar-foreground: 60 4% 10%;
+    --sidebar-primary: 5 53% 49%;
+    --sidebar-primary-foreground: 40 40% 98%;
+    --sidebar-accent: 39 26% 89%;
+    --sidebar-accent-foreground: 60 4% 10%;
+    --sidebar-border: 38 22% 84%;
+    --sidebar-ring: 5 53% 49%;
+
   }
 
   .dark {
