@@ -358,19 +358,20 @@
     --space-2xl: 3rem;
 
     /* ── Shadows (deeper for dark) ────────────────────── */
-    --shadow-card: 0 1px 3px 0 hsl(222 47% 2% / 0.3), 0 1px 2px -1px hsl(222 47% 2% / 0.2);
-    --shadow-glow: 0 10px 40px -10px hsl(217 80% 62% / 0.35);
-    --shadow-glow-success: 0 10px 40px -10px hsl(158 64% 52% / 0.35);
+    --shadow-card: 0 1px 3px 0 hsl(40 8% 2% / 0.35), 0 8px 24px -12px hsl(40 8% 2% / 0.5);
+    --shadow-glow: 0 18px 50px -18px hsl(5 66% 58% / 0.35);
+    --shadow-glow-success: 0 18px 50px -18px hsl(158 44% 48% / 0.3);
 
     /* ── Sidebar ──────────────────────────────────────── */
-    --sidebar-background: 222 47% 6%;
-    --sidebar-foreground: 210 20% 98%;
-    --sidebar-primary: 217 80% 62%;
-    --sidebar-primary-foreground: 222 47% 6%;
-    --sidebar-accent: 222 30% 14%;
-    --sidebar-accent-foreground: 210 20% 98%;
-    --sidebar-border: 222 30% 16%;
-    --sidebar-ring: 217 80% 62%;
+    --sidebar-background: 40 8% 7%;
+    --sidebar-foreground: 40 22% 94%;
+    --sidebar-primary: 5 66% 58%;
+    --sidebar-primary-foreground: 40 8% 7%;
+    --sidebar-accent: 40 6% 15%;
+    --sidebar-accent-foreground: 40 22% 94%;
+    --sidebar-border: 40 6% 18%;
+    --sidebar-ring: 5 66% 58%;
+
   }
 
   .dark .bg-mesh {
