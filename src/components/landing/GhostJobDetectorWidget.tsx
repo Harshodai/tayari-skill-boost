@@ -78,7 +78,7 @@ export function GhostJobDetectorWidget() {
   const riskLevel = useMemo(() => {
     if (riskScore >= 60) return { label: "High Ghost Risk", tone: "text-destructive", badge: "destructive" as const, desc: "High probability of resume black hole. Prioritize direct outreach or skip." };
     if (riskScore >= 30) return { label: "Moderate Caution", tone: "text-amber-500", badge: "warning" as const, desc: "Some stale signals present. Verify posting on company careers board before tailoring." };
-    return { label: "High Signal Listing", tone: "text-emerald-500", badge: "success" as const, desc: "Active hiring requisition with strong candidate responsiveness indicators." };
+    return { label: "High Signal Listing", tone: "text-success", badge: "success" as const, desc: "Active hiring requisition with strong candidate responsiveness indicators." };
   }, [riskScore]);
 
   return (
@@ -171,7 +171,7 @@ export function GhostJobDetectorWidget() {
               <motion.path
                 className={cn(
                   "transition-all duration-300",
-                  riskScore >= 60 ? "text-destructive" : riskScore >= 30 ? "text-amber-500" : "text-emerald-500"
+                  riskScore >= 60 ? "text-destructive" : riskScore >= 30 ? "text-amber-500" : "text-success"
                 )}
                 strokeDasharray={`${riskScore}, 100`}
                 strokeWidth="3.2"
@@ -206,13 +206,13 @@ export function GhostJobDetectorWidget() {
               <span className="text-[10px] text-muted-foreground block uppercase font-mono">
                 Precision (v2)
               </span>
-              <span className="font-mono font-bold text-emerald-500">100%</span>
+              <span className="font-mono font-bold text-success">100%</span>
             </div>
             <div className="rounded-lg bg-background/60 p-2 border border-border/40">
               <span className="text-[10px] text-muted-foreground block uppercase font-mono">
                 Recall (v2)
               </span>
-              <span className="font-mono font-bold text-cyan-500">86.7%</span>
+              <span className="font-mono font-bold text-primary">86.7%</span>
             </div>
           </div>
         </div>

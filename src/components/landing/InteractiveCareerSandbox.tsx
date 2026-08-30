@@ -300,7 +300,7 @@ export function InteractiveCareerSandbox() {
                       <motion.path
                         className={cn(
                           "transition-all duration-500",
-                          matchScore >= 80 ? "text-emerald-500" : matchScore >= 60 ? "text-cyan-500" : "text-amber-500"
+                          matchScore >= 80 ? "text-success" : matchScore >= 60 ? "text-primary" : "text-amber-500"
                         )}
                         strokeDasharray={`${matchScore}, 100`}
                         strokeWidth="3.2"
@@ -344,12 +344,12 @@ export function InteractiveCareerSandbox() {
                             className={cn(
                               "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all active:scale-[0.96]",
                               isSelected
-                                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 font-semibold"
+                                ? "border-success/40 bg-success/10 text-success dark:text-success font-semibold"
                                 : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/30 hover:text-foreground"
                             )}
                           >
                             {isSelected ? (
-                              <Check className="h-3 w-3 text-emerald-500" />
+                              <Check className="h-3 w-3 text-success" />
                             ) : (
                               <Plus className="h-3 w-3 opacity-60" />
                             )}
@@ -420,7 +420,7 @@ export function InteractiveCareerSandbox() {
               {/* STAR Quadrants */}
               <div className="grid gap-2.5 sm:grid-cols-2">
                 <div className="rounded-lg border border-border/40 bg-muted/20 p-3">
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-cyan-500">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-primary">
                     [S] Situation
                   </span>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -435,8 +435,8 @@ export function InteractiveCareerSandbox() {
                     {starPrompt.task}
                   </p>
                 </div>
-                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-emerald-500">
+                <div className="rounded-lg border border-success/30 bg-success/5 p-3">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-success">
                     [A] Action ({actionWeight}%)
                   </span>
                   <p className="mt-1 text-xs leading-relaxed text-foreground/90 font-medium">
@@ -467,7 +467,7 @@ export function InteractiveCareerSandbox() {
                   className="h-1.5 flex-1 cursor-pointer accent-primary bg-muted rounded-lg"
                 />
                 <span className="font-mono font-semibold text-primary">{actionWeight}%</span>
-                <span className="text-[11px] text-emerald-500 hidden sm:inline font-medium">
+                <span className="text-[11px] text-success hidden sm:inline font-medium">
                   ✓ High hiring signal
                 </span>
               </div>
@@ -497,18 +497,18 @@ export function InteractiveCareerSandbox() {
                 <div className="rounded-xl border border-border/50 bg-background/50 p-3">
                   <span className="font-mono text-[10px] uppercase text-muted-foreground">01. Match</span>
                   <p className="mt-1 text-xs font-semibold text-foreground">Staff Engineer @ Stripe</p>
-                  <p className="text-[10px] text-emerald-500 mt-0.5">✓ 94% calibrated</p>
+                  <p className="text-[10px] text-success mt-0.5">✓ 94% calibrated</p>
                 </div>
                 <div className="rounded-xl border border-border/50 bg-background/50 p-3">
                   <span className="font-mono text-[10px] uppercase text-muted-foreground">02. Preparation</span>
                   <p className="mt-1 text-xs font-semibold text-foreground">Tailored Resume + Note</p>
-                  <p className="text-[10px] text-cyan-500 mt-0.5">✓ Zero hallucinated facts</p>
+                  <p className="text-[10px] text-primary mt-0.5">✓ Zero hallucinated facts</p>
                 </div>
                 <div
                   className={cn(
                     "rounded-xl border p-3 transition-colors",
                     humanApproved
-                      ? "border-emerald-500/40 bg-emerald-500/10"
+                      ? "border-success/40 bg-success/10"
                       : "border-primary/40 bg-primary/5"
                   )}
                 >
@@ -535,7 +535,7 @@ export function InteractiveCareerSandbox() {
                     className={cn(
                       "rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors",
                       sensitiveRedacted
-                        ? "bg-emerald-500/15 text-emerald-500"
+                        ? "bg-success/15 text-success"
                         : "bg-muted text-muted-foreground"
                     )}
                   >
@@ -555,7 +555,7 @@ export function InteractiveCareerSandbox() {
                   >
                     {humanApproved ? (
                       <>
-                        <CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-emerald-500" />
+                        <CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-success" />
                         Approved
                       </>
                     ) : (
@@ -607,7 +607,7 @@ export function InteractiveCareerSandbox() {
               <div className="rounded-xl border border-border/70 bg-background/80 p-4 space-y-3 font-mono text-xs shadow-inner">
                 <div className="flex items-center justify-between border-b border-border/50 pb-2">
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    <CheckCircle2 className="h-4 w-4 text-success" />
                     <span className="font-bold text-foreground">
                       SUBMISSION RECORD · {currentAts.name.toUpperCase()}
                     </span>
@@ -652,7 +652,7 @@ export function InteractiveCareerSandbox() {
                     className="h-7 shrink-0 text-[11px]"
                   >
                     {copiedReceipt ? (
-                      <Check className="h-3.5 w-3.5 text-emerald-500" />
+                      <Check className="h-3.5 w-3.5 text-success" />
                     ) : (
                       <Copy className="h-3.5 w-3.5" />
                     )}
@@ -666,7 +666,7 @@ export function InteractiveCareerSandbox() {
         {/* Bottom Interactive Bar */}
         <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
             <span>Interactive Simulator · Real-time computation</span>
           </div>
           <span className="font-mono text-[11px]">Press ⌘K for tool palette</span>
