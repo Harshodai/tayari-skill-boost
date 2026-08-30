@@ -113,7 +113,7 @@ export function CareerOperatingRhythm() {
 
   return (
     <section
-      className="relative overflow-hidden border-y border-border bg-[#07111F] py-20 text-foreground sm:py-24 lg:py-32"
+      className="relative overflow-hidden border-y border-border bg-secondary/40 py-20 text-foreground sm:py-24 lg:py-32"
       aria-labelledby="operating-rhythm-title"
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -223,7 +223,7 @@ export function CareerOperatingRhythm() {
               </div>
 
               {/* Right Metrics Panel */}
-              <div className="rounded-xl border border-border bg-[#09111F] p-5 space-y-4">
+              <div className="rounded-xl border border-border bg-card p-5 space-y-4">
                 <div className="flex items-center justify-between border-b border-border pb-3">
                   <span className="font-mono text-xs font-bold text-muted-foreground uppercase">
                     Execution Metrics
