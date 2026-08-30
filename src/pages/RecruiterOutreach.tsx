@@ -172,7 +172,7 @@ export function RecruiterOutreach() {
                 <CardContent className="space-y-1.5 text-xs">
                   <div className="flex items-center justify-between font-mono bg-background p-2 rounded-lg border text-[11px]">
                     <span>{(recruiterName || "first.last").toLowerCase().replace(/\s+/g, ".")}@{company.toLowerCase().replace(/[^a-z0-9]/g, "")}.com</span>
-                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-500">90% match</Badge>
+                    <Badge variant="outline" className="text-[10px] bg-success/10 text-success">90% match</Badge>
                   </div>
                   <div className="flex items-center justify-between font-mono bg-background p-2 rounded-lg border text-[11px]">
                     <span>{(recruiterName || "flast").toLowerCase().replace(/\s+/g, "").charAt(0)}{(recruiterName || "last").toLowerCase().split(/\s+/).pop() || "last"}@{company.toLowerCase().replace(/[^a-z0-9]/g, "")}.com</span>
@@ -214,12 +214,12 @@ export function RecruiterOutreach() {
                       <div className="flex items-center justify-between bg-muted/40 p-2 rounded-lg border text-xs font-mono">
                         <span>Subject: {result?.cold_email?.subject}</span>
                         <Button variant="ghost" size="sm" onClick={() => copyText(result?.cold_email?.subject, "sub1")}>
-                          {copiedKey === "sub1" ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
+                          {copiedKey === "sub1" ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
                         </Button>
                       </div>
                       <Textarea readOnly value={result?.cold_email?.body} rows={8} className="font-mono text-xs leading-relaxed" />
                       <div className="flex items-center gap-2">
-                        <Button size="sm" onClick={() => openGmail(result?.cold_email?.subject, result?.cold_email?.body)} className="gap-2 bg-red-600 hover:bg-red-700 text-white active:scale-[0.98]">
+                        <Button size="sm" onClick={() => openGmail(result?.cold_email?.subject, result?.cold_email?.body)} className="gap-2 bg-red-600 hover:bg-red-700 text-primary-foreground active:scale-[0.98]">
                           <Mail className="w-4 h-4" /> Open in Gmail
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => copyText(result?.cold_email?.body, "body1")} className="gap-2 active:scale-[0.98]">

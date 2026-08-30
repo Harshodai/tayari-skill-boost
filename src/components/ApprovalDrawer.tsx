@@ -99,14 +99,14 @@ export const ApprovalDrawer: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-y-0 right-0 w-full sm:w-[480px] bg-slate-900 border-l border-slate-800 text-slate-100 shadow-2xl z-50 p-6 flex flex-col justify-between overflow-y-auto font-sans">
+    <div className="fixed inset-y-0 right-0 w-full sm:w-[480px] bg-card border-l border-border text-foreground shadow-2xl z-50 p-6 flex flex-col justify-between overflow-y-auto font-sans">
       <div className="space-y-6">
-        <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+        <div className="flex justify-between items-center border-b border-border pb-4">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-6 h-6 text-amber-400" />
             <h2 className="text-lg font-bold">HITL Action Approval Drawer</h2>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => setOpen(false)} className="text-slate-400 hover:text-white">
+          <Button size="sm" variant="ghost" onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
             ✕
           </Button>
         </div>
@@ -125,27 +125,27 @@ export const ApprovalDrawer: React.FC = () => {
 
         {pendingApprovals.length === 0 ? (
           <div className="text-center py-12 space-y-3">
-            <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
-            <p className="text-sm font-semibold text-slate-300">No Pending Approvals</p>
-            <p className="text-xs text-slate-400">All automated external actions have been reviewed.</p>
+            <CheckCircle2 className="w-10 h-10 text-success mx-auto" />
+            <p className="text-sm font-semibold text-muted-foreground">No Pending Approvals</p>
+            <p className="text-xs text-muted-foreground">All automated external actions have been reviewed.</p>
           </div>
         ) : (
           selectedApproval && (
-            <Card className="bg-slate-950 border-slate-800 text-slate-100 p-4 space-y-4">
+            <Card className="bg-card border-border text-foreground p-4 space-y-4">
               <div className="flex justify-between items-center">
                 <Badge className="bg-amber-950 text-amber-300 border-amber-800">
                   {selectedApproval.action_type}
                 </Badge>
-                <span className="text-xs text-slate-400">Expires: {selectedApproval.expires_at}</span>
+                <span className="text-xs text-muted-foreground">Expires: {selectedApproval.expires_at}</span>
               </div>
 
               <div>
-                <h3 className="font-bold text-slate-100">{selectedApproval.action_payload.company}: {selectedApproval.action_payload.role}</h3>
-                <p className="text-xs text-slate-400">Review pre-filled form input fields before external submission.</p>
+                <h3 className="font-bold text-foreground">{selectedApproval.action_payload.company}: {selectedApproval.action_payload.role}</h3>
+                <p className="text-xs text-muted-foreground">Review pre-filled form input fields before external submission.</p>
               </div>
 
               {/* Editable Pre-Filled Fields */}
-              <div className="space-y-3 border-t border-slate-800 pt-3">
+              <div className="space-y-3 border-t border-border pt-3">
                 <h4 className="text-xs font-semibold text-primary flex items-center gap-1">
                   <Edit3 className="w-3.5 h-3.5" /> Edit Pre-Filled Form Values
                 </h4>
@@ -153,14 +153,14 @@ export const ApprovalDrawer: React.FC = () => {
                   const fieldId = `approval-field-${key}`;
                   return (
                     <div key={key} className="space-y-1">
-                      <label htmlFor={fieldId} className="text-[10px] uppercase tracking-wider text-slate-400">
+                      <label htmlFor={fieldId} className="text-[10px] uppercase tracking-wider text-muted-foreground">
                         {key.replace(/_/g, ' ')}
                       </label>
                       <Input
                         id={fieldId}
                         value={val}
                         onChange={(e) => setEditableFields({ ...editableFields, [key]: e.target.value })}
-                        className="bg-slate-900 border-slate-800 text-xs font-mono text-slate-200"
+                        className="bg-card border-border text-xs font-mono text-foreground"
                       />
                     </div>
                   );
@@ -169,10 +169,10 @@ export const ApprovalDrawer: React.FC = () => {
 
               {selectedApproval.action_payload.keywords && (
                 <div className="space-y-1 pt-2">
-                  <span className="text-[10px] uppercase tracking-wider text-slate-400">ATS Keyword Injections</span>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">ATS Keyword Injections</span>
                   <div className="flex flex-wrap gap-1.5 pt-1">
                     {selectedApproval.action_payload.keywords.map((kw, i) => (
-                      <Badge key={i} className="bg-slate-900 text-slate-300 text-[10px]">
+                      <Badge key={i} className="bg-card text-muted-foreground text-[10px]">
                         {kw}
                       </Badge>
                     ))}
@@ -180,7 +180,7 @@ export const ApprovalDrawer: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex gap-3 pt-4 border-t border-slate-800">
+              <div className="flex gap-3 pt-4 border-t border-border">
                 <Button
                   onClick={() => handleReject(selectedApproval.id)}
                   variant="outline"
@@ -190,7 +190,7 @@ export const ApprovalDrawer: React.FC = () => {
                 </Button>
                 <Button
                   onClick={() => handleApprove(selectedApproval.id)}
-                  className="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                  className="w-1/2 bg-success hover:bg-success text-primary-foreground font-bold"
                 >
                   <CheckCircle2 className="w-4 h-4 mr-2" /> Approve & Submit
                 </Button>
@@ -200,7 +200,7 @@ export const ApprovalDrawer: React.FC = () => {
         )}
       </div>
 
-      <div className="text-center pt-4 border-t border-slate-800 text-[10px] text-slate-400">
+      <div className="text-center pt-4 border-t border-border text-[10px] text-muted-foreground">
         Durable Claude Cowork Gatekeeper Protocol
       </div>
     </div>

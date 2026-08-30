@@ -88,10 +88,10 @@ export const GmailConnectModal: React.FC<GmailConnectModalProps> = ({ isOpen, on
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent
-        className="bg-slate-900 border-slate-800 max-w-md p-6 space-y-6 text-slate-100 shadow-2xl"
+        className="bg-card border-border max-w-md p-6 space-y-6 text-foreground shadow-2xl"
         aria-labelledby="gmail-connect-title"
       >
-        <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 text-slate-400 hover:text-white transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900" aria-label="Close Gmail connection dialog">
+        <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 text-muted-foreground hover:text-foreground transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900" aria-label="Close Gmail connection dialog">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </DialogClose>
@@ -105,15 +105,15 @@ export const GmailConnectModal: React.FC<GmailConnectModalProps> = ({ isOpen, on
               <DialogTitle id="gmail-connect-title" className="text-xl font-bold">
                 Connect Gmail Read-Only Access
               </DialogTitle>
-              <DialogDescription className="text-xs text-slate-400">
+              <DialogDescription className="text-xs text-muted-foreground">
                 Automatically scan recruiter invitations, interview schedules, and application updates.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
-              <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 space-y-2 text-xs text-slate-400">
-                <div className="flex items-center gap-2 text-slate-200 font-semibold">
-                  <Lock className="w-4 h-4 text-emerald-400" /> Review Gmail permissions
+              <div className="p-3 bg-card rounded-lg border border-border space-y-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 text-foreground font-semibold">
+                  <Lock className="w-4 h-4 text-success" /> Review Gmail permissions
                 </div>
                 <p>
                   Google&apos;s <code>gmail.readonly</code> scope permits the connected application to read mailbox messages. Tayari requests the scope shown on the Google consent screen; it is not a mailbox-limited permission. Connect only if you understand and accept that scope.
@@ -126,7 +126,7 @@ export const GmailConnectModal: React.FC<GmailConnectModalProps> = ({ isOpen, on
               <Button
                 onClick={handleConnect}
                 disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-500 font-bold text-white"
+                className="w-full bg-blue-600 hover:bg-blue-500 font-bold text-primary-foreground"
               >
                 {loading ? "Opening Google consent..." : "Review Gmail consent"}
               </Button>
@@ -139,17 +139,17 @@ export const GmailConnectModal: React.FC<GmailConnectModalProps> = ({ isOpen, on
             </div>
             <div className="space-y-1">
               <h2 className="text-lg font-bold text-blue-400">Verifying Connection</h2>
-              <p className="text-xs text-slate-400">Confirming Gmail account with server...</p>
+              <p className="text-xs text-muted-foreground">Confirming Gmail account with server...</p>
             </div>
           </div>
         ) : step === 2 ? (
           <div className="text-center space-y-4 py-4">
-            <div className="p-3 bg-emerald-950 w-max mx-auto rounded-full text-emerald-400 border border-emerald-800">
+            <div className="p-3 bg-success w-max mx-auto rounded-full text-success border border-success">
               <CheckCircle2 className="w-8 h-8" />
             </div>
             <div className="space-y-1">
-              <h2 className="text-lg font-bold text-emerald-400">Gmail Connected Successfully</h2>
-              <p className="text-xs text-slate-400">
+              <h2 className="text-lg font-bold text-success">Gmail Connected Successfully</h2>
+              <p className="text-xs text-muted-foreground">
                 Connected <code>{verifiedEmail || 'verified Gmail account'}</code>. Interview classification remains read-only and beta; review your connected-data controls before relying on it for a hiring process.
               </p>
             </div>
@@ -164,10 +164,10 @@ export const GmailConnectModal: React.FC<GmailConnectModalProps> = ({ isOpen, on
             </div>
             <div className="space-y-1">
               <h2 className="text-lg font-bold text-red-400">Connection Failed</h2>
-              <p className="text-xs text-slate-400">{errorMessage}</p>
+              <p className="text-xs text-muted-foreground">{errorMessage}</p>
             </div>
             <div className="flex gap-2">
-              <Button onClick={handleRetry} className="flex-1 bg-blue-600 hover:bg-blue-500 font-bold text-white">
+              <Button onClick={handleRetry} className="flex-1 bg-blue-600 hover:bg-blue-500 font-bold text-primary-foreground">
                 Try Again
               </Button>
               <Button onClick={handleClose} className="flex-1 bg-slate-800 hover:bg-slate-700 font-semibold">

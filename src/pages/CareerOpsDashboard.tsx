@@ -328,8 +328,8 @@ export const CareerOpsDashboard: React.FC = () => {
           <div className="fixed top-4 right-4 z-[100] animate-slide-in">
             <div className={`px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 ${
               toast.type === 'success'
-                ? 'bg-emerald-600/90 text-white border border-emerald-500/30'
-                : 'bg-rose-600/90 text-white border border-rose-500/30'
+                ? 'bg-success/90 text-primary-foreground border border-success/30'
+                : 'bg-destructive/90 text-primary-foreground border border-destructive/30'
             }`}>
               {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
               {toast.message}
@@ -407,7 +407,7 @@ export const CareerOpsDashboard: React.FC = () => {
             </div>
             <div className="p-4 rounded-xl bg-card border border-border space-y-1">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Applications</span>
-              <p className="text-2xl font-extrabold text-emerald-500 tabular-nums">{stats.total_applications}</p>
+              <p className="text-2xl font-extrabold text-success tabular-nums">{stats.total_applications}</p>
             </div>
             <div className="p-4 rounded-xl bg-card border border-border space-y-1">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Scans</span>
@@ -487,7 +487,7 @@ export const CareerOpsDashboard: React.FC = () => {
                             <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary border-primary/20">
                               {p.provider}
                             </Badge>
-                            <span className={`text-[10px] font-bold uppercase tracking-wider ${p.enabled ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${p.enabled ? 'text-success' : 'text-muted-foreground'}`}>
                               {p.enabled ? 'Active' : 'Disabled'}
                             </span>
                             <button onClick={() => p.id && handleDeletePortal(p.id)} className="text-muted-foreground hover:text-destructive transition-colors">
@@ -638,7 +638,7 @@ export const CareerOpsDashboard: React.FC = () => {
                   </div>
                   <div className="p-5 rounded-xl bg-card border border-border space-y-1.5">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Positive Avg Score</span>
-                    <p className="text-3xl font-extrabold text-emerald-500 tabular-nums">
+                    <p className="text-3xl font-extrabold text-success tabular-nums">
                       {patterns.score_averages?.positive || 0.0}/5
                     </p>
                   </div>
