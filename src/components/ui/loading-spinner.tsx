@@ -28,7 +28,7 @@ const spinnerVariants = cva("animate-spin rounded-full border-2 border-solid bor
     variant: {
       primary: "text-primary",
       secondary: "text-muted-foreground",
-      white: "text-white",
+      white: "text-primary-foreground",
       success: "text-green-500",
       destructive: "text-destructive",
     },

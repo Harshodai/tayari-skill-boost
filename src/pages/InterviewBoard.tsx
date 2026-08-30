@@ -73,12 +73,12 @@ import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 
 const COLUMNS = [
-  { id: "saved", label: "Saved", dotColor: "bg-slate-400 shadow-slate-400/50", headerBg: "bg-slate-500/10 border-slate-500/20", badgeBg: "bg-slate-500/15 text-slate-300" },
+  { id: "saved", label: "Saved", dotColor: "bg-slate-400 shadow-slate-400/50", headerBg: "bg-slate-500/10 border-slate-500/20", badgeBg: "bg-slate-500/15 text-muted-foreground" },
   { id: "applied", label: "Applied", dotColor: "bg-blue-400 shadow-blue-400/50", headerBg: "bg-blue-500/10 border-blue-500/20", badgeBg: "bg-blue-500/15 text-blue-300" },
   { id: "phone_screen", label: "Phone Screen", dotColor: "bg-amber-400 shadow-amber-400/50", headerBg: "bg-amber-500/10 border-amber-500/20", badgeBg: "bg-amber-500/15 text-amber-300" },
   { id: "interview", label: "Interview", dotColor: "bg-primary shadow-primary/50", headerBg: "bg-primary/10 border-primary/20", badgeBg: "bg-primary/15 text-primary" },
-  { id: "offer", label: "Offer", dotColor: "bg-emerald-400 shadow-emerald-400/50", headerBg: "bg-emerald-500/10 border-emerald-500/20", badgeBg: "bg-emerald-500/15 text-emerald-300" },
-  { id: "rejected", label: "Rejected", dotColor: "bg-rose-400 shadow-rose-400/50", headerBg: "bg-rose-500/10 border-rose-500/20", badgeBg: "bg-rose-500/15 text-rose-300" },
+  { id: "offer", label: "Offer", dotColor: "bg-success shadow-emerald-400/50", headerBg: "bg-success/10 border-success/20", badgeBg: "bg-success/15 text-success" },
+  { id: "rejected", label: "Rejected", dotColor: "bg-destructive shadow-rose-400/50", headerBg: "bg-destructive/10 border-destructive/20", badgeBg: "bg-destructive/15 text-destructive" },
 ];
 
 const InterviewBoard = () => {
@@ -1016,7 +1016,7 @@ const InterviewBoard = () => {
 
                           <div className="flex gap-3">
                             {!isRecording ? (
-                              <Button onClick={startRecording} className="bg-primary/95 text-white hover:bg-primary shadow-sm">
+                              <Button onClick={startRecording} className="bg-primary/95 text-primary-foreground hover:bg-primary shadow-sm">
                                 <Mic className="w-4 h-4 mr-2" /> Record Voice
                               </Button>
                             ) : (
@@ -1029,7 +1029,7 @@ const InterviewBoard = () => {
                               <Button
                                 onClick={handleUploadVoiceNote}
                                 disabled={isUploadingVoice}
-                                className="bg-success-600 hover:bg-success-700 text-white"
+                                className="bg-success-600 hover:bg-success-700 text-primary-foreground"
                               >
                                 {isUploadingVoice ? (
                                   <>
@@ -1101,7 +1101,7 @@ const InterviewBoard = () => {
                             onClick={handleGenerateInterviewQuestions}
                             disabled={isGeneratingIQ}
                             size="sm"
-                            className="bg-gradient-to-r from-accent to-primary text-white"
+                            className="bg-gradient-to-r from-accent to-primary text-primary-foreground"
                           >
                             {isGeneratingIQ ? (
                               <>
@@ -1294,7 +1294,7 @@ const InterviewBoard = () => {
                                     <p className="text-xs font-bold uppercase tracking-wider text-primary">Metric callouts</p>
                                     {(event.value as string[]).map((m, j) => (
                                       <p key={j} className="text-sm text-foreground/90 flex gap-2">
-                                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-600" />{m}
+                                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5 text-success" />{m}
                                       </p>
                                     ))}
                                   </div>

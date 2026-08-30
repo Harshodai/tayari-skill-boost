@@ -235,14 +235,14 @@ export default function Onboarding() {
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto px-6 py-12 space-y-8 text-slate-100 font-sans">
+      <div className="max-w-4xl mx-auto px-6 py-12 space-y-8 text-foreground font-sans">
         {/* Wizard Progress */}
-        <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+        <div className="flex justify-between items-center border-b border-border pb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary rounded-lg text-white font-bold">{step}</div>
+            <div className="p-2 bg-primary rounded-lg text-primary-foreground font-bold">{step}</div>
             <div>
               <h1 className="text-xl font-bold">Branching Onboarding Wizard</h1>
-              <p className="text-xs text-slate-400">Configure your personal agentic career operations strategy</p>
+              <p className="text-xs text-muted-foreground">Configure your personal agentic career operations strategy</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -308,12 +308,12 @@ export default function Onboarding() {
 
         {/* Step 1: Branch Selector */}
         {step === 1 && (
-          <Card className="bg-slate-900 border-slate-800 text-slate-100 p-6 space-y-6">
+          <Card className="bg-card border-border text-foreground p-6 space-y-6">
             <CardHeader className="p-0 space-y-2">
               <CardTitle className="text-2xl font-bold flex items-center gap-2">
                 <GitBranch className="w-6 h-6 text-primary" /> Select Your Career Transition Track
               </CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardDescription className="text-muted-foreground">
                 Choose the transition path that matches your current goal to customize agent algorithms.
               </CardDescription>
             </CardHeader>
@@ -326,7 +326,7 @@ export default function Onboarding() {
                 className={`p-6 rounded-xl border cursor-pointer transition flex flex-col justify-between space-y-4 ${
                   transitionType === "same_domain"
                     ? "bg-primary/10 border-primary shadow-lg shadow-primary/20"
-                    : "bg-slate-950 border-slate-800 hover:border-slate-700"
+                    : "bg-card border-border hover:border-border"
                 }`}
               >
                 <div className="space-y-3">
@@ -334,8 +334,8 @@ export default function Onboarding() {
                     <Briefcase className="w-8 h-8 text-primary" />
                     {transitionType === "same_domain" && <CheckCircle2 className="w-5 h-5 text-primary" />}
                   </div>
-                  <h3 className="text-lg font-bold text-slate-100">Job Change (Same Domain)</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
+                  <h3 className="text-lg font-bold text-foreground">Job Change (Same Domain)</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
                     Optimize for title promotion or senior level advancement in your existing functional domain.
                   </p>
                 </div>
@@ -349,7 +349,7 @@ export default function Onboarding() {
                 className={`p-6 rounded-xl border cursor-pointer transition flex flex-col justify-between space-y-4 ${
                   transitionType === "cross_domain"
                     ? "bg-accent/10 border-accent shadow-lg shadow-accent/20"
-                    : "bg-slate-950 border-slate-800 hover:border-slate-700"
+                    : "bg-card border-border hover:border-border"
                 }`}
               >
                 <div className="space-y-3">
@@ -357,8 +357,8 @@ export default function Onboarding() {
                     <ArrowRightLeft className="w-8 h-8 text-accent" />
                     {transitionType === "cross_domain" && <CheckCircle2 className="w-5 h-5 text-accent" />}
                   </div>
-                  <h3 className="text-lg font-bold text-slate-100">Domain Change (Cross-Industry)</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
+                  <h3 className="text-lg font-bold text-foreground">Domain Change (Cross-Industry)</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
                     Pivot to a new industry or domain using transferable technical competencies and skill-gap translation.
                   </p>
                 </div>
@@ -376,7 +376,7 @@ export default function Onboarding() {
 
         {/* Step 2: Track Customization */}
         {step === 2 && (
-          <Card className="bg-slate-900 border-slate-800 text-slate-100 p-6 space-y-6">
+          <Card className="bg-card border-border text-foreground p-6 space-y-6">
             <CardHeader className="p-0 space-y-2">
               <CardTitle className="text-2xl font-bold flex items-center gap-2">
                 {transitionType === "same_domain" ? (
@@ -389,7 +389,7 @@ export default function Onboarding() {
                   </>
                 )}
               </CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardDescription className="text-muted-foreground">
                 {transitionType === "same_domain"
                   ? "Define your current baseline and target level for maximum ATS match scoring."
                   : "Translate your transferable competencies across industry boundaries."}
@@ -400,23 +400,23 @@ export default function Onboarding() {
               <div className="space-y-4 pt-2">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300">Current Title Baseline</label>
+                    <label className="text-xs font-semibold text-muted-foreground">Current Title Baseline</label>
                     <Input
                       data-testid="input-current-title"
                       placeholder="e.g. Senior Software Engineer"
                       value={currentTitle}
                       onChange={(e) => setCurrentTitle(e.target.value)}
-                      className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
+                      className="bg-card border-border text-foreground text-sm"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300">Target Level Advancement</label>
+                    <label className="text-xs font-semibold text-muted-foreground">Target Level Advancement</label>
                     <Input
                       data-testid="input-target-level"
                       placeholder="e.g. Staff Engineer / Tech Lead"
                       value={targetLevel}
                       onChange={(e) => setTargetLevel(e.target.value)}
-                      className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
+                      className="bg-card border-border text-foreground text-sm"
                     />
                   </div>
                 </div>
@@ -425,23 +425,23 @@ export default function Onboarding() {
               <div className="space-y-4 pt-2">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300">Current Industry</label>
+                    <label className="text-xs font-semibold text-muted-foreground">Current Industry</label>
                     <Input
                       data-testid="input-current-industry"
                       placeholder="e.g. Traditional Banking / Finance"
                       value={currentIndustry}
                       onChange={(e) => setCurrentIndustry(e.target.value)}
-                      className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
+                      className="bg-card border-border text-foreground text-sm"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300">Target New Industry</label>
+                    <label className="text-xs font-semibold text-muted-foreground">Target New Industry</label>
                     <Input
                       data-testid="input-target-industry"
                       placeholder="e.g. AI / Cloud Infrastructure"
                       value={targetIndustry}
                       onChange={(e) => setTargetIndustry(e.target.value)}
-                      className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
+                      className="bg-card border-border text-foreground text-sm"
                     />
                   </div>
                 </div>
@@ -450,7 +450,7 @@ export default function Onboarding() {
 
             {/* Skills management */}
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-300">Transferable Skills & Competencies</label>
+              <label className="text-xs font-semibold text-muted-foreground">Transferable Skills & Competencies</label>
               <div className="flex gap-2">
                 <Input
                   data-testid="input-skill"
@@ -463,14 +463,14 @@ export default function Onboarding() {
                       handleAddSkill();
                     }
                   }}
-                  className="bg-slate-950 border-slate-800 text-slate-100 text-sm"
+                  className="bg-card border-border text-foreground text-sm"
                 />
                 <Button type="button" size="sm" onClick={handleAddSkill} variant="secondary">
                   Add
                 </Button>
               </div>
 
-              <div className="p-4 bg-slate-950 rounded-lg border border-slate-800 space-y-2">
+              <div className="p-4 bg-card rounded-lg border border-border space-y-2">
                 <div className="flex flex-wrap gap-2">
                   {transferableSkills.length > 0 ? (
                     transferableSkills.map((sk, i) => (
@@ -483,14 +483,14 @@ export default function Onboarding() {
                       </Badge>
                     ))
                   ) : (
-                    <span className="text-sm text-slate-500">No skills added yet</span>
+                    <span className="text-sm text-muted-foreground">No skills added yet</span>
                   )}
                 </div>
               </div>
             </div>
 
             <div className="flex justify-between pt-4">
-              <Button onClick={() => setStep(1)} variant="outline" className="border-slate-800 text-slate-300">
+              <Button onClick={() => setStep(1)} variant="outline" className="border-border text-muted-foreground">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
               <Button onClick={() => setStep(3)} className="bg-primary hover:bg-primary/90 font-semibold px-6">
@@ -502,13 +502,13 @@ export default function Onboarding() {
 
         {/* Step 3: Complete & Launch */}
         {step === 3 && (
-          <Card className="bg-slate-900 border-slate-800 text-slate-100 p-6 space-y-6 text-center">
+          <Card className="bg-card border-border text-foreground p-6 space-y-6 text-center">
             <div className="p-4 bg-primary/10 w-max mx-auto rounded-full text-primary">
               <Sparkles className="w-10 h-10" />
             </div>
             <div className="space-y-2">
               <h2 className="text-2xl font-bold">Onboarding Configuration Complete</h2>
-              <p className="text-slate-400 text-sm max-w-md mx-auto">
+              <p className="text-muted-foreground text-sm max-w-md mx-auto">
                 Your agentic career operations pipeline is configured for{" "}
                 <span className="text-primary font-bold">
                   {transitionType === "same_domain" ? "Same Domain Level Advancement" : "Cross-Industry Domain Pivot"}
@@ -517,9 +517,9 @@ export default function Onboarding() {
             </div>
 
             {/* Saved fields preview */}
-            <div className="max-w-md mx-auto p-4 rounded-lg bg-slate-950 border border-slate-800 text-left space-y-2">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Configured Profile Summary</p>
-              <ul className="text-xs space-y-1 text-slate-300">
+            <div className="max-w-md mx-auto p-4 rounded-lg bg-card border border-border text-left space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Configured Profile Summary</p>
+              <ul className="text-xs space-y-1 text-muted-foreground">
                 <li>• Track: <strong>{transitionType === "same_domain" ? "Same Domain" : "Cross-Industry Pivot"}</strong></li>
                 {currentTitle && <li>• Baseline Title: <strong>{currentTitle}</strong></li>}
                 {targetLevel && <li>• Target Level: <strong>{targetLevel}</strong></li>}
@@ -536,19 +536,19 @@ export default function Onboarding() {
                 <Button
                   onClick={() => setRetryHydration((n) => n + 1)}
                   variant="outline"
-                  className="border-slate-800 text-slate-300"
+                  className="border-border text-muted-foreground"
                 >
                   Retry
                 </Button>
               )}
-              <Button onClick={() => setStep(2)} variant="outline" className="border-slate-800 text-slate-300">
+              <Button onClick={() => setStep(2)} variant="outline" className="border-border text-muted-foreground">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
               <Button
                 data-testid="launch-dashboard-button"
                 onClick={finish}
                 disabled={hydration === "pending"}
-                className="bg-emerald-600 hover:bg-emerald-500 font-bold px-8"
+                className="bg-success hover:bg-success font-bold px-8"
               >
                 Launch Career Dashboard <ArrowRight className="w-5 h-5 ml-2" />
               </Button>

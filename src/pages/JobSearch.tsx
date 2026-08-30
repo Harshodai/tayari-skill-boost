@@ -359,13 +359,13 @@ const JobSearch = () => {
             <Button 
               onClick={handleAgentSearch} 
               disabled={isSearching || backendUnavailable}
-              className="h-11 min-w-[140px] bg-gradient-to-r from-accent to-primary hover:from-accent/90 hover:to-primary/90 text-white shadow-sm"
+              className="h-11 min-w-[140px] bg-gradient-to-r from-accent to-primary hover:from-accent/90 hover:to-primary/90 text-primary-foreground shadow-sm"
             >
               {isSearching && isAgentSearching ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 mr-2 text-white animate-pulse" /> Agent Search
+                  <Sparkles className="w-4 h-4 mr-2 text-primary-foreground animate-pulse" /> Agent Search
                 </>
               )}
             </Button>

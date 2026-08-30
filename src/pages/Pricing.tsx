@@ -307,7 +307,7 @@ const Pricing = () => {
                 data-testid="user-credit-balance"
                 className="mt-6 inline-flex items-center gap-3 px-4 py-2 rounded-xl bg-card border border-border shadow-sm text-sm"
               >
-                <Sparkles className="w-4 h-4 text-emerald-500" />
+                <Sparkles className="w-4 h-4 text-success" />
                 <span>
                   Your Balance:{" "}
                   <strong className="text-foreground tabular-nums">
@@ -321,12 +321,12 @@ const Pricing = () => {
           {/* Transparent credit-policy banner */}
           <div
             data-testid="zero-risk-guarantee"
-            className="max-w-4xl mx-auto mb-16 p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center shadow-sm"
+            className="max-w-4xl mx-auto mb-16 p-6 rounded-2xl bg-success/10 border border-success/30 text-center shadow-sm"
           >
-            <div className="inline-flex items-center justify-center p-3 bg-emerald-500/20 rounded-full mb-3 text-emerald-500">
+            <div className="inline-flex items-center justify-center p-3 bg-success/20 rounded-full mb-3 text-success">
               <ShieldCheck className="w-8 h-8" />
             </div>
-            <h2 className="font-display text-balance text-xl md:text-2xl font-bold text-emerald-500 mb-2">
+            <h2 className="font-display text-balance text-xl md:text-2xl font-bold text-success mb-2">
               Transparent credit policy: 1 credit is debited only when a verified submission receipt with an ATS confirmation code is generated. Failed or unverifiable applications are $0.00 / 0 credits.
             </h2>
             <p className="text-balance text-sm text-muted-foreground max-w-2xl mx-auto">
@@ -358,7 +358,7 @@ const Pricing = () => {
 
                   {pack.bestValue && (
                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                      <span className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow">
+                      <span className="bg-success text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow">
                         Best Value
                       </span>
                     </div>
@@ -384,7 +384,7 @@ const Pricing = () => {
                     <div className="mb-4">
                       <div className="flex items-baseline gap-2">
                         <span className="font-display text-4xl font-extrabold tabular-nums tracking-tight">{pack.priceFormatted}</span>
-                        <span className="text-sm font-semibold text-emerald-500 tabular-nums">
+                        <span className="text-sm font-semibold text-success tabular-nums">
                           ({pack.unitPrice})
                         </span>
                       </div>
@@ -396,7 +396,7 @@ const Pricing = () => {
                     <ul className="space-y-3 mb-8">
                       {pack.features.map((feature, i) => (
                         <li key={i} className="flex items-start gap-2.5 text-sm">
-                          <Check className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                          <Check className="w-4 h-4 text-success flex-shrink-0 mt-0.5" />
                           <span className="text-foreground/90">{feature}</span>
                         </li>
                       ))}
@@ -495,15 +495,15 @@ const Pricing = () => {
                 </p>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <Check className="w-4 h-4 text-success flex-shrink-0" />
                     Candidate workflows and receipt requirements scoped to your programme
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <Check className="w-4 h-4 text-success flex-shrink-0" />
                     Cohort pricing and billing options discussed before rollout
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <Check className="w-4 h-4 text-success flex-shrink-0" />
                     Advisor and access requirements assessed for your environment
                   </li>
                 </ul>
@@ -543,7 +543,7 @@ const Pricing = () => {
           <div className="max-w-4xl mx-auto mb-16 p-6 rounded-2xl border border-border bg-gradient-to-r from-card via-card to-primary/5 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-1">
               <h3 className="font-display font-bold text-base flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-emerald-500" /> 7-Day Refund on Unused Credits
+                <ShieldCheck className="w-5 h-5 text-success" /> 7-Day Refund on Unused Credits
               </h3>
               <p className="text-xs text-muted-foreground max-w-xl">
                 Unused credits are 100% refundable within 7 days. Verified submissions with generated receipts are final.

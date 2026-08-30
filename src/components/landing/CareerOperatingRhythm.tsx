@@ -43,8 +43,8 @@ const RHYTHM_STAGES: RhythmStage[] = [
     href: "/jobs",
     cta: "Explore job search",
     icon: FileSearch,
-    tone: "border-cyan-400/30 bg-cyan-400/10 text-cyan-300",
-    badgeTone: "border-cyan-400/30 bg-cyan-400/10 text-cyan-300",
+    tone: "border-primary/30 bg-primary/10 text-primary",
+    badgeTone: "border-primary/30 bg-primary/10 text-primary",
     previewMetrics: [
       { label: "Stale Postings Filtered", value: "86.7%", desc: "Ghost-job heuristic rejection" },
       { label: "Fit Calibration", value: "Exact", desc: "Maps skills to ATS keywords" },
@@ -79,8 +79,8 @@ const RHYTHM_STAGES: RhythmStage[] = [
     href: "/one-shot",
     cta: "See review loop",
     icon: ClipboardCheck,
-    tone: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-    badgeTone: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+    tone: "border-success/30 bg-success/10 text-success",
+    badgeTone: "border-success/30 bg-success/10 text-success",
     previewMetrics: [
       { label: "Autonomous Submit", value: "Disabled", desc: "Candidate clicks final submit" },
       { label: "Sensitive Data", value: "Encrypted", desc: "Salary & legal fields protected" },
@@ -113,29 +113,29 @@ export function CareerOperatingRhythm() {
 
   return (
     <section
-      className="relative overflow-hidden border-y border-slate-800 bg-[#07111F] py-20 text-slate-100 sm:py-24 lg:py-32"
+      className="relative overflow-hidden border-y border-border bg-secondary/40 py-20 text-foreground sm:py-24 lg:py-32"
       aria-labelledby="operating-rhythm-title"
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-[-16rem] top-[12%] h-[30rem] w-[30rem] rounded-full bg-primary/20 blur-[130px]" />
-        <div className="absolute bottom-[-16rem] right-[-8rem] h-[32rem] w-[32rem] rounded-full bg-emerald-400/10 blur-[150px]" />
-        <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(148,163,184,0.22)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.18)_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_78%_62%_at_48%_44%,black,transparent)]" />
+        <div className="absolute bottom-[-16rem] right-[-8rem] h-[32rem] w-[32rem] rounded-full bg-success/10 blur-[150px]" />
+        <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(hsl(var(--border))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--border))_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_78%_62%_at_48%_44%,black,transparent)]" />
       </div>
 
       <div className="container relative z-10 mx-auto px-4 sm:px-6">
         {/* Header */}
         <div className="mx-auto max-w-3xl text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-cyan-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
             The Operating Rhythm
           </div>
           <h2
             id="operating-rhythm-title"
-            className="mt-5 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl"
+            className="mt-5 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl"
           >
-            Capabilities that change your <span className="text-cyan-300">next decision.</span>
+            Capabilities that change your <span className="text-primary">next decision.</span>
           </h2>
-          <p className="mt-4 text-base leading-7 text-slate-300 sm:text-lg">
+          <p className="mt-4 text-base leading-7 text-muted-foreground sm:text-lg">
             Job Tayari connects the work that usually scatters across 40 browser tabs into one continuous, high-agency loop.
           </p>
         </div>
@@ -153,23 +153,23 @@ export function CareerOperatingRhythm() {
                 className={cn(
                   "flex flex-col items-start rounded-xl border p-3.5 text-left transition-all active:scale-[0.98]",
                   isSelected
-                    ? "border-cyan-400/50 bg-slate-900 shadow-lg ring-1 ring-cyan-400/30"
-                    : "border-slate-800/80 bg-slate-950/60 hover:bg-slate-900/50 hover:border-slate-700"
+                    ? "border-primary/50 bg-card shadow-lg ring-1 ring-primary/30"
+                    : "border-border/80 bg-secondary/60 hover:bg-card hover:border-border"
                 )}
               >
                 <div className="flex items-center justify-between w-full">
-                  <span className="font-mono text-xs font-bold text-slate-500">{stage.number}</span>
-                  <StepIcon className={cn("h-4 w-4", isSelected ? "text-cyan-300" : "text-slate-500")} />
+                  <span className="font-mono text-xs font-bold text-muted-foreground">{stage.number}</span>
+                  <StepIcon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
                 </div>
-                <span className="mt-2 text-xs font-semibold text-white truncate w-full">{stage.title}</span>
-                <span className="text-[10px] text-slate-400 truncate w-full">{stage.capability}</span>
+                <span className="mt-2 text-xs font-semibold text-foreground truncate w-full">{stage.title}</span>
+                <span className="text-[10px] text-muted-foreground truncate w-full">{stage.capability}</span>
               </button>
             );
           })}
         </div>
 
         {/* Active Stage Detailed Interactive Card */}
-        <div className="mt-8 max-w-5xl mx-auto rounded-2xl border border-slate-700/80 bg-slate-950/80 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
+        <div className="mt-8 max-w-5xl mx-auto rounded-2xl border border-border/80 bg-secondary/80 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeStage.number}
@@ -189,63 +189,63 @@ export function CareerOperatingRhythm() {
                     <Badge variant="outline" className={cn("text-[10px] font-mono", activeStage.badgeTone)}>
                       STAGE {activeStage.number} · {activeStage.capability}
                     </Badge>
-                    <h3 className="text-2xl font-bold text-white font-display mt-0.5">
+                    <h3 className="text-2xl font-bold text-foreground font-display mt-0.5">
                       {activeStage.title}
                     </h3>
                   </div>
                 </div>
 
-                <p className="text-base leading-relaxed text-slate-300">
+                <p className="text-base leading-relaxed text-muted-foreground">
                   {activeStage.description}
                 </p>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-                  <p className="text-sm font-semibold text-white flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                <div className="rounded-xl border border-border bg-card p-4">
+                  <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
                     {activeStage.impact}
                   </p>
-                  <p className="mt-1 text-xs text-slate-400 pl-6">
-                    Signal: <strong className="text-slate-200">{activeStage.signal}</strong>
+                  <p className="mt-1 text-xs text-muted-foreground pl-6">
+                    Signal: <strong className="text-foreground">{activeStage.signal}</strong>
                   </p>
                 </div>
 
                 <div className="pt-2 flex flex-wrap items-center gap-3">
-                  <Button size="lg" asChild className="bg-cyan-300 text-slate-950 hover:bg-cyan-200 font-semibold active:scale-[0.98]">
+                  <Button size="lg" asChild className="bg-primary text-muted hover:bg-primary font-semibold active:scale-[0.98]">
                     <Link to={activeStage.href}>
                       {activeStage.cta}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
-                  <Button size="lg" variant="outline" asChild className="border-slate-700 bg-slate-900/50 text-slate-200 hover:bg-slate-800">
+                  <Button size="lg" variant="outline" asChild className="border-border bg-card text-foreground hover:bg-muted">
                     <Link to="/auth?mode=signup">Create Account</Link>
                   </Button>
                 </div>
               </div>
 
               {/* Right Metrics Panel */}
-              <div className="rounded-xl border border-slate-800 bg-[#09111F] p-5 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <span className="font-mono text-xs font-bold text-slate-400 uppercase">
+              <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <span className="font-mono text-xs font-bold text-muted-foreground uppercase">
                     Execution Metrics
                   </span>
-                  <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-mono">
+                  <span className="flex items-center gap-1.5 text-xs text-success font-mono">
                     <ShieldCheck className="h-3.5 w-3.5" /> Verified
                   </span>
                 </div>
 
                 <div className="space-y-3">
                   {activeStage.previewMetrics.map((metric) => (
-                    <div key={metric.label} className="rounded-lg border border-slate-800/80 bg-slate-900/60 p-3 flex items-center justify-between">
+                    <div key={metric.label} className="rounded-lg border border-border/80 bg-card p-3 flex items-center justify-between">
                       <div>
-                        <span className="text-xs font-semibold text-slate-200 block">{metric.label}</span>
-                        <span className="text-[10px] text-slate-400">{metric.desc}</span>
+                        <span className="text-xs font-semibold text-foreground block">{metric.label}</span>
+                        <span className="text-[10px] text-muted-foreground">{metric.desc}</span>
                       </div>
-                      <span className="font-mono text-base font-bold text-cyan-300">{metric.value}</span>
+                      <span className="font-mono text-base font-bold text-primary">{metric.value}</span>
                     </div>
                   ))}
                 </div>
 
-                <p className="text-[11px] text-slate-500 text-center leading-relaxed">
+                <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
                   Real deterministic heuristics running locally in your workspace.
                 </p>
               </div>

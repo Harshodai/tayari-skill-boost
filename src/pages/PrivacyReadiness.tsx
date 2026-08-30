@@ -74,7 +74,7 @@ export function PrivacyReadiness() {
       <div className="container max-w-5xl mx-auto py-8 space-y-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <ShieldCheck className="h-8 w-8 text-emerald-500" />
+            <ShieldCheck className="h-8 w-8 text-success" />
             Self-Hosted Privacy & AI Audit Ledger
           </h1>
           <p className="text-muted-foreground">
@@ -112,28 +112,28 @@ export function PrivacyReadiness() {
                 <div className="p-3.5 rounded bg-muted/50 border">
                   <div className="text-xs text-muted-foreground">Local Ollama LLM</div>
                   <div className="text-sm font-bold mt-1 flex items-center gap-1.5">
-                    {status?.local_llm_active ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
+                    {status?.local_llm_active ? <CheckCircle2 className="h-4 w-4 text-success" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
                     {status ? (status.local_llm_active ? `Active${status.ollama_endpoint ? ` (${status.ollama_endpoint})` : ""}` : "Unavailable") : "Not checked"}
                   </div>
                 </div>
                 <div className="p-3.5 rounded bg-muted/50 border">
                   <div className="text-xs text-muted-foreground">Typst Rust PDF Compiler</div>
                   <div className="text-sm font-bold mt-1 flex items-center gap-1.5">
-                    {status?.typst_cli_installed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
+                    {status?.typst_cli_installed ? <CheckCircle2 className="h-4 w-4 text-success" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
                     {status ? (status.typst_cli_installed ? "Ready" : "Unavailable") : "Not checked"}
                   </div>
                 </div>
                 <div className="p-3.5 rounded bg-muted/50 border">
                   <div className="text-xs text-muted-foreground">Playwright Chromium</div>
                   <div className="text-sm font-bold mt-1 flex items-center gap-1.5">
-                    {status?.local_playwright_installed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
+                    {status?.local_playwright_installed ? <CheckCircle2 className="h-4 w-4 text-success" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
                     {status ? (status.local_playwright_installed ? "Installed & Isolated" : "Unavailable") : "Not checked"}
                   </div>
                 </div>
                 <div className="p-3.5 rounded bg-muted/50 border">
                   <div className="text-xs text-muted-foreground">External Analytics & Tracking</div>
-                  <div className="text-sm font-bold text-emerald-500 mt-1 flex items-center gap-1.5">
-                                            {status?.external_tracking === "DISABLED" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
+                  <div className="text-sm font-bold text-success mt-1 flex items-center gap-1.5">
+                                            {status?.external_tracking === "DISABLED" ? <CheckCircle2 className="h-4 w-4 text-success" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
                         {status ? (status.external_tracking || "Not reported") : "Not checked"}
 
                   </div>
@@ -171,7 +171,7 @@ export function PrivacyReadiness() {
               </div>
             ) : ledgerLogs.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-sm border border-dashed rounded-lg">
-                <ShieldCheck className="h-8 w-8 text-emerald-500 mx-auto mb-2 opacity-80" />
+                <ShieldCheck className="h-8 w-8 text-success mx-auto mb-2 opacity-80" />
                 No outgoing request entries recorded for the current session.
               </div>
             ) : (
@@ -212,7 +212,7 @@ export function PrivacyReadiness() {
                               ) : log.detail.pii_redacted.length > 0 ? (
                                 <div className="flex gap-1 flex-wrap">
                                   {log.detail.pii_redacted.map((item, i) => (
-                                    <Badge key={i} variant="outline" className="bg-emerald-500/10 text-emerald-600 text-[10px]">
+                                    <Badge key={i} variant="outline" className="bg-success/10 text-success text-[10px]">
                                       Scrubbed: {item}
                                     </Badge>
                                   ))}
@@ -225,7 +225,7 @@ export function PrivacyReadiness() {
                         </TableCell>
                         <TableCell>
                           {log.detail?.is_local === true ? (
-                            <Badge className="bg-emerald-600 text-white text-[11px]">Local Device</Badge>
+                            <Badge className="bg-success text-primary-foreground text-[11px]">Local Device</Badge>
                           ) : log.detail?.is_local === false ? (
                             <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 text-[11px]">Sanitized Remote API</Badge>
                           ) : (

@@ -45,7 +45,7 @@ function InteractiveResumeScanMockup() {
               d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
             />
             <path
-              className="text-emerald-500 transition-all duration-500"
+              className="text-success transition-all duration-500"
               strokeDasharray={`${score}, 100`}
               strokeWidth="3.2"
               strokeLinecap="round"
@@ -73,12 +73,12 @@ function InteractiveResumeScanMockup() {
               className={cn(
                 "w-full flex items-center justify-between p-1.5 rounded-lg border text-left transition-all active:scale-[0.98]",
                 activeKeyword === kw.name
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500 font-semibold"
+                  ? "border-success/40 bg-success/10 text-success font-semibold"
                   : "border-border/40 bg-background/40 text-muted-foreground hover:bg-muted"
               )}
             >
               <div className="flex items-center gap-1.5">
-                <span className="text-emerald-500 font-bold">✓</span>
+                <span className="text-success font-bold">✓</span>
                 <span className="truncate">{kw.name}</span>
               </div>
               <span className="font-mono text-[9px] opacity-70">{kw.weight}%</span>
@@ -154,8 +154,8 @@ function InteractiveCoachMockup() {
           <p className="font-semibold text-primary text-[10px]">Interviewer:</p>
           {currentDialog.q}
         </div>
-        <div className="p-2 rounded-lg bg-emerald-500/10 text-foreground border border-emerald-500/20 max-w-[92%] ml-auto">
-          <p className="font-semibold text-emerald-500 text-[10px]">{currentDialog.tip}</p>
+        <div className="p-2 rounded-lg bg-success/10 text-foreground border border-success/20 max-w-[92%] ml-auto">
+          <p className="font-semibold text-success text-[10px]">{currentDialog.tip}</p>
         </div>
       </div>
     </div>
@@ -260,7 +260,7 @@ function InteractiveExtensionMockup() {
             onClick={() => setSaved(!saved)}
             className={cn(
               "w-full text-[10px] py-1 h-7 font-semibold transition-all active:scale-[0.98]",
-              saved ? "bg-emerald-600 text-white hover:bg-emerald-500" : ""
+              saved ? "bg-success text-primary-foreground hover:bg-success" : ""
             )}
           >
             {saved ? (
@@ -309,7 +309,7 @@ function InteractiveAutoPilotMockup() {
               <span
                 className={cn(
                   "w-4 h-4 rounded-full flex items-center justify-center text-[9px] border transition-all duration-300",
-                  isDone && "bg-emerald-500/20 border-emerald-500/40 text-emerald-500",
+                  isDone && "bg-success/20 border-success/40 text-success",
                   isActive && "bg-primary/20 border-primary/40 text-primary font-bold",
                   !isDone && !isActive && "border-muted-foreground/30 text-transparent"
                 )}
@@ -438,7 +438,7 @@ export function FeaturesSection() {
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
                   <Globe className="w-6 h-6" />
                 </div>
-                <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 text-xs">Installed</Badge>
+                <Badge variant="outline" className="border-success/30 text-success text-xs">Installed</Badge>
               </div>
               <div>
                 <h3 className="text-xl font-bold mb-2 font-display text-foreground">Browser Extension</h3>

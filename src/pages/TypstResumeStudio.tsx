@@ -184,7 +184,7 @@ ${experienceText || "Your professional experience bullets will appear here."}
                   <span className="flex items-center gap-2">
                     <SlidersHorizontal className="w-4 h-4 text-primary" /> Candidate Data & Content
                   </span>
-                  <Badge variant="outline" className="text-[10px] font-mono text-emerald-500 border-emerald-500/20">
+                  <Badge variant="outline" className="text-[10px] font-mono text-success border-success/20">
                     ATS Sanitized
                   </Badge>
                 </CardTitle>
@@ -257,7 +257,7 @@ ${experienceText || "Your professional experience bullets will appear here."}
                       <div className="text-center border-b pb-3">
                         <h2 className="text-xl font-bold text-slate-900">{fullName || "Your Name"}</h2>
                         <p className="text-slate-600 text-xs font-semibold mt-0.5">{headline || "Your Target Headline"}</p>
-                        <p className="text-slate-500 text-[10px] mt-1 font-mono">{email || "email@example.com"} | {phone || "phone"} | {location || "location"}</p>
+                        <p className="text-muted-foreground text-[10px] mt-1 font-mono">{email || "email@example.com"} | {phone || "phone"} | {location || "location"}</p>
                       </div>
 
                       <div>
@@ -280,7 +280,7 @@ ${experienceText || "Your professional experience bullets will appear here."}
                   </TabsContent>
 
                   <TabsContent value="source" className="flex-1">
-                    <pre className="bg-slate-950 text-slate-100 p-4 rounded-lg text-xs font-mono overflow-x-auto min-h-[500px] leading-relaxed">
+                    <pre className="bg-card text-foreground p-4 rounded-lg text-xs font-mono overflow-x-auto min-h-[500px] leading-relaxed">
                       {generateTypstPreviewCode()}
                     </pre>
                   </TabsContent>

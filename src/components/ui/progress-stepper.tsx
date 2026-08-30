@@ -70,7 +70,7 @@ function StepCircle({
   if (status === "completed") {
     return (
       <div className={cn("rounded-full bg-primary flex items-center justify-center shrink-0", cls)}>
-        <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} aria-hidden="true">
+        <svg className="h-3.5 w-3.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
         </svg>
       </div>
@@ -80,7 +80,7 @@ function StepCircle({
   if (status === "error") {
     return (
       <div className={cn("rounded-full bg-destructive flex items-center justify-center shrink-0", cls)}>
-        <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} aria-hidden="true">
+        <svg className="h-3.5 w-3.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
         </svg>
       </div>
