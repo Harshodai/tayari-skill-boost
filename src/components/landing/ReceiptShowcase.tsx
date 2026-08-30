@@ -152,7 +152,7 @@ export function ReceiptShowcase() {
                 {/* Meta grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <MetaTile
-                    icon={<Clock className="w-3.5 h-3.5 text-cyan-500" />}
+                    icon={<Clock className="w-3.5 h-3.5 text-primary" />}
                     label="Submitted at"
                     value={receipt.submittedAt}
                     mono
@@ -164,7 +164,7 @@ export function ReceiptShowcase() {
                     mono
                   />
                   <MetaTile
-                    icon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
+                    icon={<CheckCircle2 className="w-3.5 h-3.5 text-success" />}
                     label="Answers"
                     value={receipt.answersRef}
                     mono
@@ -189,7 +189,7 @@ export function ReceiptShowcase() {
                   >
                     {copied ? (
                       <>
-                        <Check className="mr-1.5 h-3.5 w-3.5 text-emerald-500" /> Copied
+                        <Check className="mr-1.5 h-3.5 w-3.5 text-success" /> Copied
                       </>
                     ) : (
                       <>
@@ -211,7 +211,7 @@ export function ReceiptShowcase() {
           <ul className="mt-10 space-y-3 max-w-xl mx-auto">
             {DIFFERENTIATORS.map((d) => (
               <li key={d} className="flex items-start gap-2.5 text-sm text-foreground/90 font-medium">
-                <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                <ShieldCheck className="w-4 h-4 text-success shrink-0 mt-0.5" />
                 <span>{d}</span>
               </li>
             ))}

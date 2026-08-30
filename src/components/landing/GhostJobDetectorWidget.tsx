@@ -136,7 +136,7 @@ export function GhostJobDetectorWidget() {
                     className={cn(
                       "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] font-bold transition-colors",
                       isChecked
-                        ? "border-amber-500 bg-amber-500 text-slate-950"
+                        ? "border-amber-500 bg-amber-500 text-card"
                         : "border-muted-foreground/40 bg-transparent text-transparent"
                     )}
                   >
