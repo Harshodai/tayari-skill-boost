@@ -54,7 +54,7 @@ export function CandidateControlSection() {
   return (
     <section className="relative overflow-hidden border-y border-border bg-secondary/40 py-20 text-foreground sm:py-24 lg:py-32">
       {/* Ambient background glow */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_25%,rgba(6,182,212,0.08),transparent_35%),radial-gradient(circle_at_80%_75%,rgba(16,185,129,0.08),transparent_35%)]" />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_25%,hsl(var(--primary)/0.06),transparent_35%),radial-gradient(circle_at_80%_75%,hsl(var(--success)/0.06),transparent_35%)]" />
 
       <div className="container relative z-10 mx-auto px-4 sm:px-6">
         <div className="grid items-center gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">

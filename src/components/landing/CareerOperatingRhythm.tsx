@@ -119,7 +119,7 @@ export function CareerOperatingRhythm() {
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-[-16rem] top-[12%] h-[30rem] w-[30rem] rounded-full bg-primary/20 blur-[130px]" />
         <div className="absolute bottom-[-16rem] right-[-8rem] h-[32rem] w-[32rem] rounded-full bg-success/10 blur-[150px]" />
-        <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(148,163,184,0.22)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.18)_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_78%_62%_at_48%_44%,black,transparent)]" />
+        <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(hsl(var(--border))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--border))_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_78%_62%_at_48%_44%,black,transparent)]" />
       </div>
 
       <div className="container relative z-10 mx-auto px-4 sm:px-6">
