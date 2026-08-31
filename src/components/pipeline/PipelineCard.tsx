@@ -8,6 +8,8 @@ import type { PipelineJob, PipelineStage, ReceiptStatus } from "./types";
 interface Props {
   job: PipelineJob;
   isOverlay?: boolean;
+  selected?: boolean;
+  onSelect?: (job: PipelineJob) => void;
 }
 
 const STAGE_COMM_TYPE: Record<PipelineStage, string | null> = {
@@ -18,7 +20,7 @@ const STAGE_COMM_TYPE: Record<PipelineStage, string | null> = {
   rejected: "status-check",
 };
 
-export function PipelineCard({ job, isOverlay }: Props) {
+export function PipelineCard({ job, isOverlay, selected, onSelect }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: job.id,
     data: { stage: job.stage },
@@ -54,13 +56,28 @@ export function PipelineCard({ job, isOverlay }: Props) {
       {...attributes}
       {...listeners}
       data-testid={`pipeline-card-${job.id}`}
+      data-press
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected ? true : undefined}
+      aria-label={`${job.title} at ${job.company} — ${job.stage} stage`}
+      onClick={() => onSelect?.(job)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect?.(job);
+        }
+      }}
       className={cn(
         "group rounded-md border bg-card p-3 text-left shadow-sm cursor-grab active:cursor-grabbing",
-        "hover:border-primary/40 hover:shadow transition-all",
+        "transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out",
+        "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md active:translate-y-0 active:scale-[0.99]",
+        selected && "border-primary bg-primary/[0.06] shadow-md ring-1 ring-primary/30",
         isDragging && "opacity-40",
         isOverlay && "shadow-lg ring-1 ring-primary/40 rotate-1"
       )}
     >
+
       <div className="flex items-start gap-2">
         <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 mt-0.5 shrink-0" />
         <div className="min-w-0 flex-1">
