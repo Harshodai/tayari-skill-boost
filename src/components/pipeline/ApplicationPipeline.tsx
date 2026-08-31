@@ -16,6 +16,7 @@ import {
   verticalListSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
+import { Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
@@ -32,7 +33,9 @@ interface Props {
   /** Compact = used inside Dashboard. Full = standalone /pipeline page. */
   variant?: "compact" | "full";
   onStageChange?: (jobId: string, stage: PipelineStage) => void;
+  onSelectJob?: (job: PipelineJob) => void;
 }
+
 
 function StageColumn({
   stage,
@@ -40,36 +43,58 @@ function StageColumn({
   tint,
   jobs,
   variant,
+  selectedId,
+  onSelect,
 }: {
   stage: PipelineStage;
   label: string;
   tint: string;
   jobs: PipelineJob[];
   variant: "compact" | "full";
+  selectedId: string | null;
+  onSelect: (job: PipelineJob) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `col:${stage}`, data: { stage } });
   return (
     <div
       ref={setNodeRef}
+      role="group"
+      aria-label={`${label} — ${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}`}
       className={cn(
-        "rounded-lg border bg-muted/20 p-3 flex flex-col gap-2 transition-colors",
+        "rounded-lg border bg-muted/20 p-3 flex flex-col gap-2",
+        "transition-[background-color,border-color,box-shadow] duration-200",
         variant === "compact" ? "min-h-[160px]" : "min-h-[420px]",
-        isOver && "border-primary/50 bg-primary/5"
+        isOver && "border-primary/60 bg-primary/5 shadow-[0_0_0_3px_hsl(var(--primary)/0.12)]"
       )}
     >
       <div className="flex items-center justify-between mb-1 sticky top-0">
         <span className={cn("text-xs font-semibold uppercase tracking-wider", tint)}>{label}</span>
-        <Badge variant="secondary" className="text-xs">{jobs.length}</Badge>
+        <Badge variant="secondary" className="text-xs tabular-nums">{jobs.length}</Badge>
       </div>
       <SortableContext items={jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
         <div className="flex flex-col gap-2 flex-1">
           {jobs.length === 0 ? (
-            <div className="text-xs text-muted-foreground italic py-6 text-center">
-              Drop jobs here
+            <div
+              className={cn(
+                "flex flex-1 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border/70 px-3 py-6 text-center",
+                "transition-colors duration-200",
+                isOver ? "border-primary/60 bg-primary/5 text-primary" : "text-muted-foreground"
+              )}
+            >
+              <Inbox className="h-4 w-4 opacity-70" aria-hidden="true" />
+              <p className="text-xs font-medium">
+                {isOver ? `Release to move here` : `Nothing in ${label.toLowerCase()}`}
+              </p>
+              <p className="text-[11px] text-muted-foreground">Drag a card into this column</p>
             </div>
           ) : (
             jobs.slice(0, variant === "compact" ? 3 : undefined).map((j) => (
-              <PipelineCard key={j.id} job={j} />
+              <PipelineCard
+                key={j.id}
+                job={j}
+                selected={selectedId === j.id}
+                onSelect={onSelect}
+              />
             ))
           )}
           {variant === "compact" && jobs.length > 3 && (
@@ -83,9 +108,12 @@ function StageColumn({
   );
 }
 
-export function ApplicationPipeline({ jobs, variant = "full", onStageChange }: Props) {
+
+export function ApplicationPipeline({ jobs, variant = "full", onStageChange, onSelectJob }: Props) {
   const [stageMap, setStageMap] = useState<Record<string, PipelineStage>>(() => loadStageMap());
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
 
   useEffect(() => {
     saveStageMap(stageMap);
@@ -156,8 +184,14 @@ export function ApplicationPipeline({ jobs, variant = "full", onStageChange }: P
             tint={s.tint}
             jobs={byStage[s.key]}
             variant={variant}
+            selectedId={selectedId}
+            onSelect={(job) => {
+              setSelectedId((prev) => (prev === job.id ? null : job.id));
+              onSelectJob?.(job);
+            }}
           />
         ))}
+
       </div>
       <DragOverlay>
         {activeJob ? <PipelineCard job={activeJob} isOverlay /> : null}

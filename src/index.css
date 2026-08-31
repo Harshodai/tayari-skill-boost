@@ -215,11 +215,12 @@
   .skeleton-shimmer {
     background: linear-gradient(90deg,
         hsl(var(--muted)) 25%,
-        hsl(var(--accent)) 50%,
+        hsl(var(--muted-foreground) / 0.14) 50%,
         hsl(var(--muted)) 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }
+
 }
 
 /* Job Tayari Design System - Dark Mode First */
@@ -412,10 +413,25 @@
     letter-spacing: -0.028em;
   }
 
-  :where(a, button, input:not([type="hidden"]), select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  :where(
+    a,
+    button,
+    input:not([type="hidden"]),
+    select,
+    textarea,
+    summary,
+    [tabindex]:not([tabindex="-1"]),
+    [role="button"],
+    [role="option"],
+    [role="tab"],
+    [role="radio"],
+    [role="checkbox"]
+  ):focus-visible {
     outline: 3px solid hsl(var(--ring));
     outline-offset: 3px;
+    border-radius: var(--radius-sm);
   }
+
 
   #root {
     min-height: 100dvh;
@@ -518,4 +534,18 @@
   .app-content > * {
     animation: none !important;
   }
+
+  /* Skeletons must stay legible without the sweep. */
+  .skeleton-shimmer {
+    animation: none !important;
+    background: hsl(var(--muted)) !important;
+  }
+
+  /* No transform-based hover/press motion. */
+  .hover-lift:hover,
+  .hover-scale:hover,
+  [data-press]:active {
+    transform: none !important;
+  }
 }
+

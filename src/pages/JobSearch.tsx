@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ListSkeleton } from "@/components/ui/skeletons";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -109,6 +111,7 @@ const JobSearch = () => {
   // Mobile master-detail: below lg the list and detail share the viewport.
   const [mobileDetail, setMobileDetail] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [refineQuery, setRefineQuery] = useState("");
 
   const { data: savedJobs = [] } = useQuery({
     queryKey: ["saved-jobs"],
@@ -265,20 +268,33 @@ const JobSearch = () => {
     }
   };
 
+  // Instant, debounced client-side refinement over the fetched result set.
+  const debouncedRefine = useDebouncedValue(refineQuery, 220);
+  const debouncedMinScore = useDebouncedValue(minScore, 160);
+  const isRefining =
+    refineQuery !== debouncedRefine || minScore !== debouncedMinScore;
+
   const filtered = useMemo(
     () =>
       results.filter((j: any) => {
         const s = j.score ?? j.fit_score ?? j.match_score ?? 0;
-        if (s < minScore) return false;
+        if (s < debouncedMinScore) return false;
         if (remoteOnly && j.location && !/remote/i.test(j.location)) return false;
         if (hideGhostJobs) {
           const badge = j.posting_health?.badge || j.health_badge || (j.posted_at && (Date.now() - new Date(j.posted_at).getTime() > 45 * 86400000) ? "Likely ghost" : "Fresh");
           if (badge === "Likely ghost") return false;
         }
+        const needle = debouncedRefine.trim().toLowerCase();
+        if (needle) {
+          const haystack = `${j.title ?? ""} ${j.company ?? ""} ${j.location ?? ""} ${j.source ?? ""}`.toLowerCase();
+          if (!haystack.includes(needle)) return false;
+        }
         return true;
       }),
-    [results, minScore, remoteOnly, hideGhostJobs]
+    [results, debouncedMinScore, remoteOnly, hideGhostJobs, debouncedRefine]
   );
+
+
 
   const selected = filtered[selectedIdx] || filtered[0];
 
@@ -576,47 +592,79 @@ const JobSearch = () => {
         {/* Results list */}
         <section className={cn("lg:block", mobileDetail && "hidden")}>
           <Card className="h-full p-0 overflow-hidden">
-            <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between">
-              <h3 className="text-sm font-semibold">
-                {isSearching
-                  ? "Searching…"
-                  : filtered.length > 0
-                  ? `${filtered.length} matches`
-                  : "Results"}
-              </h3>
-              {filtered.length > 0 && (
-                <Badge variant="outline" className="text-[10px]">
-                  Ranked by AI match
-                </Badge>
+            <div className="px-4 py-3 border-b border-border/60 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold" aria-live="polite">
+                  {isSearching
+                    ? "Searching…"
+                    : filtered.length > 0
+                    ? `${filtered.length} ${filtered.length === 1 ? "match" : "matches"}`
+                    : "Results"}
+                </h3>
+                {filtered.length > 0 && (
+                  <Badge variant="outline" className="text-[10px]">
+                    Ranked by AI match
+                  </Badge>
+                )}
+              </div>
+              {results.length > 0 && (
+                <div className="relative">
+                  <label htmlFor="refine-results" className="sr-only">
+                    Filter these results
+                  </label>
+                  <Input
+                    id="refine-results"
+                    value={refineQuery}
+                    onChange={(e) => setRefineQuery(e.target.value)}
+                    placeholder="Filter by title, company, or location…"
+                    className="h-8 pr-16 text-xs"
+                  />
+                  {isRefining && (
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                      filtering…
+                    </span>
+                  )}
+                </div>
               )}
             </div>
             <ScrollArea className="h-[calc(100vh-280px)]">
-              <div className="p-2 space-y-2">
-                {isSearching &&
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="p-3 rounded-lg border border-border/50">
-                      <Skeleton className="h-4 w-2/3 mb-2" />
-                      <Skeleton className="h-3 w-1/2 mb-1" />
-                      <Skeleton className="h-3 w-3/4" />
-                    </div>
-                  ))}
+              <div className="p-2 space-y-2" aria-busy={isSearching || isRefining}>
+                {(isSearching || isRefining) && <ListSkeleton rows={5} className="p-1" />}
 
-                {!isSearching && filtered.length === 0 && (
-                  <div className="px-4 py-16 text-center">
-                    <Briefcase className="w-10 h-10 text-muted-foreground/60 mx-auto mb-3" />
+                {!isSearching && !isRefining && filtered.length === 0 && (
+                  <div className="px-4 py-16 text-center animate-fade-in">
+                    <Briefcase className="w-10 h-10 text-muted-foreground/60 mx-auto mb-3" aria-hidden="true" />
                     <p className="text-sm font-medium">
-                      {results.length === 0 ? "Start your search" : "No matches at this filter"}
+                      {results.length === 0
+                        ? "Start your search"
+                        : debouncedRefine
+                        ? `No results matching “${debouncedRefine}”`
+                        : "No matches at this filter"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {results.length === 0
                         ? "Try keywords, a role, or paste a natural-language query."
+                        : debouncedRefine
+                        ? "Clear the filter text or widen your search."
                         : "Lower the min match or turn off Remote only."}
                     </p>
+                    {results.length > 0 && debouncedRefine && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => setRefineQuery("")}
+                      >
+                        Clear filter
+                      </Button>
+                    )}
                   </div>
                 )}
 
-                {!isSearching &&
+
+                {!isSearching && !isRefining &&
                   filtered.map((job, i) => {
+
                     const score = job.match_score ?? job.score ?? job.fit_score ?? null;
                     const band = getFitBand(score);
                     const active = i === selectedIdx;
