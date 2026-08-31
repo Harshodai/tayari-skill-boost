@@ -182,8 +182,14 @@ export function ApplicationPipeline({ jobs, variant = "full", onStageChange, onS
             tint={s.tint}
             jobs={byStage[s.key]}
             variant={variant}
+            selectedId={selectedId}
+            onSelect={(job) => {
+              setSelectedId((prev) => (prev === job.id ? null : job.id));
+              onSelectJob?.(job);
+            }}
           />
         ))}
+
       </div>
       <DragOverlay>
         {activeJob ? <PipelineCard job={activeJob} isOverlay /> : null}
