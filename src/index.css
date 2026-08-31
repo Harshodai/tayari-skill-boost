@@ -534,4 +534,18 @@
   .app-content > * {
     animation: none !important;
   }
+
+  /* Skeletons must stay legible without the sweep. */
+  .skeleton-shimmer {
+    animation: none !important;
+    background: hsl(var(--muted)) !important;
+  }
+
+  /* No transform-based hover/press motion. */
+  .hover-lift:hover,
+  .hover-scale:hover,
+  [data-press]:active {
+    transform: none !important;
+  }
 }
+
