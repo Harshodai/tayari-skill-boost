@@ -265,20 +265,33 @@ const JobSearch = () => {
     }
   };
 
+  // Instant, debounced client-side refinement over the fetched result set.
+  const debouncedRefine = useDebouncedValue(refineQuery, 220);
+  const debouncedMinScore = useDebouncedValue(minScore, 160);
+  const isRefining =
+    refineQuery !== debouncedRefine || minScore !== debouncedMinScore;
+
   const filtered = useMemo(
     () =>
       results.filter((j: any) => {
         const s = j.score ?? j.fit_score ?? j.match_score ?? 0;
-        if (s < minScore) return false;
+        if (s < debouncedMinScore) return false;
         if (remoteOnly && j.location && !/remote/i.test(j.location)) return false;
         if (hideGhostJobs) {
           const badge = j.posting_health?.badge || j.health_badge || (j.posted_at && (Date.now() - new Date(j.posted_at).getTime() > 45 * 86400000) ? "Likely ghost" : "Fresh");
           if (badge === "Likely ghost") return false;
         }
+        const needle = debouncedRefine.trim().toLowerCase();
+        if (needle) {
+          const haystack = `${j.title ?? ""} ${j.company ?? ""} ${j.location ?? ""} ${j.source ?? ""}`.toLowerCase();
+          if (!haystack.includes(needle)) return false;
+        }
         return true;
       }),
-    [results, minScore, remoteOnly, hideGhostJobs]
+    [results, debouncedMinScore, remoteOnly, hideGhostJobs, debouncedRefine]
   );
+
+
 
   const selected = filtered[selectedIdx] || filtered[0];
 
