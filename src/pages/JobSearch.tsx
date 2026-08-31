@@ -662,8 +662,9 @@ const JobSearch = () => {
                 )}
 
 
-                {!isSearching &&
+                {!isSearching && !isRefining &&
                   filtered.map((job, i) => {
+
                     const score = job.match_score ?? job.score ?? job.fit_score ?? null;
                     const band = getFitBand(score);
                     const active = i === selectedIdx;
