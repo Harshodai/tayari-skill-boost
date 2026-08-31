@@ -20,7 +20,7 @@ export default defineTool({
     }
     const { data, error } = await sb(ctx)
       .from("profiles")
-      .select("*")
+      .select("id, full_name, headline, summary, skills, desired_roles, locations, experience_years, open_to_remote")
       .eq("id", ctx.getUserId())
       .maybeSingle();
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };

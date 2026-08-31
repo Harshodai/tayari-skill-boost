@@ -311,12 +311,17 @@ func (s *Server) handleListSavedJobs(w http.ResponseWriter, r *http.Request) {
 		var job models.JSONMap
 		var savedAt, updatedAt time.Time
 		if err := rows.Scan(&id, &dedupeKey, &job, &status, &savedAt, &updatedAt); err != nil {
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan saved job")
+			return
 		}
 		jobs = append(jobs, map[string]interface{}{
 			"id": id, "dedupe_key": dedupeKey, "job": job, "status": status,
 			"saved_at": savedAt, "updated_at": updatedAt,
 		})
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, jobs)
 }
@@ -414,7 +419,13 @@ func (s *Server) handleListAutopilotRuns(w http.ResponseWriter, r *http.Request)
 		s.respondError(w, http.StatusUnauthorized, "User not found in context")
 		return
 	}
-	rows, err := s.DB.Conn.QueryContext(r.Context(), "SELECT run_id, config, status, progress, current_step, logs, applications_created, error, created_at, updated_at FROM autopilot_runs WHERE user_id=$1 ORDER BY created_at DESC", user.ID)
+	rows, err := s.DB.Conn.QueryContext(r.Context(), `
+		SELECT run_id, config, status, progress, current_step, logs, applications_created, error, created_at, updated_at
+		FROM autopilot_runs
+		WHERE user_id = $1
+		ORDER BY created_at DESC
+		LIMIT 50
+	`, user.ID)
 	if err != nil {
 		log.Printf("handleListAutopilotRuns: query failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to fetch runs")
@@ -429,13 +440,18 @@ func (s *Server) handleListAutopilotRuns(w http.ResponseWriter, r *http.Request)
 		var progress, appsCreated int
 		var createdAt, updatedAt time.Time
 		if err := rows.Scan(&runID, &config, &status, &progress, &currentStep, &logs, &appsCreated, &errMsg, &createdAt, &updatedAt); err != nil {
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan autopilot run")
+			return
 		}
 		runs = append(runs, map[string]interface{}{
 			"run_id": runID.String, "config": config, "status": status.String, "progress": progress,
 			"current_step": currentStep.String, "logs": logs, "applications_created": appsCreated,
 			"error": errMsg.String, "created_at": createdAt, "updated_at": updatedAt,
 		})
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, runs)
 }
@@ -639,7 +655,8 @@ func (s *Server) handleListApplications(w http.ResponseWriter, r *http.Request) 
 		var colTitle, colCompany, colLocation string
 		var colStage sql.NullString
 		if err := rows.Scan(&a.ID, &a.ApplicationID, &runID, &a.Job, &a.TailoredResumeText, &a.CoverLetter, &a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter, &a.IsDreamCompany, &a.Status, &a.SubmissionMode, &a.ApplyURL, &a.CreatedAt, &a.UpdatedAt, &colTitle, &colCompany, &colLocation, &colStage); err != nil {
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan application record")
+			return
 		}
 		if runID.Valid {
 			a.RunID = runID.String
@@ -676,6 +693,10 @@ func (s *Server) handleListApplications(w http.ResponseWriter, r *http.Request) 
 			"submission_mode": a.SubmissionMode, "apply_url": a.ApplyURL,
 			"created_at": a.CreatedAt, "updated_at": a.UpdatedAt,
 		})
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, apps)
 }
@@ -940,13 +961,18 @@ func (s *Server) handleListSchedules(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var sch models.AutopilotSchedule
 		if err := rows.Scan(&sch.ScheduleID, &sch.Frequency, &sch.Config, &sch.Active, &sch.NextRunAt, &sch.LastRunAt, &sch.CreatedAt); err != nil {
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan schedule")
+			return
 		}
 		schedules = append(schedules, map[string]interface{}{
 			"schedule_id": sch.ScheduleID, "frequency": sch.Frequency, "config": sch.Config,
 			"active": sch.Active, "next_run_at": sch.NextRunAt, "last_run_at": sch.LastRunAt,
 			"created_at": sch.CreatedAt,
 		})
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, schedules)
 }
@@ -1561,12 +1587,17 @@ func (s *Server) handleCommunicationStats(w http.ResponseWriter, r *http.Request
 	for rows.Next() {
 		var ts typeStat
 		if err := rows.Scan(&ts.CommType, &ts.Total, &ts.Responded, &ts.NoResponse); err != nil {
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan communication stats")
+			return
 		}
 		if ts.Total > 0 {
 			ts.ResponseRate = int(float64(ts.Responded) / float64(ts.Total) * 100)
 		}
 		stats = append(stats, ts)
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 	if stats == nil {
 		stats = []typeStat{}
@@ -1590,7 +1621,7 @@ func (s *Server) handleCommunicationSuggestions(w http.ResponseWriter, r *http.R
 	`, user.ID)
 	if err != nil {
 		log.Printf("handleCommunicationSuggestions: query failed: %v", err)
-		s.respondJSON(w, http.StatusOK, map[string]interface{}{"suggestions": []interface{}{}})
+		s.respondError(w, http.StatusInternalServerError, "Failed to query communication suggestions")
 		return
 	}
 	defer rows.Close()
@@ -1602,7 +1633,8 @@ func (s *Server) handleCommunicationSuggestions(w http.ResponseWriter, r *http.R
 		var createdAt, updatedAt time.Time
 		var jobTitle, companyName string
 		if err := rows.Scan(&appID, &status, &createdAt, &updatedAt, &jobTitle, &companyName); err != nil {
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan communication suggestion")
+			return
 		}
 		var suggestionType, timing string
 		daysSince := int(now.Sub(updatedAt).Hours() / 24)
@@ -1647,6 +1679,10 @@ func (s *Server) handleCommunicationSuggestions(w http.ResponseWriter, r *http.R
 				"timing_note":     timing,
 			})
 		}
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{"suggestions": suggestions})
 }

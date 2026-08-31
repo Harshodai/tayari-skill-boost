@@ -162,7 +162,8 @@ func (s *Server) handleListResumeVariants(w http.ResponseWriter, r *http.Request
 		err := rows.Scan(&v.ID, &v.ResumeID, &v.Name, &v.OriginalText, &createdAtTime, &v.Pulls, &v.Conversions)
 		if err != nil {
 			log.Printf("handleListResumeVariants: scan failed: %v", err)
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan resume variant")
+			return
 		}
 
 		pythonPayload := map[string]string{
@@ -183,6 +184,11 @@ func (s *Server) handleListResumeVariants(w http.ResponseWriter, r *http.Request
 		}
 		v.Scores = scores
 		variants = append(variants, v)
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("handleListResumeVariants: rows iteration failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to iterate resume variants")
+		return
 	}
 
 	s.respondJSON(w, http.StatusOK, variants)
@@ -220,9 +226,17 @@ func (s *Server) handleGetFunnel(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var status string
 		var count int
-		if err := rows.Scan(&status, &count); err == nil {
-			stages[status] = count
+		if err := rows.Scan(&status, &count); err != nil {
+			log.Printf("handleGetFunnel: scan failed: %v", err)
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan funnel stage count")
+			return
 		}
+		stages[status] = count
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("handleGetFunnel: rows iteration failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to iterate funnel data")
+		return
 	}
 
 	s.respondJSON(w, http.StatusOK, stages)
@@ -263,10 +277,18 @@ func (s *Server) handleGetBanditStats(w http.ResponseWriter, r *http.Request) {
 
 	stats := []BanditStat{}
 	for rows.Next() {
-		var s BanditStat
-		if err := rows.Scan(&s.VariantID, &s.Name, &s.ResumeTitle, &s.Pulls, &s.Conversions); err == nil {
-			stats = append(stats, s)
+		var stat BanditStat
+		if err := rows.Scan(&stat.VariantID, &stat.Name, &stat.ResumeTitle, &stat.Pulls, &stat.Conversions); err != nil {
+			log.Printf("handleGetBanditStats: scan failed: %v", err)
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan bandit stats")
+			return
 		}
+		stats = append(stats, stat)
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("handleGetBanditStats: rows iteration failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to iterate bandit stats")
+		return
 	}
 
 	s.respondJSON(w, http.StatusOK, stats)

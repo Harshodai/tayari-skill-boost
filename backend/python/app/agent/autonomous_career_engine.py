@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import urllib.parse
 import uuid
@@ -42,6 +43,8 @@ PORTAL_DOMAIN_MAP = {
     "simplyhired.com": "SimplyHired",
 }
 
+_GLOBAL_PENDING_HITL_APPROVALS: Dict[str, Dict[str, Any]] = {}
+
 class AutonomousCareerEngine:
     """
     Executive Career Automation Engine.
@@ -49,8 +52,10 @@ class AutonomousCareerEngine:
     and compensation strategy templates.
     """
 
-    def __init__(self, workspace_path: str = "./"):
-        self.agent = GeneralistAgentEngine(workspace_path=workspace_path)
+    def __init__(self, workspace_path: str = "./", user_id: Optional[str] = None):
+        self.workspace_path = workspace_path
+        self.user_id = user_id
+        self.agent = GeneralistAgentEngine(workspace_path=workspace_path, user_id=user_id)
         self.email_connector = EmailConnector()
         self.interview_board = InterviewBoardEngine()
         self.pending_hitl_approvals: Dict[str, Dict[str, Any]] = {}
@@ -80,8 +85,14 @@ class AutonomousCareerEngine:
             "current_kanban_board": self.interview_board.get_kanban_board()
         }
 
-    async def prepare_ats_keyword_optimization_hitl(self, resume_text: str, job_description: str) -> Dict[str, Any]:
-        """Run the real optimizer and hold its result for explicit review."""
+    async def prepare_ats_keyword_optimization_hitl(
+        self,
+        resume_text: str,
+        job_description: str,
+        *,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Run the real optimizer and hold its result for explicit review with cryptographic bindings."""
         if not resume_text.strip() or not job_description.strip():
             raise ValueError("resume_text and job_description are required")
 
@@ -105,36 +116,106 @@ class AutonomousCareerEngine:
             before = before.get("score")
         after = analysis.get("new_heuristic_score", analysis.get("estimated_score"))
         approval_id = f"HITL-ATS-{uuid.uuid4().hex[:12].upper()}"
+
+        resume_hash = hashlib.sha256(resume_text.encode("utf-8")).hexdigest()
+        jd_hash = hashlib.sha256(job_description.encode("utf-8")).hexdigest()
+        proposal_hash = hashlib.sha256(f"{approval_id}:{resume_hash}:{jd_hash}:{after}".encode("utf-8")).hexdigest()
+
+        effective_user_id = user_id or self.user_id
         proposal = {
             "approval_id": approval_id,
+            "user_id": effective_user_id,
             "status": "PENDING_USER_APPROVAL",
             "is_sample_data": False,
             "extracted_keywords": extracted_keywords,
             "predicted_ats_score_before": before,
             "predicted_ats_score_after": after,
+            "resume_hash": resume_hash,
+            "jd_hash": jd_hash,
+            "proposal_hash": proposal_hash,
             "resume_preview_with_keywords": analysis.get("optimized_text", ""),
             "optimization_summary": analysis.get("optimization_summary", {}),
             "alignment_report": analysis.get("alignment_report", {}),
         }
         self.pending_hitl_approvals[approval_id] = proposal
+        _GLOBAL_PENDING_HITL_APPROVALS[approval_id] = proposal
+
+        # Persist to durable shared storage if user and DB are available
+        if effective_user_id:
+            try:
+                from app.services.agent_db import create_runtime_approval
+                await create_runtime_approval(
+                    user_id=effective_user_id,
+                    task_id=None,
+                    agent_id="autonomous_career_engine",
+                    tool_name="ats_keyword_optimization",
+                    tool_input=proposal,
+                    content_preview=f"ATS Keyword Optimization (Score: {after})",
+                )
+            except Exception:
+                pass
+
         return proposal
 
-    async def confirm_ats_keyword_optimization_hitl(self, approval_id: str, approved: bool, custom_keywords: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Accept or reject a real optimizer result after user review."""
-        item = self.pending_hitl_approvals.get(approval_id)
+    async def confirm_ats_keyword_optimization_hitl(
+        self,
+        approval_id: str,
+        approved: bool,
+        custom_keywords: Optional[List[str]] = None,
+        expected_proposal_hash: Optional[str] = None,
+        *,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Accept or reject a real optimizer result after user review, verifying artifact hash binding."""
+        item = self.pending_hitl_approvals.get(approval_id) or _GLOBAL_PENDING_HITL_APPROVALS.get(approval_id)
+        effective_user_id = user_id or self.user_id
+
+        # Fallback to durable shared storage for replica-safety / LRU eviction recovery
+        if item is None and effective_user_id:
+            try:
+                from app.services.agent_db import list_runtime_approvals
+                approvals = await list_runtime_approvals(effective_user_id)
+                for app in approvals:
+                    if app.get("tool_name") == "ats_keyword_optimization":
+                        t_input = app.get("tool_input")
+                        if isinstance(t_input, dict) and t_input.get("approval_id") == approval_id:
+                            item = t_input
+                            self.pending_hitl_approvals[approval_id] = item
+                            _GLOBAL_PENDING_HITL_APPROVALS[approval_id] = item
+                            break
+            except Exception:
+                pass
+
         if item is None:
             return {"success": False, "error": f"Approval ID '{approval_id}' not found."}
+        if expected_proposal_hash and item.get("proposal_hash") and expected_proposal_hash != item["proposal_hash"]:
+            return {"success": False, "error": "Proposal hash mismatch; proposal has changed."}
         if not approved:
             item["status"] = "REJECTED_BY_USER"
+            if effective_user_id:
+                try:
+                    from app.services.agent_db import update_runtime_approval
+                    await update_runtime_approval(effective_user_id, approval_id, "rejected", "Rejected by candidate")
+                except Exception:
+                    pass
             return {"success": True, "status": "REJECTED_BY_USER", "message": "ATS Optimization cancelled by user."}
 
         item["status"] = "APPROVED_AND_READY"
         if custom_keywords:
             item["approved_keywords"] = list(dict.fromkeys(custom_keywords))[:30]
+
+        if effective_user_id:
+            try:
+                from app.services.agent_db import update_runtime_approval
+                await update_runtime_approval(effective_user_id, approval_id, "approved", "Approved by candidate")
+            except Exception:
+                pass
+
         return {
             "success": True,
             "approval_id": approval_id,
             "status": item["status"],
+            "proposal_hash": item.get("proposal_hash"),
             "final_keywords": item.get("approved_keywords", item["extracted_keywords"]),
             "final_ats_score": item.get("predicted_ats_score_after"),
             "optimized_text": item.get("resume_preview_with_keywords", ""),

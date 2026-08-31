@@ -219,9 +219,14 @@ func (s *Server) handleListAutomations(w http.ResponseWriter, r *http.Request) {
 		var name, objective, triggerType, status, policyVersion string
 		var createdAt, updatedAt time.Time
 		if err := rows.Scan(&id, &name, &objective, &triggerType, &status, &policyVersion, &createdAt, &updatedAt); err != nil {
-			continue
+			s.respondError(w, http.StatusInternalServerError, "failed to scan automation definition")
+			return
 		}
 		items = append(items, map[string]any{"id": id, "name": name, "objective": objective, "trigger_type": triggerType, "status": status, "policy_version": policyVersion, "created_at": createdAt, "updated_at": updatedAt})
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "database iteration error")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, map[string]any{"automations": items})
 }
@@ -421,9 +426,15 @@ func (s *Server) handleListAutomationEvents(w http.ResponseWriter, r *http.Reque
 		var eventType string
 		var payload json.RawMessage
 		var createdAt time.Time
-		if rows.Scan(&sequence, &eventType, &payload, &createdAt) == nil {
-			events = append(events, map[string]any{"sequence_no": sequence, "event_type": eventType, "payload": payload, "created_at": createdAt})
+		if err := rows.Scan(&sequence, &eventType, &payload, &createdAt); err != nil {
+			s.respondError(w, http.StatusInternalServerError, "failed to scan automation event")
+			return
 		}
+		events = append(events, map[string]any{"sequence_no": sequence, "event_type": eventType, "payload": payload, "created_at": createdAt})
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "database iteration error")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, map[string]any{"events": events})
 }
@@ -543,9 +554,15 @@ func (s *Server) handleListAutomationApprovals(w http.ResponseWriter, r *http.Re
 		var expiresAt time.Time
 		var channel sql.NullString
 		var decidedAt, createdAt sql.NullTime
-		if rows.Scan(&id, &runID, &actionType, &riskTier, &summary, &status, &expiresAt, &channel, &decidedAt, &createdAt) == nil {
-			items = append(items, map[string]any{"id": id, "run_id": runID, "action_type": actionType, "risk_tier": riskTier, "summary": summary, "status": status, "expires_at": expiresAt, "decision_channel": channel.String, "decided_at": decidedAt.Time, "created_at": createdAt.Time})
+		if err := rows.Scan(&id, &runID, &actionType, &riskTier, &summary, &status, &expiresAt, &channel, &decidedAt, &createdAt); err != nil {
+			s.respondError(w, http.StatusInternalServerError, "failed to scan approval request")
+			return
 		}
+		items = append(items, map[string]any{"id": id, "run_id": runID, "action_type": actionType, "risk_tier": riskTier, "summary": summary, "status": status, "expires_at": expiresAt, "decision_channel": channel.String, "decided_at": decidedAt.Time, "created_at": createdAt.Time})
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "database iteration error")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, map[string]any{"approvals": items})
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -426,11 +427,7 @@ func (s *Server) handleListApplicationsKanban(w http.ResponseWriter, r *http.Req
 	}
 	stage := r.URL.Query().Get("stage")
 
-	var rows interface {
-		Close() error
-		Next() bool
-		Scan(...interface{}) error
-	}
+	var rows *sql.Rows
 	var err error
 	const baseQ = `SELECT application_id, COALESCE(title,''), COALESCE(company,''), COALESCE(location,''),
 		COALESCE(job_url,''), COALESCE(status,'saved'), COALESCE(stage,'saved'),
@@ -476,13 +473,18 @@ func (s *Server) handleListApplicationsKanban(w http.ResponseWriter, r *http.Req
 			&a.Status, &a.Stage, &a.Notes,
 			&notesLog, &voiceNotes, &interviewResearch, &coverLetterData,
 			&a.CreatedAt, &a.UpdatedAt); err != nil {
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan application row")
+			return
 		}
 		a.NotesLog = json.RawMessage(notesLog)
 		a.VoiceNotes = json.RawMessage(voiceNotes)
 		a.InterviewResearch = json.RawMessage(interviewResearch)
 		a.CoverLetterData = json.RawMessage(coverLetterData)
 		apps = append(apps, a)
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 	if apps == nil {
 		apps = []AppRow{}
@@ -511,6 +513,12 @@ func (s *Server) handleCreateApplicationKanban(w http.ResponseWriter, r *http.Re
 	if req.Stage == "" {
 		req.Stage = "saved"
 	}
+	normStage, ok := normalizeApplicationStatus(req.Stage)
+	if !ok {
+		s.respondError(w, http.StatusUnprocessableEntity, "invalid application stage")
+		return
+	}
+	req.Stage = normStage
 	id := uuid.New()
 	if _, err := s.DB.Conn.ExecContext(r.Context(), "INSERT INTO auth.users (id, email) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", user.ID, user.Email); err != nil {
 		log.Printf("handleCreateApplicationKanban: auth.users insert error: %v", err)
@@ -557,6 +565,15 @@ func (s *Server) handleUpdateApplicationKanban(w http.ResponseWriter, r *http.Re
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
+	stageVal := nullStr(req, "stage")
+	if stageVal != nil && *stageVal != "" {
+		normStage, ok := normalizeApplicationStatus(*stageVal)
+		if !ok {
+			s.respondError(w, http.StatusUnprocessableEntity, "invalid application stage")
+			return
+		}
+		*stageVal = normStage
+	}
 	// Simple partial update: title, company, location, job_url, stage, notes
 	_, err := s.DB.Conn.ExecContext(r.Context(), `
 		UPDATE applications SET
@@ -569,7 +586,7 @@ func (s *Server) handleUpdateApplicationKanban(w http.ResponseWriter, r *http.Re
 		WHERE (application_id::text=$1 OR id::text=$1) AND user_id=$2`,
 		appID, user.ID,
 		nullStr(req, "title"), nullStr(req, "company"),
-		nullStr(req, "stage"), nullStr(req, "notes"),
+		stageVal, nullStr(req, "notes"),
 	)
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, "Failed to update application")
@@ -613,6 +630,12 @@ func (s *Server) handleUpdateApplicationStage(w http.ResponseWriter, r *http.Req
 		s.respondError(w, http.StatusUnprocessableEntity, "stage is required")
 		return
 	}
+	normStage, ok := normalizeApplicationStatus(req.Stage)
+	if !ok {
+		s.respondError(w, http.StatusUnprocessableEntity, "invalid application stage")
+		return
+	}
+	req.Stage = normStage
 	_, err := s.DB.Conn.ExecContext(r.Context(), `
 		UPDATE applications SET stage=$1, status=$1, updated_at=NOW()
 		WHERE (application_id::text=$2 OR id::text=$2) AND user_id=$3`,

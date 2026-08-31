@@ -42,7 +42,7 @@ export default defineTool({
         description: description ?? null,
         status: status ?? "saved",
       })
-      .select()
+      .select("id, title, company, location, url, status, created_at")
       .single();
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {

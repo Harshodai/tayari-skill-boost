@@ -99,7 +99,8 @@ func (s *Server) handleListReviewQueue(w http.ResponseWriter, r *http.Request) {
 			&aiSuggestion, &aiConfidence, &reviewNotes, &queuedAt, &reviewedAt,
 			&a.CreatedAt, &a.UpdatedAt,
 		); err != nil {
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan review queue item")
+			return
 		}
 		appMap := map[string]interface{}{
 			"id":                   a.ID,
@@ -144,6 +145,8 @@ func (s *Server) handleListReviewQueue(w http.ResponseWriter, r *http.Request) {
 
 	if err := rows.Err(); err != nil {
 		log.Printf("handleListReviewQueue: rows iteration error: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 
 	s.respondJSON(w, http.StatusOK, apps)
@@ -487,7 +490,8 @@ func (s *Server) handleReviewQueueHistory(w http.ResponseWriter, r *http.Request
 		var metadata models.JSONMap
 		var createdAt time.Time
 		if err := rows.Scan(&action, &prevStatus, &newStatus, &notes, &metadata, &createdAt); err != nil {
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan review history")
+			return
 		}
 		history = append(history, map[string]interface{}{
 			"action":          action,
@@ -497,6 +501,10 @@ func (s *Server) handleReviewQueueHistory(w http.ResponseWriter, r *http.Request
 			"metadata":        metadata,
 			"created_at":      createdAt,
 		})
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{

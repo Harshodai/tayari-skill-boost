@@ -22,12 +22,19 @@ export default defineTool({
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
+    const sanitizedQuery = query.replace(/[(),"%:]/g, "").trim();
+    if (!sanitizedQuery) {
+      return {
+        content: [{ type: "text", text: JSON.stringify([]) }],
+        structuredContent: { rows: [] },
+      };
+    }
     const client = sb(ctx);
     const { data, error } = await client
       .from("saved_jobs")
       .select("id,title,company,location,url,status,created_at")
       .eq("user_id", ctx.getUserId())
-      .or(`title.ilike.%${query}%,company.ilike.%${query}%`)
+      .or(`title.ilike.%${sanitizedQuery}%,company.ilike.%${sanitizedQuery}%`)
       .limit(limit ?? 20);
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {

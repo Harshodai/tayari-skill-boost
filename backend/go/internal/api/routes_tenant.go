@@ -3,8 +3,6 @@ package api
 import (
 	"log"
 	"net/http"
-	"strconv"
-	"strings"
 
 	"tayari-backend/internal/auth"
 	"tayari-backend/internal/models"
@@ -109,9 +107,15 @@ func (s *Server) handleListAdvisorCohorts(w http.ResponseWriter, r *http.Request
 		var c models.Cohort
 		if err := rows.Scan(&c.ID, &c.TenantID, &c.Name, &c.CreatedAt); err != nil {
 			log.Printf("handleListAdvisorCohorts: scan error: %v", err)
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan cohort")
+			return
 		}
 		cohorts = append(cohorts, c)
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("handleListAdvisorCohorts: rows iteration error: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 
 	s.respondJSON(w, http.StatusOK, cohorts)
@@ -126,27 +130,28 @@ func (s *Server) handleCreateAdvisorCohort(w http.ResponseWriter, r *http.Reques
 	var req struct {
 		Name string `json:"name"`
 	}
-	if err := DecodeAndValidate(r, &req); err != nil {
-		s.respondError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-	req.Name = strings.TrimSpace(req.Name)
-	if req.Name == "" {
-		s.respondError(w, http.StatusBadRequest, "Cohort name is required")
+	if err := DecodeAndValidate(r, &req); err != nil || req.Name == "" {
+		s.respondError(w, http.StatusBadRequest, "Invalid cohort name")
 		return
 	}
 
-	var c models.Cohort
-	err := s.DB.Conn.QueryRowContext(r.Context(),
-		"INSERT INTO cohorts (tenant_id, name) VALUES ($1, $2) RETURNING id, tenant_id, name, created_at",
-		tenant.ID, req.Name).Scan(&c.ID, &c.TenantID, &c.Name, &c.CreatedAt)
+	cohortID := uuid.New()
+	_, err := s.DB.Conn.ExecContext(r.Context(),
+		`INSERT INTO cohorts (id, tenant_id, name, created_at)
+		 VALUES ($1, $2, $3, NOW())`,
+		cohortID, tenant.ID, req.Name,
+	)
 	if err != nil {
-		log.Printf("handleCreateAdvisorCohort: insert error: %v", err)
+		log.Printf("handleCreateAdvisorCohort: failed to create cohort: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to create cohort")
 		return
 	}
 
-	s.respondJSON(w, http.StatusCreated, c)
+	s.respondJSON(w, http.StatusCreated, map[string]interface{}{
+		"id":        cohortID.String(),
+		"tenant_id": tenant.ID.String(),
+		"name":      req.Name,
+	})
 }
 
 type StudentProgress struct {
@@ -154,7 +159,7 @@ type StudentProgress struct {
 	FullName          string  `json:"full_name"`
 	Email             string  `json:"email"`
 	Headline          string  `json:"headline"`
-	CohortID          *int    `json:"cohort_id"`
+	CohortID          *uuid.UUID `json:"cohort_id"`
 	CohortName        string  `json:"cohort_name"`
 	ResumeCount       int     `json:"resume_count"`
 	AvgInterviewScore float64 `json:"avg_interview_score"`
@@ -166,37 +171,35 @@ func (s *Server) handleListAdvisorStudents(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	cohortIDStr := r.URL.Query().Get("cohort_id")
+	cohortIDFilter := r.URL.Query().Get("cohort_id")
 
-	var query string
-	var args []interface{}
-	args = append(args, tenant.ID)
+	query := `
+		SELECT
+			u.id,
+			p.full_name,
+			u.email,
+			p.headline,
+			m.cohort_id,
+			COALESCE(c.name, 'Unassigned') as cohort_name,
+			(SELECT COUNT(*) FROM resumes r WHERE r.user_id = u.id) as resume_count,
+			(SELECT COALESCE(AVG(score), 0) FROM interview_scores iscore WHERE iscore.user_id = u.id) as avg_interview_score
+		FROM auth.users u
+		JOIN memberships m ON m.user_id = u.id
+		LEFT JOIN profiles p ON p.id = u.id
+		LEFT JOIN cohorts c ON c.id = m.cohort_id
+		WHERE m.tenant_id = $1
+	`
+	args := []interface{}{tenant.ID}
 
-	if cohortIDStr != "" {
-		cohortID, err := strconv.Atoi(cohortIDStr)
-		if err != nil {
-			s.respondError(w, http.StatusBadRequest, "Invalid cohort_id")
-			return
+	if cohortIDFilter != "" {
+		cohortUUID, err := uuid.Parse(cohortIDFilter)
+		if err == nil {
+			query += ` AND m.cohort_id = $2`
+			args = append(args, cohortUUID)
 		}
-		query = `
-			SELECT p.id, COALESCE(p.full_name, ''), p.email, COALESCE(p.headline, ''), p.cohort_id, COALESCE(c.name, ''),
-				(SELECT COUNT(*) FROM resumes r WHERE r.user_id = p.id) as resume_count,
-				COALESCE((SELECT AVG(iscore.overall_score) FROM public.interview_scores iscore JOIN public.interview_sessions sess ON iscore.session_id = sess.id WHERE sess.user_id = p.id), 0) as avg_interview_score
-			FROM profiles p
-			LEFT JOIN cohorts c ON p.cohort_id = c.id
-			WHERE p.tenant_id = $1 AND p.cohort_id = $2
-			ORDER BY p.full_name ASC`
-		args = append(args, cohortID)
-	} else {
-		query = `
-			SELECT p.id, COALESCE(p.full_name, ''), p.email, COALESCE(p.headline, ''), p.cohort_id, COALESCE(c.name, ''),
-				(SELECT COUNT(*) FROM resumes r WHERE r.user_id = p.id) as resume_count,
-				COALESCE((SELECT AVG(iscore.overall_score) FROM public.interview_scores iscore JOIN public.interview_sessions sess ON iscore.session_id = sess.id WHERE sess.user_id = p.id), 0) as avg_interview_score
-			FROM profiles p
-			LEFT JOIN cohorts c ON p.cohort_id = c.id
-			WHERE p.tenant_id = $1
-			ORDER BY p.full_name ASC`
 	}
+
+	query += ` ORDER BY p.full_name ASC`
 
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, args...)
 	if err != nil {
@@ -212,10 +215,16 @@ func (s *Server) handleListAdvisorStudents(w http.ResponseWriter, r *http.Reques
 		var userID uuid.UUID
 		if err := rows.Scan(&userID, &sp.FullName, &sp.Email, &sp.Headline, &sp.CohortID, &sp.CohortName, &sp.ResumeCount, &sp.AvgInterviewScore); err != nil {
 			log.Printf("handleListAdvisorStudents: scan error: %v", err)
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan student progress")
+			return
 		}
 		sp.ID = userID.String()
 		students = append(students, sp)
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("handleListAdvisorStudents: rows iteration error: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 
 	s.respondJSON(w, http.StatusOK, students)

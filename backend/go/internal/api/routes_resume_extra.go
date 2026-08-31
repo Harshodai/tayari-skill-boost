@@ -259,7 +259,7 @@ func (s *Server) handleListJDs(w http.ResponseWriter, r *http.Request) {
 		user.ID.String(),
 	)
 	if err != nil {
-		s.respondJSON(w, http.StatusOK, []models.JobDescription{})
+		s.respondError(w, http.StatusInternalServerError, "Failed to query job descriptions")
 		return
 	}
 	defer rows.Close()
@@ -267,9 +267,15 @@ func (s *Server) handleListJDs(w http.ResponseWriter, r *http.Request) {
 	list := []models.JobDescription{}
 	for rows.Next() {
 		var jd models.JobDescription
-		if err := rows.Scan(&jd.ID, &jd.UserID, &jd.Title, &jd.Company, &jd.Text, &jd.CreatedAt); err == nil {
-			list = append(list, jd)
+		if err := rows.Scan(&jd.ID, &jd.UserID, &jd.Title, &jd.Company, &jd.Text, &jd.CreatedAt); err != nil {
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan job description")
+			return
 		}
+		list = append(list, jd)
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, list)
 }

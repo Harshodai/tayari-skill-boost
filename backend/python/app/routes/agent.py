@@ -95,6 +95,7 @@ class ATSConfirmRequest(BaseModel):
     approval_id: str
     approved: bool
     custom_keywords: Optional[List[str]] = None
+    expected_proposal_hash: Optional[str] = None
 
 class UniversalApplyRequest(BaseModel):
     # ponytail: enforce a non-empty, bounded URL list so the universal apply flow
@@ -354,9 +355,16 @@ async def ats_prepare(req: ATSPrepareRequest, user_id: str = Depends(get_current
 @router.post("/career/ats-confirm")
 async def ats_confirm(req: ATSConfirmRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = await _career_engine_for(user_id).confirm_ats_keyword_optimization_hitl(req.approval_id, req.approved, req.custom_keywords)
+        res = await _career_engine_for(user_id).confirm_ats_keyword_optimization_hitl(
+            req.approval_id,
+            req.approved,
+            req.custom_keywords,
+            expected_proposal_hash=req.expected_proposal_hash,
+        )
         if res.get("success") is False:
-            raise HTTPException(status_code=404, detail=res.get("error", "ATS approval not found."))
+            err = res.get("error", "ATS approval not found.")
+            status_code = 409 if "mismatch" in err.lower() else 404
+            raise HTTPException(status_code=status_code, detail=err)
         return {"success": True, "data": res}
     except HTTPException:
         raise

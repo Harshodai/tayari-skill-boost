@@ -241,13 +241,28 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, 400, "input files are invalid")
 		return
 	}
+	tx, err := s.DB.Conn.BeginTx(r.Context(), nil)
+	if err != nil {
+		s.respondError(w, 500, "failed to begin transaction")
+		return
+	}
+	defer tx.Rollback()
+
 	id := uuid.New().String()
-	_, err = s.DB.Conn.ExecContext(r.Context(), `INSERT INTO task_runs (id,user_id,title,objective,input_files,status) VALUES ($1,$2,$3,$4,$5,'awaiting_plan_approval')`, id, uid, strings.TrimSpace(req.Title), strings.TrimSpace(req.Objective), inputFiles)
+	_, err = tx.ExecContext(r.Context(), `INSERT INTO task_runs (id,user_id,title,objective,input_files,status) VALUES ($1,$2,$3,$4,$5,'awaiting_plan_approval')`, id, uid, strings.TrimSpace(req.Title), strings.TrimSpace(req.Objective), inputFiles)
 	if err != nil {
 		s.respondError(w, 500, "failed to create task")
 		return
 	}
-	_, _ = s.DB.Conn.ExecContext(r.Context(), `INSERT INTO task_events (task_id,user_id,event_type,payload) VALUES ($1,$2,'task.created',$3)`, id, uid, []byte(`{"status":"awaiting_plan_approval"}`))
+	_, err = tx.ExecContext(r.Context(), `INSERT INTO task_events (task_id,user_id,event_type,payload) VALUES ($1,$2,'task.created',$3)`, id, uid, []byte(`{"status":"awaiting_plan_approval"}`))
+	if err != nil {
+		s.respondError(w, 500, "failed to record initial task event")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		s.respondError(w, 500, "failed to commit task creation")
+		return
+	}
 	s.writeTask(w, r, id, uid, 201)
 }
 func (s *Server) writeTask(w http.ResponseWriter, r *http.Request, id, uid string, status int) {
@@ -277,10 +292,15 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	result := []taskRecord{}
 	for rows.Next() {
 		var item taskRecord
-		if err := rows.Scan(&item.ID, &item.Title, &item.Objective, &item.InputFiles, &item.Status, &item.StopRequestedAt, &item.TakeoverRequestedAt, &item.Version, &item.CreatedAt, &item.UpdatedAt); err == nil {
-
-			result = append(result, item)
+		if err := rows.Scan(&item.ID, &item.Title, &item.Objective, &item.InputFiles, &item.Status, &item.StopRequestedAt, &item.TakeoverRequestedAt, &item.Version, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			s.respondError(w, 500, "failed to scan task record")
+			return
 		}
+		result = append(result, item)
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, 500, "failed to iterate task records")
+		return
 	}
 	s.respondJSON(w, 200, map[string]any{"tasks": result})
 }
@@ -450,11 +470,21 @@ func (s *Server) handleListTaskArtifacts(w http.ResponseWriter, r *http.Request)
 	artifacts := []taskArtifactRecord{}
 	for rows.Next() {
 		var artifact taskArtifactRecord
-		if err := rows.Scan(&artifact.ID, &artifact.TaskID, &artifact.ArtifactType, &artifact.Title, &artifact.ContentType, &artifact.Body, &artifact.Provenance, &artifact.CreatedAt, &artifact.UpdatedAt); err == nil {
-			artifacts = append(artifacts, artifact)
+		if err := rows.Scan(&artifact.ID, &artifact.TaskID, &artifact.ArtifactType, &artifact.Title, &artifact.ContentType, &artifact.Body, &artifact.Provenance, &artifact.CreatedAt, &artifact.UpdatedAt); err != nil {
+			s.respondError(w, 500, "failed to scan task artifact")
+			return
 		}
+		artifacts = append(artifacts, artifact)
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, 500, "failed to iterate task artifacts")
+		return
 	}
 	s.respondJSON(w, 200, map[string]any{"artifacts": artifacts})
+}
+
+type planDecisionRequest struct {
+	PlanVersion *int64 `json:"plan_version,omitempty"`
 }
 
 func (s *Server) handlePlanDecision(w http.ResponseWriter, r *http.Request, approved bool) {
@@ -471,6 +501,12 @@ func (s *Server) handlePlanDecision(w http.ResponseWriter, r *http.Request, appr
 	if !s.legacyTaskApprovalReady(w) {
 		return
 	}
+
+	var req planDecisionRequest
+	if r.Body != nil && r.ContentLength > 0 {
+		_ = decodeTaskJSON(r, &req)
+	}
+
 	status := "rejected"
 	taskStatus := "awaiting_plan_approval"
 	if approved {
@@ -483,14 +519,20 @@ func (s *Server) handlePlanDecision(w http.ResponseWriter, r *http.Request, appr
 		return
 	}
 	defer tx.Rollback()
-	res, err := tx.ExecContext(r.Context(), `UPDATE task_plans SET status=$3,approved_at=CASE WHEN $3='approved' THEN now() ELSE NULL END WHERE task_id=$1 AND user_id=$2 AND status='proposed' AND version=(SELECT MAX(version) FROM task_plans WHERE task_id=$1 AND user_id=$2)`, id, uid, status)
+
+	var res sql.Result
+	if req.PlanVersion != nil {
+		res, err = tx.ExecContext(r.Context(), `UPDATE task_plans SET status=$3,approved_at=CASE WHEN $3='approved' THEN now() ELSE NULL END WHERE task_id=$1 AND user_id=$2 AND status='proposed' AND version=$4`, id, uid, status, *req.PlanVersion)
+	} else {
+		res, err = tx.ExecContext(r.Context(), `UPDATE task_plans SET status=$3,approved_at=CASE WHEN $3='approved' THEN now() ELSE NULL END WHERE task_id=$1 AND user_id=$2 AND status='proposed' AND version=(SELECT MAX(version) FROM task_plans WHERE task_id=$1 AND user_id=$2)`, id, uid, status)
+	}
 	if err != nil {
 		s.respondError(w, 500, "failed to decide plan")
 		return
 	}
 	n, _ := res.RowsAffected()
 	if n != 1 {
-		s.respondError(w, 409, "no proposed plan is available")
+		s.respondError(w, 409, "no matching proposed plan is available or plan version mismatch")
 		return
 	}
 	_, err = tx.ExecContext(r.Context(), `UPDATE task_runs SET status=$3,version=version+1,updated_at=now() WHERE id=$1 AND user_id=$2`, id, uid, taskStatus)
@@ -583,9 +625,15 @@ func (s *Server) handleListActionProposals(w http.ResponseWriter, r *http.Reques
 	result := []actionRecord{}
 	for rows.Next() {
 		var a actionRecord
-		if err := rows.Scan(&a.ID, &a.TaskID, &a.ActionType, &a.RiskTier, &a.SiteOrigin, &a.Payload, &a.Status, &a.DecidedAt, &a.CreatedAt); err == nil {
-			result = append(result, a)
+		if err := rows.Scan(&a.ID, &a.TaskID, &a.ActionType, &a.RiskTier, &a.SiteOrigin, &a.Payload, &a.Status, &a.DecidedAt, &a.CreatedAt); err != nil {
+			s.respondError(w, 500, "failed to scan action proposal")
+			return
 		}
+		result = append(result, a)
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, 500, "failed to iterate action proposals")
+		return
 	}
 	s.respondJSON(w, 200, map[string]any{"actions": result})
 }
@@ -668,9 +716,15 @@ func (s *Server) handleListTaskEvents(w http.ResponseWriter, r *http.Request) {
 		var kind string
 		var payload json.RawMessage
 		var created time.Time
-		if err := rows.Scan(&seq, &kind, &payload, &created); err == nil {
-			events = append(events, map[string]any{"sequence_no": seq, "event_type": kind, "payload": payload, "created_at": created})
+		if err := rows.Scan(&seq, &kind, &payload, &created); err != nil {
+			s.respondError(w, 500, "failed to scan task event")
+			return
 		}
+		events = append(events, map[string]any{"sequence_no": seq, "event_type": kind, "payload": payload, "created_at": created})
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, 500, "failed to iterate task events")
+		return
 	}
 	s.respondJSON(w, 200, map[string]any{"events": events})
 }

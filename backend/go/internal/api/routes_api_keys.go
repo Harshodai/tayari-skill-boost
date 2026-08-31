@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"tayari-backend/internal/models"
@@ -129,12 +130,17 @@ func (s *Server) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		var k keyRow
 		var lu pgtype.Timestamptz
 		if err := rows.Scan(&k.ID, &k.UserID, &k.Name, &k.KeyPrefix, &k.IsActive, &k.RateLimit, &k.CreatedAt, &lu); err != nil {
-			continue
+			s.respondError(w, http.StatusInternalServerError, "failed to scan API key")
+			return
 		}
 		if lu.Valid {
 			k.LastUsedAt = &lu.Time
 		}
 		keys = append(keys, k)
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "database iteration error")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, keys)
 }
@@ -145,19 +151,23 @@ func (s *Server) handleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusUnauthorized, "User not found in context")
 		return
 	}
-
 	id := chi.URLParam(r, "id")
+
 	res, err := s.DB.Conn.ExecContext(r.Context(),
-		`UPDATE api_keys SET is_active=false WHERE id=$1 AND user_id=$2`, id, u.ID)
+		`UPDATE api_keys SET is_active=false, updated_at=NOW() WHERE id=$1 AND user_id=$2`,
+		id, u.ID,
+	)
 	if err != nil {
+		log.Printf("handleRevokeAPIKey: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to revoke API key")
 		return
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	rowsAff, _ := res.RowsAffected()
+	if rowsAff == 0 {
 		s.respondError(w, http.StatusNotFound, "API key not found")
 		return
 	}
-	s.respondJSON(w, http.StatusOK, map[string]string{"status": "revoked"})
+	s.respondJSON(w, http.StatusOK, map[string]string{"message": "API key revoked"})
 }
 
 func (s *Server) handleAPIKeyUsage(w http.ResponseWriter, r *http.Request) {
@@ -166,44 +176,49 @@ func (s *Server) handleAPIKeyUsage(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusUnauthorized, "User not found in context")
 		return
 	}
-
 	id := chi.URLParam(r, "id")
 
-	var exists int
-	if err := s.DB.Conn.QueryRowContext(r.Context(),
-		`SELECT 1 FROM api_keys WHERE id=$1 AND user_id=$2`, id, u.ID).Scan(&exists); err != nil {
+	// Ensure the key belongs to the authenticated user before exposing usage
+	var keyOwner uuid.UUID
+	err := s.DB.Conn.QueryRowContext(r.Context(),
+		`SELECT user_id FROM api_keys WHERE id=$1`, id,
+	).Scan(&keyOwner)
+	if err != nil || keyOwner != u.ID {
 		s.respondError(w, http.StatusNotFound, "API key not found")
 		return
 	}
 
+	type usageRow struct {
+		Endpoint   string    `json:"endpoint"`
+		StatusCode int       `json:"status_code"`
+		ResponseMs int       `json:"response_ms"`
+		CreatedAt  time.Time `json:"created_at"`
+	}
 	rows, err := s.DB.Conn.QueryContext(r.Context(),
 		`SELECT endpoint, status_code, response_ms, created_at
-		 FROM api_usage WHERE api_key_id=$1 ORDER BY created_at DESC LIMIT 100`, id)
+		 FROM api_usage WHERE api_key_id=$1 ORDER BY created_at DESC LIMIT 50`,
+		id,
+	)
 	if err != nil {
-		s.respondError(w, http.StatusInternalServerError, "Failed to fetch usage")
+		log.Printf("handleGetAPIKeyUsage: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to query usage")
 		return
 	}
 	defer rows.Close()
 
-	type usageRow struct {
-		Endpoint   string    `json:"endpoint"`
-		StatusCode int       `json:"status_code"`
-		ResponseMs int       `json:"response_ms,omitempty"`
-		CreatedAt  time.Time `json:"created_at"`
-	}
-
 	usage := []usageRow{}
 	for rows.Next() {
 		var u usageRow
-		// ponytail: an unchecked Scan error used to append a zero-valued row
-		// (empty endpoint, status 0, zero time) into the response as if it
-		// were a real usage record — silently wrong data indistinguishable
-		// from a genuine row with an empty endpoint.
 		if err := rows.Scan(&u.Endpoint, &u.StatusCode, &u.ResponseMs, &u.CreatedAt); err != nil {
 			log.Printf("api_keys usage: scan failed: %v", err)
-			continue
+			s.respondError(w, http.StatusInternalServerError, "failed to scan API key usage")
+			return
 		}
 		usage = append(usage, u)
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "database iteration error")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, usage)
 }

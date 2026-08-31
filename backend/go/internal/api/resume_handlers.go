@@ -73,7 +73,8 @@ func (s *Server) handleListResumes(w http.ResponseWriter, r *http.Request) {
 		var createdAt, updatedAt time.Time
 		if err := rows.Scan(&id, &title, &fileType, &status, &createdAt, &updatedAt); err != nil {
 			log.Printf("handleListResumes: scan error: %v", err)
-			continue
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan resume record")
+			return
 		}
 		resumes = append(resumes, map[string]interface{}{
 			"id":         id,
@@ -86,6 +87,8 @@ func (s *Server) handleListResumes(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := rows.Err(); err != nil {
 		log.Printf("handleListResumes: rows iteration error: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
 	}
 	s.respondJSON(w, http.StatusOK, resumes)
 }

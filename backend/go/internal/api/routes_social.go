@@ -227,12 +227,15 @@ func (s *Server) handleListConnections(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var id, reqID, addr, status string
 		var createdAt time.Time
-		if err := rows.Scan(&id, &reqID, &addr, &status, &createdAt); err == nil {
-			list = append(list, map[string]interface{}{
-				"id": id, "requester_id": reqID, "addressee_id": addr,
-				"status": status, "created_at": createdAt.Format(time.RFC3339),
-			})
+		if err := rows.Scan(&id, &reqID, &addr, &status, &createdAt); err != nil {
+			log.Printf("handleListConnections: scan failed: %v", err)
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan connection")
+			return
 		}
+		list = append(list, map[string]interface{}{
+			"id": id, "requester_id": reqID, "addressee_id": addr,
+			"status": status, "created_at": createdAt.Format(time.RFC3339),
+		})
 	}
 	if err := rows.Err(); err != nil {
 		log.Printf("handleListConnections: rows iteration failed: %v", err)
@@ -262,12 +265,15 @@ func (s *Server) handleListPendingConnections(w http.ResponseWriter, r *http.Req
 	for rows.Next() {
 		var id, reqID, status string
 		var createdAt time.Time
-		if err := rows.Scan(&id, &reqID, &status, &createdAt); err == nil {
-			list = append(list, map[string]interface{}{
-				"id": id, "requester_id": reqID, "status": status,
-				"created_at": createdAt.Format(time.RFC3339),
-			})
+		if err := rows.Scan(&id, &reqID, &status, &createdAt); err != nil {
+			log.Printf("handleListPendingConnections: scan failed: %v", err)
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan pending connection")
+			return
 		}
+		list = append(list, map[string]interface{}{
+			"id": id, "requester_id": reqID, "status": status,
+			"created_at": createdAt.Format(time.RFC3339),
+		})
 	}
 	if err := rows.Err(); err != nil {
 		log.Printf("handleListPendingConnections: rows iteration failed: %v", err)
@@ -363,14 +369,17 @@ func (s *Server) handleFeedInterviewQuestions(w http.ResponseWriter, r *http.Req
 		var id, uid, co, role, qt, at, cat, vis string
 		var upvotes int
 		var createdAt time.Time
-		if err := rows.Scan(&id, &uid, &co, &role, &qt, &at, &cat, &vis, &upvotes, &createdAt); err == nil {
-			list = append(list, map[string]interface{}{
-				"id": id, "user_id": uid, "company": co, "role": role,
-				"question_text": qt, "answer_text": at, "category": cat,
-				"visibility": vis, "upvotes": upvotes,
-				"created_at": createdAt.Format(time.RFC3339),
-			})
+		if err := rows.Scan(&id, &uid, &co, &role, &qt, &at, &cat, &vis, &upvotes, &createdAt); err != nil {
+			log.Printf("handleFeedInterviewQuestions: scan failed: %v", err)
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan interview question")
+			return
 		}
+		list = append(list, map[string]interface{}{
+			"id": id, "user_id": uid, "company": co, "role": role,
+			"question_text": qt, "answer_text": at, "category": cat,
+			"visibility": vis, "upvotes": upvotes,
+			"created_at": createdAt.Format(time.RFC3339),
+		})
 	}
 	if err := rows.Err(); err != nil {
 		log.Printf("handleFeedInterviewQuestions: rows iteration failed: %v", err)

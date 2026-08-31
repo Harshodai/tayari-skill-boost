@@ -249,25 +249,27 @@ async def transition_agent_run_for_user(
         return False
 
 
-async def update_agent_run(run_id: str, **fields) -> bool:
-    """Update arbitrary columns on an ``agent_runs`` row.
+async def update_agent_run(run_id: str, *, user_id: str | None = None, **fields) -> bool:
+    """Update non-sensitive operational columns on an ``agent_runs`` row.
 
-    Known jsonb columns (logs/screenshots/result) are json-encoded; scalars
-    are passed through. ``status``/``progress``/``current_step``/``error``
-    and timestamps are supported. Unknown keys are ignored.
+    Known jsonb columns (logs/screenshots/result) are json-encoded; operational
+    scalars (progress/current_step/error/engine/celery_task_id) are passed through.
+    Sensitive lifecycle transitions (handoff_state/handoff_token_hash/state_version)
+    are strictly rejected and must use ``transition_agent_run_for_user``.
     """
-    if not fields:
+    if not fields or not run_id:
         return False
     pool = await get_pool()
     if not pool:
         return False
     from datetime import datetime
+    import json as _json
     jsonb_cols = {"logs", "screenshots", "result", "config"}
-    timestamp_cols = {"started_at", "completed_at", "handoff_expires_at"}
-    scalar_cols = {
+    timestamp_cols = {"started_at", "completed_at"}
+    # Sensitive lifecycle fields removed from generic update
+    allowed_scalar_cols = {
         "status", "progress", "current_step", "error", "engine",
         "celery_task_id", "parent_run_id",
-        "handoff_state", "handoff_token_hash", "state_version",
     }
     sets: list[str] = []
     args: list = [run_id]
@@ -284,7 +286,7 @@ async def update_agent_run(run_id: str, **fields) -> bool:
                 except Exception:
                     pass
             args.append(value)
-        elif key in scalar_cols:
+        elif key in allowed_scalar_cols:
             sets.append(f"{key} = ${idx}")
             args.append(value)
         else:
@@ -293,10 +295,16 @@ async def update_agent_run(run_id: str, **fields) -> bool:
     if not sets:
         return False
     sets.append("updated_at = now()")
+
+    where_clause = "WHERE run_id = $1"
+    if user_id:
+        where_clause += f" AND user_id = ${idx}"
+        args.append(user_id)
+
     try:
         async with pool.acquire() as conn:
             await conn.execute(
-                f"UPDATE agent_runs SET {', '.join(sets)} WHERE run_id = $1",  # nosec B608 - sets contains only hardcoded allowlisted columns
+                f"UPDATE agent_runs SET {', '.join(sets)} {where_clause}",  # nosec B608 - sets contains only hardcoded allowlisted columns
                 *args,
             )
         return True
@@ -377,24 +385,31 @@ async def persist_application_stage_envelope(envelope: dict) -> bool:
         return False
 
 
-async def append_log(run_id: str, step: str, message: str, at: str | None = None) -> bool:
-    """Append a log entry to the ``agent_runs.logs`` jsonb array."""
+async def append_log(run_id: str, step: str, message: str, at: str | None = None, *, user_id: str | None = None) -> bool:
+    """Append a log entry to the ``agent_runs.logs`` jsonb array with owner enforcement."""
     from datetime import datetime, timezone
+    if not run_id:
+        return False
     pool = await get_pool()
     if not pool:
         return False
     import json as _json
     entry = {"step": step, "message": message, "at": at or datetime.now(timezone.utc).isoformat()}
+    args = [run_id, _json.dumps([entry])]
+    where_clause = "WHERE run_id = $1"
+    if user_id:
+        where_clause += " AND user_id = $3"
+        args.append(user_id)
     try:
         async with pool.acquire() as conn:
             await conn.execute(
-                """
+                f"""
                 UPDATE agent_runs
                 SET logs = logs || $2::jsonb,
                     updated_at = now()
-                WHERE run_id = $1
+                {where_clause}
                 """,
-                run_id, _json.dumps([entry]),
+                *args,
             )
         return True
     except Exception as exc:  # noqa: BLE001
