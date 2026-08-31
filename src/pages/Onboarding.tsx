@@ -237,52 +237,95 @@ export default function Onboarding() {
     <Layout>
       <div className="max-w-4xl mx-auto px-6 py-12 space-y-8 text-foreground font-sans">
         {/* Wizard Progress */}
-        <div className="flex justify-between items-center border-b border-border pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary rounded-lg text-primary-foreground font-bold">{step}</div>
-            <div>
-              <h1 className="text-xl font-bold">Branching Onboarding Wizard</h1>
-              <p className="text-xs text-muted-foreground">Configure your personal agentic career operations strategy</p>
+        <div className="space-y-4 border-b border-border pb-5">
+          <div className="flex justify-between items-center gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary rounded-lg text-primary-foreground font-bold tabular-nums">{step}</div>
+              <div>
+                <h1 className="text-xl font-bold">Set up your career plan</h1>
+                <p className="text-xs text-muted-foreground">Three quick steps. You can skip anything and change it later.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {isGatewayOffline && (
+                <Badge variant="outline" className="border-warning/40 bg-warning/10 text-warning text-xs">
+                  <WifiOff className="w-3 h-3 mr-1" aria-hidden="true" /> Local Mode
+                </Badge>
+              )}
+              <Badge className="bg-primary/10 text-primary border-primary/30">
+                Step {step} of 3
+              </Badge>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {isGatewayOffline && (
-              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-400 text-xs">
-                <WifiOff className="w-3 h-3 mr-1" /> Local Mode
-              </Badge>
-            )}
-            <Badge className="bg-primary/10 text-primary border-primary/30">
-              Step {step} of 3
-            </Badge>
-          </div>
+
+          {/* Animated step rail */}
+          <ol className="flex items-center gap-2" aria-label="Onboarding progress">
+            {STEP_LABELS.map((label, i) => {
+              const index = i + 1;
+              const state = index < step ? "done" : index === step ? "current" : "upcoming";
+              return (
+                <li key={label} className="flex-1">
+                  <div
+                    aria-current={state === "current" ? "step" : undefined}
+                    className="flex items-center gap-2"
+                  >
+                    <span
+                      className={cn(
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold transition-all duration-300",
+                        state === "done" && "border-success bg-success text-success-foreground scale-100",
+                        state === "current" && "border-primary bg-primary text-primary-foreground scale-110 shadow-sm",
+                        state === "upcoming" && "border-border bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {state === "done" ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : index}
+                    </span>
+                    <span
+                      className={cn(
+                        "hidden text-xs font-medium transition-colors sm:inline",
+                        state === "current" ? "text-foreground" : "text-muted-foreground"
+                      )}
+                    >
+                      {label}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+                      style={{ width: index < step ? "100%" : index === step ? "50%" : "0%" }}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
         </div>
 
         {/* Gateway Outage Warning Banner (Recoverable 502/503/network) */}
         {isGatewayOffline && (
           <div
             data-testid="gateway-offline-banner"
-            className="p-4 rounded-xl border border-amber-500/40 bg-amber-950/30 text-amber-300 space-y-3"
+            className="animate-fade-in p-4 rounded-xl border border-warning/40 bg-warning/10 text-foreground space-y-3"
           >
             <div className="flex items-start gap-3">
-              <HardDrive className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <HardDrive className="w-5 h-5 text-warning shrink-0 mt-0.5" aria-hidden="true" />
               <div className="space-y-1">
-                <h3 className="font-semibold text-sm text-amber-200">
-                  Backend Gateway Offline — Local Mode Active. Your progress is saved locally in your browser storage and will auto-sync when connection restores.
+                <h3 className="font-semibold text-sm">
+                  Working offline — your answers are saved in this browser and sync automatically when the connection returns.
                 </h3>
-                <p className="text-xs text-amber-300/80">
-                  You can safely continue onboarding. All inputs are drafted locally in your browser storage.
+                <p className="text-xs text-muted-foreground">
+                  You can safely keep going. Nothing you type will be lost.
                 </p>
               </div>
             </div>
 
             {/* Saved Fields List */}
-            <div className="pt-2 border-t border-amber-500/20">
-              <p className="text-xs font-medium text-amber-200 mb-1.5">Saved fields in local storage:</p>
+            <div className="pt-2 border-t border-warning/20">
+              <p className="text-xs font-medium mb-1.5">Saved locally:</p>
               <div data-testid="saved-fields-list" className="flex flex-wrap gap-1.5">
                 {savedFieldsList.map((field, idx) => (
                   <span
                     key={idx}
-                    className="inline-flex items-center text-[11px] bg-amber-950/60 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded font-mono"
+                    className="inline-flex items-center text-[11px] bg-warning/15 border border-warning/30 text-foreground px-2 py-0.5 rounded font-mono"
                   >
                     {field}
                   </span>
@@ -295,16 +338,18 @@ export default function Onboarding() {
         {/* Profile Validation Error Banner (400/422) */}
         {validationError && (
           <div
+            role="alert"
             data-testid="validation-error-banner"
-            className="p-4 rounded-xl border border-red-500/40 bg-red-950/40 text-red-300 flex items-start gap-3"
+            className="animate-scale-in p-4 rounded-xl border border-destructive/40 bg-destructive/10 flex items-start gap-3"
           >
-            <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
             <div>
-              <h3 className="font-semibold text-sm text-red-200">Profile Validation Error</h3>
-              <p className="text-xs text-red-300/90 mt-0.5">{validationError}</p>
+              <h3 className="font-semibold text-sm text-foreground">We couldn't save that</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">{validationError}</p>
             </div>
           </div>
         )}
+
 
         {/* Step 1: Branch Selector */}
         {step === 1 && (
