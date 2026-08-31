@@ -33,7 +33,9 @@ interface Props {
   /** Compact = used inside Dashboard. Full = standalone /pipeline page. */
   variant?: "compact" | "full";
   onStageChange?: (jobId: string, stage: PipelineStage) => void;
+  onSelectJob?: (job: PipelineJob) => void;
 }
+
 
 function StageColumn({
   stage,
