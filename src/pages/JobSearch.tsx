@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ListSkeleton } from "@/components/ui/skeletons";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -109,6 +111,7 @@ const JobSearch = () => {
   // Mobile master-detail: below lg the list and detail share the viewport.
   const [mobileDetail, setMobileDetail] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [refineQuery, setRefineQuery] = useState("");
 
   const { data: savedJobs = [] } = useQuery({
     queryKey: ["saved-jobs"],
