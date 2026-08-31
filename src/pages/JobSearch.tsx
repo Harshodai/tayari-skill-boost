@@ -592,44 +592,75 @@ const JobSearch = () => {
         {/* Results list */}
         <section className={cn("lg:block", mobileDetail && "hidden")}>
           <Card className="h-full p-0 overflow-hidden">
-            <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between">
-              <h3 className="text-sm font-semibold">
-                {isSearching
-                  ? "Searching…"
-                  : filtered.length > 0
-                  ? `${filtered.length} matches`
-                  : "Results"}
-              </h3>
-              {filtered.length > 0 && (
-                <Badge variant="outline" className="text-[10px]">
-                  Ranked by AI match
-                </Badge>
+            <div className="px-4 py-3 border-b border-border/60 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold" aria-live="polite">
+                  {isSearching
+                    ? "Searching…"
+                    : filtered.length > 0
+                    ? `${filtered.length} ${filtered.length === 1 ? "match" : "matches"}`
+                    : "Results"}
+                </h3>
+                {filtered.length > 0 && (
+                  <Badge variant="outline" className="text-[10px]">
+                    Ranked by AI match
+                  </Badge>
+                )}
+              </div>
+              {results.length > 0 && (
+                <div className="relative">
+                  <label htmlFor="refine-results" className="sr-only">
+                    Filter these results
+                  </label>
+                  <Input
+                    id="refine-results"
+                    value={refineQuery}
+                    onChange={(e) => setRefineQuery(e.target.value)}
+                    placeholder="Filter by title, company, or location…"
+                    className="h-8 pr-16 text-xs"
+                  />
+                  {isRefining && (
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                      filtering…
+                    </span>
+                  )}
+                </div>
               )}
             </div>
             <ScrollArea className="h-[calc(100vh-280px)]">
-              <div className="p-2 space-y-2">
-                {isSearching &&
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="p-3 rounded-lg border border-border/50">
-                      <Skeleton className="h-4 w-2/3 mb-2" />
-                      <Skeleton className="h-3 w-1/2 mb-1" />
-                      <Skeleton className="h-3 w-3/4" />
-                    </div>
-                  ))}
+              <div className="p-2 space-y-2" aria-busy={isSearching || isRefining}>
+                {(isSearching || isRefining) && <ListSkeleton rows={5} className="p-1" />}
 
-                {!isSearching && filtered.length === 0 && (
-                  <div className="px-4 py-16 text-center">
-                    <Briefcase className="w-10 h-10 text-muted-foreground/60 mx-auto mb-3" />
+                {!isSearching && !isRefining && filtered.length === 0 && (
+                  <div className="px-4 py-16 text-center animate-fade-in">
+                    <Briefcase className="w-10 h-10 text-muted-foreground/60 mx-auto mb-3" aria-hidden="true" />
                     <p className="text-sm font-medium">
-                      {results.length === 0 ? "Start your search" : "No matches at this filter"}
+                      {results.length === 0
+                        ? "Start your search"
+                        : debouncedRefine
+                        ? `No results matching “${debouncedRefine}”`
+                        : "No matches at this filter"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {results.length === 0
                         ? "Try keywords, a role, or paste a natural-language query."
+                        : debouncedRefine
+                        ? "Clear the filter text or widen your search."
                         : "Lower the min match or turn off Remote only."}
                     </p>
+                    {results.length > 0 && debouncedRefine && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => setRefineQuery("")}
+                      >
+                        Clear filter
+                      </Button>
+                    )}
                   </div>
                 )}
+
 
                 {!isSearching &&
                   filtered.map((job, i) => {
