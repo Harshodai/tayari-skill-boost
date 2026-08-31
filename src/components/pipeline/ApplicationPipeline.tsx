@@ -107,9 +107,11 @@ function StageColumn({
 }
 
 
-export function ApplicationPipeline({ jobs, variant = "full", onStageChange }: Props) {
+export function ApplicationPipeline({ jobs, variant = "full", onStageChange, onSelectJob }: Props) {
   const [stageMap, setStageMap] = useState<Record<string, PipelineStage>>(() => loadStageMap());
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
 
   useEffect(() => {
     saveStageMap(stageMap);
