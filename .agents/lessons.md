@@ -165,9 +165,27 @@ A `RLIMIT_CPU` of 30 seconds applied to a subprocess whose caller supplied `time
 
 After `start_new_session=True`, the child is always in a different process group, so `killpg` is safe. But if session isolation ever fails silently, an unguarded `os.killpg(os.getpgid(proc.pid), SIGKILL)` would kill the parent process and all sibling workers. Always verify `os.getpgid(proc.pid) != os.getpgid(os.getpid())` before using `killpg`; fall back to `proc.kill()` if they match.
 
-#### L-18 — Empty stderr after a non-zero exit is a diagnostic dead end
-
 When a subprocess is killed by `RLIMIT_CPU` or the OOM killer, `proc.returncode` is `-9` (or another signal code) and `stderr` is empty. If `error` is set to `stderr_str` directly, callers receive `error: ""` — indistinguishable from success. Always synthesize a fallback diagnostic (`"ProcessError: exited with code N (possibly terminated by signal or OS resource limit)"`) when `returncode != 0 and stderr.strip() == ""`.
+
+#### L-19 — Guard against missing-hash bypass in approval workflows
+
+When validating proposal hashes, checking `if expected_hash and stored_hash and expected_hash != stored_hash:` allows an unhashed stored proposal to bypass hash verification because `stored_hash` evaluates to falsy. Always validate that `expected_hash` requires a matching `stored_hash` (`if expected_hash and (not stored_hash or expected_hash != stored_hash)`).
+
+#### L-20 — HITL proposal issuance must fail-closed on persistence failure
+
+Issuing an approval token or pending proposal before verifying durable storage write leaves phantom pending approvals in memory that cannot be confirmed across replica restarts or database reconnects. Always check persistence result and fail closed (e.g. 503) if storage write fails.
+
+#### L-21 — Subprocess sandbox must apply address-space limits (RLIMIT_AS) and log setrlimit failures
+
+CPU limits alone do not prevent runaway memory growth or memory-exhaustion attacks against sibling services. Apply `RLIMIT_AS` (e.g. 512 MiB) and log any `setrlimit` failures to stderr rather than silently swallowing them in a catch-all block.
+
+#### L-22 — Queries must distinguish unavailable service (null) from legitimate zero values (0)
+
+Returning `{ balance: 0 }` on a failed billing query causes the UI to display a verified zero balance and prompt the user to buy credits, obscuring a backend outage. Returning `null` allows the UI to render an explicit "Balance unavailable" state.
+
+#### L-23 — Empty states in dashboards and run histories must separate error states from true empty sets
+
+Using `runs.length === 0` to render "No runs yet" when `isError` is true hides query failures behind an innocent empty state. Always check `isError` first to render an error alert with a retry CTA.
 
 ### Verification evidence
 
@@ -175,4 +193,4 @@ When a subprocess is killed by `RLIMIT_CPU` or the OOM killer, `proc.returncode`
 - `npm test -- --run`: 52 test files, **208 tests passed**
 - `bash scripts/production_promotion_gate.sh`: **66/66 checks passed**, 0 unresolved critical/high
 - Python tests (JWT-secret tests excluded from sandbox): **518 passed, 2 skipped**
-- Commits: `69be27f` (dashboard/agent wiring) and `84dadcb` (security fixes)
+- Commits: `69be27f`, `84dadcb`, `1c18dee`, `7cc616b`
