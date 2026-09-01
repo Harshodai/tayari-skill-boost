@@ -3655,3 +3655,13 @@ While sweeping for more self-hosted table-parity gaps, `agent_run_steps` (used b
 **Lesson**
 A cloud-only feature should declare its dependency at render time, not at submit time — the gate is one
 flag plus a query `enabled`, and it turns a confusing failure into an honest, explainable state.
+
+## 2026-09-01 — Shared interaction language (motion, focus, states)
+
+**What:** Standardized reduced-motion, focus rings, skeleton/error/empty states; made pipeline cards selectable/keyboard-operable; added debounced live filtering to Smart Search; animated the 3-step onboarding rail.
+
+**Root cause:** Each surface invented its own loading spinner, hover motion, and error markup, so behavior drifted and reduced-motion/keyboard users hit inconsistent affordances.
+
+**Fix:** `src/components/ui/data-state.tsx` (DataState + InlineError) and `skeletons.tsx` as the single async-state vocabulary; `index.css` extends `:focus-visible` to `role="button|option|tab|radio|checkbox"` and neutralizes shimmer + transform hovers under `prefers-reduced-motion`; `useDebouncedValue` powers instant refine in JobSearch; `ApplicationPipeline` owns `selectedId` and passes `onSelect` to `PipelineCard`.
+
+**Lesson:** Reduced-motion overrides that only kill `animation-duration` still leave transform-based hover/press jumps and an invisible shimmer — kill the transforms and restore a flat skeleton background explicitly. Also: skeleton gradients keyed on `--accent` break in light themes; use `--muted-foreground` at low alpha instead.
