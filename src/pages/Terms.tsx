@@ -1,8 +1,14 @@
+import { Seo } from "@/components/seo/Seo";
 import { Layout } from "@/components/layout";
 
 const Terms = () => {
   return (
     <Layout>
+      <Seo
+        title="Terms of Service — Job Tayari"
+        description="The terms governing your use of Job Tayari's resume, job search, and application assistance services."
+        path="/terms"
+      />
       <div className="min-h-screen bg-gradient-hero py-20">
         <div className="container mx-auto px-4 max-w-4xl">
           <div className="text-center mb-12">

@@ -1,3 +1,4 @@
+import { Seo } from "@/components/seo/Seo";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
@@ -149,6 +150,11 @@ const Blog = () => {
 
   return (
     <Layout>
+      <Seo
+        title="Job Tayari Blog — Resume, ATS & Interview Playbooks"
+        description="Practical guides on resume optimization, ATS scoring, interview preparation, and real candidate outcome stories from Job Tayari."
+        path="/blog"
+      />
       <div className="min-h-screen bg-gradient-hero py-20">
         <div className="container mx-auto px-4">
           {/* Header */}
