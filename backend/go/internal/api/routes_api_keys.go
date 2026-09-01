@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -183,7 +185,16 @@ func (s *Server) handleAPIKeyUsage(w http.ResponseWriter, r *http.Request) {
 	err := s.DB.Conn.QueryRowContext(r.Context(),
 		`SELECT user_id FROM api_keys WHERE id=$1`, id,
 	).Scan(&keyOwner)
-	if err != nil || keyOwner != u.ID {
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			s.respondError(w, http.StatusNotFound, "API key not found")
+			return
+		}
+		log.Printf("handleAPIKeyUsage: key lookup error: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to look up API key")
+		return
+	}
+	if keyOwner != u.ID {
 		s.respondError(w, http.StatusNotFound, "API key not found")
 		return
 	}

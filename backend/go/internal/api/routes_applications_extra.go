@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -565,14 +566,21 @@ func (s *Server) handleUpdateApplicationKanban(w http.ResponseWriter, r *http.Re
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	stageVal := nullStr(req, "stage")
-	if stageVal != nil && *stageVal != "" {
-		normStage, ok := normalizeApplicationStatus(*stageVal)
-		if !ok {
-			s.respondError(w, http.StatusUnprocessableEntity, "invalid application stage")
-			return
+	var stageVal *string
+	if rawStage, exists := req["stage"]; exists {
+		if rawStage != nil {
+			str := strings.TrimSpace(fmt.Sprintf("%v", rawStage))
+			if str == "" {
+				s.respondError(w, http.StatusUnprocessableEntity, "invalid application stage")
+				return
+			}
+			normStage, ok := normalizeApplicationStatus(str)
+			if !ok {
+				s.respondError(w, http.StatusUnprocessableEntity, "invalid application stage")
+				return
+			}
+			stageVal = &normStage
 		}
-		*stageVal = normStage
 	}
 	// Simple partial update: title, company, location, job_url, stage, notes
 	_, err := s.DB.Conn.ExecContext(r.Context(), `

@@ -63,6 +63,41 @@ def _build_safe_env() -> Dict[str, str]:
     return safe_env
 
 
+def _sandbox_preexec():
+    """Apply OS-level execution constraints to the subprocess."""
+    try:
+        os.setsid()
+    except Exception:
+        pass
+    try:
+        import resource
+        # Limit CPU time (seconds)
+        resource.setrlimit(resource.RLIMIT_CPU, (30, 35))
+        # Limit file creation size (10 MB)
+        resource.setrlimit(resource.RLIMIT_FSIZE, (10 * 1024 * 1024, 10 * 1024 * 1024))
+        # Limit open file descriptors
+        if hasattr(resource, "RLIMIT_NOFILE"):
+            try:
+                resource.setrlimit(resource.RLIMIT_NOFILE, (128, 128))
+            except (ValueError, OSError):
+                pass
+    except Exception:
+        pass
+
+
+async def _read_bounded(stream: asyncio.StreamReader, max_bytes: int) -> bytes:
+    """Read stream incrementally up to max_bytes, continuing to drain remaining stream to avoid pipe blocks."""
+    buf = bytearray()
+    while True:
+        chunk = await stream.read(4096)
+        if not chunk:
+            break
+        if len(buf) < max_bytes:
+            remaining = max_bytes - len(buf)
+            buf.extend(chunk[:remaining])
+    return bytes(buf)
+
+
 class CodeActREPL:
     """
     Isolated Subprocess Code Actions (CodeAct) Python REPL.
@@ -71,12 +106,13 @@ class CodeActREPL:
     1. Zero access to production secrets (sanitized environment).
     2. Bounded execution with strict wall-clock timeout and hard process kill.
     3. Dedicated workspace cwd.
-    4. Bounded stdout/stderr capture to prevent memory exhaustion.
+    4. Bounded stdout/stderr capture with active stream draining to prevent memory exhaustion.
+    5. OS-level resource limits on CPU time, file size, and open descriptors.
     """
 
-    def __init__(self, workspace_path: Optional[str] = None, globals_dict: Optional[Dict[str, Any]] = None):
-        self.workspace_path = os.path.abspath(workspace_path or tempfile.gettempdir())
-        self.globals: Dict[str, Any] = globals_dict or {}
+    def __init__(self, workspace_path: str = "./", user_id: Optional[str] = None):
+        self.workspace_path = workspace_path
+        self.user_id = user_id
         self.history: List[Dict[str, Any]] = []
 
     async def execute(self, code: str, timeout: float = 30.0) -> Dict[str, Any]:
@@ -111,14 +147,23 @@ class CodeActREPL:
                     stderr=asyncio.subprocess.PIPE,
                     cwd=cwd,
                     env=env,
-                    start_new_session=True,
+                    preexec_fn=_sandbox_preexec,
                 )
+
+                if proc.stdin:
+                    proc.stdin.write(code.encode("utf-8"))
+                    await proc.stdin.drain()
+                    proc.stdin.close()
 
                 try:
                     stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                        proc.communicate(input=code.encode("utf-8")),
+                        asyncio.gather(
+                            _read_bounded(proc.stdout, MAX_OUTPUT_BYTES),
+                            _read_bounded(proc.stderr, MAX_OUTPUT_BYTES),
+                        ),
                         timeout=timeout,
                     )
+                    await proc.wait()
                 except asyncio.TimeoutError:
                     # Process did not exit within timeout: hard kill process group
                     if proc and proc.pid:
@@ -146,8 +191,8 @@ class CodeActREPL:
                     self.history.append(output)
                     return output
 
-                stdout_str = stdout_bytes[:MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
-                stderr_str = stderr_bytes[:MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
+                stdout_str = stdout_bytes.decode("utf-8", errors="replace")
+                stderr_str = stderr_bytes.decode("utf-8", errors="replace")
                 success = (proc.returncode == 0)
 
                 output = {

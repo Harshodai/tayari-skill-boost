@@ -119,9 +119,24 @@ class AutonomousCareerEngine:
 
         resume_hash = hashlib.sha256(resume_text.encode("utf-8")).hexdigest()
         jd_hash = hashlib.sha256(job_description.encode("utf-8")).hexdigest()
-        proposal_hash = hashlib.sha256(f"{approval_id}:{resume_hash}:{jd_hash}:{after}".encode("utf-8")).hexdigest()
-
         effective_user_id = user_id or self.user_id
+
+        canonical_data = {
+            "approval_id": approval_id,
+            "user_id": effective_user_id,
+            "resume_hash": resume_hash,
+            "jd_hash": jd_hash,
+            "extracted_keywords": extracted_keywords,
+            "predicted_ats_score_before": before,
+            "predicted_ats_score_after": after,
+            "optimized_text": analysis.get("optimized_text", ""),
+            "optimization_summary": analysis.get("optimization_summary", {}),
+            "alignment_report": analysis.get("alignment_report", {}),
+        }
+        proposal_hash = hashlib.sha256(
+            json.dumps(canonical_data, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
+
         proposal = {
             "approval_id": approval_id,
             "user_id": effective_user_id,
@@ -140,20 +155,17 @@ class AutonomousCareerEngine:
         self.pending_hitl_approvals[approval_id] = proposal
         _GLOBAL_PENDING_HITL_APPROVALS[approval_id] = proposal
 
-        # Persist to durable shared storage if user and DB are available
+        # Persist to durable shared storage if user is authenticated
         if effective_user_id:
-            try:
-                from app.services.agent_db import create_runtime_approval
-                await create_runtime_approval(
-                    user_id=effective_user_id,
-                    task_id=None,
-                    agent_id="autonomous_career_engine",
-                    tool_name="ats_keyword_optimization",
-                    tool_input=proposal,
-                    content_preview=f"ATS Keyword Optimization (Score: {after})",
-                )
-            except Exception:
-                pass
+            from app.services.agent_db import create_runtime_approval
+            await create_runtime_approval(
+                user_id=effective_user_id,
+                task_id=None,
+                agent_id="autonomous_career_engine",
+                tool_name="ats_keyword_optimization",
+                tool_input=proposal,
+                content_preview=f"ATS Keyword Optimization (Score: {after})",
+            )
 
         return proposal
 
@@ -167,8 +179,15 @@ class AutonomousCareerEngine:
         user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Accept or reject a real optimizer result after user review, verifying artifact hash binding."""
-        item = self.pending_hitl_approvals.get(approval_id) or _GLOBAL_PENDING_HITL_APPROVALS.get(approval_id)
         effective_user_id = user_id or self.user_id
+        item = self.pending_hitl_approvals.get(approval_id)
+
+        if item is None:
+            cached = _GLOBAL_PENDING_HITL_APPROVALS.get(approval_id)
+            if cached is not None:
+                cached_uid = cached.get("user_id")
+                if effective_user_id is None or cached_uid == effective_user_id:
+                    item = cached
 
         # Fallback to durable shared storage for replica-safety / LRU eviction recovery
         if item is None and effective_user_id:
@@ -188,28 +207,34 @@ class AutonomousCareerEngine:
 
         if item is None:
             return {"success": False, "error": f"Approval ID '{approval_id}' not found."}
+        if item.get("user_id") and effective_user_id and item.get("user_id") != effective_user_id:
+            return {"success": False, "error": "Approval belongs to a different user."}
+        if item.get("status") != "PENDING_USER_APPROVAL":
+            return {"success": False, "error": f"Approval is not in pending state (currently '{item.get('status')}')."}
         if expected_proposal_hash and item.get("proposal_hash") and expected_proposal_hash != item["proposal_hash"]:
             return {"success": False, "error": "Proposal hash mismatch; proposal has changed."}
-        if not approved:
-            item["status"] = "REJECTED_BY_USER"
-            if effective_user_id:
-                try:
-                    from app.services.agent_db import update_runtime_approval
-                    await update_runtime_approval(effective_user_id, approval_id, "rejected", "Rejected by candidate")
-                except Exception:
-                    pass
-            return {"success": True, "status": "REJECTED_BY_USER", "message": "ATS Optimization cancelled by user."}
 
-        item["status"] = "APPROVED_AND_READY"
-        if custom_keywords:
-            item["approved_keywords"] = list(dict.fromkeys(custom_keywords))[:30]
+        new_status = "APPROVED_AND_READY" if approved else "REJECTED_BY_USER"
+        db_status = "approved" if approved else "rejected"
 
         if effective_user_id:
             try:
                 from app.services.agent_db import update_runtime_approval
-                await update_runtime_approval(effective_user_id, approval_id, "approved", "Approved by candidate")
+                await update_runtime_approval(
+                    effective_user_id,
+                    approval_id,
+                    db_status,
+                    "Approved by candidate" if approved else "Rejected by candidate",
+                )
             except Exception:
                 pass
+
+        item["status"] = new_status
+        if approved and custom_keywords:
+            item["approved_keywords"] = list(dict.fromkeys(custom_keywords))[:30]
+
+        if not approved:
+            return {"success": True, "status": "REJECTED_BY_USER", "message": "ATS Optimization cancelled by user."}
 
         return {
             "success": True,

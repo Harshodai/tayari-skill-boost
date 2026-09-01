@@ -184,7 +184,7 @@ def _career_engine_for(user_id: str) -> AutonomousCareerEngine:
     return _get_or_create_engine(
         _career_engines,
         user_id,
-        lambda: AutonomousCareerEngine(workspace_path=_workspace_for(user_id)),
+        lambda: AutonomousCareerEngine(workspace_path=_workspace_for(user_id), user_id=user_id),
     )
 
 
@@ -343,7 +343,9 @@ async def update_interview_card(req: UpdateKanbanRequest, user_id: str = Depends
 @router.post("/career/ats-prepare")
 async def ats_prepare(req: ATSPrepareRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
-        res = await _career_engine_for(user_id).prepare_ats_keyword_optimization_hitl(req.resume_text, req.job_description)
+        res = await _career_engine_for(user_id).prepare_ats_keyword_optimization_hitl(
+            req.resume_text, req.job_description, user_id=user_id
+        )
         return {"success": True, "data": res}
     except LLMNotConfiguredError as exc:
         logger.error("ATS prepare: LLM not configured/available: %s", exc)
@@ -355,15 +357,21 @@ async def ats_prepare(req: ATSPrepareRequest, user_id: str = Depends(get_current
 @router.post("/career/ats-confirm")
 async def ats_confirm(req: ATSConfirmRequest, user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
     try:
+        if req.approved and not (req.expected_proposal_hash and req.expected_proposal_hash.strip()):
+            raise HTTPException(
+                status_code=400,
+                detail="expected_proposal_hash is required to approve an ATS optimization proposal.",
+            )
         res = await _career_engine_for(user_id).confirm_ats_keyword_optimization_hitl(
             req.approval_id,
             req.approved,
             req.custom_keywords,
             expected_proposal_hash=req.expected_proposal_hash,
+            user_id=user_id,
         )
         if res.get("success") is False:
             err = res.get("error", "ATS approval not found.")
-            status_code = 409 if "mismatch" in err.lower() else 404
+            status_code = 409 if "mismatch" in err.lower() else (400 if "required" in err.lower() else 404)
             raise HTTPException(status_code=status_code, detail=err)
         return {"success": True, "data": res}
     except HTTPException:

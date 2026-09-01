@@ -63,7 +63,11 @@ async def test_hitl_ats_optimization():
     assert proposal["predicted_ats_score_after"] == 82
     assert "approval_id" in proposal
 
-    confirm_res = await engine.confirm_ats_keyword_optimization_hitl(proposal["approval_id"], approved=True)
+    confirm_res = await engine.confirm_ats_keyword_optimization_hitl(
+        proposal["approval_id"],
+        approved=True,
+        expected_proposal_hash=proposal["proposal_hash"],
+    )
     assert confirm_res["status"] == "APPROVED_AND_READY"
     assert confirm_res["optimized_text"].startswith("Candidate")
 

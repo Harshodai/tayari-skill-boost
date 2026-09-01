@@ -54,3 +54,45 @@ async def test_ats_hitl_rejects_hash_tampering():
     )
     assert confirm_res["success"] is False
     assert "mismatch" in confirm_res["error"].lower()
+
+
+@pytest.mark.asyncio
+async def test_ats_hitl_rejects_different_user():
+    engine_user_a = AutonomousCareerEngine(user_id="00000000-0000-0000-0000-000000000001")
+    engine_user_b = AutonomousCareerEngine(user_id="00000000-0000-0000-0000-000000000002")
+
+    with patch("app.agent.autonomous_career_engine.optimize_with_reflection", return_value=MOCK_OPTIMIZER_OUTPUT):
+        proposal = await engine_user_a.prepare_ats_keyword_optimization_hitl("Resume A", "JD A")
+
+    # User B attempts to approve User A's proposal
+    confirm_res = await engine_user_b.confirm_ats_keyword_optimization_hitl(
+        proposal["approval_id"],
+        approved=True,
+        expected_proposal_hash=proposal["proposal_hash"],
+    )
+    assert confirm_res["success"] is False
+
+
+@pytest.mark.asyncio
+async def test_ats_hitl_rejects_repeated_decision():
+    engine = AutonomousCareerEngine(user_id="00000000-0000-0000-0000-000000000001")
+
+    with patch("app.agent.autonomous_career_engine.optimize_with_reflection", return_value=MOCK_OPTIMIZER_OUTPUT):
+        proposal = await engine.prepare_ats_keyword_optimization_hitl("Resume text", "JD text")
+
+    # First approval succeeds
+    confirm_res1 = await engine.confirm_ats_keyword_optimization_hitl(
+        proposal["approval_id"],
+        approved=True,
+        expected_proposal_hash=proposal["proposal_hash"],
+    )
+    assert confirm_res1["success"] is True
+
+    # Subsequent approval or rejection fails because it is no longer pending
+    confirm_res2 = await engine.confirm_ats_keyword_optimization_hitl(
+        proposal["approval_id"],
+        approved=False,
+        expected_proposal_hash=proposal["proposal_hash"],
+    )
+    assert confirm_res2["success"] is False
+    assert "not in pending state" in confirm_res2["error"]

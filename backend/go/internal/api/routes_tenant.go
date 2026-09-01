@@ -176,9 +176,9 @@ func (s *Server) handleListAdvisorStudents(w http.ResponseWriter, r *http.Reques
 	query := `
 		SELECT
 			u.id,
-			p.full_name,
+			COALESCE(p.full_name, '') as full_name,
 			u.email,
-			p.headline,
+			COALESCE(p.headline, '') as headline,
 			m.cohort_id,
 			COALESCE(c.name, 'Unassigned') as cohort_name,
 			(SELECT COUNT(*) FROM resumes r WHERE r.user_id = u.id) as resume_count,
@@ -193,13 +193,15 @@ func (s *Server) handleListAdvisorStudents(w http.ResponseWriter, r *http.Reques
 
 	if cohortIDFilter != "" {
 		cohortUUID, err := uuid.Parse(cohortIDFilter)
-		if err == nil {
-			query += ` AND m.cohort_id = $2`
-			args = append(args, cohortUUID)
+		if err != nil {
+			s.respondError(w, http.StatusBadRequest, "Invalid cohort_id format")
+			return
 		}
+		query += ` AND m.cohort_id = $2`
+		args = append(args, cohortUUID)
 	}
 
-	query += ` ORDER BY p.full_name ASC`
+	query += ` ORDER BY COALESCE(p.full_name, '') ASC`
 
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, args...)
 	if err != nil {

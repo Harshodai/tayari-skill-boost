@@ -504,7 +504,10 @@ func (s *Server) handlePlanDecision(w http.ResponseWriter, r *http.Request, appr
 
 	var req planDecisionRequest
 	if r.Body != nil && r.ContentLength > 0 {
-		_ = decodeTaskJSON(r, &req)
+		if err := decodeTaskJSON(r, &req); err != nil {
+			s.respondError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
 	}
 
 	status := "rejected"
