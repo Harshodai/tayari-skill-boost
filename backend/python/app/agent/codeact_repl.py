@@ -69,16 +69,21 @@ def _build_safe_env() -> Dict[str, str]:
     return safe_env
 
 
-def _sandbox_preexec():
-    """Apply OS-level execution constraints to the subprocess."""
-    try:
-        os.setsid()
-    except Exception:
-        pass
+def _sandbox_preexec(timeout_seconds: float):
+    """Apply OS-level execution constraints to the subprocess.
+
+    Session leadership is now set via start_new_session=True on
+    create_subprocess_exec, so os.setsid() is NOT called here.
+    """
     try:
         import resource
-        # Limit CPU time (seconds)
-        resource.setrlimit(resource.RLIMIT_CPU, (30, 35))
+        # CPU limit is derived from the requested wall-clock timeout so that
+        # the RLIMIT hard cap tracks the actual budget instead of a fixed 30 s.
+        # A 5-second grace period gives the process a chance to clean up before
+        # the OS sends SIGKILL.
+        cpu_soft = max(1, int(timeout_seconds))
+        cpu_hard = cpu_soft + 5
+        resource.setrlimit(resource.RLIMIT_CPU, (cpu_soft, cpu_hard))
         # Limit file creation size (10 MB)
         resource.setrlimit(resource.RLIMIT_FSIZE, (10 * 1024 * 1024, 10 * 1024 * 1024))
         # Limit open file descriptors
@@ -143,6 +148,10 @@ class CodeActREPL:
 
             proc = None
             try:
+                # start_new_session=True places the child in its own session and
+                # process group, replacing the os.setsid() call that was previously
+                # in _sandbox_preexec. This is the asyncio-safe approach; preexec_fn
+                # cannot be used reliably with asyncio on all platforms.
                 proc = await asyncio.create_subprocess_exec(
                     sys.executable,
                     "-u",
@@ -153,7 +162,8 @@ class CodeActREPL:
                     stderr=asyncio.subprocess.PIPE,
                     cwd=cwd,
                     env=env,
-                    preexec_fn=_sandbox_preexec,
+                    start_new_session=True,
+                    preexec_fn=lambda: _sandbox_preexec(timeout),
                 )
 
                 if proc.stdin:
@@ -171,10 +181,17 @@ class CodeActREPL:
                         timeout=timeout,
                     )
                 except asyncio.TimeoutError:
-                    # Process did not exit within timeout: hard kill process group
+                    # Process did not exit within timeout: hard kill process group.
+                    # Guard: only send SIGKILL to the child's process group when it
+                    # differs from our own group to avoid accidentally killing the
+                    # parent process or sibling workers.
                     if proc and proc.pid:
                         try:
-                            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                            child_pgid = os.getpgid(proc.pid)
+                            if child_pgid != os.getpgid(os.getpid()):
+                                os.killpg(child_pgid, signal.SIGKILL)
+                            else:
+                                proc.kill()
                         except (ProcessLookupError, OSError):
                             try:
                                 proc.kill()
@@ -200,6 +217,16 @@ class CodeActREPL:
                 stdout_str = stdout_bytes.decode("utf-8", errors="replace")
                 stderr_str = stderr_bytes.decode("utf-8", errors="replace")
                 success = (proc.returncode == 0)
+
+                # When exit is non-zero but stderr is empty (e.g. SIGKILL from
+                # RLIMIT_CPU, OOM killer, or OS-level abort), synthesize a
+                # diagnostic so callers receive a meaningful error string rather
+                # than an empty "error" field.
+                if not success and not stderr_str.strip():
+                    stderr_str = (
+                        f"ProcessError: subprocess exited with code {proc.returncode} "
+                        f"(possibly terminated by signal or OS resource limit)."
+                    )
 
                 output = {
                     "success": success,
@@ -227,3 +254,4 @@ class CodeActREPL:
                 }
                 self.history.append(output)
                 return output
+

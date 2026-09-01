@@ -233,7 +233,10 @@ async def update_runtime_approval(
         raise ValueError(f"Invalid status: {status}")
     pool = await get_pool()
     if not pool:
-        return True
+        # No durable write occurred; signal failure so callers do not report
+        # approval success or remove the pending cache entry prematurely.
+        return False
+
     try:
         async with pool.acquire() as conn:
             res = await conn.execute(

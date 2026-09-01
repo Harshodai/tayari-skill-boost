@@ -36,7 +36,11 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [validationError, setValidationError] = useState<string | null>(null);
+  // saveError tracks non-validation failures (network errors, 5xx, etc.)
+  // so they render under a generic "Save Failed" heading, not "Profile Validation Error".
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isGatewayOffline, setIsGatewayOffline] = useState(false);
+
   const [transitionType, setTransitionType] = useState<TransitionType>("same_domain");
   const [currentTitle, setCurrentTitle] = useState("");
   const [targetLevel, setTargetLevel] = useState("");
@@ -161,6 +165,7 @@ export default function Onboarding() {
 
   const finish = async () => {
     setValidationError(null);
+    setSaveError(null);
 
     const payload = {
       transitionType,
@@ -204,16 +209,18 @@ export default function Onboarding() {
         setIsGatewayOffline(true);
         setValidationError(null);
       } else if (err instanceof ApiError && (err.status === 400 || err.status === 422)) {
-        // Profile validation error
+        // Profile validation error (400/422)
         setIsGatewayOffline(false);
         setValidationError(err.message || "Profile validation error. Please check your inputs.");
         return;
       } else {
-        // Other unexpected error
-        setValidationError(err.message || "Could not save profile. Please verify your details.");
+        // Unexpected error (500, network failure, etc.) — use saveError so
+        // the banner heading reads "Save Failed" not "Profile Validation Error".
+        setSaveError(err.message || "Could not save profile. Please try again.");
         return;
       }
     }
+
 
     // Best-effort Supabase sync
     try {
@@ -354,6 +361,20 @@ export default function Onboarding() {
           </div>
         )}
 
+        {/* Save Failed Banner (5xx / network / unexpected errors) */}
+        {saveError && (
+          <div
+            role="alert"
+            data-testid="save-error-banner"
+            className="animate-scale-in p-4 rounded-xl border border-destructive/40 bg-destructive/10 flex items-start gap-3"
+          >
+            <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
+            <div>
+              <h3 className="font-semibold text-sm text-foreground">Save Failed</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">{saveError}</p>
+            </div>
+          </div>
+        )}
 
         {/* Step 1: Branch Selector */}
         {step === 1 && (
