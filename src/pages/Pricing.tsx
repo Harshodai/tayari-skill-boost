@@ -1,3 +1,4 @@
+import { Seo } from "@/components/seo/Seo";
 import { apiFetch, apiFetchResponse, USE_SELF_HOSTED } from "@/api";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -282,6 +283,11 @@ const Pricing = () => {
 
   return (
     <Layout>
+      <Seo
+        title="Job Tayari Pricing — Credit Packs for Verified Submissions"
+        description="Transparent credit-pack pricing for Job Tayari. Pay for verified application submissions instead of a locked-in monthly subscription."
+        path="/pricing"
+      />
       <div className="min-h-screen bg-gradient-hero py-20">
         <div className="container mx-auto px-4">
           {/* Header */}

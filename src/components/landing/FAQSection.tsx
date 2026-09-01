@@ -5,7 +5,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 
-const faqs = [
+export const faqs = [
   {
     question: "What is Job Tayari?",
     answer: "Job Tayari is an AI-assisted career preparation platform for software engineers. It helps you organize resumes, interview practice, job matching, and application review; it does not guarantee a particular interview or hiring outcome.",

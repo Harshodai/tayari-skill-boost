@@ -1,3 +1,4 @@
+import { Seo } from "@/components/seo/Seo";
 
 import { Layout } from "@/components/layout";
 import {
@@ -17,6 +18,11 @@ import { features, settings } from "@/config/features";
 const Index = () => {
   return (
     <Layout>
+      <Seo
+        title="Job Tayari — AI Resume Optimizer, ATS Score & Job Search"
+        description="Run your job search as one observable pipeline: reflective resume optimization, ATS scoring, multi-board job matching, and guardrail-gated apply assist."
+        path="/"
+      />
       <HeroSection />
       <CandidateControlSection />
 

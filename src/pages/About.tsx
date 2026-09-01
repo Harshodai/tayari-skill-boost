@@ -1,3 +1,4 @@
+import { Seo } from "@/components/seo/Seo";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck, GitFork, Lock, Shield, ArrowRight } from "lucide-react";
@@ -36,6 +37,11 @@ const About = () => {
 
   return (
     <Layout>
+      <Seo
+        title="About Job Tayari — Our Approach to AI Career Tooling"
+        description="Why Job Tayari exists, how the glass-box agent pipeline works, and the principles behind our privacy-first, self-hostable career platform."
+        path="/about"
+      />
       <div className="min-h-screen bg-gradient-hero py-12 md:py-20">
         {/* Hero Section */}
         <section className="py-12 md:py-16">

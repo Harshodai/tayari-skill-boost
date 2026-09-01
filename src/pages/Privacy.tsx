@@ -1,3 +1,4 @@
+import { Seo } from "@/components/seo/Seo";
 import { Layout } from "@/components/layout";
 import { Shield, Lock, Eye, Database, UserCheck, Server } from "lucide-react";
 
@@ -43,6 +44,11 @@ const sections = [
 const Privacy = () => {
   return (
     <Layout>
+      <Seo
+        title="Privacy Policy — Job Tayari"
+        description="How Job Tayari collects, stores, and protects your resume and application data, including self-hosting and data deletion options."
+        path="/privacy"
+      />
       <div className="min-h-screen bg-gradient-hero py-20">
         <div className="container mx-auto max-w-4xl px-4">
           <div className="mb-12 text-center">
