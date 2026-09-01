@@ -37,6 +37,9 @@ export interface Conversation {
   context_type: string;
   related_job_id?: string;
   is_archived: boolean;
+  unread?: boolean;
+  is_unread?: boolean;
+  unread_count?: number;
   created_at: string;
   updated_at: string;
 }

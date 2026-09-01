@@ -90,13 +90,13 @@ export function useDashboardData(userId?: string) {
       try {
         const data = await listSavedJobs();
         return Array.isArray(data) ? data as SavedJob[] : ((data as any)?.jobs ?? []) as SavedJob[];
-      } catch {
+      } catch (err) {
         if (!USE_SELF_HOSTED) {
           const { data, error } = await supabase.from("saved_jobs").select("*").order("saved_at", { ascending: false });
           if (error) throw error;
           return (data ?? []) as SavedJob[];
         }
-        return [] as SavedJob[];
+        throw err;
       }
     },
   });
@@ -110,13 +110,13 @@ export function useDashboardData(userId?: string) {
         const res = await apiFetch<any>("/v1/roadmap");
         const items = Array.isArray(res) ? res : (res?.steps ?? res?.items ?? []);
         return items as RoadmapItem[];
-      } catch {
+      } catch (err) {
         if (!USE_SELF_HOSTED) {
           const { data, error } = await supabase.from("roadmap_progress").select("*").order("updated_at", { ascending: false });
           if (error) throw error;
           return (data ?? []) as RoadmapItem[];
         }
-        return [] as RoadmapItem[];
+        throw err;
       }
     },
   });
@@ -130,13 +130,13 @@ export function useDashboardData(userId?: string) {
         const res = await apiFetch<any>("/v1/interview/sessions");
         const items = Array.isArray(res) ? res : (res?.sessions ?? []);
         return items as InterviewSession[];
-      } catch {
+      } catch (err) {
         if (!USE_SELF_HOSTED) {
           const { data, error } = await supabase.from("interview_sessions").select("*").order("created_at", { ascending: false });
           if (error) throw error;
           return (data ?? []) as InterviewSession[];
         }
-        return [] as InterviewSession[];
+        throw err;
       }
     },
   });
@@ -187,12 +187,14 @@ export function useDashboardData(userId?: string) {
       try {
         const conversations = await listConversations();
         const total = Array.isArray(conversations) ? conversations.length : 0;
-        // Approximation: conversations created in the last 7 days without a
-        // reply are "unread" for summary purposes until the backend exposes
-        // an explicit unread count endpoint.
-        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
         const unread = Array.isArray(conversations)
-          ? conversations.filter((c: any) => new Date(c.created_at).getTime() > sevenDaysAgo && !c.is_archived).length
+          ? conversations.filter(
+              (c: any) =>
+                !c.is_archived &&
+                (c.unread === true ||
+                  c.is_unread === true ||
+                  (typeof c.unread_count === "number" && c.unread_count > 0))
+            ).length
           : 0;
         return { total, unread, pending_followup: 0 } as InboxSummary;
       } catch {

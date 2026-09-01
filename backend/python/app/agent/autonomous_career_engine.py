@@ -205,6 +205,7 @@ class AutonomousCareerEngine:
             if not persisted_id:
                 # Remove from in-memory caches to avoid a phantom pending entry.
                 self.pending_hitl_approvals.pop(approval_id, None)
+                _remove_global_approval(approval_id)
                 raise RuntimeError(
                     "Failed to persist HITL approval to durable storage; "
                     "cannot issue a pending proposal."
@@ -230,7 +231,7 @@ class AutonomousCareerEngine:
             cached = _get_global_approval(approval_id)
             if cached is not None:
                 cached_uid = cached.get("user_id")
-                if effective_user_id is None or cached_uid == effective_user_id:
+                if cached_uid == effective_user_id:
                     item = cached
 
         # Fallback to durable shared storage for replica-safety / LRU eviction recovery

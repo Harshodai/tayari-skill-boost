@@ -350,6 +350,11 @@ async def ats_prepare(req: ATSPrepareRequest, user_id: str = Depends(get_current
     except LLMNotConfiguredError as exc:
         logger.error("ATS prepare: LLM not configured/available: %s", exc)
         raise HTTPException(status_code=503, detail="ATS optimization service unavailable.") from exc
+    except RuntimeError as exc:
+        logger.error("ATS prepare: durable storage / runtime error: %s", exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("ATS prepare error")
         raise HTTPException(status_code=500, detail="ATS preparation failed.") from e

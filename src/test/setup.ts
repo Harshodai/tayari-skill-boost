@@ -24,3 +24,9 @@ globalThis.fetch = vi.fn(async () =>
     headers: { "Content-Type": "application/json" },
   })
 ) as typeof fetch;
+
+vi.mock("react-helmet-async", () => ({
+  Helmet: ({ children }: { children?: React.ReactNode }) => children ?? null,
+  HelmetProvider: ({ children }: { children?: React.ReactNode }) => children ?? null,
+}));
+

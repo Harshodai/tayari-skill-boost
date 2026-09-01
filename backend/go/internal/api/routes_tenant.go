@@ -193,7 +193,7 @@ func (s *Server) handleListAdvisorStudents(w http.ResponseWriter, r *http.Reques
 		JOIN memberships m ON m.user_id = u.id
 		LEFT JOIN profiles p ON p.id = u.id
 		LEFT JOIN cohorts c ON c.id = m.cohort_id
-		WHERE m.tenant_id = $1
+		WHERE m.tenant_id = $1 AND m.role = 'student'
 	`
 	args := []interface{}{tenant.ID}
 

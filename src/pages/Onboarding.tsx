@@ -323,7 +323,7 @@ export default function Onboarding() {
               <HardDrive className="w-5 h-5 text-warning shrink-0 mt-0.5" aria-hidden="true" />
               <div className="space-y-1">
                 <h3 className="font-semibold text-sm">
-                  Backend Gateway Offline — Local Mode Active. Your progress is saved locally in your browser storage and will auto-sync when connection restores.
+                  Backend Gateway Offline — Local Mode Active. Your progress is saved locally in your browser storage. Please save again once the backend gateway is available.
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   You can safely keep going. Nothing you type will be lost.

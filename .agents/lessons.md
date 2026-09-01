@@ -165,6 +165,8 @@ A `RLIMIT_CPU` of 30 seconds applied to a subprocess whose caller supplied `time
 
 After `start_new_session=True`, the child is always in a different process group, so `killpg` is safe. But if session isolation ever fails silently, an unguarded `os.killpg(os.getpgid(proc.pid), SIGKILL)` would kill the parent process and all sibling workers. Always verify `os.getpgid(proc.pid) != os.getpgid(os.getpid())` before using `killpg`; fall back to `proc.kill()` if they match.
 
+#### L-18 — Synthesize fallback diagnostic when subprocess exits with signal and empty stderr
+
 When a subprocess is killed by `RLIMIT_CPU` or the OOM killer, `proc.returncode` is `-9` (or another signal code) and `stderr` is empty. If `error` is set to `stderr_str` directly, callers receive `error: ""` — indistinguishable from success. Always synthesize a fallback diagnostic (`"ProcessError: exited with code N (possibly terminated by signal or OS resource limit)"`) when `returncode != 0 and stderr.strip() == ""`.
 
 #### L-19 — Guard against missing-hash bypass in approval workflows
@@ -192,5 +194,8 @@ Using `runs.length === 0` to render "No runs yet" when `isError` is true hides q
 - `npx tsc --noEmit`: exit 0
 - `npm test -- --run`: 52 test files, **208 tests passed**
 - `bash scripts/production_promotion_gate.sh`: **66/66 checks passed**, 0 unresolved critical/high
-- Python tests (JWT-secret tests excluded from sandbox): **518 passed, 2 skipped**
+- `cd backend/python && PYTHONPATH=. .venv/bin/pytest tests/ -q` (JWT-secret tests excluded from sandbox): **518 passed, 2 skipped**
 - Commits: `69be27f`, `84dadcb`, `1c18dee`, `7cc616b`
+- Remote status: ahead of origin/main (unpushed)
+- Unverified infrastructure checks: None
+- Unrelated changes intentionally left out: None

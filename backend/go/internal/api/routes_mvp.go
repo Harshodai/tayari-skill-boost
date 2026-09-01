@@ -431,19 +431,30 @@ func (s *Server) handleListAutopilotRuns(w http.ResponseWriter, r *http.Request)
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
 
+	limit := 20
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
 			if l > 200 {
-				l = 200
+				limit = 200
+			} else {
+				limit = l
 			}
-			query += fmt.Sprintf(" LIMIT %d", l)
 		}
 	}
+
+	offset := 0
 	if offsetStr != "" {
 		if off, err := strconv.Atoi(offsetStr); err == nil && off > 0 {
-			query += fmt.Sprintf(" OFFSET %d", off)
+			if off > 10000 {
+				offset = 10000
+			} else {
+				offset = off
+			}
 		}
 	}
+
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
+	args = append(args, limit, offset)
 
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, args...)
 	if err != nil {

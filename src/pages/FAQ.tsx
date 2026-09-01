@@ -16,8 +16,8 @@ const FAQ = () => {
   return (
     <Layout>
       <Seo
-        title="Job Tayari FAQ — Resume, ATS & Apply Assist Answers"
-        description="Answers about Job Tayari's resume optimizer, ATS scoring, job matching, apply assist guardrails, pricing, exports, and data security."
+        title="Job Tayari FAQ — Resume, ATS & AutoPilot Answers"
+        description="Answers about Job Tayari's resume optimizer, ATS scoring, job matching, AutoPilot guardrails, pricing, exports, and data security."
         path="/faq"
         jsonLd={faqJsonLd}
       />

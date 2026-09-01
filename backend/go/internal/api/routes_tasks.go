@@ -440,7 +440,7 @@ func (s *Server) handleGetTaskPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var plan taskPlanRecord
-	err = s.DB.Conn.QueryRowContext(r.Context(), `SELECT task_id,version,steps,status,created_at,approved_at FROM task_plans WHERE task_id=$1 AND user_id=$2 ORDER BY version DESC LIMIT 1`, id, uid).Scan(&plan.TaskID, &plan.Version, &plan.Steps, &plan.Status, &plan.CreatedAt, &plan.ApprovedAt)
+	err = s.DB.Conn.QueryRowContext(r.Context(), `SELECT task_id,version,steps,status,created_at,approved_at FROM task_plans WHERE task_id=$1 AND user_id=$2 ORDER BY CASE WHEN status='approved' THEN 1 WHEN status='proposed' THEN 2 ELSE 3 END, version DESC LIMIT 1`, id, uid).Scan(&plan.TaskID, &plan.Version, &plan.Steps, &plan.Status, &plan.CreatedAt, &plan.ApprovedAt)
 	if err != nil {
 		s.respondError(w, 404, "task plan not found")
 		return
@@ -537,6 +537,12 @@ func (s *Server) handlePlanDecision(w http.ResponseWriter, r *http.Request, appr
 	if n != 1 {
 		s.respondError(w, 409, "no matching proposed plan is available or plan version mismatch")
 		return
+	}
+	if approved {
+		if _, err := tx.ExecContext(r.Context(), `UPDATE task_plans SET status='superseded' WHERE task_id=$1 AND user_id=$2 AND status='proposed'`, id, uid); err != nil {
+			s.respondError(w, 500, "failed to decide plan")
+			return
+		}
 	}
 	_, err = tx.ExecContext(r.Context(), `UPDATE task_runs SET status=$3,version=version+1,updated_at=now() WHERE id=$1 AND user_id=$2`, id, uid, taskStatus)
 	if err != nil {

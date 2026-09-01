@@ -69,7 +69,7 @@ describe("Onboarding Page - Error Handling & Offline Drafting UI", () => {
     const offlineBanner = await screen.findByTestId("gateway-offline-banner");
     expect(offlineBanner).toBeInTheDocument();
     expect(offlineBanner.textContent).toContain(
-      "Backend Gateway Offline — Local Mode Active. Your progress is saved locally in your browser storage and will auto-sync when connection restores."
+      "Backend Gateway Offline — Local Mode Active. Your progress is saved locally in your browser storage. Please save again once the backend gateway is available."
     );
 
     const savedFields = screen.getByTestId("saved-fields-list");
