@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
+const STEP_LABELS = ["Your track", "Your targets", "Review & finish"] as const;
 import {
   Briefcase,
   ArrowRight,
@@ -21,6 +24,7 @@ import {
   AlertCircle,
   HardDrive,
   WifiOff,
+  Check,
 } from "lucide-react";
 
 export type TransitionType = "same_domain" | "cross_domain";
