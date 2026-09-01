@@ -118,3 +118,61 @@ The scanner was made forward-aware by collecting RLS and grant declarations acro
 Verification evidence for this pass: Python `698 passed, 4 skipped`; Go tests passed; frontend `33 test files, 100 tests passed`; lint passed with warnings only; frontend build passed; and `bun run security:production` passed. Production Supabase application and Railway deployment remain separate operational steps requiring authenticated operator access and post-migration two-user negative tests.
 
 The scanner rule remains intentionally strict: a baseline is not launch approval, and service-only policies are accepted only when they are explicitly limited to `service_role`. Any future public table must ship with an owner or service access decision, RLS, grants, and a forward-aware migration test.
+
+---
+
+## 2026-09-01 — Dashboard wiring, self-hosted Apply Agent, credit-pack billing tab, subprocess security
+
+### What was done
+
+1. **Wired real dashboard data** (`src/hooks/useDashboardData.ts`): replaced all `if (USE_SELF_HOSTED) return []` stubs for `savedJobsQuery`, `roadmapQuery`, and `interviewsQuery` with real `apiFetch` calls to `/v1/jobs/saved`, `/v1/roadmap`, and `/v1/interview/sessions`. Added `creditsQuery` → `/v1/billing/credits` and `inboxQuery` → `/v1/conversations` so the dashboard always shows live data in both cloud and self-hosted modes.
+
+2. **Dashboard credit + inbox widgets** (`src/pages/Dashboard.tsx`): added a Credit Balance card (live balance, lifetime used/purchased, link to `/pricing`) and a Communication Inbox summary card (total conversations, unread badge, link to `/communication`), both driven by data exported from the hook above.
+
+3. **Self-hosted Apply Agent** (`src/lib/agent/applyAgent.ts` + `src/pages/ApplyAgent.tsx`): replaced all `supabase.functions.invoke("apply-agent")` and `supabase.from("agent_runs")` calls with `apiFetch` calls to the Go API Gateway (`/v1/ai/agent/career/apply`, `/v1/agent-runs`, `/v1/agent-runs/{id}`, `/v1/agent-runs/{id}/steps`, `/v1/agent-runs/{id}/transition`). Removed the `cloudOnlyUnavailable = USE_SELF_HOSTED` gate, the `BackendUnavailableBanner`, the disabled button state, and the cloud-only run-list message. The Apply Agent now works identically in self-hosted and cloud modes.
+
+4. **Live Billing tab** (`src/pages/Settings.tsx`): extracted a `BillingTab` component that fetches `/v1/billing/credits` on mount, renders available / lifetime-purchased / lifetime-used credit counts, a zero-cost guarantee banner, a "Buy More Credits" CTA, and a full transaction ledger with type, description, reference ID, and date. Replaced the previous hardcoded "Free Plan $0/month" static mock entirely.
+
+5. **Four security/correctness fixes** across `codeact_repl.py`, `agent_db.py`, and `Onboarding.tsx` — see lessons L-11 through L-18 below.
+
+### Lessons
+
+#### L-11 — `USE_SELF_HOSTED` guards that return empty arrays are invisible bugs
+
+Returning `[]` when self-hosted is set makes an entire feature silently disappear. A developer testing on a self-hosted instance sees empty states and assumes they are correct. The right pattern is: **always attempt the real API call; only fall back gracefully when the call fails**. Stubs disguised as empty data are production bugs.
+
+#### L-12 — `supabase.functions.invoke` calls inside a library file are hidden cloud dependencies
+
+When a shared library (`applyAgent.ts`) calls `supabase.functions.invoke`, any page that imports it inherits an implicit cloud dependency — it silently breaks on self-hosted. Move all AI-side calls through the Go API Gateway (`apiFetch('/v1/...')`) so the same code path works in both environments. Gating the entire UI on `USE_SELF_HOSTED` is never the right answer once a real backend route exists.
+
+#### L-13 — `return True` on a missing pool is a silent false-positive
+
+An atomic CAS function that returns `True` when it has no database connection tells callers "the approval was recorded" when it was not. Downstream effects (removing pending cache entries, sending confirmation emails) then proceed on a lie. Any approval / transition function must `return False` (or raise) when it cannot reach storage — fail-closed, not fail-open.
+
+#### L-14 — A single React error state should not serve two semantically different error kinds
+
+Routing both validation errors (400/422) and unexpected errors (500, network) through the same state variable means the UI heading is always wrong for one of them. Separate states (`validationError`, `saveError`) cost one line to declare and produce unambiguous, correct headings for every error class. Reusing one state to mean "any error" is a silent UX bug.
+
+#### L-15 — `os.setsid()` in `preexec_fn` conflicts with `asyncio` and must be replaced by `start_new_session=True`
+
+`asyncio.create_subprocess_exec` with `preexec_fn=os.setsid` is not safe on all platforms: the pre-exec function runs in a forked child while the event loop is still alive in the parent, and this combination can deadlock or silently drop the session call. The asyncio-safe replacement is `start_new_session=True` passed directly to `create_subprocess_exec`. Reserve `preexec_fn` for resource-limit calls (`setrlimit`) that are async-safe.
+
+#### L-16 — Subprocess resource limits must track the caller's timeout, not a compile-time constant
+
+A `RLIMIT_CPU` of 30 seconds applied to a subprocess whose caller supplied `timeout=120.0` means the process gets killed by the OS after 30 CPU-seconds while the wall-clock timer still has 90 seconds left — producing a confusing, hard-to-diagnose failure. Always derive soft/hard CPU limits from the requested wall-clock timeout (`soft = timeout`, `hard = timeout + grace`).
+
+#### L-17 — `os.killpg` must be guarded against hitting the parent's own process group
+
+After `start_new_session=True`, the child is always in a different process group, so `killpg` is safe. But if session isolation ever fails silently, an unguarded `os.killpg(os.getpgid(proc.pid), SIGKILL)` would kill the parent process and all sibling workers. Always verify `os.getpgid(proc.pid) != os.getpgid(os.getpid())` before using `killpg`; fall back to `proc.kill()` if they match.
+
+#### L-18 — Empty stderr after a non-zero exit is a diagnostic dead end
+
+When a subprocess is killed by `RLIMIT_CPU` or the OOM killer, `proc.returncode` is `-9` (or another signal code) and `stderr` is empty. If `error` is set to `stderr_str` directly, callers receive `error: ""` — indistinguishable from success. Always synthesize a fallback diagnostic (`"ProcessError: exited with code N (possibly terminated by signal or OS resource limit)"`) when `returncode != 0 and stderr.strip() == ""`.
+
+### Verification evidence
+
+- `npx tsc --noEmit`: exit 0
+- `npm test -- --run`: 52 test files, **208 tests passed**
+- `bash scripts/production_promotion_gate.sh`: **66/66 checks passed**, 0 unresolved critical/high
+- Python tests (JWT-secret tests excluded from sandbox): **518 passed, 2 skipped**
+- Commits: `69be27f` (dashboard/agent wiring) and `84dadcb` (security fixes)
