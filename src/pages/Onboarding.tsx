@@ -357,7 +357,7 @@ export default function Onboarding() {
 
         {/* Step 1: Branch Selector */}
         {step === 1 && (
-          <Card className="bg-card border-border text-foreground p-6 space-y-6">
+          <Card key="step-1" className="animate-fade-in bg-card border-border text-foreground p-6 space-y-6">
             <CardHeader className="p-0 space-y-2">
               <CardTitle className="text-2xl font-bold flex items-center gap-2">
                 <GitBranch className="w-6 h-6 text-primary" /> Select Your Career Transition Track
@@ -425,7 +425,7 @@ export default function Onboarding() {
 
         {/* Step 2: Track Customization */}
         {step === 2 && (
-          <Card className="bg-card border-border text-foreground p-6 space-y-6">
+          <Card key="step-2" className="animate-fade-in bg-card border-border text-foreground p-6 space-y-6">
             <CardHeader className="p-0 space-y-2">
               <CardTitle className="text-2xl font-bold flex items-center gap-2">
                 {transitionType === "same_domain" ? (
@@ -551,7 +551,7 @@ export default function Onboarding() {
 
         {/* Step 3: Complete & Launch */}
         {step === 3 && (
-          <Card className="bg-card border-border text-foreground p-6 space-y-6 text-center">
+          <Card key="step-3" className="animate-fade-in bg-card border-border text-foreground p-6 space-y-6 text-center">
             <div className="p-4 bg-primary/10 w-max mx-auto rounded-full text-primary">
               <Sparkles className="w-10 h-10" />
             </div>
