@@ -75,25 +75,36 @@ def _sandbox_preexec(timeout_seconds: float):
     Session leadership is now set via start_new_session=True on
     create_subprocess_exec, so os.setsid() is NOT called here.
     """
-    try:
-        import resource
-        # CPU limit is derived from the requested wall-clock timeout so that
-        # the RLIMIT hard cap tracks the actual budget instead of a fixed 30 s.
-        # A 5-second grace period gives the process a chance to clean up before
-        # the OS sends SIGKILL.
-        cpu_soft = max(1, int(timeout_seconds))
-        cpu_hard = cpu_soft + 5
-        resource.setrlimit(resource.RLIMIT_CPU, (cpu_soft, cpu_hard))
-        # Limit file creation size (10 MB)
-        resource.setrlimit(resource.RLIMIT_FSIZE, (10 * 1024 * 1024, 10 * 1024 * 1024))
-        # Limit open file descriptors
-        if hasattr(resource, "RLIMIT_NOFILE"):
-            try:
-                resource.setrlimit(resource.RLIMIT_NOFILE, (128, 128))
-            except (ValueError, OSError):
-                pass
-    except Exception:
-        pass
+    import resource as _resource
+
+    def _apply(name: str, soft: int, hard: int) -> None:
+        """Apply a single rlimit, logging on failure so missing limits are visible."""
+        limit = getattr(_resource, name, None)
+        if limit is None:
+            return
+        try:
+            _resource.setrlimit(limit, (soft, hard))
+        except (ValueError, OSError) as exc:
+            import sys as _sys
+            print(f"[codeact_repl] WARNING: setrlimit({name}, ({soft}, {hard})) failed: {exc}", file=_sys.stderr)
+
+    # CPU time — derived from the wall-clock timeout so the hard cap tracks the
+    # actual budget; +5 s grace period allows orderly cleanup before SIGKILL.
+    cpu_soft = max(1, int(timeout_seconds))
+    cpu_hard = cpu_soft + 5
+    _apply("RLIMIT_CPU", cpu_soft, cpu_hard)
+
+    # File creation size (10 MiB)
+    _apply("RLIMIT_FSIZE", 10 * 1024 * 1024, 10 * 1024 * 1024)
+
+    # Address-space (virtual memory) limit — 512 MiB prevents runaway memory
+    # growth and OOM-killer surprises for neighbouring processes.
+    _MiB_512 = 512 * 1024 * 1024
+    _apply("RLIMIT_AS", _MiB_512, _MiB_512)
+
+    # Open file-descriptor count
+    _apply("RLIMIT_NOFILE", 128, 128)
+
 
 
 async def _read_bounded(stream: asyncio.StreamReader, max_bytes: int) -> bytes:

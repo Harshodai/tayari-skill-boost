@@ -188,10 +188,13 @@ class AutonomousCareerEngine:
         self.pending_hitl_approvals[approval_id] = proposal
         _add_global_approval(approval_id, proposal)
 
-        # Persist to durable shared storage if user is authenticated
+        # Persist to durable shared storage if user is authenticated.
+        # The proposal is only returned to the caller after a successful
+        # durable write so the route can propagate 503 when persistence is
+        # unavailable, rather than handing the caller an untracked approval ID.
         if effective_user_id:
             from app.services.agent_db import create_runtime_approval
-            await create_runtime_approval(
+            persisted_id = await create_runtime_approval(
                 user_id=effective_user_id,
                 task_id=None,
                 agent_id="autonomous_career_engine",
@@ -199,8 +202,16 @@ class AutonomousCareerEngine:
                 tool_input=proposal,
                 content_preview=f"ATS Keyword Optimization (Score: {after})",
             )
+            if not persisted_id:
+                # Remove from in-memory caches to avoid a phantom pending entry.
+                self.pending_hitl_approvals.pop(approval_id, None)
+                raise RuntimeError(
+                    "Failed to persist HITL approval to durable storage; "
+                    "cannot issue a pending proposal."
+                )
 
         return proposal
+
 
     async def confirm_ats_keyword_optimization_hitl(
         self,
@@ -241,7 +252,9 @@ class AutonomousCareerEngine:
             return {"success": False, "error": "Approval belongs to a different user."}
         if item.get("status") != "PENDING_USER_APPROVAL":
             return {"success": False, "error": f"Approval is not in pending state (currently '{item.get('status')}')."}
-        if expected_proposal_hash and item.get("proposal_hash") and expected_proposal_hash != item["proposal_hash"]:
+        if expected_proposal_hash and (
+            not item.get("proposal_hash") or expected_proposal_hash != item["proposal_hash"]
+        ):
             return {"success": False, "error": "Proposal hash mismatch; proposal has changed."}
 
         new_status = "APPROVED_AND_READY" if approved else "REJECTED_BY_USER"

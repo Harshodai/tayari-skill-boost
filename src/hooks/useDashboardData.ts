@@ -157,8 +157,10 @@ export function useDashboardData(userId?: string) {
   });
 
   // ponytail: live credit balance from the billing endpoint.
-  // Non-critical — a failure here is swallowed; the dashboard stays functional.
-  const creditsQuery = useQuery({
+  // Non-critical — a failure here returns null (unavailable) rather than
+  // a false zero balance, so downstream UI can distinguish unreachable service
+  // from an authenticated candidate with 0 verified credits.
+  const creditsQuery = useQuery<CreditBalance | null>({
     queryKey: ["credit-balance", userId],
     enabled: !!userId,
     queryFn: async () => {
@@ -171,7 +173,7 @@ export function useDashboardData(userId?: string) {
           updated_at: res?.updated_at ?? "",
         } as CreditBalance;
       } catch {
-        return { balance: 0, lifetime_purchased: 0, lifetime_used: 0, updated_at: "" } as CreditBalance;
+        return null;
       }
     },
   });
@@ -230,7 +232,7 @@ export function useDashboardData(userId?: string) {
     roadmap: roadmapQuery.data ?? [],
     interviews: interviewsQuery.data ?? [],
     funnel: funnelQuery.data ?? { saved: 0, applied: 0, interview: 0, offer: 0 },
-    credits: creditsQuery.data ?? { balance: 0, lifetime_purchased: 0, lifetime_used: 0, updated_at: "" },
+    credits: creditsQuery.data ?? null,
     inbox: inboxQuery.data ?? { total: 0, unread: 0, pending_followup: 0 },
     isLoading,
     isError,

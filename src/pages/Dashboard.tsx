@@ -73,8 +73,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState<"match" | "outcomes">("match");
 
   const firstName = user?.user_metadata?.full_name?.split(" ")[0] ?? user?.email?.split("@")[0] ?? "";
-
-  const { analyses = [], savedJobs = [], roadmap = [], interviews = [], funnel = { saved: 0, applied: 0, interview: 0, offer: 0 }, credits = { balance: 0, lifetime_purchased: 0, lifetime_used: 0, updated_at: "" }, inbox = { total: 0, unread: 0, pending_followup: 0 }, isLoading, isError, refetch } = useDashboardData(userId);
+  const { analyses = [], savedJobs = [], roadmap = [], interviews = [], funnel = { saved: 0, applied: 0, interview: 0, offer: 0 }, credits, inbox = { total: 0, unread: 0, pending_followup: 0 }, isLoading, isError, refetch } = useDashboardData(userId);
   const { unavailable: backendUnavailable } = useBackendHealth();
 
   const totalApps = (funnel.applied ?? 0) + (funnel.interview ?? 0) + (funnel.offer ?? 0);
@@ -308,17 +307,26 @@ const Dashboard = () => {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">Verified Submission Credits</p>
-                      <p className="text-2xl font-extrabold tabular-nums text-foreground font-mono">
-                        {credits.balance}
-                        <span className="text-sm font-normal text-muted-foreground ml-1.5">available</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {credits.lifetime_used > 0 ? `${credits.lifetime_used} used · ${credits.lifetime_purchased} purchased lifetime` : "Buy a pack to start verified applications"}
-                      </p>
+                      {credits ? (
+                        <>
+                          <p className="text-2xl font-extrabold tabular-nums text-foreground font-mono">
+                            {credits.balance}
+                            <span className="text-sm font-normal text-muted-foreground ml-1.5">available</span>
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {credits.lifetime_used > 0 ? `${credits.lifetime_used} used · ${credits.lifetime_purchased} purchased lifetime` : "Buy a pack to start verified applications"}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium text-muted-foreground mt-1">Balance unavailable</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Check pricing to view or top up credits</p>
+                        </>
+                      )}
                     </div>
                     <div className="shrink-0">
                       <Badge variant="outline" className="text-xs text-primary border-primary/30 bg-primary/5 group-hover:bg-primary/10">
-                        {credits.balance === 0 ? "Buy Credits" : "Top Up"}
+                        {!credits ? "Check Balance" : credits.balance === 0 ? "Buy Credits" : "Top Up"}
                       </Badge>
                     </div>
                   </CardContent>
@@ -344,7 +352,11 @@ const Dashboard = () => {
                         <span className="text-sm font-normal text-muted-foreground ml-1.5">conversations</span>
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {inbox.unread > 0 ? `${inbox.unread} recent · follow-ups, outreach & negotiations` : "No conversations yet — generate a follow-up"}
+                        {inbox.total === 0
+                          ? "No conversations yet — generate a follow-up"
+                          : inbox.unread > 0
+                          ? `${inbox.unread} recent · follow-ups, outreach & negotiations`
+                          : "No recent conversations · follow-ups, outreach & negotiations"}
                       </p>
                     </div>
                     <div className="shrink-0">

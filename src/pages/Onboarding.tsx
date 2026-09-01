@@ -214,11 +214,13 @@ export default function Onboarding() {
         setValidationError(err.message || "Profile validation error. Please check your inputs.");
         return;
       } else {
-        // Unexpected error (500, network failure, etc.) — use saveError so
-        // the banner heading reads "Save Failed" not "Profile Validation Error".
+        // Unexpected error (500, network failure, etc.) — clear gateway offline state
+        // and use saveError so the banner heading reads "Save Failed" not "Profile Validation Error".
+        setIsGatewayOffline(false);
         setSaveError(err.message || "Could not save profile. Please try again.");
         return;
       }
+
     }
 
 

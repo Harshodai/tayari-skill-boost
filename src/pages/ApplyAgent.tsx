@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play, ShieldCheck, Eye, AlertTriangle, ExternalLink, ChevronRight, Sparkles } from "lucide-react";
+import { Loader2, Play, ShieldCheck, Eye, AlertTriangle, ExternalLink, ChevronRight, Sparkles, RefreshCw, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { AgentLiveView } from "@/components/agent/AgentLiveView";
 import { listAgentRuns, startApplyAgent } from "@/lib/agent/applyAgent";
@@ -30,7 +30,7 @@ export function ApplyAgent() {
   // both cloud and self-hosted environments. The cloudOnlyUnavailable block
   // has been removed; agent_runs rows are persisted to PostgreSQL via the
   // Go backend whether or not Supabase Edge Functions are available.
-  const { data: runs = [] } = useQuery({
+  const { data: runs = [], isError: runsError, refetch: refetchRuns } = useQuery({
     queryKey: ["agent-runs"],
     queryFn: listAgentRuns,
   });
@@ -193,7 +193,22 @@ export function ApplyAgent() {
                 <CardTitle className="text-base">Recent runs</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {runs.length === 0 ? (
+                {runsError ? (
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-destructive/30 bg-destructive/5 text-sm text-destructive">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>Failed to load run history.</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => refetchRuns()}
+                      className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                    >
+                      <RefreshCw className="mr-1 h-3 w-3" /> Retry
+                    </Button>
+                  </div>
+                ) : runs.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No runs yet.</p>
                 ) : (
                   runs.map((r, i) => (
