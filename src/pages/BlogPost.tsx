@@ -189,6 +189,24 @@ const BlogPost = () => {
 
   return (
     <Layout>
+      {post && (
+        <Seo
+          title={`${post.title} — Job Tayari Blog`}
+          description={post.excerpt || `${post.title} on the Job Tayari blog.`}
+          path={`/blog/${post.slug}`}
+          ogType="article"
+          jsonLd={{
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            headline: post.title,
+            description: post.excerpt,
+            author: { "@type": "Person", name: post.author_name },
+            datePublished: post.published_at,
+            image: post.featured_image || undefined,
+            mainEntityOfPage: `${SITE_URL}/blog/${post.slug}`,
+          }}
+        />
+      )}
       <div className="min-h-screen bg-gradient-hero">
         {/* Loading State */}
         {isLoading && (
