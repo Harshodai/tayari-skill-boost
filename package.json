@@ -31,7 +31,9 @@
     "extension:validate": "node scripts/validate-extension.mjs",
     "test:extension": "node --test extension/tests/*.integration.mjs",
     "docker:smoke": "bash scripts/local-docker-smoke.sh",
-    "docker:down": "bash scripts/local-docker-smoke.sh --down"
+    "docker:down": "bash scripts/local-docker-smoke.sh --down",
+    "predev": "bunx tsx scripts/generate-sitemap.ts",
+    "prebuild": "bunx tsx scripts/generate-sitemap.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

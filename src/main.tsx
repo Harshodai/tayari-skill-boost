@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/react";
 import { createRoot } from "react-dom/client";
+import { HelmetProvider } from "react-helmet-async";
 import App from "./App.tsx";
 import { redactSensitiveKeys, truncateConsoleMessage } from "./lib/telemetry-scrub";
 
@@ -49,12 +50,14 @@ if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_PUBLISH
 
 
 createRoot(document.getElementById("root")!).render(
-  <ThemeProvider>
-    <TenantProvider>
-      <ErrorBoundary>
-        <App />
-      </ErrorBoundary>
-    </TenantProvider>
-  </ThemeProvider>
+  <HelmetProvider>
+    <ThemeProvider>
+      <TenantProvider>
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
+      </TenantProvider>
+    </ThemeProvider>
+  </HelmetProvider>
 );
 
