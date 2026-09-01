@@ -1,5 +1,9 @@
-import { supabase } from "@/integrations/supabase/client";
 import { apiFetch } from "@/api";
+
+// ponytail: all Supabase Edge Function calls and direct supabase.from("agent_runs")
+// queries have been replaced with Go API Gateway calls via apiFetch so the Apply
+// Agent runs correctly in self-hosted environments (Go → Python AI worker →
+// PostgreSQL agent_runs / agent_run_steps tables).
 
 export type AgentRunStatus =
   | "queued"
@@ -45,6 +49,8 @@ export interface ApplicationPacket {
   truthfulness_check?: string;
 }
 
+// ponytail: formerly supabase.functions.invoke("apply-agent", { body: { action: "start", ... } }).
+// Now routes through the Go gateway → Python AI engine → PostgreSQL agent_runs row.
 export async function startApplyAgent(input: {
   jobTitle: string;
   company?: string;
@@ -52,47 +58,53 @@ export async function startApplyAgent(input: {
   jobDescription: string;
   resumeText: string;
 }): Promise<{ runId: string; packet: ApplicationPacket }> {
-  const { data, error } = await supabase.functions.invoke("apply-agent", {
-    body: { action: "start", ...input },
-  });
-  if (error) throw new Error(error.message);
-  if (data?.error) throw new Error(data.error);
-  return data as { runId: string; packet: ApplicationPacket };
+  const res = await apiFetch<{ run_id?: string; runId?: string; packet?: ApplicationPacket; [key: string]: unknown }>(
+    "/v1/ai/agent/career/apply",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        job_title: input.jobTitle,
+        company: input.company ?? "",
+        job_url: input.jobUrl ?? "",
+        job_description: input.jobDescription,
+        resume_text: input.resumeText,
+      }),
+    }
+  );
+  const runId = (res.runId ?? res.run_id ?? "") as string;
+  if (!runId) throw new Error("Agent returned no run_id");
+  return { runId, packet: (res.packet ?? {}) as ApplicationPacket };
 }
 
+// ponytail: formerly supabase.functions.invoke("apply-agent", { body: { action, runId } }).
 export async function transitionRun(runId: string, action: "submit" | "cancel") {
-  const { data, error } = await supabase.functions.invoke("apply-agent", {
-    body: { action, runId },
+  return apiFetch<{ status: string }>(`/v1/agent-runs/${encodeURIComponent(runId)}/transition`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
   });
-  if (error) throw new Error(error.message);
-  if (data?.error) throw new Error(data.error);
-  return data;
 }
 
+// ponytail: formerly supabase.from("agent_runs").select("*").order().limit().
 export async function listAgentRuns(): Promise<AgentRun[]> {
-  const { data, error } = await supabase
-    .from("agent_runs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(20);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as AgentRun[];
+  const res = await apiFetch<AgentRun[] | { runs: AgentRun[] }>("/v1/agent-runs");
+  return Array.isArray(res) ? res : ((res as any)?.runs ?? []);
 }
 
+// ponytail: formerly supabase.from("agent_runs").select("*").eq("id", runId).maybeSingle().
 export async function getAgentRun(runId: string): Promise<AgentRun | null> {
-  const { data, error } = await supabase.from("agent_runs").select("*").eq("id", runId).maybeSingle();
-  if (error) throw new Error(error.message);
-  return (data as AgentRun) ?? null;
+  try {
+    return await apiFetch<AgentRun>(`/v1/agent-runs/${encodeURIComponent(runId)}`);
+  } catch {
+    return null;
+  }
 }
 
+// ponytail: formerly supabase.from("agent_run_steps").select("*").eq("run_id", runId).order("idx").
 export async function listAgentRunSteps(runId: string): Promise<AgentRunStep[]> {
-  const { data, error } = await supabase
-    .from("agent_run_steps")
-    .select("*")
-    .eq("run_id", runId)
-    .order("idx", { ascending: true });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as AgentRunStep[];
+  const res = await apiFetch<AgentRunStep[] | { steps: AgentRunStep[] }>(
+    `/v1/agent-runs/${encodeURIComponent(runId)}/steps`
+  );
+  return Array.isArray(res) ? res : ((res as any)?.steps ?? []);
 }
 
 // WS-03 take-over: pauses the run server-side and enqueues a pending

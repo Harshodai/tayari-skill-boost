@@ -29,6 +29,8 @@ import {
   Globe,
   Send,
   BarChart3,
+  Coins,
+  Inbox,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,6 +54,7 @@ import { toast } from "sonner";
 import { WelcomeTour } from "@/components/onboarding/WelcomeTour";
 import { TASK_RECIPES } from "@/lib/agent/taskRecipes";
 
+
 const COMMAND_CENTER_TOOLS = [
   { title: "Company Radar", desc: "Review company signals", icon: Radar, to: "/radar" },
   { title: "Voice Coach", desc: "WPM, filler & STAR feedback", icon: Mic, to: "/interview/voice-coach" },
@@ -71,7 +74,7 @@ const Dashboard = () => {
 
   const firstName = user?.user_metadata?.full_name?.split(" ")[0] ?? user?.email?.split("@")[0] ?? "";
 
-  const { analyses = [], savedJobs = [], roadmap = [], interviews = [], funnel = { saved: 0, applied: 0, interview: 0, offer: 0 }, isLoading, isError, refetch } = useDashboardData(userId);
+  const { analyses = [], savedJobs = [], roadmap = [], interviews = [], funnel = { saved: 0, applied: 0, interview: 0, offer: 0 }, credits = { balance: 0, lifetime_purchased: 0, lifetime_used: 0, updated_at: "" }, inbox = { total: 0, unread: 0, pending_followup: 0 }, isLoading, isError, refetch } = useDashboardData(userId);
   const { unavailable: backendUnavailable } = useBackendHealth();
 
   const totalApps = (funnel.applied ?? 0) + (funnel.interview ?? 0) + (funnel.offer ?? 0);
@@ -294,7 +297,66 @@ const Dashboard = () => {
               />
             </StatsGrid>
 
-            {/* Today's focus + pipeline */}
+            {/* Credit Balance + Inbox Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 animate-fade-in-up">
+              {/* Credit Balance Card */}
+              <Link to="/pricing" className="group block">
+                <Card className="h-full border-primary/20 bg-primary/5 hover:border-primary/40 hover:bg-primary/10 transition-all shadow-sm">
+                  <CardContent className="p-4 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+                      <Coins className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">Verified Submission Credits</p>
+                      <p className="text-2xl font-extrabold tabular-nums text-foreground font-mono">
+                        {credits.balance}
+                        <span className="text-sm font-normal text-muted-foreground ml-1.5">available</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {credits.lifetime_used > 0 ? `${credits.lifetime_used} used · ${credits.lifetime_purchased} purchased lifetime` : "Buy a pack to start verified applications"}
+                      </p>
+                    </div>
+                    <div className="shrink-0">
+                      <Badge variant="outline" className="text-xs text-primary border-primary/30 bg-primary/5 group-hover:bg-primary/10">
+                        {credits.balance === 0 ? "Buy Credits" : "Top Up"}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+
+              {/* Inbox / Conversations Card */}
+              <Link to="/communication" className="group block">
+                <Card className="h-full border-border/60 hover:border-primary/30 hover:bg-accent/20 transition-all shadow-sm">
+                  <CardContent className="p-4 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-muted/60 flex items-center justify-center shrink-0 relative">
+                      <Inbox className="w-5 h-5 text-muted-foreground" />
+                      {inbox.unread > 0 && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center tabular-nums">
+                          {inbox.unread > 9 ? "9+" : inbox.unread}
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">Communication Inbox</p>
+                      <p className="text-2xl font-extrabold tabular-nums text-foreground font-mono">
+                        {inbox.total}
+                        <span className="text-sm font-normal text-muted-foreground ml-1.5">conversations</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {inbox.unread > 0 ? `${inbox.unread} recent · follow-ups, outreach & negotiations` : "No conversations yet — generate a follow-up"}
+                      </p>
+                    </div>
+                    <div className="shrink-0">
+                      <Badge variant="outline" className="text-xs">
+                        {inbox.unread > 0 ? `${inbox.unread} new` : "Open"}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
               <Card className="lg:col-span-2 border-primary/30 bg-gradient-to-br from-primary/10 via-card to-card overflow-hidden relative shadow-sm">
                 <div className="absolute inset-0 bg-grid-pattern opacity-[0.03]" />

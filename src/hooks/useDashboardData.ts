@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { USE_SELF_HOSTED, listAnalysisHistory, getFunnelData } from "@/api";
+import { USE_SELF_HOSTED, listAnalysisHistory, getFunnelData, listSavedJobs, listApplications, listConversations } from "@/api";
+import { apiFetch } from "@/api/client";
 import type { ResumeAnalysisRecord } from "@/types/resume";
 
 /**
@@ -36,9 +37,23 @@ export interface FunnelData {
   offer: number;
 }
 
+export interface CreditBalance {
+  balance: number;
+  lifetime_purchased: number;
+  lifetime_used: number;
+  updated_at: string;
+}
+
+export interface InboxSummary {
+  total: number;
+  unread: number;
+  pending_followup: number;
+}
+
 /**
  * Centralised data fetching for the Dashboard page.
- * Returns the raw query results (or empty arrays on self‑hosted mode) and the userId.
+ * All queries go through the Go API gateway via apiFetch so both
+ * cloud and self-hosted environments get real data.
  */
 export function useDashboardData(userId?: string) {
   const analysesQuery = useQuery({
@@ -64,36 +79,65 @@ export function useDashboardData(userId?: string) {
     },
   });
 
+  // ponytail: saved jobs now use the Go gateway (/v1/jobs/saved) for both
+  // cloud and self-hosted modes instead of returning an empty array for
+  // self-hosted. Falls back to Supabase only when not in self-hosted mode
+  // and the API call fails.
   const savedJobsQuery = useQuery({
     queryKey: ["saved-jobs", userId],
     enabled: !!userId,
     queryFn: async () => {
-      if (USE_SELF_HOSTED) return [] as SavedJob[];
-      const { data, error } = await supabase.from("saved_jobs").select("*").order("saved_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      try {
+        const data = await listSavedJobs();
+        return Array.isArray(data) ? data as SavedJob[] : ((data as any)?.jobs ?? []) as SavedJob[];
+      } catch {
+        if (!USE_SELF_HOSTED) {
+          const { data, error } = await supabase.from("saved_jobs").select("*").order("saved_at", { ascending: false });
+          if (error) throw error;
+          return (data ?? []) as SavedJob[];
+        }
+        return [] as SavedJob[];
+      }
     },
   });
 
+  // ponytail: roadmap now fetched from Go /v1/roadmap instead of empty fallback.
   const roadmapQuery = useQuery({
     queryKey: ["roadmap-progress", userId],
     enabled: !!userId,
     queryFn: async () => {
-      if (USE_SELF_HOSTED) return [] as RoadmapItem[];
-      const { data, error } = await supabase.from("roadmap_progress").select("*").order("updated_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      try {
+        const res = await apiFetch<any>("/v1/roadmap");
+        const items = Array.isArray(res) ? res : (res?.steps ?? res?.items ?? []);
+        return items as RoadmapItem[];
+      } catch {
+        if (!USE_SELF_HOSTED) {
+          const { data, error } = await supabase.from("roadmap_progress").select("*").order("updated_at", { ascending: false });
+          if (error) throw error;
+          return (data ?? []) as RoadmapItem[];
+        }
+        return [] as RoadmapItem[];
+      }
     },
   });
 
+  // ponytail: interview sessions fetched from Go /v1/interview/sessions.
   const interviewsQuery = useQuery({
     queryKey: ["interview-sessions", userId],
     enabled: !!userId,
     queryFn: async () => {
-      if (USE_SELF_HOSTED) return [] as InterviewSession[];
-      const { data, error } = await supabase.from("interview_sessions").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      try {
+        const res = await apiFetch<any>("/v1/interview/sessions");
+        const items = Array.isArray(res) ? res : (res?.sessions ?? []);
+        return items as InterviewSession[];
+      } catch {
+        if (!USE_SELF_HOSTED) {
+          const { data, error } = await supabase.from("interview_sessions").select("*").order("created_at", { ascending: false });
+          if (error) throw error;
+          return (data ?? []) as InterviewSession[];
+        }
+        return [] as InterviewSession[];
+      }
     },
   });
 
@@ -112,7 +156,51 @@ export function useDashboardData(userId?: string) {
     },
   });
 
-  // ponytail: aggregate load/error across all queries — single loading flag for the page.
+  // ponytail: live credit balance from the billing endpoint.
+  // Non-critical — a failure here is swallowed; the dashboard stays functional.
+  const creditsQuery = useQuery({
+    queryKey: ["credit-balance", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      try {
+        const res = await apiFetch<any>("/v1/billing/credits");
+        return {
+          balance: typeof res?.balance === "number" ? res.balance : 0,
+          lifetime_purchased: typeof res?.lifetime_purchased === "number" ? res.lifetime_purchased : 0,
+          lifetime_used: typeof res?.lifetime_used === "number" ? res.lifetime_used : 0,
+          updated_at: res?.updated_at ?? "",
+        } as CreditBalance;
+      } catch {
+        return { balance: 0, lifetime_purchased: 0, lifetime_used: 0, updated_at: "" } as CreditBalance;
+      }
+    },
+  });
+
+  // ponytail: conversation / inbox summary — count of active conversations
+  // and pending follow-ups shown as an inbox widget on the dashboard.
+  const inboxQuery = useQuery({
+    queryKey: ["inbox-summary", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      try {
+        const conversations = await listConversations();
+        const total = Array.isArray(conversations) ? conversations.length : 0;
+        // Approximation: conversations created in the last 7 days without a
+        // reply are "unread" for summary purposes until the backend exposes
+        // an explicit unread count endpoint.
+        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const unread = Array.isArray(conversations)
+          ? conversations.filter((c: any) => new Date(c.created_at).getTime() > sevenDaysAgo && !c.is_archived).length
+          : 0;
+        return { total, unread, pending_followup: 0 } as InboxSummary;
+      } catch {
+        return { total: 0, unread: 0, pending_followup: 0 } as InboxSummary;
+      }
+    },
+  });
+
+  // ponytail: aggregate load/error across the four primary queries —
+  // credits and inbox are non-critical so they don't block the page.
   const isLoading =
     analysesQuery.isLoading ||
     savedJobsQuery.isLoading ||
@@ -132,6 +220,8 @@ export function useDashboardData(userId?: string) {
       roadmapQuery.refetch(),
       interviewsQuery.refetch(),
       funnelQuery.refetch(),
+      creditsQuery.refetch(),
+      inboxQuery.refetch(),
     ]);
 
   return {
@@ -140,6 +230,8 @@ export function useDashboardData(userId?: string) {
     roadmap: roadmapQuery.data ?? [],
     interviews: interviewsQuery.data ?? [],
     funnel: funnelQuery.data ?? { saved: 0, applied: 0, interview: 0, offer: 0 },
+    credits: creditsQuery.data ?? { balance: 0, lifetime_purchased: 0, lifetime_used: 0, updated_at: "" },
+    inbox: inboxQuery.data ?? { total: 0, unread: 0, pending_followup: 0 },
     isLoading,
     isError,
     refetch,

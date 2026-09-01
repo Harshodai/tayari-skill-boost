@@ -13,8 +13,6 @@ import { toast } from "sonner";
 import { AgentLiveView } from "@/components/agent/AgentLiveView";
 import { listAgentRuns, startApplyAgent } from "@/lib/agent/applyAgent";
 import { isLinkedInUrl } from "@/lib/agent/linkedinUrl";
-import { USE_SELF_HOSTED } from "@/api";
-import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
 
 /** Glass-Box Apply Agent console: watch every step, submit yourself. */
 export function ApplyAgent() {
@@ -28,15 +26,13 @@ export function ApplyAgent() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // The Apply Agent runs on the Lovable Cloud `apply-agent` function plus the
-  // agent_runs/agent_run_steps tables, which are not part of the self-hosted
-  // stack. Gate the whole console instead of failing on submit.
-  const cloudOnlyUnavailable = USE_SELF_HOSTED;
-
+  // ponytail: Apply Agent now uses the Go API Gateway → Python AI worker for
+  // both cloud and self-hosted environments. The cloudOnlyUnavailable block
+  // has been removed; agent_runs rows are persisted to PostgreSQL via the
+  // Go backend whether or not Supabase Edge Functions are available.
   const { data: runs = [] } = useQuery({
     queryKey: ["agent-runs"],
     queryFn: listAgentRuns,
-    enabled: !cloudOnlyUnavailable,
   });
 
 
@@ -106,30 +102,9 @@ export function ApplyAgent() {
           </div>
         </div>
 
-        {cloudOnlyUnavailable && (
-          <div className="space-y-4">
-            <BackendUnavailableBanner feature="Apply Agent" variant="full" className="animate-fade-in" />
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-foreground">
-              <div className="flex items-start gap-3">
-                <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                <div className="space-y-1">
-                  <p className="font-semibold text-primary">Self-Hosted Native Workspaces Available</p>
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    Apply Agent uses cloud Edge Functions for legacy runs. In your self-hosted environment, use{" "}
-                    <Link to="/one-shot" className="font-medium text-primary underline underline-offset-2">One-Shot Autopilot Console</Link> or{" "}
-                    <Link to="/tay" className="font-medium text-primary underline underline-offset-2">Tay Workspace</Link>, which communicate directly with your local Go/Python AI backend.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card className={cloudOnlyUnavailable ? "opacity-60" : undefined}>
+          <Card>
             <CardHeader>
-
-
               <CardTitle className="text-lg">Prepare an application</CardTitle>
               <CardDescription>Paste the posting and your resume. Nothing is sent anywhere else.</CardDescription>
             </CardHeader>
@@ -185,10 +160,9 @@ export function ApplyAgent() {
                 </div>
               ) : null}
 
-              <Button onClick={start} disabled={running || cloudOnlyUnavailable} className="w-full group">
+              <Button onClick={start} disabled={running} className="w-full group">
                 {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />}
-                {cloudOnlyUnavailable ? "Needs the Job Tayari engine" : running ? "Working — watch the log" : "Prepare application"}
-
+                {running ? "Working — watch the log" : "Prepare application"}
               </Button>
               <p className="flex items-start gap-2 text-xs text-muted-foreground">
                 <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
@@ -220,11 +194,7 @@ export function ApplyAgent() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {runs.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {cloudOnlyUnavailable
-                      ? "Run history lives in the Job Tayari engine — start it to see runs here."
-                      : "No runs yet."}
-                  </p>
+                  <p className="text-sm text-muted-foreground">No runs yet.</p>
                 ) : (
                   runs.map((r, i) => (
                     <button
@@ -248,11 +218,11 @@ export function ApplyAgent() {
                     </button>
                   ))
                 )}
-
               </CardContent>
             </Card>
           </div>
         </div>
+
       </div>
     </AppShell>
   );
