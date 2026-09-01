@@ -314,7 +314,7 @@ export default function Onboarding() {
               <HardDrive className="w-5 h-5 text-warning shrink-0 mt-0.5" aria-hidden="true" />
               <div className="space-y-1">
                 <h3 className="font-semibold text-sm">
-                  Working offline — your answers are saved in this browser and sync automatically when the connection returns.
+                  Backend Gateway Offline — Local Mode Active. Your progress is saved locally in your browser storage and will auto-sync when connection restores.
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   You can safely keep going. Nothing you type will be lost.
@@ -348,7 +348,7 @@ export default function Onboarding() {
           >
             <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
             <div>
-              <h3 className="font-semibold text-sm text-foreground">We couldn't save that</h3>
+              <h3 className="font-semibold text-sm text-foreground">Profile Validation Error</h3>
               <p className="text-xs text-muted-foreground mt-0.5">{validationError}</p>
             </div>
           </div>
