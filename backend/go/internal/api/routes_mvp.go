@@ -419,13 +419,33 @@ func (s *Server) handleListAutopilotRuns(w http.ResponseWriter, r *http.Request)
 		s.respondError(w, http.StatusUnauthorized, "User not found in context")
 		return
 	}
-	rows, err := s.DB.Conn.QueryContext(r.Context(), `
+	query := `
 		SELECT run_id, config, status, progress, current_step, logs, applications_created, error, created_at, updated_at
 		FROM autopilot_runs
 		WHERE user_id = $1
 		ORDER BY created_at DESC
-		LIMIT 50
-	`, user.ID)
+	`
+	var args []interface{}
+	args = append(args, user.ID)
+
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
+
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			if l > 200 {
+				l = 200
+			}
+			query += fmt.Sprintf(" LIMIT %d", l)
+		}
+	}
+	if offsetStr != "" {
+		if off, err := strconv.Atoi(offsetStr); err == nil && off > 0 {
+			query += fmt.Sprintf(" OFFSET %d", off)
+		}
+	}
+
+	rows, err := s.DB.Conn.QueryContext(r.Context(), query, args...)
 	if err != nil {
 		log.Printf("handleListAutopilotRuns: query failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to fetch runs")

@@ -3,6 +3,7 @@ package api
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	"tayari-backend/internal/auth"
 	"tayari-backend/internal/models"
@@ -130,8 +131,13 @@ func (s *Server) handleCreateAdvisorCohort(w http.ResponseWriter, r *http.Reques
 	var req struct {
 		Name string `json:"name"`
 	}
-	if err := DecodeAndValidate(r, &req); err != nil || req.Name == "" {
-		s.respondError(w, http.StatusBadRequest, "Invalid cohort name")
+	if err := DecodeAndValidate(r, &req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		s.respondError(w, http.StatusBadRequest, "Cohort name is required")
 		return
 	}
 
@@ -139,7 +145,7 @@ func (s *Server) handleCreateAdvisorCohort(w http.ResponseWriter, r *http.Reques
 	_, err := s.DB.Conn.ExecContext(r.Context(),
 		`INSERT INTO cohorts (id, tenant_id, name, created_at)
 		 VALUES ($1, $2, $3, NOW())`,
-		cohortID, tenant.ID, req.Name,
+		cohortID, tenant.ID, name,
 	)
 	if err != nil {
 		log.Printf("handleCreateAdvisorCohort: failed to create cohort: %v", err)
@@ -150,7 +156,7 @@ func (s *Server) handleCreateAdvisorCohort(w http.ResponseWriter, r *http.Reques
 	s.respondJSON(w, http.StatusCreated, map[string]interface{}{
 		"id":        cohortID.String(),
 		"tenant_id": tenant.ID.String(),
-		"name":      req.Name,
+		"name":      name,
 	})
 }
 

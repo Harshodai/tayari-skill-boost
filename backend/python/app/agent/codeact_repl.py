@@ -24,18 +24,24 @@ import sys
 import traceback
 
 code = sys.stdin.read()
+is_eval = True
 try:
-    compiled_expr = compile(code, "<codeact_repl>", "eval")
-    result = eval(compiled_expr, globals())
-    if result is not None:
-        print(repr(result))
+    compiled = compile(code, "<codeact_repl>", "eval")
 except SyntaxError:
+    is_eval = False
     try:
-        compiled_stmt = compile(code, "<codeact_repl>", "exec")
-        exec(compiled_stmt, globals())
+        compiled = compile(code, "<codeact_repl>", "exec")
     except Exception as exc:
         sys.stderr.write(f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}")
         sys.exit(1)
+
+try:
+    if is_eval:
+        result = eval(compiled, globals())
+        if result is not None:
+            print(repr(result))
+    else:
+        exec(compiled, globals())
 except Exception as exc:
     sys.stderr.write(f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}")
     sys.exit(1)
@@ -156,14 +162,14 @@ class CodeActREPL:
                     proc.stdin.close()
 
                 try:
-                    stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    stdout_bytes, stderr_bytes, _ = await asyncio.wait_for(
                         asyncio.gather(
                             _read_bounded(proc.stdout, MAX_OUTPUT_BYTES),
                             _read_bounded(proc.stderr, MAX_OUTPUT_BYTES),
+                            proc.wait(),
                         ),
                         timeout=timeout,
                     )
-                    await proc.wait()
                 except asyncio.TimeoutError:
                     # Process did not exit within timeout: hard kill process group
                     if proc and proc.pid:

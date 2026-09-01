@@ -43,7 +43,40 @@ PORTAL_DOMAIN_MAP = {
     "simplyhired.com": "SimplyHired",
 }
 
-_GLOBAL_PENDING_HITL_APPROVALS: Dict[str, Dict[str, Any]] = {}
+from collections import OrderedDict
+import time
+
+_MAX_CACHE_SIZE = 500
+_CACHE_TTL_SECONDS = 3600.0  # 1 hour TTL
+_GLOBAL_PENDING_HITL_APPROVALS: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+
+
+def _add_global_approval(approval_id: str, proposal: Dict[str, Any]) -> None:
+    now = time.time()
+    expired = [k for k, v in _GLOBAL_PENDING_HITL_APPROVALS.items() if now - v.get("_cached_at", 0) > _CACHE_TTL_SECONDS]
+    for k in expired:
+        _GLOBAL_PENDING_HITL_APPROVALS.pop(k, None)
+    while len(_GLOBAL_PENDING_HITL_APPROVALS) >= _MAX_CACHE_SIZE:
+        _GLOBAL_PENDING_HITL_APPROVALS.popitem(last=False)
+    proposal_copy = dict(proposal)
+    proposal_copy["_cached_at"] = now
+    _GLOBAL_PENDING_HITL_APPROVALS[approval_id] = proposal_copy
+
+
+def _get_global_approval(approval_id: str) -> Optional[Dict[str, Any]]:
+    entry = _GLOBAL_PENDING_HITL_APPROVALS.get(approval_id)
+    if entry is None:
+        return None
+    if time.time() - entry.get("_cached_at", 0) > _CACHE_TTL_SECONDS:
+        _GLOBAL_PENDING_HITL_APPROVALS.pop(approval_id, None)
+        return None
+    _GLOBAL_PENDING_HITL_APPROVALS.move_to_end(approval_id)
+    return entry
+
+
+def _remove_global_approval(approval_id: str) -> None:
+    _GLOBAL_PENDING_HITL_APPROVALS.pop(approval_id, None)
+
 
 class AutonomousCareerEngine:
     """
@@ -153,7 +186,7 @@ class AutonomousCareerEngine:
             "alignment_report": analysis.get("alignment_report", {}),
         }
         self.pending_hitl_approvals[approval_id] = proposal
-        _GLOBAL_PENDING_HITL_APPROVALS[approval_id] = proposal
+        _add_global_approval(approval_id, proposal)
 
         # Persist to durable shared storage if user is authenticated
         if effective_user_id:
@@ -183,7 +216,7 @@ class AutonomousCareerEngine:
         item = self.pending_hitl_approvals.get(approval_id)
 
         if item is None:
-            cached = _GLOBAL_PENDING_HITL_APPROVALS.get(approval_id)
+            cached = _get_global_approval(approval_id)
             if cached is not None:
                 cached_uid = cached.get("user_id")
                 if effective_user_id is None or cached_uid == effective_user_id:
@@ -191,19 +224,16 @@ class AutonomousCareerEngine:
 
         # Fallback to durable shared storage for replica-safety / LRU eviction recovery
         if item is None and effective_user_id:
-            try:
-                from app.services.agent_db import list_runtime_approvals
-                approvals = await list_runtime_approvals(effective_user_id)
-                for app in approvals:
-                    if app.get("tool_name") == "ats_keyword_optimization":
-                        t_input = app.get("tool_input")
-                        if isinstance(t_input, dict) and t_input.get("approval_id") == approval_id:
-                            item = t_input
-                            self.pending_hitl_approvals[approval_id] = item
-                            _GLOBAL_PENDING_HITL_APPROVALS[approval_id] = item
-                            break
-            except Exception:
-                pass
+            from app.services.agent_db import list_runtime_approvals
+            approvals = await list_runtime_approvals(effective_user_id)
+            for app in approvals:
+                if app.get("tool_name") == "ats_keyword_optimization":
+                    t_input = app.get("tool_input")
+                    if isinstance(t_input, dict) and t_input.get("approval_id") == approval_id:
+                        item = t_input
+                        self.pending_hitl_approvals[approval_id] = item
+                        _add_global_approval(approval_id, item)
+                        break
 
         if item is None:
             return {"success": False, "error": f"Approval ID '{approval_id}' not found."}
@@ -218,18 +248,21 @@ class AutonomousCareerEngine:
         db_status = "approved" if approved else "rejected"
 
         if effective_user_id:
-            try:
-                from app.services.agent_db import update_runtime_approval
-                await update_runtime_approval(
-                    effective_user_id,
-                    approval_id,
-                    db_status,
-                    "Approved by candidate" if approved else "Rejected by candidate",
-                )
-            except Exception:
-                pass
+            from app.services.agent_db import update_runtime_approval
+            updated = await update_runtime_approval(
+                effective_user_id,
+                approval_id,
+                db_status,
+                "Approved by candidate" if approved else "Rejected by candidate",
+            )
+            if not updated:
+                return {"success": False, "error": "Approval transition failed; record is no longer in pending state or not found."}
 
         item["status"] = new_status
+        # Remove from pending memory caches upon terminal decision
+        self.pending_hitl_approvals.pop(approval_id, None)
+        _remove_global_approval(approval_id)
+
         if approved and custom_keywords:
             item["approved_keywords"] = list(dict.fromkeys(custom_keywords))[:30]
 

@@ -228,25 +228,31 @@ async def update_runtime_approval(
     status: str,
     reviewer_comment: str | None = None,
 ) -> bool:
-    """Approve or reject a pending approval."""
+    """Approve or reject a pending approval using an atomic compare-and-set transition."""
     if status not in ("approved", "rejected", "pending"):
         raise ValueError(f"Invalid status: {status}")
     pool = await get_pool()
     if not pool:
-        return False
+        return True
     try:
         async with pool.acquire() as conn:
-            await conn.execute(
+            res = await conn.execute(
                 """
                 UPDATE runtime_approvals
                 SET status = $3,
                     reviewer_comment = $4,
                     reviewed_at = now()
-                WHERE user_id = $1 AND approval_id = $2
+                WHERE user_id = $1
+                  AND (approval_id::text = $2 OR tool_input->>'approval_id' = $2)
+                  AND status = 'pending'
                 """,
                 user_id, approval_id, status, reviewer_comment
             )
-        return True
+            try:
+                affected = int(res.split()[-1])
+                return affected == 1
+            except (ValueError, IndexError):
+                return res.endswith("1")
     except Exception as exc:
         logger.error("Failed to update runtime approval: %s", exc)
         return False

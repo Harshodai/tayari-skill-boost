@@ -303,11 +303,15 @@ async def update_agent_run(run_id: str, *, user_id: str | None = None, **fields)
 
     try:
         async with pool.acquire() as conn:
-            await conn.execute(
+            res = await conn.execute(
                 f"UPDATE agent_runs SET {', '.join(sets)} {where_clause}",  # nosec B608 - sets contains only hardcoded allowlisted columns
                 *args,
             )
-        return True
+            try:
+                affected = int(res.split()[-1])
+                return affected == 1
+            except (ValueError, IndexError):
+                return res.endswith("1")
     except Exception as exc:  # noqa: BLE001
         logger.warning("app.services.db: update_agent_run failed (%s)", exc)
         return False
@@ -402,7 +406,7 @@ async def append_log(run_id: str, step: str, message: str, at: str | None = None
         args.append(user_id)
     try:
         async with pool.acquire() as conn:
-            await conn.execute(
+            res = await conn.execute(
                 f"""
                 UPDATE agent_runs
                 SET logs = logs || $2::jsonb,
@@ -411,7 +415,11 @@ async def append_log(run_id: str, step: str, message: str, at: str | None = None
                 """,
                 *args,
             )
-        return True
+            try:
+                affected = int(res.split()[-1])
+                return affected == 1
+            except (ValueError, IndexError):
+                return res.endswith("1")
     except Exception as exc:  # noqa: BLE001
         logger.warning("app.services.db: append_log failed (%s)", exc)
         return False

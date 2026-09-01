@@ -95,4 +95,4 @@ async def test_ats_hitl_rejects_repeated_decision():
         expected_proposal_hash=proposal["proposal_hash"],
     )
     assert confirm_res2["success"] is False
-    assert "not in pending state" in confirm_res2["error"]
+    assert "not found" in confirm_res2["error"].lower() or "not in pending state" in confirm_res2["error"].lower()
