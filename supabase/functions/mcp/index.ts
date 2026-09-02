@@ -214,7 +214,7 @@ var save_job_default = defineTool4({
       url: url ?? null,
       description: description ?? null,
       status: status ?? "saved"
-    }).select().single();
+    }).select("id, title, company, location, url, status, created_at").single();
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {
       content: [{ type: "text", text: `Saved ${title} at ${company}` }],
