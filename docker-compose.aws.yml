@@ -1,8 +1,10 @@
 services:
   redis:
     image: ${REDIS_IMAGE:?REDIS_IMAGE must be an immutable image digest}
-    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000", "--maxmemory", "100mb", "--maxmemory-policy", "noeviction"]
     restart: unless-stopped
+    mem_limit: 128m
+    cpus: "0.25"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -13,6 +15,8 @@ services:
 
   python-ai:
     image: ${PYTHON_API_IMAGE:?PYTHON_API_IMAGE must be an immutable image digest}
+    mem_limit: 768m
+    cpus: "1.0"
     environment:
       ENV: production
       UVICORN_RELOAD: "false"
@@ -58,6 +62,8 @@ services:
   celery-worker:
     image: ${WORKER_IMAGE:?WORKER_IMAGE must be an immutable image digest}
     command: ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=INFO", "--concurrency=1", "-Q", "tayari"]
+    mem_limit: 768m
+    cpus: "1.0"
     environment:
       ENV: production
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
@@ -86,6 +92,8 @@ services:
 
   go-backend:
     image: ${GATEWAY_IMAGE:?GATEWAY_IMAGE must be an immutable image digest}
+    mem_limit: 256m
+    cpus: "0.5"
     environment:
       ENV: production
       APP_ENV: production
@@ -129,6 +137,8 @@ services:
 
   frontend:
     image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE must be an immutable image digest}
+    mem_limit: 64m
+    cpus: "0.25"
     depends_on:
       go-backend:
         condition: service_healthy
@@ -138,6 +148,8 @@ services:
 
   caddy:
     image: ${CADDY_IMAGE:?CADDY_IMAGE must be an immutable image digest}
+    mem_limit: 64m
+    cpus: "0.25"
     restart: unless-stopped
     ports:
       - "80:80"

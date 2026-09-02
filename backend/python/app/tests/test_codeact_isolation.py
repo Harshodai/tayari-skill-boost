@@ -27,9 +27,10 @@ sb = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
 print(f"FOUND_SECRETS:{jwt}:{db}:{sb}")
 """
     res = await repl.execute(code, timeout=5.0)
-    assert res["success"] is True
-    assert "FOUND_SECRETS:::" in res["stdout"]
-    assert "super_secret" not in res["stdout"]
+    # Direct import of os is rejected by the static AST security guard
+    assert res["success"] is False
+    assert "SecurityError" in res["error"]
+    assert "super_secret" not in res.get("stdout", "")
 
 @pytest.mark.asyncio
 async def test_codeact_bounded_output_ceiling():

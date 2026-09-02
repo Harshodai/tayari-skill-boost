@@ -137,9 +137,13 @@ func (a *LocalAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request,
 
 	ctx := r.Context()
 	var dbUser models.User
+	var rawMetadata []byte
 
-	query := `SELECT id, email, role FROM auth.users WHERE email = $1`
-	err := a.DB.Conn.QueryRowContext(ctx, query, gothUser.Email).Scan(&dbUser.ID, &dbUser.Email, &dbUser.Role)
+	// Never link a provider login to an existing email account implicitly. A
+	// previously provisioned social account must prove the same provider subject;
+	// password/email accounts require an explicit account-link flow instead.
+	query := `SELECT id, email, role, raw_user_meta_data FROM auth.users WHERE email = $1`
+	err := a.DB.Conn.QueryRowContext(ctx, query, gothUser.Email).Scan(&dbUser.ID, &dbUser.Email, &dbUser.Role, &rawMetadata)
 
 	if err == sql.ErrNoRows {
 		newUser, err := a.provisionSocialUser(ctx, gothUser)
@@ -153,6 +157,23 @@ func (a *LocalAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request,
 		log.Printf("handleSocialCallback: database error: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
+	} else {
+		var metadata map[string]any
+		if len(rawMetadata) > 0 && json.Unmarshal(rawMetadata, &metadata) == nil {
+			providerStr, _ := metadata["provider"].(string)
+			providerUID, _ := metadata["provider_user_id"].(string)
+			if providerStr == gothUser.Provider && providerUID == gothUser.UserID {
+				// Existing account is the same provider subject; continue.
+			} else {
+				log.Printf("handleSocialCallback: provider collision for existing account (provider: %s)", gothUser.Provider)
+				http.Error(w, "Account already exists; sign in with the original method or explicitly link this provider", http.StatusConflict)
+				return
+			}
+		} else {
+			log.Printf("handleSocialCallback: provider collision for existing account (provider: %s)", gothUser.Provider)
+			http.Error(w, "Account already exists; sign in with the original method or explicitly link this provider", http.StatusConflict)
+			return
+		}
 	}
 
 	token, err := a.generateToken(&dbUser)
@@ -185,9 +206,10 @@ func (a *LocalAuth) provisionSocialUser(ctx context.Context, gothUser goth.User)
 
 	// Use parameterized JSON to prevent injection
 	metaData := map[string]string{
-		"full_name":  gothUser.Name,
-		"avatar_url": gothUser.AvatarURL,
-		"provider":   gothUser.Provider,
+		"full_name":        gothUser.Name,
+		"avatar_url":       gothUser.AvatarURL,
+		"provider":         gothUser.Provider,
+		"provider_user_id": gothUser.UserID,
 	}
 	metaDataJSON, err := json.Marshal(metaData)
 	if err != nil {

@@ -77,6 +77,10 @@ from app.services.application_lifecycle import (
 )
 
 from app.guardrails.gate import PipelineGate
+from app.services.run_control import (
+    acknowledge_cancellation as _acknowledge_cancellation,
+    cancellation_requested as _cancellation_requested,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -345,6 +349,11 @@ async def run_autopilot(
     """Main background pipeline. State mirrored to in‑memory cache + agent_runs."""
     config = config or {}
     user_id = config.get("user_id")
+    if await _cancellation_requested(run_id, str(user_id or "")):
+        await _acknowledge_cancellation(run_id, str(user_id or ""), "cancelled_by_candidate")
+        _update_run(run_id, status="cancelled", current_step="CANCELLED")
+        return
+
     if user_id and not await check_daily_llm_budget_async(str(user_id), estimated_tokens=10_000):
         _autopilot_store[run_id] = {
             "run_id": run_id,
@@ -383,6 +392,11 @@ async def run_autopilot(
         graph = None  # reserved for future knowledge-graph enrichment
 
         # ---- 2. SEARCH ---------------------------------------------------
+        if await _cancellation_requested(run_id, str(config.get("user_id") or "")):
+            await _acknowledge_cancellation(run_id, str(config.get("user_id") or ""), "cancelled_by_candidate")
+            _update_run(run_id, status="cancelled", current_step="CANCELLED")
+            return
+
         job_titles = [t for t in config.get("job_titles", []) if t.strip()][:3]
         if not job_titles and profile and profile.get("desired_roles"):
             job_titles = profile["desired_roles"][:2]
@@ -394,6 +408,10 @@ async def run_autopilot(
         all_jobs = []
         seen = set()
         for i, title in enumerate(job_titles):
+            if await _cancellation_requested(run_id, str(config.get("user_id") or "")):
+                await _acknowledge_cancellation(run_id, str(config.get("user_id") or ""), "cancelled_by_candidate")
+                _update_run(run_id, status="cancelled", current_step="CANCELLED")
+                return
             _update_run(run_id, progress=10 + i * 8, current_step="SEARCH")
             _log(run_id, "SEARCH", f"Smart-searching jobs for '{title or 'profile-derived role'}'")
             result = await smart_search(title, location, profile, resume_text, top_n=10)
@@ -407,6 +425,10 @@ async def run_autopilot(
 
         # Dream‑company sweep
         for company in dream_companies[:3]:
+            if await _cancellation_requested(run_id, str(config.get("user_id") or "")):
+                await _acknowledge_cancellation(run_id, str(config.get("user_id") or ""), "cancelled_by_candidate")
+                _update_run(run_id, status="cancelled", current_step="CANCELLED")
+                return
             try:
                 batch = await search_jobs(company, location, limit=15)
                 hits = [j for j in batch if _is_dream_company(j["company"], [company])]
@@ -429,6 +451,10 @@ async def run_autopilot(
         _log(run_id, "SEARCH", f"Found {len(all_jobs)} unique AI-scored jobs")
 
         # ---- 3. SELECT ---------------------------------------------------
+        if await _cancellation_requested(run_id, str(config.get("user_id") or "")):
+            await _acknowledge_cancellation(run_id, str(config.get("user_id") or ""), "cancelled_by_candidate")
+            _update_run(run_id, status="cancelled", current_step="CANCELLED")
+            return
         _update_run(run_id, progress=38, current_step="SELECT")
 
         # Deduplicate against prior runs
@@ -489,6 +515,11 @@ async def run_autopilot(
         applications = []
         base_score = heuristic_ats_score(resume_text)["score"]
         for idx, job in enumerate(selected):
+            if await _cancellation_requested(run_id, str(config.get("user_id") or "")):
+                await _acknowledge_cancellation(run_id, str(config.get("user_id") or ""), "cancelled_by_candidate")
+                _update_run(run_id, status="cancelled", current_step="CANCELLED")
+                return
+
             frac = 40 + round(55 * idx / len(selected))
             _update_run(run_id, progress=frac, current_step="TAILOR")
             _log(run_id, "TAILOR", f"Tailoring resume for {job['title']} @ {job['company']}")

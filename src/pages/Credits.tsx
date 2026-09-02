@@ -62,6 +62,7 @@ export default function Credits() {
       <Seo
         title="Credits — Job Tayari"
         description="See your credit balance, the packs you bought, and every credit charged for a verified submission."
+        path="/credits"
         noindex
       />
       <div className="mx-auto w-full max-w-5xl space-y-8 px-4 py-8">

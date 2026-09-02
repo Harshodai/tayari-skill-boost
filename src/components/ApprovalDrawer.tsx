@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { updateApproval } from '@/api/autopilot';
+import { updateApproval, listPendingApprovals } from '@/api/autopilot';
 
 interface PendingApproval {
   id: string;
@@ -21,30 +21,33 @@ interface PendingApproval {
 }
 
 export const ApprovalDrawer: React.FC = () => {
-  const [open, setOpen] = useState(true);
-  const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([
-    {
-      id: "APPR-9012",
-      action_type: "SUBMIT_ATS_APPLICATION",
-      action_payload: {
-        company: "Stripe",
-        role: "Staff Backend Architect",
-        form_fields: {
-          full_name: "Alex Mercer",
-          email: "alex@example.com",
-          linkedin: "https://linkedin.com/in/alex-mercer"
-        },
-        keywords: ["Go", "Distributed Systems", "Kubernetes", "PostgreSQL"]
-      },
-      status: "PENDING",
-      expires_at: "In 45 minutes"
-    }
-  ]);
-
-  const [selectedApproval, setSelectedApproval] = useState<PendingApproval | null>(pendingApprovals[0]);
+  const [open, setOpen] = useState(false);
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
+  const [selectedApproval, setSelectedApproval] = useState<PendingApproval | null>(null);
   const [editableFields, setEditableFields] = useState<Record<string, string>>({});
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    listPendingApprovals()
+      .then((data) => {
+        if (mounted && Array.isArray(data)) {
+          setPendingApprovals(data);
+          if (data.length > 0) {
+            setSelectedApproval(data[0]);
+          }
+        }
+      })
+      .catch((err) => {
+        if (mounted) {
+          setErrorMessage(err instanceof Error ? err.message : 'Failed to load approvals');
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Sync editableFields from selectedApproval whenever selection changes
   useEffect(() => {
@@ -63,8 +66,11 @@ export const ApprovalDrawer: React.FC = () => {
         form_fields: editableFields,
       });
       setActionStatus("APPROVED");
-      setPendingApprovals(prev => prev.filter(p => p.id !== id));
-      setSelectedApproval(null);
+      setPendingApprovals(prev => {
+        const remaining = prev.filter(p => p.id !== id);
+        setSelectedApproval(remaining.length > 0 ? remaining[0] : null);
+        return remaining;
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to approve";
       setErrorMessage(message);
@@ -79,8 +85,11 @@ export const ApprovalDrawer: React.FC = () => {
         form_fields: editableFields,
       });
       setActionStatus("REJECTED");
-      setPendingApprovals(prev => prev.filter(p => p.id !== id));
-      setSelectedApproval(null);
+      setPendingApprovals(prev => {
+        const remaining = prev.filter(p => p.id !== id);
+        setSelectedApproval(remaining.length > 0 ? remaining[0] : null);
+        return remaining;
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to reject";
       setErrorMessage(message);

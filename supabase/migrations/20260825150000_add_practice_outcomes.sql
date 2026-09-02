@@ -25,4 +25,4 @@ REVOKE ALL ON TABLE public.practice_outcomes FROM anon, authenticated;
 GRANT ALL ON TABLE public.practice_outcomes TO service_role;
 DROP POLICY IF EXISTS practice_outcomes_owner ON public.practice_outcomes;
 CREATE POLICY practice_outcomes_owner ON public.practice_outcomes
-    FOR ALL TO service_role USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    FOR ALL TO service_role USING (true) WITH CHECK (true);

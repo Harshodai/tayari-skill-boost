@@ -1,7 +1,9 @@
 function normalizeTaskDeepLink(url) {
   try {
     const parsed = new URL(url);
-    const match = parsed.protocol === `${DESKTOP_PROTOCOL}:` ? parsed.pathname.match(/^\/desktop\/tasks\/([0-9a-f-]{36})$/i) : null;
+    if (parsed.protocol !== `${DESKTOP_PROTOCOL}:`) return null;
+    const fullPath = (parsed.hostname ? `/${parsed.hostname}` : "") + (parsed.pathname || "");
+    const match = fullPath.match(/^\/desktop\/tasks\/([0-9a-f-]{36})$/i) || parsed.pathname.match(/^\/desktop\/tasks\/([0-9a-f-]{36})$/i);
     return match ? `/desktop/tasks/${match[1]}` : null;
   } catch {
     return null;
@@ -20,8 +22,20 @@ function forwardDesktopUrl(url) {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== `${DESKTOP_PROTOCOL}:`) return;
-    if (parsed.pathname === "/auth/callback") forwardAuthCallback(url);
-    else forwardTaskDeepLink(url);
+    const fullPath = (parsed.hostname ? `/${parsed.hostname}` : "") + (parsed.pathname || "");
+    if (
+      parsed.pathname === "/auth/callback" ||
+      (parsed.hostname === "auth" && parsed.pathname === "/callback") ||
+      fullPath === "/auth/callback"
+    ) {
+      let normalizedUrl = url;
+      if (!parsed.hostname && parsed.pathname === "/auth/callback") {
+        normalizedUrl = `${DESKTOP_PROTOCOL}://auth/callback${parsed.search || ""}${parsed.hash || ""}`;
+      }
+      forwardAuthCallback(normalizedUrl);
+    } else {
+      forwardTaskDeepLink(url);
+    }
   } catch {
     // Ignore malformed desktop URLs.
   }
@@ -56,7 +70,13 @@ const secureStorage = createSecureStorage();
 const execFileWithTimeout = (file, args, options) => execFileAsync(file, args, options);
 
 function forwardAuthCallback(url) {
-  if (typeof url !== "string" || !url.startsWith(DESKTOP_PROTOCOL + "://")) return;
+  if (typeof url !== "string") return;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== `${DESKTOP_PROTOCOL}:`) return;
+  } catch {
+    if (!url.startsWith(DESKTOP_PROTOCOL + "://")) return;
+  }
   pendingAuthCallback = url;
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("desktop:auth-callback", url);

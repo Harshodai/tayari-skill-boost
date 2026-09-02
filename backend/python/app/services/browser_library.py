@@ -42,6 +42,8 @@ class Browser:
         *,
         allow_submission: bool = False,
         allowed_field_labels: set[str] | None = None,
+        run_id: str | None = None,
+        owner_id: str | None = None,
     ):
         """Run the browser agent to completion and return its AgentResult."""
         from app.services.browser_automation import run_browser_agent
@@ -74,6 +76,8 @@ class Browser:
                             start_url=start_url,
                             allow_submission=allow_submission,
                             allowed_field_labels=allowed_field_labels,
+                            run_id=run_id,
+                            owner_id=owner_id,
                         )
                     )
                 except Exception as thread_exc:  # noqa: BLE001 - re-raised on the caller's thread below
@@ -94,6 +98,8 @@ class Browser:
                 start_url=start_url,
                 allow_submission=allow_submission,
                 allowed_field_labels=allowed_field_labels,
+                run_id=run_id,
+                owner_id=owner_id,
             )
         )
 
@@ -120,11 +126,13 @@ class Browser:
         title = job.get("title", "Position")
         company = job.get("company", "Company")
         url = job.get("url", "")
+        run_id = str((submission_guard or {}).get("run_id") or "") or None
+        owner_id = str((submission_guard or {}).get("user_id") or "") or None
 
         if not verify_guard(
             submission_guard,
-            user_id=str((submission_guard or {}).get("user_id") or ""),
-            run_id=str((submission_guard or {}).get("run_id") or ""),
+            user_id=owner_id or "",
+            run_id=run_id or "",
             job=job,
             resume_text=resume_text,
             cover_letter=cover_letter,
@@ -168,6 +176,8 @@ class Browser:
                 start_url=url,
                 allow_submission=True,
                 allowed_field_labels=set((form_fields or {}).keys()),
+                run_id=run_id,
+                owner_id=owner_id,
             )
             final_url = getattr(result, "final_url", None)
             if final_url and urlsplit(final_url).netloc.lower() != urlsplit(url).netloc.lower():

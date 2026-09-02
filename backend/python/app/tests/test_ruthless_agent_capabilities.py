@@ -76,6 +76,12 @@ async def test_browser_urls_are_exercised_and_bad_urls_are_not_claimed_complete(
     async def fake_navigate(url, headers=None, validate_redirects=False):
         return {"success": True, "url": url, "title": "Example", "content_preview": "untrusted page text"}
 
+    def fake_resolve(url):
+        if "127.0.0.1" in url or "localhost" in url:
+            return None
+        return {"target_url": url, "headers": {"Host": "example.com"}}
+
+    monkeypatch.setattr("app.agent.agent_engine._resolve_and_validate_url", fake_resolve)
     monkeypatch.setattr(engine.browser, "navigate", fake_navigate)
     monkeypatch.setattr(engine.orchestrator, "delegate_parallel", lambda tasks: _completed_tasks(tasks))
     monkeypatch.setattr(engine.repl, "execute", lambda code: _successful_repl())

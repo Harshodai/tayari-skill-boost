@@ -4,7 +4,7 @@
   "version": "3.2.0",
   "description": "A candidate-controlled Job Tayari side panel for understanding job pages, preparing applications, and keeping reviewable career workflows in sync.",
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
+    "extension_pages": "script-src 'self'; object-src 'none'"
   },
   "options_page": "options.html",
   "externally_connectable": {

@@ -197,6 +197,10 @@ export interface ApprovalUpdateRequest {
   form_fields?: Record<string, string>;
 }
 
+export async function listPendingApprovals(): Promise<any[]> {
+  return apiFetch<any[]>("/v1/approvals");
+}
+
 export async function updateApproval(
   approvalId: string,
   payload: ApprovalUpdateRequest

@@ -22,12 +22,16 @@ export const AutonomousCareerConsole: React.FC = () => {
   const [emailSyncResult, setEmailSyncResult] = useState<any>(null);
   const [kanbanBoard, setKanbanBoard] = useState<any>(null);
 
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
+
   const fetchInterviewBoard = async () => {
     try {
       const data = await apiFetch<any>('/v1/ai/agent/career/interview-board');
       if (data && data.success) setKanbanBoard(data.data);
     } catch (e) {
-      console.error(e);
+      const msg = e instanceof Error ? e.message : 'Failed to load interview board';
+      setErrorBanner(msg);
+      toast({ title: 'Interview Board Error', description: msg, variant: 'destructive' });
     }
   };
 
@@ -37,6 +41,7 @@ export const AutonomousCareerConsole: React.FC = () => {
 
   const handleEmailSync = async () => {
     setLoading(true);
+    setErrorBanner(null);
     try {
       const data = await apiFetch<any>('/v1/ai/agent/career/email-sync', { method: 'POST' });
       if (data && data.success) {
@@ -46,7 +51,9 @@ export const AutonomousCareerConsole: React.FC = () => {
         }
       }
     } catch (e) {
-      console.error(e);
+      const msg = e instanceof Error ? e.message : 'Email sync failed';
+      setErrorBanner(msg);
+      toast({ title: 'Sync Error', description: msg, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -62,7 +69,9 @@ export const AutonomousCareerConsole: React.FC = () => {
         fetchInterviewBoard();
       }
     } catch (e) {
-      console.error(e);
+      const msg = e instanceof Error ? e.message : 'Failed to move card';
+      setErrorBanner(msg);
+      toast({ title: 'Update Error', description: msg, variant: 'destructive' });
     }
   };
 
@@ -313,6 +322,18 @@ export const AutonomousCareerConsole: React.FC = () => {
           </div>
         </CardHeader>
       </Card>
+
+      {errorBanner && (
+        <div className="p-4 bg-red-950/80 border border-red-800 text-red-200 rounded-lg text-sm flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <XCircle className="w-5 h-5 text-red-400 shrink-0" />
+            <span>{errorBanner}</span>
+          </div>
+          <Button size="sm" variant="ghost" onClick={() => setErrorBanner(null)} className="text-red-400 hover:text-white">
+            Dismiss
+          </Button>
+        </div>
+      )}
 
       <Tabs defaultValue="board" className="w-full">
         <TabsList className="grid grid-cols-6 bg-slate-900 border border-slate-800 p-1 rounded-lg">

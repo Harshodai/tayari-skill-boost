@@ -33,16 +33,18 @@ func NewDB(dsn string) (*DB, error) {
 	db.SetConnMaxLifetime(30 * time.Minute)
 
 	// Wait for DB to be ready
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-    
-	if err := db.PingContext(ctx); err != nil {
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer pingCancel()
+
+	if err := db.PingContext(pingCtx); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	log.Println("Connected to PostgreSQL successfully")
 	dbInst := &DB{Conn: db}
-	if err := dbInst.RunMigrations(ctx); err != nil {
+	migCtx, migCancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer migCancel()
+	if err := dbInst.RunMigrations(migCtx); err != nil {
 		return nil, fmt.Errorf("failed to run database migrations: %w", err)
 	}
 	return dbInst, nil

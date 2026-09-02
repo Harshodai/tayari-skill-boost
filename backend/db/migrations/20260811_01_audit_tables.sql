@@ -21,14 +21,37 @@ CREATE TABLE IF NOT EXISTS public.application_approvals (
     company         TEXT,
     resume_sha256   TEXT NOT NULL,
     resume_preview  TEXT,
+    job_url_sha256  TEXT NOT NULL,
+    cover_letter_sha256 TEXT NOT NULL,
+    form_fields_sha256  TEXT NOT NULL,
+    reviewer_comment TEXT,
     decision        TEXT NOT NULL DEFAULT 'pending'
-                    CHECK (decision IN ('pending', 'approved', 'rejected')),
+                    CHECK (decision IN ('pending', 'approved', 'rejected', 'consumed')),
     approved_by     UUID,
     approved_at     TIMESTAMPTZ,
+    expires_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '15 minutes'),
+    consumed_at     TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, run_id, resume_sha256)
 );
+
+ALTER TABLE public.application_approvals
+    ADD COLUMN IF NOT EXISTS job_url_sha256 TEXT;
+ALTER TABLE public.application_approvals
+    ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE public.application_approvals
+    ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMPTZ;
+ALTER TABLE public.application_approvals
+    ADD COLUMN IF NOT EXISTS cover_letter_sha256 TEXT;
+ALTER TABLE public.application_approvals
+    ADD COLUMN IF NOT EXISTS form_fields_sha256 TEXT;
+ALTER TABLE public.application_approvals
+    ADD COLUMN IF NOT EXISTS reviewer_comment TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_application_approvals_usable
+    ON public.application_approvals (user_id, run_id, resume_sha256, job_url_sha256, cover_letter_sha256, form_fields_sha256)
+    WHERE decision = 'approved' AND consumed_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_application_approvals_user
     ON public.application_approvals (user_id);
@@ -50,7 +73,7 @@ CREATE POLICY "application_approvals_all_own" ON public.application_approvals
 DROP POLICY IF EXISTS "application_approvals_service_all" ON public.application_approvals;
 CREATE POLICY "application_approvals_service_all" ON public.application_approvals
     FOR ALL TO service_role
-    USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+    USING (true) WITH CHECK (true);
 
 -- =========================================================================
 -- submission_receipts (WS-02)

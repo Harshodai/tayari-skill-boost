@@ -30,12 +30,7 @@ export function ApplicationAnalytics() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [funnel, setFunnel] = useState<any>(EMPTY_FUNNEL);
 
-  const [outcomeMatrix, setOutcomeMatrix] = useState<any[]>([
-    { tier: "90% - 100% ATS Match", applications: 12, responses: 4, interviews: 3, callback_rate: "33.3%", conversion_grade: "A+" },
-    { tier: "80% - 89% ATS Match", applications: 8, responses: 2, interviews: 1, callback_rate: "25.0%", conversion_grade: "A" },
-    { tier: "70% - 79% ATS Match", applications: 3, responses: 0, interviews: 0, callback_rate: "0.0%", conversion_grade: "B" },
-    { tier: "Below 70% Match", applications: 1, responses: 0, interviews: 0, callback_rate: "0.0%", conversion_grade: "C" },
-  ]);
+  const [outcomeMatrix, setOutcomeMatrix] = useState<any[]>([]);
 
   const fetchAnalytics = async () => {
     setLoading(true);
@@ -157,55 +152,63 @@ export function ApplicationAnalytics() {
             <CardTitle className="text-xl flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <Target className="h-5 w-5 text-emerald-500" />
-                Resume Tailoring Variant & Outcome Matrix
+                Resume Tailoring Variant &amp; Outcome Matrix
               </span>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
-                  Illustrative — not your data
-                </Badge>
-              </div>
+              {outcomeMatrix.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                    Illustrative — not your data
+                  </Badge>
+                </div>
+              )}
             </CardTitle>
             <CardDescription>
-              An example of how callback rate varies by ATS match tier. These are fixed
-              reference figures, not a measurement of your applications — per-tier outcome
-              tracking is not wired up yet.
+              {outcomeMatrix.length === 0
+                ? "Per-tier outcome tracking activates once you have tracked applications."
+                : "An example of how callback rate varies by ATS match tier. These are fixed reference figures, not a measurement of your applications — per-tier outcome tracking is not wired up yet."}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto border rounded-lg">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ATS Match Tier</TableHead>
-                    <TableHead className="text-center">Applications</TableHead>
-                    <TableHead className="text-center">Responses</TableHead>
-                    <TableHead className="text-center">Interviews</TableHead>
-                    <TableHead className="text-center">Callback Rate</TableHead>
-                    <TableHead className="text-center">Grade</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {outcomeMatrix.map((row, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="font-medium text-sm">{row.tier}</TableCell>
-                      <TableCell className="text-center font-mono">{row.applications}</TableCell>
-                      <TableCell className="text-center font-mono text-blue-500 font-bold">{row.responses}</TableCell>
-                      <TableCell className="text-center font-mono text-accent font-bold">{row.interviews}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline" className="font-mono text-emerald-600 bg-emerald-500/10">
-                          {row.callback_rate}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge className={i === 0 ? "bg-emerald-600" : "bg-muted text-foreground"}>
-                          {row.conversion_grade}
-                        </Badge>
-                      </TableCell>
+            {outcomeMatrix.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-sm">Apply to roles and track outcomes to see your personal ATS tier conversion breakdown.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ATS Match Tier</TableHead>
+                      <TableHead className="text-center">Applications</TableHead>
+                      <TableHead className="text-center">Responses</TableHead>
+                      <TableHead className="text-center">Interviews</TableHead>
+                      <TableHead className="text-center">Callback Rate</TableHead>
+                      <TableHead className="text-center">Grade</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {outcomeMatrix.map((row, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-medium text-sm">{row.tier}</TableCell>
+                        <TableCell className="text-center font-mono">{row.applications}</TableCell>
+                        <TableCell className="text-center font-mono text-blue-500 font-bold">{row.responses}</TableCell>
+                        <TableCell className="text-center font-mono text-accent font-bold">{row.interviews}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className="font-mono text-emerald-600 bg-emerald-500/10">
+                            {row.callback_rate}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge className={i === 0 ? "bg-emerald-600" : "bg-muted text-foreground"}>
+                            {row.conversion_grade}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -20,6 +20,8 @@ export const JobSeekerAgentDashboard: React.FC = () => {
   const [interviewBrief, setInterviewBrief] = useState<any>(null);
   const [tailorError, setTailorError] = useState<string | null>(null);
   const [autofillError, setAutofillError] = useState<string | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [interviewError, setInterviewError] = useState<string | null>(null);
 
   const [targetCompany, setTargetCompany] = useState('');
   const [jobDescription, setJobDescription] = useState('');
@@ -43,14 +45,20 @@ export const JobSeekerAgentDashboard: React.FC = () => {
 
   const handleSearch = async () => {
     setLoading(true);
+    setSearchError(null);
+    setSearchResults(null);
     try {
       const data = await apiFetch<any>('/v1/ai/agent/job-seeker/search', {
         method: 'POST',
         body: JSON.stringify({ query: jobQuery, location })
       });
-      if (data && data.success) setSearchResults(data.data);
+      if (data && data.success) {
+        setSearchResults(data.data);
+      } else {
+        setSearchError(data?.error || 'Job search failed.');
+      }
     } catch (e) {
-      console.error(e);
+      setSearchError(e instanceof Error ? e.message : 'Job search failed.');
     } finally {
       setLoading(false);
     }
@@ -110,14 +118,20 @@ export const JobSeekerAgentDashboard: React.FC = () => {
 
   const handleInterviewPrep = async (company: string = targetCompany) => {
     setLoading(true);
+    setInterviewError(null);
+    setInterviewBrief(null);
     try {
       const data = await apiFetch<any>('/v1/ai/agent/job-seeker/interview-prep', {
         method: 'POST',
         body: JSON.stringify({ company: company || targetCompany })
       });
-      if (data && data.success) setInterviewBrief(data.data);
+      if (data && data.success) {
+        setInterviewBrief(data.data);
+      } else {
+        setInterviewError(data?.error || 'Interview prep failed.');
+      }
     } catch (e) {
-      console.error(e);
+      setInterviewError(e instanceof Error ? e.message : 'Interview prep failed.');
     } finally {
       setLoading(false);
     }
@@ -189,6 +203,12 @@ export const JobSeekerAgentDashboard: React.FC = () => {
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4 mr-2" />} Scrape Jobs
               </Button>
             </div>
+
+            {searchError && (
+              <div className="p-4 rounded-lg bg-slate-950 border border-red-800 text-red-300 text-sm">
+                {searchError}
+              </div>
+            )}
 
             {searchResults && (
               <div className="space-y-3 pt-4">
@@ -290,6 +310,12 @@ export const JobSeekerAgentDashboard: React.FC = () => {
             <Button onClick={() => handleInterviewPrep(targetCompany)} disabled={loading} className="bg-amber-600 hover:bg-amber-500">
               Delegate Swarm Company Research
             </Button>
+
+            {interviewError && (
+              <div className="p-4 rounded-lg bg-slate-950 border border-red-800 text-red-300 text-sm">
+                {interviewError}
+              </div>
+            )}
 
             {interviewBrief && (
               <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3">

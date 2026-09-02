@@ -329,8 +329,8 @@ CREATE TABLE IF NOT EXISTS public.credit_ledger (
 
 CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_created
     ON public.credit_ledger (user_id, created_at DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_credit_ledger_user_reference
-    ON public.credit_ledger (user_id, reference_id)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_credit_ledger_user_reference_type
+    ON public.credit_ledger (user_id, reference_id, type)
     WHERE reference_id IS NOT NULL;
 
 ALTER TABLE public.user_credits ENABLE ROW LEVEL SECURITY;

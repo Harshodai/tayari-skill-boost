@@ -1,4 +1,5 @@
 import asyncio
+import hmac
 import os
 import json
 import logging
@@ -107,6 +108,36 @@ def analyze_speech_telemetry(transcript: str, duration_seconds: float) -> Dict[s
 
 @router.websocket("/stream")
 async def websocket_endpoint(websocket: WebSocket):
+    # Authenticate WebSocket handshake before accepting
+    environment = (os.getenv("ENVIRONMENT") or os.getenv("ENV") or os.getenv("APP_ENV") or "development").lower()
+    expected_token = os.getenv("AI_INTERNAL_TOKEN", "")
+    internal_token = websocket.headers.get("x-internal-token") or websocket.query_params.get("internal_token", "")
+    auth_header = websocket.headers.get("authorization") or websocket.query_params.get("token", "")
+    user_id_header = websocket.headers.get("x-user-id") or websocket.query_params.get("user_id", "")
+
+    valid = False
+    derived_user_id = ""
+    if expected_token and internal_token and hmac.compare_digest(internal_token, expected_token):
+        valid = True
+        derived_user_id = user_id_header or "internal"
+    elif auth_header:
+        try:
+            from app.auth.dependencies import _decode_token
+            raw_token = auth_header
+            if raw_token.lower().startswith("bearer "):
+                raw_token = raw_token[7:].strip()
+            claims = _decode_token(raw_token)
+            derived_user_id = str(claims.get("sub") or claims.get("user_id") or "")
+            if derived_user_id:
+                valid = True
+        except Exception as exc:
+            logger.warning("Voice stream WebSocket JWT verification failed: %s", exc)
+
+    if environment == "production" and not valid:
+        logger.warning("Voice stream WebSocket rejected unauthenticated connection")
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
     logger.info("Voice stream WebSocket connection accepted")
 

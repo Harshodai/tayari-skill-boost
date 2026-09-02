@@ -127,6 +127,9 @@ class OperationBudgetMiddleware:
                 "/one-shot/",
                 "/resume",
                 "/export/",
+                "/hermes/",
+                "/a2a/",
+                "/computer/",
             )
         ):
             return "ai_generation"
@@ -137,8 +140,9 @@ class OperationBudgetMiddleware:
         headers = {key.lower(): value for key, value in scope.get("headers", [])}
         user_id = headers.get(b"x-user-id", b"").decode("utf-8", "ignore").strip()
         client = scope.get("client") or ("unknown", 0)
-        ip = str(client[0])
-        return f"user:{user_id}:ip:{ip}" if user_id else f"anon:ip:{ip}"
+        forwarded = headers.get(b"x-forwarded-for", b"").decode("utf-8", "ignore").split(",")[0].strip()
+        real_ip = forwarded or headers.get(b"x-real-ip", b"").decode("utf-8", "ignore").strip() or str(client[0])
+        return f"user:{user_id}" if user_id else f"anon:ip:{real_ip}"
 
     async def __call__(self, scope, receive, send):
         if scope.get("type") != "http" or scope.get("path") in self._health_paths:

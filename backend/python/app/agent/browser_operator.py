@@ -39,7 +39,14 @@ class BrowserOperator:
             from playwright.async_api import async_playwright
             self.playwright = await async_playwright().start()
             self.browser = await self.playwright.chromium.launch(
-                headless=self.headless
+                headless=self.headless,
+                args=[
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--host-resolver-rules=MAP 169.254.169.254 ~NOTFOUND, MAP 127.0.0.1 ~NOTFOUND, MAP ::1 ~NOTFOUND",
+                    "--block-insecure-private-network-requests",
+                ],
             )
             self.context = await self.browser.new_context(
                 viewport={"width": 1280, "height": 800},

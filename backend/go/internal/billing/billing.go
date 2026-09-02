@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stripe/stripe-go/v81"
 	billingportalsession "github.com/stripe/stripe-go/v81/billingportal/session"
 	checkoutsession "github.com/stripe/stripe-go/v81/checkout/session"
@@ -598,10 +599,14 @@ func (b *BillingService) ProcessStripeWebhook(eventID, eventType, customerID, su
 // ProcessStripeCreditPackPayment fulfills a one-time credit pack only for a paid
 // Checkout Session event. The event claim and balance/ledger mutation are atomic
 // when PostgreSQL is available, so Stripe retries cannot double-grant credits.
-func (b *BillingService) ProcessStripeCreditPackPayment(eventID, eventType, customerID, userID, packID, paymentStatus string) bool {
+func (b *BillingService) ProcessStripeCreditPackPayment(eventID, eventType, customerID, userID, packID, paymentStatus string, sessionIDOpt ...string) bool {
 	_ = customerID // retained for webhook compatibility and future customer binding.
 	if !IsBillingEnabled() {
 		return true
+	}
+	sessionID := strings.TrimSpace(eventID)
+	if len(sessionIDOpt) > 0 && strings.TrimSpace(sessionIDOpt[0]) != "" {
+		sessionID = strings.TrimSpace(sessionIDOpt[0])
 	}
 	pack, ok := creditPackByID(packID)
 	if !ok || strings.TrimSpace(eventID) == "" || strings.TrimSpace(userID) == "" || paymentStatus != string(stripe.CheckoutSessionPaymentStatusPaid) {
@@ -627,8 +632,19 @@ func (b *BillingService) ProcessStripeCreditPackPayment(eventID, eventType, cust
 		if err != nil {
 			return false
 		}
-		_, err = tx.Exec(`INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at) VALUES ($1, $2::uuid, $3, 'purchase', $4, $5, NOW())`, "stripe_"+eventID, userID, pack.Credits, fmt.Sprintf("Purchased %s Pack (%d credits for $%.2f)", pack.Name, pack.Credits, pack.PriceUSD), eventID)
+		ledgerRef := sessionID
+		if ledgerRef == "" {
+			ledgerRef = eventID
+		}
+		var ledgerRefParam interface{}
+		if ledgerRef != "" {
+			ledgerRefParam = ledgerRef
+		}
+		ledgerResult, err := tx.Exec(`INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at) VALUES ($1, $2::uuid, $3, 'purchase', $4, $5, NOW())`, "stripe_"+ledgerRef, userID, pack.Credits, fmt.Sprintf("Purchased %s Pack (%d credits for $%.2f)", pack.Name, pack.Credits, pack.PriceUSD), ledgerRefParam)
 		if err != nil {
+			return false
+		}
+		if n, _ := ledgerResult.RowsAffected(); n == 0 {
 			return false
 		}
 		return tx.Commit() == nil
@@ -818,6 +834,13 @@ func (b *BillingService) AddCredits(userID string, amount int, referenceID, desc
 
 	// Persist to PostgreSQL if available
 	if b.db != nil && b.db.Conn != nil {
+		tx, err := b.db.Conn.Begin()
+		if err != nil {
+			log.Printf("[billing] AddCredits tx begin error: %v", err)
+			return nil, errors.New("billing database unavailable")
+		}
+		defer tx.Rollback()
+
 		var bal UserCreditBalance
 		bal.UserID = userID
 		query := `
@@ -829,28 +852,40 @@ func (b *BillingService) AddCredits(userID string, amount int, referenceID, desc
 				updated_at = NOW()
 			RETURNING balance, lifetime_purchased, lifetime_used, updated_at
 		`
-		err := b.db.Conn.QueryRow(query, userID, amount).Scan(
+		err = tx.QueryRow(query, userID, amount).Scan(
 			&bal.Balance,
 			&bal.LifetimePurchased,
 			&bal.LifetimeUsed,
 			&bal.UpdatedAt,
 		)
-		if err == nil {
-			// Record ledger entry
-			_, _ = b.db.Conn.Exec(`
-				INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at)
-				VALUES ($1, $2::uuid, $3, 'purchase', $4, $5, NOW())
-			`, fmt.Sprintf("led_%d", time.Now().UnixNano()), userID, amount, description, referenceID)
-
-			b.mu.Lock()
-			b.creditBalances[userID] = &bal
-			b.mu.Unlock()
-			return &bal, nil
-		}
-		log.Printf("[billing] AddCredits DB error for %s: %v", userID, err)
-		if isProductionBilling() {
+		if err != nil {
+			log.Printf("[billing] AddCredits DB error for %s: %v", userID, err)
 			return nil, errors.New("billing database unavailable")
 		}
+
+		ledgerID := fmt.Sprintf("led_%s", uuid.NewString())
+		var addRefIDParam interface{}
+		if referenceID != "" {
+			addRefIDParam = referenceID
+		}
+		_, err = tx.Exec(`
+			INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at)
+			VALUES ($1, $2::uuid, $3, 'purchase', $4, $5, NOW())
+		`, ledgerID, userID, amount, description, addRefIDParam)
+		if err != nil {
+			log.Printf("[billing] AddCredits ledger error for %s: %v", userID, err)
+			return nil, errors.New("failed to record credit ledger entry")
+		}
+
+		if err := tx.Commit(); err != nil {
+			log.Printf("[billing] AddCredits commit error for %s: %v", userID, err)
+			return nil, errors.New("billing transaction commit failed")
+		}
+
+		b.mu.Lock()
+		b.creditBalances[userID] = &bal
+		b.mu.Unlock()
+		return &bal, nil
 	}
 	if isProductionBilling() {
 		return nil, errors.New("billing database unavailable")
@@ -876,7 +911,7 @@ func (b *BillingService) AddCredits(userID string, amount int, referenceID, desc
 	bal.UpdatedAt = now
 
 	entry := CreditLedgerEntry{
-		ID:          fmt.Sprintf("led_%d", time.Now().UnixNano()),
+		ID:          fmt.Sprintf("led_%s", uuid.NewString()),
 		UserID:      userID,
 		Amount:      amount,
 		Type:        "purchase",
@@ -927,6 +962,37 @@ func (b *BillingService) DebitCredit(userID string, amount int, referenceID, des
 
 	// Persist to PostgreSQL if available
 	if b.db != nil && b.db.Conn != nil {
+		tx, err := b.db.Conn.Begin()
+		if err != nil {
+			log.Printf("[billing] DebitCredit tx begin error: %v", err)
+			return false, nil, errors.New("billing database unavailable")
+		}
+		defer tx.Rollback()
+
+		// If referenceID is provided, check if already debited to ensure strict idempotency
+		if referenceID != "" {
+			var existingID string
+			err := tx.QueryRow(`
+				SELECT id FROM public.credit_ledger
+				WHERE user_id = $1::uuid AND reference_id = $2 AND type = 'debit'
+				LIMIT 1
+			`, userID, referenceID).Scan(&existingID)
+			if err == nil {
+				// Already processed this exact reference
+				var bal UserCreditBalance
+				bal.UserID = userID
+				_ = tx.QueryRow(`
+					SELECT balance, lifetime_purchased, lifetime_used, updated_at
+					FROM public.user_credits WHERE user_id = $1::uuid
+				`, userID).Scan(&bal.Balance, &bal.LifetimePurchased, &bal.LifetimeUsed, &bal.UpdatedAt)
+				_ = tx.Commit()
+				return true, &bal, nil
+			} else if !errors.Is(err, sql.ErrNoRows) {
+				log.Printf("[billing] DebitCredit duplicate check error: %v", err)
+				return false, nil, errors.New("billing database error")
+			}
+		}
+
 		var bal UserCreditBalance
 		bal.UserID = userID
 		query := `
@@ -937,30 +1003,44 @@ func (b *BillingService) DebitCredit(userID string, amount int, referenceID, des
 			WHERE user_id = $1::uuid AND balance >= $2
 			RETURNING balance, lifetime_purchased, lifetime_used, updated_at
 		`
-		err := b.db.Conn.QueryRow(query, userID, amount).Scan(
+		err = tx.QueryRow(query, userID, amount).Scan(
 			&bal.Balance,
 			&bal.LifetimePurchased,
 			&bal.LifetimeUsed,
 			&bal.UpdatedAt,
 		)
-		if err == nil {
-			_, _ = b.db.Conn.Exec(`
-				INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at)
-				VALUES ($1, $2::uuid, $3, 'debit', $4, $5, NOW())
-			`, fmt.Sprintf("led_%d", time.Now().UnixNano()), userID, -amount, description, referenceID)
-
-			b.mu.Lock()
-			b.creditBalances[userID] = &bal
-			b.mu.Unlock()
-			return true, &bal, nil
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			currentBal, _ := b.GetCreditBalance(userID)
-			return false, currentBal, errors.New("insufficient credit balance for verified submission")
-		}
-		if isProductionBilling() {
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				currentBal, _ := b.GetCreditBalance(userID)
+				return false, currentBal, errors.New("insufficient credit balance for verified submission")
+			}
+			log.Printf("[billing] DebitCredit update error: %v", err)
 			return false, nil, errors.New("billing database unavailable")
 		}
+
+		ledgerID := fmt.Sprintf("led_%s", uuid.NewString())
+		var debitRefIDParam interface{}
+		if referenceID != "" {
+			debitRefIDParam = referenceID
+		}
+		_, err = tx.Exec(`
+			INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at)
+			VALUES ($1, $2::uuid, $3, 'debit', $4, $5, NOW())
+		`, ledgerID, userID, -amount, description, debitRefIDParam)
+		if err != nil {
+			log.Printf("[billing] DebitCredit ledger error: %v", err)
+			return false, nil, errors.New("failed to record credit debit ledger entry")
+		}
+
+		if err := tx.Commit(); err != nil {
+			log.Printf("[billing] DebitCredit commit error: %v", err)
+			return false, nil, errors.New("billing transaction commit failed")
+		}
+
+		b.mu.Lock()
+		b.creditBalances[userID] = &bal
+		b.mu.Unlock()
+		return true, &bal, nil
 	}
 	if isProductionBilling() {
 		return false, nil, errors.New("billing database unavailable")
@@ -989,7 +1069,7 @@ func (b *BillingService) DebitCredit(userID string, amount int, referenceID, des
 	bal.UpdatedAt = now
 
 	entry := CreditLedgerEntry{
-		ID:          fmt.Sprintf("led_%d", time.Now().UnixNano()),
+		ID:          fmt.Sprintf("led_%s", uuid.NewString()),
 		UserID:      userID,
 		Amount:      -amount,
 		Type:        "debit",
@@ -1019,6 +1099,13 @@ func (b *BillingService) RefundCredit(userID string, amount int, referenceID, de
 
 	// Persist to PostgreSQL if available
 	if b.db != nil && b.db.Conn != nil {
+		tx, err := b.db.Conn.Begin()
+		if err != nil {
+			log.Printf("[billing] RefundCredit tx begin error: %v", err)
+			return nil, errors.New("billing database unavailable")
+		}
+		defer tx.Rollback()
+
 		var bal UserCreditBalance
 		bal.UserID = userID
 		query := `
@@ -1030,26 +1117,40 @@ func (b *BillingService) RefundCredit(userID string, amount int, referenceID, de
 				updated_at = NOW()
 			RETURNING balance, lifetime_purchased, lifetime_used, updated_at
 		`
-		err := b.db.Conn.QueryRow(query, userID, amount).Scan(
+		err = tx.QueryRow(query, userID, amount).Scan(
 			&bal.Balance,
 			&bal.LifetimePurchased,
 			&bal.LifetimeUsed,
 			&bal.UpdatedAt,
 		)
-		if err == nil {
-			_, _ = b.db.Conn.Exec(`
-				INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at)
-				VALUES ($1, $2::uuid, $3, 'refund', $4, $5, NOW())
-			`, fmt.Sprintf("led_%d", time.Now().UnixNano()), userID, amount, description, referenceID)
-
-			b.mu.Lock()
-			b.creditBalances[userID] = &bal
-			b.mu.Unlock()
-			return &bal, nil
-		}
-		if isProductionBilling() {
+		if err != nil {
+			log.Printf("[billing] RefundCredit DB update error: %v", err)
 			return nil, errors.New("billing database unavailable")
 		}
+
+		ledgerID := fmt.Sprintf("led_%s", uuid.NewString())
+		var refundRefIDParam interface{}
+		if referenceID != "" {
+			refundRefIDParam = referenceID
+		}
+		_, err = tx.Exec(`
+			INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at)
+			VALUES ($1, $2::uuid, $3, 'refund', $4, $5, NOW())
+		`, ledgerID, userID, amount, description, refundRefIDParam)
+		if err != nil {
+			log.Printf("[billing] RefundCredit ledger insert error: %v", err)
+			return nil, errors.New("failed to record credit refund ledger entry")
+		}
+
+		if err := tx.Commit(); err != nil {
+			log.Printf("[billing] RefundCredit commit error: %v", err)
+			return nil, errors.New("billing transaction commit failed")
+		}
+
+		b.mu.Lock()
+		b.creditBalances[userID] = &bal
+		b.mu.Unlock()
+		return &bal, nil
 	}
 	if isProductionBilling() {
 		return nil, errors.New("billing database unavailable")
@@ -1079,7 +1180,7 @@ func (b *BillingService) RefundCredit(userID string, amount int, referenceID, de
 	bal.UpdatedAt = now
 
 	entry := CreditLedgerEntry{
-		ID:          fmt.Sprintf("led_%d", time.Now().UnixNano()),
+		ID:          fmt.Sprintf("led_%s", uuid.NewString()),
 		UserID:      userID,
 		Amount:      amount,
 		Type:        "refund",
@@ -1097,6 +1198,34 @@ func (b *BillingService) RefundCredit(userID string, amount int, referenceID, de
 func (b *BillingService) GetCreditLedger(userID string) ([]CreditLedgerEntry, error) {
 	if userID == "" {
 		return nil, errors.New("user ID is required")
+	}
+
+	if b.db != nil && b.db.Conn != nil {
+		rows, err := b.db.Conn.Query(`
+			SELECT id, amount, type, description, COALESCE(reference_id, ''), created_at
+			FROM public.credit_ledger
+			WHERE user_id = $1::uuid
+			ORDER BY created_at DESC
+		`, userID)
+		if err == nil {
+			defer rows.Close()
+			var entries []CreditLedgerEntry
+			for rows.Next() {
+				var e CreditLedgerEntry
+				e.UserID = userID
+				if scanErr := rows.Scan(&e.ID, &e.Amount, &e.Type, &e.Description, &e.ReferenceID, &e.CreatedAt); scanErr == nil {
+					entries = append(entries, e)
+				}
+			}
+			if entries == nil {
+				entries = []CreditLedgerEntry{}
+			}
+			return entries, nil
+		}
+		log.Printf("[billing] GetCreditLedger query error for %s: %v", userID, err)
+		if isProductionBilling() {
+			return nil, errors.New("billing database unavailable")
+		}
 	}
 
 	b.mu.RLock()

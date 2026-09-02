@@ -14,6 +14,10 @@ import logging
 import re
 import uuid
 
+from app.services.prompt_safety import (
+    UNTRUSTED_INSTRUCTION as _UNTRUSTED_INSTRUCTION,
+    untrusted as _untrusted,
+)
 from app.services.ats_engine import (
     semantic_ats_score,
     semantic_similarity_score,
@@ -42,7 +46,8 @@ OPTIMIZE_SYSTEM = (
     "employers, titles, dates or credentials. You naturally weave in the target "
     "job's keywords where genuinely applicable. Use clean ATS-safe structure: "
     "NAME line first, then ALL-CAPS section headings (PROFESSIONAL SUMMARY, SKILLS, "
-    "EXPERIENCE, EDUCATION...), '- ' bullets with action verbs and quantified impact."
+    "EXPERIENCE, EDUCATION...), '- ' bullets with action verbs and quantified impact.\n"
+    + _UNTRUSTED_INSTRUCTION
 )
 
 HUMANIZE_SYSTEM = (
@@ -493,7 +498,7 @@ async def optimize_with_reflection(
         # ponytail: chunked via long_context (spec 2026-08-02) — JD condenses
         # in parallel instead of head-slicing at [:6000]; short JDs hit the
         # fast path and pass through byte-identical.
-        context += f"\n\nTARGET JOB DESCRIPTION:\n{await LongContextClient().condense(jd, kind='jd')}"
+        context += f"\n\nTARGET JOB DESCRIPTION:\n{_untrusted(await LongContextClient().condense(jd, kind='jd'))}"
     if target_role:
         context += f"\n\nTARGET ROLE: {target_role[:120]}"
     if job_label:
@@ -505,7 +510,7 @@ async def optimize_with_reflection(
     # be appended to job_description, or ATS/keyword/semantic scoring would
     # score against user instructions instead of the real job posting.
     if custom_instructions:
-        context += f"\n\nUSER CUSTOM INSTRUCTIONS:\n{custom_instructions}"
+        context += f"\n\nUSER CUSTOM INSTRUCTIONS:\n{_untrusted(custom_instructions)}"
 
 
     # --- Phase 1: Baseline -----------------------------------------------

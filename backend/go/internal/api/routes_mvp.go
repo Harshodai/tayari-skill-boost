@@ -363,6 +363,18 @@ func (s *Server) handleAutopilotStart(w http.ResponseWriter, r *http.Request) {
 	if !s.requireFeature(w, r, "autopilot") {
 		return
 	}
+	if s.Billing != nil {
+		bal, err := s.Billing.GetCreditBalance(user.ID.String())
+		if err != nil {
+			log.Printf("handleAutopilotStart: credit check error for %s: %v", user.ID, err)
+			s.respondError(w, http.StatusInternalServerError, "Failed to verify credit balance")
+			return
+		}
+		if bal.Balance < 1 {
+			s.respondError(w, http.StatusPaymentRequired, "insufficient_credits")
+			return
+		}
+	}
 	// Check for concurrent active runs
 	var activeCount int
 	if err := s.DB.Conn.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM autopilot_runs WHERE user_id=$1 AND status IN ('queued', 'running')", user.ID).Scan(&activeCount); err == nil && activeCount > 0 {

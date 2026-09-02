@@ -227,8 +227,8 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 			INSERT INTO gmail_tokens (id, user_id, tenant_id, access_token, refresh_token, expiry, scope, created_at, updated_at)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())
 			ON CONFLICT (user_id, tenant_id) DO UPDATE
-		SET access_token=$3, refresh_token=CASE WHEN $4!='' THEN $4 ELSE gmail_tokens.refresh_token END,
-		    expiry=$5, updated_at=NOW()`,
+		SET access_token=$4, refresh_token=CASE WHEN $5!='' THEN $5 ELSE gmail_tokens.refresh_token END,
+		    expiry=$6, scope=$7, updated_at=NOW()`,
 		uuid.New(), userID, tenantID, tokenData.AccessToken, tokenData.RefreshToken, expiry, tokenData.Scope)
 	if err != nil {
 		log.Printf("handleGmailCallback: failed to store tokens: %v", err)

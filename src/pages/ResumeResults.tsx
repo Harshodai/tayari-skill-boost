@@ -42,14 +42,12 @@ const ATS_DEFAULT_BAND = 5;
 interface AtsParserProfile {
   name: string;
   key: string;
-  offset: number;
   desc: string;
 }
 const ATS_PARSER_PROFILES: AtsParserProfile[] = [
-  { name: "Greenhouse", key: "greenhouse", offset: 3, desc: "Markdown & structured text friendly" },
-  { name: "Workday", key: "workday", offset: -4, desc: "Rigid table and column rules" },
-  { name: "iCIMS", key: "icims", offset: -6, desc: "Strict formatting and layout rules" },
-  { name: "Taleo", key: "taleo", offset: 1, desc: "Keyword heavy sorting algorithm" },
+  { name: "Greenhouse", key: "greenhouse", desc: "Markdown & structured text friendly" },
+  { name: "Workday", key: "workday", desc: "Rigid table and column rules" },
+  { name: "iCIMS", key: "icims", desc: "Strict formatting and layout rules" },
 ];
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -879,13 +877,14 @@ const ResumeResults = () => {
                     </Link>
                   </div>
                   {ATS_PARSER_PROFILES.map((ats) => {
-                    const realEstimate = analysisResults.per_ats?.estimates?.[ats.key];
-                    const atsScore = realEstimate != null
-                      ? realEstimate
-                      : Math.max(10, Math.min(100, analysisResults.overallScore + ats.offset));
+                    const atsScore = analysisResults.per_ats?.estimates?.[ats.key] ?? null;
                     const band = analysisResults.per_ats?.band ?? ATS_DEFAULT_BAND;
-                    const atsLabel = atsScore >= ATS_SCORE_HIGH ? "High" : atsScore >= ATS_SCORE_MEDIUM ? "Medium" : "Low";
-                    const progressColor = atsScore >= ATS_SCORE_HIGH ? "success" as const : atsScore >= ATS_SCORE_MEDIUM ? "warning" as const : "destructive" as const;
+                    const atsLabel = atsScore !== null
+                      ? (atsScore >= ATS_SCORE_HIGH ? "High" : atsScore >= ATS_SCORE_MEDIUM ? "Medium" : "Low")
+                      : null;
+                    const progressColor = atsScore !== null
+                      ? (atsScore >= ATS_SCORE_HIGH ? "success" as const : atsScore >= ATS_SCORE_MEDIUM ? "warning" as const : "destructive" as const)
+                      : "primary" as const;
                     return (
                       <div key={ats.name} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
@@ -893,11 +892,17 @@ const ResumeResults = () => {
                             <span className="font-semibold text-foreground">{ats.name}</span>
                             <span className="text-[9px] text-muted-foreground">{ats.desc}</span>
                           </div>
-                          <span className="font-mono font-bold tabular-nums text-muted-foreground flex items-center gap-1">
-                            {atsScore}% <span className="text-[8px] text-muted-foreground/70 font-normal">±{band}</span> <Badge variant={atsScore >= 80 ? "success" : atsScore >= 60 ? "warning" : "destructive"} className="text-[8px] px-1.5 py-0">{atsLabel}</Badge>
-                          </span>
+                          {atsScore !== null ? (
+                            <span className="font-mono font-bold tabular-nums text-muted-foreground flex items-center gap-1">
+                              {atsScore}% <span className="text-[8px] text-muted-foreground/70 font-normal">±{band}</span> <Badge variant={atsScore >= 80 ? "success" : atsScore >= 60 ? "warning" : "destructive"} className="text-[8px] px-1.5 py-0">{atsLabel}</Badge>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">Not analyzed</span>
+                          )}
                         </div>
-                        <Progress value={atsScore} size="xs" colorScheme={progressColor} />
+                        {atsScore !== null && (
+                          <Progress value={atsScore} size="xs" colorScheme={progressColor} />
+                        )}
                       </div>
                     );
                   })}

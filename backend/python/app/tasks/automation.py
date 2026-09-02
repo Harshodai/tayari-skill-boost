@@ -13,6 +13,7 @@ empty profile/resume rather than raising.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -297,16 +298,19 @@ async def _count_watch_matches(title: str, location: str) -> int | None:
         return None
 
 
+_TIER_INTERVALS = {
+    "hourly": timedelta(hours=1),
+    "daily": timedelta(hours=24),
+    "weekly": timedelta(days=7),
+}
+
+
 @celery_app.task(name="autopilot.run_standing_job_watches", bind=True)
 def run_standing_job_watches(self) -> dict:
     """Query active job_watches from Postgres and trigger scheduled autopilot runs.
 
-    Each watch fires only when its own ``schedule_tier`` interval has elapsed
-    since ``last_run_at`` (a 'daily' watch does not fire on every hourly beat
-    tick). ``last_run_at`` is stamped immediately after each dispatch, inside
-    the same per-watch iteration, so a beat restart mid-run re-evaluates only
-    the watches it did not already stamp — it cannot double-fire a watch that
-    already ran this cycle.
+    Each watch only fires when its own ``schedule_tier`` interval has elapsed
+    (a 'daily' watch does not fire on every hourly beat tick).
     """
     async def _execute():
         from app.services.db import get_pool
@@ -314,20 +318,30 @@ def run_standing_job_watches(self) -> dict:
         if not pool:
             return {"status": "skipped_no_db"}
         async with pool.acquire() as conn:
-            watches = await conn.fetch(
-                """SELECT watch_id, user_id, query_title, location, salary_floor,
-                          schedule_tier, last_run_at
-                   FROM public.job_watches WHERE is_active = true"""
-            )
-            now = datetime.now(timezone.utc)
+            tx_mgr = conn.transaction() if hasattr(conn, "transaction") else contextlib.nullcontext()
+            async with tx_mgr:
+                watches = await conn.fetch(
+                    """
+                    SELECT watch_id, user_id, query_title, location,
+                           salary_floor, schedule_tier, last_run_at
+                    FROM public.job_watches
+                    WHERE is_active = true
+                    FOR UPDATE SKIP LOCKED
+                    """
+                )
             triggered = 0
             skipped = 0
+            now_dt = datetime.now(timezone.utc)
             for w in watches:
-                interval = TIER_INTERVALS.get(w["schedule_tier"], TIER_INTERVALS["daily"])
-                last_run_at = w["last_run_at"]
-                if last_run_at is not None and now - last_run_at < interval:
-                    skipped += 1
-                    continue
+                tier = (w.get("schedule_tier") or "daily").lower()
+                interval = _TIER_INTERVALS.get(tier, timedelta(hours=24))
+                last_run = w.get("last_run_at")
+                if last_run is not None:
+                    if last_run.tzinfo is None:
+                        last_run = last_run.replace(tzinfo=timezone.utc)
+                    if now_dt - last_run < interval:
+                        skipped += 1
+                        continue
 
                 user_id = str(w["user_id"])
                 title = w["query_title"]
@@ -340,21 +354,17 @@ def run_standing_job_watches(self) -> dict:
                 }
                 run_scheduled.delay(user_id=user_id, config=config)
 
-                # Real match count, not a placeholder: a direct, no-LLM
-                # provider search (the same aggregator /api/v1/jobs/search
-                # and the jobtheory MCP's search_jobs tool use), so the
-                # Settings UI can show "N jobs found" instead of only a
-                # timestamp. Best-effort — a provider outage must not stop
-                # last_run_at from being stamped (that's what prevents a
-                # beat restart from double-firing this watch).
                 match_count = await _count_watch_matches(title, loc)
-
                 await conn.execute(
-                    "UPDATE public.job_watches SET last_run_at = $1, last_match_count = $2, updated_at = $1 WHERE watch_id = $3",
-                    now, match_count, w["watch_id"],
+                    """
+                    UPDATE public.job_watches
+                    SET last_run_at = $1, last_match_count = $2, updated_at = now()
+                    WHERE watch_id = $3
+                    """,
+                    now_dt, match_count, w["watch_id"],
                 )
                 triggered += 1
-        return {"status": "success", "watches_triggered": triggered, "watches_skipped": skipped}
+            return {"status": "success", "watches_triggered": triggered, "watches_skipped": skipped}
 
     try:
         return asyncio.run(_execute())

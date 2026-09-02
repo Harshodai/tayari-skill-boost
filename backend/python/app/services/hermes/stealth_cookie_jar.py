@@ -14,24 +14,34 @@ logger = logging.getLogger(__name__)
 
 
 class StealthCookieJar:
-    """Manages domain session cookies for Playwright scrapers."""
+    """Manages (user_id, domain) session cookies for Playwright scrapers."""
 
     def __init__(self):
-        # Domain -> List of cookie dicts
-        self._cookies: Dict[str, List[Dict[str, Any]]] = {}
+        # (user_id, domain) -> List of cookie dicts
+        self._cookies: Dict[tuple[str, str], List[Dict[str, Any]]] = {}
 
-    def set_cookies(self, domain: str, cookies: List[Dict[str, Any]]) -> None:
-        """Store cookie list for a domain."""
-        self._cookies[domain] = cookies
-        logger.debug("Stored %d cookies for domain %s", len(cookies), domain)
+    def set_cookies(self, domain: str, cookies: List[Dict[str, Any]], user_id: str = "default") -> None:
+        """Store cookie list for a (user_id, domain) pair."""
+        key = (user_id or "default", domain)
+        self._cookies[key] = cookies
+        logger.debug("Stored %d cookies for user %s on domain %s", len(cookies), user_id, domain)
 
-    def get_cookies(self, domain: str) -> List[Dict[str, Any]]:
-        """Retrieve stored cookies for a domain."""
-        return self._cookies.get(domain, [])
+    def get_cookies(self, domain: str, user_id: str = "default") -> List[Dict[str, Any]]:
+        """Retrieve stored cookies for a (user_id, domain) pair."""
+        key = (user_id or "default", domain)
+        return self._cookies.get(key, [])
 
-    def clear_cookies(self, domain: Optional[str] = None) -> None:
-        """Clear cookies for a specific domain or all domains."""
-        if domain:
-            self._cookies.pop(domain, None)
+    def clear_cookies(self, domain: Optional[str] = None, user_id: Optional[str] = None) -> None:
+        """Clear cookies for a specific (user_id, domain) pair, domain, user, or all."""
+        if domain and user_id:
+            self._cookies.pop((user_id, domain), None)
+        elif domain:
+            to_del = [k for k in self._cookies if k[1] == domain]
+            for k in to_del:
+                self._cookies.pop(k, None)
+        elif user_id:
+            to_del = [k for k in self._cookies if k[0] == user_id]
+            for k in to_del:
+                self._cookies.pop(k, None)
         else:
             self._cookies.clear()

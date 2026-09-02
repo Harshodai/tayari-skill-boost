@@ -310,9 +310,21 @@ func (s *Server) handleAddVoiceNote(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	noteID := uuid.New()
-	ext := filepath.Ext(header.Filename)
+	ext := strings.ToLower(filepath.Ext(header.Filename))
 	if ext == "" {
 		ext = ".webm"
+	}
+	allowedExts := map[string]string{
+		".webm": "audio/webm",
+		".mp3":  "audio/mpeg",
+		".wav":  "audio/wav",
+		".ogg":  "audio/ogg",
+		".m4a":  "audio/mp4",
+	}
+	contentType, isAllowed := allowedExts[ext]
+	if !isAllowed {
+		s.respondError(w, http.StatusBadRequest, "Invalid audio format. Allowed: .webm, .mp3, .wav, .ogg, .m4a")
+		return
 	}
 	fname := noteID.String() + ext
 	fpath := filepath.Join(voiceUploadDir, fname)
@@ -328,10 +340,6 @@ func (s *Server) handleAddVoiceNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentType := header.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "audio/webm"
-	}
 	transcript := ""
 	aiResp, aiErr := s.AI.PostJSONWithHeaders("/api/v1/voice/transcribe", map[string]interface{}{
 		"file":         fname,
@@ -396,19 +404,30 @@ func (s *Server) handleGetVoiceNote(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusInternalServerError, "Failed to parse voice notes")
 		return
 	}
+	allowedMIMEs := map[string]bool{
+		"audio/webm": true,
+		"audio/mpeg": true,
+		"audio/wav":  true,
+		"audio/ogg":  true,
+		"audio/mp4":  true,
+	}
 	for _, note := range notes {
 		if note["id"] == nid {
 			fname, _ := note["file"].(string)
+			// Sanitize filename to prevent path traversal
+			cleanFname := filepath.Base(fname)
 			contentType, _ := note["content_type"].(string)
-			if contentType == "" {
+			if !allowedMIMEs[contentType] {
 				contentType = "audio/webm"
 			}
-			fpath := filepath.Join(voiceUploadDir, fname)
+			fpath := filepath.Join(voiceUploadDir, cleanFname)
 			if _, err := os.Stat(fpath); os.IsNotExist(err) {
 				s.respondError(w, http.StatusNotFound, "Audio file not found")
 				return
 			}
 			w.Header().Set("Content-Type", contentType)
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", cleanFname))
 			http.ServeFile(w, r, fpath)
 			return
 		}

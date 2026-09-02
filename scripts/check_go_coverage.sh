@@ -5,7 +5,7 @@ set -euo pipefail
 # `go test -coverprofile ./...` asks some CI Go distributions to invoke the
 # optional covdata tool and fails before producing a usable profile. Collect
 # package profiles independently instead, then calculate a weighted floor.
-MIN_COVERAGE="${GO_COVERAGE_MIN:-20}"
+MIN_COVERAGE="${GO_COVERAGE_MIN:-40}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR/backend/go"
 WORK_DIR="$(mktemp -d -t tayari-go-coverage.XXXXXX)"

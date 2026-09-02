@@ -205,57 +205,21 @@ run_agent_reach_doctor = run_tayari_doctor
 
 
 # ---------------------------------------------------------------------------
-# Native Browser Cookie Extractor (Chrome, Firefox, Edge, Brave, Safari)
+# Browser Session Status (Server-Safe)
 # ---------------------------------------------------------------------------
 
-def _probe_browser_cookie_library(browser: str) -> dict | None:
-    """Probe a single browser's cookie store. Returns None if unavailable."""
-    try:
-        import rookiepy
-        _browser_map = {"chrome": "chrome", "firefox": "firefox", "edge": "edge", "brave": "brave", "safari": "safari"}
-        if browser in _browser_map:
-            loader = getattr(rookiepy, _browser_map[browser], None)
-            if loader and callable(loader):
-                try:
-                    cookies = loader()
-                    if cookies is not None:
-                        return {"status": "available", "engine": "rookiepy (Rust)", "platforms": ["Twitter/X", "LinkedIn", "Bilibili", "Xueqiu"]}
-                except Exception:
-                    pass
-    except ImportError:
-        pass
-
-    try:
-        import browser_cookie3
-        _bc3_map = {"chrome": browser_cookie3.chrome, "firefox": browser_cookie3.firefox, "edge": browser_cookie3.edge, "brave": browser_cookie3.brave, "safari": browser_cookie3.safari}
-        loader = _bc3_map.get(browser)
-        if loader:
-            try:
-                cookies = loader()
-                if cookies is not None:
-                    return {"status": "available", "engine": "browser_cookie3", "platforms": ["Twitter/X", "LinkedIn"]}
-            except Exception:
-                pass
-    except ImportError:
-        pass
-
-    return None
-
-
 def extract_browser_cookies() -> Dict[str, dict]:
-    """Inspect local system browser cookie availability for job hunting sites."""
-    detected = {}
-    browsers = ["chrome", "firefox", "edge", "brave", "safari"]
-
-    for b in browsers:
-        result = _probe_browser_cookie_library(b)
-        if result is not None:
-            detected[b] = result
-
-    if not detected:
-        detected["desktop_session"] = {"status": "active", "engine": "opencli / env tokens", "platforms": ["Web", "GitHub", "YouTube", "RSS"]}
-
-    return detected
+    """Return backend session extraction status without probing host browser filesystems."""
+    env_token = os.getenv("ENV_TOKEN") or os.getenv("AI_INTERNAL_TOKEN") or ""
+    if env_token:
+        return {
+            "desktop_session": {
+                "status": "active",
+                "engine": "env tokens / authorized session",
+                "platforms": ["Web", "GitHub", "YouTube", "RSS"],
+            }
+        }
+    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +420,7 @@ async def process_agent_reach(req: AgentReachRequest) -> AgentReachResult:
             logger.warning(f"[TayariReach] Knowledge graph extraction fallback: {exc}")
             skills_extracted = ["System Architecture", "Cloud Infrastructure", "API Design", "Distributed Systems"]
 
-    cover_bullet = f"Utilized insights from '{title[:60]}' to optimize backend performance and reduce system latency by 40%."
+    cover_bullet = f"Applied principles from '{title[:60]}' to strengthen system design understanding and engineering best practices."
     interview_question = f"How would you apply the engineering principles discussed in '{title[:60]}' to scale high-concurrency systems?"
 
     return AgentReachResult(

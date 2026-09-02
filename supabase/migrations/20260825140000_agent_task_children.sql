@@ -29,4 +29,4 @@ REVOKE ALL ON TABLE public.agent_task_children FROM anon, authenticated;
 GRANT ALL ON TABLE public.agent_task_children TO service_role;
 DROP POLICY IF EXISTS agent_task_children_owner ON public.agent_task_children;
 CREATE POLICY agent_task_children_owner ON public.agent_task_children
-    FOR ALL TO service_role USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    FOR ALL TO service_role USING (true) WITH CHECK (true);

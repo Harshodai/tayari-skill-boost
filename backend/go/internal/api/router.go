@@ -24,8 +24,9 @@ import (
 type contextKey string
 
 const (
-	contextKeyUser              = auth.ContextKeyUser
-	contextKeyTenant contextKey = "tenant"
+	contextKeyUser               = auth.ContextKeyUser
+	contextKeyTenant  contextKey = "tenant"
+	contextKeyTraceID contextKey = "trace_id"
 )
 
 type Server struct {

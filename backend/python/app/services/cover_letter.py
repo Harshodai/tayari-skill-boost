@@ -29,17 +29,22 @@ class CoverLetterGenerator:
         # ponytail: chunked via long_context (spec 2026-08-02) — the resume
         # reaches the LLM in full through the {LONG_TEXT} slot, the JD arrives
         # condensed, instead of [:2000]/[:3000] head-slices.
-        prompt = f"""You are an expert career coach writing a cover letter.
+        from app.services.prompt_safety import untrusted, UNTRUSTED_INSTRUCTION
 
-Job Title: {job_title}
-Company: {company_name}
+        prompt = f"""You are an expert career coach writing a cover letter.{UNTRUSTED_INSTRUCTION}
+
+Job Title:
+{untrusted(job_title)}
+Company:
+{untrusted(company_name)}
 Tone: {tone_desc}
 
 Job Description:
-{jd_condensed}
+{untrusted(jd_condensed)}
 
 Candidate Resume:
-{LONG_TEXT_PLACEHOLDER}{notes_block}
+{LONG_TEXT_PLACEHOLDER}
+{untrusted(notes_block)}
 
 Instructions:
 - Write a 3-paragraph cover letter under 300 words.

@@ -37,24 +37,22 @@ func (s *Server) RegisterBillingRoutes(r chi.Router, b *billing.BillingService) 
 	r.Get("/api/v1/billing/credits/packs", s.handleGetCreditPacks(b))
 	r.Get("/api/billing/credits/packs", s.handleGetCreditPacks(b))
 
-	// Direct credit grants are reserved for verified internal payment fulfillment.
+	// Direct credit grants and refunds are reserved for verified internal payment fulfillment / service roles.
 	r.Group(func(r chi.Router) {
 		r.Use(s.internalServiceOnlyMiddleware)
 		r.Post("/api/v1/billing/credits/purchase", s.handlePurchaseCredits(b))
 		r.Post("/api/billing/credits/purchase", s.handlePurchaseCredits(b))
+		r.Post("/api/v1/billing/credits/refund", s.handleRefundCredits(b))
+		r.Post("/api/billing/credits/refund", s.handleRefundCredits(b))
 	})
 
-	// Service/Client debit and refund endpoints. These mutate credit balances,
-
-	// so they require either the shared internal-service token (trusted
-	// server-to-server caller, e.g. the Python receipt pipeline) or a valid
-	// user session — and a session may only affect its own user_id.
+	// Client debit endpoints. These mutate credit balances for job submissions.
+	// Requires either the shared internal-service token (trusted server-to-server caller)
+	// or a valid user session — and a session may only affect its own user_id.
 	r.Group(func(r chi.Router) {
 		r.Use(s.internalOrAuthMiddleware)
 		r.Post("/api/v1/billing/credits/debit", s.handleDebitCredits(b))
 		r.Post("/api/billing/credits/debit", s.handleDebitCredits(b))
-		r.Post("/api/v1/billing/credits/refund", s.handleRefundCredits(b))
-		r.Post("/api/billing/credits/refund", s.handleRefundCredits(b))
 	})
 
 	// Public Webhook Endpoint (Stripe Signature Verified)
@@ -224,7 +222,7 @@ func (s *Server) handleStripeWebhook(b *billing.BillingService) http.HandlerFunc
 				s.respondJSON(w, http.StatusOK, map[string]string{"status": "ignored_unpaid"})
 				return
 			}
-			if !b.ProcessStripeCreditPackPayment(payload.ID, payload.Type, payload.Data.Object.Customer, userID, packID, payload.Data.Object.PaymentStatus) {
+			if !b.ProcessStripeCreditPackPayment(payload.ID, payload.Type, payload.Data.Object.Customer, userID, packID, payload.Data.Object.PaymentStatus, payload.Data.Object.ID) {
 				s.respondError(w, http.StatusInternalServerError, "credit fulfillment failed; retry the webhook")
 				return
 			}

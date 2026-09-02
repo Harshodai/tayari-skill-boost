@@ -143,9 +143,10 @@ async def list_runtime_approvals(user_id: str) -> list[dict]:
                 """
                 SELECT approval_id, user_id, task_id, agent_id, tool_name, 
                        tool_input, content_preview, status, reviewer_comment, 
-                       reviewed_at, created_at
+                       reviewed_at, created_at, expires_at
                 FROM runtime_approvals
                 WHERE user_id = $1
+                  AND (expires_at IS NULL OR expires_at > now() OR status <> 'pending')
                 ORDER BY created_at DESC
                 """,
                 user_id
@@ -173,9 +174,10 @@ async def get_runtime_approval(user_id: str, approval_id: str) -> dict | None:
                 """
                 SELECT approval_id, user_id, task_id, agent_id, tool_name, 
                        tool_input, content_preview, status, reviewer_comment, 
-                       reviewed_at, created_at
+                       reviewed_at, created_at, expires_at
                 FROM runtime_approvals
                 WHERE user_id = $1 AND approval_id = $2
+                  AND (expires_at IS NULL OR expires_at > now() OR status <> 'pending')
                 """,
                 user_id, approval_id
             )
@@ -208,8 +210,8 @@ async def create_runtime_approval(
             row = await conn.fetchrow(
                 """
                 INSERT INTO runtime_approvals
-                    (user_id, task_id, agent_id, tool_name, tool_input, content_preview, status)
-                VALUES ($1, $2, $3, $4, $5::jsonb, $6, 'pending')
+                    (user_id, task_id, agent_id, tool_name, tool_input, content_preview, status, expires_at)
+                VALUES ($1, $2, $3, $4, $5::jsonb, $6, 'pending', NOW() + INTERVAL '15 minutes')
                 RETURNING approval_id
                 """,
                 user_id, task_id, agent_id, tool_name, tool_input_json, content_preview
@@ -248,6 +250,7 @@ async def update_runtime_approval(
                 WHERE user_id = $1
                   AND (approval_id::text = $2 OR tool_input->>'approval_id' = $2)
                   AND status = 'pending'
+                  AND (expires_at IS NULL OR expires_at > now())
                 """,
                 user_id, approval_id, status, reviewer_comment
             )

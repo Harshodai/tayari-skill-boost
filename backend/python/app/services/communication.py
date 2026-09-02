@@ -5,6 +5,7 @@ Updated with Career-Ops Voice DNA guardrails.
 import re
 from typing import Dict, Any, List, Optional
 from app.services.llm_service import llm_complete
+from app.services.prompt_safety import untrusted, UNTRUSTED_INSTRUCTION
 
 
 class CommunicationGenerator:
@@ -39,7 +40,13 @@ class CommunicationGenerator:
 
     @staticmethod
     async def _follow_up(job_title: str, company_name: str, days_since: int) -> Dict[str, Any]:
-        prompt = f"""Write a polite, warm, conversational follow-up email to {company_name} about the {job_title} application I sent {days_since} days ago.
+        system = "You are a career communications expert." + UNTRUSTED_INSTRUCTION
+        prompt = f"""Write a polite, warm, conversational follow-up email about the application I sent {days_since} days ago.
+
+        COMPANY:
+        {untrusted(company_name)}
+        ROLE:
+        {untrusted(job_title)}
         
         Voice DNA & Guardrails:
         - 3-4 sentences max, under 150 words.
@@ -48,7 +55,7 @@ class CommunicationGenerator:
         - Lead with a soft ask / availability ("Would any time this week work for a brief call?").
         
         Return ONLY the email body (no subject line)."""
-        body = await llm_complete("", prompt, max_tokens=300, temperature=0.6)
+        body = await llm_complete(system, prompt, max_tokens=300, temperature=0.6)
         return {
             "subject": f"Re: {job_title} application — {company_name}",
             "body": body.strip(),
@@ -64,21 +71,27 @@ class CommunicationGenerator:
         if discussion_points:
             points_text = "We discussed: " + "; ".join(discussion_points[:3]) + "."
 
-        prompt = f"""Write a post-interview thank-you email to {recipient} at {company_name} for the {job_title} interview.
-        {points_text}
+        system = "You are a career communications expert." + UNTRUSTED_INSTRUCTION
+        prompt = f"""Write a post-interview thank-you email for the interview.
+        RECIPIENT:
+        {untrusted(recipient)}
+        COMPANY:
+        {untrusted(company_name)}
+        ROLE:
+        {untrusted(job_title)}
+        DISCUSSION:
+        {untrusted(points_text)}
         
         Voice DNA & Guardrails:
-        - Under 150 words.
-        - Express genuine gratitude.
-        - Mention 1 specific discussion point if provided.
-        - Reiterate enthusiasm for the role.
-        - Natural, warm tone (use contractions, conversational phrasing).
-        - NEVER use generic templates or clichés.
+        - Under 200 words.
+        - Reference specific discussion points naturally.
+        - Reiterate genuine excitement for the specific problem/team.
+        - Conversational and punchy.
         
         Return ONLY the email body (no subject line)."""
-        body = await llm_complete("", prompt, max_tokens=400, temperature=0.7)
+        body = await llm_complete(system, prompt, max_tokens=350, temperature=0.6)
         return {
-            "subject": f"Thank you — {job_title} interview",
+            "subject": f"Thank you — {job_title} interview ({company_name})",
             "body": body.strip(),
             "word_count": len(body.split()),
             "type": "thank-you",

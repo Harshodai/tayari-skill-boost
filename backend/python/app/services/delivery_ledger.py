@@ -96,7 +96,7 @@ async def claim_next_delivery(
                     WITH next_delivery AS (
                         SELECT delivery_id
                         FROM delivery_ledger
-                        WHERE status IN ('queued', 'failed')
+                        WHERE (status IN ('queued', 'failed') OR (status = 'sending' AND updated_at < now() - INTERVAL '5 minutes'))
                           AND available_at <= now()
                           AND attempt_count < $1
                           AND channel = ANY($2::text[])
@@ -135,6 +135,7 @@ async def mark_sent(delivery: Delivery, provider_message_id: str | None = None) 
     return await _update_delivery(
         delivery.delivery_id,
         status="sent",
+        attempt_count=delivery.attempt_count,
         provider_message_id=(provider_message_id or "")[:500] or None,
         sent=True,
     )
@@ -147,6 +148,7 @@ async def mark_failed(delivery: Delivery, error: str) -> bool:
     return await _update_delivery(
         delivery.delivery_id,
         status=status,
+        attempt_count=delivery.attempt_count,
         last_error=error[:1000],
         retry_seconds=retry_seconds,
     )
@@ -156,6 +158,7 @@ async def _update_delivery(
     delivery_id: str,
     *,
     status: str,
+    attempt_count: int,
     provider_message_id: str | None = None,
     last_error: str | None = None,
     retry_seconds: int | None = None,
@@ -178,7 +181,7 @@ async def _update_delivery(
                     END,
                     sent_at = CASE WHEN $6 THEN now() ELSE sent_at END,
                     updated_at = now()
-                WHERE delivery_id = $1::uuid AND status = 'sending'
+                WHERE delivery_id = $1::uuid AND status = 'sending' AND attempt_count = $7
                 RETURNING delivery_id
                 """,
                 delivery_id,
@@ -187,6 +190,7 @@ async def _update_delivery(
                 last_error,
                 retry_seconds,
                 sent,
+                attempt_count,
             )
         return bool(changed)
     except Exception as exc:  # noqa: BLE001

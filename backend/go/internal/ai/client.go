@@ -71,6 +71,9 @@ func (c *Client) setHeaders(req *http.Request, headers map[string]string) {
 	if c.internalToken != "" {
 		req.Header.Set("X-Internal-Token", c.internalToken)
 	}
+	if req.Header.Get("X-Request-ID") == "" {
+		req.Header.Set("X-Request-ID", fmt.Sprintf("req-%d", time.Now().UnixNano()))
+	}
 }
 
 // ParseDocument sends a file to the Python service for parsing.

@@ -261,6 +261,17 @@ class AutonomousCareerEngine:
         new_status = "APPROVED_AND_READY" if approved else "REJECTED_BY_USER"
         db_status = "approved" if approved else "rejected"
 
+        # Validate custom_keywords BEFORE any state mutation so a bad payload
+        # cannot leave the approval partially committed.
+        if approved and custom_keywords:
+            original_keywords = set(k.lower() for k in item.get("extracted_keywords", []))
+            unapproved = [k for k in custom_keywords if k.lower() not in original_keywords]
+            if unapproved and expected_proposal_hash:
+                return {
+                    "success": False,
+                    "error": f"Custom keywords must be a subset of the approved proposal. Unapproved: {sorted(unapproved)}",
+                }
+
         if effective_user_id:
             from app.services.agent_db import update_runtime_approval
             updated = await update_runtime_approval(

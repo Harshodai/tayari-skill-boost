@@ -457,6 +457,19 @@ async def save_receipt(receipt: dict[str, Any]) -> bool:
                      screenshot_path, submitted_resume_sha256, submitted_resume_text,
                      answers, outcome)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15)
+                ON CONFLICT (user_id, run_id, job_url) WHERE run_id IS NOT NULL
+                DO UPDATE SET
+                    verified = CASE WHEN EXCLUDED.verified THEN TRUE ELSE submission_receipts.verified END,
+                    confirmation_text = COALESCE(EXCLUDED.confirmation_text, submission_receipts.confirmation_text),
+                    confirmation_number = COALESCE(EXCLUDED.confirmation_number, submission_receipts.confirmation_number),
+                    screenshot_path = COALESCE(EXCLUDED.screenshot_path, submission_receipts.screenshot_path),
+                    answers = EXCLUDED.answers,
+                    outcome = CASE
+                        WHEN submission_receipts.outcome IN ('submitted', 'verified') THEN submission_receipts.outcome
+                        ELSE EXCLUDED.outcome
+                    END,
+                    submitted_resume_sha256 = EXCLUDED.submitted_resume_sha256,
+                    submitted_resume_text = EXCLUDED.submitted_resume_text
                 """,
                 receipt["user_id"],
                 receipt.get("run_id"),

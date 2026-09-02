@@ -103,7 +103,7 @@ export default function Outcomes() {
       }
 
       return {
-        id: String(r.id || r.job_url || Math.random()),
+        id: String(r.id || r.confirmation_number || [r.company, r.job_title, r.submitted_at || ''].filter(Boolean).join('-')),
         company: r.company || "Target Company",
         title: r.job_title || "Application Submission",
         url: r.job_url || null,

@@ -88,7 +88,10 @@ class HermesRunDetailResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 @hermes_router.post("/scrape", response_model=None)
-async def hermes_scrape(payload: HermesScrapeRequest):
+async def hermes_scrape(
+    payload: HermesScrapeRequest,
+    user_id: str = Depends(get_current_user),
+):
     """Run a Hermes scrape synchronously or enqueue it via Celery.
 
     When ``sync=True`` the scraper runs inline; a best-effort ``agent_runs``
@@ -108,13 +111,13 @@ async def hermes_scrape(payload: HermesScrapeRequest):
     }
 
     if payload.sync:
-        return await _scrape_sync(run_id, payload, config)
+        return await _scrape_sync(run_id, payload, config, user_id=user_id)
 
-    return await _scrape_async(run_id, payload, config)
+    return await _scrape_async(run_id, payload, config, user_id=user_id)
 
 
 async def _scrape_sync(
-    run_id: str, payload: HermesScrapeRequest, config: dict[str, Any]
+    run_id: str, payload: HermesScrapeRequest, config: dict[str, Any], user_id: Optional[str] = None
 ) -> HermesScrapeSyncResponse:
     """Run the scraper inline and persist a completed agent_runs row."""
     scraper = HermesScraper()
@@ -122,27 +125,19 @@ async def _scrape_sync(
         payload.query, payload.location, payload.board, payload.limit,
     )
     result = {"count": len(jobs), "jobs": jobs}
-    # Best-effort persistence — no user context in this sync path, so the
-    # create_agent_run call becomes a guarded no-op (user_id is required).
-    await _persist_sync_run(run_id, config, result)
+    await _persist_sync_run(run_id, config, result, user_id=user_id)
     return HermesScrapeSyncResponse(
         run_id=run_id, status="completed", count=len(jobs), jobs=jobs,
     )
 
 
 async def _persist_sync_run(
-    run_id: str, config: dict[str, Any], result: dict[str, Any]
+    run_id: str, config: dict[str, Any], result: dict[str, Any], user_id: Optional[str] = None
 ) -> None:
-    """Best-effort: mark a sync scrape run completed in agent_runs.
-
-    create_agent_run requires a user_id (FK to auth.users); without one the
-    helper is a no-op, which is the correct behavior for an unauthenticated
-    sync scrape. We still attempt update_agent_run so any future caller that
-    threads a user_id through sees the completed status.
-    """
+    """Best-effort: mark a sync scrape run completed in agent_runs."""
     try:
         await db_service.create_agent_run(
-            run_id=run_id, user_id=None, run_type="scrape",
+            run_id=run_id, user_id=user_id, run_type="scrape",
             config=config, engine="hermes",
         )
         await db_service.update_agent_run(
@@ -153,7 +148,7 @@ async def _persist_sync_run(
 
 
 async def _scrape_async(
-    run_id: str, payload: HermesScrapeRequest, config: dict[str, Any]
+    run_id: str, payload: HermesScrapeRequest, config: dict[str, Any], user_id: Optional[str] = None
 ) -> HermesScrapeAsyncResponse:
     """Enqueue the Celery scrape task; return run_id + task_id immediately.
 
@@ -165,14 +160,11 @@ async def _scrape_async(
     task = _enqueue_scrape_task(payload)
     if task is None:
         logger.warning("hermes.scrape: Celery unavailable, falling back to sync")
-        return await _scrape_sync(run_id, payload, config)
+        return await _scrape_sync(run_id, payload, config, user_id=user_id)
 
-    # user_id is None here (no auth context threaded through yet); create_agent_run
-    # is a guarded no-op without it. We still record celery_task_id for when a
-    # caller does supply a user_id via a future wiring.
     try:
         await db_service.create_agent_run(
-            run_id=run_id, user_id=None, run_type="scrape",
+            run_id=run_id, user_id=user_id, run_type="scrape",
             config=config, celery_task_id=task.id, engine="hermes",
         )
     except Exception as exc:  # noqa: BLE001

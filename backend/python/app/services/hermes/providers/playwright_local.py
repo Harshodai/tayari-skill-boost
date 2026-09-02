@@ -56,10 +56,23 @@ class PlaywrightLocalProvider:
             return []
 
         try:
+            from app.services.agent_reach_transcribe import assert_safe_public_url
+            assert_safe_public_url(url)
+        except Exception as exc:
+            logger.warning("Playwright local provider blocked unsafe URL '%s': %s", url, exc)
+            return []
+
+        try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(
                     headless=True,
-                    args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+                    args=[
+                        "--no-sandbox",
+                        "--disable-setuid-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--host-resolver-rules=MAP 169.254.169.254 ~NOTFOUND, MAP 127.0.0.1 ~NOTFOUND, MAP ::1 ~NOTFOUND",
+                        "--block-insecure-private-network-requests",
+                    ]
                 )
                 # ponytail: browser is bound now, so closing it is guaranteed —
                 # finally runs before the outer except returns, even on scrape failure
@@ -68,6 +81,18 @@ class PlaywrightLocalProvider:
                         user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, Gecko) Chrome/122.0.0.0 Safari/537.36",
                         viewport={"width": 1280, "height": 800}
                     )
+
+                    # Intercept all subresource / navigation requests to block internal SSRF
+                    async def _route_guard(route):
+                        req_url = route.request.url
+                        try:
+                            assert_safe_public_url(req_url)
+                            await route.continue_()
+                        except Exception:
+                            await route.abort("blockedbyclient")
+
+                    await context.route("**/*", _route_guard)
+
                     page = await context.new_page()
 
                     logger.info("Playwright local provider navigating to: %s", url)

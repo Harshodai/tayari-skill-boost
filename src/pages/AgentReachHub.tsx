@@ -61,42 +61,8 @@ export function AgentReachHub() {
   const [cookieBrowsers, setCookieBrowsers] = useState<Record<string, any>>({});
   const [cookiesLoading, setCookiesLoading] = useState(false);
 
-  const [doctorReport, setDoctorReport] = useState<DoctorReport | null>({
-    total_channels: 15,
-    active_channels: 15,
-    platform_name: "Job Tayari Candidate Intelligence Suite",
-    browser_cookies_detected: ["chrome", "edge", "firefox", "brave", "safari"],
-    channels: [
-      { channel: "github", label: "GitHub Portfolios & PRs", jobseeker_purpose: "Candidate code quality, open source PRs, repo READMEs", active: true, status: "ok", backend: "gh CLI / REST API", latency_ms: 85 },
-      { channel: "linkedin", label: "LinkedIn Profiles & Jobs", jobseeker_purpose: "Recruiter leads, job descriptions, professional recommendations", active: true, status: "ok", backend: "linkedin-scraper-mcp ▸ Jina", latency_ms: 110 },
-      { channel: "youtube", label: "System Design Tech Talks", jobseeker_purpose: "Tech talk transcripts, system architecture masterclasses", active: true, status: "ok", backend: "youtube-transcript-api / yt-dlp", latency_ms: 120 },
-      { channel: "twitter", label: "Tech Twitter & Startup Hiring", jobseeker_purpose: "Founders hiring tweets, tech trends, engineering leadership", active: true, status: "ok", backend: "twitter-cli ▸ OpenCLI", latency_ms: 130 },
-      { channel: "reddit", label: "Career Subreddits (/r/cscareerquestions)", jobseeker_purpose: "Interview questions, compensation threads, company reviews", active: true, status: "ok", backend: "OpenCLI ▸ rdt-cli", latency_ms: 140 },
-      { channel: "substack_medium", label: "Engineering Blogs & Architecture", jobseeker_purpose: "Company tech blogs (Netflix, Meta, Uber), architecture deep dives", active: true, status: "ok", backend: "Jina Reader", latency_ms: 60 },
-      { channel: "bilibili", label: "Bilibili Coding Tutorials", jobseeker_purpose: "LeetCode solution walkthroughs, system design tutorials", active: true, status: "ok", backend: "bilibili-cli ▸ OpenCLI", latency_ms: 95 },
-      { channel: "facebook", label: "Facebook Groups & Tech Leads", jobseeker_purpose: "Tech community posts, engineering meetup groups", active: true, status: "ok", backend: "OpenCLI (Chrome Session)", latency_ms: 150 },
-      { channel: "instagram", label: "Instagram Work Culture", jobseeker_purpose: "Company culture posts, engineering office highlights", active: true, status: "ok", backend: "OpenCLI", latency_ms: 160 },
-      { channel: "xiaoyuzhou", label: "Xiaoyuzhou Tech Podcasts", jobseeker_purpose: "Founder interviews, CTO podcasts, career insights", active: true, status: "ok", backend: "Groq / OpenAI Whisper API", latency_ms: 210 },
-      { channel: "v2ex", label: "V2EX Job Boards & Tech Q&A", jobseeker_purpose: "Chinese tech hiring boards, salary discussions, tech Q&A", active: true, status: "ok", backend: "v2ex-cli", latency_ms: 75 },
-      { channel: "xueqiu", label: "Xueqiu Target Company Financials", jobseeker_purpose: "Public tech company earnings, stock performance, market sentiment", active: true, status: "ok", backend: "xueqiu-cli", latency_ms: 80 },
-      { channel: "rss", label: "Engineering Tech RSS Feeds", jobseeker_purpose: "Official engineering blog RSS feeds", active: true, status: "ok", backend: "feedparser", latency_ms: 50 },
-      { channel: "exa_search", label: "Exa AI Semantic Career Search", jobseeker_purpose: "AI semantic search for candidate interview prep & trade-offs", active: true, status: "ok", backend: "Exa AI via mcporter", latency_ms: 90 },
-      { channel: "web", label: "Direct Career Pages", jobseeker_purpose: "Company career sites, job postings, engineering blogs", active: true, status: "ok", backend: "Jina Reader (r.jina.ai)", latency_ms: 45 },
-    ],
-  });
-
-  const [result, setResult] = useState<ExtractionResult | null>({
-    url: "https://www.youtube.com/watch?v=igSp4H0OWLE",
-    channel: "youtube",
-    title: "System Architecture & High-Scale Microservices Masterclass",
-    content_text: "In this session, we cover low-latency caching strategies with Redis, fault-tolerant message queues with Kafka, and containerized deployment patterns using Docker and Kubernetes. We also discuss trade-offs between SQL vs NoSQL databases for high-throughput transactional event processing.",
-    summary: "Comprehensive guide on high-concurrency microservices, Redis caching, Kafka queueing, and SQL vs NoSQL database evaluation.",
-    entities: { company: "Engineering Leaders", role: "Principal Architect" },
-    skills_extracted: ["Redis", "Kafka", "Docker", "Kubernetes", "Microservices", "System Architecture", "NoSQL"],
-    suggested_cover_letter_bullet: "Leveraged microservice architecture principles to optimize low-latency Redis caching and reduce API response time by 45%.",
-    suggested_interview_question: "How would you design a fault-tolerant Kafka message queue buffer to handle peak 10M+ daily event spikes?",
-    active_backend: "youtube-transcript-api",
-  });
+  const [doctorReport, setDoctorReport] = useState<DoctorReport | null>(null);
+  const [result, setResult] = useState<ExtractionResult | null>(null);
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 

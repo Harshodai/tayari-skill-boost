@@ -163,7 +163,7 @@ const App = () => (
                 </>
               )}
               {features.oneShotPipeline && (
-                <Route path="/one-shot" element={<OneShotPipeline />} />
+                <Route path="/one-shot" element={<ProtectedRoute><OneShotPipeline /></ProtectedRoute>} />
               )}
               <Route path="/auth" element={<Auth />} />
               <Route path="/onboarding" element={<Onboarding />} />
@@ -177,7 +177,7 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
-              <Route path="/resume-graph" element={<ResumeGraph />} />
+              <Route path="/resume-graph" element={<ProtectedRoute><ResumeGraph /></ProtectedRoute>} />
               <Route path="/interview" element={<ProtectedRoute><InterviewBoard /></ProtectedRoute>} />
               <Route path="/interview/kanban" element={<ProtectedRoute><InterviewBoard /></ProtectedRoute>} />
               <Route path="/applications" element={<ProtectedRoute><InterviewBoard /></ProtectedRoute>} />
@@ -201,7 +201,7 @@ const App = () => (
                 <>
                   <Route path="/jobs" element={<JobSearch />} />
                   <Route path="/job-search" element={<JobSearch />} />
-                  <Route path="/jobs/autopilot" element={<AutoPilot />} />
+                  <Route path="/jobs/autopilot" element={<ProtectedRoute><AutoPilot /></ProtectedRoute>} />
                 </>
               )}
               {features.pricing && (
@@ -213,7 +213,7 @@ const App = () => (
                 <Route path="/careers" element={<Careers />} />
               )}
               {features.careerOps && (
-                <Route path="/career-intelligence" element={<CareerIntelligence />} />
+                <Route path="/career-intelligence" element={<ProtectedRoute><CareerIntelligence /></ProtectedRoute>} />
               )}
               {features.blog && (
                 <>

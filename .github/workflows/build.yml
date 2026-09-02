@@ -26,6 +26,9 @@ jobs:
           - image: tayari-ai
             context: ./backend/python
             dockerfile: ./backend/python/Dockerfile
+          - image: tayari-worker
+            context: ./backend/python
+            dockerfile: ./backend/python/Dockerfile.worker
           - image: tayari-frontend
             context: .
             dockerfile: ./Dockerfile

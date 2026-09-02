@@ -60,6 +60,9 @@ func (s *Server) requestLoggingMiddleware(next http.Handler) http.Handler {
 		start := time.Now()
 		traceID := requestTraceID(r)
 		w.Header().Set("X-Request-ID", traceID)
+		r.Header.Set("X-Request-ID", traceID)
+		ctx := context.WithValue(r.Context(), contextKeyTraceID, traceID)
+		r = r.WithContext(ctx)
 		rr := &responseRecorder{ResponseWriter: w}
 		next.ServeHTTP(rr, r)
 		duration := time.Since(start)
@@ -72,6 +75,10 @@ func (s *Server) requestLoggingMiddleware(next http.Handler) http.Handler {
 		if user, ok := r.Context().Value(contextKeyUser).(*models.User); ok && user != nil {
 			userID = user.ID.String()
 		}
+		tenantID := ""
+		if tenant, ok := r.Context().Value(contextKeyTenant).(*models.Tenant); ok && tenant != nil {
+			tenantID = tenant.ID.String()
+		}
 		if s.metrics != nil {
 			s.metrics.ObserveRequest(r.Method, r.URL.Path, status, duration)
 		}
@@ -83,6 +90,7 @@ func (s *Server) requestLoggingMiddleware(next http.Handler) http.Handler {
 			"status", status,
 			"duration_ms", float64(duration.Microseconds())/1000,
 			"user_id", userID,
+			"tenant_id", tenantID,
 			"trace_id", traceID,
 		)
 	})

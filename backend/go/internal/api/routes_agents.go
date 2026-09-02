@@ -282,6 +282,14 @@ func (s *Server) getXUserHeaders(r *http.Request) map[string]string {
 	user, ok := r.Context().Value(contextKeyUser).(*models.User)
 	if ok && user != nil {
 		headers["X-User-Id"] = user.ID.String()
+	} else if ak, ok := r.Context().Value(apiKeyContextKey{}).(*models.ApiKey); ok && ak != nil && ak.UserID != "" {
+		headers["X-User-Id"] = ak.UserID
+	}
+
+	if traceID, ok := r.Context().Value(contextKeyTraceID).(string); ok && traceID != "" {
+		headers["X-Request-ID"] = traceID
+	} else if traceID := r.Header.Get("X-Request-ID"); traceID != "" {
+		headers["X-Request-ID"] = traceID
 	}
 
 	// The Python AI service sees the Go container as its TCP peer. Propagate the

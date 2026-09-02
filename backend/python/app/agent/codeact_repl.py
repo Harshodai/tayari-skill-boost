@@ -1,3 +1,4 @@
+import ast
 import os
 import sys
 import signal
@@ -19,9 +20,66 @@ def _get_repl_lock() -> asyncio.Lock:
         _repl_locks[loop] = asyncio.Lock()
     return _repl_locks[loop]
 
+_VETTED_MODULES = frozenset({
+    "math", "json", "re", "datetime", "collections", "itertools",
+    "functools", "string", "decimal", "fractions", "statistics",
+    "textwrap", "unicodedata", "enum", "dataclasses", "typing",
+    "abc", "copy", "pprint",
+})
+
 _RUNNER_SCRIPT = r"""
 import sys
 import traceback
+
+# ── Sandbox security preamble ────────────────────────────────────────────────
+# S0-02: Block access to /proc and /sys to prevent host information leakage.
+import builtins as _builtins
+_real_open = _builtins.open
+
+def _safe_open(file, *args, **kwargs):
+    _f = str(file)
+    if _f.startswith('/proc/') or _f.startswith('/sys/'):
+        raise PermissionError(
+            f"Access to {_f!r} is not permitted in the sandbox"
+        )
+    return _real_open(file, *args, **kwargs)
+
+_builtins.open = _safe_open
+
+# Also patch os.open so low-level callers cannot bypass the builtin override.
+import os as _os
+_real_os_open = _os.open
+
+def _safe_os_open(path, flags, mode=0o777, *, dir_fd=None):
+    _p = str(path)
+    if _p.startswith('/proc/') or _p.startswith('/sys/'):
+        raise PermissionError(
+            f"Access to {_p!r} is not permitted in the sandbox"
+        )
+    if dir_fd is not None:
+        return _real_os_open(path, flags, mode, dir_fd=dir_fd)
+    return _real_os_open(path, flags, mode)
+
+_os.open = _safe_os_open
+
+# S0-03: Block all network socket creation inside the sandbox.
+class _BlockedSocket:
+    # Sentinel class that always raises on instantiation.
+    def __init__(self, *args, **kwargs):
+        raise PermissionError(
+            "Network socket creation is not permitted in the sandbox"
+        )
+
+try:
+    import socket as _socket_module
+    _socket_module.socket = _BlockedSocket
+    # Also block the low-level C-level create_connection / getaddrinfo shims
+    # that bypass socket.socket by wrapping the underlying _socket.socket.
+    import _socket as _csocket
+    _csocket.socket = _BlockedSocket
+except Exception:
+    pass
+# ── End sandbox security preamble ────────────────────────────────────────────
 
 code = sys.stdin.read()
 is_eval = True
@@ -46,6 +104,7 @@ except Exception as exc:
     sys.stderr.write(f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}")
     sys.exit(1)
 """
+
 
 MAX_OUTPUT_BYTES = 64 * 1024  # 64 KiB stdout/stderr output ceiling
 
@@ -105,6 +164,10 @@ def _sandbox_preexec(timeout_seconds: float):
     # Open file-descriptor count
     _apply("RLIMIT_NOFILE", 128, 128)
 
+    # Process / thread creation limit — prevents fork bombs.
+    # RLIMIT_NPROC is Linux-only; the _apply helper skips gracefully on macOS.
+    _apply("RLIMIT_NPROC", 16, 32)
+
 
 
 async def _read_bounded(stream: asyncio.StreamReader, max_bytes: int) -> bytes:
@@ -137,6 +200,84 @@ class CodeActREPL:
         self.user_id = user_id
         self.history: List[Dict[str, Any]] = []
 
+    @staticmethod
+    def _is_safe_code(code: str) -> bool:
+        """Static AST guard — allow-list check mirroring GeneralistAgentEngine._is_safe_code.
+
+        Enforces the CodeActREPL trust contract before any subprocess is spawned:
+        only a conservative subset of Python is permitted. Obvious escapes
+        (imports of os/sys/subprocess, calls to eval/exec/open/__import__,
+        network access) are rejected.  This is an intentionally coarse guard
+        that complements the runner-level sandbox; it may reject benign
+        advanced constructs.
+        """
+        if not isinstance(code, str) or not code.strip():
+            return False
+
+        disallowed_imports = frozenset({
+            "os", "sys", "subprocess", "socket", "importlib", "ctypes",
+            "builtins", "__builtin__", "_thread", "threading", "multiprocessing",
+            "urllib", "http", "requests", "pickle", "marshal", "compileall",
+            "code", "codeop", "shlex", "pty", "platform", "site", "pkgutil",
+        })
+        disallowed_builtins = frozenset({
+            "eval", "exec", "compile", "open", "input", "__import__",
+            "exit", "quit", "getattr", "setattr", "delattr",
+        })
+        disallowed_names = disallowed_imports | disallowed_builtins
+
+        vetted_modules = frozenset({
+            "math", "json", "re", "datetime", "collections", "itertools",
+            "functools", "string", "decimal", "fractions", "statistics",
+            "textwrap", "unicodedata", "enum", "dataclasses", "typing",
+            "abc", "copy", "pprint",
+        })
+
+        safe_nodes = frozenset({
+            ast.Expression, ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.Compare,
+            ast.IfExp, ast.Constant, ast.Name, ast.Load, ast.Store, ast.Del,
+            ast.List, ast.Tuple, ast.Set, ast.Dict, ast.Subscript,
+            ast.Slice, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp,
+            ast.comprehension, ast.Call, ast.Attribute, ast.keyword,
+            ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Expr, ast.Pass,
+            ast.If, ast.For, ast.While, ast.Break, ast.Continue,
+            ast.Try, ast.ExceptHandler, ast.Raise, ast.Assert,
+            ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.Return,
+            ast.arguments, ast.arg, ast.Module, ast.JoinedStr, ast.FormattedValue,
+            ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow,
+            ast.LShift, ast.RShift, ast.BitOr, ast.BitXor, ast.BitAnd,
+            ast.MatMult, ast.USub, ast.UAdd, ast.Not, ast.Invert,
+            ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.Is, ast.IsNot,
+            ast.In, ast.NotIn, ast.And, ast.Or, ast.NamedExpr,
+            ast.Import, ast.ImportFrom, ast.alias,
+        })
+        try:
+            tree = ast.parse(code, mode="exec")
+        except SyntaxError:
+            return False
+
+        for node in ast.walk(tree):
+            if type(node) not in safe_nodes:
+                return False
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    root_mod = alias.name.split(".")[0]
+                    if root_mod not in vetted_modules:
+                        return False
+            elif isinstance(node, ast.ImportFrom):
+                root_mod = (node.module or "").split(".")[0]
+                if root_mod not in vetted_modules:
+                    return False
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id in disallowed_builtins:
+                    return False
+            if isinstance(node, ast.Name) and node.id in disallowed_names:
+                if isinstance(node.ctx, ast.Load):
+                    return False
+            if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
+                return False
+        return True
+
     async def execute(self, code: str, timeout: float = 30.0) -> Dict[str, Any]:
         """
         Execute a bounded CodeAct snippet in an isolated subprocess.
@@ -153,7 +294,28 @@ class CodeActREPL:
                 "code": code,
             }
 
+        # S0-02 / S0-03 defence-in-depth: static AST check before any subprocess
+        # is spawned.  This rejects dangerous imports (os, sys, socket, subprocess,
+        # …) and disallowed builtins (eval, exec, open, …) at the call site so the
+        # runner-level sandbox is only the second line of defence.
+        if not self._is_safe_code(code):
+            err_msg = (
+                "SecurityError: Code contains disallowed constructs "
+                "(dangerous imports, builtins, or private attribute access) "
+                "and cannot be executed in the sandbox."
+            )
+            output = {
+                "success": False,
+                "stdout": "",
+                "stderr": err_msg,
+                "error": err_msg,
+                "code": code,
+            }
+            self.history.append(output)
+            return output
+
         async with _get_repl_lock():
+
             env = _build_safe_env()
             cwd = self.workspace_path if os.path.exists(self.workspace_path) else tempfile.gettempdir()
 

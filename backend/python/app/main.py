@@ -164,25 +164,26 @@ app.include_router(computer_router)
 app.include_router(practice_outcome_router)
 app.include_router(agent_router)
 app.state.limiter = limiter
-# The Go gateway is the only public API boundary in production. The middleware
-# below rejects direct calls before route code or expensive work runs.
-app.add_middleware(InternalGatewayMiddleware)
-# Emit one structured JSON event per request and propagate X-Request-ID.
-app.add_middleware(RequestTelemetryMiddleware)
-# Reject oversized request bodies before multipart/Pydantic parsing can allocate
-# unbounded memory. Public ATS text has a much smaller model-level cap.
-app.add_middleware(RequestBudgetMiddleware)
-# Apply bounded per-operation quotas before expensive route work. The global
-# SlowAPI limiter remains the replica-shared coarse guard when Redis is present.
+
+# Enforce the default limit for every route unless a narrower route policy overrides it.
+app.add_middleware(SlowAPIMiddleware)
+
+# Apply bounded per-operation quotas before expensive route work.
 operation_budget = OperationBudget(
     redis_url=os.getenv("RATELIMIT_STORAGE_URL") or os.getenv("REDIS_URL"),
     fail_closed=_env_for_limits == "production",
 )
 app.add_middleware(OperationBudgetMiddleware, budget=operation_budget)
-# Enforce the default limit for every route unless a narrower route policy
-# overrides it. Keeping this at the app boundary prevents expensive public
-# routes from silently bypassing the configured limiter.
-app.add_middleware(SlowAPIMiddleware)
+
+# Reject oversized request bodies before multipart/Pydantic parsing can allocate unbounded memory.
+app.add_middleware(RequestBudgetMiddleware)
+
+# The Go gateway is the only public API boundary in production. The middleware
+# below rejects direct calls before route code or expensive work runs.
+app.add_middleware(InternalGatewayMiddleware)
+
+# Emit one structured JSON event per request and propagate X-Request-ID (outermost).
+app.add_middleware(RequestTelemetryMiddleware)
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Read CORS origins from environment variable (comma-separated)
@@ -859,6 +860,7 @@ async def agent_search(payload: AgentSearchRequest):
 class BrowserAutomationRequest(BaseModel):
     instruction: str
     max_steps: Optional[int] = 25
+    run_id: Optional[str] = None
 
 
 # --- browser agent authz + limits (WS-06 hardening) -----------------------
@@ -916,10 +918,11 @@ async def browser_automation_endpoint(
 
     actor = _user_id
     steps = clamp_steps(payload.max_steps)
-    logger.info("[Audit] component=browser-agent action=run actor=%s run=- outcome=started steps=%s", actor, steps)
+    run_id = (payload.run_id or "").strip() or None
+    logger.info("[Audit] component=browser-agent action=run actor=%s run=%s outcome=started steps=%s", actor, run_id or "-", steps)
     try:
         result = await asyncio.wait_for(
-            run_browser_agent(payload.instruction, max_steps=steps, owner_id=actor),
+            run_browser_agent(payload.instruction, max_steps=steps, owner_id=actor, run_id=run_id),
             timeout=BROWSER_RUN_TIMEOUT_SECONDS,
         )
         logger.info("[Audit] component=browser-agent action=run actor=%s run=- outcome=%s", actor, "ok" if result.success else "failed")

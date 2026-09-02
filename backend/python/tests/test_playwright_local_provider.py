@@ -37,6 +37,9 @@ class _FakeContext:
     def __init__(self, fail_on_evaluate: bool):
         self._fail = fail_on_evaluate
 
+    async def route(self, pattern: Any, handler: Any) -> None:
+        return None
+
     async def new_page(self) -> _FakePage:
         return _FakePage(self._fail)
 
@@ -79,6 +82,8 @@ def _stub_playwright(monkeypatch, fail_on_evaluate: bool) -> _FakeBrowser:
     fake = _FakePlaywright(fail_on_evaluate)
     monkeypatch.setattr(pl, "_PLAYWRIGHT_AVAILABLE", True)
     monkeypatch.setattr(pl, "async_playwright", lambda: fake)
+    import app.services.agent_reach_transcribe as art
+    monkeypatch.setattr(art, "assert_safe_public_url", lambda url: None)
     return fake.browser
 
 

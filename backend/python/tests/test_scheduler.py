@@ -45,6 +45,14 @@ class _FakeConn:
         self._state.setdefault("executes", []).append({"sql": sql, "args": args})
         return "UPDATE 1"
 
+    def transaction(self):
+        class _Tx:
+            async def __aenter__(self):
+                return self
+            async def __aexit__(self, *args):
+                return None
+        return _Tx()
+
     async def __aenter__(self) -> "_FakeConn":
         return self
 

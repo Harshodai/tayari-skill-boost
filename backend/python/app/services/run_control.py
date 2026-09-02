@@ -135,30 +135,31 @@ async def acknowledge_cancellation(run_id: str, user_id: str, outcome: str) -> b
         return False
     try:
         async with pool.acquire() as conn:
-            changed = await conn.fetchval(
-                """
-                UPDATE run_controls rc
-                SET cancellation_acknowledged_at = now(), updated_at = now()
-                FROM agent_runs ar
-                WHERE rc.run_id = $1
-                  AND ar.run_id = rc.run_id
-                  AND ar.user_id = $2
-                  AND rc.cancellation_requested_at IS NOT NULL
-                RETURNING rc.run_id
-                """,
-                run_id,
-                user_id,
-            )
-            if changed:
-                await conn.execute(
+            async with conn.transaction():
+                changed = await conn.fetchval(
                     """
-                    UPDATE agent_runs
-                    SET status = 'cancelled', completed_at = now(), current_step = 'cancelled', updated_at = now()
-                    WHERE run_id = $1 AND user_id = $2 AND status NOT IN ('completed', 'failed', 'cancelled')
+                    UPDATE run_controls rc
+                    SET cancellation_acknowledged_at = now(), updated_at = now()
+                    FROM agent_runs ar
+                    WHERE rc.run_id = $1
+                      AND ar.run_id = rc.run_id
+                      AND ar.user_id = $2
+                      AND rc.cancellation_requested_at IS NOT NULL
+                    RETURNING rc.run_id
                     """,
                     run_id,
                     user_id,
                 )
+                if changed:
+                    await conn.execute(
+                        """
+                        UPDATE agent_runs
+                        SET status = 'cancelled', completed_at = now(), current_step = 'cancelled', updated_at = now()
+                        WHERE run_id = $1 AND user_id = $2 AND status NOT IN ('completed', 'failed', 'cancelled')
+                        """,
+                        run_id,
+                        user_id,
+                    )
         if changed:
             await emit_run_event(run_id, user_id, "cancellation_acknowledged", {"outcome": outcome[:500]})
         return bool(changed)

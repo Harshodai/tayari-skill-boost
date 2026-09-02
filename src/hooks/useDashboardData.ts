@@ -89,7 +89,7 @@ export function useDashboardData(userId?: string) {
     queryFn: async () => {
       try {
         const data = await listSavedJobs();
-        return Array.isArray(data) ? data as unknown as SavedJob[] : ((data as any)?.jobs ?? []) as SavedJob[];
+        return Array.isArray(data) ? (data as unknown as SavedJob[]) : (((data as any)?.jobs ?? []) as SavedJob[]);
       } catch (err) {
         if (!USE_SELF_HOSTED) {
           const { data, error } = await supabase.from("saved_jobs").select("*").order("saved_at", { ascending: false });

@@ -139,9 +139,10 @@ async def _maybe_await(fn, *args):
 # ---------------------------------------------------------------------------
 
 async def _load_due_schedules() -> list[dict]:
-    """Read active due schedules from the shared Postgres table.
+    """Read and atomically claim active due schedules from the shared Postgres table.
 
-    Returns a list of dict rows or ``[]`` when the DB is unavailable.
+    Uses FOR UPDATE SKIP LOCKED and advances next_run_at to prevent multiple
+    worker replicas from claiming and dispatching duplicate tasks for the same schedule.
     """
     from app.services.db import get_pool
     pool = await get_pool()
@@ -149,13 +150,30 @@ async def _load_due_schedules() -> list[dict]:
         return []
     try:
         async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                """SELECT schedule_id, user_id, frequency, config,
-                          next_run_at, last_run_at
-                   FROM autopilot_schedules
-                   WHERE active = true AND next_run_at <= now()"""
-            )
-        return [dict(r) for r in rows]
+            async with conn.transaction():
+                rows = await conn.fetch(
+                    """SELECT schedule_id, user_id, frequency, config,
+                              next_run_at, last_run_at
+                       FROM autopilot_schedules
+                       WHERE active = true AND next_run_at <= now()
+                       FOR UPDATE SKIP LOCKED"""
+                )
+                if not rows:
+                    return []
+                claimed = []
+                for r in rows:
+                    row_dict = dict(r)
+                    next_iso = next_run_time(row_dict.get("frequency") or "daily")
+                    await conn.execute(
+                        """UPDATE autopilot_schedules
+                           SET next_run_at = $2::timestamptz,
+                               last_run_at = now(),
+                               updated_at = now()
+                           WHERE schedule_id = $1""",
+                        row_dict["schedule_id"], next_iso,
+                    )
+                    claimed.append(row_dict)
+                return claimed
     except Exception as exc:  # noqa: BLE001 - DB optional
         logger.warning("scheduler: due-schedule load failed (%s)", exc)
         return []
@@ -242,7 +260,6 @@ async def _tick(profile_provider=None, resume_provider=None) -> None:
         profile = await _maybe_await(profile_provider, user_id) if profile_provider else None
         resume_text = await _maybe_await(resume_provider, user_id, user_id) if resume_provider else ""
         await _trigger_scheduled_run(schedule, profile, resume_text)
-        await _mark_schedule_run(schedule["schedule_id"], next_run_time(schedule["frequency"]))
 
 
 # ---------------------------------------------------------------------------
@@ -251,21 +268,26 @@ async def _tick(profile_provider=None, resume_provider=None) -> None:
 
 async def auto_scan_all_users() -> None:
     """Scan all users with active portals for new jobs.
-    
+
     This runs periodically (every 6 hours) to keep the job database fresh.
+
+    Uses an atomic UPDATE lease on ``user_portals.last_scanned_at`` to ensure
+    only one replica scans a given user at a time. If another worker already
+    claimed a user (set ``last_scanned_at`` within the last 5 hours), the
+    UPDATE returns no rows for that user and this worker skips them.
     """
     from app.services.db import get_pool
     pool = await get_pool()
     if not pool:
         logger.warning("auto_scan: no DB pool available")
         return
-    
+
     try:
         async with pool.acquire() as conn:
-            # Find all users who have at least one enabled portal
+            # Find all distinct users who have at least one enabled portal.
             rows = await conn.fetch(
                 """
-                SELECT DISTINCT user_id FROM user_portals 
+                SELECT DISTINCT user_id FROM user_portals
                 WHERE enabled = true
                 """
             )
@@ -273,15 +295,36 @@ async def auto_scan_all_users() -> None:
     except Exception as exc:
         logger.error("auto_scan: failed to get user IDs: %s", exc)
         return
-    
+
     if not user_ids:
         logger.debug("auto_scan: no users with active portals")
         return
-    
+
     logger.info("auto_scan: starting scan for %d users", len(user_ids))
-    
+
     for user_id in user_ids:
         try:
+            # Atomically claim the user's portals: bump last_scanned_at only
+            # when it is NULL or older than 5 hours.  If another replica
+            # already set last_scanned_at recently the UPDATE touches no rows
+            # and we skip this user entirely — no duplicate work.
+            async with pool.acquire() as conn:
+                claimed = await conn.fetch(
+                    """
+                    UPDATE user_portals
+                    SET last_scanned_at = now()
+                    WHERE user_id = $1
+                      AND enabled = true
+                      AND (last_scanned_at IS NULL
+                           OR last_scanned_at < now() - interval '5 hours')
+                    RETURNING user_id
+                    """,
+                    user_id,
+                )
+            if not claimed:
+                logger.debug("auto_scan: skipping user %s (lease already held)", user_id)
+                continue
+
             jobs = await portal_scanner.scan_portals(user_id=user_id)
             logger.info("auto_scan: user %s - discovered %d jobs", user_id, len(jobs))
         except Exception as exc:

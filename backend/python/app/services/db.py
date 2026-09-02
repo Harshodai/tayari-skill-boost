@@ -19,72 +19,91 @@ logger = logging.getLogger(__name__)
 _pool: Any = None
 _pool_checked: bool = False
 _pool_loop: Any = None
-
+_pool_lock: Any = None
+_last_failed_time: float = 0.0
 
 import asyncio
+import time as _time
+
+def _get_pool_lock() -> asyncio.Lock:
+    global _pool_lock
+    if _pool_lock is None:
+        _pool_lock = asyncio.Lock()
+    return _pool_lock
 
 async def get_pool() -> Any:
     """Return a cached asyncpg pool, or None when unavailable.
     
-    Implements exponential backoff retry (5 attempts) to handle
-    transient network issues during startup.
+    Implements lock-guarded exponential backoff retry to handle
+    transient network issues without stampedes or permanent lockout latches.
     """
-    global _pool, _pool_checked, _pool_loop
+    global _pool, _pool_checked, _pool_loop, _last_failed_time
     current_loop = asyncio.get_running_loop()
-    if _pool_checked and _pool_loop is current_loop:
+    if _pool is not None and _pool_loop is current_loop:
         return _pool
 
-    # asyncpg pools are bound to the event loop that created them. Test
-    # harnesses, reloaders, and worker lifecycle boundaries can legitimately
-    # create a new loop; never hand a stale pool across that boundary.
-    if _pool is not None and _pool_loop is not current_loop:
-        try:
-            await _pool.close()
-        except Exception:  # noqa: BLE001 - stale-loop cleanup is best effort
-            pass
-        _pool = None
-    _pool_checked = False
-    _pool_loop = current_loop
-    
     if not DATABASE_URL:
-        logger.info("DATABASE_URL not set — DB persistence disabled")
-        _pool_checked = True
         return None
-    
+
     try:
         import asyncpg
     except ImportError:
         logger.warning("asyncpg not installed — DB disabled")
-        _pool_checked = True
         return None
-    
-    for attempt in range(1, 6):  # 5 attempts
-        try:
-            _pool = await asyncpg.create_pool(
-                dsn=DATABASE_URL, 
-                min_size=1, 
-                max_size=4,
-                command_timeout=30,
-                server_settings={
-                    'jit': 'off',
-                    'application_name': 'tayari_ai_engine'
-                }
-            )
-            _pool_checked = True
+
+    now = _time.time()
+    if _last_failed_time and (now - _last_failed_time) < 5.0:
+        return None
+
+    lock = _get_pool_lock()
+    for attempt in range(1, 4):  # 3 attempts on fresh connection cycle
+        async with lock:
+            if _pool is not None and _pool_loop is current_loop:
+                return _pool
+
+            now = _time.time()
+            if _last_failed_time and (now - _last_failed_time) < 5.0:
+                return None
+
+            # asyncpg pools are bound to the event loop that created them.
+            if _pool is not None and _pool_loop is not current_loop:
+                try:
+                    await _pool.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                _pool = None
             _pool_loop = current_loop
-            logger.info("DB pool connected (attempt %d/5)", attempt)
-            return _pool
-        except Exception as exc:
-            wait = min(2 ** attempt, 30)  # Cap at 30 seconds
-            logger.warning(
-                "DB pool attempt %d/5 failed: %s. Retrying in %ds...",
-                attempt, exc, wait
-            )
+
+            try:
+                _pool = await asyncpg.create_pool(
+                    dsn=DATABASE_URL,
+                    min_size=1,
+                    max_size=4,
+                    command_timeout=30,
+                    server_settings={
+                        'jit': 'off',
+                        'application_name': 'tayari_ai_engine'
+                    }
+                )
+                _pool_checked = True
+                _pool_loop = current_loop
+                _last_failed_time = 0.0
+                logger.info("DB pool connected (attempt %d/3)", attempt)
+                return _pool
+            except Exception as exc:
+                _last_failed_time = _time.time()
+                wait = min(2 ** attempt, 10)
+                logger.warning(
+                    "DB pool attempt %d/3 failed: %s. Retrying in %ds...",
+                    attempt, exc, wait
+                )
+
+        if attempt < 3:
             await asyncio.sleep(wait)
-    
-    logger.error("DB pool failed after 5 attempts — running without persistence")
-    _pool_checked = True
-    _pool_loop = current_loop
+
+    logger.error("DB pool connection attempt failed — will retry on next request after cooldown")
+    _last_failed_time = _time.time()
+    _pool_checked = False
     return None
 
 
