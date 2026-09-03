@@ -194,41 +194,13 @@ const Pricing = () => {
     };
   }, [user]);
 
-  const handleCheckout = async (packId: string) => {
+  const handleCheckout = (packId: string) => {
     // Checkout lives on its own page so the purchase has a reviewable summary
     // (pack, credits, unit price) before any payment provider is contacted.
+    // Unauthenticated visitors sign up there and return to the same pack.
     navigate(`/checkout?pack=${packId}`);
-    return;
-
-    /* eslint-disable no-unreachable */
-    setLoadingPlan(packId);
-    try {
-      const response = await apiFetchResponse("/v1/billing/create-checkout-session", {
-        method: "POST",
-        body: JSON.stringify({
-          plan: packId,
-          pack_id: packId,
-          return_url: window.location.origin + "/pricing",
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: "Checkout initiation failed" }));
-        throw new Error(err.error || "Failed to start checkout");
-      }
-
-      const data = await response.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error("Billing provider did not return a checkout URL; purchase not completed.");
-      }
-    } catch (err: any) {
-      toast.error(err.message || "Payment checkout is unavailable; no purchase was completed.");
-    } finally {
-      setLoadingPlan(null);
-    }
   };
+
 
   const handleContactSales = async () => {
     if (!contactEmail.trim() || !contactEmail.includes("@")) {
