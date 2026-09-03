@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 const STEP_LABELS = ["Your track", "Your targets", "Review & finish"] as const;
 import {
@@ -34,6 +35,7 @@ const STORAGE_COMPLETED_KEY = "tayari_onboarding";
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [validationError, setValidationError] = useState<string | null>(null);
   // saveError tracks non-validation failures (network errors, 5xx, etc.)
@@ -183,6 +185,14 @@ export default function Onboarding() {
       localStorage.setItem(STORAGE_DRAFT_KEY, JSON.stringify(payload));
     } catch {
       // storage unavailable
+    }
+
+    // Visitors who reached onboarding from the landing CTA have no account yet.
+    // Their answers are already persisted locally, so send them to sign-up and
+    // return them here afterwards instead of failing an authenticated save.
+    if (!user) {
+      navigate("/auth?mode=signup&next=/onboarding");
+      return;
     }
 
     try {
