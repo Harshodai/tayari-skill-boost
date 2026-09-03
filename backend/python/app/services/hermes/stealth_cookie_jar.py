@@ -33,6 +33,8 @@ class StealthCookieJar:
 
     def clear_cookies(self, domain: Optional[str] = None, user_id: Optional[str] = None) -> None:
         """Clear cookies for a specific (user_id, domain) pair, domain, user, or all."""
+        if user_id is not None and not user_id:
+            user_id = "default"
         if domain and user_id:
             self._cookies.pop((user_id, domain), None)
         elif domain:

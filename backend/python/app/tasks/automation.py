@@ -329,42 +329,42 @@ def run_standing_job_watches(self) -> dict:
                     FOR UPDATE SKIP LOCKED
                     """
                 )
-            triggered = 0
-            skipped = 0
-            now_dt = datetime.now(timezone.utc)
-            for w in watches:
-                tier = (w.get("schedule_tier") or "daily").lower()
-                interval = _TIER_INTERVALS.get(tier, timedelta(hours=24))
-                last_run = w.get("last_run_at")
-                if last_run is not None:
-                    if last_run.tzinfo is None:
-                        last_run = last_run.replace(tzinfo=timezone.utc)
-                    if now_dt - last_run < interval:
-                        skipped += 1
-                        continue
+                triggered = 0
+                skipped = 0
+                now_dt = datetime.now(timezone.utc)
+                for w in watches:
+                    tier = (w.get("schedule_tier") or "daily").lower()
+                    interval = _TIER_INTERVALS.get(tier, timedelta(hours=24))
+                    last_run = w.get("last_run_at")
+                    if last_run is not None:
+                        if last_run.tzinfo is None:
+                            last_run = last_run.replace(tzinfo=timezone.utc)
+                        if now_dt - last_run < interval:
+                            skipped += 1
+                            continue
 
-                user_id = str(w["user_id"])
-                title = w["query_title"]
-                loc = w["location"] or "Remote"
-                config = {
-                    "user_id": user_id,
-                    "job_titles": [title],
-                    "location": loc,
-                    "standing_watch_id": str(w["watch_id"]),
-                }
-                run_scheduled.delay(user_id=user_id, config=config)
+                    user_id = str(w["user_id"])
+                    title = w["query_title"]
+                    loc = w["location"] or "Remote"
+                    config = {
+                        "user_id": user_id,
+                        "job_titles": [title],
+                        "location": loc,
+                        "standing_watch_id": str(w["watch_id"]),
+                    }
+                    run_scheduled.delay(user_id=user_id, config=config)
 
-                match_count = await _count_watch_matches(title, loc)
-                await conn.execute(
-                    """
-                    UPDATE public.job_watches
-                    SET last_run_at = $1, last_match_count = $2, updated_at = now()
-                    WHERE watch_id = $3
-                    """,
-                    now_dt, match_count, w["watch_id"],
-                )
-                triggered += 1
-            return {"status": "success", "watches_triggered": triggered, "watches_skipped": skipped}
+                    match_count = await _count_watch_matches(title, loc)
+                    await conn.execute(
+                        """
+                        UPDATE public.job_watches
+                        SET last_run_at = $1, last_match_count = $2, updated_at = now()
+                        WHERE watch_id = $3
+                        """,
+                        now_dt, match_count, w["watch_id"],
+                    )
+                    triggered += 1
+                return {"status": "success", "watches_triggered": triggered, "watches_skipped": skipped}
 
     try:
         return asyncio.run(_execute())

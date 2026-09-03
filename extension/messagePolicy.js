@@ -22,10 +22,13 @@
   // `externally_connectable.matches` allowlist in manifest.json). Messages
   // from these origins may only request WEB_APP_ACTIONS — never the
   // content-script or extension-page actions above.
-  const TRUSTED_APP_ORIGINS = new Set([
+  const BASE_TRUSTED_APP_ORIGINS = [
     'https://tayari.app',
     'https://www.tayari.app',
     'https://tayari-skill-boost.lovable.app',
+  ];
+
+  const DEV_LOOPBACK_ORIGINS = [
     'http://localhost:5173',
     'http://localhost:8080',
     'http://localhost:8081',
@@ -33,6 +36,16 @@
     'http://localhost:8083',
     'http://127.0.0.1:8083',
     'http://localhost:8085',
+  ];
+
+  const isDevBuild = (typeof chrome !== 'undefined' &&
+    typeof chrome.runtime?.getManifest === 'function' &&
+    !('update_url' in (chrome.runtime.getManifest() || {}))) ||
+    (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production');
+
+  const TRUSTED_APP_ORIGINS = new Set([
+    ...BASE_TRUSTED_APP_ORIGINS,
+    ...(isDevBuild ? DEV_LOOPBACK_ORIGINS : []),
   ]);
 
   const WEB_APP_ACTIONS = new Set([

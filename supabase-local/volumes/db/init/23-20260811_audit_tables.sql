@@ -51,20 +51,33 @@ ALTER TABLE public.application_approvals
     ADD COLUMN IF NOT EXISTS form_fields_sha256 TEXT;
 ALTER TABLE public.application_approvals
     ADD COLUMN IF NOT EXISTS reviewer_comment TEXT;
+-- Mark affected legacy approvals expired if their exact content hashes cannot be reconstructed
 UPDATE public.application_approvals
-   SET        cover_letter_sha256 = COALESCE(cover_letter_sha256, 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'),
-       form_fields_sha256 = COALESCE(form_fields_sha256, '44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a')
+SET expires_at = LEAST(COALESCE(expires_at, created_at), created_at)
+WHERE job_url_sha256 IS NULL OR cover_letter_sha256 IS NULL OR form_fields_sha256 IS NULL;
 
- WHERE cover_letter_sha256 IS NULL OR form_fields_sha256 IS NULL;
-ALTER TABLE public.application_approvals
-    ALTER COLUMN cover_letter_sha256 SET NOT NULL;
-ALTER TABLE public.application_approvals
-    ALTER COLUMN form_fields_sha256 SET NOT NULL;
 UPDATE public.application_approvals
-   SET expires_at = COALESCE(expires_at, created_at + INTERVAL '15 minutes')
- WHERE expires_at IS NULL;
+SET expires_at = created_at + INTERVAL '15 minutes'
+WHERE expires_at IS NULL;
+
+UPDATE public.application_approvals
+SET job_url_sha256 = encode(sha256(COALESCE(job_url, '')::bytea), 'hex')
+WHERE job_url_sha256 IS NULL;
+
+UPDATE public.application_approvals
+SET cover_letter_sha256 = encode(sha256(''::bytea), 'hex')
+WHERE cover_letter_sha256 IS NULL;
+
+UPDATE public.application_approvals
+SET form_fields_sha256 = encode(sha256('{}'::bytea), 'hex')
+WHERE form_fields_sha256 IS NULL;
+
 ALTER TABLE public.application_approvals
-    ALTER COLUMN expires_at SET DEFAULT (NOW() + INTERVAL '15 minutes');
+    ALTER COLUMN job_url_sha256 SET NOT NULL,
+    ALTER COLUMN cover_letter_sha256 SET NOT NULL,
+    ALTER COLUMN form_fields_sha256 SET NOT NULL,
+    ALTER COLUMN expires_at SET DEFAULT (NOW() + INTERVAL '15 minutes'),
+    ALTER COLUMN expires_at SET NOT NULL;
 ALTER TABLE public.application_approvals
     DROP CONSTRAINT IF EXISTS application_approvals_decision_check;
 ALTER TABLE public.application_approvals

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheck, Zap, DollarSign, Mail, Mic, Play, CheckCircle2, XCircle, Sparkles, Loader2, Building2, Eye, UserCheck, Calendar, SquareKanban, Inbox } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,14 +23,23 @@ export const AutonomousCareerConsole: React.FC = () => {
   const [kanbanBoard, setKanbanBoard] = useState<any>(null);
 
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const interviewBoardReqIdRef = useRef(0);
 
   const fetchInterviewBoard = async () => {
+    const reqId = ++interviewBoardReqIdRef.current;
     try {
       const data = await apiFetch<any>('/v1/ai/agent/career/interview-board');
-      if (data && data.success) setKanbanBoard(data.data);
+      if (reqId === interviewBoardReqIdRef.current) {
+        if (data && data.success) {
+          setKanbanBoard(data.data);
+          setErrorBanner(null);
+        }
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load interview board';
-      setErrorBanner(msg);
+      if (reqId === interviewBoardReqIdRef.current) {
+        setErrorBanner(msg);
+      }
       toast({ title: 'Interview Board Error', description: msg, variant: 'destructive' });
     }
   };

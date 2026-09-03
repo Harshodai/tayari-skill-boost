@@ -266,7 +266,7 @@ class AutonomousCareerEngine:
         if approved and custom_keywords:
             original_keywords = set(k.lower() for k in item.get("extracted_keywords", []))
             unapproved = [k for k in custom_keywords if k.lower() not in original_keywords]
-            if unapproved and expected_proposal_hash:
+            if unapproved:
                 return {
                     "success": False,
                     "error": f"Custom keywords must be a subset of the approved proposal. Unapproved: {sorted(unapproved)}",

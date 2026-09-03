@@ -111,19 +111,36 @@ async def websocket_endpoint(websocket: WebSocket):
     # Authenticate WebSocket handshake before accepting
     environment = (os.getenv("ENVIRONMENT") or os.getenv("ENV") or os.getenv("APP_ENV") or "development").lower()
     expected_token = os.getenv("AI_INTERNAL_TOKEN", "")
-    internal_token = websocket.headers.get("x-internal-token") or websocket.query_params.get("internal_token", "")
-    auth_header = websocket.headers.get("authorization") or websocket.query_params.get("token", "")
-    user_id_header = websocket.headers.get("x-user-id") or websocket.query_params.get("user_id", "")
+    internal_token = websocket.headers.get("x-internal-token", "")
+    auth_token = websocket.headers.get("authorization", "")
+    if not auth_token:
+        auth_token = (
+            websocket.cookies.get("access_token")
+            or websocket.cookies.get("sb-access-token")
+            or websocket.cookies.get("session")
+            or ""
+        )
+    if not auth_token:
+        subprotocols = websocket.headers.get("sec-websocket-protocol", "").split(",")
+        for proto in subprotocols:
+            p = proto.strip()
+            if p.lower().startswith("bearer.") or p.lower().startswith("token."):
+                auth_token = p.split(".", 1)[1]
+                break
+            elif len(p) > 20 and not p.lower().startswith("bearer"):
+                auth_token = p
+                break
+    user_id_header = websocket.headers.get("x-user-id", "")
 
     valid = False
     derived_user_id = ""
     if expected_token and internal_token and hmac.compare_digest(internal_token, expected_token):
         valid = True
         derived_user_id = user_id_header or "internal"
-    elif auth_header:
+    elif auth_token:
         try:
             from app.auth.dependencies import _decode_token
-            raw_token = auth_header
+            raw_token = auth_token
             if raw_token.lower().startswith("bearer "):
                 raw_token = raw_token[7:].strip()
             claims = _decode_token(raw_token)

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"tayari-backend/internal/billing"
 	"tayari-backend/internal/models"
 
 	"github.com/go-chi/chi/v5"
@@ -363,24 +364,6 @@ func (s *Server) handleAutopilotStart(w http.ResponseWriter, r *http.Request) {
 	if !s.requireFeature(w, r, "autopilot") {
 		return
 	}
-	if s.Billing != nil {
-		bal, err := s.Billing.GetCreditBalance(user.ID.String())
-		if err != nil {
-			log.Printf("handleAutopilotStart: credit check error for %s: %v", user.ID, err)
-			s.respondError(w, http.StatusInternalServerError, "Failed to verify credit balance")
-			return
-		}
-		if bal.Balance < 1 {
-			s.respondError(w, http.StatusPaymentRequired, "insufficient_credits")
-			return
-		}
-	}
-	// Check for concurrent active runs
-	var activeCount int
-	if err := s.DB.Conn.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM autopilot_runs WHERE user_id=$1 AND status IN ('queued', 'running')", user.ID).Scan(&activeCount); err == nil && activeCount > 0 {
-		s.respondError(w, http.StatusConflict, "An autopilot run is already active. Please wait for it to complete.")
-		return
-	}
 	var req struct {
 		RunConfig     map[string]interface{} `json:"run_config"`
 		Profile       map[string]interface{} `json:"profile,omitempty"`
@@ -395,6 +378,65 @@ func (s *Server) handleAutopilotStart(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusBadRequest, "resume_text is required")
 		return
 	}
+
+	reservationRef := "autopilot_res_" + uuid.NewString()
+	debited := false
+
+	if s.Billing != nil && billing.IsBillingEnabled() {
+		ok, _, err := s.Billing.DebitCredit(user.ID.String(), 1, reservationRef, "Autopilot run reservation")
+		if err != nil || !ok {
+			s.respondError(w, http.StatusPaymentRequired, "insufficient_credits")
+			return
+		}
+		debited = true
+	}
+
+	// Claim active run slot atomically in transaction
+	tx, err := s.DB.Conn.BeginTx(r.Context(), nil)
+	if err != nil {
+		if debited {
+			_, _ = s.Billing.RefundCredit(user.ID.String(), 1, reservationRef, "Autopilot reservation release")
+		}
+		s.respondError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+	defer tx.Rollback()
+
+	var activeCount int
+	if err := tx.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM autopilot_runs WHERE user_id=$1 AND status IN ('queued', 'running')", user.ID).Scan(&activeCount); err != nil {
+		if debited {
+			_, _ = s.Billing.RefundCredit(user.ID.String(), 1, reservationRef, "Autopilot reservation release")
+		}
+		s.respondError(w, http.StatusInternalServerError, "Database error checking active runs")
+		return
+	}
+	if activeCount > 0 {
+		if debited {
+			_, _ = s.Billing.RefundCredit(user.ID.String(), 1, reservationRef, "Autopilot reservation release")
+		}
+		s.respondError(w, http.StatusConflict, "An autopilot run is already active. Please wait for it to complete.")
+		return
+	}
+
+	provisionalRunID := "pending_" + uuid.NewString()
+	configJSON := models.JSONMap(req.RunConfig)
+	var dbID int
+	query := `INSERT INTO autopilot_runs (run_id, user_id, config, status, progress, created_at, updated_at) VALUES ($1, $2, $3, 'queued', 0, NOW(), NOW()) RETURNING id`
+	if err := tx.QueryRowContext(r.Context(), query, provisionalRunID, user.ID, configJSON).Scan(&dbID); err != nil {
+		if debited {
+			_, _ = s.Billing.RefundCredit(user.ID.String(), 1, reservationRef, "Autopilot reservation release")
+		}
+		s.respondError(w, http.StatusInternalServerError, "Failed to claim autopilot run")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		if debited {
+			_, _ = s.Billing.RefundCredit(user.ID.String(), 1, reservationRef, "Autopilot reservation release")
+		}
+		s.respondError(w, http.StatusInternalServerError, "Failed to commit autopilot claim")
+		return
+	}
+
 	// Call Python AI to start run
 	pythonPayload := map[string]interface{}{
 		"run_config":     req.RunConfig,
@@ -405,23 +447,26 @@ func (s *Server) handleAutopilotStart(w http.ResponseWriter, r *http.Request) {
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/autopilot/run", pythonPayload, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleAutopilotStart: AI call failed: %v", err)
+		if debited {
+			_, _ = s.Billing.RefundCredit(user.ID.String(), 1, reservationRef, "Autopilot launch failure compensation")
+		}
+		_, _ = s.DB.Conn.ExecContext(r.Context(), "UPDATE autopilot_runs SET status='failed', updated_at=NOW() WHERE id=$1", dbID)
 		s.respondError(w, http.StatusBadGateway, "Failed to start autopilot")
 		return
 	}
 	runID, _ := result["run_id"].(string)
 	if runID == "" {
+		if debited {
+			_, _ = s.Billing.RefundCredit(user.ID.String(), 1, reservationRef, "Autopilot invalid run_id compensation")
+		}
+		_, _ = s.DB.Conn.ExecContext(r.Context(), "UPDATE autopilot_runs SET status='failed', updated_at=NOW() WHERE id=$1", dbID)
 		s.respondError(w, http.StatusInternalServerError, "AI returned invalid run_id")
 		return
 	}
-	configJSON := models.JSONMap(req.RunConfig)
-	query := `INSERT INTO autopilot_runs (run_id, user_id, config, status, progress, created_at, updated_at) VALUES ($1, $2, $3, 'queued', 0, NOW(), NOW()) RETURNING id`
-	var dbID int
-	err = s.DB.Conn.QueryRowContext(r.Context(), query, runID, user.ID, configJSON).Scan(&dbID)
-	if err != nil {
-		log.Printf("handleAutopilotStart: DB insert failed: %v", err)
-		s.respondError(w, http.StatusInternalServerError, "Failed to record autopilot run")
-		return
-	}
+
+	// Update provisional row with real run_id
+	_, _ = s.DB.Conn.ExecContext(r.Context(), "UPDATE autopilot_runs SET run_id=$1, updated_at=NOW() WHERE id=$2", runID, dbID)
+
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{"run_id": runID, "db_id": dbID, "status": "queued"})
 }
 

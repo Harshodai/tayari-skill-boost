@@ -141,8 +141,10 @@ async def _maybe_await(fn, *args):
 async def _load_due_schedules() -> list[dict]:
     """Read and atomically claim active due schedules from the shared Postgres table.
 
-    Uses FOR UPDATE SKIP LOCKED and advances next_run_at to prevent multiple
-    worker replicas from claiming and dispatching duplicate tasks for the same schedule.
+    Uses FOR UPDATE SKIP LOCKED and advances next_run_at WITHIN THE SAME TRANSACTION
+    to prevent multiple worker replicas from claiming and dispatching duplicate tasks.
+    The next_run_at advance is the claim — any worker that sees next_run_at in the future
+    will not re-pick the row until the next interval elapses.
     """
     from app.services.db import get_pool
     pool = await get_pool()
@@ -164,6 +166,7 @@ async def _load_due_schedules() -> list[dict]:
                 for r in rows:
                     row_dict = dict(r)
                     next_iso = next_run_time(row_dict.get("frequency") or "daily")
+                    row_dict["_next_run_at"] = next_iso  # carry pre-computed value
                     await conn.execute(
                         """UPDATE autopilot_schedules
                            SET next_run_at = $2::timestamptz,
@@ -180,7 +183,7 @@ async def _load_due_schedules() -> list[dict]:
 
 
 async def _mark_schedule_run(schedule_id, next_run: str) -> bool:
-    """Update next_run_at + last_run_at for an enqueued schedule (guarded)."""
+    """Update next_run_at + last_run_at for a schedule (fallback for retry paths)."""
     from app.services.db import get_pool
     pool = await get_pool()
     if not pool:
@@ -205,6 +208,7 @@ async def _trigger_scheduled_run(schedule: dict, profile: dict | None,
                                  resume_text: str, candidate_name: str = "Candidate") -> None:
     """Enqueue a Celery ``run_scheduled_autopilot`` task for a due schedule.
 
+    next_run_at is already advanced atomically by _load_due_schedules.
     Falls back to an in-process ``run_autopilot`` task when Celery is absent
     (e.g. keyless/local dev) so the scheduler never hard-fails.
     """
@@ -213,6 +217,7 @@ async def _trigger_scheduled_run(schedule: dict, profile: dict | None,
     config = dict(schedule.get("config") or {})
     config.setdefault("user_id", user_id)
     config.setdefault("schedule_id", schedule_id)
+
     try:
         from app.tasks.automation import run_scheduled_autopilot
         run_scheduled_autopilot.apply_async(
@@ -228,8 +233,11 @@ async def _trigger_scheduled_run(schedule: dict, profile: dict | None,
     except Exception as exc:  # noqa: BLE001 - enqueue failure must not kill the loop
         logger.error("scheduler: enqueue failed for %s (%s); running in-process",
                      schedule_id, exc)
-        run_id = str(uuid.uuid4())
-        asyncio.create_task(run_autopilot(run_id, config, profile, resume_text, candidate_name))
+        try:
+            run_id = str(uuid.uuid4())
+            asyncio.create_task(run_autopilot(run_id, config, profile, resume_text, candidate_name))
+        except Exception as in_proc_exc:
+            logger.error("scheduler: in-process fallback failed for %s: %s", schedule_id, in_proc_exc)
 
 
 async def scheduler_loop(profile_provider=None, resume_provider=None) -> None:

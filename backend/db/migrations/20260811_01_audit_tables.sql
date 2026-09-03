@@ -49,6 +49,34 @@ ALTER TABLE public.application_approvals
 ALTER TABLE public.application_approvals
     ADD COLUMN IF NOT EXISTS reviewer_comment TEXT;
 
+-- Mark affected legacy approvals expired if their exact content hashes cannot be reconstructed
+UPDATE public.application_approvals
+SET expires_at = LEAST(COALESCE(expires_at, created_at), created_at)
+WHERE job_url_sha256 IS NULL OR cover_letter_sha256 IS NULL OR form_fields_sha256 IS NULL;
+
+UPDATE public.application_approvals
+SET expires_at = created_at + INTERVAL '15 minutes'
+WHERE expires_at IS NULL;
+
+UPDATE public.application_approvals
+SET job_url_sha256 = encode(sha256(COALESCE(job_url, '')::bytea), 'hex')
+WHERE job_url_sha256 IS NULL;
+
+UPDATE public.application_approvals
+SET cover_letter_sha256 = encode(sha256(''::bytea), 'hex')
+WHERE cover_letter_sha256 IS NULL;
+
+UPDATE public.application_approvals
+SET form_fields_sha256 = encode(sha256('{}'::bytea), 'hex')
+WHERE form_fields_sha256 IS NULL;
+
+ALTER TABLE public.application_approvals
+    ALTER COLUMN job_url_sha256 SET NOT NULL,
+    ALTER COLUMN cover_letter_sha256 SET NOT NULL,
+    ALTER COLUMN form_fields_sha256 SET NOT NULL,
+    ALTER COLUMN expires_at SET DEFAULT (NOW() + INTERVAL '15 minutes'),
+    ALTER COLUMN expires_at SET NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_application_approvals_usable
     ON public.application_approvals (user_id, run_id, resume_sha256, job_url_sha256, cover_letter_sha256, form_fields_sha256)
     WHERE decision = 'approved' AND consumed_at IS NULL;

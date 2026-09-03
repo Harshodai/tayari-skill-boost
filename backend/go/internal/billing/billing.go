@@ -632,20 +632,18 @@ func (b *BillingService) ProcessStripeCreditPackPayment(eventID, eventType, cust
 		if err != nil {
 			return false
 		}
-		ledgerRef := sessionID
-		if ledgerRef == "" {
-			ledgerRef = eventID
-		}
-		var ledgerRefParam interface{}
-		if ledgerRef != "" {
-			ledgerRefParam = ledgerRef
-		}
-		ledgerResult, err := tx.Exec(`INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at) VALUES ($1, $2::uuid, $3, 'purchase', $4, $5, NOW())`, "stripe_"+ledgerRef, userID, pack.Credits, fmt.Sprintf("Purchased %s Pack (%d credits for $%.2f)", pack.Name, pack.Credits, pack.PriceUSD), ledgerRefParam)
+		ledgerID := "stripe_" + sessionID
+		_, err = tx.Exec(`
+			INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at)
+			VALUES ($1, $2::uuid, $3, 'purchase', $4, $5, NOW())
+			ON CONFLICT (user_id, reference_id, type) WHERE reference_id IS NOT NULL DO NOTHING
+		`, ledgerID, userID, pack.Credits, fmt.Sprintf("Purchased %s Pack (%d credits for $%.2f)", pack.Name, pack.Credits, pack.PriceUSD), sessionID)
 		if err != nil {
-			return false
-		}
-		if n, _ := ledgerResult.RowsAffected(); n == 0 {
-			return false
+			if strings.Contains(strings.ToLower(err.Error()), "duplicate key") || strings.Contains(strings.ToLower(err.Error()), "unique constraint") {
+				log.Printf("[billing] ProcessStripeCreditPackPayment duplicate ledger record: %v", err)
+			} else {
+				return false
+			}
 		}
 		return tx.Commit() == nil
 	}
@@ -1200,6 +1198,13 @@ func (b *BillingService) GetCreditLedger(userID string) ([]CreditLedgerEntry, er
 		return nil, errors.New("user ID is required")
 	}
 
+	if !IsBillingEnabled() {
+		return []CreditLedgerEntry{}, nil
+	}
+	if err := b.requireDurableBillingStorage(); err != nil {
+		return nil, err
+	}
+
 	if b.db != nil && b.db.Conn != nil {
 		rows, err := b.db.Conn.Query(`
 			SELECT id, amount, type, description, COALESCE(reference_id, ''), created_at
@@ -1207,25 +1212,34 @@ func (b *BillingService) GetCreditLedger(userID string) ([]CreditLedgerEntry, er
 			WHERE user_id = $1::uuid
 			ORDER BY created_at DESC
 		`, userID)
-		if err == nil {
-			defer rows.Close()
-			var entries []CreditLedgerEntry
-			for rows.Next() {
-				var e CreditLedgerEntry
-				e.UserID = userID
-				if scanErr := rows.Scan(&e.ID, &e.Amount, &e.Type, &e.Description, &e.ReferenceID, &e.CreatedAt); scanErr == nil {
-					entries = append(entries, e)
-				}
-			}
-			if entries == nil {
-				entries = []CreditLedgerEntry{}
-			}
-			return entries, nil
-		}
-		log.Printf("[billing] GetCreditLedger query error for %s: %v", userID, err)
-		if isProductionBilling() {
+		if err != nil {
+			log.Printf("[billing] GetCreditLedger query error for %s: %v", userID, err)
 			return nil, errors.New("billing database unavailable")
 		}
+		defer rows.Close()
+		var entries []CreditLedgerEntry
+		for rows.Next() {
+			var e CreditLedgerEntry
+			e.UserID = userID
+			if scanErr := rows.Scan(&e.ID, &e.Amount, &e.Type, &e.Description, &e.ReferenceID, &e.CreatedAt); scanErr != nil {
+				return nil, scanErr
+			}
+			entries = append(entries, e)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		if entries == nil {
+			entries = []CreditLedgerEntry{}
+		}
+		return entries, nil
+	}
+
+	// In production, billing DB is mandatory (requireDurableBillingStorage already
+	// guards the entry point). If we reach here without a DB in production mode,
+	// fail closed rather than returning a stale in-memory ledger.
+	if isProductionBilling() {
+		return nil, errors.New("billing database unavailable")
 	}
 
 	b.mu.RLock()

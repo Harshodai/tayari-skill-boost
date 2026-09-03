@@ -459,6 +459,10 @@ async def save_receipt(receipt: dict[str, Any]) -> bool:
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15)
                 ON CONFLICT (user_id, run_id, job_url) WHERE run_id IS NOT NULL
                 DO UPDATE SET
+                    submitted_at = CASE
+                        WHEN EXCLUDED.verified THEN EXCLUDED.submitted_at
+                        ELSE submission_receipts.submitted_at
+                    END,
                     verified = CASE WHEN EXCLUDED.verified THEN TRUE ELSE submission_receipts.verified END,
                     confirmation_text = COALESCE(EXCLUDED.confirmation_text, submission_receipts.confirmation_text),
                     confirmation_number = COALESCE(EXCLUDED.confirmation_number, submission_receipts.confirmation_number),

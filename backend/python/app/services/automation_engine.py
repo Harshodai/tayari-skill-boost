@@ -349,38 +349,40 @@ async def run_autopilot(
     """Main background pipeline. State mirrored to in‑memory cache + agent_runs."""
     config = config or {}
     user_id = config.get("user_id")
+    _autopilot_store[run_id] = {
+        "run_id": run_id,
+        "user_id": user_id,
+        "config": config,
+        "status": "queued",
+        "progress": 0,
+        "current_step": "STARTING",
+        "logs": [],
+        "applications_created": 0,
+        "error": None,
+        "applications": [],
+    }
+
     if await _cancellation_requested(run_id, str(user_id or "")):
         await _acknowledge_cancellation(run_id, str(user_id or ""), "cancelled_by_candidate")
         _update_run(run_id, status="cancelled", current_step="CANCELLED")
         return
 
     if user_id and not await check_daily_llm_budget_async(str(user_id), estimated_tokens=10_000):
-        _autopilot_store[run_id] = {
-            "run_id": run_id,
-            "user_id": user_id,
-            "config": config,
-            "status": "failed",
-            "progress": 0,
-            "current_step": "BUDGET",
-            "logs": [],
-            "applications_created": 0,
-            "error": "daily LLM token budget exceeded",
-            "applications": [],
-        }
+        _update_run(
+            run_id,
+            status="failed",
+            current_step="BUDGET",
+            error="daily LLM token budget exceeded",
+        )
         logger.warning("Autopilot run %s rejected by daily LLM budget for user %s", run_id, user_id)
         return
-    _autopilot_store[run_id] = {
-        "run_id": run_id,
-        "user_id": config.get("user_id"),
-        "config": config,
-        "status": "running",
-        "progress": 5,
-        "current_step": "LOAD",
-        "logs": [],
-        "applications_created": 0,
-        "error": None,
-        "applications": [],
-    }
+
+    _update_run(
+        run_id,
+        status="running",
+        progress=5,
+        current_step="LOAD",
+    )
     try:
         profile_snapshot_hash = _sha256_text(profile or {})
         resume_input_hash = _sha256_text(resume_text)

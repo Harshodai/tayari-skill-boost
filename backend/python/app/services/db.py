@@ -62,7 +62,7 @@ async def get_pool() -> Any:
                 return _pool
 
             now = _time.time()
-            if _last_failed_time and (now - _last_failed_time) < 5.0:
+            if attempt == 1 and _last_failed_time and (now - _last_failed_time) < 5.0:
                 return None
 
             # asyncpg pools are bound to the event loop that created them.

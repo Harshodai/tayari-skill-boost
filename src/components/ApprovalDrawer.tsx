@@ -29,6 +29,7 @@ export const ApprovalDrawer: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!open) return;
     let mounted = true;
     listPendingApprovals()
       .then((data) => {
@@ -36,6 +37,8 @@ export const ApprovalDrawer: React.FC = () => {
           setPendingApprovals(data);
           if (data.length > 0) {
             setSelectedApproval(data[0]);
+          } else {
+            setSelectedApproval(null);
           }
         }
       })
@@ -47,7 +50,7 @@ export const ApprovalDrawer: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [open]);
 
   // Sync editableFields from selectedApproval whenever selection changes
   useEffect(() => {

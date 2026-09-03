@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -286,8 +287,30 @@ func (s *Server) handleParseEmail(w http.ResponseWriter, r *http.Request) {
 
 var voiceUploadDir = filepath.Join(os.TempDir(), "tayari_voice_notes")
 
-func init() {
-	_ = os.MkdirAll(voiceUploadDir, 0o755)
+func validateAudioSignature(ext string, header []byte) bool {
+	if len(header) < 4 {
+		return false
+	}
+	switch ext {
+	case ".wav":
+		return len(header) >= 12 && string(header[0:4]) == "RIFF" && string(header[8:12]) == "WAVE"
+	case ".ogg":
+		return len(header) >= 4 && string(header[0:4]) == "OggS"
+	case ".webm":
+		return len(header) >= 4 && bytes.Equal(header[0:4], []byte{0x1A, 0x45, 0xDF, 0xA3})
+	case ".mp3":
+		if len(header) >= 3 && string(header[0:3]) == "ID3" {
+			return true
+		}
+		if len(header) >= 2 && header[0] == 0xFF && (header[1]&0xE0) == 0xE0 {
+			return true
+		}
+		return false
+	case ".m4a":
+		return len(header) >= 8 && string(header[4:8]) == "ftyp"
+	default:
+		return false
+	}
 }
 
 func (s *Server) handleAddVoiceNote(w http.ResponseWriter, r *http.Request) {
@@ -326,6 +349,19 @@ func (s *Server) handleAddVoiceNote(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusBadRequest, "Invalid audio format. Allowed: .webm, .mp3, .wav, .ogg, .m4a")
 		return
 	}
+
+	sigBuf := make([]byte, 512)
+	n, err := io.ReadFull(file, sigBuf)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		s.respondError(w, http.StatusBadRequest, "Failed to read audio file")
+		return
+	}
+	if n < 4 || !validateAudioSignature(ext, sigBuf[:n]) {
+		s.respondError(w, http.StatusBadRequest, "Invalid audio file content does not match declared format")
+		return
+	}
+	fullStream := io.MultiReader(bytes.NewReader(sigBuf[:n]), file)
+
 	fname := noteID.String() + ext
 	fpath := filepath.Join(voiceUploadDir, fname)
 
@@ -335,7 +371,7 @@ func (s *Server) handleAddVoiceNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer dst.Close()
-	if _, err := io.Copy(dst, file); err != nil {
+	if _, err := io.Copy(dst, fullStream); err != nil {
 		s.respondError(w, http.StatusInternalServerError, "Failed to write audio")
 		return
 	}

@@ -236,10 +236,13 @@ const DEFAULT_OMNISAVE_SYNC = {
   consentAcknowledged: false,
   maxItems: 250,
 }
-const TRUSTED_APP_ORIGINS = globalThis.TayariMessagePolicy?.TRUSTED_APP_ORIGINS || new Set([
+const BASE_TRUSTED_APP_ORIGINS = [
   'https://tayari.app',
   'https://www.tayari.app',
   'https://tayari-skill-boost.lovable.app',
+];
+
+const DEV_LOOPBACK_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:8080',
   'http://localhost:8081',
@@ -247,6 +250,16 @@ const TRUSTED_APP_ORIGINS = globalThis.TayariMessagePolicy?.TRUSTED_APP_ORIGINS 
   'http://localhost:8083',
   'http://127.0.0.1:8083',
   'http://localhost:8085',
+];
+
+const isDevBuild = (typeof chrome !== 'undefined' &&
+  typeof chrome.runtime?.getManifest === 'function' &&
+  !('update_url' in (chrome.runtime.getManifest() || {}))) ||
+  (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production');
+
+const TRUSTED_APP_ORIGINS = globalThis.TayariMessagePolicy?.TRUSTED_APP_ORIGINS || new Set([
+  ...BASE_TRUSTED_APP_ORIGINS,
+  ...(isDevBuild ? DEV_LOOPBACK_ORIGINS : []),
 ]);
 function isTrustedAppSender(sender) {
   try { return TRUSTED_APP_ORIGINS.has(new URL(sender?.url || '').origin); }
