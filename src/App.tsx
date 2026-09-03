@@ -24,6 +24,8 @@ const Auth = lazy(() => import('./pages/Auth'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Pipeline = lazy(() => import('./pages/Pipeline'));
 const Outcomes = lazy(() => import('./pages/Outcomes'));
+const Credits = lazy(() => import('./pages/Credits'));
+const Checkout = lazy(() => import('./pages/Checkout'));
 const PetInsights = lazy(() => import('./pages/PetInsights'));
 const RouteInsights = lazy(() => import('./pages/RouteInsights'));
 
@@ -269,6 +271,15 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/credits"
+                element={
+                  <ProtectedRoute>
+                    <Credits />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/checkout" element={<Checkout />} />
               <Route
                 path="/outcomes"
                 element={

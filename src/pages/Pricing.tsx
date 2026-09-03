@@ -195,11 +195,12 @@ const Pricing = () => {
   }, [user]);
 
   const handleCheckout = async (packId: string) => {
-    if (!user) {
-      navigate(`/auth?pack=${packId}`);
-      return;
-    }
+    // Checkout lives on its own page so the purchase has a reviewable summary
+    // (pack, credits, unit price) before any payment provider is contacted.
+    navigate(`/checkout?pack=${packId}`);
+    return;
 
+    /* eslint-disable no-unreachable */
     setLoadingPlan(packId);
     try {
       const response = await apiFetchResponse("/v1/billing/create-checkout-session", {
