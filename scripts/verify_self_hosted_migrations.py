@@ -118,6 +118,24 @@ REQUIRED_MIRRORS = {
         "supabase-local/volumes/db/init/62-20260828_self_hosted_pet_and_route_views.sql",
         "zz-62-20260828_self_hosted_pet_and_route_views.sql",
     ),
+    # NOTE: 20260903_03 was intentionally skipped (no migration issued under that
+    # number); do NOT renumber the applied _01/_02/_04/_05 files to close the gap.
+    "backend/db/migrations/20260903_01_canonical_application_state_machine.sql": (
+        "supabase-local/volumes/db/init/63-20260903_canonical_application_state_machine.sql",
+        "zz-63-20260903_canonical_application_state_machine.sql",
+    ),
+    "backend/db/migrations/20260903_02_outcome_events.sql": (
+        "supabase-local/volumes/db/init/64-20260903_outcome_events.sql",
+        "zz-64-20260903_outcome_events.sql",
+    ),
+    "backend/db/migrations/20260903_04_agent_run_steps_self_hosted.sql": (
+        "supabase-local/volumes/db/init/65-20260903_agent_run_steps_self_hosted.sql",
+        "zz-65-20260903_agent_run_steps_self_hosted.sql",
+    ),
+    "backend/db/migrations/20260903_05_run_checkpoints.sql": (
+        "supabase-local/volumes/db/init/66-20260903_run_checkpoints.sql",
+        "zz-66-20260903_run_checkpoints.sql",
+    ),
 }
 
 
@@ -161,13 +179,33 @@ def main() -> int:
         if expected_mount not in compose_text:
             failures.append(f"missing Compose mount: {expected_mount}")
 
+    local_migrations_dir = ROOT / "supabase-local" / "migrations"
+    cloud_migrations_dir = ROOT / "supabase" / "migrations"
+    if local_migrations_dir.is_dir():
+        local_files = sorted(local_migrations_dir.glob("*.sql"))
+        if not local_files:
+            failures.append("supabase-local/migrations directory exists but contains no .sql migrations")
+        for local_file in local_files:
+            cloud_file = cloud_migrations_dir / local_file.name
+            if not cloud_file.is_file():
+                failures.append(f"missing cloud migration pair: supabase/migrations/{local_file.name}")
+                continue
+            if digest(local_file) != digest(cloud_file):
+                failures.append(
+                    f"migration content drift: supabase-local/migrations/{local_file.name} != supabase/migrations/{local_file.name}"
+                )
+
     if failures:
         print("Self-hosted migration verification failed:", file=sys.stderr)
         for failure in failures:
             print(f"- {failure}", file=sys.stderr)
         return 1
 
-    print(f"Self-hosted migration bundle verified ({len(REQUIRED_MIRRORS)} required mirrored migrations).")
+    local_count = len(list(local_migrations_dir.glob("*.sql"))) if local_migrations_dir.is_dir() else 0
+    print(
+        f"Self-hosted migration bundle verified ({len(REQUIRED_MIRRORS)} required mirrored migrations, "
+        f"{local_count} local/cloud parity migrations)."
+    )
     return 0
 
 

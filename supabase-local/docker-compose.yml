@@ -313,6 +313,10 @@ services:
       - ./volumes/db/init/60-20260827_job_watches_intelligence.sql:/docker-entrypoint-initdb.d/migrations/zz-60-20260827_job_watches_intelligence.sql:Z
       - ./volumes/db/init/61-20260827_self_hosted_table_parity.sql:/docker-entrypoint-initdb.d/migrations/zz-61-20260827_self_hosted_table_parity.sql:Z
       - ./volumes/db/init/62-20260828_self_hosted_pet_and_route_views.sql:/docker-entrypoint-initdb.d/migrations/zz-62-20260828_self_hosted_pet_and_route_views.sql:Z
+      - ./volumes/db/init/63-20260903_canonical_application_state_machine.sql:/docker-entrypoint-initdb.d/migrations/zz-63-20260903_canonical_application_state_machine.sql:Z
+      - ./volumes/db/init/64-20260903_outcome_events.sql:/docker-entrypoint-initdb.d/migrations/zz-64-20260903_outcome_events.sql:Z
+      - ./volumes/db/init/65-20260903_agent_run_steps_self_hosted.sql:/docker-entrypoint-initdb.d/migrations/zz-65-20260903_agent_run_steps_self_hosted.sql:Z
+      - ./volumes/db/init/66-20260903_run_checkpoints.sql:/docker-entrypoint-initdb.d/migrations/zz-66-20260903_run_checkpoints.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:
