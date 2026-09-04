@@ -622,9 +622,21 @@ export default function Onboarding() {
                 disabled={hydration === "pending"}
                 className="bg-success hover:bg-success font-bold px-8"
               >
-                Launch Career Dashboard <ArrowRight className="w-5 h-5 ml-2" />
+                {user ? "Launch Career Dashboard" : "Create account & continue"}
+                <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Applying is pay-as-you-go:{" "}
+              <button
+                type="button"
+                onClick={() => navigate("/checkout?pack=starter")}
+                className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+              >
+                get submission credits
+              </button>{" "}
+              — 1 credit is used only when a verified submission receipt is captured.
+            </p>
           </Card>
         )}
       </div>
