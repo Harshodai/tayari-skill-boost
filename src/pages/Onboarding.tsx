@@ -35,6 +35,7 @@ const STORAGE_COMPLETED_KEY = "tayari_onboarding";
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [validationError, setValidationError] = useState<string | null>(null);
   // saveError tracks non-validation failures (network errors, 5xx, etc.)
@@ -184,6 +185,14 @@ export default function Onboarding() {
       localStorage.setItem(STORAGE_DRAFT_KEY, JSON.stringify(payload));
     } catch {
       // storage unavailable
+    }
+
+    // Visitors who reached onboarding from the landing CTA have no account yet.
+    // Their answers are already saved locally, so send them to sign-up and bring
+    // them back here instead of failing an authenticated profile save.
+    if (!user) {
+      navigate("/auth?mode=signup&next=/onboarding");
+      return;
     }
 
     try {
