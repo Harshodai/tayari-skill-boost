@@ -3802,6 +3802,13 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 **Fix:** fix(security) → feat(db) → feat(computer) → feat(resume) → docs(tests); stash-pop rebase clean; post-rebase gates green; push fast-forward. Reverted unrelated bun.lock/pnpm-lock churn; left foreign M files dirty and reported. Verified: Go parity, 100 Python, build+lint green pre-commit; post-rebase smoke green.
 **Lesson:** Never `pull --rebase` with a dirty tree — stash -u first, pop after; check `behind N` before promising push timelines; lockfile churn from other tools reverts cleanly only when provably untouched (no package manager ran).
 
+## 2026-09-04 — Leftover-dirt sweep: 5 tracks, 6 commits, tree clean (pushed 8cf4f7d..8f0f0bf)
+
+**What:** Ruthlessly reviewed+fixed all ~60 remaining dirty files across Go routes, Python api/services, Python tests+eval, frontend+misc — then committed everything in splits and pushed.
+**Root cause:** Fixes that mattered: gmail disconnect trusted spoofable X-User-Id (now authed); fit-matrix 404 path mismatch; applications query on nonexistent columns; fabricated outreach source_urls + ScenarioPlanner/FitMatrix fallbacks + fake feedback; broken /resume/upload + /approvals links; data-delete fallback risk (already fixed, kept). Full Python app/tests: 671 passed.
+**Fix:** 6 commits (go-routes, py-api, py-services, ui, tests-evals, chore sitemap). mtime histograms + diff-marker scans separate session files from prior waves; revert provably-foreign lockfile churn; leave nothing dirty except the decision. Verified per-track gates + final combined build/lint/parity green before push.
+**Lesson:** Mtime histograms beat memory for attributing dirty files across sessions; committing others' unreviewed work is only safe after a scoped review pass with RED evidence per fix; generated-but-tracked files (sitemap.xml) commit fine when the diff is legit regeneration.
+
 ## 2026-09-04 — P3/C3 salary-benchmark wiring (no commit)
 
 **What:** TDD RED-first (6 failed: missing ROLE_TO_BLS_SERIES/get_salary_band/salary_band kwarg) then GREEN: ROLE_TO_BLS_SERIES (10 roles) + get_salary_band + _apply_salary_band/plan_scenario salary_band param.
