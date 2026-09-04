@@ -51,7 +51,7 @@ Ingress is denied by default within the application namespace, and only the defi
 
 ## Secret and data boundary
 
-All sensitive settings are expected in a secret named `tayari-runtime-secrets`; the package deliberately creates no Kubernetes `Secret` with values. The required and conditional key contract is documented in [`SECRETS.md`](./SECRETS.md). Production deployments must use separate per-workload Kubernetes Secrets or explicitly key-limited external-secret projections rather than allowing application service accounts to read any aggregate Secret containing unrelated credentials. Secret management must enforce workload identity and a managed secret store, with namespace/service-account access strictly limited to the minimum required paths and keys under least-privilege principles.
+The logical key contract for all sensitive configuration is documented in [`SECRETS.md`](./SECRETS.md), which defines the required and conditional keys across services rather than prescribing a single aggregate Kubernetes Secret. The manifests deliberately create no Kubernetes `Secret` resources with values. Production deployments must materialize separately named per-workload Kubernetes Secrets (e.g., `tayari-gateway-secrets`, `tayari-python-secrets`, `tayari-worker-secrets`) or explicitly key-limited external-secret projections; application service accounts and workloads are strictly prohibited from mounting or reading any Secret containing unrelated credentials. Secret management must enforce workload identity and a managed secret store, with namespace and service-account access strictly limited to the minimum required keys under least-privilege principles.
 
 The package treats résumés, candidate-profile data, job descriptions, authentication material, browser artifacts, application answers, and audit receipts as potentially sensitive. Logs and telemetry must exclude those values. Before customer launch, the data map, retention/deletion workflow, incident communications process, and subprocessor record must be completed.
 
@@ -62,7 +62,7 @@ The build script creates four images—frontend, gateway, Python API, and worker
 ## Operator run sequence
 
 1. Select the managed Kubernetes provider, region, managed PostgreSQL/Redis, ingress/WAF, registry, observability, and secret-management integrations.
-2. Configure separate environment secret paths and materialize per-workload Secrets or key-limited projections for `tayari-runtime-secrets` in the target namespace.
+2. Configure separate environment secret paths and materialize separately named per-workload Secrets or key-limited projections for the target namespace, satisfying the logical key contract in SECRETS.md.
 3. Build signed or otherwise attestable images, resolve image digests, render the staging overlay, and validate it in CI.
 4. Deploy staging with `scripts/deploy-environment.sh staging`, then run `scripts/smoke-test.sh staging` and the isolated staged E2E suite.
 5. Record the release evidence, including test results, image digests, rendered manifest, security scan results, and owner approval.

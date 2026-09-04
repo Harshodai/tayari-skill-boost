@@ -37,3 +37,26 @@ def test_product_event_rejects_unknown_event_and_unbounded_properties():
             user_id="user-123",
             properties={"status": "x" * 121},
         )
+
+
+def test_paid_funnel_and_workflow_cost_events(monkeypatch):
+    captured = []
+    monkeypatch.setattr(product_events, "publish_event", lambda *args, **kwargs: captured.append((args, kwargs)))
+
+    e1 = product_events.record_product_event(
+        "paid_checkout_started",
+        user_id="user-123",
+        properties={"tier": "pro_monthly", "currency": "INR"},
+    )
+    e2 = product_events.record_product_event(
+        "paid_subscription_activated",
+        user_id="user-123",
+        properties={"tier": "pro_monthly", "billing_interval": "month"},
+    )
+    e3 = product_events.record_product_event(
+        "workflow_cost_attributed",
+        user_id="user-123",
+        properties={"workflow": "resume_optimize", "model_units": 1420, "estimated_cost_usd": 0.0035},
+    )
+    assert e1 and e2 and e3
+    assert len(captured) == 3

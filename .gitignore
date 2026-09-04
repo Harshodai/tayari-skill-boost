@@ -103,3 +103,6 @@ ds-bundle/
 .ruthless-evidence/
 
 .release-evidence/
+
+# Media scratch outputs
+audio-output/

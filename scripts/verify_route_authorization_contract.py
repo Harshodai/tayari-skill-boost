@@ -13,7 +13,11 @@ def check(root: Path) -> dict[str, object]:
     checks = {
         "browser_go_capability_guard": "withCapability(capabilities.AutonomousBrowser" in (go / "routes_browser.go").read_text(),
         "browser_go_disabled_api_tests": "TestBrowserRoutesAreLockedWhenCapabilityDisabled" in (go / "capability_gate_test.go").read_text(),
-        "browser_python_capability_guard": (py / "main.py").read_text().count("Capability.AUTONOMOUS_BROWSER") >= 4,
+        "browser_python_capability_guard": (
+            (py / "api" / "browser_agent_routes.py").read_text().count("Capability.AUTONOMOUS_BROWSER") >= 4
+            if (py / "api" / "browser_agent_routes.py").exists()
+            else (py / "main.py").read_text().count("Capability.AUTONOMOUS_BROWSER") >= 4
+        ),
         "browser_python_disabled_api_tests": "test_browser_routes_are_disabled_by_launch_scope" in (py / "tests" / "test_capability_gates.py").read_text(),
         "submission_python_capability_guard": "Capability.AUTONOMOUS_ATS_SUBMIT" in (py / "services" / "submission_guard.py").read_text(),
         "billing_go_auth_boundary": "internalOrAuthMiddleware" in (go / "routes_billing.go").read_text(),

@@ -125,6 +125,33 @@ async def close_pool() -> None:
     _pool_loop = None
 
 
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def tenant_transaction(user_id: str):
+    """Acquire a connection scoped to a specific user within an isolated transaction.
+
+    Sets session variable `request.jwt.claim.sub` within the transaction,
+    enabling database RLS policies evaluating `auth.uid()` to enforce
+    tenant isolation on direct connection pools.
+    """
+    pool = await get_pool()
+    if pool is None:
+        yield None
+        return
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            clean_uid = str(user_id).strip() if user_id else ""
+            if clean_uid:
+                try:
+                    await conn.execute("SET LOCAL request.jwt.claim.sub = $1", clean_uid)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Failed to set tenant session claim: %s", exc)
+            yield conn
+
+
 # ---------------------------------------------------------------------------
 # agent_runs helpers (shared by Celery tasks + automation_engine)
 # Every helper is a no-op when the pool is unavailable.

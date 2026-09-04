@@ -25,6 +25,9 @@ EVENTS: Final = frozenset(
         "review_completed",
         "application_tracked",
         "interview_prep_completed",
+        "paid_checkout_started",
+        "paid_subscription_activated",
+        "workflow_cost_attributed",
         "product_failure",
     }
 )

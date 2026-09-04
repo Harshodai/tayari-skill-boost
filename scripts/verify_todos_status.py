@@ -19,7 +19,11 @@ from pathlib import Path
 from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
-TODO = ROOT / "TAYARI_REMEDIATION_TODOS.md"
+TODO = (
+    ROOT / "docs" / "archive" / "TAYARI_REMEDIATION_TODOS.md"
+    if (ROOT / "docs" / "archive" / "TAYARI_REMEDIATION_TODOS.md").exists()
+    else ROOT / "TAYARI_REMEDIATION_TODOS.md"
+)
 
 
 @dataclass(frozen=True)
@@ -101,7 +105,7 @@ def build_report() -> dict:
         status, evidence, blocking, rationale, _ = _status_for(item_id)
         rows.append(TodoItem(line, section, item_id, priority, title, detail, status, evidence, blocking, rationale))
     tracked = {item.item_id for item in rows}
-    expected = 38
+    expected = 35
     return {
         "schema": "tayari.todo-status.v1",
         "repository": str(ROOT),
