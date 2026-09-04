@@ -1,0 +1,24 @@
+{
+  "id": "web_backend_to_ml_hard_mismatch",
+  "title": "Principal Machine Learning Research Scientist",
+  "company": "CognitiveAI Labs",
+  "candidate_profile": {
+    "title": "Web Backend Developer",
+    "years_experience": 2,
+    "skills": ["JavaScript", "Node.js", "Express", "MongoDB"],
+    "domain": "Web CRUD"
+  },
+  "candidate_skills": ["JavaScript", "Node.js", "Express", "MongoDB"],
+  "target_job_skills": ["PyTorch", "CUDA", "Transformers", "Distributed Training", "C++", "Mathematics", "Ph.D"],
+  "job_requirements": {
+    "min_years_experience": 8,
+    "required_skills": ["PyTorch", "CUDA", "Ph.D"],
+    "seniority": "Principal"
+  },
+  "hard_constraint_met": false,
+  "expected": {
+    "skill_alignment_min": 0.0,
+    "hard_constraint_met": false,
+    "pass": false
+  }
+}

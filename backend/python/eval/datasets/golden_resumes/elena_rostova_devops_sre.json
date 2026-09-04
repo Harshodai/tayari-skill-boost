@@ -1,0 +1,16 @@
+{
+  "id": "elena_rostova_devops_sre",
+  "candidate_name": "Elena Rostova",
+  "target_role": "Senior Site Reliability Engineer (Kubernetes/AWS)",
+  "original_text": "Elena Rostova\nDevOps Engineer | elena.rostova@example.com | (555) 567-8901\n\nExperience\nSite Reliability Engineer - CloudPeak (2021 - Present)\n- Managed 12 Kubernetes clusters across multi-region AWS environments.\n- Automated infrastructure provisioning with Terraform, cutting environment spin-up time by 60%.\n- Set up Prometheus and Grafana dashboards reducing mean time to detection (MTTD) by 35%.\n\nSystems Administrator - InfraNet (2019 - 2021)\n- Configured Linux servers and automated backup scripts via Python.\n\nEducation\nB.S. in Computer Systems - Purdue University (2019)\n\nSkills\nKubernetes, Docker, Terraform, AWS, Prometheus, Grafana, Linux, Python, CI/CD",
+  "optimized_text": "Elena Rostova\nSenior Site Reliability Engineer | elena.rostova@example.com | (555) 567-8901\n\nProfessional Summary\nResilience-driven SRE with deep expertise in multi-region Kubernetes orchestration, Terraform Infrastructure-as-Code, and automated cloud monitoring.\n\nExperience\nSite Reliability Engineer - CloudPeak (2021 - Present)\n• Administered 12 production Kubernetes clusters deployed across high-availability AWS cloud regions.\n• Codified enterprise infrastructure using Terraform modules, reducing environment provisioning duration by 60%.\n• Implemented observability stacks with Prometheus and Grafana, decreasing MTTD by 35%.\n\nSystems Administrator - InfraNet (2019 - 2021)\n• Managed Linux system administration and deployed automated Python automation scripts.\n\nEducation\nB.S. in Computer Systems - Purdue University (2019)\n\nSkills\nKubernetes, Docker, Terraform, AWS, Prometheus, Grafana, Linux, Python, Observability, CI/CD",
+
+  "target_jd": "Looking for Senior SRE to own multi-region AWS Kubernetes infrastructure and Prometheus observability systems.",
+  "expected": {
+    "fact_preservation_min": 0.85,
+    "unsupported_claims_pass": true,
+    "has_invented_metrics": false,
+    "ats_score_min": 75,
+    "pass": true
+  }
+}

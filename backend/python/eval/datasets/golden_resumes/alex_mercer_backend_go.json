@@ -1,0 +1,16 @@
+{
+  "id": "alex_mercer_backend_go",
+  "candidate_name": "Alex Mercer",
+  "target_role": "Senior Distributed Systems Engineer (Go)",
+  "original_text": "Alex Mercer\nSenior Backend Engineer | alex.mercer@example.com | (555) 234-5678\n\nExperience\nLead Backend Engineer - CloudScale Technologies (2021 - Present)\n- Led migration of payment processing service to Go, reducing API latency by 45% for 2M daily requests.\n- Built Redis caching layer and orchestrated microservices deployments on AWS ECS.\n- Mentored 4 junior engineers on concurrency patterns in Go.\n\nSoftware Engineer - DataPipe Inc (2018 - 2021)\n- Developed RESTful APIs using Python and PostgreSQL handling 500k daily queries.\n- Implemented Celery asynchronous task workers for scheduled report generation.\n\nEducation\nB.S. in Computer Science - University of Washington (2018)\n\nSkills\nGo, Python, PostgreSQL, Redis, AWS, Docker, Kubernetes, Microservices",
+  "optimized_text": "Alex Mercer\nSenior Backend Engineer | alex.mercer@example.com | (555) 234-5678\n\nProfessional Summary\nHigh-impact Senior Distributed Systems Engineer with expertise in Go, microservices, and high-throughput AWS infrastructure.\n\nExperience\nLead Backend Engineer - CloudScale Technologies (2021 - Present)\n• Spearheaded the architectural migration of core payment processing services to Go, decreasing API latency by 45% across 2M daily transactions.\n• Designed distributed Redis caching architectures and automated containerized microservices deployments on AWS ECS.\n• Supervised engineering excellence by mentoring 4 junior developers on Go concurrency models and goroutine lifecycles.\n\nSoftware Engineer - DataPipe Inc (2018 - 2021)\n• Engineered scalable REST APIs using Python and PostgreSQL serving 500k daily database queries.\n• Deployed robust asynchronous background pipelines utilizing Celery and Redis.\n\nEducation\nB.S. in Computer Science - University of Washington (2018)\n\nSkills\nGo, Python, PostgreSQL, Redis, AWS ECS, Docker, Kubernetes, Distributed Systems, Microservices",
+
+  "target_jd": "We are seeking a Senior Distributed Systems Engineer to scale our Go microservices handling millions of daily requests on AWS ECS.",
+  "expected": {
+    "fact_preservation_min": 0.85,
+    "unsupported_claims_pass": true,
+    "has_invented_metrics": false,
+    "ats_score_min": 75,
+    "pass": true
+  }
+}

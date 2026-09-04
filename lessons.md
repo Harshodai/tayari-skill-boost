@@ -3795,6 +3795,13 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 **Fix:** All RED-verified. ECI→unavailable+Nones (wage path synthetic-tested only); stream-specific no-timeout client; ctx-guarded proxy loop; namespaced (user,run) worker registry (caught terminate pop-key bug via RED); docker fail-closed + network/env/ID + sanitized names; audit-every-access documented. Verified combined: Go ai+api gates ok, 86 Python passed, lint 0 errors, build green.
 **Lesson:** Re-review batches after every program wave — new code earns new findings (our own P3 salary code committed a truthfulness violation the first review missed); empty subagent reports mean no work happened, always check the tree; untracked-in-session files look alarming in git status but are normal pre-commit.
 
+## 2026-09-04 — Commit+push 5 splits to main (pushed b827530..8cf4f7d)
+
+**What:** Pre-commit full-tree review went NO-GO (4 blockers), fixed all, committed 5 logical splits, rebased past 16 upstream commits, pushed clean.
+**Root cause:** Blocker review caught data-delete→account-erasure wiring, shadowed voice endpoint, missing db sources/mirrors, dead migrations dir. Staging trap: prior sessions' 60+ foreign files share the tree — mtime histograms + diff-marker scans separate ours from theirs; commit only reviewed files.
+**Fix:** fix(security) → feat(db) → feat(computer) → feat(resume) → docs(tests); stash-pop rebase clean; post-rebase gates green; push fast-forward. Reverted unrelated bun.lock/pnpm-lock churn; left foreign M files dirty and reported. Verified: Go parity, 100 Python, build+lint green pre-commit; post-rebase smoke green.
+**Lesson:** Never `pull --rebase` with a dirty tree — stash -u first, pop after; check `behind N` before promising push timelines; lockfile churn from other tools reverts cleanly only when provably untouched (no package manager ran).
+
 ## 2026-09-04 — P3/C3 salary-benchmark wiring (no commit)
 
 **What:** TDD RED-first (6 failed: missing ROLE_TO_BLS_SERIES/get_salary_band/salary_band kwarg) then GREEN: ROLE_TO_BLS_SERIES (10 roles) + get_salary_band + _apply_salary_band/plan_scenario salary_band param.

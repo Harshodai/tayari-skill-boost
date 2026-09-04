@@ -1,0 +1,16 @@
+{
+  "id": "marcus_chen_frontend",
+  "candidate_name": "Marcus Chen",
+  "target_role": "Senior Frontend Engineer (React/TypeScript)",
+  "original_text": "Marcus Chen\nFrontend Engineer | marcus.chen@example.com | (555) 456-7890\n\nExperience\nFrontend Engineer - WebFlow Solutions (2020 - Present)\n- Built responsive customer portal using React 18, TypeScript, and Tailwind CSS.\n- Improved web app performance scores from 65 to 92 through code-splitting and asset optimization.\n- Created reusable UI design component library used across 3 company web applications.\n\nWeb Developer - PixelCraft Studio (2018 - 2020)\n- Developed responsive client websites using HTML, JavaScript, and CSS.\n\nEducation\nB.S. in Software Engineering - UC Irvine (2018)\n\nSkills\nReact, TypeScript, Next.js, JavaScript, Tailwind CSS, HTML5, CSS3, Webpack, Jest",
+  "optimized_text": "Marcus Chen\nSenior Frontend Engineer | marcus.chen@example.com | (555) 456-7890\n\nProfessional Summary\nUser-obsessed Senior Frontend Engineer specializing in accessible, high-performance web applications built on React 18, TypeScript, and modern component systems.\n\nExperience\nFrontend Engineer - WebFlow Solutions (2020 - Present)\n• Engineered responsive customer portal in React 18 and TypeScript with Tailwind CSS styling.\n• Boosted Core Web Vitals and Lighthouse performance metrics from 65 to 92 via dynamic bundle splitting.\n• Authored reusable component library deployed across 3 internal enterprise applications.\n\nWeb Developer - PixelCraft Studio (2018 - 2020)\n• Delivered performant client web properties with semantic HTML and accessible UI components.\n\nEducation\nB.S. in Software Engineering - UC Irvine (2018)\n\nSkills\nReact 18, TypeScript, Next.js, JavaScript, Tailwind CSS, Performance Optimization, Webpack, Jest",
+
+  "target_jd": "Seeking Senior Frontend Engineer proficient in React, TypeScript, and state-of-the-art web performance optimization.",
+  "expected": {
+    "fact_preservation_min": 0.85,
+    "unsupported_claims_pass": true,
+    "has_invented_metrics": false,
+    "ats_score_min": 75,
+    "pass": true
+  }
+}

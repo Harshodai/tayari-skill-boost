@@ -5,8 +5,8 @@
 .PHONY: help up down build rebuild restart logs ps clean \
         build-frontend build-backend build-python \
         dev-frontend dev-backend dev-python \
-        test test-frontend test-backend test-python test-e2e \
-        compile build-local lint audit baseline todo-status staging-integration staging-integration-plan staging-integration-contract
+        test test-frontend test-backend test-python test-e2e eval \
+        compile build-local lint audit baseline todo-status parity-check staging-integration staging-integration-plan staging-integration-contract
 
 # Default target when calling `make` without arguments
 .DEFAULT_GOAL := help
@@ -126,6 +126,10 @@ test-e2e: ## Run Playwright end-to-end tests
 	@echo "$(BLUE)Running E2E tests...$(RESET)"
 	npx playwright test
 
+eval: ## Run the AI evaluation harness CI gate ("Own Harness")
+	@echo "$(BLUE)Running Tayari AI evaluation harness CI gate...$(RESET)"
+	cd backend/python && .venv/bin/python eval/harness/ci_gate.py
+
 ## -----------------------------------------------------------------------------
 ## 🔨 Compilation & Quality Checks
 ## -----------------------------------------------------------------------------
@@ -169,6 +173,9 @@ baseline: ## Capture static readiness and environment-gate evidence without muta
 
 todo-status: ## Report all unchecked remediation TODOs without contacting services
 	python3 scripts/verify_todos_status.py
+
+parity-check: ## Verify self-hosted migration parity and bundle integrity
+	python3 scripts/verify_self_hosted_migrations.py
 
 staging-integration: ## Run the live non-production DB/Auth/Redis integration gate
 	./scripts/staging_integration_gate.sh

@@ -1,0 +1,35 @@
+name: interview_prep
+description: "Evaluation rubric for AI-generated interview prep intel, question sets, STAR response frameworks, and difficulty calibration."
+version: "1.0.0"
+pass_threshold: 0.70
+
+dimensions:
+  star_coverage:
+    weight: 0.35
+    description: "Structured coverage and coaching across Situation, Task, Action, and Result frameworks for behavioral and technical questions."
+    min_score: 0.70
+    scoring_criteria:
+      "1.0": "Explicit, structured STAR breakdowns with concrete coaching on actions taken and quantifiable results."
+      "0.7": "Good coverage of actions and outcomes; standard situational framing."
+      "0.4": "Vague advice lacking structured breakdown between actions and results."
+      "0.0": "No STAR guidance or purely generic non-actionable suggestions."
+
+  question_role_relevance:
+    weight: 0.35
+    description: "Direct relevance of generated questions to the role's actual day-to-day responsibilities, technology stack, and engineering domain."
+    min_score: 0.70
+    scoring_criteria:
+      "1.0": "Precise role-specific questions addressing real architectural, debugging, and collaboration scenarios for the stack."
+      "0.7": "Relevant technical and behavioral questions covering standard expectations."
+      "0.4": "Generic software questions unrelated to target tech stack."
+      "0.0": "Irrelevant questions (e.g. asking a backend engineer CSS trivia)."
+
+  difficulty_calibration:
+    weight: 0.30
+    description: "Alignment of question complexity with role seniority (e.g. Staff/Principal focused on trade-offs, architecture, and ambiguity vs Junior on language syntax)."
+    min_score: 0.65
+    scoring_criteria:
+      "1.0": "Perfectly calibrated difficulty challenging the candidate at their specific level of experience."
+      "0.7": "Appropriate difficulty with minor variances."
+      "0.3": "Poorly calibrated (e.g. entry-level trivia for a Principal Architect)."
+      "0.0": "Wholly inappropriate difficulty level."

@@ -1,0 +1,15 @@
+{
+  "id": "sarah_jenkins_product_lead",
+  "candidate_name": "Sarah Jenkins",
+  "target_role": "Principal Product Manager (Enterprise SaaS)",
+  "original_text": "Sarah Jenkins\nProduct Manager | sarah.jenkins@example.com | (555) 678-9012\n\nExperience\nSenior Product Manager - ApexSaaS (2021 - Present)\n- Owned product roadmap for enterprise analytics platform generating $8M in annual recurring revenue.\n- Conducted 50 user discovery interviews and launched self-serve billing, growing conversion by 22%.\n- Led cross-functional squad of 8 engineers and 2 product designers in agile sprints.\n\nProduct Manager - TechStart (2018 - 2021)\n- Defined requirements for mobile customer onboarding flow.\n\nEducation\nB.A. in Economics - Northwestern University (2018)\n\nSkills\nProduct Strategy, Roadmapping, User Research, Agile/Scrum, Data Analytics, SQL, B2B SaaS",
+  "optimized_text": "Sarah Jenkins\nPrincipal Product Manager | sarah.jenkins@example.com | (555) 678-9012\n\nProfessional Summary\nStrategic Product Leader with a track record of scaling B2B SaaS analytics products, accelerating enterprise ARR, and driving customer-led product discovery.\n\nExperience\nSenior Product Manager - ApexSaaS (2021 - Present)\n• Spearheaded the product roadmap for core enterprise analytics platforms generating $8M in ARR.\n• Executed 50 qualitative customer discovery sessions and delivered self-serve billing workflows, boosting conversion by 22%.\n• Directed cross-functional agile teams of 8 engineers and 2 designers to achieve sprint milestones.\n\nProduct Manager - TechStart (2018 - 2021)\n• Formulated product specs for mobile customer activation journeys.\n\nEducation\nB.A. in Economics - Northwestern University (2018)\n\nSkills\nProduct Strategy, Roadmapping, Customer Discovery, Agile/Scrum, SQL, B2B SaaS, Conversion Optimization",
+  "target_jd": "Seeking Principal Product Manager to drive product strategy and revenue expansion for our flagship enterprise SaaS platform.",
+  "expected": {
+    "fact_preservation_min": 0.85,
+    "unsupported_claims_pass": true,
+    "has_invented_metrics": false,
+    "ats_score_min": 75,
+    "pass": true
+  }
+}

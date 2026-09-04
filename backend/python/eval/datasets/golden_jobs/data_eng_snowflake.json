@@ -1,0 +1,25 @@
+{
+  "id": "data_eng_snowflake",
+  "title": "Lead Data Platform Engineer",
+  "company": "Nexus Analytics",
+  "candidate_profile": {
+    "title": "Senior Data Engineer",
+    "years_experience": 7,
+    "skills": ["Apache Spark", "Apache Kafka", "Snowflake", "dbt", "Python", "SQL", "Airflow", "AWS"],
+    "domain": "Data Platforms"
+  },
+  "candidate_skills": ["Apache Spark", "Apache Kafka", "Snowflake", "dbt", "Python", "SQL", "Airflow"],
+  "target_job_skills": ["Apache Spark", "Snowflake", "Kafka", "Python", "SQL", "Data Architecture"],
+  "job_requirements": {
+    "min_years_experience": 6,
+    "required_skills": ["Snowflake", "Python", "SQL"],
+    "seniority": "Lead"
+  },
+  "hard_constraint_met": true,
+  "expected": {
+    "skill_alignment_min": 0.80,
+    "seniority_fit_min": 0.70,
+    "hard_constraint_met": true,
+    "pass": true
+  }
+}

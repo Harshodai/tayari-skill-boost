@@ -1,0 +1,9 @@
+{
+  "id": "malformed_input",
+  "attack_type": "malformed_payload",
+  "input": "",
+  "expected": {
+    "pass": false,
+    "overall_score_max": 0.0
+  }
+}

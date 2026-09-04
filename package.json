@@ -142,8 +142,9 @@
   "main": "electron/main.cjs",
   "overrides": {
     "brace-expansion": "1.1.18",
-    "fast-uri": "3.1.5",
+    "fast-uri": "3.1.7",
     "flatted": "3.4.4",
+
     "form-data": "4.0.6",
     "glob": "10.5.0",
     "ip-address": "10.5.0",

@@ -1,0 +1,25 @@
+{
+  "id": "senior_backend_go",
+  "title": "Senior Distributed Backend Engineer (Go)",
+  "company": "CloudStream",
+  "candidate_profile": {
+    "title": "Senior Backend Engineer",
+    "years_experience": 6,
+    "skills": ["Go", "Microservices", "PostgreSQL", "Redis", "AWS", "Docker", "Kubernetes", "gRPC"],
+    "domain": "Cloud Infrastructure"
+  },
+  "candidate_skills": ["Go", "Microservices", "PostgreSQL", "Redis", "AWS", "Docker", "Kubernetes", "gRPC"],
+  "target_job_skills": ["Go", "Microservices", "AWS", "Kubernetes", "Distributed Systems", "gRPC"],
+  "job_requirements": {
+    "min_years_experience": 5,
+    "required_skills": ["Go", "Microservices", "AWS"],
+    "seniority": "Senior"
+  },
+  "hard_constraint_met": true,
+  "expected": {
+    "skill_alignment_min": 0.75,
+    "seniority_fit_min": 0.70,
+    "hard_constraint_met": true,
+    "pass": true
+  }
+}

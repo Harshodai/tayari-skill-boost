@@ -221,6 +221,11 @@ services:
       - APP_VERSION=${APP_VERSION:-0.1.0}
       - TRUSTED_PROXY_CIDRS=${TRUSTED_PROXY_CIDRS:-}
       - TAYARI_E2E_TEST_MODE=${TAYARI_E2E_TEST_MODE:-false}
+      # Per-user AI rate limiter (middleware_rate_limit.go): REDIS_URL wins
+      # over REDIS_ADDR when both are set; any Redis error fails open to an
+      # in-memory window. Limit defaults to 30 when unset/invalid.
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - RATE_LIMIT_PER_USER_PER_MIN=${RATE_LIMIT_PER_USER_PER_MIN:-30}
     ports:
       - "${GO_BACKEND_PORT:-8085}:8080"
     restart: unless-stopped

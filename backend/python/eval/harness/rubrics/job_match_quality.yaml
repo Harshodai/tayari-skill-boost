@@ -1,0 +1,56 @@
+name: job_match_quality
+description: "Evaluation rubric for candidate-to-job matching, assessing hard requirement gating, asymmetric skill transfer, experience relevance, seniority fit, and verifiable evidence."
+version: "1.0.0"
+pass_threshold: 0.70
+
+dimensions:
+  hard_constraint_check:
+    weight: 0.25
+    description: "Verification of non-negotiable prerequisites (legal authorization, mandatory certifications, strict minimum years of experience, core stack prerequisites)."
+    min_score: 0.70
+    is_hard_constraint: true
+    scoring_criteria:
+      "1.0": "Meets or exceeds all strict hard constraints specified in the job posting."
+      "0.7": "Meets essential hard requirements; minor edge case on optional requirement."
+      "0.3": "Misses 1 non-negotiable prerequisite (e.g. required language/framework)."
+      "0.0": "Severe hard constraint breach (e.g. applying for Staff ML with zero ML/Python experience)."
+
+  skill_alignment:
+    weight: 0.25
+    description: "Direct overlap of primary technical skills as well as valid asymmetric transfer paths (e.g. C++ to Go backend mobility)."
+    min_score: 0.65
+    scoring_criteria:
+      "1.0": "Deep mastery of target stack or highly validated adjacent transfer (e.g. distributed C++ to Go microservices)."
+      "0.7": "Strong proficiency in primary tools; manageable learning curve for secondary tools."
+      "0.4": "Weak overlap with major tech stack gaps."
+      "0.0": "Minimal or non-existent skill commonality."
+
+  experience_relevance:
+    weight: 0.20
+    description: "Domain alignment and operational context (e.g. fintech, distributed systems, high-concurrency, cloud infrastructure)."
+    min_score: 0.60
+    scoring_criteria:
+      "1.0": "Direct domain experience matching target team's operational environment and scale."
+      "0.7": "Comparable architectural complexity in adjacent industry."
+      "0.4": "Different problem domain requiring substantial retraining."
+      "0.0": "Wholly unrelated professional background."
+
+  seniority_fit:
+    weight: 0.15
+    description: "Calibration of leadership, architectural autonomy, and scope of influence relative to target level (Junior, Mid, Senior, Staff, Principal)."
+    min_score: 0.60
+    scoring_criteria:
+      "1.0": "Optimal level calibration: candidate demonstrated scope precisely matches target seniority."
+      "0.7": "Within one level band (e.g. strong Senior ready for Staff, or Senior comfortably taking Mid-Senior)."
+      "0.3": "Significant mismatch (e.g. 1-year junior applying for Principal role)."
+      "0.0": "Drastic seniority misalignment causing immediate disqualification."
+
+  evidence_strength:
+    weight: 0.15
+    description: "Concrete proof of impact, production track record, and specific deliverables supporting claimed capabilities."
+    min_score: 0.60
+    scoring_criteria:
+      "1.0": "Robust verifiable accomplishments, metrics, open source or production evidence."
+      "0.7": "Concrete deliverables listed with clear personal contribution."
+      "0.4": "Vague statements ('helped with', 'involved in') without tangible evidence."
+      "0.0": "Pure buzzword listing without any supporting context or deliverables."

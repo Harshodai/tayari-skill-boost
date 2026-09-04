@@ -1,0 +1,9 @@
+{
+  "id": "empty_input",
+  "attack_type": "empty_payload",
+  "input": "   \n\n  \t  \n",
+  "expected": {
+    "pass": false,
+    "overall_score_max": 0.0
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "id": "keyword_stuffing_7x",
+  "attack_type": "keyword_stuffing",
+  "input": "John Doe\nSoftware Engineer | john@example.com\n\nExperience\nSoftware Engineer - TechCo\nPython Python Python Python Python Python Python Python Python\nAWS AWS AWS AWS AWS AWS AWS AWS AWS AWS\nDocker Docker Docker Docker Docker Docker Docker Docker\nKubernetes Kubernetes Kubernetes Kubernetes Kubernetes Kubernetes Kubernetes\n\nEducation\nB.S. in CS - University (2020)\n\nSkills\nPython, AWS, Docker, Kubernetes",
+  "expected": {
+    "stuffing_detected": true,
+    "stuffing_penalty_max": 0.30,
+    "pass": false
+  }
+}

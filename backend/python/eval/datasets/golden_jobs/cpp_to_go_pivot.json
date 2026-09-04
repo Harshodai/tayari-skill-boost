@@ -1,0 +1,25 @@
+{
+  "id": "cpp_to_go_pivot",
+  "title": "Senior Backend Infrastructure Engineer (Go)",
+  "company": "ScaleMesh",
+  "candidate_profile": {
+    "title": "Senior Systems Engineer",
+    "years_experience": 7,
+    "skills": ["C++", "Systems Programming", "Linux", "Multi-threading", "Networking", "Socket Programming", "Docker"],
+    "domain": "Systems Infrastructure"
+  },
+  "candidate_skills": ["C++", "Systems Programming", "Linux", "Multi-threading", "Networking"],
+  "target_job_skills": ["Go", "Microservices", "Backend", "Linux", "Networking", "Distributed Systems"],
+  "job_requirements": {
+    "min_years_experience": 5,
+    "required_skills": ["Linux", "Networking"],
+    "seniority": "Senior"
+  },
+  "hard_constraint_met": true,
+  "expected": {
+    "skill_alignment_min": 0.65,
+    "seniority_fit_min": 0.70,
+    "hard_constraint_met": true,
+    "pass": true
+  }
+}

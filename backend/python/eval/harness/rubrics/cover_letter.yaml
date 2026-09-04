@@ -1,0 +1,46 @@
+name: cover_letter
+description: "Evaluation rubric for generated cover letters assessing professional tone, concrete evidence specificity, personalization to target company, and appropriate length."
+version: "1.0.0"
+pass_threshold: 0.70
+
+dimensions:
+  tone:
+    weight: 0.25
+    description: "Professional, enthusiastic, authentic tone. Avoids sycophancy, excessive formality, arrogance, or robotic LLM boilerplate."
+    min_score: 0.70
+    scoring_criteria:
+      "1.0": "Authentic, engaging, confident voice conveying clear value proposition."
+      "0.7": "Professional and polite with standard phrasing."
+      "0.4": "Stiff, overly generic, or subtly sycophantic/robotic."
+      "0.0": "Inappropriate tone, aggressive, or obvious LLM hallucinatory tropes."
+
+  evidence_specificity:
+    weight: 0.30
+    description: "Grounded reference to specific candidate achievements, quantifiable metrics, and relevant technical projects."
+    min_score: 0.65
+    scoring_criteria:
+      "1.0": "Highlights 2-3 specific, quantified accomplishments from candidate resume directly relevant to role."
+      "0.7": "Mentions specific projects or achievements with moderate detail."
+      "0.4": "Vague references without quantitative proof or specific technologies."
+      "0.0": "No evidence provided; purely generic statements of interest."
+
+  personalization:
+    weight: 0.25
+    description: "Genuine tailoring to company mission, product challenges, engineering values, and specific role needs."
+    min_score: 0.60
+    scoring_criteria:
+      "1.0": "Demonstrates clear understanding of company product, recent initiatives, and engineering domain."
+      "0.7": "Tailored to role and company name with reasonable context."
+      "0.4": "Template letter where company name could be swapped with zero other changes."
+      "0.0": "Wholly generic boilerplate with no company or role-specific details."
+
+  length:
+    weight: 0.20
+    description: "Optimal conciseness for recruiter readability (250-450 words, 3-4 tight paragraphs)."
+    min_score: 0.70
+    scoring_criteria:
+      "1.0": "Concise, high-signal length (250-449 words) with clean paragraph breaks."
+      "0.7": "Acceptable length (200-249 or 450-549 words)."
+      "0.3": "Overly verbose (550-599 or 600-799 words) or too terse (80-149 or 150-199 words)."
+      "0.0": "Extremely deficient (below 80 words) or rambling essay (800+ words)."
+

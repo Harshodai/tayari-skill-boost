@@ -1,0 +1,24 @@
+{
+  "id": "go_to_cpp_kernel_hard_barrier",
+  "title": "Low Latency C++ Kernel Engineer",
+  "company": "Apex Trading Systems",
+  "candidate_profile": {
+    "title": "Backend Web Developer",
+    "years_experience": 3,
+    "skills": ["Go", "REST APIs", "Microservices", "Docker", "PostgreSQL"],
+    "domain": "Web Services"
+  },
+  "candidate_skills": ["Go", "REST APIs", "Microservices", "Docker"],
+  "target_job_skills": ["C++", "Low-level", "Kernel", "Linux Internals", "eBPF", "Assembly", "FPGA"],
+  "job_requirements": {
+    "min_years_experience": 5,
+    "required_skills": ["C++", "Kernel", "Linux Internals"],
+    "seniority": "Senior"
+  },
+  "hard_constraint_met": false,
+  "expected": {
+    "skill_alignment_min": 0.0,
+    "hard_constraint_met": false,
+    "pass": false
+  }
+}

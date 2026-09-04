@@ -1,0 +1,16 @@
+{
+  "id": "priya_sharma_data_eng",
+  "candidate_name": "Priya Sharma",
+  "target_role": "Staff Data Platform Engineer",
+  "original_text": "Priya Sharma\nData Engineer | priya.sharma@example.com | (555) 345-6789\n\nExperience\nSenior Data Engineer - StreamPulse (2020 - Present)\n- Built streaming analytics pipeline with Apache Spark and Kafka processing 5TB daily log data.\n- Migrated data warehouse from on-premise PostgreSQL to Snowflake, reducing query costs by 30%.\n- Designed dbt data models used by 40 internal business analysts.\n\nData Engineer - ByteWave (2017 - 2020)\n- Maintained ETL pipelines using Apache Airflow and AWS Redshift.\n\nEducation\nB.Tech in Information Technology - NIT Trichy (2017)\n\nSkills\nPython, SQL, Apache Spark, Apache Kafka, Snowflake, dbt, Airflow, AWS",
+  "optimized_text": "Priya Sharma\nStaff Data Platform Engineer | priya.sharma@example.com | (555) 345-6789\n\nProfessional Summary\nArchitectural Data Platform Engineer specializing in high-throughput real-time pipelines using Apache Spark, Kafka, and cloud Snowflake ecosystems.\n\nExperience\nSenior Data Engineer - StreamPulse (2020 - Present)\n• Constructed enterprise streaming telemetry pipelines leveraging Apache Spark Structured Streaming and Kafka handling 5TB daily volume.\n• Orchestrated warehouse migration from legacy PostgreSQL to Snowflake, reducing analytical compute costs by 30%.\n• Developed governed dbt semantic models enabling self-serve reporting for 40 business stakeholders.\n\nData Engineer - ByteWave (2017 - 2020)\n• Administered mission-critical batch ETL workflows utilizing Apache Airflow and AWS Redshift.\n\nEducation\nB.Tech in Information Technology - NIT Trichy (2017)\n\nSkills\nPython, SQL, Apache Spark, Apache Kafka, Snowflake, dbt, Airflow, AWS, Data Architecture",
+
+  "target_jd": "Looking for a Staff Data Platform Engineer to design petabyte-scale Kafka and Spark streaming systems integrated with Snowflake and dbt.",
+  "expected": {
+    "fact_preservation_min": 0.85,
+    "unsupported_claims_pass": true,
+    "has_invented_metrics": false,
+    "ats_score_min": 75,
+    "pass": true
+  }
+}

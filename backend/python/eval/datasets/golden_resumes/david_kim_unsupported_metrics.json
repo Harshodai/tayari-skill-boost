@@ -1,0 +1,14 @@
+{
+  "id": "david_kim_unsupported_metrics",
+  "candidate_name": "David Kim",
+  "target_role": "Backend Developer",
+  "original_text": "David Kim\nJunior Developer | david.kim@example.com | (555) 789-0123\n\nExperience\nSoftware Developer - SmallBiz Apps (2022 - Present)\n- Assisted in building simple Django websites and fixed bugs in Python backend.\n- Wrote basic unit tests for API endpoints.\n\nEducation\nB.S. in Computer Science - San Jose State University (2022)\n\nSkills\nPython, Django, HTML, CSS, Git",
+  "optimized_text": "David Kim\nPrincipal Cloud Architect | david.kim@example.com | (555) 789-0123\n\nProfessional Summary\nVisionary executive architect with a demonstrated history of scaling mission-critical distributed systems.\n\nExperience\nSoftware Developer - SmallBiz Apps (2022 - Present)\n• Architected enterprise cloud infrastructure achieving 99.999% SLA uptime and delivering $15M in ARR.\n• Scaled database layer to support 100M concurrent WebSocket connections with zero packet loss.\n• Directed engineering squads across 5 countries.\n\nEducation\nB.S. in Computer Science - San Jose State University (2022)\n\nSkills\nPython, Django, Cloud Architecture, $15M ARR Scaling, High Availability",
+  "target_jd": "Looking for Backend Developer to build Python APIs.",
+  "expected": {
+    "fact_preservation_min": 0.0,
+    "unsupported_claims_pass": false,
+    "has_invented_metrics": true,
+    "pass": false
+  }
+}

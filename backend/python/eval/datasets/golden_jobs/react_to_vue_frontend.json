@@ -1,0 +1,25 @@
+{
+  "id": "react_to_vue_frontend",
+  "title": "Senior Web Application Developer (Vue)",
+  "company": "CreativeCloud",
+  "candidate_profile": {
+    "title": "Senior Frontend Engineer",
+    "years_experience": 5,
+    "skills": ["React", "TypeScript", "JavaScript", "HTML5", "CSS3", "Tailwind CSS", "Jest", "Vite"],
+    "domain": "Web Applications"
+  },
+  "candidate_skills": ["React", "TypeScript", "JavaScript", "Tailwind CSS", "Vite"],
+  "target_job_skills": ["Vue", "TypeScript", "JavaScript", "CSS", "Frontend Architecture"],
+  "job_requirements": {
+    "min_years_experience": 4,
+    "required_skills": ["JavaScript", "TypeScript"],
+    "seniority": "Senior"
+  },
+  "hard_constraint_met": true,
+  "expected": {
+    "skill_alignment_min": 0.70,
+    "seniority_fit_min": 0.70,
+    "hard_constraint_met": true,
+    "pass": true
+  }
+}

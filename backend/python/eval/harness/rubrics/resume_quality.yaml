@@ -1,0 +1,56 @@
+name: resume_quality
+description: "Evaluation rubric for optimized resumes assessing factual grounding, ATS compatibility, keyword relevance, and lack of keyword stuffing or hallucinated claims."
+version: "1.0.0"
+pass_threshold: 0.70
+
+dimensions:
+  fact_preservation:
+    weight: 0.25
+    description: "Verification that all past roles, employers, degrees, dates, and baseline responsibilities are preserved from the original candidate source."
+    min_score: 0.70
+    scoring_criteria:
+      "1.0": "All factual claims, employers, dates, and credentials directly preserved from source without alteration."
+      "0.7": "Core facts and timeline preserved; minor rephrasings with no contradictory claims."
+      "0.4": "Multiple timeline shifts or ungrounded credentials added."
+      "0.0": "Fabricated employers, degrees, or altered employment history."
+
+  keyword_relevance:
+    weight: 0.20
+    description: "Contextual incorporation of critical technologies, frameworks, and job-specific terminology from the target job posting."
+    min_score: 0.60
+    scoring_criteria:
+      "1.0": "High-density integration of core technical and domain keywords with authentic contextual usage in bullets."
+      "0.7": "Covers essential required technologies with good semantic placement."
+      "0.4": "Superficial keyword coverage or missing core tech stack elements."
+      "0.0": "Irrelevant keywords or complete failure to align with target job description."
+
+  unsupported_claims:
+    weight: 0.25
+    description: "Strict penalty for invented numerical metrics, unverified ARR/revenue impacts, or exaggerated uptime figures not present in source."
+    min_score: 0.70
+    is_hard_constraint: true
+    scoring_criteria:
+      "1.0": "Zero unsupported metrics or ungrounded numerical claims introduced."
+      "0.7": "Rephrased existing scope metrics without inflating numerical orders of magnitude."
+      "0.4": "Introduced 1 unverified metric or unverifiable claim."
+      "0.0": "Systematic invention of false metrics (e.g. 99.999% SLA, $10M+ ARR, 500% scale)."
+
+  ats_compatibility:
+    weight: 0.15
+    description: "Compliance with parsing constraints: standard section headers, clean bullet hierarchy, parseable contact info, no tables or multi-column layout artifacts."
+    min_score: 0.60
+    scoring_criteria:
+      "1.0": "Standard single-column flow, clear headings (Experience, Education, Skills), parseable bullets, 250-1200 words."
+      "0.7": "Minor formatting quirks but fully parseable by automated ATS systems."
+      "0.4": "Missing standard headings or ambiguous bullet structure."
+      "0.0": "Non-parseable text, heavy tabular/column artifacts, or invalid length."
+
+  stuffing_penalty:
+    weight: 0.15
+    description: "Penalty for repetitive keyword stuffing (e.g. 5x+ repeated buzzwords, hidden tags, or unnatural robotic keyword lists)."
+    min_score: 0.70
+    scoring_criteria:
+      "1.0": "Natural syntax, conversational professional flow, zero repetitive keyword spamming."
+      "0.7": "Slightly high frequency of target buzzwords but grammatically sound."
+      "0.3": "Noticeable robotic repetition of identical buzzwords (e.g. 4-5 times in close succession)."
+      "0.0": "Blatant keyword stuffing (e.g. 7+ identical buzzwords, comma-separated spam blocks)."
