@@ -75,13 +75,14 @@ def test_resumes_analyze_text_returns_503_without_llm_key():
     )
 
 
-def test_resumes_generate_pdf_returns_503_without_llm_key():
+def test_resumes_generate_pdf_returns_503_without_llm_key(internal_auth_headers):
     """/api/v1/resumes/generate-pdf must return 503 when LLM is not configured."""
     resp = client.post("/api/v1/resumes/generate-pdf",
                        json={"resume_text": "Senior Engineer with 5 years Python experience",
                              "analysis": {"overall_score": 80, "summary": "good"},
                              "profile_data": {},
-                             "applied_suggestions": []})
+                             "applied_suggestions": []},
+                       headers=internal_auth_headers)
     assert resp.status_code == 503, (
         f"Expected 503 when LLM not configured, got {resp.status_code}: {resp.text}"
     )

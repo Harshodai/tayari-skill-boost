@@ -3886,3 +3886,18 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 - API endpoints must strictly decouple server-side diagnostics from client-facing error payloads: log everything, reveal nothing beyond generic category descriptions.
 - Export endpoints must honestly communicate completeness: if any core user section or privacy audit log fails to load (`archive["unavailable_sections"]`), report "partial" rather than claiming success.
 - PII and metric regexes must account for non-word boundary characteristics of symbols (`$`, `%`), use strict word boundaries `\b` for keyword context (preventing false matches like "tel" in "hotel"), and support full executive titles like `vice[- ]?president`.
+
+## 2026-09-04 — Test Fixture Auth Alignment for Secured PDF Generation
+
+**What:**
+1. Updated `test_resumes_generate_pdf_returns_503_without_llm_key` in `backend/python/app/tests/test_llm_mock_fallback.py` to accept the `internal_auth_headers` fixture and provide authenticated gateway headers (`X-Internal-Token`, `X-User-Id`).
+
+**Root cause:**
+- When `/api/v1/resumes/generate-pdf` was hardened behind `Depends(get_current_user)` authentication, the negative fallback test in `test_llm_mock_fallback.py` was not updated with auth headers. As a result, unauthenticated requests were rejected with HTTP 401 at the auth gate before ever reaching the LLM configuration check, causing the test's `assert resp.status_code == 503` to fail.
+
+**Fix:**
+- Added `internal_auth_headers` to the test function parameters and passed `headers=internal_auth_headers` in the `client.post(...)` call, matching the pattern in `test_optimizer_optimize_returns_503_without_llm_key` and `test_cover_letter_generate_returns_503_without_llm_key`.
+- Full Python test suite verified: **1,282 passed, 4 skipped, 0 failed**.
+
+**Lesson:**
+- When applying security auth gates across previously unauthenticated or modularized routes, audit all negative test suites (especially fallback, validation, and rate-limiting tests). Negative tests testing downstream behavior (such as 503 LLM service unavailability) will fail early with 401 unless supplied with valid credentials or test gateway fixtures.
