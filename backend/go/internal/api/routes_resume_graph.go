@@ -93,6 +93,9 @@ func (s *Server) proxyAIError(w http.ResponseWriter, err error) {
 	if err == nil {
 		return
 	}
+	if s.respondAICircuitOpen(w, err) {
+		return
+	}
 	if status, ok := extractAIStatus(err); ok {
 		s.respondError(w, status, "Upstream AI service error")
 		return

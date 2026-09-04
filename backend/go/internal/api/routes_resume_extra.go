@@ -73,7 +73,7 @@ func (s *Server) handleAnalyzeText(w http.ResponseWriter, r *http.Request) {
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/resumes/analyze-text", req, s.getXUserHeaders(r))
 	if err != nil || result == nil {
 		log.Printf("handleAnalyzeText: AI call failed: %v", err)
-		s.respondError(w, http.StatusBadGateway, "ai_service_unavailable")
+		s.respondAIGatewayError(w, err, "ai_service_unavailable")
 		return
 	}
 	s.respondJSON(w, http.StatusOK, result)
@@ -200,7 +200,7 @@ func (s *Server) handleAnalyzeResume(w http.ResponseWriter, r *http.Request) {
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/resumes/analyze-text", aiReq, s.getXUserHeaders(r))
 	if err != nil || result == nil {
 		log.Printf("handleAnalyzeResume: AI call failed: %v", err)
-		s.respondError(w, http.StatusBadGateway, "ai_service_unavailable")
+		s.respondAIGatewayError(w, err, "ai_service_unavailable")
 		return
 	}
 	s.respondJSON(w, http.StatusOK, result)

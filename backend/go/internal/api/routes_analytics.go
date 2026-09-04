@@ -2,16 +2,20 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
 
+	"tayari-backend/internal/ai"
 	"tayari-backend/internal/models"
 
 	"github.com/go-chi/chi/v5"
 )
 
-// routesAnalytics wires the predictive funnel analytics routes.
+// routesAnalytics wires the predictive funnel analytics and outcome learning loop routes.
 func (s *Server) routesAnalytics(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(s.authMiddleware)
@@ -20,6 +24,14 @@ func (s *Server) routesAnalytics(r chi.Router) {
 		r.Get("/api/v1/resumes/{id}/variants", s.handleListResumeVariants)
 		r.Get("/api/v1/analytics/funnel", s.handleGetFunnel)
 		r.Get("/api/v1/analytics/bandit-stats", s.handleGetBanditStats)
+
+		// WP-09 Outcome Learning Loop routes (both versioned and unversioned for route parity)
+		r.Post("/api/v1/outcomes", s.handlePostOutcomeEvent)
+		r.Post("/api/outcomes", s.handlePostOutcomeEvent)
+		r.Get("/api/v1/outcomes", s.handleListOutcomeEvents)
+		r.Get("/api/outcomes", s.handleListOutcomeEvents)
+		r.Get("/api/v1/outcomes/analytics", s.handleGetOutcomeAnalytics)
+		r.Get("/api/outcomes/analytics", s.handleGetOutcomeAnalytics)
 	})
 }
 
@@ -313,4 +325,65 @@ func (s *Server) incrementBanditConversion(ctx context.Context, variantID int) {
 	if err != nil {
 		log.Printf("incrementBanditConversion failed: %v", err)
 	}
+}
+
+// handlePostOutcomeEvent proxies outcome event creation to Python with user headers.
+func (s *Server) handlePostOutcomeEvent(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		s.respondError(w, http.StatusBadRequest, "Failed to read request body")
+		return
+	}
+	headers := s.getXUserHeaders(r)
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/outcomes", json.RawMessage(body), headers)
+	if err != nil {
+		log.Printf("handlePostOutcomeEvent: AI call failed: %v", err)
+		var apiErr *ai.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+			s.respondError(w, apiErr.StatusCode, apiErr.Body)
+			return
+		}
+		s.respondError(w, http.StatusBadGateway, "Outcome service unavailable")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+// handleListOutcomeEvents proxies listing outcome events for authenticated user.
+func (s *Server) handleListOutcomeEvents(w http.ResponseWriter, r *http.Request) {
+	limit := r.URL.Query().Get("limit")
+	endpoint := "/api/v1/outcomes"
+	if limit != "" {
+		endpoint += "?limit=" + limit
+	}
+	headers := s.getXUserHeaders(r)
+	result, err := s.AI.GetJSONWithHeaders(endpoint, headers)
+	if err != nil {
+		log.Printf("handleListOutcomeEvents: AI call failed: %v", err)
+		var apiErr *ai.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+			s.respondError(w, apiErr.StatusCode, apiErr.Body)
+			return
+		}
+		s.respondError(w, http.StatusBadGateway, "Outcome service unavailable")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+// handleGetOutcomeAnalytics proxies outcome analytics calculation to Python.
+func (s *Server) handleGetOutcomeAnalytics(w http.ResponseWriter, r *http.Request) {
+	headers := s.getXUserHeaders(r)
+	result, err := s.AI.GetJSONWithHeaders("/api/v1/outcomes/analytics", headers)
+	if err != nil {
+		log.Printf("handleGetOutcomeAnalytics: AI call failed: %v", err)
+		var apiErr *ai.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+			s.respondError(w, apiErr.StatusCode, apiErr.Body)
+			return
+		}
+		s.respondError(w, http.StatusBadGateway, "Outcome analytics service unavailable")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
 }

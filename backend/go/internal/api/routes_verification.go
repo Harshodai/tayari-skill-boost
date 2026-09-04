@@ -144,6 +144,9 @@ func (s *Server) handleVerificationSubmit(w http.ResponseWriter, r *http.Request
 	}, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleVerificationSubmit: AI scoring failed: %v", err)
+		if s.respondAICircuitOpen(w, err) {
+			return
+		}
 		if status, ok := extractAIStatus(err); ok {
 			code := extractAIErrorCode(err)
 			if code == "" {

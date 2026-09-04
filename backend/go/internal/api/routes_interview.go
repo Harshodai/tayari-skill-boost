@@ -19,7 +19,7 @@ func (s *Server) handleInterviewCopilotHint(w http.ResponseWriter, r *http.Reque
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/interview/copilot-hint", body, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleInterviewCopilotHint: AI call failed: %v", err)
-		s.respondError(w, http.StatusBadGateway, "Live interview copilot failed")
+		s.respondAIGatewayError(w, err, "Live interview copilot failed")
 		return
 	}
 	s.respondJSON(w, http.StatusOK, result)
@@ -37,7 +37,7 @@ func (s *Server) handleInterviewVoiceFeedback(w http.ResponseWriter, r *http.Req
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/interview/voice-feedback", body, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleInterviewVoiceFeedback: AI call failed: %v", err)
-		s.respondError(w, http.StatusBadGateway, "Voice analysis failed")
+		s.respondAIGatewayError(w, err, "Voice analysis failed")
 		return
 	}
 	s.respondJSON(w, http.StatusOK, result)
@@ -56,6 +56,9 @@ func (s *Server) handleInterviewCopilotStream(w http.ResponseWriter, r *http.Req
 	upstream, err := s.AI.PostStream(r.Context(), "/api/v1/interview/copilot/stream", body, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleInterviewCopilotStream: upstream failed: %v", err)
+		if s.respondAICircuitOpen(w, err) {
+			return
+		}
 		if status, ok := extractAIStatus(err); ok {
 			s.respondError(w, status, "Upstream AI service error")
 			return
@@ -89,4 +92,19 @@ func (s *Server) handleInterviewCopilotStream(w http.ResponseWriter, r *http.Req
 			return
 		}
 	}
+}
+
+// handleInterviewEvaluateSTAR proxies adaptive STAR analysis and follow-up generation.
+func (s *Server) handleInterviewEvaluateSTAR(w http.ResponseWriter, r *http.Request) {
+	var body map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		body = make(map[string]interface{})
+	}
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/interview/evaluate-star", body, s.getXUserHeaders(r))
+	if err != nil {
+		log.Printf("handleInterviewEvaluateSTAR: AI call failed: %v", err)
+		s.respondAIGatewayError(w, err, "Adaptive interview evaluation failed")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
 }

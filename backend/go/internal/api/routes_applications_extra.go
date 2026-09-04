@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -17,6 +20,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"tayari-backend/internal/ai"
 	"tayari-backend/internal/models"
 )
 
@@ -68,6 +72,12 @@ func (s *Server) routesApplicationsExtra(r chi.Router) {
 		// collide with routesApplications (which has no PATCH route).
 		r.Patch("/api/applications/{id}/stage", s.handleUpdateApplicationStage)
 		r.Patch("/api/v1/applications/{id}/stage", s.handleUpdateApplicationStage)
+
+		// Canonical Application State Machine (WP-03)
+		r.Get("/api/v1/application-runs/{id}", s.handleGetApplicationRun)
+		r.Get("/api/application-runs/{id}", s.handleGetApplicationRun)
+		r.Post("/api/v1/application-runs/{id}/transition", s.handleTransitionApplicationRun)
+		r.Post("/api/application-runs/{id}/transition", s.handleTransitionApplicationRun)
 	})
 }
 
@@ -737,3 +747,79 @@ func nullStr(m map[string]interface{}, key string) *string {
 	str := fmt.Sprintf("%v", v)
 	return &str
 }
+
+// -------------------------------------------------------------------
+// Canonical Application State Machine Handlers (WP-03)
+// -------------------------------------------------------------------
+
+func (s *Server) handleGetApplicationRun(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		s.respondError(w, http.StatusBadRequest, "Run ID is required")
+		return
+	}
+	if _, err := uuid.Parse(id); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid run ID format")
+		return
+	}
+	if s.AI == nil {
+		s.respondError(w, http.StatusBadGateway, "AI service unavailable")
+		return
+	}
+	endpoint := fmt.Sprintf("/api/v1/application-runs/%s", url.PathEscape(id))
+	result, err := s.AI.GetJSONWithHeaders(endpoint, s.getXUserHeaders(r))
+	if err != nil {
+		var apiErr *ai.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+			s.respondError(w, apiErr.StatusCode, apiErr.Body)
+			return
+		}
+		s.respondError(w, http.StatusBadGateway, "AI service unavailable")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleTransitionApplicationRun(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		s.respondError(w, http.StatusBadRequest, "Run ID is required")
+		return
+	}
+	if _, err := uuid.Parse(id); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid run ID format")
+		return
+	}
+	if s.AI == nil {
+		s.respondError(w, http.StatusBadGateway, "AI service unavailable")
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 256*1024))
+	if err != nil {
+		s.respondError(w, http.StatusBadRequest, "Failed to read request body")
+		return
+	}
+	endpoint := fmt.Sprintf("/api/v1/application-runs/%s/transition", url.PathEscape(id))
+	result, err := s.AI.PostJSONWithHeaders(endpoint, json.RawMessage(body), s.getXUserHeaders(r))
+	if err != nil {
+		var apiErr *ai.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+			s.respondError(w, apiErr.StatusCode, apiErr.Body)
+			return
+		}
+		s.respondError(w, http.StatusBadGateway, "AI service unavailable")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+

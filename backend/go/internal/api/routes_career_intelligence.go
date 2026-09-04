@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
@@ -24,12 +25,20 @@ func (s *Server) routesCareerIntelligence(r chi.Router) {
 		r.Post("/api/v1/career-intelligence/learning-path", s.handleGetLearningPath)
 		r.Post("/api/v1/career-intelligence/salary-benchmark", s.handleGetSalaryBenchmark)
 		r.Get("/api/v1/career-intelligence/trending-skills", s.handleGetTrendingSkills)
+		r.Get("/api/v1/career/next-actions", s.handleCareerNextActions)
+		r.Get("/api/v1/career-intelligence/next-actions", s.handleCareerNextActions)
+		r.Post("/api/v1/career/scenario-plan", s.handleCareerScenarioPlan)
+		r.Post("/api/v1/jobs/fit-matrix", s.handleJobFitMatrix)
 
 		// aliases
 		r.Post("/api/career-intelligence/skills-gap", s.handleGetSkillsGap)
 		r.Post("/api/career-intelligence/learning-path", s.handleGetLearningPath)
 		r.Post("/api/career-intelligence/salary-benchmark", s.handleGetSalaryBenchmark)
 		r.Get("/api/career-intelligence/trending-skills", s.handleGetTrendingSkills)
+		r.Get("/api/career/next-actions", s.handleCareerNextActions)
+		r.Get("/api/career-intelligence/next-actions", s.handleCareerNextActions)
+		r.Post("/api/career/scenario-plan", s.handleCareerScenarioPlan)
+		r.Post("/api/jobs/fit-matrix", s.handleJobFitMatrix)
 	})
 }
 
@@ -328,3 +337,64 @@ func (s *Server) handleGetTrendingSkills(w http.ResponseWriter, r *http.Request)
 	}
 	s.respondJSON(w, http.StatusOK, result)
 }
+
+func (s *Server) handleCareerNextActions(w http.ResponseWriter, r *http.Request) {
+	user, _ := r.Context().Value(contextKeyUser).(*models.User)
+	if user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	headers := s.getXUserHeaders(r)
+	if s.AI == nil {
+		s.respondJSON(w, http.StatusOK, map[string]interface{}{"actions": []interface{}{}})
+		return
+	}
+
+	result, err := s.AI.GetJSONWithHeaders("/api/v1/career/next-actions", headers)
+	if err != nil {
+		log.Printf("handleCareerNextActions: AI call failed: %v", err)
+		s.respondError(w, http.StatusBadGateway, "Failed to fetch career next actions")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleCareerScenarioPlan(w http.ResponseWriter, r *http.Request) {
+	var body map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if s.AI == nil {
+		s.respondError(w, http.StatusBadGateway, "AI service unavailable")
+		return
+	}
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/career/scenario-plan", body, s.getXUserHeaders(r))
+	if err != nil {
+		log.Printf("handleCareerScenarioPlan: AI call failed: %v", err)
+		s.respondError(w, http.StatusBadGateway, "Failed to generate scenario plan")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleJobFitMatrix(w http.ResponseWriter, r *http.Request) {
+	var body map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if s.AI == nil {
+		s.respondError(w, http.StatusBadGateway, "AI service unavailable")
+		return
+	}
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/jobs/fit-matrix", body, s.getXUserHeaders(r))
+	if err != nil {
+		log.Printf("handleJobFitMatrix: AI call failed: %v", err)
+		s.respondError(w, http.StatusBadGateway, "Failed to calculate job fit matrix")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+

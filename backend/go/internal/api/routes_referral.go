@@ -55,7 +55,7 @@ func (s *Server) handleReferralDraft(w http.ResponseWriter, r *http.Request) {
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/referral/draft", req, s.getXUserHeaders(r))
 	if err != nil {
 		log.Printf("handleReferralDraft: draft failed: %v", err)
-		s.respondError(w, http.StatusBadGateway, "Failed to generate referral draft")
+		s.respondAIGatewayError(w, err, "Failed to generate referral draft")
 		return
 	}
 	s.respondJSON(w, http.StatusOK, result)

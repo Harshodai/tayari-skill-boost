@@ -41,6 +41,7 @@ type Server struct {
 	authRateLimiter   *rateLimiter
 	loginRateLimiter  *rateLimiter
 	voiceRateLimiter  *rateLimiter
+	aiPerUserLimiter  *perUserAILimiter
 	metrics           *observability.Metrics
 	capabilities      *capabilities.Registry
 }
@@ -60,6 +61,9 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		// Voice streams are expensive and long-lived: allow at most two initial
 		// connections per user, refilling at one connection every five seconds.
 		voiceRateLimiter: newRateLimiter(rate.Limit(0.2), 2, true),
+		// ponytail: per-user AI limiter is additive — the shared
+		// auth/public/login/voice limiters above are untouched.
+		aiPerUserLimiter: newPerUserAILimiter(),
 		metrics:          observability.NewMetrics(),
 
 		capabilities: capabilities.NewFromEnv(),

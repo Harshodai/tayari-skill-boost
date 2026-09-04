@@ -44,6 +44,8 @@ func (s *Server) routesGmail(r chi.Router) {
 		r.Post("/api/v1/gmail/sync", s.handleGmailSync)
 		r.Post("/api/gmail/disconnect", s.handleGmailDisconnect)
 		r.Post("/api/v1/gmail/disconnect", s.handleGmailDisconnect)
+		r.Delete("/api/gmail/disconnect", s.handleGmailDisconnect)
+		r.Delete("/api/v1/gmail/disconnect", s.handleGmailDisconnect)
 	})
 }
 
@@ -381,9 +383,50 @@ func (s *Server) handleGmailDisconnect(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusForbidden, "Verified tenant context required")
 		return
 	}
+
+	// 1. Fetch current token to revoke it with Google
+	var accessToken, refreshToken string
+	_ = s.DB.Conn.QueryRowContext(r.Context(),
+		`SELECT access_token, refresh_token FROM gmail_tokens WHERE user_id=$1 AND tenant_id=$2`,
+		user.ID, tenantID).Scan(&accessToken, &refreshToken)
+
+	if tok := refreshToken; tok != "" {
+		revokeToken(tok)
+	} else if tok := accessToken; tok != "" {
+		revokeToken(tok)
+	}
+
+	// 2. Delete stored tokens
 	_, _ = s.DB.Conn.ExecContext(r.Context(),
 		`DELETE FROM gmail_tokens WHERE user_id=$1 AND tenant_id=$2`, user.ID, tenantID)
-	s.respondJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
+
+	// 3. Purge cached email applications imported from Gmail
+	_, _ = s.DB.Conn.ExecContext(r.Context(),
+		`DELETE FROM applications WHERE user_id=$1 AND notes LIKE '%provenance=google_gmail_readonly%'`, user.ID)
+
+	// 4. Notify Python AI layer to purge cached metadata
+	if s.AI != nil {
+		_, _ = s.AI.DeleteJSONWithHeaders("/api/v1/gmail/disconnect", s.getXUserHeaders(r))
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"ok":      true,
+		"revoked": true,
+		"purged":  true,
+		"message": "Gmail tokens revoked and cached email metadata purged",
+	})
+}
+
+func revokeToken(token string) {
+	if token == "" {
+		return
+	}
+	revokeURL := "https://oauth2.googleapis.com/revoke?token=" + url.QueryEscape(token)
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Post(revokeURL, "application/x-www-form-urlencoded", nil)
+	if err == nil && resp != nil {
+		_ = resp.Body.Close()
+	}
 }
 
 // -------------------------------------------------------------------
