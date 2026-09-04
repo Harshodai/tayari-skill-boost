@@ -3980,7 +3980,7 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 - Re-verified self-hosted migration contracts and confirmed clean git diffs.
 
 **Lesson:**
-- Subagents should have role-specific least-privilege tool permissions: explorers and reviewers must have `edit: deny` and `bash: deny`/`ask` to guarantee non-destructive execution, while simplifiers are restricted from executing arbitrary shell commands (`bash: deny`).
+- Subagents should have role-specific least-privilege tool permissions: explorers and code-reviewers must have `edit: deny` and `bash: deny` when a non-destructive guarantee is required (as `bash: ask` only reduces risk via human approval rather than guaranteeing non-destructive execution), while simplifiers are restricted from executing arbitrary shell commands (`bash: deny`).
 - Differentiate between transient specifications and active production documentation: completed specs and plans in `docs/superpowers/` should be retired once their features are fully verified in code and tests to keep documentation centered on canonical production sources in `docs/production/`.
 - Historical archives (`docs/archive/`) provide essential audit evidence for security and compliance reviews, but must undergo active credential scrubbing and relative-link verification to avoid leaking stale tokens or misleading operators on current deployment readiness.
 - Static credential strings in documentation or example commands must always use runtime variable expansions (`${AI_INTERNAL_TOKEN:-...}`) or disposable generators (`openssl rand -hex 32`) to prevent accidental credential leakage or re-use.
@@ -4013,7 +4013,7 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
      - `test_outreach_duplicate_30_day_window`: Asserts 409 Conflict on repeated outreach within 30 days.
      - `test_record_outreach_endpoint_validation`: Asserts fail-closed authentication on the outreach endpoint.
 5. **Ruthlessly Pruned 34 Completed / Obsolete Documents & Directories**:
-   - 20 root audit & completed plan files deleted (`JOB_TAYARI_10_10_PLAN.md`, `JOB_TAYARI_RUTHLESS_AUDIT_PLAN.md`, `JOB_TAYARI_RUTHLESS_AUDIT_2026.md`, `JOB_TAYARI_FINAL_PRODUCT_AUDIT.md`, `JOB_TAYARI_RELEASE_COMPLETION_REGISTER.md`, `WORKSTREAM_STATUS_2026-08-25.md`, `PROJECT_STATUS.md`, `SUPPORTING_CODE_QUALITY_AUDIT.md`, `REALISTIC_USER_FLOW_AUDIT.md`, `PRODUCT_STORYTELLING_VALIDATION.md`, `Disaster_Recovery.md`, `Production_Runbook.md`, `ruthless_2026_08_18_evidence_report.md`, `ruthless_2026_08_18_evidence_manifest.json`, `QUALITY_REPORT.html`, and `docs/ruthless_audit_2026_08_10/`).
+   - 20 root audit & completed plan files deleted (`JOB_TAYARI_10_10_PLAN.md`, `JOB_TAYARI_RUTHLESS_AUDIT_PLAN.md`, `JOB_TAYARI_RUTHLESS_AUDIT_2026.md`, `JOB_TAYARI_FINAL_PRODUCT_AUDIT.md`, `JOB_TAYARI_RELEASE_COMPLETION_REGISTER.md`, `WORKSTREAM_STATUS_2026-08-25.md`, `PROJECT_STATUS.md`, `SUPPORTING_CODE_QUALITY_AUDIT.md`, `REALISTIC_USER_FLOW_AUDIT.md`, `PRODUCT_STORYTELLING_VALIDATION.md`, `Disaster_Recovery.md`, `Production_Runbook.md`, `ruthless_2026_08_18_evidence_report.md`, `ruthless_2026_08_18_evidence_manifest.json`, `QUALITY_REPORT.html`, and the five files under `docs/ruthless_audit_2026_08_10/`: `01_answers_q1_q7.md`, `02_gap_matrix_and_moat.md`, `03_ten_of_ten_plan.md`, `04_agent_execution_manifest.md`, `05_deepseek_ruthless_manifest.md`).
    - 3 obsolete operations/compliance files deleted (`docs/operations/dead-code-audit.md`, `docs/operations/tayari-computer-validation-evidence.txt`, `docs/compliance/ai-provenance-implementation-status.md`).
    - 11 completed superpower spec files in `docs/superpowers/specs/` and the `docs/superpowers/` directory deleted.
    - Relocated `docs/Deployment_Architecture.md` to `infra/k8s/README.md` and repaired 6 cross-references across `docs/production/` and `docs/deployment-research/`.
@@ -4047,7 +4047,7 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 2. Standardized tenant-isolation risk severity in `docs/archive/PRODUCTION_ISSUES.md` under a consistent P1 release-blocker classification, removing conflicting P0 references while preserving CONDITIONAL BETA HOLD.
 3. Repaired `.opencode/agents/build-validator.md` to include canonical backend/python validation commands (`ruff check` and `pytest`).
 4. Repaired same-directory relative link to `SECRETS.md` in `infra/k8s/README.md`.
-5. Reconciled dated entries and retired `docs/superpowers/` references across `lessons.md`.
+5. Reconciled dated entries and stale `docs/superpowers/` references across `lessons.md`, while preserving intentional historical references to completed specifications.
 
 **Lesson:**
 - Race-prone state operations with business deduplication windows (e.g. 30-day outreach cooldown) must execute within an explicit database transaction and acquire a transaction-scoped advisory lock keyed by user ID before performing query checks.

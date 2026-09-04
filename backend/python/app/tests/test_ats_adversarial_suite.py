@@ -272,3 +272,23 @@ def test_record_outreach_deduplication_and_transaction_lock():
         assert fake_conn_ok.transaction_entered is True
         assert any("pg_advisory_xact_lock" in q for q, _ in fake_conn_ok.executed)
         assert any("INSERT INTO public.outreach_messages" in q for q, _ in fake_conn_ok.executed)
+
+
+def test_adversarial_shingle_detection_without_bullets_and_cpp_tokens(scorer):
+    """Verify shingle detection catches plagiarism even with zero bullets and preserves C++/C# suffixes."""
+    jd = "Company requires deep expertise in C++ and C# systems today."
+    # Resume with NO bullets, copying the 6-word passage
+    resume = "Candidate has deep expertise in C++ and C# systems today."
+
+    res = scorer._detect_keyword_stuffing(
+        resume_text=resume,
+        job_description=jd,
+        resume=None,
+    )
+    assert res["count"] >= 1
+    assert any(item["keyword"] == "verbatim JD copy-paste" for item in res["flagged_keywords"])
+    assert res["penalty_points"] > 0
+    flagged_item = next(item for item in res["flagged_keywords"] if item["keyword"] == "verbatim JD copy-paste")
+    # Verify C++ and C# are preserved in the excerpt
+    assert "c++" in flagged_item["example"]
+    assert "c#" in flagged_item["example"]

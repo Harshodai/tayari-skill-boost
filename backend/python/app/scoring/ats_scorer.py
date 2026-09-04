@@ -214,74 +214,17 @@ class ATSScorer:
         matched_keywords: Optional[List[str]] = None,
         missing_keywords: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """Detect keywords appearing >3 times across resume bullets that match JD verbatim."""
-        bullets = cls._extract_bullets(resume_text, resume)
-        if not bullets:
-            return {"count": 0, "penalty_points": 0.0, "flagged_keywords": []}
-
-        # Build candidate keyword set from verbatim JD text
-        jd_terms = set()
-        if job_description and job_description.strip():
-            # Extract 1-3 word potential terms from JD
-            for token in re.findall(r"[a-zA-Z][a-zA-Z0-9+#./\-]{1,}", job_description.lower()):
-                if token in TECH_SKILL_WHITELIST or (token not in STOPWORDS and len(token) > 2):
-                    jd_terms.add(token)
-            # Also extract bigrams verbatim from JD
-            words = [
-                w
-                for w in re.findall(r"[a-zA-Z][a-zA-Z0-9+#.\-]*", job_description.lower())
-                if w not in STOPWORDS and len(w) > 2
-            ]
-            for a, b in zip(words, words[1:]):
-                jd_terms.add(f"{a} {b}")
-
-        # Also add verified matched keywords from JD analysis if provided
-        if matched_keywords:
-            for kw in matched_keywords:
-                if kw and (not job_description or kw.lower() in job_description.lower()):
-                    jd_terms.add(kw.lower())
-
-        if not jd_terms:
-            return {"count": 0, "penalty_points": 0.0, "flagged_keywords": []}
-
+        """Detect keywords appearing >3 times across resume bullets that match JD verbatim, and flag copy-pasting."""
         raw_flagged = []
         total_penalty = 0.0
 
-        from collections import Counter
-        # Pre-lowercase and tokenize bullets once (O(bullets), not O(terms×bullets))
-        bullet_data = []
-        for orig_b in bullets:
-            low_b = orig_b.lower()
-            tokens = re.findall(r"[a-z0-9+#./\-]+", low_b)
-            pairs = [f"{a} {b}" for a, b in zip(tokens, tokens[1:])]
-            bullet_data.append((orig_b, Counter(tokens + pairs)))
-
-        for term in sorted(jd_terms):
-            term_count = 0
-            first_example = None
-
-            for orig_b, counts in bullet_data:
-                occurrences = counts[term]
-                if occurrences > 0:
-                    term_count += occurrences
-                    if first_example is None:
-                        first_example = orig_b
-
-            if term_count > 3:
-                # Penalty: 2 points per excess occurrence over 3, capped at 15 per keyword
-                excess = term_count - 3
-                kw_penalty = min(15.0, excess * 2.0)
-                raw_flagged.append({
-                    "keyword": term,
-                    "count": term_count,
-                    "example": first_example or "",
-                    "penalty": kw_penalty,
-                })
-
-        # Check verbatim copy-paste plagiarism (6-word shingles from JD copied verbatim)
+        # 1. Check verbatim copy-paste plagiarism (6-word shingles from JD copied verbatim)
+        # Runs even when resume has no extracted bullet points
         if job_description and job_description.strip() and resume_text and resume_text.strip():
-            jd_clean_words = re.findall(r"\b[a-zA-Z0-9+#.-]+\b", job_description.lower())
-            resume_clean_words = re.findall(r"\b[a-zA-Z0-9+#.-]+\b", resume_text.lower())
+            # Preserve technical suffixes like C++ and C# while maintaining word-boundary tokenization
+            token_pattern = r"\b[a-zA-Z0-9+#.-]+(?:\b|(?<=[+#]))"
+            jd_clean_words = re.findall(token_pattern, job_description.lower())
+            resume_clean_words = re.findall(token_pattern, resume_text.lower())
             if len(jd_clean_words) >= 6 and len(resume_clean_words) >= 6:
                 jd_shingles = {" ".join(jd_clean_words[i:i+6]) for i in range(len(jd_clean_words) - 5)}
                 flagged_shingles = set()
@@ -301,6 +244,63 @@ class ATSScorer:
                         "example": f"Verbatim excerpt: \"{first_shingle_example}\"",
                         "penalty": copy_penalty,
                     })
+
+        # 2. Bullet-based keyword stuffing check
+        bullets = cls._extract_bullets(resume_text, resume)
+        if bullets:
+            # Build candidate keyword set from verbatim JD text
+            jd_terms = set()
+            if job_description and job_description.strip():
+                # Extract 1-3 word potential terms from JD
+                for token in re.findall(r"[a-zA-Z][a-zA-Z0-9+#./\-]{1,}", job_description.lower()):
+                    if token in TECH_SKILL_WHITELIST or (token not in STOPWORDS and len(token) > 2):
+                        jd_terms.add(token)
+                # Also extract bigrams verbatim from JD
+                words = [
+                    w
+                    for w in re.findall(r"[a-zA-Z][a-zA-Z0-9+#.\-]*", job_description.lower())
+                    if w not in STOPWORDS and len(w) > 2
+                ]
+                for a, b in zip(words, words[1:]):
+                    jd_terms.add(f"{a} {b}")
+
+            # Also add verified matched keywords from JD analysis if provided
+            if matched_keywords:
+                for kw in matched_keywords:
+                    if kw and (not job_description or kw.lower() in job_description.lower()):
+                        jd_terms.add(kw.lower())
+
+            if jd_terms:
+                from collections import Counter
+                # Pre-lowercase and tokenize bullets once (O(bullets), not O(terms×bullets))
+                bullet_data = []
+                for orig_b in bullets:
+                    low_b = orig_b.lower()
+                    tokens = re.findall(r"[a-z0-9+#./\-]+", low_b)
+                    pairs = [f"{a} {b}" for a, b in zip(tokens, tokens[1:])]
+                    bullet_data.append((orig_b, Counter(tokens + pairs)))
+
+                for term in sorted(jd_terms):
+                    term_count = 0
+                    first_example = None
+
+                    for orig_b, counts in bullet_data:
+                        occurrences = counts[term]
+                        if occurrences > 0:
+                            term_count += occurrences
+                            if first_example is None:
+                                first_example = orig_b
+
+                    if term_count > 3:
+                        # Penalty: 2 points per excess occurrence over 3, capped at 15 per keyword
+                        excess = term_count - 3
+                        kw_penalty = min(15.0, excess * 2.0)
+                        raw_flagged.append({
+                            "keyword": term,
+                            "count": term_count,
+                            "example": first_example or "",
+                            "penalty": kw_penalty,
+                        })
 
         # De-duplicate overlaps (shorter fully contained in longer)
         flagged = []
