@@ -188,8 +188,8 @@ export default function Onboarding() {
     }
 
     // Visitors who reached onboarding from the landing CTA have no account yet.
-    // Their answers are already persisted locally, so send them to sign-up and
-    // return them here afterwards instead of failing an authenticated save.
+    // Their answers are already saved locally, so send them to sign-up and bring
+    // them back here instead of failing an authenticated profile save.
     if (!user) {
       navigate("/auth?mode=signup&next=/onboarding");
       return;
@@ -632,9 +632,21 @@ export default function Onboarding() {
                 disabled={hydration === "pending"}
                 className="bg-success hover:bg-success font-bold px-8"
               >
-                Launch Career Dashboard <ArrowRight className="w-5 h-5 ml-2" />
+                {user ? "Launch Career Dashboard" : "Create account & continue"}
+                <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Applying is pay-as-you-go:{" "}
+              <button
+                type="button"
+                onClick={() => navigate("/checkout?pack=starter")}
+                className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+              >
+                get submission credits
+              </button>{" "}
+              — 1 credit is used only when a verified submission receipt is captured.
+            </p>
           </Card>
         )}
       </div>
