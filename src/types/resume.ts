@@ -11,6 +11,30 @@ export interface PerAtsEstimate {
   plateau_note: string | null;
 }
 
+export interface KeywordStuffingPenalty {
+  count: number;
+  penalty_points: number;
+  flagged_keywords: Array<{
+    keyword: string;
+    count: number;
+    example?: string;
+    penalty?: number;
+  }>;
+}
+
+export interface ScoreBreakdown {
+  structural_ats: number;
+  semantic_fit: number;
+  experience_relevance: number;
+  achievement_quality: number;
+  seniority_alignment: number | 'aligned' | 'under' | 'over';
+  keyword_coverage: number;
+  keyword_stuffing_penalty: KeywordStuffingPenalty;
+  unsupported_claims_count: number;
+  confidence_band: 'high' | 'medium' | 'low';
+  human_rationale: string;
+}
+
 export interface ResumeAnalysisResult {
   overallScore: number;
   sections: ResumeSection[];
@@ -21,6 +45,7 @@ export interface ResumeAnalysisResult {
   // (heuristic_ats_score). Absent on pure-Go analyzer paths; UI falls back to
   // the per-ATS offset heuristic.
   per_ats?: PerAtsEstimate;
+  score_breakdown?: ScoreBreakdown;
 }
 
 export interface AnalyzeResumeRequest {

@@ -34,6 +34,13 @@ import { initPerformanceMonitoring } from "./lib/performance";
 if (import.meta.env.PROD) {
   initPerformanceMonitoring();
 }
+// ponytail: SW precaches static assets + offline fallback only; /api is
+// explicitly bypassed in public/sw.js so authenticated data never goes stale.
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => null);
+  });
+}
 // Note: removed @fontsource/sora — we now rely on the system SF/Inter stack
 // configured in tailwind.config.ts + index.css for an Apple-native look.
 import "./index.css";

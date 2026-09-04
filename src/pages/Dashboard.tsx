@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AppShell } from "@/components/layout";
+
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,12 +39,15 @@ import { JobMatchScore } from "@/components/ui/job-match-score";
 import { StatsCard, StatsGrid } from "@/components/ui/stats-card";
 import type { ResumeAnalysisRecord } from "@/types/resume";
 import { USE_SELF_HOSTED, listAnalysisHistory, getFunnelData } from "@/api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { deleteSavedJob } from "@/api";
 import { useAutomation } from "@/contexts/AutomationContext";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ApplicationPipeline } from "@/components/pipeline/ApplicationPipeline";
 import { ChainStrip } from "@/components/pipeline/ChainStrip";
 import { MemoryBadge } from "@/components/pipeline/MemoryBadge";
+import { FunnelStepper } from "@/components/layout/FunnelStepper";
 import { GamificationBadge } from "@/components/GamificationBadge";
 import { AchievementsBadge } from "@/components/AchievementsBadge";
 import { useDashboardData } from "@/hooks/useDashboardData";
@@ -75,6 +79,37 @@ const Dashboard = () => {
   const firstName = user?.user_metadata?.full_name?.split(" ")[0] ?? user?.email?.split("@")[0] ?? "";
   const { analyses = [], savedJobs = [], roadmap = [], interviews = [], funnel = { saved: 0, applied: 0, interview: 0, offer: 0 }, credits, inbox = { total: 0, unread: 0, pending_followup: 0 }, isLoading, isError, refetch } = useDashboardData(userId);
   const { unavailable: backendUnavailable } = useBackendHealth();
+  const queryClient = useQueryClient();
+  const [unsaveError, setUnsaveError] = useState<string | null>(null);
+  // ponytail: optimistic unsave — remove locally, rollback on apiFetch error
+  // with a visible error state; keeps existing structure, no refactor.
+  const unsaveMutation = useMutation({
+    mutationFn: (id: number) => deleteSavedJob(id),
+    onMutate: async (id) => {
+      setUnsaveError(null);
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ["saved-jobs", userId] }),
+        queryClient.cancelQueries({ queryKey: ["saved-jobs"] }),
+      ]);
+      const prevScoped = queryClient.getQueryData<any[]>(["saved-jobs", userId]);
+      const prevFlat = queryClient.getQueryData<any[]>(["saved-jobs"]);
+      const drop = (old: any[] = []) => old.filter((j) => j.id !== id && (j as any).saved_id !== id);
+      queryClient.setQueryData<any[]>(["saved-jobs", userId], (old = []) => drop(old));
+      queryClient.setQueryData<any[]>(["saved-jobs"], (old = []) => drop(old));
+      return { prevScoped, prevFlat };
+    },
+    onError: (err: any, _id, ctx) => {
+      if (ctx?.prevScoped) queryClient.setQueryData(["saved-jobs", userId], ctx.prevScoped);
+      if (ctx?.prevFlat) queryClient.setQueryData(["saved-jobs"], ctx.prevFlat);
+      const msg = err?.message || "Failed to remove saved job";
+      setUnsaveError(msg);
+      toast.error(msg);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-jobs", userId] });
+      queryClient.invalidateQueries({ queryKey: ["saved-jobs"] });
+    },
+  });
 
   const totalApps = (funnel.applied ?? 0) + (funnel.interview ?? 0) + (funnel.offer ?? 0);
   const responseRate = totalApps > 0 ? Math.round(((funnel.interview + funnel.offer) / totalApps) * 100) : 0;
@@ -113,7 +148,39 @@ const Dashboard = () => {
     };
   })();
 
+  // Derive funnel steps from actual candidate lifecycle data
+  const { currentStepId, completedStepIds } = useMemo(() => {
+    const completed: string[] = [];
+    let current = "resume";
+
+    if (analyses.length > 0) {
+      completed.push("resume");
+      current = "fit";
+    }
+    if (savedJobs.length > 0) {
+      completed.push("fit");
+      current = "tailor";
+    }
+    if ((funnel.applied ?? 0) > 0) {
+      completed.push("tailor", "review");
+      current = "track";
+    }
+    if ((funnel.interview ?? 0) > 0 || interviews.length > 0) {
+      completed.push("track");
+      current = "interview";
+    }
+    if ((funnel.offer ?? 0) > 0) {
+      completed.push("interview");
+    }
+
+    return {
+      currentStepId: current,
+      completedStepIds: Array.from(new Set(completed)),
+    };
+  }, [analyses.length, savedJobs.length, funnel.applied, funnel.interview, funnel.offer, interviews.length]);
+
   const triggerApplyChain = async () => {
+
     const saved = savedJobs[0];
     if (!saved) {
       toast.info("Save a job first — AutoPilot runs on a real job.");
@@ -203,6 +270,46 @@ const Dashboard = () => {
               <ChainStrip />
               <MemoryBadge />
             </div>
+
+            {/* Funnel Stepper */}
+            <FunnelStepper currentStepId={currentStepId} completedStepIds={completedStepIds} className="mb-6" />
+
+
+            {/* Continue where you left off CTA */}
+            {(runs.length > 0 || analyses.length > 0) && (
+              <Card className="mb-6 border-border/80 bg-muted/20 hover:bg-muted/30 transition-colors">
+                <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                      <ArrowRight className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-primary uppercase tracking-wider">Continue where you left off</p>
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {runs.length > 0
+                          ? `Active run: ${runs[0].title}${runs[0].context ? ` (${runs[0].context})` : ""}`
+                          : `Recent scan: ${analyses[0]?.job_title || analyses[0]?.resume_filename || "Resume"} (${analyses[0]?.overall_score ?? latestScore ?? 0}% match)`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                    <Button asChild size="sm" variant="glow" className="active:scale-[0.98]">
+                      <Link
+                        to={runs.length > 0 ? "/jobs" : "/resume"}
+                        aria-label="Continue where you left off"
+                      >
+                        Continue <ArrowRight className="w-4 h-4 ml-1.5" />
+                      </Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline" className="active:scale-[0.98]">
+                      <Link to={runs.length > 0 ? "/resume" : "/jobs"}>
+                        {runs.length > 0 ? "Resume" : "Jobs"}
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* ⚡ One-Shot Autopilot Console Hero Banner */}
             <Card className="mb-6 border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-background backdrop-blur-md shadow-sm relative overflow-hidden group">
@@ -559,18 +666,39 @@ const Dashboard = () => {
                     Save jobs from Smart Search to populate your pipeline.
                   </p>
                 ) : (
-                  <ApplicationPipeline
-                    variant="compact"
-                    jobs={savedJobs.map((j) => ({
-                      id: String(j.id),
-                      title: j.title,
-                      company: j.company,
-                      location: j.location ?? null,
-                      url: j.url ?? null,
-                      stage: "saved" as const,
-                      savedAt: j.saved_at,
-                    }))}
-                  />
+                  <>
+                    <ApplicationPipeline
+                      variant="compact"
+                      jobs={savedJobs.map((j) => ({
+                        id: String(j.id),
+                        title: j.title,
+                        company: j.company,
+                        location: j.location ?? null,
+                        url: j.url ?? null,
+                        stage: "saved" as const,
+                        savedAt: j.saved_at,
+                      }))}
+                    />
+                    {unsaveError && (
+                      <p role="alert" className="mt-2 text-xs text-destructive">{unsaveError}</p>
+                    )}
+                    <ul className="mt-3 space-y-1">
+                      {savedJobs.slice(0, 5).map((j: any) => (
+                        <li key={String(j.id ?? j.dedupe_key)} className="flex items-center justify-between gap-2 text-xs">
+                          <span className="truncate text-muted-foreground">{j.title} · {j.company}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                            disabled={typeof j.id !== "number" || unsaveMutation.isPending}
+                            onClick={() => typeof j.id === "number" && unsaveMutation.mutate(j.id)}
+                          >
+                            Remove
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 )}
               </CardContent>
             </Card>

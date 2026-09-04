@@ -39,8 +39,12 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from abc import ABC, abstractmethod
+from collections import defaultdict
+from datetime import datetime, timezone
+from threading import Lock
 from typing import Optional, Type, TypeVar, Any, Dict, List
 from pydantic import BaseModel, ValidationError
 
@@ -48,9 +52,88 @@ import httpx
 
 from app.services.hermes import config as hermes_config
 from app.services.ai_orchestration import SUPPORTED_TIERS, normalize_tier
+from app.services.pii_scrubber import scrub as _scrub_pii
 from app.telemetry import metrics
+from app.telemetry.langfuse_client import trace_llm_call
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# LLM Observability & Token Pricing (WP-06)
+# ---------------------------------------------------------------------------
+
+def estimate_tokens(text: str) -> int:
+    """Fast approximation of token count (~4 chars per token)."""
+    if not text:
+        return 0
+    return max(1, len(text) // 4)
+
+
+def get_model_pricing(model_name: str) -> tuple[float, float]:
+    """Return (input_price_per_million, output_price_per_million) USD."""
+    m = (model_name or "").lower()
+    if "free" in m or "unconfigured" in m:
+        return (0.0, 0.0)
+    if "gpt-4o-mini" in m:
+        return (0.15, 0.60)
+    if "gpt-4o" in m:
+        return (2.50, 10.00)
+    if "sonnet" in m:
+        return (3.00, 15.00)
+    if "haiku" in m:
+        return (0.80, 4.00)
+    if "gemini" in m and "flash" in m:
+        return (0.10, 0.40)
+    if "gemini" in m and "pro" in m:
+        return (1.25, 5.00)
+    if "70b" in m:
+        return (0.50, 0.75)
+    if "8b" in m:
+        return (0.05, 0.08)
+    return (1.00, 3.00)
+
+
+def calculate_llm_cost(model_name: str, prompt_tokens: int, completion_tokens: int) -> float:
+    """Estimate USD cost for prompt and completion tokens."""
+    in_rate, out_rate = get_model_pricing(model_name)
+    cost = (prompt_tokens * (in_rate / 1_000_000.0)) + (completion_tokens * (out_rate / 1_000_000.0))
+    return round(cost, 6)
+
+
+class DailyCostTracker:
+    """Tracks daily token spend per user/process against MAX_DAILY_LLM_COST_USD."""
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._spend_by_day_and_user: dict[tuple[str, str], float] = defaultdict(float)
+
+    def record_cost(self, cost_usd: float, user_id: Optional[str] = None) -> tuple[float, bool, float]:
+        """Record spend and return (new_total_spend, is_exceeded, limit)."""
+        if not user_id or not str(user_id).strip():
+            raise ValueError("record_cost requires a real user_id; synthetic identities rejected")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        uid = str(user_id).strip()
+        key = (today, uid)
+
+        limit_str = os.getenv("MAX_DAILY_LLM_COST_USD", "0.50").strip()
+        try:
+            limit = float(limit_str)
+        except ValueError:
+            limit = 0.50
+
+        with self._lock:
+            new_total = self._spend_by_day_and_user[key] + cost_usd
+            self._spend_by_day_and_user[key] = new_total
+            is_exceeded = new_total > limit
+            return new_total, is_exceeded, limit
+
+    def reset(self) -> None:
+        with self._lock:
+            self._spend_by_day_and_user.clear()
+
+
+daily_cost_tracker = DailyCostTracker()
+
 
 # Holds references to fire-and-forget background tasks (privacy ledger writes)
 # so they aren't garbage-collected mid-execution — asyncio only holds a weak
@@ -510,14 +593,61 @@ async def llm_complete(
         provider_name = provider.active_engine_label()
     except Exception:
         pass
+    # ponytail: single choke point — scrub only the outbound copy; callers keep
+    # the original for truthfulness/guardrail checks, only scrubbed text leaves.
+    user_message_out, scrubbed_user = _scrub_pii(user_message)
+    system_message_out, scrubbed_system = _scrub_pii(system_message)
+    scrubbed_fields = scrubbed_user + [f for f in scrubbed_system if f not in scrubbed_user]
+    if scrubbed_fields:
+        logger.info("PII scrubbed before LLM call: %s", ",".join(scrubbed_fields))
+    start_time = time.perf_counter()
     try:
-        result = await provider.complete(system_message, user_message,
+        result = await provider.complete(system_message_out, user_message_out,
                                          max_tokens=max_tokens, temperature=temperature)
         if not result:
             raise LLMNotConfiguredError("LLM provider returned an empty response.")
     except Exception:
         metrics.record_provider_error(provider_name)
         raise
+
+    latency_ms = (time.perf_counter() - start_time) * 1000.0
+    prompt_tokens = estimate_tokens(system_message_out) + estimate_tokens(user_message_out)
+    completion_tokens = estimate_tokens(result)
+    cost_usd = calculate_llm_cost(provider_name, prompt_tokens, completion_tokens)
+
+    # Daily budget tracking & alerting (do not fail the request)
+    try:
+        total_spend, exceeded, limit = daily_cost_tracker.record_cost(cost_usd, _user_id)
+        if exceeded:
+            logger.warning(
+                "Daily LLM cost budget exceeded for user=%s: accumulated $%.4f > limit $%.4f",
+                _user_id, total_spend, limit,
+            )
+            metrics.record_cost_budget_exceeded()
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Daily budget tracking error (failing open): %s", exc)
+
+    # Fail-open Langfuse observability trace
+    try:
+        trace_llm_call(
+            trace_id=session_id or str(uuid.uuid4()),
+            model=provider_name,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            latency_ms=latency_ms,
+            cost_usd=cost_usd,
+            artifact_id=session_id,
+            metadata={
+                "tier": tier,
+                "user_id": _user_id,
+                "resource": _resource or "llm_complete",
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "pii_scrubbed": scrubbed_fields,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Langfuse trace call error (failing open): %s", exc)
 
     # Privacy ledger — fire-and-forget, non-blocking
     if _user_id:
@@ -535,6 +665,7 @@ async def llm_complete(
             pass  # ledger failure must never affect the LLM response
 
     return result
+
 
 
 # ---------------------------------------------------------------------------
@@ -590,6 +721,8 @@ async def llm_json(
     Enforces Pydantic model validation (model_validate_json) with an automated
     self-correcting retry loop if parsing or schema validation fails.
     """
+    # ponytail: no scrub here — llm_json delegates to llm_complete, the single
+    # choke point, so user text is scrubbed once before leaving the process.
     schema_instruction = ""
     if response_model is not None:
         json_schema = json.dumps(response_model.model_json_schema(), indent=2)

@@ -16,6 +16,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { ReceiptCard, SubmissionReceiptItem } from "@/components/receipts/ReceiptCard";
 import { ReceiptStatus } from "@/components/receipts/ReceiptBadge";
 import { PracticeOutcomePanel } from "@/components/outcomes/PracticeOutcomePanel";
+import { OutcomeTracker } from "@/components/OutcomeTracker";
 
 type Stage = "saved" | "applied" | "interview" | "offer" | "rejected";
 
@@ -425,6 +426,8 @@ export default function Outcomes() {
                 </div>
               </CardContent>
             </Card>
+
+            <OutcomeTracker />
 
             <BoomerangCard userId={userId} offers={funnel.offers} />
 

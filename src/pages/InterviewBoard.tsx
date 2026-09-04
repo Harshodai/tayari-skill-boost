@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/layout";
 import { CandidateCommandCenter } from "@/components/interview/CandidateCommandCenter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -55,7 +56,6 @@ import {
   listApplications,
   createApplication,
   updateApplication,
-
   deleteApplication,
   addApplicationNote,
   deleteApplicationNote,
@@ -66,6 +66,10 @@ import {
   getGmailLogin,
   syncGmail,
   disconnectGmail,
+  listPracticeOutcomes,
+  recordPracticeOutcome,
+  listResumes,
+  apiFetch,
   type GmailSyncOptions
 } from "@/api";
 import { streamInterviewCopilotHints, type CopilotStreamEvent } from "@/api/ai";
@@ -102,6 +106,7 @@ const InterviewBoard = () => {
   // Detail Modal state
   const [selectedApp, setSelectedApp] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [detailTab, setDetailTab] = useState<string>("notes");
   const [newNoteText, setNewNoteText] = useState("");
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [isGeneratingIQ, setIsGeneratingIQ] = useState(false);
@@ -175,6 +180,130 @@ const InterviewBoard = () => {
     queryKey: ["applications"],
     queryFn: () => listApplications(),
   });
+
+  // WP-07 Practice Outcomes & Adaptive STAR State
+  const { data: practiceOutcomes = [] } = useQuery({
+    queryKey: ["practice-outcomes"],
+    queryFn: () => listPracticeOutcomes(100),
+  });
+
+  const { data: resumes = [] } = useQuery({
+    queryKey: ["resumes"],
+    queryFn: () => listResumes(),
+  });
+
+  // Surface practice history delta: "Your STAR coverage improved from X% -> Y%"
+  const practiceDelta = useMemo(() => {
+    if (!practiceOutcomes || practiceOutcomes.length === 0) return null;
+    const sorted = [...practiceOutcomes].sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return tb - ta;
+    });
+    if (sorted.length >= 2) {
+      const curr = Math.round(Number(sorted[0].confidence || 0));
+      const prev = Math.round(Number(sorted[1].confidence || 0));
+      const improved = curr >= prev;
+      return {
+        headline: improved
+          ? `Your STAR coverage improved from ${prev}% -> ${curr}%`
+          : `Your STAR coverage changed from ${prev}% -> ${curr}%`,
+        subtext: `Based on your last ${sorted.length} evaluated practice sessions. Keep targeting missing Action and Result metrics.`,
+        badge: `${curr}% STAR Coverage`,
+        improved,
+      };
+    }
+    const current = Math.round(Number(sorted[0].confidence || 0));
+    return {
+      headline: `Current STAR coverage: ${current}%`,
+      subtext: "Complete another practice session to track your STAR coverage improvement delta.",
+      badge: `${current}% STAR Coverage`,
+      improved: true,
+    };
+  }, [practiceOutcomes]);
+
+  // Practice session launcher modal state
+  const [practiceModalOpen, setPracticeModalOpen] = useState(false);
+  const [practiceAppId, setPracticeAppId] = useState("");
+  const [practiceJd, setPracticeJd] = useState("");
+  const [practiceResumeId, setPracticeResumeId] = useState("");
+  const [practiceContextType, setPracticeContextType] = useState<"app" | "custom">("app");
+
+  // In-session STAR practice state
+  const [practiceQuestion, setPracticeQuestion] = useState("Tell me about a time you resolved a critical technical roadblock.");
+  const [practiceAnswer, setPracticeAnswer] = useState("");
+  const [isEvaluatingSTAR, setIsEvaluatingSTAR] = useState(false);
+  const [starResult, setStarResult] = useState<any>(null);
+  const [adaptiveFollowUpResponse, setAdaptiveFollowUpResponse] = useState("");
+  const [savePracticeConsent, setSavePracticeConsent] = useState(true);
+
+  const handleEvaluateSTAR = async () => {
+    const targetAppId = selectedApp?.id || practiceAppId;
+    const hasAppContext = Boolean(targetAppId || (practiceJd.trim() && practiceResumeId));
+    if (!hasAppContext) {
+      toast.error("Real Application Context Required", {
+        description: "Please link an active application or provide a job description and resume to evaluate practice delivery.",
+      });
+      return;
+    }
+
+    const answerToEval = practiceAnswer.trim();
+    if (!answerToEval) {
+      toast.error("Answer Required", {
+        description: "Please enter or record your response before running STAR analysis.",
+      });
+      return;
+    }
+
+    setIsEvaluatingSTAR(true);
+    try {
+      const fullAnswer = adaptiveFollowUpResponse.trim()
+        ? `${answerToEval}\n\nFollow-up clarification: ${adaptiveFollowUpResponse.trim()}`
+        : answerToEval;
+
+      const evalData = await apiFetch<any>("/v1/interview/evaluate-star", {
+        method: "POST",
+        body: JSON.stringify({
+          answer: fullAnswer,
+          question: practiceQuestion,
+          job_title: selectedApp?.title || "Software Engineer",
+        }),
+      });
+
+      setStarResult(evalData);
+
+      // Store session outcome in practice_outcomes table with consent (isolated error boundary)
+      if (savePracticeConsent) {
+        try {
+          const outcomeScore = evalData.completeness_score ?? evalData.star_score ?? 0;
+          await recordPracticeOutcome({
+            practice_session_id: crypto.randomUUID(),
+            application_id: targetAppId || undefined,
+            completion_status: "completed",
+            confidence: outcomeScore,
+            interview_outcome: "unknown",
+            correction_note: evalData.follow_up_question || undefined,
+            consent_acknowledged: true,
+          });
+          queryClient.invalidateQueries({ queryKey: ["practice-outcomes"] });
+        } catch (outcomeErr: any) {
+          console.warn("Telemetry outcome save failed (non-blocking):", outcomeErr);
+        }
+      }
+
+      toast.success(`STAR Analysis Complete (${evalData.completeness_score}%)`, {
+        description: evalData.missing_elements?.length
+          ? `Deficiencies detected in: ${evalData.missing_elements.join(", ")}. See adaptive follow-up below.`
+          : "Exceptional STAR delivery with strong metrics!",
+      });
+    } catch (err: any) {
+      toast.error("Evaluation Failed", {
+        description: err.message || "Failed to analyze STAR answer.",
+      });
+    } finally {
+      setIsEvaluatingSTAR(false);
+    }
+  };
 
   const createMutation = useMutation({
     mutationFn: createApplication,
@@ -739,8 +868,179 @@ const InterviewBoard = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            {/* Practice STAR Button & Context Modal */}
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (applications.length > 0 && !practiceAppId) {
+                  setPracticeAppId(applications[0].id);
+                }
+                setPracticeModalOpen(true);
+              }}
+              className="border-primary/30 text-primary hover:bg-primary/10 font-semibold"
+            >
+              <Target className="w-4 h-4 mr-2" />
+              Practice STAR
+            </Button>
+
+            <Dialog open={practiceModalOpen} onOpenChange={setPracticeModalOpen}>
+              <DialogContent className="max-w-lg bg-card border-border">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-foreground font-bold">
+                    <Target className="w-5 h-5 text-primary" />
+                    Start STAR Practice Session
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    Real application context is required to ground AI evaluation and follow-up generation.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-3 text-xs">
+                  <div className="flex gap-2 border-b border-border/60 pb-3">
+                    <Button
+                      type="button"
+                      variant={practiceContextType === "app" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPracticeContextType("app")}
+                      className="text-xs h-8"
+                    >
+                      Active Application
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={practiceContextType === "custom" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPracticeContextType("custom")}
+                      className="text-xs h-8"
+                    >
+                      Pasted JD + Resume
+                    </Button>
+                  </div>
+
+                  {practiceContextType === "app" ? (
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-foreground block">
+                        Select Target Application ({applications.length} available)
+                      </label>
+                      {applications.length === 0 ? (
+                        <p className="text-xs text-amber-500 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
+                          No active applications found. Switch to "Pasted JD + Resume" or add an application card first.
+                        </p>
+                      ) : (
+                        <select
+                          value={practiceAppId}
+                          onChange={(e) => setPracticeAppId(e.target.value)}
+                          className="w-full text-xs p-2.5 rounded-lg border border-border bg-background text-foreground"
+                        >
+                          <option value="">-- Choose an application --</option>
+                          {applications.map((app: any) => (
+                            <option key={app.id} value={app.id}>
+                              {app.title} at {app.company} ({app.status})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-semibold text-foreground block mb-1">
+                          Pasted Job Description
+                        </label>
+                        <Textarea
+                          value={practiceJd}
+                          onChange={(e) => setPracticeJd(e.target.value)}
+                          placeholder="Paste requirements, tech stack, and responsibilities..."
+                          className="h-24 text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-foreground block mb-1">
+                          Select Candidate Resume ({resumes.length} available)
+                        </label>
+                        {resumes.length === 0 ? (
+                          <p className="text-xs text-amber-500 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
+                            No resumes found in your profile. Upload a resume first to provide candidate context.
+                          </p>
+                        ) : (
+                          <select
+                            value={practiceResumeId}
+                            onChange={(e) => setPracticeResumeId(e.target.value)}
+                            className="w-full text-xs p-2.5 rounded-lg border border-border bg-background text-foreground"
+                          >
+                            <option value="">-- Choose a resume --</option>
+                            {resumes.map((res: any) => (
+                              <option key={res.id} value={res.id}>
+                                {res.name || res.title || `Resume (${res.id.slice(0, 8)})`}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="outline" size="sm" onClick={() => setPracticeModalOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={
+                      practiceContextType === "app"
+                        ? !practiceAppId
+                        : (!practiceJd.trim() || !practiceResumeId)
+                    }
+                    onClick={() => {
+                      if (practiceContextType === "app") {
+                        const target = applications.find((a: any) => a.id === practiceAppId);
+                        if (target) {
+                          setSelectedApp(target);
+                          setDetailTab("practice");
+                          setDetailOpen(true);
+                        }
+                      } else {
+                        setSelectedApp({
+                          id: undefined,
+                          title: "Target Role",
+                          company: "Custom Opportunity",
+                          job_description: practiceJd,
+                          resume_id: practiceResumeId,
+                        });
+                        setDetailTab("practice");
+                        setDetailOpen(true);
+                      }
+                      setPracticeModalOpen(false);
+                    }}
+                    className="bg-primary text-primary-foreground font-semibold"
+                  >
+                    Open STAR Practice
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
+
+        {/* Practice History Delta Banner */}
+        {practiceDelta && (
+          <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">{practiceDelta.headline}</p>
+                <p className="text-xs text-muted-foreground">{practiceDelta.subtext}</p>
+              </div>
+            </div>
+            <Badge variant="outline" className="text-xs font-mono font-bold text-primary border-primary/30 px-3 py-1 bg-background">
+              {practiceDelta.badge}
+            </Badge>
+          </div>
+        )}
 
         {error && (
           <div>
@@ -814,6 +1114,7 @@ const InterviewBoard = () => {
                             }`}
                           onClick={() => {
                             setSelectedApp(app);
+                            setDetailTab("notes");
                             setDetailOpen(true);
                           }}
                         >
@@ -932,13 +1233,13 @@ const InterviewBoard = () => {
                   </div>
                 </DialogHeader>
 
-                <Tabs defaultValue="notes" className="flex-1 flex flex-col overflow-hidden">
+                <Tabs value={detailTab} onValueChange={setDetailTab} className="flex-1 flex flex-col overflow-hidden">
                   <div className="px-6 border-b">
                     <TabsList className="w-full justify-start bg-transparent h-12 p-0 gap-6 border-b-0">
-                      <TabsTrigger value="notes" className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-1 h-full bg-transparent shadow-none font-semibold">
+                      <TabsTrigger value="notes" disabled={!selectedApp?.id} className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-1 h-full bg-transparent shadow-none font-semibold disabled:opacity-40 disabled:cursor-not-allowed">
                         <MessageSquare className="w-4 h-4 mr-2" /> Notes Log
                       </TabsTrigger>
-                      <TabsTrigger value="voice" className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-1 h-full bg-transparent shadow-none font-semibold">
+                      <TabsTrigger value="voice" disabled={!selectedApp?.id} className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-1 h-full bg-transparent shadow-none font-semibold disabled:opacity-40 disabled:cursor-not-allowed">
                         <Mic className="w-4 h-4 mr-2" /> Voice Notes
                       </TabsTrigger>
                       <TabsTrigger value="intel" className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-1 h-full bg-transparent shadow-none font-semibold">
@@ -946,6 +1247,9 @@ const InterviewBoard = () => {
                       </TabsTrigger>
                       <TabsTrigger value="copilot" className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-1 h-full bg-transparent shadow-none font-semibold">
                         <Sparkles className="w-4 h-4 mr-2" /> Live Copilot
+                      </TabsTrigger>
+                      <TabsTrigger value="practice" className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-1 h-full bg-transparent shadow-none font-semibold">
+                        <Target className="w-4 h-4 mr-2" /> STAR Practice
                       </TabsTrigger>
                     </TabsList>
                   </div>
@@ -1305,6 +1609,232 @@ const InterviewBoard = () => {
                           </div>
                         )}
                       </div>
+                    </TabsContent>
+
+                    {/* Practice tab — WP-07 Adaptive STAR Coach */}
+                    <TabsContent value="practice" className="m-0 space-y-5">
+                      <div className="p-4 bg-muted/30 rounded-xl border border-border/60 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <span className="text-xs font-mono font-bold uppercase tracking-wider text-primary">
+                              Application Context
+                            </span>
+                            <h4 className="text-sm font-semibold text-foreground">
+                              {selectedApp?.title || "Target Role"} • {selectedApp?.company || "Target Company"}
+                            </h4>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary self-start sm:self-auto">
+                            {selectedApp?.id ? `App ID: ${selectedApp.id.slice(0, 8)}...` : "Context Grounded"}
+                          </Badge>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-semibold text-foreground block mb-1.5">
+                            Interview Question:
+                          </label>
+                          <Input
+                            value={practiceQuestion}
+                            onChange={(e) => setPracticeQuestion(e.target.value)}
+                            placeholder="Enter behavioral or technical question..."
+                            className="text-xs"
+                          />
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {[
+                              "Tell me about a time you resolved a critical technical roadblock.",
+                              "Describe a production outage where you led the investigation.",
+                              "Give an example of when you had to optimize a slow system under heavy load.",
+                            ].map((q) => (
+                              <button
+                                key={q}
+                                type="button"
+                                onClick={() => setPracticeQuestion(q)}
+                                className="text-[10px] px-2 py-1 rounded-md border border-border/50 bg-background/60 hover:bg-muted text-muted-foreground text-left"
+                              >
+                                {q.slice(0, 42)}...
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-xs font-semibold text-foreground">
+                              Your Response (STAR Method):
+                            </label>
+                            <span className="text-[10px] font-mono text-muted-foreground">
+                              {practiceAnswer.trim().split(/\s+/).filter(Boolean).length} words
+                            </span>
+                          </div>
+                          <Textarea
+                            value={practiceAnswer}
+                            onChange={(e) => setPracticeAnswer(e.target.value)}
+                            placeholder="Set the Situation and Task, detail the Actions you personally executed, and state the quantifiable Result..."
+                            rows={6}
+                            className="text-xs leading-relaxed"
+                          />
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={savePracticeConsent}
+                              onChange={(e) => setSavePracticeConsent(e.target.checked)}
+                              className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                            />
+                            <span>Store evaluated outcome in practice history</span>
+                          </label>
+
+                          <Button
+                            onClick={handleEvaluateSTAR}
+                            disabled={isEvaluatingSTAR || !practiceAnswer.trim()}
+                            className="bg-primary text-primary-foreground font-semibold text-xs gap-2"
+                          >
+                            {isEvaluatingSTAR ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                Evaluating STAR Delivery...
+                              </>
+                            ) : (
+                              <>
+                                <Target className="w-3.5 h-3.5" />
+                                Evaluate STAR Delivery
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* STAR Evaluation Results Display */}
+                      {starResult && (
+                        <div className="space-y-4 pt-2">
+                          {/* Completeness Score Card */}
+                          <div className="p-4 rounded-xl border border-border bg-card flex items-center justify-between">
+                            <div className="space-y-1">
+                              <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
+                                STAR Completeness Score
+                              </span>
+                              <div className="flex items-baseline gap-2">
+                                <span className={`text-2xl font-black ${
+                                  starResult.completeness_score >= 80
+                                    ? "text-emerald-500"
+                                    : starResult.completeness_score >= 60
+                                    ? "text-blue-500"
+                                    : "text-amber-500"
+                                }`}>
+                                  {starResult.completeness_score}%
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {starResult.completeness_score >= 80 ? "Exemplary" : starResult.completeness_score >= 60 ? "Proficient" : "Needs Revision"}
+                                </span>
+                              </div>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs font-mono font-bold px-2.5 py-1 ${
+                                starResult.completeness_score >= 70
+                                  ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/10"
+                                  : "border-amber-500/30 text-amber-500 bg-amber-500/10"
+                              }`}
+                            >
+                              {(starResult.missing_elements?.length ?? 0) === 0 ? "Complete Framework" : `${starResult.missing_elements?.length ?? 0} Missing`}
+                            </Badge>
+                          </div>
+
+                          {/* STAR Breakdown 4-column Grid */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                            {(["situation", "task", "action", "result"] as const).map((dim) => {
+                              const detail = starResult.breakdown?.[dim] || {};
+                              const strength = detail.strength || "missing";
+                              const badgeVariant =
+                                strength === "strong"
+                                  ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/10"
+                                  : strength === "adequate"
+                                  ? "border-blue-500/30 text-blue-500 bg-blue-500/10"
+                                  : "border-amber-500/30 text-amber-500 bg-amber-500/10";
+                              return (
+                                <div key={dim} className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+                                      {dim[0].toUpperCase()}: {dim}
+                                    </span>
+                                    <Badge variant="outline" className={`text-[9px] font-mono px-1.5 py-0 ${badgeVariant}`}>
+                                      {strength}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground leading-snug">
+                                    {detail.feedback || "No feedback available."}
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Adaptive Follow-up Question Callout */}
+                          {starResult.follow_up_question && (
+                            <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-3">
+                              <div className="flex items-start gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                                  <Sparkles className="w-4 h-4" />
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
+                                      Adaptive Follow-Up Challenge
+                                    </h4>
+                                    <Badge variant="outline" className="text-[9px] font-mono border-primary/40 text-primary">
+                                      Target: {starResult.follow_up_target}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-xs font-medium text-foreground leading-relaxed">
+                                    {starResult.follow_up_question}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2 pt-1 border-t border-primary/20">
+                                <label className="text-[11px] font-semibold text-foreground block">
+                                  Provide Clarification / Metrics to Boost Score:
+                                </label>
+                                <Textarea
+                                  value={adaptiveFollowUpResponse}
+                                  onChange={(e) => setAdaptiveFollowUpResponse(e.target.value)}
+                                  placeholder="Provide specific metrics, latency changes, or actions you personally took..."
+                                  rows={2}
+                                  className="text-xs font-sans"
+                                />
+                                <div className="flex justify-end">
+                                  <Button
+                                    size="sm"
+                                    onClick={handleEvaluateSTAR}
+                                    disabled={isEvaluatingSTAR || !adaptiveFollowUpResponse.trim()}
+                                    className="text-xs h-7 bg-primary text-primary-foreground font-semibold"
+                                  >
+                                    Submit Clarification & Re-evaluate
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Coaching Tips */}
+                          {starResult.coaching_tips?.length > 0 && (
+                            <div className="p-3 bg-muted/20 rounded-lg border border-border/50 space-y-1.5 text-xs">
+                              <span className="font-semibold text-foreground block text-[11px] uppercase tracking-wider">
+                                Coach Recommendations
+                              </span>
+                              <ul className="space-y-1 text-muted-foreground text-[11px]">
+                                {starResult.coaching_tips.map((tip: string, idx: number) => (
+                                  <li key={idx} className="flex items-start gap-1.5">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                                    <span>{tip}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </TabsContent>
                   </div>
                 </Tabs>

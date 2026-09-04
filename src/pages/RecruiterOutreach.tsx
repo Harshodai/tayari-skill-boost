@@ -9,6 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Mail, Linkedin, Copy, Check, Sparkles, Send, ExternalLink, ShieldCheck, UserCheck } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const SAMPLE_OUTREACH_TARGETS = [
   {
@@ -88,6 +96,61 @@ export function RecruiterOutreach() {
     const url = `https://mail.google.com/mail/?view=cm&fs=1&tf=1&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(url, "_blank");
   };
+
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
+  const [pendingSubject, setPendingSubject] = useState("");
+  const [pendingBody, setPendingBody] = useState("");
+
+  const initiateSendReview = (subject: string, body: string) => {
+    setPendingSubject(subject || "Outreach");
+    setPendingBody(body || "");
+    setApprovalDialogOpen(true);
+  };
+
+  const confirmAndOpenGmail = async () => {
+    setApprovalDialogOpen(false);
+
+    // Backend atomic duplicate check — 30-day window enforced server-side
+    try {
+      const resp = await apiFetchResponse("/v1/networking/record-outreach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company: company.trim(),
+          recruiter_name: recruiterName.trim(),
+          subject: pendingSubject,
+        }),
+      });
+      if (resp.status === 409) {
+        // Duplicate within 30-day window
+        toast.error("Duplicate Outreach Blocked", {
+          description: `You already reached out to ${recruiterName || "this contact"} at ${company} within the last 30 days. Gmail not opened.`,
+          duration: 7000,
+        });
+        return;
+      }
+      if (!resp.ok) {
+        // Non-2xx other than duplicate — surface error and block
+        const body = await resp.json().catch(() => ({}));
+        toast.error("Outreach record failed", {
+          description: (body as any)?.error || `Server returned ${resp.status}. Gmail not opened.`,
+          duration: 6000,
+        });
+        return;
+      }
+    } catch (err) {
+      // Network failure — fail closed
+      toast.error("Outreach check failed", {
+        description: "Could not reach the server to verify duplicate. Gmail not opened.",
+        duration: 6000,
+      });
+      return;
+    }
+
+    openGmail(pendingSubject, pendingBody);
+    toast.success("Candidate approval confirmed — opening in Gmail");
+  };
+
 
   return (
     <AppShell>
@@ -219,8 +282,8 @@ export function RecruiterOutreach() {
                       </div>
                       <Textarea readOnly value={result?.cold_email?.body} rows={8} className="font-mono text-xs leading-relaxed" />
                       <div className="flex items-center gap-2">
-                        <Button size="sm" onClick={() => openGmail(result?.cold_email?.subject, result?.cold_email?.body)} className="gap-2 bg-red-600 hover:bg-red-700 text-primary-foreground active:scale-[0.98]">
-                          <Mail className="w-4 h-4" /> Open in Gmail
+                        <Button size="sm" onClick={() => initiateSendReview(result?.cold_email?.subject, result?.cold_email?.body)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground active:scale-[0.98]">
+                          <UserCheck className="w-4 h-4" /> Review & Send
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => copyText(result?.cold_email?.body, "body1")} className="gap-2 active:scale-[0.98]">
                           <Copy className="w-4 h-4" /> Copy Email Body
@@ -263,6 +326,48 @@ export function RecruiterOutreach() {
             </Card>
           </div>
         </div>
+
+        {/* WP-16 Candidate Approval & Verification Confirmation Dialog */}
+        <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
+          <DialogContent className="max-w-md bg-card border-border">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-foreground font-bold">
+                <ShieldCheck className="w-5 h-5 text-primary" />
+                Candidate Outreach Approval
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Review message details before transmitting. Decision-maker contact patterns are hypotheses and require human verification.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2 text-xs">
+              <div className="p-2.5 rounded-lg bg-muted/40 border border-border space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Target Recipient:</span>
+                  <span className="font-semibold text-foreground">{recruiterName || "Hiring Manager"} ({company})</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Confidence:</span>
+                  <Badge variant="outline" className="text-[10px] h-4">Medium (Pattern Hypothesis)</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subject:</span>
+                  <span className="font-medium text-foreground truncate max-w-[200px]">{pendingSubject}</span>
+                </div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[11px] leading-relaxed">
+                Notice: Outreach duplicate protection blocks re-sending to the same company within 30 days. No automated sending occurs without your explicit confirmation.
+              </div>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" size="sm" onClick={() => setApprovalDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" variant="default" onClick={confirmAndOpenGmail} className="gap-1.5">
+                <Mail className="w-3.5 h-3.5" /> Confirm & Open Gmail
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppShell>
   );

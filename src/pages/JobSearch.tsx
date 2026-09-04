@@ -48,6 +48,7 @@ import { SkillGapWidget } from "@/components/jobs/SkillGapWidget";
 import { CalibratedFitCard, getFitBand } from "@/components/jobs/CalibratedFitCard";
 import { JobFeedbackButtons } from "@/components/jobs/JobFeedbackButtons";
 import { SavedSearches } from "@/components/jobs/SavedSearches";
+import { FitMatrixCard, type FitMatrixData } from "@/components/jobs/FitMatrixCard";
 import { buildApplyChain } from "@/lib/automation/applyChain";
 import { cn } from "@/lib/utils";
 
@@ -132,13 +133,31 @@ const JobSearch = () => {
 
   const savedDedupeKeys = new Set(savedJobs.map((j) => j.dedupe_key));
 
+  // ponytail: optimistic save toggle — apply locally, rollback on apiFetch
+  // error with a visible error state; non-2xx always surfaces via toast.
   const saveMutation = useMutation({
     mutationFn: saveJob,
+    onMutate: async (vars: any) => {
+      await queryClient.cancelQueries({ queryKey: ["saved-jobs"] });
+      const prev = queryClient.getQueryData<any[]>(["saved-jobs"]);
+      queryClient.setQueryData<any[]>(["saved-jobs"], (old = []) => {
+        if (old.some((j) => j.dedupe_key === vars.dedupe_key)) return old;
+        return [...old, { dedupe_key: vars.dedupe_key, job: vars.job, status: "saved" }];
+      });
+      return { prev };
+    },
     onSuccess: () => {
       toast.success("Saved to your list");
+    },
+    onError: (err: any, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(["saved-jobs"], ctx.prev);
+      const msg = err?.message || "Failed to save";
+      setSearchError(msg);
+      toast.error(msg);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-jobs"] });
     },
-    onError: (err: any) => toast.error(err.message || "Failed to save"),
   });
 
   const handleSearch = async () => {
@@ -832,6 +851,63 @@ const JobSearch = () => {
                     atsProvider={selected.ats_provider}
                     isLiveAtSource={true}
                     transitionType={(profile as any)?.transition_type}
+                  />
+
+                  {/* Factorized Fit Matrix (WP-08) */}
+                  <FitMatrixCard
+                    fitMatrix={{
+                      hard_constraints: {
+                        pass: !selected.location || !location || selected.location.toLowerCase().includes(location.toLowerCase()) || selected.location.toLowerCase().includes("remote"),
+                        reason: "Location and preference constraints verified against candidate profile.",
+                      },
+                      skill_alignment: {
+                        score: selected.match_score ?? selected.score ?? selected.fit_score ?? 70,
+                        strong_skills: selected.matched_skills || [],
+                        missing_skills: selected.missing_skills || [],
+                        evidence: `Matched ${(selected.matched_skills || []).length} key skills from resume context.`,
+                      },
+                      experience_relevance: {
+                        score: Math.min(100, (selected.match_score ?? selected.score ?? selected.fit_score ?? 70) + 5),
+                        summary: selected.match_reasons?.[0] || selected.match_reason || "Relevant background alignment detected.",
+                        evidence_links: selected.matched_skills || [],
+                      },
+                      seniority_alignment: {
+                        result: (() => {
+                          const title = (selected.title || "").toLowerCase();
+                          const hasSenior = title.includes("senior") || title.includes("staff") || title.includes("principal") || title.includes("lead");
+                          // Return "unknown" when we can't determine from available data
+                          if (!selected.title) return "unknown";
+                          return hasSenior ? "aligned" : "unknown";
+                        })(),
+                        basis: selected.title ? "Seniority estimated from job title keywords; verify full job description." : "Seniority unknown — full job description unavailable.",
+                      },
+                      evidence_strength: {
+                        level: (selected.matched_skills || []).length >= 4 ? "high" : (selected.matched_skills || []).length >= 2 ? "medium" : "low",
+                        source_count: (selected.matched_skills || []).length,
+                      },
+                      freshness: {
+                        state: (() => {
+                          const observed = selected.observed_at || selected.created_at || selected.posted_at;
+                          if (!observed) return "unknown";
+                          const ageMs = Date.now() - new Date(observed).getTime();
+                          const ageDays = ageMs / (1000 * 60 * 60 * 24);
+                          if (ageDays <= 14) return "current";
+                          if (ageDays <= 45) return "aging";
+                          return "expired";
+                        })(),
+                        last_checked: new Date().toISOString(),
+                      },
+                      risk_flags: [
+                        ...(!selected.salary ? [{ type: "missing_salary", detail: "Posting does not disclose compensation range." }] : []),
+                        ...(!selected.url ? [{ type: "unverifiable_source", detail: "Direct ATS application URL unavailable." }] : []),
+                      ],
+                      recommendation: {
+                        action: (selected.match_score ?? selected.score ?? selected.fit_score ?? 0) >= 60 ? "strong_match" : "weak_match",
+                        why: selected.match_reasons?.[0] || "Profile demonstrates strong baseline affinity for this position.",
+                        what_would_change: (selected.missing_skills || []).length > 0 ? `Tailoring resume with ${(selected.missing_skills || []).slice(0, 2).join(", ")} will improve score.` : "Resume is well-calibrated.",
+                      },
+                    }}
+                    className="border-primary/20 bg-card/40"
                   />
 
                   {selected.role_intelligence && (

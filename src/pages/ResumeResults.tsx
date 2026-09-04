@@ -23,6 +23,7 @@ import type { ResumeAnalysisResult } from "@/types/resume";
 import type { DeepATSResponse, GuardrailResult, ResumeOptimizationResponse } from "@/api/types";
 import { SlideUp } from "@/components/ui/motion";
 import { Progress } from "@/components/ui/progress";
+import { ScoreBreakdownCard } from "@/components/resume/ScoreBreakdownCard";
 import { optimizeResume, deepATS, exportResume } from "@/api";
 import { toast } from "sonner";
 
@@ -984,8 +985,20 @@ const ResumeResults = () => {
           </div>
 
           {/* Right Column - Flattened Section Breakdown */}
-          <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-lg font-bold text-foreground tracking-tight">
+          <div className="lg:col-span-2 space-y-6">
+            {/* Trust-First Score Breakdown */}
+            <SlideUp delay={0.08}>
+              <ScoreBreakdownCard
+                breakdown={
+                  optimizationResult?.score_breakdown ||
+                  analysisResults.score_breakdown ||
+                  null
+                }
+              />
+
+            </SlideUp>
+
+            <h2 className="text-lg font-bold text-foreground tracking-tight pt-2">
               Detailed Breakdown
             </h2>
 

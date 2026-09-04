@@ -385,9 +385,23 @@ def heuristic_ats_score(resume_text: str, job_description: str | None = None) ->
     stuffing = _keyword_stuffing_evidence(text, job_description)
     score = max(0, score_before_penalties - stuffing["stuffing_penalty"])
 
+    try:
+        from app.services.skill_graph import skill_adjacency_score
+        if job_description and job_description.strip():
+            jd_skills = categorize_jd_keywords(job_description).get("hard_skills", [])
+            resume_skills = categorize_jd_keywords(text).get("hard_skills", [])
+            semantic_adjacency = round(skill_adjacency_score(resume_skills, jd_skills) * 100)
+        else:
+            # 0 means unavailable (no JD signal), not a measured zero-overlap.
+            semantic_adjacency = 0
+    except Exception:
+        # 0 means unavailable (adjacency unavailable), not a measured zero-overlap.
+        semantic_adjacency = 0
+
     return {
         "score": score,
         "ats_score": score,
+        "semantic_adjacency": semantic_adjacency,
         "score_before_penalties": score_before_penalties,
         "evidence": {
             "keyword_coverage_pct": keyword_score_pct,

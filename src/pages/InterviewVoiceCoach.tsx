@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Mic, MicOff, Volume2, Play, RefreshCw, Award, Zap, AlertTriangle, CheckCircle, Radio, Sparkles, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetchResponse, apiFetch } from "@/api";
+import { VoiceConsentModal, VOICE_CONSENT_STORAGE_KEY } from "@/components/interview/VoiceConsentModal";
 
 interface VoiceAnalysis {
   transcript: string;
@@ -41,6 +42,7 @@ export function InterviewVoiceCoach() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<VoiceAnalysis | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState(PRESET_INTERVIEW_PROMPTS[0]);
+  const [consentModalOpen, setConsentModalOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const recognitionRef = useRef<any>(null);
@@ -62,6 +64,20 @@ export function InterviewVoiceCoach() {
   const transcriptRef = useRef<string>("");
 
   const startRecording = () => {
+    let hasConsent = false;
+    try {
+      hasConsent = sessionStorage.getItem(VOICE_CONSENT_STORAGE_KEY) === "true";
+    } catch {
+      hasConsent = false;
+    }
+    if (!hasConsent) {
+      setConsentModalOpen(true);
+      return;
+    }
+    executeStartRecording();
+  };
+
+  const executeStartRecording = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       toast.error("Speech Recognition Not Supported", {
@@ -276,6 +292,10 @@ export function InterviewVoiceCoach() {
                     <RefreshCw className={`w-4 h-4 ${isAnalyzing ? "animate-spin" : ""}`} /> Analyze Transcript
                   </Button>
                 )}
+                {/* No duplex status endpoint — service-level seam only (voice_live.start_live_session reports unavailable with no keys). */}
+                <Button disabled title="Live voice needs an API key — text coaching works now" className="gap-2">
+                  <Mic className="w-4 h-4" /> Live voice
+                </Button>
               </div>
             </Card>
 
@@ -379,6 +399,11 @@ export function InterviewVoiceCoach() {
             )}
           </div>
         </div>
+        <VoiceConsentModal
+          open={consentModalOpen}
+          onOpenChange={setConsentModalOpen}
+          onConsentGiven={executeStartRecording}
+        />
       </div>
     </AppShell>
   );

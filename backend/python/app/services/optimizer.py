@@ -29,47 +29,32 @@ from app.services.ats_engine import (
     STOPWORDS,
 )
 from app.services.llm_service import extract_json
+from app.services.llm_cache import (
+    build_optimizer_cache_key,
+    get_optimizer_result,
+    get_redis_client,
+    set_optimizer_result,
+    _close_client,
+)
 from app.guardrails import PipelineGate
 from app.telemetry import stage_complete, stage_fail
 from app.parsers.document_parser import ResumeParser
+from app.scoring.ats_scorer import ATSScorer
+from app.analysis.similarity import KeywordAnalyzer
+from app.analysis.ngram_analyzer import NGramAnalyzer
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# System prompts
+# System prompts (versioned — source of truth is prompt_registry.py)
 # ---------------------------------------------------------------------------
 
-OPTIMIZE_SYSTEM = (
-    "You are Tayari's resume optimization engine — a world-class resume writer "
-    "who rewrites resumes to maximize ATS scores and recruiter response rates while "
-    "staying 100% truthful to the candidate's real experience. Never invent "
-    "employers, titles, dates or credentials. You naturally weave in the target "
-    "job's keywords where genuinely applicable. Use clean ATS-safe structure: "
-    "NAME line first, then ALL-CAPS section headings (PROFESSIONAL SUMMARY, SKILLS, "
-    "EXPERIENCE, EDUCATION...), '- ' bullets with action verbs and quantified impact.\n"
-    + _UNTRUSTED_INSTRUCTION
-)
+from app.services.prompt_registry import get_prompt as _get_prompt
 
-HUMANIZE_SYSTEM = (
-    "You are a professional resume editor specializing in authentic, human-sounding prose. "
-    "Your job is to review an AI-optimized resume and remove any patterns that sound "
-    "machine-generated or awkward. Rules:\n"
-    "- Keep ALL facts, metrics, employer names, dates, and job titles exactly as-is\n"
-    "- Fix robotic phrasing: overly formal words, repetitive sentence structures\n"
-    "- Fix awkward keyword insertions that break natural sentence flow\n"
-    "- Ensure bullets begin with strong, varied action verbs\n"
-    "- Make each bullet sound like a real human wrote it\n"
-    "Output only the improved resume text, no explanation."
-)
-
-STAR_SYSTEM = (
-    "You are a career coach specializing in the STAR method (Situation, Task, Action, Result). "
-    "Analyze each experience bullet and score its STAR completeness 0-4. "
-    "Then rewrite weak bullets to improve STAR coverage using real data the user provided. "
-    "NEVER fabricate numbers or experiences. If no metric is available, "
-    "suggest a reasonable range like '~20-30%' and mark it with [ESTIMATE]. "
-    "Output JSON only — no prose."
-)
+OPTIMIZE_PROMPT_VERSION, OPTIMIZE_SYSTEM = _get_prompt("optimizer.generate")
+REFLEXION_PROMPT_VERSION, _REFLEXION_SYSTEM = _get_prompt("optimizer.reflexion_refine")
+HUMANIZE_PROMPT_VERSION, HUMANIZE_SYSTEM = _get_prompt("optimizer.humanize")
+STAR_PROMPT_VERSION, STAR_SYSTEM = _get_prompt("optimizer.star_rewrite")
 
 OUTPUT_FORMAT = (
     "Respond in EXACTLY this format:\n"
@@ -493,6 +478,28 @@ async def optimize_with_reflection(
     - baseline (Phase 1 parse)
     """
     jd = (job_description or "").strip() or None
+    # ponytail: cache the final result dict only — never wrap llm_service internals (owned by another agent).
+    # ponytail: namespace by the registry prompt version so prompt edits naturally miss.
+    _cache_key = build_optimizer_cache_key(
+        resume_text,
+        job_description,
+        prompt_version=OPTIMIZE_PROMPT_VERSION,
+        target_role=target_role,
+        job_label=job_label,
+        custom_instructions=custom_instructions,
+        transition=transition,
+    )
+    _redis = get_redis_client()
+    try:
+        _hit = await get_optimizer_result(_redis, _cache_key)
+    except Exception:
+        _hit = None
+    if isinstance(_hit, dict) and _hit:
+        await _close_client(_redis)
+        return _hit
+    # ponytail: release the lookup connection before the long LLM calls; a fresh client is used for the store.
+    await _close_client(_redis)
+    _redis = None
     context = ""
     if jd:
         # ponytail: chunked via long_context (spec 2026-08-02) — JD condenses
@@ -525,9 +532,6 @@ async def optimize_with_reflection(
                 keyword_matrix.get("soft_skill_coverage", "N/A"),
                 keyword_matrix.get("domain_coverage", "N/A"))
 
-    # Semantic similarity (before optimization)
-    semantic_before = semantic_similarity_score(resume_text, jd) if jd else None
-
     # ---- Phase 3/LLM: GENERATE + STAR rewrite ---------------------------
     # ponytail: chunked via long_context (spec 2026-08-02) — resume reaches the
     # LLM in full (map-reduce) instead of head-slicing at [:9000].
@@ -543,8 +547,10 @@ async def optimize_with_reflection(
         + transition_rules
     )
 
-    # Pre-compute semantic score for fallback
-    semantic_before = semantic_ats_score(resume_text, jd)
+    # Semantic similarity (before optimization) — single compute; removed
+    # duplicate second compute that overwrote this unconditionally.
+    semantic_before = semantic_similarity_score(resume_text, jd) if jd else None
+
     try:
         res_obj: OptimizedResumePayloadSchema = await LongContextClient().map_reduce_json(
             resume_text,
@@ -588,7 +594,16 @@ async def optimize_with_reflection(
     passes = 1
 
     # ---- Reflexion pass: CRITIQUE → REFINE ------------------------------
-    if heuristic["score"] < SCORE_TARGET or not alignment_report["is_aligned"]:
+    # C4 independent critic: deterministic, zero LLM calls, different
+    # logic/weights from the generator (regex claim sets vs parser-based
+    # alignment). Triggers the existing single refine budget when the draft
+    # hallucinates metrics/employers, even if heuristic + alignment pass.
+    from app.services.resume_critic import audit_draft as _audit_draft
+    critic_report = _audit_draft(optimized, resume_text)
+    critic_fail = (
+        critic_report["verdict"] == "fail" and critic_report["grounding_ratio"] < 0.95
+    )
+    if heuristic["score"] < SCORE_TARGET or not alignment_report["is_aligned"] or critic_fail:
         feedback = _gap_feedback(heuristic)
         if not alignment_report["is_aligned"]:
             fabricated_items = [v["value"] for v in alignment_report["violations"]
@@ -596,6 +611,12 @@ async def optimize_with_reflection(
             feedback += (
                 f"\n- CRITICAL ALIGNMENT VIOLATION: You fabricated skills/certifications "
                 f"not found in the original resume. Remove them: {', '.join(fabricated_items)}"
+            )
+        if critic_fail:
+            critic_lines = "\n".join(f"  * {r}" for r in critic_report["reasons"][:12])
+            feedback += (
+                f"\n- INDEPENDENT CRITIC REJECTED DRAFT "
+                f"(grounding_ratio {critic_report['grounding_ratio']}):\n{critic_lines}"
             )
 
         logger.info("Reflexion pass triggered (score %s < %s, aligned: %s)",
@@ -613,7 +634,7 @@ async def optimize_with_reflection(
                 optimized,
                 refine_template,
                 kind="resume",
-                system=OPTIMIZE_SYSTEM,
+                system=_REFLEXION_SYSTEM,
                 response_model=OptimizedResumePayloadSchema,
                 tier="smart",
                 max_tokens=4000,
@@ -628,8 +649,16 @@ async def optimize_with_reflection(
             alignment_report2 = validate_master_alignment(optimized2, resume_text)
             passes = 2
 
+            critic_report2 = _audit_draft(optimized2, resume_text)
+            critic_ok = (
+                critic_report2["verdict"] == "pass"
+                or critic_report2["grounding_ratio"] > critic_report["grounding_ratio"]
+            )
             if (heuristic2["score"] >= heuristic["score"]
-                    or (alignment_report2["is_aligned"] and not alignment_report["is_aligned"])):
+                    or (alignment_report2["is_aligned"] and not alignment_report["is_aligned"])
+                    or (critic_fail and critic_ok)):
+                if critic_fail and critic_ok:
+                    critic_report = critic_report2
                 optimized, heuristic, alignment_report = optimized2, heuristic2, alignment_report2
                 meta["changes"] = (meta.get("changes", []) + meta2.get("changes", []))[:8]
                 meta["keywords_added"] = list(dict.fromkeys(
@@ -648,6 +677,7 @@ async def optimize_with_reflection(
     # ---- Recalculate on final cleaned text ------------------------------
     heuristic = semantic_ats_score(optimized, jd)
     alignment_report = validate_master_alignment(optimized, resume_text)
+    critic_report = _audit_draft(optimized, resume_text)
     metric_suggestions = generate_metric_suggestions(optimized)
     injectable, non_injectable = analyze_keyword_gaps(optimized, resume_text, jd or "")
 
@@ -664,10 +694,26 @@ async def optimize_with_reflection(
     # ---- Semantic similarity (after optimization) ------------------------
     semantic_after = semantic_similarity_score(optimized, jd) if jd else None
 
+    # ---- Score breakdown (WP-01 trust-first transparent dimensions) ------
+    ats_scorer_inst = ATSScorer()
+    kw_analyzer_inst = KeywordAnalyzer()
+    ngram_analyzer_inst = NGramAnalyzer()
+    opt_keywords = kw_analyzer_inst.analyze(optimized, jd or "")
+    opt_ngrams = ngram_analyzer_inst.analyze(optimized, jd or "")
+    ats_res = ats_scorer_inst.score(opt_keywords, opt_ngrams, None, optimized, job_description=jd)
+    score_breakdown = (
+        ats_res.score_breakdown.model_dump()
+        if hasattr(ats_res.score_breakdown, "model_dump")
+        else ats_res.breakdown.model_dump()
+        if hasattr(ats_res.breakdown, "model_dump")
+        else dict(ats_res.breakdown)
+    )
+
     # ---- Phase 5: Consolidate final output ------------------------------
     result = {
         # Core output
         "optimized_text": optimized,
+        "score_breakdown": score_breakdown,
         "changes": meta.get("changes", []),
         "keywords_added": meta.get("keywords_added", []),
         # ponytail: estimated_score is reported to callers (including the
@@ -697,6 +743,7 @@ async def optimize_with_reflection(
         "metric_suggestions": metric_suggestions,
         # Phase 5
         "alignment_report": alignment_report,
+        "critic_report": critic_report,
         "optimization_summary": {
             "jd_keyword_coverage_before": keyword_matrix.get("hard_skill_coverage"),
             "semantic_score_before": semantic_before["score"] if semantic_before else None,
@@ -729,6 +776,12 @@ async def optimize_with_reflection(
         )
 
     result["guardrails"] = g_result
+    try:
+        _store = get_redis_client()
+        await set_optimizer_result(_store, _cache_key, result)
+        await _close_client(_store)
+    except Exception:
+        pass
     return result
 
 
