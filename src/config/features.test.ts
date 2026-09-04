@@ -11,8 +11,8 @@ import { features, isProductionMode, getNavLinks, primaryNavigationFeatures } fr
 // But we definitely can test `getNavLinks` and `features` derivation.
 
 describe('Feature Flags Configuration', () => {
-    it('should have interviewPrep gated off for current release scope', () => {
-        expect(features.interviewPrep).toBe(false);
+    it('should have interviewPrep enabled for WP-07 release scope', () => {
+        expect(features.interviewPrep).toBe(true);
     });
 
     it('should keep automation workspace gated off until evidence is complete', () => {
@@ -32,7 +32,7 @@ describe('Feature Flags Configuration', () => {
         const featureSource = readFileSync(join(process.cwd(), 'src', 'config', 'features.ts'), 'utf8');
         expect(featureSource).toContain('computerControl: [false, true]');
         expect(featureSource).toContain('desktopAgent: [false, true]');
-        expect(featureSource).toContain('voiceCoach: [false, false]');
+        expect(featureSource).toContain('voiceCoach: [false, true]');
         expect(featureSource).toContain('applyAgent: [false, true]');
         expect(appSource).toContain('{features.computerControl ? (');
         expect(appSource).toContain('{features.desktopAgent ? (');

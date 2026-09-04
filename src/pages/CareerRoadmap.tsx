@@ -25,8 +25,10 @@ import {
     ArrowUpRight,
     Search,
     MapPin,
-    BookmarkCheck
+    BookmarkCheck,
+    Compass
 } from "lucide-react";
+import { ScenarioPlanner } from "@/components/career/ScenarioPlanner";
 import {
     listResumes,
     getSkillsGap,
@@ -52,7 +54,7 @@ const CareerRoadmap = () => {
     const [loadingResumes, setLoadingResumes] = useState(true);
     const [analyzing, setAnalyzing] = useState(false);
     const [analysisStep, setAnalysisStep] = useState("");
-    const [activeTab, setActiveTab] = useState<"skills" | "learning" | "salary">("skills");
+    const [activeTab, setActiveTab] = useState<"skills" | "learning" | "salary" | "scenarios">("skills");
 
     // Analysis results
     const [skillsGap, setSkillsGap] = useState<SkillsGapResponse | null>(null);
@@ -393,6 +395,7 @@ const CareerRoadmap = () => {
                                 <div className="flex border-b border-border/80">
                                     {[
                                         { id: "skills", label: "Skills Gap Analysis", icon: Target },
+                                        { id: "scenarios", label: "Scenario Roadmaps (WP-10)", icon: Compass },
                                         { id: "learning", label: "Personalized Course tracks", icon: BookOpen },
                                         { id: "salary", label: "Salary Benchmarking", icon: DollarSign },
                                     ].map((t) => (
@@ -654,6 +657,14 @@ const CareerRoadmap = () => {
                                                     </div>
                                                 </CardContent>
                                             </Card>
+                                        </FadeIn>
+                                    )}
+
+                                    {activeTab === "scenarios" && (
+                                        <FadeIn>
+                                            <div className="mt-4">
+                                                <ScenarioPlanner />
+                                            </div>
                                         </FadeIn>
                                     )}
                                 </div>

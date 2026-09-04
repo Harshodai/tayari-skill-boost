@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EvaluationReportPanel } from '../components/EvaluationReportPanel';
+import { DecisionQueue } from '@/components/DecisionQueue';
 import { listCareerOpsPortals, createCareerOpsPortal, deleteCareerOpsPortal, updateCareerOpsPortal, scanCareerOpsPortals, getCareerOpsPatterns, listCareerOpsFollowups, actionCareerOpsFollowup, getCareerOpsStoryBank, saveCareerOpsStoryBank, deleteCareerOpsStoryBank, getCareerOpsStats } from '../api';
 
 interface Portal {
@@ -393,6 +394,9 @@ export const CareerOpsDashboard: React.FC = () => {
             </Button>
           }
         />
+
+        {/* Career Command Center Decision Queue */}
+        <DecisionQueue className="mb-6" />
 
         {/* Stats Bar */}
         {stats && (

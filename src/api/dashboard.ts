@@ -1,6 +1,6 @@
 import { apiFetchResponse } from "@/api";
 import { apiFetch, getHeaders, checkResponse, API_URL } from "./client";
-import type { Profile, DashboardStats } from "./types";
+import type { Profile, DashboardStats, NextActionsResponse } from "./types";
 import type { PreferenceProfile } from "./jobs";
 
 export async function getProfile(): Promise<Profile> {
@@ -278,6 +278,10 @@ export async function deleteCareerOpsStoryBank(index: number): Promise<any> {
 
 export async function getCareerOpsStats(): Promise<Record<string, any>> {
   return apiFetch("/v1/career-ops/stats");
+}
+
+export async function getCareerNextActions(): Promise<NextActionsResponse> {
+  return apiFetch<NextActionsResponse>("/v1/career/next-actions");
 }
 
 export async function importProfilePDF(file: File): Promise<{

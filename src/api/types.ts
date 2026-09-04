@@ -3,6 +3,8 @@
  * These mirror the backend response shapes.
  */
 
+import type { ScoreBreakdown } from "@/types/resume";
+
 // --- Core models ---
 
 export interface Resume {
@@ -244,6 +246,26 @@ export interface ResumeOptimizationResponse {
   non_injectable_keywords?: string[];
   removed_ai_phrases?: Array<{ buzzword: string; replacement?: string }>;
   metric_suggestions?: string[];
+  score_breakdown?: ScoreBreakdown;
+}
+
+export type ActionStatusBadge = 'verified' | 'candidate_confirmed' | 'inferred' | 'illustrative' | 'unavailable';
+
+export interface CareerAction {
+  action_id: string;
+  type: string;
+  title: string;
+  why_now: string;
+  effort_estimate_mins: number;
+  confidence: number;
+  status_badge: ActionStatusBadge;
+  freshness_ts: string;
+  required_action_by_candidate: string;
+  evidence_url?: string;
+}
+
+export interface NextActionsResponse {
+  actions: CareerAction[];
 }
 
 export interface DeepATSResponse {

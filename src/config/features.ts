@@ -20,8 +20,8 @@ const CONFIG = {
     resumeOptimizer: [true, true],
     // Career roadmap visual planning tool
     careerRoadmap: [true, true],
-    // Interactive interview preparation module (disabled for current release scope)
-    interviewPrep: [false, false],
+    // Interactive interview preparation module (WP-07 enabled)
+    interviewPrep: [true, true],
     // Job search interface and autopilot integration
     jobSearch: [true, true],
     // Glass-box Apply Agent remains preview-only until its data model and
@@ -45,10 +45,10 @@ const CONFIG = {
     googleDrive: [false, false],
     // Durable automation workspace; disabled until runtime and provider evidence gates pass
     automationControl: [false, false],
-    // AI-powered interview coaching (disabled for current release scope)
-    interviewAI: [false, false],
-    // Voice interview coach with live metrics
-    voiceCoach: [false, false],
+    // AI-powered interview coaching (WP-07 enabled)
+    interviewAI: [true, true],
+    // Voice interview coach with live metrics (WP-07 preview only)
+    voiceCoach: [false, true],
     // Salary negotiation copilot with H1B benchmarks
     negotiationCopilot: [true, true],
     // 15-minute Company Radar Job Sentinel
