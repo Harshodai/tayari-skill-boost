@@ -5,14 +5,18 @@ not accept caller-selected identity or tenant headers from direct callers.
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import hashlib
 import json
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.auth.dependencies import VerifiedRequestContext, get_verified_context
@@ -27,6 +31,7 @@ from app.services.computer_control import (
 from app.services.computer_action_policy import ComputerActionRejected, authorize_action
 from app.services.computer_control import ComputerActionRequest
 from app.services.computer_grant_security import ComputerGrantRejected, ComputerGrantReplayProtector, issue_grant, verify_grant
+from app.services.computer_replay import replay_computer_events
 from app.services.db import get_pool
 from app.services.provenance import ProvenanceError, ProvenanceUnavailable, payload_hash, provenance_service
 
@@ -555,3 +560,257 @@ async def revoke_computer_run(run_id: UUID, context: VerifiedRequestContext = De
         content={"run_id": str(run_id), "reason": "owner_requested", "state": ComputerRunState.REVOKED.value},
     )
     return ComputerRunStatusResponse(**dict(row))
+
+
+# ============================================================================
+# WP-04: Isolated Browser Worker Endpoints (Allowlist, Kill Switch & SSE Stream)
+# ============================================================================
+
+class ComputerWorkerStartRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    url: str
+    max_timeout: int = Field(default=600, ge=1, le=600)
+
+
+@router.delete("/run/{run_id}")
+@router.delete("/runs/{run_id}")
+async def terminate_computer_run(
+    run_id: str,
+    context: VerifiedRequestContext = Depends(get_verified_context),
+):
+    """Hard kill switch: immediately terminate and clean up browser context within 5s."""
+    from app.services.browser_worker_pool import terminate_worker
+
+    terminated = False
+    try:
+        terminated = await terminate_worker(run_id, owner_id=context.subject)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    from app.services.browser_automation.session import cancel_run
+    try:
+        await cancel_run(run_id, owner_id=context.subject)
+    except Exception:
+        logger.debug("computer terminate cancel_run failed", exc_info=True)
+
+    # If run exists in database, mark revoked. Opaque worker run_ids are not
+    # control-plane UUIDs — parse explicitly so they flow through (skip DB
+    # revoke) instead of being silently swallowed by a suppress-skip.
+    pool = await get_pool()
+    if pool:
+        try:
+            run_uuid = UUID(str(run_id))
+            subject_uuid = UUID(context.subject)
+        except (ValueError, AttributeError, TypeError):
+            run_uuid = None
+        if run_uuid is not None:
+            try:
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        UPDATE computer_runs
+                        SET state = 'revoked', revoked_at = COALESCE(revoked_at, now())
+                        WHERE id = $1 AND user_id = $2
+                        """,
+                        run_uuid,
+                        subject_uuid,
+                    )
+            except Exception:
+                logger.debug("computer terminate db revoke failed", exc_info=True)
+
+    return {"success": True, "terminated": terminated, "run_id": run_id}
+
+
+@router.post("/run/{run_id}/start")
+@router.post("/runs/{run_id}/start")
+async def start_computer_worker(
+    run_id: str,
+    payload: ComputerWorkerStartRequest,
+    context: VerifiedRequestContext = Depends(get_verified_context),
+):
+    """Start an isolated browser worker for an allowlisted ATS URL."""
+    from app.services.browser_worker_pool import (
+        create_worker,
+        start_worker_task,
+        validate_ats_url,
+    )
+
+    # 1. Enforce strict allowlist at entry (403 Forbidden before Playwright launch)
+    validate_ats_url(payload.url)
+
+    pool = await get_pool()
+    try:
+        worker = await create_worker(
+            run_id=run_id,
+            user_id=context.subject,
+            target_url=payload.url,
+            max_timeout=payload.max_timeout,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    await start_worker_task(worker, pool=pool)
+    return {"success": True, "run_id": run_id, "status": "started"}
+
+
+async def _sse_stream_worker(worker: Any):
+    """Stream worker events in SSE data: {...} format matching WP-04 schema."""
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    worker.subscribers.add(queue)
+    try:
+        # Replay past events first
+        for ev in list(worker.events):
+            yield f"data: {json.dumps(ev)}\n\n"
+
+        while True:
+            if worker.is_terminated and queue.empty():
+                break
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=1.0)
+                yield f"data: {json.dumps(event)}\n\n"
+                if event.get("type") in ("complete", "error") and (worker.is_terminated or worker.status in ("complete", "failed", "cancelled")):
+                    break
+            except asyncio.TimeoutError:
+                if worker.is_terminated:
+                    break
+                yield ": keepalive\n\n"
+    finally:
+        worker.subscribers.discard(queue)
+
+
+@router.get("/run/{run_id}/stream")
+@router.get("/runs/{run_id}/stream")
+async def stream_computer_run(
+    run_id: str,
+    context: VerifiedRequestContext = Depends(get_verified_context),
+):
+    """SSE event stream for active worker emitting {type, payload, step_index, ts}."""
+    from app.services.browser_worker_pool import get_worker
+
+    worker = get_worker(run_id)
+    if not worker:
+        raise HTTPException(status_code=404, detail="No active browser worker found for run")
+
+    if worker.user_id and worker.user_id != context.subject:
+        raise HTTPException(status_code=403, detail="Run belongs to another user")
+
+    return StreamingResponse(
+        _sse_stream_worker(worker),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+async def _audit_replay_access(*, run_id: str, user_id: str, tenant_id: str) -> None:
+    """Best-effort owner-scoped audit of replay access. Never raises.
+
+    ponytail: durable ownership for no-active-worker replays cannot be enforced
+    here — computer_runs/computer_run_events/action_ledger all key run_id as UUID
+    while worker run_ids are opaque strings with no mapping table (inventing one is
+    out of scope). The active-worker owner check above still rejects cross-user live
+    access; every replay access below is audited with the verified owner predicate,
+    DB row when the run_id is a control-plane UUID, structured log otherwise.
+    (No request IP at this layer — the Go gateway owns transport.)
+    visual_action/pause_required have no server handler paths (worker-emitted stream
+    events only); terminal receipts are already owner-audited via
+    record_action→action_ledger in browser_worker_pool.record_submission_receipt.
+    """
+    try:
+        pool = await get_pool()
+        if pool is None:
+            raise RuntimeError("audit pool unavailable")
+        async with pool.acquire() as conn:
+            # Intentionally unique per access — every replay access is audited;
+            # no per-second dedupe (ON CONFLICT still guards true retries).
+            await conn.execute(
+                """
+                INSERT INTO computer_run_events
+                    (run_id, user_id, tenant_id, idempotency_key, event_type, metadata)
+                VALUES ($1, $2, $3, $4, 'replay_accessed', $5::jsonb)
+                ON CONFLICT (user_id, idempotency_key) DO NOTHING
+                """,
+                UUID(str(run_id)),
+                UUID(user_id),
+                UUID(tenant_id),
+                f"computer-replay:{run_id}:{user_id}:{uuid.uuid4().hex}",
+                json.dumps({"action": "replay_accessed"}),
+            )
+    except Exception as exc:
+        logger.info(
+            "computer replay access user_id=%s run_id=%s action=replay_accessed db_audit=skipped reason=%s",
+            user_id,
+            run_id,
+            type(exc).__name__,
+        )
+
+
+@router.get("/runs/{run_id}/events")
+@router.get("/run/{run_id}/events")
+async def replay_run_events(
+    run_id: str,
+    after: int = 0,
+    context: VerifiedRequestContext = Depends(get_verified_context),
+):
+    from app.services.browser_worker_pool import get_worker
+
+    # ponytail: mirror stream_computer_run owner check for live workers only
+    worker = get_worker(str(run_id))
+    if worker is not None and worker.user_id and worker.user_id != context.subject:
+        raise HTTPException(status_code=403, detail="Run belongs to another user")
+    # ponytail: owner-scoped Redis key — durable replay is per-user, a guessed run_id reads nothing
+    cursor = max(0, int(after))
+    # ponytail: audit never breaks replay — helper is fail-open by contract
+    await _audit_replay_access(run_id=str(run_id), user_id=context.subject, tenant_id=context.tenant_id)
+    # ponytail: reuse Task 1 helper; Redis fail-open keeps replay best-effort
+    return await replay_computer_events(str(run_id), after=cursor, user_id=context.subject)
+
+
+@router.post("/run/{run_id}/stream")
+@router.post("/runs/{run_id}/stream")
+async def start_and_stream_computer_run(
+    run_id: str,
+    payload: ComputerWorkerStartRequest,
+    context: VerifiedRequestContext = Depends(get_verified_context),
+):
+    """Start worker with strict allowlist check and immediately stream SSE events."""
+    from app.services.browser_worker_pool import (
+        create_worker,
+        get_worker,
+        start_worker_task,
+        validate_ats_url,
+    )
+
+    # Fails closed with 403 Forbidden before Playwright launch
+    validate_ats_url(payload.url)
+
+    worker = get_worker(run_id)
+    if worker and not worker.is_terminated:
+        # Existing live worker — enforce owner isolation before streaming
+        if worker.user_id and worker.user_id != context.subject:
+            raise HTTPException(status_code=403, detail="Run belongs to another user")
+    else:
+        pool = await get_pool()
+        try:
+            worker = await create_worker(
+                run_id=run_id,
+                user_id=context.subject,
+                target_url=payload.url,
+                max_timeout=payload.max_timeout,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        await start_worker_task(worker, pool=pool)
+
+    return StreamingResponse(
+        _sse_stream_worker(worker),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+

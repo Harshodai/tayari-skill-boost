@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { getBrowserRunControlState, streamBrowserAgent } from "@/api/browser";
+import { fetchComputerReplay, getBrowserRunControlState, streamBrowserAgent } from "@/api/browser";
 
 const mockFetch = vi.fn(() => Promise.resolve(new Response()));
 const originalFetch = globalThis.fetch;
@@ -83,5 +83,36 @@ describe("streamBrowserAgent", () => {
     );
 
     await expect(streamBrowserAgent("x", () => {})).rejects.toThrow();
+  });
+});
+
+describe("fetchComputerReplay", () => {
+  it("passes the after cursor through and returns next_after", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ events: [], next_after: 7 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const out = await fetchComputerReplay("r1", 3);
+
+    const [url] = mockFetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain("/v1/computer/runs/r1/events?after=3");
+    expect(out.next_after).toBe(7);
+    expect(out.events).toEqual([]);
+  });
+
+  it("rejects empty run ids and clamps negative cursors to zero", async () => {
+    await expect(fetchComputerReplay("   ", 0)).rejects.toThrow();
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ events: [], next_after: 0 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    await fetchComputerReplay("r1", -5);
+    const [url] = mockFetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain("after=0");
   });
 });

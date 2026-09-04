@@ -132,3 +132,94 @@ export async function streamBrowserAgent(
     }
   }
 }
+
+export interface ComputerLiveEvent {
+  type: "screenshot" | "url" | "action" | "visual_action" | "confidence" | "pause_required" | "complete" | "error";
+  payload: Record<string, any> | string | number | boolean;
+  step_index: number;
+  ts: string;
+}
+
+export async function fetchComputerReplay(runId: string, after = 0): Promise<{ events: ComputerLiveEvent[]; next_after: number }> {
+  const id = runId.trim();
+  if (!id) throw new Error("Run ID is required.");
+  const cur = Math.max(0, Math.trunc(after));
+  return await apiFetch<{ events: ComputerLiveEvent[]; next_after: number }>(
+    `/v1/computer/runs/${encodeURIComponent(id)}/events?after=${cur}`,
+  );
+}
+
+/**
+ * WP-04 Hard kill switch: terminate the isolated computer worker immediately within 5s.
+ * Hits DELETE /api/v1/computer/run/{id}.
+ */
+export async function terminateComputerRun(runId: string): Promise<boolean> {
+  const normalizedRunId = runId.trim();
+  if (!normalizedRunId) throw new Error("Run ID is required to terminate.");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6_000);
+  try {
+    const response = await apiFetchResponse(`/v1/computer/run/${encodeURIComponent(normalizedRunId)}`, {
+      method: "DELETE",
+      headers: { ...getHeaders(), "Content-Type": "application/json" },
+      signal: controller.signal,
+    });
+    if (response.status === 401) throw new Error("Sign in again to stop this run.");
+    if (response.status === 403) throw new Error("This run belongs to another account.");
+    if (!response.ok) throw new Error(`Failed to terminate run (HTTP ${response.status})`);
+    const body = (await response.json().catch(() => ({}))) as { terminated?: boolean };
+    return Boolean(body.terminated);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * WP-04 Live SSE event stream for Job Tayari Computer worker.
+ * Connects to /api/v1/computer/run and listens for real-time progress, screenshots, and pause signals.
+ */
+export async function streamComputerRun(
+  runId: string,
+  onEvent: (event: ComputerLiveEvent) => void,
+  options?: { url?: string; maxTimeout?: number; signal?: AbortSignal }
+): Promise<void> {
+  const normalizedRunId = runId.trim();
+  if (!normalizedRunId) throw new Error("Run ID is required to stream.");
+
+  const isPost = Boolean(options?.url);
+  const endpoint = `/v1/computer/run/${encodeURIComponent(normalizedRunId)}/stream`;
+  const fetchOptions: RequestInit = {
+    method: isPost ? "POST" : "GET",
+    headers: { ...getHeaders(), ...(isPost ? { "Content-Type": "application/json" } : {}) },
+    signal: options?.signal,
+    ...(isPost ? { body: JSON.stringify({ url: options?.url, max_timeout: options?.maxTimeout ?? 600 }) } : {}),
+  };
+
+  const response = await apiFetchResponse(endpoint, fetchOptions);
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(text ? `HTTP ${response.status}: ${text}` : `HTTP ${response.status}`);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Streaming unsupported by response body.");
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf("\n\n")) >= 0) {
+      const chunk = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      const line = chunk.split("\n").find((l) => l.startsWith("data: "));
+      if (!line) continue;
+      try {
+        onEvent(JSON.parse(line.slice(6)) as ComputerLiveEvent);
+      } catch {
+        // skip malformed frames
+      }
+    }
+  }
+}
+

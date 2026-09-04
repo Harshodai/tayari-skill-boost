@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -34,6 +35,8 @@ type Client struct {
 	BaseURL       string
 	internalToken string
 	client        http.Client
+	streamClient  http.Client
+	breaker       *CircuitBreaker
 }
 
 // NewClient is kept for callers that only need an unauthenticated health client.
@@ -61,7 +64,51 @@ func NewClientWithToken(baseURL, internalToken string) *Client {
 			// logs while python-ai was still working).
 			Timeout: 240 * time.Second,
 		},
+		// ponytail: http.Client.Timeout covers full body reads, so the
+		// 240s client kills SSE streams at 4min despite a 20min ctx and
+		// the 600s worker timeout. Streams use this deadline-free client
+		// instead — caller ctx (disconnect/deadline) still aborts them.
+		streamClient: http.Client{},
+		breaker:      NewCircuitBreaker(3, 30*time.Second, nil),
 	}
+}
+
+// SetBreaker swaps the circuit breaker, allowing tests to inject a test clock.
+func (c *Client) SetBreaker(b *CircuitBreaker) {
+	c.breaker = b
+}
+
+// blocked fast-fails when the breaker is open so callers never hang on a
+// dead engine. HealthCheck intentionally bypasses this: it is the liveness
+// signal, not proxied traffic.
+func (c *Client) blocked() bool {
+	return c != nil && c.breaker != nil && !c.breaker.BeforeCall()
+}
+
+// ponytail: a Python 4xx proves the engine is reachable, so only transport
+// errors and 5xx count toward the breaker; client bugs must not trip it.
+func isBreakerFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.StatusCode >= 500
+	}
+	return true
+}
+
+func (c *Client) record(err error) {
+	if c == nil || c.breaker == nil {
+		return
+	}
+	c.breaker.AfterCall(!isBreakerFailure(err))
+}
+
+// SetTransport overrides the internal HTTP transport, allowing in-memory mocking in tests.
+func (c *Client) SetTransport(rt http.RoundTripper) {
+	c.client.Transport = rt
+	c.streamClient.Transport = rt
 }
 
 func (c *Client) setHeaders(req *http.Request, headers map[string]string) {
@@ -93,20 +140,28 @@ func (c *Client) ParseDocument(fileData []byte, fileType string) (map[string]int
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	c.setHeaders(req, nil)
+	if c.blocked() {
+		return nil, ErrCircuitOpen
+	}
 	resp, err := c.client.Do(req)
 	if err != nil {
+		c.record(err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(body)}
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: string(body)}
+		c.record(apiErr)
+		return nil, apiErr
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		// ponytail: corrupt payload after HTTP 200 proves reachability — skip breaker record either way.
 		return nil, err
 	}
+	c.record(nil)
 	return result, nil
 }
 
@@ -122,20 +177,28 @@ func (c *Client) AnalyzeResume(resumeText, jdText string) (map[string]interface{
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	c.setHeaders(req, nil)
+	if c.blocked() {
+		return nil, ErrCircuitOpen
+	}
 	resp, err := c.client.Do(req)
 	if err != nil {
+		c.record(err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		c.record(apiErr)
+		return nil, apiErr
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		// ponytail: corrupt payload after HTTP 200 proves reachability — skip breaker record either way.
 		return nil, err
 	}
+	c.record(nil)
 	return result, nil
 }
 
@@ -154,20 +217,28 @@ func (c *Client) PostJSONWithHeaders(endpoint string, payload interface{}, heade
 	}
 	req.Header.Set("Content-Type", "application/json")
 	c.setHeaders(req, headers)
+	if c.blocked() {
+		return nil, ErrCircuitOpen
+	}
 	resp, err := c.client.Do(req)
 	if err != nil {
+		c.record(err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		c.record(apiErr)
+		return nil, apiErr
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		// ponytail: corrupt payload after HTTP 200 proves reachability — skip breaker record either way.
 		return nil, err
 	}
+	c.record(nil)
 	return result, nil
 }
 
@@ -182,19 +253,27 @@ func (c *Client) PutJSONWithHeaders(endpoint string, payload interface{}, header
 	}
 	req.Header.Set("Content-Type", "application/json")
 	c.setHeaders(req, headers)
+	if c.blocked() {
+		return nil, ErrCircuitOpen
+	}
 	resp, err := c.client.Do(req)
 	if err != nil {
+		c.record(err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		c.record(apiErr)
+		return nil, apiErr
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		// ponytail: corrupt payload after HTTP 200 proves reachability — skip breaker record either way.
 		return nil, err
 	}
+	c.record(nil)
 	return result, nil
 }
 
@@ -209,20 +288,28 @@ func (c *Client) PatchJSONWithHeaders(endpoint string, payload interface{}, head
 	}
 	req.Header.Set("Content-Type", "application/json")
 	c.setHeaders(req, headers)
+	if c.blocked() {
+		return nil, ErrCircuitOpen
+	}
 	resp, err := c.client.Do(req)
 	if err != nil {
+		c.record(err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		c.record(apiErr)
+		return nil, apiErr
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		// ponytail: corrupt payload after HTTP 200 proves reachability — skip breaker record either way.
 		return nil, err
 	}
+	c.record(nil)
 	return result, nil
 }
 
@@ -236,19 +323,27 @@ func (c *Client) GetJSONWithHeaders(endpoint string, headers map[string]string) 
 		return nil, err
 	}
 	c.setHeaders(req, headers)
+	if c.blocked() {
+		return nil, ErrCircuitOpen
+	}
 	resp, err := c.client.Do(req)
 	if err != nil {
+		c.record(err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		c.record(apiErr)
+		return nil, apiErr
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		// ponytail: corrupt payload after HTTP 200 proves reachability — skip breaker record either way.
 		return nil, err
 	}
+	c.record(nil)
 	return result, nil
 }
 
@@ -258,19 +353,27 @@ func (c *Client) DeleteJSONWithHeaders(endpoint string, headers map[string]strin
 		return nil, err
 	}
 	c.setHeaders(req, headers)
+	if c.blocked() {
+		return nil, ErrCircuitOpen
+	}
 	resp, err := c.client.Do(req)
 	if err != nil {
+		c.record(err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		c.record(apiErr)
+		return nil, apiErr
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		// ponytail: corrupt payload after HTTP 200 proves reachability — skip breaker record either way.
 		return nil, err
 	}
+	c.record(nil)
 	return result, nil
 }
 
@@ -283,15 +386,22 @@ func (c *Client) GetBlob(endpoint string, headers map[string]string) (*http.Resp
 		return nil, err
 	}
 	c.setHeaders(req, headers)
-	resp, err := c.client.Do(req)
+	if c.blocked() {
+		return nil, ErrCircuitOpen
+	}
+	resp, err := c.streamClient.Do(req)
 	if err != nil {
+		c.record(err)
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		c.record(apiErr)
+		return nil, apiErr
 	}
+	c.record(nil)
 	return resp, nil
 }
 
@@ -303,15 +413,22 @@ func (c *Client) DeleteNoContent(endpoint string, headers map[string]string) err
 		return err
 	}
 	c.setHeaders(req, headers)
+	if c.blocked() {
+		return ErrCircuitOpen
+	}
 	resp, err := c.client.Do(req)
 	if err != nil {
+		c.record(err)
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		c.record(apiErr)
+		return apiErr
 	}
+	c.record(nil)
 	return nil
 }
 
@@ -341,15 +458,52 @@ func (c *Client) PostStream(ctx context.Context, endpoint string, payload interf
 	}
 	req.Header.Set("Content-Type", "application/json")
 	c.setHeaders(req, headers)
-	resp, err := c.client.Do(req)
+	if c.blocked() {
+		return nil, ErrCircuitOpen
+	}
+	resp, err := c.streamClient.Do(req)
 	if err != nil {
+		c.record(err)
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		c.record(apiErr)
+		return nil, apiErr
 	}
+	c.record(nil)
+	return resp, nil
+}
+
+// PostMultipartStream POSTs a pre-encoded multipart body and returns the raw
+// streaming response for SSE passthrough. Uses the deadline-free stream
+// client so long streams survive; ctx carries the caller deadline. The
+// caller owns closing the body.
+func (c *Client) PostMultipartStream(ctx context.Context, endpoint string, body io.Reader, contentType string, headers map[string]string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+endpoint, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", contentType)
+	c.setHeaders(req, headers)
+	if c.blocked() {
+		return nil, ErrCircuitOpen
+	}
+	resp, err := c.streamClient.Do(req)
+	if err != nil {
+		c.record(err)
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		c.record(apiErr)
+		return nil, apiErr
+	}
+	c.record(nil)
 	return resp, nil
 }
 
@@ -366,19 +520,27 @@ func (c *Client) PostJSONWithContext(ctx context.Context, endpoint string, paylo
 	}
 	req.Header.Set("Content-Type", "application/json")
 	c.setHeaders(req, headers)
+	if c.blocked() {
+		return nil, ErrCircuitOpen
+	}
 	resp, err := c.client.Do(req)
 	if err != nil {
+		c.record(err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+		c.record(apiErr)
+		return nil, apiErr
 	}
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		// ponytail: corrupt payload after HTTP 200 proves reachability — skip breaker record either way.
 		return nil, err
 	}
+	c.record(nil)
 	return result, nil
 }
 
