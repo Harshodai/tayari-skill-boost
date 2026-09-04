@@ -213,12 +213,15 @@ class InterviewPrepGenerator:
 
         # 1. Situation Analysis (0-25 pts)
         situation_keywords = [
-            "when", "while", "during", "at my", "in my role", "project", "company", "team",
+            "situation", "when", "while", "during", "at my", "in my role", "project", "company", "team",
             "faced with", "challenge", "context", "background", "problem", "outage", "legacy",
             "migration", "production", "scale", "customer", "client", "system", "incident",
             "scenario", "working on", "responsible for", "contract"
         ]
-        has_situation_kw = any(kw in lower_text for kw in situation_keywords)
+        has_situation_kw = any(
+            bool(re.search(r"\bsituation\b", lower_text)) if kw == "situation" else kw in lower_text
+            for kw in situation_keywords
+        )
         situation_score = 0
         situation_strength = "missing"
         situation_feedback = ""
@@ -242,12 +245,15 @@ class InterviewPrepGenerator:
 
         # 2. Task Analysis (0-25 pts)
         task_keywords = [
-            "tasked with", "my role was", "responsible for", "needed to", "goal was",
+            "task", "tasked with", "my role was", "responsible for", "needed to", "goal was",
             "objective", "had to", "assigned to", "requirement", "my responsibility",
             "target was", "expected to", "in order to", "aimed to", "had to decide",
             "mandate was", "focus was", "problem to solve", "mission was"
         ]
-        has_task_kw = any(kw in lower_text for kw in task_keywords)
+        has_task_kw = any(
+            bool(re.search(r"\btask\b", lower_text)) if kw == "task" else kw in lower_text
+            for kw in task_keywords
+        )
         task_score = 0
         task_strength = "missing"
         task_feedback = ""
@@ -308,7 +314,7 @@ class InterviewPrepGenerator:
 
         # 4. Result Analysis (0-25 pts)
         metric_pattern = re.compile(
-            r'\b(\d+(?:\.\d+)?%|\$\d+[kKmMbB]?|\d+(?:\.\d+)?ms|\d+x|\d+\s*(?:seconds|minutes|hours|days|percent|users|customers|orders|requests|queries|nodes|clusters))\b',
+            r'(?:\b\d+(?:\.\d+)?%|\b\$\d+[kKmMbB]?\b|\b\d+(?:\.\d+)?ms\b|\b\d+x\b|\b\d+\s*(?:seconds|minutes|hours|days|percent|users|customers|orders|requests|queries|nodes|clusters)\b)',
             re.IGNORECASE
         )
         has_metrics = bool(metric_pattern.search(text))

@@ -304,7 +304,7 @@ export const TayariComputerControlRoom = () => {
                   placeholder="Run ID (e.g. greenhouse-proof-run-1)"
                   className="h-8 flex-1 border-slate-700 bg-slate-900 font-mono text-xs text-slate-100"
                 />
-                <Button type="button" size="sm" onClick={refreshControlState} disabled={isLoading} className="bg-slate-800 hover:bg-slate-700 text-slate-200">
+                <Button type="button" size="sm" onClick={() => void refreshControlState()} disabled={isLoading} className="bg-slate-800 hover:bg-slate-700 text-slate-200">
                   {isLoading ? <LoaderCircle className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}
                   {isLoading ? 'Loading' : 'Load state'}
                 </Button>

@@ -5,6 +5,8 @@ import re
 # Regex patterns for common PII in US/North American resumes
 _PII_PATTERNS = [
     ("SSN", r"\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b"),
+    ("Phone", r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),
+    ("Email", r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b"),
     ("Credit Card", r"\b(?:\d{4}[-\s]?){3}\d{4}\b"),
     ("Passport (US)", r"\b[A-Z]\d{7,9}\b"),  # rough heuristic
     ("Passport (UK/CA)", r"\b[A-Z]{1,2}\d{6,9}\b"),  # rough heuristic

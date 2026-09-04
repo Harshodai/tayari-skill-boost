@@ -873,13 +873,12 @@ const JobSearch = () => {
                       },
                       seniority_alignment: {
                         result: (() => {
-                          const title = (selected.title || "").toLowerCase();
+                          if (!selected.title?.trim()) return "unknown";
+                          const title = selected.title.toLowerCase();
                           const hasSenior = title.includes("senior") || title.includes("staff") || title.includes("principal") || title.includes("lead");
-                          // Return "unknown" when we can't determine from available data
-                          if (!selected.title) return "unknown";
-                          return hasSenior ? "aligned" : "unknown";
+                          return hasSenior ? "aligned" : "under";
                         })(),
-                        basis: selected.title ? "Seniority estimated from job title keywords; verify full job description." : "Seniority unknown — full job description unavailable.",
+                        basis: selected.title?.trim() ? "Seniority estimated from job title keywords; verify full job description." : "Seniority unknown — full job description unavailable.",
                       },
                       evidence_strength: {
                         level: (selected.matched_skills || []).length >= 4 ? "high" : (selected.matched_skills || []).length >= 2 ? "medium" : "low",
@@ -889,7 +888,7 @@ const JobSearch = () => {
                         state: (() => {
                           const observed = selected.observed_at || selected.created_at || selected.posted_at;
                           if (!observed) return "unknown";
-                          const ageMs = Date.now() - new Date(observed).getTime();
+                          const ageMs = Date.now() - new Date(String(observed)).getTime();
                           const ageDays = ageMs / (1000 * 60 * 60 * 24);
                           if (ageDays <= 14) return "current";
                           if (ageDays <= 45) return "aging";

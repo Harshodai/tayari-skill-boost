@@ -10,6 +10,12 @@ vi.mock("@/components/layout", () => ({
   Layout: ({ children }: { children: ReactNode }) => <div data-testid="layout-wrapper">{children}</div>,
 }));
 
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({
+    user: { id: "test-user-id", email: "test@example.com", user_metadata: { full_name: "Test User" } },
+  }),
+}));
+
 const mockNavigate = vi.fn();
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");

@@ -3835,3 +3835,29 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 **Lesson:**
 - In UI metrics, never conflate "unverified / unknown" with "poor / low score"; unknown state must have an explicit neutral representation (0% progress / unassessed) to preserve interface truthfulness.
 - In fake SQL test drivers for multi-tenant isolation, never evaluate ownership solely with Go `&&` logic while loosely checking string presence in SQL. The test driver must either parse and verify that the SQL query conjoins owner and resource predicates with `AND`, or simulate SQL boolean semantics so insecure `OR` queries leak rows and trigger negative test assertions.
+
+## 2026-09-04 — Endpoint Auth, Resilient Ledger Auditing, Seniority Basis Honesty, and Strict Predicate Parsing
+
+**What:**
+1. Hardened `routes_two_user_isolation_test.go`: updated `isStrictOwnershipQuery` to reject any inner parenthesized conjunct containing `user_id` that has an `OR` token, preventing bypasses where `user_id` is combined with other expressions via `OR` while preserving valid resource patterns like `(application_id::text=$1 OR id::text=$1)`.
+2. Added `Depends(get_current_user)` authentication to `voice_feedback_endpoint` in `main.py` and `privacy_check_endpoint` in `privacy_lifecycle_routes.py`, closing unauthorized access to internal offline status and voice feedback.
+3. Updated `JobSearch.tsx` seniority assessment `basis` to check `selected.title?.trim()`, ensuring whitespace-only titles are treated as absent rather than claiming title keywords produced the match.
+4. Protected `delete_user_account_endpoint` in `privacy_lifecycle_routes.py` by making audit ledger writes best-effort: failures in `ledger.record` for both successful deletions and non-success gateway responses are safely logged and caught, preventing audit storage hiccups from turning a successful deletion into an HTTP 502 retry loop or masking gateway status codes.
+
+**Root cause:**
+1. In `routes_two_user_isolation_test.go`, the check required both `user_id` and `application_id` inside `inner` before testing for `OR`. If an inner group had only `user_id` with `OR` (e.g. `(user_id=$1 OR user_id=$2)`), it bypassed the rejection check.
+2. In `main.py` and `privacy_lifecycle_routes.py`, `voice_feedback_endpoint` and `privacy_check_endpoint` omitted auth dependencies, leaving endpoints accessible to unauthenticated callers.
+3. In `JobSearch.tsx`, `result` checked `!selected.title?.trim()`, but `basis` checked `selected.title` without trimming, leading to a state where whitespace titles got `"unknown"` result but claimed keyword-based evaluation in the basis explanation.
+4. In `privacy_lifecycle_routes.py`, `await ledger.record(...)` after a successful gateway response had no try/except; if the ledger database erred, the outer catch turned a completed account deletion into an HTTP 502, prompting retries on an already deleted account.
+
+**Fix:**
+- Updated conjunct validation in `isStrictOwnershipQuery` to reject any `user_id` conjunct containing `OR`.
+- Added `Depends(get_current_user)` to `voice_feedback_endpoint` and `privacy_check_endpoint`.
+- Used `selected.title?.trim()` for `basis` evaluation in `JobSearch.tsx`.
+- Wrapped `ledger.record` in try/except in `delete_user_account_endpoint`.
+- Added automated test suite `test_privacy_lifecycle_security.py` verifying endpoint auth and best-effort audit handling.
+
+**Lesson:**
+- Secondary observability/audit logging must never invert the primary business transaction outcome. If a deletion succeeded on the authority system of record, an audit write failure must be logged as degraded observability, not surfaced as a transaction failure that causes destructive retries.
+- String presence checks in assessment logic must be uniform: if an assessment uses `.trim()` to classify empty input, all narrative / basis justifications derived from the same input must use the exact same predicate.
+- When running headless frontend tests under Node 22+ with HappyDOM, experimental `localStorage` is uninitialized unless polyfilled in test setup (`setup.ts`). Otherwise, `getToken()` or component storage hooks throw TypeErrors that bubble into `BackendUnavailableError` catches, masking the true test failure.

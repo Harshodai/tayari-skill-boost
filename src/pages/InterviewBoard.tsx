@@ -874,7 +874,7 @@ const InterviewBoard = () => {
               variant="outline"
               onClick={() => {
                 if (applications.length > 0 && !practiceAppId) {
-                  setPracticeAppId(applications[0].id);
+                  setPracticeAppId(String(applications[0].id));
                 }
                 setPracticeModalOpen(true);
               }}

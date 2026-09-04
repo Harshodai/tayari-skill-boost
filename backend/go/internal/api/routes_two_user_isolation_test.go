@@ -187,7 +187,7 @@ func isStrictOwnershipQuery(query string) bool {
 			return false
 		}
 		inner := unwrapParens(c)
-		if strings.Contains(inner, "user_id") && strings.Contains(inner, "application_id") {
+		if strings.Contains(inner, "user_id") {
 			if hasTopLevelToken(inner, "or") {
 				return false
 			}
@@ -520,6 +520,7 @@ func TestStrictOwnershipPredicate_RequiresAND(t *testing.T) {
 		"SELECT * FROM applications WHERE application_id::text=$1 OR id::text=$1 AND user_id=$2",
 		"SELECT * FROM applications WHERE (application_id=$1 OR user_id=$2)",
 		"SELECT * FROM applications WHERE (application_id=$1 OR user_id=$2) AND status='review'",
+		"SELECT * FROM applications WHERE (user_id=$1 OR user_id=$2) AND application_id=$3",
 		"SELECT * FROM applications WHERE application_id=$1",
 		"SELECT * FROM applications WHERE user_id=$2",
 		"DELETE FROM applications WHERE application_id=$1 OR user_id=$2",

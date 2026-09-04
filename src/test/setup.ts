@@ -11,6 +11,31 @@ if (global.window) {
     Object.defineProperty(global.window, 'scrollTo', { value: () => { }, writable: true });
 }
 
+// Mock localStorage for HappyDOM / Node 22 test environment
+if (!globalThis.localStorage || typeof globalThis.localStorage.getItem !== "function") {
+  const store = new Map<string, string>();
+  const mockStorage = {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => { store.set(key, String(value)); },
+    removeItem: (key: string) => { store.delete(key); },
+    clear: () => { store.clear(); },
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    get length() { return store.size; },
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    value: mockStorage,
+    writable: true,
+    configurable: true,
+  });
+  if (globalThis.window) {
+    Object.defineProperty(globalThis.window, "localStorage", {
+      value: mockStorage,
+      writable: true,
+      configurable: true,
+    });
+  }
+}
+
 // Mock Environment Variables for Tests
 process.env.VITE_API_URL = process.env.VITE_API_URL || "http://localhost:8085";
 process.env.VITE_SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://mock.supabase.co";
