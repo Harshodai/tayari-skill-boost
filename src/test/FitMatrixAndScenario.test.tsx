@@ -29,6 +29,70 @@ describe("FitMatrixCard Component", () => {
     expect(screen.getByText("85%")).toBeInTheDocument();
     expect(screen.getByText(/hard constraints passed/i)).toBeInTheDocument();
   });
+
+  it("renders with unknown seniority alignment using neutral/unverified progress representation", () => {
+    const unknownFit: FitMatrixData = {
+      ...mockFit,
+      seniority_alignment: { result: "unknown", basis: "Seniority unknown" },
+    };
+    render(<FitMatrixCard fitMatrix={unknownFit} />);
+    expect(screen.getByText("unknown")).toBeInTheDocument();
+    const seniorityProgress = screen.getByLabelText("Seniority alignment");
+    expect(seniorityProgress).toHaveAttribute("aria-valuenow", "0");
+  });
+
+  it("handles missing seniority alignment gracefully with unverified representation", () => {
+    const fitWithoutSeniority: FitMatrixData = {
+      ...mockFit,
+      seniority_alignment: undefined,
+    };
+    render(<FitMatrixCard fitMatrix={fitWithoutSeniority} />);
+    expect(screen.getByText("unknown")).toBeInTheDocument();
+    const seniorityProgress = screen.getByLabelText("Seniority alignment");
+    expect(seniorityProgress).toHaveAttribute("aria-valuenow", "0");
+  });
+
+  it("maps seniority levels correctly to progress values and distinguishes unknown from under", () => {
+    const { rerender } = render(
+      <FitMatrixCard
+        fitMatrix={{
+          ...mockFit,
+          seniority_alignment: { result: "aligned", basis: "aligned" },
+        }}
+      />
+    );
+    expect(screen.getByLabelText("Seniority alignment")).toHaveAttribute("aria-valuenow", "100");
+
+    rerender(
+      <FitMatrixCard
+        fitMatrix={{
+          ...mockFit,
+          seniority_alignment: { result: "over", basis: "over" },
+        }}
+      />
+    );
+    expect(screen.getByLabelText("Seniority alignment")).toHaveAttribute("aria-valuenow", "85");
+
+    rerender(
+      <FitMatrixCard
+        fitMatrix={{
+          ...mockFit,
+          seniority_alignment: { result: "under", basis: "under" },
+        }}
+      />
+    );
+    expect(screen.getByLabelText("Seniority alignment")).toHaveAttribute("aria-valuenow", "45");
+
+    rerender(
+      <FitMatrixCard
+        fitMatrix={{
+          ...mockFit,
+          seniority_alignment: { result: "unknown", basis: "unknown" },
+        }}
+      />
+    );
+    expect(screen.getByLabelText("Seniority alignment")).toHaveAttribute("aria-valuenow", "0");
+  });
 });
 
 describe("ScenarioPlanner Component", () => {

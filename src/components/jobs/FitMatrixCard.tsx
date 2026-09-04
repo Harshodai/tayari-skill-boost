@@ -21,7 +21,7 @@ export interface FitMatrixData {
     evidence_links?: string[];
   };
   seniority_alignment?: {
-    result: "under" | "aligned" | "over";
+    result: "under" | "aligned" | "over" | "unknown";
     basis: string;
   };
   evidence_strength?: {
@@ -50,10 +50,17 @@ export const FitMatrixCard: React.FC<FitMatrixCardProps> = ({ fitMatrix, classNa
 
   const hardPass = fitMatrix.hard_constraints?.pass;
   const skillScore = fitMatrix.skill_alignment?.score ?? 0;
-  const seniority = fitMatrix.seniority_alignment?.result ?? "aligned";
+  const seniority = fitMatrix.seniority_alignment?.result ?? "unknown";
   const freshness = fitMatrix.freshness?.state ?? "unknown";
   const recAction = fitMatrix.recommendation?.action;
   const hasRecommendation = !!recAction;
+
+  const seniorityProgressMap: Record<"aligned" | "over" | "under" | "unknown", number> = {
+    aligned: 100,
+    over: 85,
+    under: 45,
+    unknown: 0,
+  };
 
   const freshnessVariant: Record<string, { label: string; color: string }> = {
     current: { label: "Current (<48h)", color: "text-emerald-500 border-emerald-500/30 bg-emerald-500/10" },
@@ -125,8 +132,9 @@ export const FitMatrixCard: React.FC<FitMatrixCardProps> = ({ fitMatrix, classNa
             <span className="font-semibold capitalize text-foreground">{seniority}</span>
           </div>
           <Progress
-            value={seniority === "aligned" ? 100 : seniority === "over" ? 85 : 45}
+            value={seniorityProgressMap[seniority] ?? 0}
             className="h-1.5"
+            aria-label="Seniority alignment"
           />
         </div>
         <div className="col-span-2 sm:col-span-1">

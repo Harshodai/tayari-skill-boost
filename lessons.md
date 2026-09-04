@@ -3815,3 +3815,23 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 **Root cause:** BLS fetch existed but no role→series map, so salary endpoint stayed 503 by design with no path to verified bands.
 **Fix:** All 10 roles map to top-level ECI aggregates (9× CIU2010000000000A private, 1× CIU1010000000000A civilian), all labeled estimate; band = latest observation median ±25%; unknown role/BLS failure/unparseable → Nones + unavailable; planner attaches band only on title-match + verified + int median. Verified: 14 passed (6 new + 8 market), career suites 11 passed, py_compile clean. Salary-benchmark HTTP endpoint still 503 (untouched — separate task to wire it).
 **Lesson:** ECI publishes no per-role wage series — mapping every role to the closest aggregate labeled estimate is the honest ceiling; BLS observations carry index/hourly scales by series, so consumers must read the `BLS <seriesID>` source tag, never treat median as a verified dollar salary without checking scale.
+
+## 2026-09-04 — Explicit neutral representation for unknown seniority & strengthened SQL two-user isolation
+
+**What:**
+1. Updated `FitMatrixCard.tsx` progress mapping to handle `"unknown"` seniority explicitly (mapped to 0%, unverified representation) instead of falling through to the `"under"` value (45%). Defaulted missing seniority alignment to `"unknown"`, and added `aria-label="Seniority alignment"`.
+2. Strengthened `routes_two_user_isolation_test.go` fake SQL driver (`twoUserFakeConn`): replaced weak substring checks with clause-aware verification (`isStrictOwnershipQuery`) requiring `application_id` and `user_id` predicates to be combined with `AND`, rejecting top-level/unparenthesized `OR`. Simulated real SQL evaluation for OR-based queries (`isOROwnershipQuery`) so queries attempting an OR join leak User B's row to User A, failing the two-user negative test with HTTP 200 instead of 404.
+3. Added test coverage in `FitMatrixAndScenario.test.tsx` verifying unknown seniority uses 0% progress and each level maps correctly. Added unit tests in `routes_two_user_isolation_test.go` verifying valid AND queries pass while insecure OR queries fail.
+
+**Root cause:**
+1. In `FitMatrixCard.tsx`, a ternary `seniority === "aligned" ? 100 : seniority === "over" ? 85 : 45` treated `"unknown"` identically to `"under"` (45%), misrepresenting unverified seniority data as an under-qualification deficit.
+2. In `routes_two_user_isolation_test.go`, the mock driver checked `strings.Contains(query, "user_id") && strings.Contains(query, "application_id")` and then checked `uidStr == testUserB && appIDStr == appOwnedByB` in Go code. This masked SQL vulnerabilities: an insecure query combining predicates with `OR` in production code would have still passed the test because the Go driver applied an in-memory AND check.
+
+**Fix:**
+- Mapped `"unknown"` to 0 (neutral/unverified progress) via explicit `seniorityProgressMap`.
+- Updated `twoUserFakeConn` in `routes_two_user_isolation_test.go` to enforce top-level `AND` conjunctions between resource and owner IDs and simulate OR leaks if an insecure query is run.
+- Tests green: Vitest `FitMatrixAndScenario.test.tsx` (7 passed), Go test `TestTwoUserIsolation_*` and `TestStrictOwnershipPredicate_RequiresAND` (all passed).
+
+**Lesson:**
+- In UI metrics, never conflate "unverified / unknown" with "poor / low score"; unknown state must have an explicit neutral representation (0% progress / unassessed) to preserve interface truthfulness.
+- In fake SQL test drivers for multi-tenant isolation, never evaluate ownership solely with Go `&&` logic while loosely checking string presence in SQL. The test driver must either parse and verify that the SQL query conjoins owner and resource predicates with `AND`, or simulate SQL boolean semantics so insecure `OR` queries leak rows and trigger negative test assertions.
