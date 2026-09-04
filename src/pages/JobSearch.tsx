@@ -875,7 +875,7 @@ const JobSearch = () => {
                         result: (() => {
                           const rawTitle = selected.title?.trim();
                           if (!rawTitle) return "unknown";
-                          const seniorTerms = /\b(senior|sr\.?|staff|principal|lead|director|head|vp)\b/i;
+                          const seniorTerms = /\b(senior|sr\.?|staff|principal|lead|director|head|vp|vice[- ]?president)\b/i;
                           const juniorTerms = /\b(junior|jr\.?|entry|associate|intern|internship)\b/i;
                           if (seniorTerms.test(rawTitle)) return "aligned";
                           if (juniorTerms.test(rawTitle)) return "under";

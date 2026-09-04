@@ -361,6 +361,8 @@ class TestPIIDetector:
         non_phone_samples = [
             "Candidate ID: 1234567890",
             "Applicant reference 9876543210 submitted for review",
+            "Stayed at Grand Hotel, booking ref 1234567890",
+            "Worked at Intel on chip 9876543210",
         ]
         for s in non_phone_samples:
             res = check_pii(s)

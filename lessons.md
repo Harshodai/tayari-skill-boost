@@ -3884,5 +3884,5 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 **Lesson:**
 - Multi-tenant test drivers must inspect full syntactic depth of ownership predicates; shallow checks leave function-wrapped disjunction bypasses undetected.
 - API endpoints must strictly decouple server-side diagnostics from client-facing error payloads: log everything, reveal nothing beyond generic category descriptions.
-- Export endpoints must honestly communicate completeness: if upstream dependencies degrade, report "partial" rather than unconditionally claiming success.
-- PII and metric regexes must account for non-word boundary characteristics of symbols (`$`, `%`) and require context for ambiguous numeric sequences.
+- Export endpoints must honestly communicate completeness: if any core user section or privacy audit log fails to load (`archive["unavailable_sections"]`), report "partial" rather than claiming success.
+- PII and metric regexes must account for non-word boundary characteristics of symbols (`$`, `%`), use strict word boundaries `\b` for keyword context (preventing false matches like "tel" in "hotel"), and support full executive titles like `vice[- ]?president`.

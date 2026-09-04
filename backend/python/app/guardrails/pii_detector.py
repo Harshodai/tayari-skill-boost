@@ -34,8 +34,11 @@ def _context_filter(text: str, match: re.Match, label: str) -> bool:
     if label == "Phone":
         raw = match.group()
         if not re.search(r"[-.\s()]", raw):
-            phone_keywords = ["phone", "tel", "cell", "mobile", "call", "ph:", "ph.", "dial", "contact"]
-            if not any(kw in context for kw in phone_keywords):
+            phone_context_pattern = re.compile(
+                r"\b(?:phone|telephone|tel|cell|mobile|call|dial|contact|ph)\b",
+                re.IGNORECASE,
+            )
+            if not phone_context_pattern.search(context):
                 return False
         return True
 

@@ -161,8 +161,7 @@ async def export_user_data_endpoint(request: Request, user_id: str = Depends(get
     except Exception as exc:
         logger.error("export-data: privacy ledger record failed: %s", exc)
 
-    gateway_sections = {"profile", "resumes", "applications", "cover_letters"}
-    if any(section in gateway_sections for section in archive["unavailable_sections"]):
+    if archive["unavailable_sections"]:
         archive["status"] = "partial"
     else:
         archive["status"] = "ok"

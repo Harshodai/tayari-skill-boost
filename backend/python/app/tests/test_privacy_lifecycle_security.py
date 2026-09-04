@@ -115,3 +115,33 @@ async def test_export_user_data_returns_partial_on_gateway_failure():
         assert result["status"] == "partial"
         assert "profile" in result["unavailable_sections"]
         assert "resumes" in result["unavailable_sections"]
+
+
+@pytest.mark.asyncio
+async def test_export_user_data_returns_partial_on_ledger_failure():
+    """export_user_data_endpoint returns status='partial' when privacy ledger query fails."""
+    from app.api.privacy_lifecycle_routes import export_user_data_endpoint
+    from starlette.requests import Request
+
+    mock_request = MagicMock(spec=Request)
+    mock_request.headers = {"authorization": "Bearer fake-token"}
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "profile": {"name": "Test"},
+        "resumes": [{"id": "r1"}],
+        "applications": [{"id": "a1"}],
+        "cover_letters": [],
+    }
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get, \
+         patch("app.services.privacy_ledger.ledger.query_user_log", new_callable=AsyncMock) as mock_query, \
+         patch("app.services.privacy_ledger.ledger.record", new_callable=AsyncMock) as mock_record:
+        mock_get.return_value = mock_resp
+        mock_query.side_effect = RuntimeError("ledger query failed")
+        mock_record.return_value = None
+
+        result = await export_user_data_endpoint(mock_request, user_id="user-123")
+        assert result["status"] == "partial"
+        assert "privacy_ledger" in result["unavailable_sections"]
