@@ -111,6 +111,7 @@ const moreGroups = (): Group[] => [
   {
     label: "Account",
     items: [
+      { title: "Credits", url: "/credits", icon: Coins, enabled: true },
       { title: "LinkedIn import", url: "/linkedin-import", icon: Linkedin, enabled: true },
       { title: "Privacy check", url: "/privacy-diagnostics", icon: ShieldCheck, enabled: true },
       { title: "API keys", url: "/api-keys", icon: Key, enabled: true },
