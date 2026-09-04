@@ -150,5 +150,37 @@ func TestApplicationRuns_InvalidUUID(t *testing.T) {
 			t.Fatalf("expected 400 Bad Request for invalid UUID, got %d: %s", rec.Code, rec.Body.String())
 		}
 	})
+
+	t.Run("POST actions invalid UUID returns 400", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/application-runs/not-a-uuid/actions", bytes.NewReader([]byte(`{"action_type":"browser_navigate","idempotency_key":"key-1"}`)))
+		ctx := context.WithValue(req.Context(), contextKeyUser, testUser)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "not-a-uuid")
+		ctx = context.WithValue(ctx, chi.RouteCtxKey, rctx)
+		req = req.WithContext(ctx)
+
+		rec := httptest.NewRecorder()
+		srv.handleLogApplicationRunAction(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 Bad Request for invalid UUID, got %d: %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("POST reconcile receipt invalid UUID returns 400", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/application-runs/not-a-uuid/reconcile-receipt", bytes.NewReader([]byte(`{"receipt_hash":"hash-1"}`)))
+		ctx := context.WithValue(req.Context(), contextKeyUser, testUser)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "not-a-uuid")
+		ctx = context.WithValue(ctx, chi.RouteCtxKey, rctx)
+		req = req.WithContext(ctx)
+
+		rec := httptest.NewRecorder()
+		srv.handleReconcileApplicationRunReceipt(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 Bad Request for invalid UUID, got %d: %s", rec.Code, rec.Body.String())
+		}
+	})
 }
 

@@ -59,7 +59,7 @@
   <h3>Mission M1: CI & Test Integrity</h3>
   <ul>
     <li><b>Full Frontend Suite Runner:</b> Updated <code>package.json</code> test script from single-file hardcoding to run the entire frontend suite across <code>src/</code>.</li>
-    <li><b>Test Suite Triage & Quarantine:</b> Quarantined 11 legacy tests relying on unsupported <code>jest.mock</code>/<code>jest.spyOn</code> APIs in bun test with clear <code>TODO (#M1-jest-quarantine)</code> issue tags without deleting any tests. 25 unit tests pass cleanly.</li>
+    <li><b>Test Suite Triage & Quarantine:</b> Quarantined 11 legacy tests relying on unsupported <code>jest.mock</code>/<code>jest.spyOn</code> APIs in bun test with clear <code>TODO (#M1-jest-quarantine)</code> issue tags without deleting any tests. 38 passing tests across 18 files pass cleanly.</li>
     <li><b>Enhanced CI Workflow (<code>.github/workflows/ci.yml</code>):</b> Added <code>python -m py_compile</code> and <code>ruff</code> checks for <code>integrations/</code> and <code>backend/python/</code>, added MCP server import smoke test step, added TypeScript/ESLint check for <code>extension/</code>, and added Gitleaks full-history security scan.</li>
     <li><b>Cleaned E2E Artifacts:</b> Deleted stale <code>e2e/features.spec.ts.bak</code> and updated git index.</li>
     <li><b>Route Parity Enforcement:</b> Added missing <code>/api/...</code> counterpart routes for <code>/agent-reach/doctor</code>, <code>search</code>, <code>transcribe</code>, and <code>cookies</code> in <code>routes_one_stop.go</code>, resolving route parity test failures.</li>

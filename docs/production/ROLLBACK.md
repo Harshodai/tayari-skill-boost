@@ -24,6 +24,6 @@ A rollback is verified only when the previous release serves authenticated traff
 ## References
 
 - `scripts/rollback_contract_test.sh` — rollback contract.
-- `docs/Deployment_Architecture.md` — rollout and worker-drain model.
+- `infra/k8s/README.md` — rollout and worker-drain model.
 - `deploy/aws/README.md` — AWS canary runbook.
 - `PRODUCTION_ISSUES.md` — live rollback evidence gap.

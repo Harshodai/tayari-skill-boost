@@ -119,7 +119,9 @@
 
 ## Current execution order
 
-The first implementation slice is **M1-01 through M1-06**. It closes the most dangerous exposure path before any product polish or cloud launch work. The next slice is **M2-01 through M2-05**, because a polished automation product that can submit without a server-side consent boundary is not safe to ship.
+**Historical initial slices (completed):** The initial implementation slice was **M1-01 through M1-06** (closing critical exposure paths), followed by **M2-01 through M2-05** (server-side consent boundaries and receipt systems). Both slices, along with M3 through M6, are now closed and verified.
+
+**Next open milestone sequence:** The active implementation sequence begins with **M7-01 through M7-08** (competitive outperformance, evidence-backed scoring, and safe networking), transitioning to **M8-01 through M8-04** (paid pilot, unit economics, and retention) alongside **M9-01 through M9-03** (candidate-controlled product spine and canonical application state machine).
 
 
 ## M7 — Competitive outperformance: nxtjob.ai and jobstep.io
@@ -190,7 +192,7 @@ JobTayari should not claim to outperform either competitor until the primary fun
 
 ## M9 — End-to-end feature maturity and state-of-the-art upgrade roadmap
 
-**Purpose:** Advance meaningful capabilities by evidence level rather than by feature count. The full scorecard and research record are in [`docs/reports/jobtayari-end-to-end-maturity-review-2026-08-25.md`](docs/reports/jobtayari-end-to-end-maturity-review-2026-08-25.md). SimilarWeb traffic metrics and video-analysis claims are intentionally excluded because those research paths were unavailable in the current session.
+**Purpose:** Advance meaningful capabilities by evidence level rather than by feature count. The full scorecard and research record are in [`docs/reports/jobtayari-end-to-end-maturity-review-2026-08-25.md`](../reports/jobtayari-end-to-end-maturity-review-2026-08-25.md). SimilarWeb traffic metrics and video-analysis claims are intentionally excluded because those research paths were unavailable in the current session.
 
 ### M9 priority sequence
 

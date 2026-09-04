@@ -73,11 +73,17 @@ func (s *Server) routesApplicationsExtra(r chi.Router) {
 		r.Patch("/api/applications/{id}/stage", s.handleUpdateApplicationStage)
 		r.Patch("/api/v1/applications/{id}/stage", s.handleUpdateApplicationStage)
 
-		// Canonical Application State Machine (WP-03)
+		// Canonical Application State Machine (WP-03 / M9-01 / M9-03)
+		r.Post("/api/v1/application-runs", s.handleCreateApplicationRun)
+		r.Post("/api/application-runs", s.handleCreateApplicationRun)
 		r.Get("/api/v1/application-runs/{id}", s.handleGetApplicationRun)
 		r.Get("/api/application-runs/{id}", s.handleGetApplicationRun)
 		r.Post("/api/v1/application-runs/{id}/transition", s.handleTransitionApplicationRun)
 		r.Post("/api/application-runs/{id}/transition", s.handleTransitionApplicationRun)
+		r.Post("/api/v1/application-runs/{id}/actions", s.handleLogApplicationRunAction)
+		r.Post("/api/application-runs/{id}/actions", s.handleLogApplicationRunAction)
+		r.Post("/api/v1/application-runs/{id}/reconcile-receipt", s.handleReconcileApplicationRunReceipt)
+		r.Post("/api/application-runs/{id}/reconcile-receipt", s.handleReconcileApplicationRunReceipt)
 	})
 }
 
@@ -810,6 +816,110 @@ func (s *Server) handleTransitionApplicationRun(w http.ResponseWriter, r *http.R
 		return
 	}
 	endpoint := fmt.Sprintf("/api/v1/application-runs/%s/transition", url.PathEscape(id))
+	result, err := s.AI.PostJSONWithHeaders(endpoint, json.RawMessage(body), s.getXUserHeaders(r))
+	if err != nil {
+		var apiErr *ai.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+			s.respondError(w, apiErr.StatusCode, apiErr.Body)
+			return
+		}
+		s.respondError(w, http.StatusBadGateway, "AI service unavailable")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleCreateApplicationRun(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	if s.AI == nil {
+		s.respondError(w, http.StatusBadGateway, "AI service unavailable")
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 256*1024))
+	if err != nil {
+		s.respondError(w, http.StatusBadRequest, "Failed to read request body")
+		return
+	}
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/application-runs", json.RawMessage(body), s.getXUserHeaders(r))
+	if err != nil {
+		var apiErr *ai.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+			s.respondError(w, apiErr.StatusCode, apiErr.Body)
+			return
+		}
+		s.respondError(w, http.StatusBadGateway, "AI service unavailable")
+		return
+	}
+	s.respondJSON(w, http.StatusCreated, result)
+}
+
+func (s *Server) handleLogApplicationRunAction(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		s.respondError(w, http.StatusBadRequest, "Run ID is required")
+		return
+	}
+	if _, err := uuid.Parse(id); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid run ID format")
+		return
+	}
+	if s.AI == nil {
+		s.respondError(w, http.StatusBadGateway, "AI service unavailable")
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 256*1024))
+	if err != nil {
+		s.respondError(w, http.StatusBadRequest, "Failed to read request body")
+		return
+	}
+	endpoint := fmt.Sprintf("/api/v1/application-runs/%s/actions", url.PathEscape(id))
+	result, err := s.AI.PostJSONWithHeaders(endpoint, json.RawMessage(body), s.getXUserHeaders(r))
+	if err != nil {
+		var apiErr *ai.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+			s.respondError(w, apiErr.StatusCode, apiErr.Body)
+			return
+		}
+		s.respondError(w, http.StatusBadGateway, "AI service unavailable")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleReconcileApplicationRunReceipt(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		s.respondError(w, http.StatusBadRequest, "Run ID is required")
+		return
+	}
+	if _, err := uuid.Parse(id); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid run ID format")
+		return
+	}
+	if s.AI == nil {
+		s.respondError(w, http.StatusBadGateway, "AI service unavailable")
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 256*1024))
+	if err != nil {
+		s.respondError(w, http.StatusBadRequest, "Failed to read request body")
+		return
+	}
+	endpoint := fmt.Sprintf("/api/v1/application-runs/%s/reconcile-receipt", url.PathEscape(id))
 	result, err := s.AI.PostJSONWithHeaders(endpoint, json.RawMessage(body), s.getXUserHeaders(r))
 	if err != nil {
 		var apiErr *ai.APIError

@@ -25,6 +25,6 @@ Staging and production credentials, domains, databases, Auth projects, Redis ins
 - `deploy/aws/README.md` — AWS runbook.
 - `deploy/aws/provision.sh` and `deploy/aws/deploy.sh` — AWS gates.
 - `infra/k8s/SECRETS.md` — Kubernetes secret contract.
-- `docs/Deployment_Architecture.md` — workload topology and rollout model.
+- `infra/k8s/README.md` — workload topology and rollout model.
 - `.ruthless-evidence/productionization/stage_a_external_blockers.log` — AWS blocker evidence.
 - `.ruthless-evidence/productionization/stage_b_admission_blockers.log` — Kubernetes blocker evidence.

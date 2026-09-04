@@ -27,5 +27,5 @@ No production capacity guarantee is made. PROD-007 remains `NOT VERIFIED` until 
 ## References
 
 - `scripts/perf_check.sh` — benchmark safety contract.
-- `docs/Deployment_Architecture.md` — intended topology and scaling boundaries.
+- `infra/k8s/README.md` — intended topology and scaling boundaries.
 - `PRODUCTION_ISSUES.md` — performance/capacity issue PROD-007.

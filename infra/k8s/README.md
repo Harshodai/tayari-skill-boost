@@ -51,7 +51,7 @@ Ingress is denied by default within the application namespace, and only the defi
 
 ## Secret and data boundary
 
-All sensitive settings are expected in a secret named `tayari-runtime-secrets`; the package deliberately creates no Kubernetes `Secret` with values. The required and conditional key contract is documented in [`infra/k8s/SECRETS.md`](../infra/k8s/SECRETS.md). Production should use workload identity and a managed secret store, with namespace/service-account access limited to the minimum required paths.
+All sensitive settings are expected in a secret named `tayari-runtime-secrets`; the package deliberately creates no Kubernetes `Secret` with values. The required and conditional key contract is documented in [`SECRETS.md`](./SECRETS.md). Production should use workload identity and a managed secret store, with namespace/service-account access limited to the minimum required paths.
 
 The package treats résumés, candidate-profile data, job descriptions, authentication material, browser artifacts, application answers, and audit receipts as potentially sensitive. Logs and telemetry must exclude those values. Before customer launch, the data map, retention/deletion workflow, incident communications process, and subprocessor record must be completed.
 

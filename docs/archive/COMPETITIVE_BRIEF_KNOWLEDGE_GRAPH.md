@@ -72,7 +72,7 @@ Tayari's implementation, verified in code during this audit:
 ## 7. Recommended Actions
 
 **Quick wins (do first):**
-1. Route `handleResumeKnowledgeGraph` (dead code fix, ~1 line change).
+1. Register `handleResumeKnowledgeGraph` under both `/api` and `/api/v1` using the shared route-registration helper that creates both aliases (satisfying route parity).
 2. Stop citing $50K-750K/yr parity in marketing copy until items below land — the claim actively invites the comparison that currently fails.
 
 **Strategic (the actual moat, in order):**

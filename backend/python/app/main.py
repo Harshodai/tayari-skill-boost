@@ -854,6 +854,99 @@ async def outreach_endpoint(payload: OutreachRequest):
         raise HTTPException(status_code=500, detail="Outreach generation failed.") from exc
 
 
+class RecordOutreachRequest(BaseModel):
+    company: str
+    recruiter_name: str
+    subject: str
+
+
+@app.post("/api/v1/networking/record-outreach")
+@app.post("/api/networking/record-outreach")
+async def record_outreach_endpoint(
+    payload: RecordOutreachRequest,
+    user_id: str = Depends(get_current_user),
+):
+    """Record outreach confirmed by candidate with 30-day deduplication (M7-06)."""
+    from app.services.outreach_copilot import check_recent_outreach_duplicate
+    from app.services.db import get_pool
+
+    company_clean = payload.company.strip()
+    recruiter_clean = payload.recruiter_name.strip()
+    subject_clean = payload.subject.strip()
+
+    if not company_clean and not recruiter_clean:
+        raise HTTPException(status_code=400, detail="Company or recruiter name is required.")
+
+    pool = await get_pool()
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Acquire transaction-scoped advisory lock keyed by user_id to prevent concurrent duplicate outreach
+            await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1::text))", str(user_id))
+            rows = await conn.fetch(
+                """
+                SELECT c.name as recipient, c.company,
+                       EXTRACT(DAY FROM now() - o.created_at)::int as days_ago
+                FROM public.outreach_messages o
+                LEFT JOIN public.contacts c ON o.contact_id = c.id
+                WHERE o.user_id = $1::uuid
+                  AND o.created_at >= now() - interval '35 days'
+                """,
+                user_id,
+            )
+            past = [dict(r) for r in rows]
+            if check_recent_outreach_duplicate(past, company_clean, recruiter_clean):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Duplicate outreach to {recruiter_clean or 'this contact'} at {company_clean} within the last 30 days blocked.",
+                )
+
+            contact_row = None
+            if recruiter_clean or company_clean:
+                contact_row = await conn.fetchrow(
+                    """
+                    SELECT id FROM public.contacts
+                    WHERE user_id = $1::uuid
+                      AND LOWER(name) = LOWER($2)
+                      AND LOWER(COALESCE(company, '')) = LOWER($3)
+                    LIMIT 1
+                    """,
+                    user_id,
+                    recruiter_clean or "Hiring Manager",
+                    company_clean or "",
+                )
+                if not contact_row:
+                    contact_row = await conn.fetchrow(
+                        """
+                        INSERT INTO public.contacts (user_id, name, company, relationship, created_at, updated_at)
+                        VALUES ($1::uuid, $2, $3, 'cold', now(), now())
+                        RETURNING id
+                        """,
+                        user_id,
+                        recruiter_clean or "Hiring Manager",
+                        company_clean or "",
+                    )
+
+            contact_id = contact_row["id"] if contact_row else None
+            await conn.execute(
+                """
+                INSERT INTO public.outreach_messages (
+                    user_id, contact_id, channel, kind, subject, body, status, sent_at, created_at, updated_at
+                )
+                VALUES (
+                    $1::uuid, $2, 'email', 'intro', $3, 'Outreach confirmed and recorded by candidate via Gmail compose.', 'sent', now(), now(), now()
+                )
+                """,
+                user_id,
+                contact_id,
+                subject_clean or "Outreach",
+            )
+
+    return {"success": True, "recorded": True, "message": "Outreach recorded successfully."}
+
+
 class FunnelAnalyticsRequest(BaseModel):
     applications: Optional[list[dict]] = None
 

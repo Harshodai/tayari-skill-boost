@@ -95,9 +95,11 @@
 
 Any future workstream that claims to resolve an issue must provide the implementation path, a reproducible test or operational command, an evidence artifact, and a regression result. A green process exit code without the underlying evidence does not close an issue.
 
-## Current P0 assessment
+## Current P1 release-blocker assessment
 
-No unresolved P0 code-level issue was established by the available evidence. This does **not** authorize production: PROD-001 through PROD-006 remain P1 external release blockers, and PROD-007 through PROD-009 and PROD-011 remain P2 evidence/documentation/local-platform gaps until verified. PROD-012 and PROD-013 are locally resolved, while PROD-014 is locally resolved as a data-plane repair. PROD-015 remains open until a reviewed release artifact is cut. PROD-016 is implemented locally but staging-blocked pending Meta acceptance and phone-ownership evidence. Live Stripe acceptance, production traffic-profile validation, managed migration rollout, and WhatsApp acceptance remain part of the external release gates.
+**Active Backend Tenant-Isolation Risk (P1):** An active backend tenant-isolation risk exists because `postgres` (the role used by Go, Python, and Celery connections) possesses `BYPASSRLS`, allowing cross-tenant read exploitation when queries lack explicit tenant predicates. Owned by Backend and Platform Security, this unresolved vulnerability enforces a **CONDITIONAL BETA HOLD** and functions as a P1 release-blocking gate for multi-tenant and unconstrained production traffic until tenant-scoped DB roles or mandatory owner predicates are enforced.
+
+While no other unresolved P1 code-level issue was established by the available evidence, this does **not** authorize production: the backend tenant-isolation vulnerability and PROD-001 through PROD-006 remain P1 release blockers, and PROD-007 through PROD-011 remain P2 evidence/documentation/local-platform gaps until verified. PROD-012 and PROD-013 are locally resolved, while PROD-014 is locally resolved as a data-plane repair. PROD-015 remains open until a reviewed release artifact is cut. PROD-016 is implemented locally but staging-blocked pending Meta acceptance and phone-ownership evidence. Live Stripe acceptance, production traffic-profile validation, managed migration rollout, and WhatsApp acceptance remain part of the external release gates.
 
 ## References
 

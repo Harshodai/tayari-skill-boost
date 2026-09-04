@@ -43,9 +43,8 @@ def analyze_fit_matrix(
             hard_pass = False
             hard_reasons.append(f"Job location '{job.get('location')}' outside candidate preferred areas")
         elif pref_locs and not j_loc:
-            # Location unknown — flag as risk, not hard fail
-            risk_flags = risk_flags if 'risk_flags' in dir() else []
-            pass  # added below in risk section
+            # Location unknown — handled below in risk section
+            pass
 
     # 2. Skill Alignment
     required_skills = job.get("skills") or []

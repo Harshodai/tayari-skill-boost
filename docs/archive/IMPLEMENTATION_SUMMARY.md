@@ -197,7 +197,7 @@ cd src && npm run dev
 
 **With OpenAI/Anthropic:** Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in `.env`.
 
-**Fallback:** If no LLM configured, mock responses are returned so the app never crashes.
+**Fail-closed safety:** If no LLM is configured or the provider fails, endpoints return an explicit unavailable or failed status (e.g., 503 `llm_not_configured`) rather than fabricated mock responses. For automated unit and integration tests, a deterministic fake-provider path is used while preserving the production fail-closed safety contract.
 
 ---
 

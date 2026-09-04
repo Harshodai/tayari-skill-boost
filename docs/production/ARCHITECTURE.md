@@ -89,7 +89,7 @@ The architecture is **documented and code-aligned at the repository level**. Rea
 ## References
 
 - `README.md` — current product scope and stack.
-- `docs/Deployment_Architecture.md` — deployment topology and operating boundaries.
+- `infra/k8s/README.md` — deployment topology and operating boundaries.
 - `.agents/AGENTS.md` — service separation and production safety constraints.
 - `.ruthless-evidence/PRODUCTION_READINESS_REPORT.md` — verified release evidence and remaining blockers.
 - `PRODUCTION_ISSUES.md` — shared second-pass issue register.

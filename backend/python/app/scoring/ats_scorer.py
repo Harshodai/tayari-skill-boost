@@ -278,6 +278,30 @@ class ATSScorer:
                     "penalty": kw_penalty,
                 })
 
+        # Check verbatim copy-paste plagiarism (6-word shingles from JD copied verbatim)
+        if job_description and job_description.strip() and resume_text and resume_text.strip():
+            jd_clean_words = re.findall(r"\b[a-zA-Z0-9+#.-]+\b", job_description.lower())
+            resume_clean_words = re.findall(r"\b[a-zA-Z0-9+#.-]+\b", resume_text.lower())
+            if len(jd_clean_words) >= 6 and len(resume_clean_words) >= 6:
+                jd_shingles = {" ".join(jd_clean_words[i:i+6]) for i in range(len(jd_clean_words) - 5)}
+                flagged_shingles = set()
+                first_shingle_example = None
+                for i in range(len(resume_clean_words) - 5):
+                    shingle = " ".join(resume_clean_words[i:i+6])
+                    if shingle in jd_shingles:
+                        flagged_shingles.add(shingle)
+                        if first_shingle_example is None:
+                            first_shingle_example = shingle
+                if flagged_shingles:
+                    # Penalize 5 pts per unique copied 6-word passage, capped at 20 pts
+                    copy_penalty = min(20.0, len(flagged_shingles) * 5.0)
+                    raw_flagged.append({
+                        "keyword": "verbatim JD copy-paste",
+                        "count": len(flagged_shingles),
+                        "example": f"Verbatim excerpt: \"{first_shingle_example}\"",
+                        "penalty": copy_penalty,
+                    })
+
         # De-duplicate overlaps (shorter fully contained in longer)
         flagged = []
         for item in raw_flagged:

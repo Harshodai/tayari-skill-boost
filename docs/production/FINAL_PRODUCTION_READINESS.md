@@ -230,7 +230,7 @@ The code and repository contracts are a strong staging candidate. The release mu
 - `README.md` — product scope, stack, local setup, and testing commands.
 - `.agents/AGENTS.md` and `.agents/lessons.md` — repository governance and release safety rules.
 - `docs/operations/production-deployment-observability-checklist.md` — authoritative deployment, observability, and incident baseline.
-- `docs/Deployment_Architecture.md` — workload topology and rollback model.
+- `infra/k8s/README.md` — workload topology and rollback model.
 - `docs/operations/backup-and-recovery.md` — backup and restore procedure.
 - `PRODUCTION_ISSUES.md` — shared current issue register.
 - `WHATSAPP_APPROVALS.md` — WhatsApp approval-channel implementation and staging acceptance contract.

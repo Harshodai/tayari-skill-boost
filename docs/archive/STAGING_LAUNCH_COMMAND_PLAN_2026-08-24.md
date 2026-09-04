@@ -75,9 +75,9 @@ pnpm security:production
 
 cd backend/go && go test ./... && go vet ./...
 cd ../python && PYTHONPATH=. .venv/bin/pytest app/tests/test_exposure_gates.py -q
-# Canonical full Python test suite:
-JWT_SECRET="your-super-secret-jwt-token-with-at-least-32-characters-long" \
-  AI_INTERNAL_TOKEN="<REDACTED_AI_INTERNAL_TOKEN>" \
+# Isolated test-only invocation (generate a disposable test secret or load from staging secret store; never reuse static secrets):
+JWT_SECRET="$(openssl rand -hex 32)" \
+  AI_INTERNAL_TOKEN="${AI_INTERNAL_TOKEN:-<REDACTED_AI_INTERNAL_TOKEN>}" \
   PYTHONPATH=. .venv/bin/pytest app/ tests/ -q
 cd ../..
 

@@ -42,7 +42,8 @@ async def post_outcome_event(
         )
 
     # Only trusted service/internal caller can mark externally verified
-    import os, hmac
+    import hmac
+    import os
     configured_token = os.getenv("AI_INTERNAL_TOKEN", "")
     is_service_role = bool(
         x_internal_token and configured_token and hmac.compare_digest(x_internal_token, configured_token)

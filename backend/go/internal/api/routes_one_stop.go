@@ -48,6 +48,10 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 		r.Post("/api/v1/recruiter/patterns", s.handleOneStopProxy("/api/v1/recruiter/patterns"))
 		r.Post("/api/recruiter/patterns", s.handleOneStopProxy("/api/v1/recruiter/patterns"))
 
+		// RecruiterOutreach.tsx calls this to record confirmed candidate outreach with 30-day deduplication (M7-06)
+		r.Post("/api/v1/networking/record-outreach", s.handleOneStopProxy("/api/v1/networking/record-outreach"))
+		r.Post("/api/networking/record-outreach", s.handleOneStopProxy("/api/v1/networking/record-outreach"))
+
 		r.Post("/api/v1/analytics/funnel", s.handleOneStopProxy("/api/v1/analytics/funnel"))
 		r.Post("/api/analytics/funnel", s.handleOneStopProxy("/api/v1/analytics/funnel"))
 
