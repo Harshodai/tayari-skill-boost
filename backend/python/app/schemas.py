@@ -1,7 +1,7 @@
 """
 Shared Pydantic models for the Python AI Engine.
 """
-from typing import List, Optional, Dict, Any, Literal
+from typing import List, Optional, Dict, Any, Literal, Union
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -69,19 +69,39 @@ class SectionCompleteness(BaseModel):
     score: float = 0.0
 
 
+class KeywordStuffingPenalty(BaseModel):
+    model_config = ConfigDict(extra='allow')
+    count: int = 0
+    penalty_points: float = 0.0
+    flagged_keywords: List[Dict[str, Any]] = Field(default_factory=list)
+
+
 class ScoreBreakdown(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='allow')
     keyword_match: float = 0.0
     ngram_match: float = 0.0
     keyword_density: float = 0.0
     section_completeness: float = 0.0
     formatting_compliance: float = 0.0
 
+    # WP-01 Transparent scoring dimensions
+    structural_ats: float = 0.0
+    semantic_fit: float = 0.0
+    experience_relevance: float = 0.0
+    achievement_quality: float = 0.0
+    seniority_alignment: Optional[Union[float, str]] = None  # None = not computed; omit from UI
+    keyword_coverage: float = 0.0
+    keyword_stuffing_penalty: KeywordStuffingPenalty = Field(default_factory=KeywordStuffingPenalty)
+    unsupported_claims_count: Optional[int] = None  # None = not computed; omit from UI
+    confidence_band: Literal["high", "medium", "low"] = "medium"
+    human_rationale: str = ""
+
 
 class ATSAnalysisResponse(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='allow')
     score: int = Field(ge=0, le=100)
     breakdown: ScoreBreakdown
+    score_breakdown: Optional[ScoreBreakdown] = None
     keywords: KeywordAnalysis
     ngrams: NGramAnalysis
     formatting: FormattingAnalysis
@@ -90,11 +110,12 @@ class ATSAnalysisResponse(BaseModel):
 
 
 class QuickScoreResponse(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='allow')
     score: int = Field(ge=0, le=100)
     matched_keywords: int = 0
     missing_keywords: int = 0
     summary: str
+    score_breakdown: Optional[ScoreBreakdown] = None
 
 
 # --- Strategic / Entity ---

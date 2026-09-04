@@ -618,6 +618,22 @@ async def generate_interview_prep_endpoint(payload: InterviewPrepInput, user_id:
         return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
 
 
+class EvaluateSTARRequest(BaseModel):
+    answer: str
+    question: Optional[str] = None
+    job_title: Optional[str] = None
+
+
+@router.post("/api/v1/interview/evaluate-star")
+async def evaluate_star_endpoint(payload: EvaluateSTARRequest, user_id: str = Depends(get_current_user)):
+    """Evaluate candidate STAR response, detect missing/weak elements, and return adaptive follow-up."""
+    return InterviewPrepGenerator.analyze_star_answer(
+        answer=payload.answer,
+        question=payload.question,
+        job_title=payload.job_title,
+    )
+
+
 @router.post("/api/v1/resume/knowledge-graph")
 async def extract_knowledge_graph_endpoint(payload: KnowledgeGraphInput):
     """Extract candidate skills, achievements, timeline knowledge graph."""
@@ -828,3 +844,20 @@ async def screening_metrics_endpoint():
         "sample_size": metrics["sample_size"],
         "last_calculated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+class FitMatrixRequest(BaseModel):
+    resume_text: str = Field(default="", max_length=50000)
+    job: Dict[str, Any] = Field(default_factory=dict)
+    preferences: Optional[Dict[str, Any]] = None
+
+
+@router.post("/api/v1/jobs/fit-matrix")
+async def get_job_fit_matrix(req: FitMatrixRequest, _user: Any = Depends(get_current_user)):
+    """Calculate factorized fit matrix between candidate resume and target job (WP-08)."""
+    from app.services.fit_matrix_analyzer import analyze_fit_matrix
+    return analyze_fit_matrix(
+        resume_text=req.resume_text,
+        job=req.job,
+        profile_preferences=req.preferences,
+    )

@@ -95,20 +95,27 @@ async def ats_analyze(
 
     keywords = keyword_analyzer.analyze(resume_text, jd_text)
     ngrams = ngram_analyzer.analyze(resume_text, jd_text)
-    result = ats_scorer.score(keywords, ngrams, resume_parsed, resume_text)
+    result = ats_scorer.score(keywords, ngrams, resume_parsed, resume_text, job_description=jd_text)
     return result
 
 @router.post("/api/v1/ats/score", response_model=QuickScoreResponse)
 async def ats_score(payload: PublicScanRequest):
     """Public, text-only, bounded ATS scan; no file parsing or stored data."""
-    keywords = keyword_analyzer.analyze(payload.resume_text or "", payload.job_description or "")
+    resume_text = payload.resume_text or ""
+    jd_text = payload.job_description or ""
+    keywords = keyword_analyzer.analyze(resume_text, jd_text)
     total = keywords.total_jd_keywords or 1
+    ngrams = ngram_analyzer.analyze(resume_text, jd_text)
+    result = ats_scorer.score(keywords, ngrams, None, resume_text, job_description=jd_text)
     return QuickScoreResponse(
-        score=round((keywords.matched_count / total) * 100),
+        score=result.score,
+        score_breakdown=result.score_breakdown,
         matched_keywords=keywords.matched_count,
         missing_keywords=len(keywords.missing),
         summary=f"Matched {keywords.matched_count}/{total} keywords",
     )
+
+
 
 @router.post("/api/v1/ats/keywords")
 async def ats_keywords(
