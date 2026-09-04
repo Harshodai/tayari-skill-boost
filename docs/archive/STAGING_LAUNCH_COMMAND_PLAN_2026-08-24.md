@@ -75,6 +75,10 @@ pnpm security:production
 
 cd backend/go && go test ./... && go vet ./...
 cd ../python && PYTHONPATH=. .venv/bin/pytest app/tests/test_exposure_gates.py -q
+# Canonical full Python test suite:
+JWT_SECRET="your-super-secret-jwt-token-with-at-least-32-characters-long" \
+  AI_INTERNAL_TOKEN="<REDACTED_AI_INTERNAL_TOKEN>" \
+  PYTHONPATH=. .venv/bin/pytest app/ tests/ -q
 cd ../..
 
 python3 scripts/verify_self_hosted_migrations.py

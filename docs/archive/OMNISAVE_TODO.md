@@ -37,7 +37,8 @@ Design specification: [OMNISAVE_UI_SPEC.md](./OMNISAVE_UI_SPEC.md). The specific
 
 ## P1 — Finish the career-intelligence loop
 
-- [x] Add role/company/skill suggestions from the candidate’s existing applications so users do not need to type every context label manually; interview-board-specific suggestions remain a follow-up.
+- [x] Add role/company/skill suggestions from the candidate’s existing applications so users do not need to type every context label manually.
+- [ ] Add interview-board-specific suggestions as a follow-up.
 - [ ] Link evidence cards directly to an application, interview session, flashcard deck, or practice session instead of only storing free-form context labels.
 - [ ] Add a “Prepare this application” entry point from the interview board that opens `/omnisave` with the role/company filters prefilled.
 - [ ] Add a “Practice these questions” action to the Interview Brief that sends selected evidence-derived questions to the AI mock interview or Clash of Code workflow.

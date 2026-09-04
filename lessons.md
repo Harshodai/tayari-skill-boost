@@ -3917,9 +3917,33 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 
 **Fix:**
 - Implemented `SkillGapInput` and `MarketDemandInput` models with typed docstrings and parameter validation.
-- Wired tools into FastMCP registry; verified with 5 unit tests in `test_mcp_server.py` and 1,286 passing Python tests.
+- Wired tools into FastMCP registry; verified with 5 unit tests in `test_mcp_server.py` and full test suite passing (1,286 collected: 1,282 passed, 4 skipped, 0 failed).
 - Reorganized historical documents into `docs/archive/` preserving full git history via `git mv`.
 
 **Lesson:**
 - When exposing services via FastMCP tools, verify exact keyword argument names against underlying service functions (`role_title` vs `role`) to prevent runtime TypeErrors during tool execution.
 - Keeping the root directory free of ephemeral audit/sprint artifacts makes the codebase instantly readable and production-grade for new contributors and external partners.
+
+## 2026-09-04 — Full-Stack Audit Sweep & Archive Link Reconciliation
+
+**What:**
+1. Hardened FastMCP unit testing in `backend/python/app/tests/test_mcp_server.py`: mocked `market_intelligence.get_role_demand` via `monkeypatch` and `AsyncMock`, eliminating egress network calls during unit test runs.
+2. Reconciled and sanitized 16 archived audit and handoff documents (`docs/archive/`):
+   - Redacted lingering internal tokens (`AI_INTERNAL_TOKEN`) and database test credentials in `HANDOFF_2026-08-24.md`, `HANDOFF_2026-08-28.md`, `NEXT_AGENT_PROMPT.md`, and `STAGING_LAUNCH_COMMAND_PLAN_2026-08-24.md`.
+   - Updated release decisions to `CONDITIONAL BETA HOLD (NO-GO for unconstrained production)` across `HANDOFF_2026-08-24.md`, `TAYARI_RELEASE_GATE.md`, and `TAYARI_REMEDIATION_TODOS.md`, accurately reflecting the known `BYPASSRLS` backend tenant isolation risk.
+   - Clarified in `PRODUCTION_READINESS_AUDIT_2026-08-24.md` that database RLS protects browser-facing PostgREST roles, while backend services using `postgres` bypass RLS and require continuous owner-predicate query isolation.
+   - Fixed broken relative paths, missing catalog table items (PROD-010 in `PRODUCTION_ISSUES.md`), split career intelligence checklist items in `OMNISAVE_TODO.md`, and updated orchestrator references in `TAYARI_RUTHLESS_BRIEF.html` and `TAYARI_ULTIMATE_REVIEW.html` to reflect their archived locations.
+   - Enforced command isolation by wrapping directory transitions in subshells `(...)` across archive execution runbooks.
+
+**Root cause:**
+- Moving historical documentation into `docs/archive/` left broken relative markdown links and incorrect root-path assumptions in orchestrator HTML prompts.
+- Historical handoffs retained outdated test token strings and optimistic "PUBLIC BETA GO" status strings that contradicted the authoritative standing security risk regarding backend `BYPASSRLS`.
+- FastMCP tool unit tests lacked network isolation, allowing external job board queries to cause potential flakiness or CI timeouts.
+
+**Fix:**
+- Updated all affected archive documents, verified test suites across Go, Python, and frontend, and passed `git diff --check` and `bun run security:production`.
+
+**Lesson:**
+- When relocating documentation into subdirectories, systematically audit relative markdown links, script references, and embedded command paths (`git rev-parse --show-toplevel`).
+- Release decisions must remain completely consistent across all active and archived handoff documents; never leave an unqualified "GO" in secondary summaries when primary gates mandate a conditional hold.
+- Unit tests for MCP tools wrapping service calls must always mock underlying external network dependencies with `AsyncMock`/`monkeypatch`.

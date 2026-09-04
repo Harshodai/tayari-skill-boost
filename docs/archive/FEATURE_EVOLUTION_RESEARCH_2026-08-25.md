@@ -165,7 +165,7 @@ The most advanced feature is not an agent that submits more applications. It is 
 
 ## Repository evidence
 
-- [Tayari README](README.md)
-- [Feature registry](src/config/features.ts)
+- [Tayari README](../../README.md)
+- [Feature registry](../../src/config/features.ts)
 - [Current remediation backlog](TAYARI_REMEDIATION_TODOS.md)
-- [End-to-end maturity review](docs/reports/jobtayari-end-to-end-maturity-review-2026-08-25.md)
+- [End-to-end maturity review](../reports/jobtayari-end-to-end-maturity-review-2026-08-25.md)

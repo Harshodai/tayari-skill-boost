@@ -15,10 +15,10 @@ You're continuing work on Tayari Skill Boost (an AI job-prep platform — Go gat
 ## Current baseline (verify yourself, don't trust this blindly)
 
 ```bash
-cd backend/go && go build ./... && go vet ./... && go test ./...   # expect: 280 passed
-cd backend/python && JWT_SECRET="your-super-secret-jwt-token-with-at-least-32-characters-long" \
-  AI_INTERNAL_TOKEN="cc1b182c7692a3baededd1181438cfa1dca2434839d539f99c6d280e98d8d583" \
-  .venv/bin/python -m pytest app/ tests/ -q                        # expect: 951 passed, 4 skipped
+(cd backend/go && go build ./... && go vet ./... && go test ./...)   # expect: 280 passed
+(cd backend/python && JWT_SECRET="your-super-secret-jwt-token-with-at-least-32-characters-long" \
+  AI_INTERNAL_TOKEN="<REDACTED_AI_INTERNAL_TOKEN>" \
+  .venv/bin/python -m pytest app/ tests/ -q)                        # expect: 951 passed, 4 skipped
 ```
 
 `git log --oneline -1` should show `44fc3cf` or later, already on `origin/main`.

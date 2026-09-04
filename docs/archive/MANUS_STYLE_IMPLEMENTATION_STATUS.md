@@ -56,6 +56,6 @@ Read these files before continuing implementation:
 | File | Purpose |
 |---|---|
 | [`DEEPSEEK_COPY_PASTE_PROMPT.md`](./DEEPSEEK_COPY_PASTE_PROMPT.md) | Copy-paste execution instruction for DeepSeek or another engineering agent. |
-| [`backend/python/app/a2a/agent_squad.py`](./backend/python/app/a2a/agent_squad.py) | Executable, approval-required multi-agent review implementation. |
-| [`backend/go/internal/api/routes_mvp.go`](./backend/go/internal/api/routes_mvp.go) | Server-side application-state safety validation. |
-| [`src/components/TayariComputerControlRoom.tsx`](./src/components/TayariComputerControlRoom.tsx) | Truthful control-room state and required safety-sequence UI. |
+| [`backend/python/app/a2a/agent_squad.py`](../../backend/python/app/a2a/agent_squad.py) | Executable, approval-required multi-agent review implementation. |
+| [`backend/go/internal/api/routes_mvp.go`](../../backend/go/internal/api/routes_mvp.go) | Server-side application-state safety validation. |
+| [`src/components/TayariComputerControlRoom.tsx`](../../src/components/TayariComputerControlRoom.tsx) | Truthful control-room state and required safety-sequence UI. |

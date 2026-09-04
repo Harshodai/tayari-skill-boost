@@ -84,11 +84,25 @@ async def test_analyze_skill_gap_mcp_tool():
 
 
 @pytest.mark.asyncio
-async def test_get_role_market_demand_mcp_tool():
-    """Verify get_role_market_demand returns market demand signals."""
+async def test_get_role_market_demand_mcp_tool(monkeypatch):
+    """Verify get_role_market_demand forwards role_title and location without live provider access."""
+    from unittest.mock import AsyncMock
+    import app.services.market_intelligence as mi
+
+    mock_resp = {
+        "role": "backend engineer",
+        "count": 42,
+        "provenance": "verified",
+        "source": "mock_board",
+        "location": "Remote",
+    }
+    mock_get_role_demand = AsyncMock(return_value=mock_resp)
+    monkeypatch.setattr(mi, "get_role_demand", mock_get_role_demand)
+
     res = await get_role_market_demand(
         MarketDemandInput(role="backend engineer", location="Remote")
     )
-    assert "role" in res
-    assert "provenance" in res
-    assert res["role"] == "backend engineer"
+    mock_get_role_demand.assert_awaited_once_with(
+        role_title="backend engineer", location="Remote"
+    )
+    assert res == mock_resp

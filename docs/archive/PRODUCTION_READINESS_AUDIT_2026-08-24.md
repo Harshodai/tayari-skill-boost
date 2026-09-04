@@ -46,6 +46,8 @@ A new canonical migration, `backend/db/migrations/20260824_02_public_data_access
 
 The migration is mirrored to `supabase-local/volumes/db/init/51-20260824_public_data_access_hardening.sql`, mounted explicitly in the self-hosted Compose configuration, and byte-checked by `scripts/verify_self_hosted_migrations.py`. A new `scripts/check_public_table_rls.sh` gate checks for any public table without RLS, direct browser-role grants on critical sensitive tables, and required authenticated owner policies. This gate is now a blocking step in the full-stack GitHub Actions job.
 
+> **Note on authorization scope:** RLS policies and grant restrictions strictly protect browser-facing and PostgREST roles (`anon`, `authenticated`). Backend services connect using the administrative `postgres` role, which possesses `BYPASSRLS`; tenant isolation in backend database interactions therefore relies on rigorous application-level owner predicates in Go and Python query logic rather than database-enforced RLS.
+
 > **Observed before remediation:** anonymous PostgREST probes returned HTTP 200 for `api_keys`, `applications`, `saved_sources`, and `password_reset_tokens`.
 >
 > **Observed after remediation:** the exact non-destructive probes returned HTTP 401; the database catalog reported zero public ordinary tables without RLS.

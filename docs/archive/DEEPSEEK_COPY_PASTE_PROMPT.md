@@ -156,10 +156,10 @@ Do not call Job Tayari 10/10, autonomous, or end-to-end until every row below is
 Run only commands applicable to changed code, then report exact status and failures:
 
 ```bash
-cd backend/python && python3 -m pytest app/tests/test_agent_squad.py -q
-cd backend/go && gofmt -d internal/api/routes_mvp.go internal/api/routes_review_queue.go internal/api/routes_mvp_status_test.go
-cd backend/go && go test ./internal/api -run 'Test.*(Application|Status|Review)' -count=1
-cd ../.. && npm run build
+(cd backend/python && .venv/bin/python -m pytest app/tests/test_agent_squad.py -q)
+(cd backend/go && gofmt -d internal/api/routes_mvp.go internal/api/routes_review_queue.go internal/api/routes_mvp_status_test.go)
+(cd backend/go && go test ./internal/api -run 'Test.*(Application|Status|Review)' -count=1)
+npm run build
 git diff --check
 ```
 

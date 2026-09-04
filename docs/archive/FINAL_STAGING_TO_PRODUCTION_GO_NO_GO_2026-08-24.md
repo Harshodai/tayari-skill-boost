@@ -225,7 +225,8 @@ Every row needs an executor, timestamp, artifact link/file, result, approver, an
 
 The release approver may declare **GO — controlled final staging** only after signing:
 
-> “For release SHA `________`, I have reviewed the completed evidence ledger. Every red gate required for the enabled rings passed in the isolated staging environment. Current public claims match current enabled capabilities. Real candidate data is isolated, scrubbbed from telemetry, deletable, and inaccessible across users. AI failures are honest and unsupported facts are not invented. No enabled automation creates an external side effect without explicit user approval, and the core AutoPilot path is proved `auto_apply=false`. We can detect, disable, and roll back the enabled scope. All advanced features outside the authorized ring remain technically and visibly unavailable.”
+> “For release SHA `________`, I have reviewed the completed evidence ledger. Every red gate required for the enabled rings passed in the isolated staging environment. Current public claims match current enabled capabilities. Real candidate data is isolated, scrubbed from telemetry, deletable, and inaccessible across users. AI failures are honest and unsupported facts are not invented. No enabled automation creates an external side effect without explicit user approval, and the core AutoPilot path is proved `auto_apply=false`. We can detect, disable, and roll back the enabled scope. All advanced features outside the authorized ring remain technically and visibly unavailable.”
+
 
 The decision alternatives are only **GO**, **NO-GO**, or **HOLD FOR EVIDENCE**. “The feature is already in the codebase” is never a fourth option.
 

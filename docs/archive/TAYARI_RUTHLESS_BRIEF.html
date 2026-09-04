@@ -585,11 +585,11 @@
 
   <h3>Orchestrator — one prompt that runs the whole program from this file</h3>
   <div class="mission-card"><div class="m-head"><span>ORCHESTRATOR · paste into a Sonnet / opencode session at the repo root</span><button class="copy">Copy</button></div><pre class="m-body">You are the execution ORCHESTRATOR for the tayari-skill-boost repository. Your control document is
-TAYARI_RUTHLESS_BRIEF.html at the repo root. Work from it; do not invent scope beyond it.
+docs/archive/TAYARI_RUTHLESS_BRIEF.html. Work from it; do not invent scope beyond it.
 
 SETUP
 1. Read CLAUDE.md completely.
-2. Read TAYARI_RUTHLESS_BRIEF.html. In the "Agent Missions" section, missions live inside
+2. Read docs/archive/TAYARI_RUTHLESS_BRIEF.html. In the "Agent Missions" section, missions live inside
    &lt;pre class="m-body"&gt; blocks. The FIRST THREE blocks are rules, binding on every mission:
    (1) GLOBAL PREAMBLE (repo context + hard constraints + out-of-scope list),
    (2) ENGINEERING CONSTITUTION (reliability/data/contract/observability/security/docs rules),
@@ -615,7 +615,7 @@ EXECUTION RULES
   content, (d) any git history rewrite (e.g., gitleaks findings), (e) creating/charging anything on a
   payment provider, (f) merging any branch to main, (g) submitting the extension to the store.
 - NEVER touch the interview-prep surfaces listed in the preamble. NEVER run `docker compose down -v`.
-- End of each wave: write WAVE_REPORT_N.html (not .md) at repo root — shipped items, verify outputs,
+- End of each wave: write docs/archive/WAVE_REPORT_N.html (not .md) — shipped items, verify outputs,
   deviations from spec with reasons, open risks, exact list of human decisions now pending — then STOP
   and wait for the human's review before starting the next wave.
 

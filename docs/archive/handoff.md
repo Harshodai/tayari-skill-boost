@@ -14,11 +14,11 @@ verify continuously, and never leave the tree in a state where `pytest` / `tsc` 
 Two design documents drive this thread. Both are checked into the repo (not just published as
 ephemeral claude.ai artifacts, which expire with the session that made them):
 
-- **[`docs/anthropic-adoption/tayari-adoption-plan.html`](docs/anthropic-adoption/tayari-adoption-plan.html)**
+- **[`../anthropic-adoption/tayari-adoption-plan.html`](../anthropic-adoption/tayari-adoption-plan.html)**
   — the ranked, file-cited engineering plan. **This is the plan to execute.** Open it in a browser.
   It has: a corrections section, a ranked adoption table (10 items), the extension-vs-owned-browser
   verdict, a "what not to adopt" section, and Phases 1/2/3 sequenced by dependency (not calendar).
-- **[`docs/anthropic-adoption/anthropic-shipped-inventory.html`](docs/anthropic-adoption/anthropic-shipped-inventory.html)**
+- **[`../anthropic-adoption/anthropic-shipped-inventory.html`](../anthropic-adoption/anthropic-shipped-inventory.html)**
   — the reference inventory of what Anthropic has actually shipped (Cowork, Claude Code, the two
   browser surfaces, Agent SDK/Managed Agents, MCP 2026-07-28, Skills, Artifacts), with every claim
   labelled first-party / press-sourced / unverified. Consult when a plan item references an
@@ -37,7 +37,7 @@ indefinitely; the HTML files in `docs/anthropic-adoption/` are the source of tru
 Run this block before doing anything else, to confirm the tree is exactly where this document claims:
 
 ```bash
-cd /Users/harshodaikolluru/Public/tayari-skill-boost
+cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd backend/python && .venv/bin/python -m pytest app/tests/ -q            # expect: 213 passed, 2 skipped, 0 failed
 cd ../.. && npx tsc --noEmit -p tsconfig.json                             # expect: no errors
 cd backend/go && go build ./... && go vet ./... && go test ./...         # expect: clean build, all packages ok, zero FAIL

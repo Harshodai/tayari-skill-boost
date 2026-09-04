@@ -17,8 +17,9 @@ A feature is **Release-Ready** iff ALL of:
 3. Route parity holds: every `/api/...` has `/api/v1/...` alias and vice versa (CLAUDE.md invariant).
 4. The feature is covered by at least one test that **fails** when the LLM is mock (the "mock ≠ passing" rule).
 5. `check_llm_engine.sh` exits 0 in CI before any eval runs.
-6. No real secrets in any tracked or gitignored-but-local file.
+6. Prohibit real secrets in tracked files, client bundles, public logs, and release artifacts. Permitted environment-scoped secrets must be managed exclusively in protected runtime secret storage (never committed or recorded as live keys like OPENROUTER_API_KEY in tracked templates or git).
 7. No unauthenticated admin surfaces (Flower) in the `prod` profile.
+
 8. Docs that describe the feature are dated within 7 days of last code change.
 
 Anything short of this = **not release-ready**. The audit names every gap.
@@ -123,7 +124,7 @@ Five parallel explore agents mapped the repo. Findings that anchor the plan:
 
 ### 1.10 Advanced-feature long tail — CORRECTED by 1.13, most are wired, differently broken
 `backend/python/app/services/` has ~50 service modules. Original framing here ("untraced, unknown status") was wrong for most of this list — re-checked during 1.13: `backend/go/internal/api/routes_one_stop.go`'s `RegisterOneStopRoutes` (registered at `router.go:102`) actually fronts most of these with full `/api`+`/api/v1` parity: `negotiation_copilot` (`/negotiation/generate`), `recruiter_intelligence` (`/recruiter/lookup`), `offer_calculator` (`/offer/calculate`), `skill_gap_radar`/`skill_gap_analyzer` (`/skill-gap/analyze`), `portfolio_generator` (`/portfolio/generate`), `outreach_copilot` (`/outreach/generate`), `ats_detector` (`/ats/detect`), `company_radar`/`legitimacy_checker` (`/radar/check`), `agent_reach*` (`/agent-reach/*`), `candidate_answer_bank` (`/candidate-answer-bank/match`), `one_shot_engine` (`/one-shot/execute`), `privacy_check` (`/privacy/check`), truth-check guardrail (`/guardrails/truth-check`). **They're wired. See 1.13 for what's actually wrong with them — it's worse than a 404.**
-Still genuinely untraced (not in the one-stop proxy list, status unknown): `career_intelligence.py`, `linkedin_analyzer.py`, `portal_scanner.py`, `bandit_service.py`, `pattern_analyzer.py`, `preference_learning.py`, `variant_manager.py`, `email_classifier.py`, `followup_tracker.py`, `learning_recommender.py`, `memory_composer.py`, `ats_simulator.py`, `career_ops_evaluator.py`, `notifications.py`. `live_interview_copilot.py`/`voice_coach.py` excluded (out-of-scope carve-out). **TRACED 2026-07-28 — see full per-service results in Section 4's matrix.** Headline finding: `RegisterMemoryRoutes` (`backend/go/internal/api/routes_memory.go:27`) — the entire memory-layer proxy (conversations + preferences + feedback, ~16 routes) — is defined but **never invoked anywhere**, same dead-code shape as `routes_mvp.go`. Precise count on the original 1.2 claim: **34 of 51** handlers in `routes_mvp.go` are unregistered, not "the full set." Recurring pattern across this batch: most non-ready services break at the Go layer specifically — either a handler is defined and never registered, or Go silently substitutes its own hardcoded/raw-SQL logic instead of calling the real Python service that already exists and works (`career_intelligence`'s trending-skills endpoint, `bandit_service`) — the same "wired but differently broken" shape as §1.13's one-stop-proxy finding, not an unrelated bug class.
+[SUPERSEDED / PREVIOUSLY CLASSIFIED AS UNTRACED]: `career_intelligence.py`, `linkedin_analyzer.py`, `portal_scanner.py`, `bandit_service.py`, `pattern_analyzer.py`, `preference_learning.py`, `variant_manager.py`, `email_classifier.py`, `followup_tracker.py`, `learning_recommender.py`, `memory_composer.py`, `ats_simulator.py`, `career_ops_evaluator.py`, `notifications.py`. `live_interview_copilot.py`/`voice_coach.py` excluded (out-of-scope carve-out). **TRACED 2026-07-28 — see full per-service results in Section 4's matrix.** Headline finding: `RegisterMemoryRoutes` (`backend/go/internal/api/routes_memory.go:27`) — the entire memory-layer proxy (conversations + preferences + feedback, ~16 routes) — is defined but **never invoked anywhere**, same dead-code shape as `routes_mvp.go`. Precise count on the original 1.2 claim: **34 of 51** handlers in `routes_mvp.go` are unregistered, not "the full set." Recurring pattern across this batch: most non-ready services break at the Go layer specifically — either a handler is defined and never registered, or Go silently substitutes its own hardcoded/raw-SQL logic instead of calling the real Python service that already exists and works (`career_intelligence`'s trending-skills endpoint, `bandit_service`) — the same "wired but differently broken" shape as §1.13's one-stop-proxy finding, not an unrelated bug class.
 
 ### 1.11 Pydantic contract gap (regex-fallback root cause)
 **Finding:** the extraction layer isn't just regex — the Pydantic schema wrapped around it is a shell, not a contract.
@@ -304,9 +305,11 @@ CREATE TABLE IF NOT EXISTS public.connections (
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','blocked')),
   created_at timestamptz NOT NULL DEFAULT now(),
   accepted_at timestamptz,
-  CHECK (requester_id <> addressee_id),
-  UNIQUE (requester_id, addressee_id)
+  CHECK (requester_id <> addressee_id)
 );
+-- Enforce a single row for each unordered user pair, preventing both (A, B) and (B, A)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_connections_unordered_pair
+  ON public.connections (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id));
 CREATE INDEX idx_connections_addressee_status ON public.connections (addressee_id, status);
 CREATE INDEX idx_connections_requester_status ON public.connections (requester_id, status);
 
@@ -320,7 +323,9 @@ CREATE TABLE IF NOT EXISTS public.shared_interview_questions (
   how_to_answer text,
   visibility text NOT NULL DEFAULT 'connections' CHECK (visibility IN ('private','connections','public')),
   created_at timestamptz NOT NULL DEFAULT now()
+  -- Validation requirement: endpoint must validate that application_id belongs to requesting user_id before inserting, preventing cross-user references.
 );
+
 CREATE INDEX idx_shared_questions_user ON public.shared_interview_questions (user_id, created_at DESC);
 CREATE INDEX idx_shared_questions_visibility ON public.shared_interview_questions (visibility, created_at DESC);
 ```
