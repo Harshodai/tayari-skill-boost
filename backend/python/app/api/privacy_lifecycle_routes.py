@@ -31,7 +31,7 @@ async def privacy_check_endpoint(_user_id: str = Depends(get_current_user)):
         return check_privacy_and_offline_status()
     except Exception as exc:
         logger.error("privacy check failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="Privacy check failed") from exc
 
 
 @router.get("/api/v1/privacy/ledger")
@@ -160,6 +160,13 @@ async def export_user_data_endpoint(request: Request, user_id: str = Depends(get
         )
     except Exception as exc:
         logger.error("export-data: privacy ledger record failed: %s", exc)
+
+    gateway_sections = {"profile", "resumes", "applications", "cover_letters"}
+    if any(section in gateway_sections for section in archive["unavailable_sections"]):
+        archive["status"] = "partial"
+    else:
+        archive["status"] = "ok"
+
     return archive
 
 

@@ -197,14 +197,21 @@ Backend Developer with Beta Corp, 2020
 Tech Lead for Gamma Systems, 2021
 """
         # Dropped only Alpha Corp (1 dropped)
-        opt = """Jane Doe
+        opt_one_dropped = """Jane Doe
 EXPERIENCE
 Backend Developer with Beta Corp, 2020
 Tech Lead for Gamma Systems, 2021
 """
-        res = check_truthfulness(orig, opt)
-        # Should not trigger the >= 3 dropped employers rule
-        assert not any("Many employers dropped" in v for v in res["violations"])
+        res1 = check_truthfulness(orig, opt_one_dropped)
+        assert not any("Many employers dropped" in v for v in res1["violations"])
+
+        # Dropped Alpha Corp and Beta Corp (exactly 2 dropped)
+        opt_two_dropped = """Jane Doe
+EXPERIENCE
+Tech Lead for Gamma Systems, 2021
+"""
+        res2 = check_truthfulness(orig, opt_two_dropped)
+        assert not any("Many employers dropped" in v for v in res2["violations"])
 
     def test_email_drift_triggers_violation(self):
         """Changing contact email triggers identity drift violation."""
@@ -349,6 +356,22 @@ class TestPIIDetector:
             assert res["passed"] is False
             assert any(item["type"] == "Phone" for item in res["pii_found"])
 
+    def test_numeric_candidate_id_not_classified_as_phone(self):
+        """Unformatted 10-digit tokens like candidate IDs without phone context are not flagged as Phone."""
+        non_phone_samples = [
+            "Candidate ID: 1234567890",
+            "Applicant reference 9876543210 submitted for review",
+        ]
+        for s in non_phone_samples:
+            res = check_pii(s)
+            assert not any(item["type"] == "Phone" for item in res["pii_found"])
+
+        # Genuine unformatted phone with context still triggers detection
+        phone_with_context = "Phone: 1234567890"
+        res_phone = check_pii(phone_with_context)
+        assert res_phone["passed"] is False
+        assert any(item["type"] == "Phone" for item in res_phone["pii_found"])
+
     def test_detects_emails(self):
         """Detects email addresses."""
         samples = [
@@ -434,17 +457,21 @@ class TestATSPDFValidator:
 
     def test_valid_parseable_pdf(self):
         """PDF containing standard fonts and selectable text streams achieves score 100."""
-        valid_pdf = (
-            b"%PDF-1.5\n"
-            b"/Font /FontName\n"
-            b"BT /F1 12 Tf (Jane Doe) Tj ET\n"
-            b"BT /F1 12 Tf (Software Engineer) Tj ET\n"
-            b"BT /F1 12 Tf (Skills: Python, Go) Tj ET\n"
-            b"BT /F1 12 Tf (Experience at TechCorp) Tj ET\n"
-            b"BT /F1 12 Tf (Education: BS in CS) Tj ET\n"
-            b"trailer\n"
-            b"%%EOF"
-        )
+        import io
+        from reportlab.pdfgen import canvas
+
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pageCompression=0)
+        c.setFont("Helvetica", 12)
+        c.drawString(100, 700, "Jane Doe")
+        c.drawString(100, 680, "Software Engineer")
+        c.drawString(100, 660, "Skills: Python, Go")
+        c.drawString(100, 640, "Experience at TechCorp")
+        c.drawString(100, 620, "Education: BS in CS")
+        c.showPage()
+        c.save()
+
+        valid_pdf = buf.getvalue()
         res = ATSPDFValidator.validate_pdf_bytes(valid_pdf)
         assert res["is_parseable"] is True
         assert res["score"] == 100

@@ -3861,3 +3861,28 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 - Secondary observability/audit logging must never invert the primary business transaction outcome. If a deletion succeeded on the authority system of record, an audit write failure must be logged as degraded observability, not surfaced as a transaction failure that causes destructive retries.
 - String presence checks in assessment logic must be uniform: if an assessment uses `.trim()` to classify empty input, all narrative / basis justifications derived from the same input must use the exact same predicate.
 - When running headless frontend tests under Node 22+ with HappyDOM, experimental `localStorage` is uninitialized unless polyfilled in test setup (`setup.ts`). Otherwise, `getToken()` or component storage hooks throw TypeErrors that bubble into `BackendUnavailableError` catches, masking the true test failure.
+
+## 2026-09-04 — Deep SQL Nesting Isolation, Generic Error Details, Honest Export Status, and Guardrails Hardening
+
+**What:**
+1. Deep SQL AST validation in `routes_two_user_isolation_test.go`: added `hasTokenAnyDepth` to reject `OR` tokens at any SQL parenthesis/function nesting level inside `user_id` conjuncts (including inside `COALESCE(user_id=$2 OR TRUE, FALSE)`), preventing fake driver bypasses.
+2. Replaced `str(exc)` details with generic client error strings (`"Voice feedback analysis failed"`, `"Privacy check failed"`) in `interview_coach_routes.py` and `privacy_lifecycle_routes.py` while logging underlying exceptions server-side and preserving exception chaining.
+3. Updated privacy data export in `privacy_lifecycle_routes.py` to return `status="partial"` whenever gateway-owned sections are unavailable due to connection or upstream failures, with automated regression tests.
+4. Refined `pii_detector.py` Phone detection to require phone-related context or recognizable formatting for 10-digit tokens, preventing false positives on candidate IDs and applicant references.
+5. Fixed currency metric regex in `interview_ai.py` to use `(?:(?<=^)|(?<=\s))` for dollar amounts and added trailing `(?!\w)` guards on percentage metrics to avoid partial matches on tokens like `50%abc`.
+6. Generated structurally valid PDF fixtures using ReportLab canvas with catalog and page tree in `test_guardrails_suite.py`, replacing hand-rolled malformed byte snippets.
+7. Word-bounded seniority matching in `JobSearch.tsx`: replaced substring `.includes()` with regex boundaries and returned `"unknown"` for generic titles without seniority terms.
+
+**Root cause:**
+- Depth=0 token splitting failed to detect nested `OR` conditions wrapped in functions like `COALESCE()`.
+- Returning raw exception strings `str(exc)` in HTTP 500 handlers risked internal path disclosure to untrusted clients.
+- Gateway query failures in data export resulted in `status="ok"` despite missing all core user data sections.
+- Unformatted 10-digit regex patterns in PII detection collided with candidate IDs.
+- Word boundary `\b` does not match before non-word character `$` in currency patterns, and bare `%` patterns matched prefixes of alphanumeric tokens.
+- Substring searching for "lead" or "staff" matched unrelated words like "plead" or "staffing", and unmatched titles defaulted to "under" instead of "unknown".
+
+**Lesson:**
+- Multi-tenant test drivers must inspect full syntactic depth of ownership predicates; shallow checks leave function-wrapped disjunction bypasses undetected.
+- API endpoints must strictly decouple server-side diagnostics from client-facing error payloads: log everything, reveal nothing beyond generic category descriptions.
+- Export endpoints must honestly communicate completeness: if upstream dependencies degrade, report "partial" rather than unconditionally claiming success.
+- PII and metric regexes must account for non-word boundary characteristics of symbols (`$`, `%`) and require context for ambiguous numeric sequences.

@@ -92,3 +92,26 @@ async def test_delete_account_preserves_error_status_when_ledger_fails():
             await delete_user_account_endpoint(mock_request, user_id="user-123")
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Account not found"
+
+
+@pytest.mark.asyncio
+async def test_export_user_data_returns_partial_on_gateway_failure():
+    """export_user_data_endpoint returns status='partial' when gateway request fails."""
+    from app.api.privacy_lifecycle_routes import export_user_data_endpoint
+    from starlette.requests import Request
+    import httpx
+
+    mock_request = MagicMock(spec=Request)
+    mock_request.headers = {"authorization": "Bearer fake-token"}
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get, \
+         patch("app.services.privacy_ledger.ledger.query_user_log", new_callable=AsyncMock) as mock_query, \
+         patch("app.services.privacy_ledger.ledger.record", new_callable=AsyncMock) as mock_record:
+        mock_get.side_effect = httpx.ConnectError("Gateway connection refused")
+        mock_query.return_value = []
+        mock_record.return_value = None
+
+        result = await export_user_data_endpoint(mock_request, user_id="user-123")
+        assert result["status"] == "partial"
+        assert "profile" in result["unavailable_sections"]
+        assert "resumes" in result["unavailable_sections"]

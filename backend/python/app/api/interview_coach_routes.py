@@ -114,7 +114,7 @@ def process_voice_feedback(payload: VoiceFeedbackRequest):
         )
     except Exception as exc:
         logger.error("voice feedback failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="Voice feedback analysis failed") from exc
 
 
 class NegotiationRequest(BaseModel):

@@ -873,10 +873,13 @@ const JobSearch = () => {
                       },
                       seniority_alignment: {
                         result: (() => {
-                          if (!selected.title?.trim()) return "unknown";
-                          const title = selected.title.toLowerCase();
-                          const hasSenior = title.includes("senior") || title.includes("staff") || title.includes("principal") || title.includes("lead");
-                          return hasSenior ? "aligned" : "under";
+                          const rawTitle = selected.title?.trim();
+                          if (!rawTitle) return "unknown";
+                          const seniorTerms = /\b(senior|sr\.?|staff|principal|lead|director|head|vp)\b/i;
+                          const juniorTerms = /\b(junior|jr\.?|entry|associate|intern|internship)\b/i;
+                          if (seniorTerms.test(rawTitle)) return "aligned";
+                          if (juniorTerms.test(rawTitle)) return "under";
+                          return "unknown";
                         })(),
                         basis: selected.title?.trim() ? "Seniority estimated from job title keywords; verify full job description." : "Seniority unknown — full job description unavailable.",
                       },

@@ -117,6 +117,23 @@ func hasTopLevelToken(s, token string) bool {
 	return false
 }
 
+func hasTokenAnyDepth(s, token string) bool {
+	lower := strings.ToLower(s)
+	tokenLower := strings.ToLower(token)
+	tLen := len(tokenLower)
+
+	for i := 0; i < len(lower); i++ {
+		if i+tLen <= len(lower) && lower[i:i+tLen] == tokenLower {
+			beforeOk := i == 0 || lower[i-1] == ' ' || lower[i-1] == '(' || lower[i-1] == ')' || lower[i-1] == ',' || lower[i-1] == '\t' || lower[i-1] == '\n'
+			afterOk := i+tLen == len(lower) || lower[i+tLen] == ' ' || lower[i+tLen] == '(' || lower[i+tLen] == ')' || lower[i+tLen] == ',' || lower[i+tLen] == '\t' || lower[i+tLen] == '\n'
+			if beforeOk && afterOk {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func splitTopLevel(s, token string) []string {
 	var parts []string
 	depth := 0
@@ -188,7 +205,7 @@ func isStrictOwnershipQuery(query string) bool {
 		}
 		inner := unwrapParens(c)
 		if strings.Contains(inner, "user_id") {
-			if hasTopLevelToken(inner, "or") {
+			if hasTokenAnyDepth(inner, "or") {
 				return false
 			}
 		}
@@ -521,6 +538,7 @@ func TestStrictOwnershipPredicate_RequiresAND(t *testing.T) {
 		"SELECT * FROM applications WHERE (application_id=$1 OR user_id=$2)",
 		"SELECT * FROM applications WHERE (application_id=$1 OR user_id=$2) AND status='review'",
 		"SELECT * FROM applications WHERE (user_id=$1 OR user_id=$2) AND application_id=$3",
+		"SELECT * FROM applications WHERE application_id=$1 AND COALESCE(user_id=$2 OR TRUE, FALSE)",
 		"SELECT * FROM applications WHERE application_id=$1",
 		"SELECT * FROM applications WHERE user_id=$2",
 		"DELETE FROM applications WHERE application_id=$1 OR user_id=$2",

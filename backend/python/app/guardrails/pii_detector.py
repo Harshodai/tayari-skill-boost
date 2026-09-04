@@ -30,6 +30,15 @@ def _context_filter(text: str, match: re.Match, label: str) -> bool:
             return False
         return True
 
+    # Phone: unformatted digit tokens require recognizable formatting or phone-related context
+    if label == "Phone":
+        raw = match.group()
+        if not re.search(r"[-.\s()]", raw):
+            phone_keywords = ["phone", "tel", "cell", "mobile", "call", "ph:", "ph.", "dial", "contact"]
+            if not any(kw in context for kw in phone_keywords):
+                return False
+        return True
+
     # Credit card: avoid matching phone numbers or long dates
     if label == "Credit Card":
         if "phone" in context or "tel" in context or "fax" in context:

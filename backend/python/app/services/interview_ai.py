@@ -314,7 +314,7 @@ class InterviewPrepGenerator:
 
         # 4. Result Analysis (0-25 pts)
         metric_pattern = re.compile(
-            r'(?:\b\d+(?:\.\d+)?%|\b\$\d+[kKmMbB]?\b|\b\d+(?:\.\d+)?ms\b|\b\d+x\b|\b\d+\s*(?:seconds|minutes|hours|days|percent|users|customers|orders|requests|queries|nodes|clusters)\b)',
+            r'(?:\b\d+(?:\.\d+)?%(?!\w)|(?:(?<=^)|(?<=\s))\$\d+[kKmMbB]?\b|\b\d+(?:\.\d+)?ms\b|\b\d+x\b|\b\d+\s*(?:seconds|minutes|hours|days|percent|users|customers|orders|requests|queries|nodes|clusters)\b)',
             re.IGNORECASE
         )
         has_metrics = bool(metric_pattern.search(text))
