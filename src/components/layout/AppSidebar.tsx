@@ -32,6 +32,7 @@ import {
   Target,
   Map,
   ShieldCheck,
+  Coins,
 } from "lucide-react";
 import {
   Sidebar,
