@@ -45,31 +45,25 @@ class MockInterviewSimulator:
     @staticmethod
     def evaluate_answer(question: str, candidate_answer: str) -> Dict[str, Any]:
         """Evaluate a candidate's answer for STAR structure and technical depth."""
+        from app.services.interview_ai import InterviewPrepGenerator
+        star_res = InterviewPrepGenerator.analyze_star_answer(candidate_answer, question=question)
         answer_len = len(candidate_answer.strip().split())
-        has_star_elements = any(kw in candidate_answer.lower() for kw in ["situation", "task", "action", "result", "led", "achieved"])
 
-        score = 70
-        feedback: List[str] = []
-
-        if answer_len < 30:
-            score -= 20
-            feedback.append("Answer is too brief — elaborate on your specific contributions.")
-        elif answer_len > 80:
-            score += 10
-            feedback.append("Good detail provided in answer.")
-
-        if has_star_elements:
-            score += 15
-            feedback.append("Demonstrated clear STAR behavioral framework.")
-        else:
-            feedback.append("Consider structuring response explicitly around Situation, Task, Action, and Result.")
-
-        score = min(score, 100)
+        feedback: List[str] = list(star_res.get("coaching_tips", []))
+        for comp, detail in star_res.get("breakdown", {}).items():
+            if detail.get("feedback"):
+                feedback.append(f"{comp.capitalize()}: {detail['feedback']}")
 
         return {
             "question": question,
-            "score": score,
+            "score": star_res["completeness_score"],
+            "completeness_score": star_res["completeness_score"],
             "word_count": answer_len,
-            "star_framework_detected": has_star_elements,
-            "feedback": feedback
+            "star_framework_detected": star_res["completeness_score"] >= 50,
+            "star_breakdown": star_res.get("breakdown", {}),
+            "missing_elements": star_res.get("missing_elements", []),
+            "weak_elements": star_res.get("weak_elements", []),
+            "follow_up_question": star_res.get("follow_up_question", ""),
+            "follow_up_target": star_res.get("follow_up_target", "general"),
+            "feedback": feedback,
         }

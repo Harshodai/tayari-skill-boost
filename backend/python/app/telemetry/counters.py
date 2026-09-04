@@ -40,6 +40,12 @@ class MetricsRegistry:
             self._provider_errors[provider] += 1
             return self._counters["llm_errors_total"]
 
+    def record_cost_budget_exceeded(self) -> int:
+        with self._lock:
+            self._counters["llm_cost_budget_exceeded_total"] += 1
+            self._counters["llm_daily_cost_budget_exceeded_total"] += 1
+            return self._counters["llm_daily_cost_budget_exceeded_total"]
+
     def record_queue_age(self, age_seconds: float) -> None:
         with self._lock:
             self._queue_age_seconds = max(0.0, float(age_seconds))

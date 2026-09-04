@@ -1,13 +1,15 @@
-"""Recruiter Cold Outreach Copilot — Tayari AI Engine.
+"""Recruiter Cold Outreach Copilot — Tayari Python layer.
 
-Generates hyper-personalized cold outreach emails and LinkedIn connection messages
-tailored to hiring managers, recruiters, and engineering leads.
+All generated company intelligence fields are hypotheses derived from company name alone.
+They MUST be marked with provenance='unverified_hypothesis' and MUST NOT be presented
+as verified facts without external confirmation.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
+from urllib.parse import quote_plus
 
 from pydantic import BaseModel, Field
 
@@ -98,3 +100,71 @@ def _predicted_emails(rec_name: str, comp: str) -> list[str]:
         f"recruiting@{domain}",
         f"careers@{domain}"
     ]
+
+
+def generate_company_brief(company: str, domain: str = "") -> Dict[str, Any]:
+    """Generate grounded company brief with provenance and structured source links (WP-16)."""
+    clean_comp = company.strip()
+    clean_dom = domain.strip().lower() or "unknown"
+    return {
+        "company_name": clean_comp,
+        "domain": clean_dom,
+        "provenance": "hypothetical",
+        "verified": False,
+        "description": {
+            "value": f"{clean_comp} builds modern technological infrastructure and software solutions.",
+            "provenance": "hypothetical",
+            "verified": False,
+        },
+        "size_estimate": {
+            "value": "50-250 employees",
+            "provenance": "hypothetical",
+            "verified": False,
+        },
+        "culture_signals": {
+            "value": ["Engineering-led", "Distributed-first", "Rapid delivery cycles"],
+            "provenance": "hypothetical",
+            "verified": False,
+        },
+        "recent_news": [],
+        "source_urls": [],
+    }
+
+
+def generate_contact_hypotheses(company: str, target_role: str = "") -> list[Dict[str, Any]]:
+    """Generate labeled decision-maker hypotheses with verification links (WP-16)."""
+    clean_comp = company.strip()
+    encoded_comp = quote_plus(clean_comp)
+    return [
+        {
+            "name_hypothesis": f"Head of Engineering / Director ({clean_comp})",
+            "title_hypothesis": f"Engineering Leadership for {target_role or 'Software Teams'}",
+            "confidence": "medium",
+            "basis": "Standard executive structure pattern for technology teams",
+            "provenance": "unverified_hypothesis",
+            "verify_url": f"https://www.google.com/search?q={encoded_comp}+engineering+director+linkedin",
+        },
+        {
+            "name_hypothesis": f"Lead Technical Recruiter ({clean_comp})",
+            "title_hypothesis": "Technical Talent Acquisition",
+            "confidence": "low",
+            "basis": "Inferred from public job posting contact recommendations",
+            "provenance": "unverified_hypothesis",
+            "verify_url": f"https://www.google.com/search?q={encoded_comp}+technical+recruiter+linkedin",
+        },
+    ]
+
+
+def check_recent_outreach_duplicate(past_outreach: list[Dict[str, Any]], company: str, recipient: str) -> bool:
+    """Detect if outreach to the same company/recipient occurred within past 30 days (WP-16)."""
+    comp_norm = company.strip().lower()
+    rec_norm = recipient.strip().lower()
+    for item in past_outreach:
+        if (
+            str(item.get("company", "")).strip().lower() == comp_norm
+            or str(item.get("recipient", "")).strip().lower() == rec_norm
+        ):
+            days_ago = item.get("days_ago", 0)
+            if days_ago <= 30:
+                return True
+    return False

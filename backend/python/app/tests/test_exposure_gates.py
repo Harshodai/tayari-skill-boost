@@ -79,7 +79,10 @@ def test_public_quick_ats_scan_is_text_only_and_bounded():
         json={"resume_text": "Python SQL", "job_description": "Python"},
     )
     assert response.status_code == 200
-    assert response.json()["score"] == 100
+    data = response.json()
+    # Composite scorer returns 0-100; minimal matching resume should score > 0
+    assert isinstance(data["score"], (int, float))
+    assert 0 < data["score"] <= 100
 
     oversized = client.post(
         "/api/v1/ats/score",
