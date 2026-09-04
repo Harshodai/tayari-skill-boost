@@ -214,6 +214,88 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleDeleteUserData performs a DATA-ONLY wipe: deletes user-owned app rows
+// (mirroring handleDeleteAccount's cascade) but NEVER touches the auth identity
+// (no GoTrue admin delete, no DELETE FROM auth.users). The user can still sign
+// in afterwards; only their application data is gone.
+// DELETE /api/v1/user/data | DELETE /api/user/data
+func (s *Server) handleDeleteUserData(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	uid := user.ID.String()
+
+	tx, err := s.DB.Conn.BeginTx(r.Context(), nil)
+	if err != nil {
+		log.Printf("handleDeleteUserData: begin tx failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to start deletion")
+		return
+	}
+	defer tx.Rollback()
+
+	dataOnlyQueries := []string{
+		`UPDATE agent_runs SET status='cancelled', completed_at=NOW(), updated_at=NOW() WHERE user_id=$1 AND status NOT IN ('completed','failed','cancelled')`,
+		`DELETE FROM run_events WHERE user_id=$1`,
+		`DELETE FROM run_controls WHERE user_id=$1`,
+		`DELETE FROM delivery_ledger WHERE user_id=$1`,
+		`DELETE FROM application_attempts WHERE user_id=$1`,
+		`DELETE FROM user_sessions WHERE user_id=$1`,
+		`DELETE FROM tailored_resumes WHERE user_id=$1`,
+		`DELETE FROM platform_configs WHERE user_id=$1`,
+		`DELETE FROM runtime_approvals WHERE user_id=$1`,
+		`DELETE FROM agent_router_events WHERE user_id=$1`,
+		`DELETE FROM agent_task_attempts WHERE user_id=$1`,
+		`DELETE FROM agent_tasks WHERE user_id=$1`,
+		`DELETE FROM digital_employees WHERE user_id=$1`,
+		`DELETE FROM application_approvals WHERE user_id=$1`,
+		`DELETE FROM submission_receipts WHERE user_id=$1`,
+		`DELETE FROM agent_questions WHERE user_id=$1`,
+		`DELETE FROM privacy_audit_log WHERE user_id=$1`,
+		`DELETE FROM autopilot_runs WHERE user_id=$1`,
+		`DELETE FROM autopilot_schedules WHERE user_id=$1`,
+		`DELETE FROM application_outcomes WHERE user_id=$1`,
+		`DELETE FROM applications WHERE user_id=$1`,
+		`DELETE FROM resume_versions rv USING resumes res WHERE rv.resume_id=res.id AND res.user_id=$1`,
+		`DELETE FROM resumes WHERE user_id=$1`,
+		`DELETE FROM job_descriptions WHERE user_id=$1`,
+		`DELETE FROM saved_jobs WHERE user_id=$1`,
+		`DELETE FROM user_skill_analyses WHERE user_id=$1`,
+		`DELETE FROM conversations WHERE user_id=$1`,
+		`DELETE FROM user_job_feedback WHERE user_id=$1`,
+		`DELETE FROM communications WHERE user_id=$1`,
+		`DELETE FROM connections WHERE requester_id=$1 OR addressee_id=$1`,
+		`DELETE FROM question_upvotes WHERE user_id=$1`,
+		`DELETE FROM shared_interview_questions WHERE user_id=$1`,
+		`DELETE FROM memberships WHERE user_id=$1`,
+		`DELETE FROM push_subscriptions WHERE user_id=$1`,
+		`DELETE FROM agent_runs WHERE user_id=$1`,
+		`DELETE FROM user_subscriptions WHERE user_id=$1`,
+		`DELETE FROM public.profiles WHERE id=$1`,
+	}
+
+	for _, q := range dataOnlyQueries {
+		if _, err := tx.ExecContext(r.Context(), q, uid); err != nil {
+			log.Printf("handleDeleteUserData: data wipe failed (%s): %v", q, err)
+			s.respondError(w, http.StatusInternalServerError, "Deletion failed")
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		log.Printf("handleDeleteUserData: commit failed: %v", err)
+		s.respondError(w, http.StatusInternalServerError, "Deletion failed")
+		return
+	}
+
+	log.Printf("[GDPR] User data wiped (account kept): user_id=%s at %s", uid, time.Now().UTC().Format(time.RFC3339))
+	s.respondJSON(w, http.StatusOK, map[string]string{
+		"status":  "data_deleted",
+		"user_id": uid,
+	})
+}
+
 // handleExportAccount gathers all user data and returns a ZIP export (GDPR B3).
 // GET /api/v1/account/export  |  GET /api/account/export
 //

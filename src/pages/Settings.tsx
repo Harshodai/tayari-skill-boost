@@ -38,7 +38,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { API_URL, apiFetch, apiFetchResponse, exportUserData, deleteUserAccount, ApiError } from "@/api";
+import { API_URL, apiFetch, apiFetchResponse, exportUserData, deleteUserAccount, deleteUserData, ApiError } from "@/api";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { profileSchema, changePasswordSchema } from "@/lib/schemas";
@@ -199,6 +199,12 @@ const Settings = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  // ponytail: data-only wipe (DELETE /v1/user/data, fallback /v1/me) is
+  // separate from full account deletion; same confirm pattern, own state.
+  const [deleteDataConfirm, setDeleteDataConfirm] = useState(false);
+  const [deleteDataText, setDeleteDataText] = useState("");
+  const [isDeletingData, setIsDeletingData] = useState(false);
+  const [deleteDataStatus, setDeleteDataStatus] = useState<{ kind: "success" | "error"; msg: string } | null>(null);
 
   const handleExportData = async () => {
     setIsExporting(true);
@@ -207,12 +213,12 @@ const Settings = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `tayari-user-data-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `tayari-user-data-${new Date().toISOString().slice(0, 10)}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast({ title: "Data Export Complete", description: "Downloaded your account data archive JSON." });
+      toast({ title: "Data Export Complete", description: "Downloaded your account data archive ZIP." });
     } catch {
       toast({ title: "Export Failed", description: "Failed to generate user data archive.", variant: "destructive" });
     } finally {
@@ -247,6 +253,28 @@ const Settings = () => {
       toast({ title: "Deletion Failed", description, variant: "destructive" });
     } finally {
       setIsDeletingAccount(false);
+    }
+  };
+
+  const handleDeleteData = async () => {
+    if (deleteDataText !== "DELETE") {
+      setDeleteDataStatus({ kind: "error", msg: "Please type DELETE to confirm data removal." });
+      return;
+    }
+    setIsDeletingData(true);
+    setDeleteDataStatus(null);
+    try {
+      await deleteUserData();
+      setDeleteDataStatus({ kind: "success", msg: "Your data deletion request has been processed." });
+      setDeleteDataConfirm(false);
+      setDeleteDataText("");
+    } catch (err) {
+      setDeleteDataStatus({
+        kind: "error",
+        msg: err instanceof ApiError ? err.message : "Error processing data deletion.",
+      });
+    } finally {
+      setIsDeletingData(false);
     }
   };
 
@@ -313,9 +341,8 @@ const Settings = () => {
   };
 
   const handleOpenHermes = () => {
-    const token = session?.access_token || localStorage.getItem('auth_token') || "";
     const backendUrl = API_URL.replace(/\/api$/, "");
-    const deepLink = `hermes://mcp/register?name=JobTheory&url=${encodeURIComponent(backendUrl)}&token=${encodeURIComponent(token)}`;
+    const deepLink = `hermes://mcp/register?name=JobTheory&url=${encodeURIComponent(backendUrl)}`;
     window.location.href = deepLink;
     toast({
       title: "Opening Desktop Agent",
@@ -865,9 +892,55 @@ const Settings = () => {
                   </div>
                   <Button variant="outline" onClick={handleExportData} disabled={isExporting}>
                     {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-                    Export Data (JSON)
+                    Export Data (ZIP)
                   </Button>
                 </div>
+                <div className="flex items-center justify-between p-4 rounded-lg border border-destructive/30 bg-destructive/5">
+                  <div>
+                    <p className="font-medium text-foreground">Delete my data</p>
+                    <p className="text-sm text-muted-foreground">
+                      Erase your user-owned data (DELETE /v1/user/data). If data-only deletion is unavailable, your account is left untouched.
+                    </p>
+                    {deleteDataStatus && (
+                      <p role={deleteDataStatus.kind === "error" ? "alert" : "status"} className={`mt-1 text-xs font-medium ${deleteDataStatus.kind === "error" ? "text-destructive" : "text-emerald-600"}`}>
+                        {deleteDataStatus.msg}
+                      </p>
+                    )}
+                  </div>
+                  <Button variant="destructive" onClick={() => setDeleteDataConfirm((v) => !v)}>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete my data
+                  </Button>
+                </div>
+                {deleteDataConfirm && (
+                  <div className="p-4 rounded-lg border border-destructive bg-destructive/10 space-y-3 animate-fade-in">
+                    <p className="text-sm font-semibold text-destructive">Confirm data wipe</p>
+                    <div className="space-y-2">
+                      <Label htmlFor="delete-data-confirm-input" className="text-xs font-mono">Type DELETE to confirm:</Label>
+                      <Input
+                        id="delete-data-confirm-input"
+                        value={deleteDataText}
+                        onChange={(e) => setDeleteDataText(e.target.value)}
+                        placeholder="DELETE"
+                        className="bg-background text-sm font-mono border-destructive/50"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button variant="outline" size="sm" onClick={() => setDeleteDataConfirm(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={deleteDataText !== "DELETE" || isDeletingData}
+                        onClick={handleDeleteData}
+                      >
+                        {isDeletingData ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                        Confirm Data Delete
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -958,8 +1031,8 @@ const Settings = () => {
                   <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 space-y-4">
                     <div>
                       <h4 className="font-semibold text-foreground mb-1">Your Personal Access Token</h4>
-                      <p className="text-sm text-muted-foreground mb-3">
-                        Use this token to authenticate your local Desktop Agent. Keep it private.
+                    <p className="text-sm text-muted-foreground mb-3">
+                        Use this token to authenticate your local Desktop Agent. Keep it private — it is masked by default and never included in links.
                       </p>
                       <div className="flex items-center gap-2">
                         <Input

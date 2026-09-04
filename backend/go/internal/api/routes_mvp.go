@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -1183,7 +1184,7 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Printf("handleOptimizeResume: AI call failed: %v", err)
-		s.respondError(w, http.StatusBadGateway, "Optimization failed")
+		s.respondAIGatewayError(w, err, "Optimization failed")
 		return
 	}
 
@@ -2122,20 +2123,22 @@ func (s *Server) handleOptimizeResumeStream(w http.ResponseWriter, r *http.Reque
 	}
 	bodyWriter.Close()
 
-	pythonURL := s.Config.PythonAIURL + "/api/v1/optimize/stream"
-	httpReq, err := http.NewRequest(http.MethodPost, pythonURL, bodyBuf)
-	if err != nil {
-		s.respondError(w, http.StatusInternalServerError, "Failed to create request")
-		return
-	}
-	httpReq.Header.Set("Content-Type", bodyWriter.FormDataContentType())
-	if user, ok := r.Context().Value(contextKeyUser).(*models.User); ok && user != nil {
-		httpReq.Header.Set("X-User-ID", user.ID.String())
-		httpReq.Header.Set("X-Tenant-ID", user.ID.String())
-	}
+	// ponytail: route through s.AI so the internal token + breaker apply —
+	// http.DefaultClient had neither (no timeout, no X-Internal-Token).
+	// 10min covers the optimizer reflection loop plus streaming headroom.
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
+	defer cancel()
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := s.AI.PostMultipartStream(ctx, "/api/v1/optimize/stream", bodyBuf, bodyWriter.FormDataContentType(), s.getXUserHeaders(r))
 	if err != nil {
+		log.Printf("handleOptimizeResumeStream: AI call failed: %v", err)
+		if s.respondAICircuitOpen(w, err) {
+			return
+		}
+		if status, ok := extractAIStatus(err); ok {
+			s.respondError(w, status, "Upstream AI service error")
+			return
+		}
 		s.respondError(w, http.StatusBadGateway, "Python AI service unreachable")
 		return
 	}
@@ -2480,5 +2483,8 @@ func (s *Server) routesMVP(r chi.Router) {
 		r.Delete("/api/user/account", s.handleDeleteAccount)
 		r.Post("/api/v1/user/account/delete", s.handleDeleteAccount)
 		r.Post("/api/user/account/delete", s.handleDeleteAccount)
+		// ponytail: GDPR alias — same erasure handler, both prefixes (parity).
+		r.Delete("/api/v1/user/data", s.handleDeleteUserData)
+		r.Delete("/api/user/data", s.handleDeleteUserData)
 	})
 }

@@ -111,6 +111,8 @@ from app.api.external_research_routes import router as external_research_router
 from app.api.provenance_routes import router as provenance_router
 from app.api.computer_routes import router as computer_router
 from app.api.practice_outcome_routes import router as practice_outcome_router
+from app.api.application_runs_routes import router as application_runs_router
+from app.api.outcome_routes import router as outcome_router
 from app.routes.agent import router as agent_router
 
 
@@ -162,6 +164,8 @@ app.include_router(external_research_router)
 app.include_router(provenance_router)
 app.include_router(computer_router)
 app.include_router(practice_outcome_router)
+app.include_router(application_runs_router)
+app.include_router(outcome_router)
 app.include_router(agent_router)
 app.state.limiter = limiter
 
@@ -710,7 +714,7 @@ async def guardrails_check(payload: GuardrailsCheckRequest):
 # ---------------------------------------------------------------------------
 
 from app.api.hermes_routes import hermes_router  # noqa: E402
-from app.api.career_intelligence import router as career_intel_router  # noqa: E402
+from app.api.career_intelligence import router as career_intel_router, career_router  # noqa: E402
 from app.api.resume_graph import router as resume_graph_router  # noqa: E402
 from app.api.voice_stream import router as voice_stream_router  # noqa: E402
 from app.api.predictive import router as predictive_router  # noqa: E402
@@ -724,6 +728,7 @@ from app.api.preference_routes import preference_router  # noqa: E402
 
 app.include_router(hermes_router)
 app.include_router(career_intel_router)
+app.include_router(career_router)
 app.include_router(resume_graph_router)
 app.include_router(voice_stream_router)
 app.include_router(predictive_router)
@@ -1611,14 +1616,6 @@ async def typst_compile_endpoint(payload: dict):
             "typst_code": typst_code,
             "pdf_available": False,
         }
-
-
-@app.post("/api/v1/interview/voice-feedback")
-async def voice_feedback_endpoint(payload: dict):
-    """Analyze candidate speech cadence (WPM), filler words, and STAR coverage."""
-    from app.services.live_interview_copilot import VoiceAnalysisRequest, analyze_candidate_speech
-    req = VoiceAnalysisRequest(**payload)
-    return analyze_candidate_speech(req).dict()
 
 
 @app.post("/api/v1/recruiter/patterns")
