@@ -35,9 +35,11 @@ try:
             "Native FastMCP Server for Tayari AI Platform. "
             "Allows AI agents (Cursor, Claude Desktop, Ollama) to execute typed tools for job search, "
             "resume optimization, ATS scoring, truth checks, cover letter generation, interview prep, "
-            "communication drafting, LinkedIn profile scoring, AI proofing detection, knowledge graph extraction, and offer calculation."
+            "communication drafting, LinkedIn profile scoring, AI proofing detection, knowledge graph extraction, "
+            "offer calculation, skill gap analysis, and market demand intelligence."
         )
     )
+
     tool_decorator = mcp.tool
 except ImportError:
     mcp = None
@@ -78,7 +80,19 @@ class AIProofingInput(BaseModel):
     text: str = Field(..., description="Resume or cover letter text to audit for AI-generated patterns")
 
 
+class SkillGapInput(BaseModel):
+    resume_text: str = Field(..., description="Candidate resume text")
+    job_description: str = Field("", description="Target job description (optional)")
+    target_role: str = Field("", description="Target job title / role name (optional)")
+
+
+class MarketDemandInput(BaseModel):
+    role: str = Field(..., description="Target role name (e.g. 'Backend Engineer')")
+    location: Optional[str] = Field(None, description="Location filter (e.g. 'Remote', 'London')")
+
+
 # --- FastMCP Tool Definitions ---
+
 
 @tool_decorator()
 async def search_jobs(params: SearchJobsInput) -> Dict[str, Any]:
@@ -177,6 +191,25 @@ async def calculate_offer_compensation(params: JobOfferInput) -> Dict[str, Any]:
     """Calculate annualized Total Compensation, 4-year NPV, and Cost-of-Living adjusted purchasing power."""
     res = calculate_offer_comp(params)
     return res.model_dump()
+
+
+@tool_decorator()
+async def analyze_skill_gap(params: SkillGapInput) -> Dict[str, Any]:
+    """Analyze skill gaps between candidate resume and job requirements/target roles using ESCO taxonomy."""
+    from app.services.skill_gap_analyzer import SkillGapAnalyzer
+    return SkillGapAnalyzer.analyze_gap(
+        resume_text=params.resume_text,
+        job_description=params.job_description,
+        target_role=params.target_role,
+    )
+
+
+@tool_decorator()
+async def get_role_market_demand(params: MarketDemandInput) -> Dict[str, Any]:
+    """Fetch real live role-demand signals and job counts for a role across verified job platforms."""
+    from app.services.market_intelligence import get_role_demand
+    return await get_role_demand(role_title=params.role, location=params.location)
+
 
 
 if __name__ == "__main__":

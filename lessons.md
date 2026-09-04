@@ -3901,3 +3901,25 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 
 **Lesson:**
 - When applying security auth gates across previously unauthenticated or modularized routes, audit all negative test suites (especially fallback, validation, and rate-limiting tests). Negative tests testing downstream behavior (such as 503 LLM service unavailability) will fail early with 401 unless supplied with valid credentials or test gateway fixtures.
+
+## 2026-09-04 — FastMCP Tool Expansion & Root Archive Hygiene
+
+**What:**
+1. Expanded native FastMCP server in `backend/python/app/mcp/server.py` with 2 new typed tools:
+   - `analyze_skill_gap` backed by `SkillGapAnalyzer.analyze_gap` and ESCO skill taxonomy.
+   - `get_role_market_demand` backed by `market_intelligence.get_role_demand` querying real job demand signals.
+2. Added comprehensive unit tests in `backend/python/app/tests/test_mcp_server.py` covering Pydantic validation, default values, and tool execution.
+3. Cleaned root repository clutter by moving 35+ historical audit and wave report files into `docs/archive/` and relocated `youtube_cookie_audio.py` into `scripts/`.
+
+**Root cause:**
+- MCP server was previously missing key career intelligence workflows (skill gap assessment and live market demand signals) that enable AI assistants (Claude Desktop, Cursor) to act as an end-to-end career copilot without opening a browser.
+- Root directory had accumulated sprint audits, handoff notes, and wave reports over months of development, degrading repository scannability and onboarding clarity.
+
+**Fix:**
+- Implemented `SkillGapInput` and `MarketDemandInput` models with typed docstrings and parameter validation.
+- Wired tools into FastMCP registry; verified with 5 unit tests in `test_mcp_server.py` and 1,286 passing Python tests.
+- Reorganized historical documents into `docs/archive/` preserving full git history via `git mv`.
+
+**Lesson:**
+- When exposing services via FastMCP tools, verify exact keyword argument names against underlying service functions (`role_title` vs `role`) to prevent runtime TypeErrors during tool execution.
+- Keeping the root directory free of ephemeral audit/sprint artifacts makes the codebase instantly readable and production-grade for new contributors and external partners.
