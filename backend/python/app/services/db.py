@@ -144,9 +144,9 @@ async def tenant_transaction(user_id: str):
     async with pool.acquire() as conn:
         async with conn.transaction():
             clean_uid = str(user_id).strip() if user_id else ""
-            if clean_uid:
+            if clean_uid and clean_uid.lower() not in {"default_user", "candidate", "unknown", "anonymous", "system"}:
                 try:
-                    await conn.execute("SET LOCAL request.jwt.claim.sub = $1", clean_uid)
+                    await conn.execute("SELECT set_config('request.jwt.claim.sub', $1, true)", clean_uid)
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Failed to set tenant session claim: %s", exc)
             yield conn

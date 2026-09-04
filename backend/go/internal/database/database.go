@@ -67,3 +67,34 @@ func (db *DB) RunMigrations(ctx context.Context) error {
 func (db *DB) Close() error {
 	return db.Conn.Close()
 }
+
+// WithTenantTx executes fn within a transaction where request.jwt.claim.sub is set to userID.
+func (db *DB) WithTenantTx(ctx context.Context, userID string, fn func(tx *sql.Tx) error) error {
+	if userID == "" || isSyntheticIdentity(userID) {
+		return fmt.Errorf("valid tenant userID required")
+	}
+	tx, err := db.Conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Set local session claim for RLS compatibility (is_local = true)
+	if _, err := tx.ExecContext(ctx, "SELECT set_config('request.jwt.claim.sub', $1, true)", userID); err != nil {
+		return fmt.Errorf("failed to set tenant claim: %w", err)
+	}
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func isSyntheticIdentity(id string) bool {
+	switch id {
+	case "default_user", "candidate", "unknown", "anonymous", "system":
+		return true
+	default:
+		return false
+	}
+}

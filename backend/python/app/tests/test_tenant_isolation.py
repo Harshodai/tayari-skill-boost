@@ -41,5 +41,36 @@ async def test_tenant_transaction_sets_session_claim(monkeypatch):
     async with db.tenant_transaction("user-456") as conn:
         assert conn is mock_conn
         mock_conn.execute.assert_awaited_once_with(
-            "SET LOCAL request.jwt.claim.sub = $1", "user-456"
+            "SELECT set_config('request.jwt.claim.sub', $1, true)", "user-456"
         )
+
+
+@pytest.mark.asyncio
+async def test_tenant_transaction_skips_synthetic_identity(monkeypatch):
+    """Synthetic identities must never set claim."""
+    mock_conn = AsyncMock()
+    mock_conn.execute = AsyncMock()
+
+    class MockTransaction:
+        async def __aenter__(self):
+            return mock_conn
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    mock_conn.transaction = MagicMock(return_value=MockTransaction())
+
+    class MockPoolAcquire:
+        async def __aenter__(self):
+            return mock_conn
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    mock_pool = MagicMock()
+    mock_pool.acquire = MagicMock(return_value=MockPoolAcquire())
+    monkeypatch.setattr(db, "get_pool", AsyncMock(return_value=mock_pool))
+
+    async with db.tenant_transaction("default_user") as conn:
+        assert conn is mock_conn
+        mock_conn.execute.assert_not_awaited()

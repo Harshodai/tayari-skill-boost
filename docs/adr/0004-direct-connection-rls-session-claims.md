@@ -13,12 +13,12 @@ Consequently, direct SQL queries bypass PostgreSQL Row Level Security (RLS) poli
 Furthermore, Supabase RLS policies rely on `auth.uid()`, which reads the JSON Web Token claim from `current_setting('request.jwt.claim.sub', true)`. Without an active PostgREST/Supabase HTTP session, this setting defaults to `NULL` or empty in direct connection pools.
 
 ## Decision
-1. **Transaction-Scoped Session Claims (`SET LOCAL`)**:
+1. **Transaction-Scoped Session Claims (`set_config(..., is_local=true)`)**:
    Implement a scoped transaction context manager (`tenant_transaction(user_id)`) in `backend/python/app/services/db.py`. Within an active transaction block, the helper executes:
    ```sql
-   SET LOCAL request.jwt.claim.sub = '<user_id>';
+   SELECT set_config('request.jwt.claim.sub', $1, true);
    ```
-   Using `SET LOCAL` guarantees that the claim is strictly bound to the duration of the current transaction. When the transaction commits or rolls back, the session setting is automatically discarded, preventing connection pool contamination across reused connections.
+   Using `is_local = true` guarantees that the claim is strictly bound to the duration of the current transaction (equivalent to `SET LOCAL`, but supporting bind parameters). When the transaction commits or rolls back, the session setting is automatically discarded, preventing connection pool contamination across reused connections.
 
 2. **Defense-in-Depth Query Invariant**:
    Application queries must continue to explicitly specify owner predicates (`WHERE user_id = :user_id`). The session claim serves as an authoritative secondary boundary rather than an excuse to omit explicit application filters.
