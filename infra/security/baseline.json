@@ -1,0 +1,925 @@
+{
+  "generatedAt": "2026-08-11T07:03:45.008Z",
+  "findings": [
+    {
+      "id": "006ddb78c5631e64",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"shared_interview_questions\" created without GRANT statements",
+      "file": "supabase/migrations/20260731_social_graph.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "04a50f477c6ccbf8",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"candidate_agent_audit_logs\" created without row level security",
+      "file": "backend/db/migrations/0002_tayari_core_architecture.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "04db705396ae976e",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"conversations\" created without row level security",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "0aa7c01619dec3a6",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"source_chunks\" created without GRANT statements",
+      "file": "backend/db/migrations/0002_tayari_core_architecture.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "0b4624a060a1fece",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"application_attempts\" created without row level security",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "0c3e7a2cf7ac31b1",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"resume_variants\" created without row level security",
+      "file": "backend/db/migrations/20260626_predictive_analytics.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "0c95e4bb241bb73b",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"digital_employees\" created without GRANT statements",
+      "file": "backend/db/migrations/20260627_agent_space_integration.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "0e45e06ae17799bd",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"cohorts\" created without GRANT statements",
+      "file": "backend/db/migrations/20260626_multi_tenant.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "12635120ac2d1743",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"user_skill_analyses\" created without row level security",
+      "file": "backend/db/migrations/20260625_career_intelligence.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "14bbab69b5557dcd",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"communications\" created without GRANT statements",
+      "file": "backend/db/migrations/20260630_communications_response_tracking.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "168bd32a856835c6",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"user_skill_analyses\" created without GRANT statements",
+      "file": "backend/db/migrations/20260625_career_intelligence.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "1a3bd95947da36e0",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"runtime_approvals\" created without GRANT statements",
+      "file": "backend/db/migrations/20260627_agent_space_integration.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "1d1e8072e7c92a7e",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"interview_messages\" created without GRANT statements",
+      "file": "backend/db/migrations/20260625_voice_interview.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "1d6709eb80848d99",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"user_sessions\" created without row level security",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "214ecd82c0282be1",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"api_usage\" created without row level security",
+      "file": "backend/db/migrations/20260626_api_keys.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "22289ccb9ac0a9d7",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Policy grants unrestricted read access (USING true)",
+      "file": "supabase/migrations/20260201120000_enable_rbac_and_hardening.sql",
+      "detail": "Scope policies to auth.uid() or an explicit role check."
+    },
+    {
+      "id": "222e819aca87bbdb",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"roadmap_progress\" created without GRANT statements",
+      "file": "supabase/migrations/20260517043450_ca92415e-bb56-4f68-980b-f02ff2577aa3.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "23ecd9a6f6ce5875",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"interview_sessions\" created without GRANT statements",
+      "file": "backend/db/migrations/20260625_voice_interview.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "281a73033bcfbf71",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"interview_sessions\" created without row level security",
+      "file": "backend/db/migrations/20260625_voice_interview.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "281e31956c56cf0d",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"agent_runs\" created without GRANT statements",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "2f27b144fe60ca21",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Policy grants unrestricted read access (USING true)",
+      "file": "backend/db/migrations/20260731_self_hosted_rls_hardening.sql",
+      "detail": "Scope policies to auth.uid() or an explicit role check."
+    },
+    {
+      "id": "2f3e3ee01ce233d8",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"saved_posts\" created without GRANT statements",
+      "file": "backend/db/migrations/20260625_archive_integration.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "2f8765208d54435b",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"memberships\" created without GRANT statements",
+      "file": "backend/db/migrations/20260626_multi_tenant.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "2ffbc5a0f4042cdb",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"conversations\" created without GRANT statements",
+      "file": "supabase/migrations/20260629000001_add_conversations.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "313fe795beb94361",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"review_queue_history\" created without GRANT statements",
+      "file": "backend/db/migrations/20250120_week3_4_review_queue.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "37e05eef20d17e33",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"ab_testing_bandit\" created without GRANT statements",
+      "file": "backend/db/migrations/20260626_predictive_analytics.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "3afe87189383b1bd",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"interview_messages\" created without row level security",
+      "file": "backend/db/migrations/20260625_voice_interview.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "3c004718ada2d75d",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"resume_graphs\" created without GRANT statements",
+      "file": "backend/db/migrations/20260701_add_resume_graph_table.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "3c49f9a5c4dc1b47",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"agent_tasks\" created without GRANT statements",
+      "file": "backend/db/migrations/20260628_agentspace_events_and_tasks.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "401047d247bc9bd1",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"application_outcomes\" created without GRANT statements",
+      "file": "supabase/migrations/20260731_social_graph.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "44d59abd619dc02e",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"scraped_jobs\" created without row level security",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "4508a8e2f04b3b19",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"application_outcomes\" created without GRANT statements",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "452c9fa320ae5a07",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"privacy_audit_log\" created without GRANT statements",
+      "file": "supabase/migrations/20260731_privacy_audit_log.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "45521b155094bc93",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"autopilot_runs\" created without row level security",
+      "file": "backend/db/migrations/0002_tayari_core_architecture.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "4589b9c897a98e6b",
+      "scanner": "edge-functions",
+      "severity": "low",
+      "title": "Edge function \"mcp\" does not set CORS headers",
+      "file": "supabase/functions/mcp/index.ts",
+      "detail": "Browser calls will fail without CORS headers on every response."
+    },
+    {
+      "id": "45ab240bd796d343",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"agent_task_attempts\" created without GRANT statements",
+      "file": "backend/db/migrations/20260628_agentspace_events_and_tasks.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "471f1d1e29fccd7a",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"question_upvotes\" created without GRANT statements",
+      "file": "supabase/migrations/20260731_social_graph.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "49218f1200ad1235",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"tenants\" created without row level security",
+      "file": "backend/db/migrations/20260626_multi_tenant.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "4d75ac43866c2ddc",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"api_keys\" created without GRANT statements",
+      "file": "backend/db/migrations/20260626_api_keys.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "4f5fab80561d1e25",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"push_subscriptions\" created without row level security",
+      "file": "backend/db/migrations/20260626_multi_tenant.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "5035f106cc1e129b",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"user_achievements\" created without GRANT statements",
+      "file": "supabase/migrations/20260118110049_9144c17a-76dd-4e98-bfcc-817437f708cc.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "55d708a7b38f3ea6",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"privacy_audit_log\" created without row level security",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "59e04003b0f42ffa",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"platform_configs\" created without GRANT statements",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "5a995dd39c243a80",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"conversations\" created without GRANT statements",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "5bc65db7fd109da4",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"user_portals\" created without row level security",
+      "file": "backend/db/migrations/20260629_full_career_ops_command_center.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "5f8285befdef30b0",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"user_job_feedback\" created without GRANT statements",
+      "file": "supabase/migrations/20260629000002_add_user_feedback.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "60c4d6a0a58a1ad7",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"connections\" created without GRANT statements",
+      "file": "supabase/migrations/20260731_social_graph.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "64eda97611c90147",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"agent_action_approvals\" created without GRANT statements",
+      "file": "backend/db/migrations/0002_tayari_core_architecture.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "65386b2547a623f1",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"agent_router_events\" created without row level security",
+      "file": "backend/db/migrations/20260628_agentspace_events_and_tasks.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "681d2f5efd3daa5f",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"user_sessions\" created without GRANT statements",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "6841e81cc2d452c9",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"agent_router_events\" created without GRANT statements",
+      "file": "backend/db/migrations/20260628_agentspace_events_and_tasks.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "68dd7f8e9c2a8d21",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"oauth_states\" created without GRANT statements",
+      "file": "backend/db/migrations/20260625_archive_integration.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "696a302755eaf8be",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"voice_note_files\" created without GRANT statements",
+      "file": "backend/db/migrations/20260625_archive_integration.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "6a6e3b6026ced9fa",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"source_chunks\" created without row level security",
+      "file": "backend/db/migrations/0002_tayari_core_architecture.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "72a2dfff5c4f502e",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"gmail_tokens\" created without GRANT statements",
+      "file": "backend/db/migrations/20260625_archive_integration.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "75ff946df768c172",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"question_upvotes\" created without GRANT statements",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "7af990213c7e5594",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"memberships\" created without row level security",
+      "file": "backend/db/migrations/20260626_multi_tenant.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "802a890d500a4f06",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"agent_tasks\" created without row level security",
+      "file": "backend/db/migrations/20260628_agentspace_events_and_tasks.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "81da9218bf4bd2ef",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"connections\" created without GRANT statements",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "828d921c0ec26b07",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"platform_configs\" created without row level security",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "849059f135c77f2e",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Policy grants unrestricted read access (USING true)",
+      "file": "backend/db/migrations/20260731_social_rls_hardening.sql",
+      "detail": "Scope policies to auth.uid() or an explicit role check."
+    },
+    {
+      "id": "85833183dd1cf9ba",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"api_usage\" created without GRANT statements",
+      "file": "backend/db/migrations/20260626_api_keys.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "867583f907641e96",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"autopilot_runs\" created without GRANT statements",
+      "file": "backend/db/migrations/0002_tayari_core_architecture.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "891d7da454dcc914",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"learning_resources\" created without GRANT statements",
+      "file": "backend/db/migrations/20260625_career_intelligence.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "8b4f3892eab70b06",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"interview_scores\" created without GRANT statements",
+      "file": "backend/db/migrations/20260625_voice_interview.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "8c9912bdb11f4e63",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"document_embeddings\" created without GRANT statements",
+      "file": "supabase/migrations/20260629000000_add_pgvector.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "8e6d6cf438c39c57",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"scraped_jobs\" created without GRANT statements",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "92092e127b64a695",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"above\" created without GRANT statements",
+      "file": "backend/db/migrations/20260625_archive_integration.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "92543da29ad60a47",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"learning_resources\" created without row level security",
+      "file": "backend/db/migrations/20260625_career_intelligence.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "94d909b2505afd37",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"tenants\" created without GRANT statements",
+      "file": "backend/db/migrations/20260626_multi_tenant.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "9a28207284032a30",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"cohorts\" created without row level security",
+      "file": "backend/db/migrations/20260626_multi_tenant.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "9d4561d8a7437993",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"ab_testing_bandit\" created without row level security",
+      "file": "backend/db/migrations/20260626_predictive_analytics.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "9f9dc12cc298187b",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"privacy_audit_log\" created without GRANT statements",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "a024d52afed83913",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"candidate_agent_audit_logs\" created without GRANT statements",
+      "file": "backend/db/migrations/0002_tayari_core_architecture.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "a49167ed5b36a2cf",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"user_job_feedback\" created without GRANT statements",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "a6f0c15a58fef7ad",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"interview_sessions\" created without GRANT statements",
+      "file": "supabase/migrations/20260517043450_ca92415e-bb56-4f68-980b-f02ff2577aa3.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "a93dc03e9d535ae2",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"if\" created without GRANT statements",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "a9471beca8fd00a2",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"hermes_sessions\" created without GRANT statements",
+      "file": "backend/db/migrations/20260625_archive_integration.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "aa49c0d87a14964e",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"runtime_approvals\" created without row level security",
+      "file": "backend/db/migrations/20260627_agent_space_integration.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "aa8fc7d40f5dd424",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"candidate_verification\" created without GRANT statements",
+      "file": "backend/db/migrations/20260807_verified_human_badge.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "aaeab80d52d278a6",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"agent_runs\" created without row level security",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "acb6458041b8c484",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Policy grants unrestricted read access (USING true)",
+      "file": "supabase/migrations/20260121000000_security_hardening.sql",
+      "detail": "Scope policies to auth.uid() or an explicit role check."
+    },
+    {
+      "id": "acec52ddb8478b24",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"auth_attempts\" created without GRANT statements",
+      "file": "supabase/migrations/20260114173012_17a7b042-6399-4c06-965c-3a8f41d11792.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "acf3173b31be4229",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"application_attempts\" created without GRANT statements",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "af7ecec4dd391684",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"user_portals\" created without GRANT statements",
+      "file": "backend/db/migrations/20260629_full_career_ops_command_center.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "b11963a09ccb4963",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"tailored_resumes\" created without row level security",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "b88807f39c71e8c5",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"digital_employees\" created without row level security",
+      "file": "backend/db/migrations/20260627_agent_space_integration.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "b9c2cfabefb447a4",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"resume_analyses\" created without GRANT statements",
+      "file": "supabase/migrations/20260118070026_bd06ceca-ad0c-4ec3-9c80-d4b0e98e854a.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "c19e0847f643bcd3",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"agent_task_attempts\" created without row level security",
+      "file": "backend/db/migrations/20260628_agentspace_events_and_tasks.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "c2dccbcc27425674",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"user_streaks\" created without GRANT statements",
+      "file": "supabase/migrations/20260118110049_9144c17a-76dd-4e98-bfcc-817437f708cc.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "c5be02e8da299f7c",
+      "scanner": "dependencies",
+      "severity": "low",
+      "title": "Dependency audit could not run",
+      "file": null,
+      "detail": "bun audit produced no report; dependency risk is unverified."
+    },
+    {
+      "id": "ccc1362229d1b271",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"review_queue_history\" created without row level security",
+      "file": "backend/db/migrations/20250120_week3_4_review_queue.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "cd119004c8109ce4",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"saved_sources\" created without row level security",
+      "file": "backend/db/migrations/0002_tayari_core_architecture.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "cd49bbbc72941dbc",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"password_reset_tokens\" created without GRANT statements",
+      "file": "backend/db/migrations/20260626_password_reset.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "cdfbfea22bffaf14",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"saved_jobs\" created without GRANT statements",
+      "file": "supabase/migrations/20260517043450_ca92415e-bb56-4f68-980b-f02ff2577aa3.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "d23051d9e7a106d4",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"agent_action_approvals\" created without row level security",
+      "file": "backend/db/migrations/0002_tayari_core_architecture.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "d50b499a592edf24",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"shared_interview_questions\" created without GRANT statements",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "d68c84759d9fb0c4",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"blog_posts\" created without GRANT statements",
+      "file": "supabase/migrations/20260118110049_9144c17a-76dd-4e98-bfcc-817437f708cc.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "d6c79579f3e860ff",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"tailored_resumes\" created without GRANT statements",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "db020009f77d53ca",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"application_outcomes\" created without row level security",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "dc065afc92a636c4",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"if\" created without row level security",
+      "file": "backend/db/migrations/20260620_hermes_agents.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "df69d0ece7a2a297",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"question_upvotes\" created without row level security",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "e0b466019a26c42f",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"communications\" created without row level security",
+      "file": "backend/db/migrations/20260630_communications_response_tracking.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "e24de1bc426c7bd1",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"connections\" created without row level security",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "e28271c341d510b1",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"user_roles\" created without GRANT statements",
+      "file": "supabase/migrations/20260201120000_enable_rbac_and_hardening.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "e51b311de41d8148",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"shared_interview_questions\" created without row level security",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "e7a19a5b9d87b817",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"resume_variants\" created without GRANT statements",
+      "file": "backend/db/migrations/20260626_predictive_analytics.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "ea2ed937fa26cff4",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"password_reset_tokens\" created without row level security",
+      "file": "backend/db/migrations/20260626_password_reset.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "edd562a61189c458",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"user_roles\" created without GRANT statements",
+      "file": "supabase/migrations/20260201000000_phase1_security.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "ee27d0e182c9d3f0",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"push_subscriptions\" created without GRANT statements",
+      "file": "backend/db/migrations/20260626_multi_tenant.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "f220a8cba8f081d1",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"saved_sources\" created without GRANT statements",
+      "file": "backend/db/migrations/0002_tayari_core_architecture.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    },
+    {
+      "id": "f761f3e1b8a73ea9",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"interview_scores\" created without row level security",
+      "file": "backend/db/migrations/20260625_voice_interview.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "fa57905564359c5e",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"api_keys\" created without row level security",
+      "file": "backend/db/migrations/20260626_api_keys.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "fc89d1a31caa4f55",
+      "scanner": "database",
+      "severity": "critical",
+      "title": "Table \"user_job_feedback\" created without row level security",
+      "file": "backend/db/migrations/20260731_social_privacy_preferences.sql",
+      "detail": "Every public table must enable RLS in the same migration."
+    },
+    {
+      "id": "ff5b2b0a1649f43a",
+      "scanner": "database",
+      "severity": "high",
+      "title": "Table \"profiles\" created without GRANT statements",
+      "file": "supabase/migrations/20260111165801_380794da-2b6a-4c8a-ac9a-c2a752f11000.sql",
+      "detail": "The Data API needs explicit GRANTs or every request fails."
+    }
+  ]
+}

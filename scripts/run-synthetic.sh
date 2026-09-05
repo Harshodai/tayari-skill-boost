@@ -20,6 +20,11 @@ fi
 
 export K6_TAGS="run_id=${RUN_ID},environment=${ENVIRONMENT:-staging},cohort=health-ghost,release_sha=${RELEASE_SHA:-unknown}"
 
+SCRIPT_PATH="tests/perf/k6/synthetic.js"
+if [[ ! -f "$SCRIPT_PATH" ]]; then
+  SCRIPT_PATH="perf/k6/synthetic.js"
+fi
+
 exec k6 run \
   --tag run_id="$RUN_ID" \
   --tag environment="${ENVIRONMENT:-staging}" \
@@ -29,4 +34,4 @@ exec k6 run \
   --env HOLD_SECONDS="${HOLD_SECONDS:-30}" \
   --env RAMP_SECONDS="${RAMP_SECONDS:-15}" \
   --env REQUIRE_REQUEST_ID="${REQUIRE_REQUEST_ID:-true}" \
-  perf/k6/synthetic.js
+  "$SCRIPT_PATH"

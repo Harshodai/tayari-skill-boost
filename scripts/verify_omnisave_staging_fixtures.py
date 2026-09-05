@@ -14,7 +14,9 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parent.parent
-FIXTURE_PATH = ROOT / "test-fixtures" / "omnisave" / "staging-corpus.json"
+CANONICAL_FIXTURE_PATH = ROOT / "tests" / "fixtures" / "omnisave" / "staging-corpus.json"
+FALLBACK_FIXTURE_PATH = ROOT / "test-fixtures" / "omnisave" / "staging-corpus.json"
+FIXTURE_PATH = CANONICAL_FIXTURE_PATH if CANONICAL_FIXTURE_PATH.exists() else FALLBACK_FIXTURE_PATH
 REQUIRED_PLATFORMS = {"linkedin", "medium", "substack"}
 REQUIRED_NEGATIVES = {"login_wall", "paywall", "cross_platform_host"}
 PLATFORM_ROOTS = {

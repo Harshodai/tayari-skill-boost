@@ -18,7 +18,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(new URL("..", import.meta.url).pathname);
-const BASELINE = path.join(ROOT, "security", "baseline.json");
+const CANONICAL_BASELINE = path.join(ROOT, "infra", "security", "baseline.json");
+const FALLBACK_BASELINE = path.join(ROOT, "security", "baseline.json");
+const BASELINE = fs.existsSync(CANONICAL_BASELINE)
+  ? CANONICAL_BASELINE
+  : fs.existsSync(FALLBACK_BASELINE)
+    ? FALLBACK_BASELINE
+    : CANONICAL_BASELINE;
 const args = process.argv.slice(2);
 const UPDATE = args.includes("--update-baseline");
 const JSON_OUT = args.includes("--json");

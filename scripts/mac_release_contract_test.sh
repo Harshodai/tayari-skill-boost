@@ -31,8 +31,10 @@ grep -q 'codesign --verify --deep --strict' scripts/mac_artifact_contract.sh
 grep -q 'spctl --assess --type execute' scripts/mac_artifact_contract.sh
 grep -q 'xcrun stapler validate' scripts/mac_artifact_contract.sh
 grep -q 'lipo -archs' scripts/mac_artifact_contract.sh
-test -f docs/MACOS_RELEASE_RUNBOOK.md
-grep -q 'external release gate' docs/MACOS_RELEASE_RUNBOOK.md
+RUNBOOK="docs/operations/runbooks/MACOS_RELEASE_RUNBOOK.md"
+[[ -f "$RUNBOOK" ]] || RUNBOOK="docs/MACOS_RELEASE_RUNBOOK.md"
+test -f "$RUNBOOK"
+grep -q 'external release gate' "$RUNBOOK"
 ! grep -q 'to: tayari-runtime/backend' electron-builder.yml
 ! grep -q 'supabase-local' electron-builder.yml
 ! grep -q 'docker-compose.yml' electron-builder.yml
