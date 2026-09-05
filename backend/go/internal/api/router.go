@@ -143,6 +143,7 @@ func (s *Server) routes() {
 	s.routesReviewQueue(s.Router)
 	s.routesExtensionExtra(s.Router)
 	s.routesAgents(s.Router)
+	s.routesAgentRuns(s.Router)
 	s.routesTasks(s.Router)
 	s.routesAutomations(s.Router)
 	s.routesNotifications(s.Router)

@@ -4052,3 +4052,13 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 **Lesson:**
 - Race-prone state operations with business deduplication windows (e.g. 30-day outreach cooldown) must execute within an explicit database transaction and acquire a transaction-scoped advisory lock keyed by user ID before performing query checks.
 - Build validator definitions must reflect the full polyglot stack (Bun/TS, Go, Python) with the repository's established linter and test runner configurations.
+
+## 2026-09-05 — Credits UI, onboarding sign-up handoff, Search Console, apply-agent run routes
+
+**What was done.** Shipped the credit-pack surfaces (`/credits`, `/checkout`, sidebar entry, onboarding CTA), made Onboarding's finish button route anonymous visitors to sign-up instead of failing an authenticated profile save, verified `tayari-skill-boost.lovable.app` in Google Search Console via META tag and submitted the sitemap, and added the missing gateway routes for apply-agent runs (`GET /agent-runs`, `/{runId}`, `/{runId}/steps`, `POST /{runId}/transition`) in `backend/go/internal/api/routes_agent_runs.go`.
+
+**Root cause.** `src/lib/agent/applyAgent.ts` had called `/v1/agent-runs*` since the edge-function migration, but only the `take-over` route was ever registered in Go — every list/detail/steps/transition call 404'd, which the frontend surfaced as the backend-unavailable banner. Separately, onboarding assumed an authenticated user because it had only ever been reached from inside the app.
+
+**Fix applied.** New owner-scoped handlers (`WHERE user_id = $n` on every statement, uuid validation before SQL, nil-DB guard) with both `/api/...` and `/api/v1/...` aliases so route parity holds. The transition handler keeps the manual-submit boundary: `submit` records a candidate-confirmed submission and debits **no** credit; one credit is debited only when `submission_receipts.verified = TRUE` exists for that run, via `Billing.DebitCredit` with reference `receipt_<runId>` for idempotency.
+
+**Lesson.** When a feature migrates off edge functions onto the Go gateway, grep the frontend's `apiFetch` paths against `router.go` — a missing route degrades into a generic "backend unavailable" banner and looks like an environment problem rather than a missing endpoint. Also: line edits in one message can be rolled back if that message's build fails; re-verify with grep instead of trusting the "Success" result.
