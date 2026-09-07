@@ -122,11 +122,16 @@ export async function generateInterviewPrep(payload: {
   company_specific?: Record<string, unknown>;
   skills_tested?: string[];
 }> {
-  return apiFetch("/v1/interview/prep", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return withAiFallback(
+    () =>
+      apiFetch("/v1/interview/prep", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    { op: "interview_prep", ...payload },
+  );
 }
+
 
 export async function extractResumeKnowledgeGraph(resumeId: number | string): Promise<{
   entities: Record<string, unknown>;
