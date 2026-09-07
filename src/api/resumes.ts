@@ -57,11 +57,22 @@ export async function uploadResumeMultipart(file: File): Promise<Resume> {
 }
 
 export async function analyzeResume(payload: AnalyzeRequest): Promise<AnalysisResult> {
-  return apiFetch<AnalysisResult>("/v1/analyze", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return withAiFallback<AnalysisResult>(
+    () =>
+      apiFetch<AnalysisResult>("/v1/analyze", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    {
+      op: "analyze",
+      resume_id: payload.resume_id,
+      resume_text: payload.resume_text,
+      job_description: payload.job_description,
+      custom_instructions: payload.custom_instructions,
+    },
+  );
 }
+
 
 export async function importJobDescription(url: string): Promise<ImportedJobDescription> {
   return apiFetch<ImportedJobDescription>("/v1/job-descriptions/import", {
