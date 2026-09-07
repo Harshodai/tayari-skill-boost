@@ -1607,15 +1607,19 @@ func (s *Server) handleCommunicationResponse(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	commID := chi.URLParam(r, "commId")
-	if commID == "" {
-		s.respondError(w, http.StatusBadRequest, "commId is required")
-		return
-	}
 	var req struct {
 		ResponseStatus string `json:"response_status"`
+		CommID         string `json:"comm_id"`
 	}
 	if err := DecodeAndValidate(r, &req); err != nil {
 		s.respondError(w, http.StatusBadRequest, "Invalid JSON body")
+		return
+	}
+	if commID == "" {
+		commID = req.CommID
+	}
+	if commID == "" {
+		s.respondError(w, http.StatusBadRequest, "commId is required")
 		return
 	}
 	// ponytail: whitelist status — never trust arbitrary client strings into a
@@ -2398,6 +2402,11 @@ func (s *Server) routesMVP(r chi.Router) {
 		// ---- Communication ------------------------------------------------
 		r.Post("/api/v1/communication/generate", s.handleCommunicationGenerate)
 		r.Post("/api/communication/generate", s.handleCommunicationGenerate)
+		// Canonical path used by the frontend (src/api/ai.ts):
+		// PATCH /v1/communications/{commId}/response
+		r.Patch("/api/v1/communications/{commId}/response", s.handleCommunicationResponse)
+		r.Patch("/api/communications/{commId}/response", s.handleCommunicationResponse)
+		// Legacy aliases: comm id comes from the JSON body instead of the path.
 		r.Post("/api/v1/communication/response", s.handleCommunicationResponse)
 		r.Post("/api/communication/response", s.handleCommunicationResponse)
 		r.Get("/api/v1/communication/stats", s.handleCommunicationStats)
