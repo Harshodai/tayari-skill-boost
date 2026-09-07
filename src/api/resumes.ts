@@ -96,19 +96,33 @@ export interface OptimizeResumeOptions {
   customInstructions?: string;
   targetRole?: string;
   jdUrl?: string;
+  /** Used only by the hosted AI fallback when the local engine isn't running. */
+  resumeText?: string;
 }
 
 export async function optimizeResume(id: number | string, opts?: OptimizeResumeOptions): Promise<ResumeOptimizationResponse> {
-  return apiFetch<ResumeOptimizationResponse>(`/v1/resumes/${id}/optimize`, {
-    method: "POST",
-    body: JSON.stringify({
+  return withAiFallback<ResumeOptimizationResponse>(
+    () =>
+      apiFetch<ResumeOptimizationResponse>(`/v1/resumes/${id}/optimize`, {
+        method: "POST",
+        body: JSON.stringify({
+          job_description: opts?.jobDescription,
+          custom_instructions: opts?.customInstructions,
+          target_role: opts?.targetRole,
+          jd_url: opts?.jdUrl,
+        }),
+      }),
+    {
+      op: "optimize",
+      resume_id: id,
+      resume_text: opts?.resumeText,
       job_description: opts?.jobDescription,
       custom_instructions: opts?.customInstructions,
       target_role: opts?.targetRole,
-      jd_url: opts?.jdUrl,
-    }),
-  });
+    },
+  );
 }
+
 
 export async function deepATS(id: number | string, jobDescription?: string): Promise<DeepATSResponse> {
   return apiFetch<DeepATSResponse>(`/v1/resumes/${id}/ats-deep`, {
