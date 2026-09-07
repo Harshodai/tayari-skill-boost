@@ -4069,3 +4069,28 @@ flag plus a query `enabled`, and it turns a confusing failure into an honest, ex
 **Root cause of residual 500s:** /pricing and /onboarding make live calls to the Go gateway (:8085) which does not run in the Lovable preview — the SPA fallback returns 500/HTML. Expected in preview; only works on self-hosted/AWS deploys.
 **Verdict recorded:** UI/design is ship-quality (no page crashes, honest billing copy, "Billing unavailable" state renders correctly when Stripe keys are absent). Real-user readiness is gated on: (1) STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET configured on the deployed Go gateway, (2) an LLM key (OPENROUTER_API_KEY or Ollama) or every AI feature 503s, (3) Go+Python backend actually deployed — the Lovable-hosted frontend alone only serves free/static tools.
 **Lesson:** "Billing unavailable" and `ai_service_unavailable` states are the correct truthful behavior — never hide them to look launch-ready; launch readiness is an infra/config question, not a UI one.
+
+## 2026-09-07 — Hosted AI fallback (`ai-core` edge function)
+
+**What was done:** Added `supabase/functions/ai-core/index.ts`, a JWT-authenticated Lovable AI
+endpoint covering four candidate-facing operations (`analyze`, `optimize`, `cover_letter`,
+`interview_prep`), plus `src/api/aiFallback.ts` (`withAiFallback`) wired into
+`analyzeResume`, `optimizeResume`, `generateCoverLetter` and `generateInterviewPrep`.
+Also granted 500 submission credits to the owner account and recorded the grant in
+`credit_ledger`.
+
+**Root cause:** Every AI feature routes through `apiFetch` to the Go gateway, which only exists in
+the self-hosted Docker stack. In the hosted deploy those calls hit the SPA fallback and raise
+`BackendUnavailableError`, so the entire AI surface was dead online — an audit of `src/` found
+~40 gateway-dependent AI features and only two Supabase-native ones.
+
+**Fix applied:** Gateway-first, hosted-AI-second. `withAiFallback` catches only
+`BackendUnavailableError` (never a real 4xx) and replays the same operation on Lovable AI with
+identical response shapes, so no page code changed. Prompts carry a hard grounding rule and
+clamp resume/JD input at 50k/20k chars. Verified live: a real signed-in request scored a resume
+55/100 and explicitly refused to claim unlisted skills.
+
+**Reusable lesson:** In a polyglot repo where the "real" backend is optional, the fallback belongs
+in the API layer, not in pages — one wrapper keyed on a single sentinel error class kept 40+
+features working without touching a single component, and the response contract stayed the
+source of truth for both paths.
