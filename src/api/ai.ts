@@ -1,5 +1,7 @@
 import { apiFetchResponse } from "@/api";
 import { apiFetch, API_URL, getHeaders } from "./client";
+import { withAiFallback } from "./aiFallback";
+
 
 function stableHash(input: string): string {
   let hash = 0;
@@ -26,11 +28,16 @@ export async function generateCoverLetter(payload: {
   job_title: string;
   company_name: string;
 }> {
-  return apiFetch("/v1/cover-letter/generate", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return withAiFallback(
+    () =>
+      apiFetch("/v1/cover-letter/generate", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    { op: "cover_letter", ...payload },
+  );
 }
+
 
 export async function fetchCommunicationSuggestions(): Promise<{
   suggestions: Array<{
@@ -115,11 +122,16 @@ export async function generateInterviewPrep(payload: {
   company_specific?: Record<string, unknown>;
   skills_tested?: string[];
 }> {
-  return apiFetch("/v1/interview/prep", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return withAiFallback(
+    () =>
+      apiFetch("/v1/interview/prep", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    { op: "interview_prep", ...payload },
+  );
 }
+
 
 export async function extractResumeKnowledgeGraph(resumeId: number | string): Promise<{
   entities: Record<string, unknown>;

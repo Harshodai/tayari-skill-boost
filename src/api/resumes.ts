@@ -1,5 +1,7 @@
 import { apiFetchResponse } from "@/api";
 import { apiFetch, getHeaders, checkResponse, API_URL } from "./client";
+import { withAiFallback } from "./aiFallback";
+
 import type {
   Resume,
   JobDescription,
@@ -57,11 +59,22 @@ export async function uploadResumeMultipart(file: File): Promise<Resume> {
 }
 
 export async function analyzeResume(payload: AnalyzeRequest): Promise<AnalysisResult> {
-  return apiFetch<AnalysisResult>("/v1/analyze", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return withAiFallback<AnalysisResult>(
+    () =>
+      apiFetch<AnalysisResult>("/v1/analyze", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    {
+      op: "analyze",
+      resume_id: payload.resume_id,
+      resume_text: payload.resume_text,
+      job_description: payload.job_description,
+      custom_instructions: payload.custom_instructions,
+    },
+  );
 }
+
 
 export async function importJobDescription(url: string): Promise<ImportedJobDescription> {
   return apiFetch<ImportedJobDescription>("/v1/job-descriptions/import", {
@@ -83,19 +96,33 @@ export interface OptimizeResumeOptions {
   customInstructions?: string;
   targetRole?: string;
   jdUrl?: string;
+  /** Used only by the hosted AI fallback when the local engine isn't running. */
+  resumeText?: string;
 }
 
 export async function optimizeResume(id: number | string, opts?: OptimizeResumeOptions): Promise<ResumeOptimizationResponse> {
-  return apiFetch<ResumeOptimizationResponse>(`/v1/resumes/${id}/optimize`, {
-    method: "POST",
-    body: JSON.stringify({
+  return withAiFallback<ResumeOptimizationResponse>(
+    () =>
+      apiFetch<ResumeOptimizationResponse>(`/v1/resumes/${id}/optimize`, {
+        method: "POST",
+        body: JSON.stringify({
+          job_description: opts?.jobDescription,
+          custom_instructions: opts?.customInstructions,
+          target_role: opts?.targetRole,
+          jd_url: opts?.jdUrl,
+        }),
+      }),
+    {
+      op: "optimize",
+      resume_id: id,
+      resume_text: opts?.resumeText,
       job_description: opts?.jobDescription,
       custom_instructions: opts?.customInstructions,
       target_role: opts?.targetRole,
-      jd_url: opts?.jdUrl,
-    }),
-  });
+    },
+  );
 }
+
 
 export async function deepATS(id: number | string, jobDescription?: string): Promise<DeepATSResponse> {
   return apiFetch<DeepATSResponse>(`/v1/resumes/${id}/ats-deep`, {
