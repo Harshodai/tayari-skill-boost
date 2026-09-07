@@ -28,11 +28,16 @@ export async function generateCoverLetter(payload: {
   job_title: string;
   company_name: string;
 }> {
-  return apiFetch("/v1/cover-letter/generate", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return withAiFallback(
+    () =>
+      apiFetch("/v1/cover-letter/generate", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    { op: "cover_letter", ...payload },
+  );
 }
+
 
 export async function fetchCommunicationSuggestions(): Promise<{
   suggestions: Array<{
