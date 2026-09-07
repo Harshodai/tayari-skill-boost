@@ -171,6 +171,11 @@ const App = () => (
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/free-scan" element={<FreeAtsScan />} />
               <Route path="/free-ats-scan" element={<Navigate to="/free-scan" replace />} />
+              {/* Legacy / commonly guessed URLs that used to 404 */}
+              <Route path="/resume-optimizer" element={<Navigate to="/resume" replace />} />
+              <Route path="/career-roadmap" element={<Navigate to="/roadmap" replace />} />
+              <Route path="/interview-prep" element={<Navigate to="/interview/prep" replace />} />
+              <Route path="/job-search-autopilot" element={<Navigate to="/jobs/autopilot" replace />} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/terms" element={<Terms />} />

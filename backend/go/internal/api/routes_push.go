@@ -90,6 +90,15 @@ func (s *Server) handlePushSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Tenant isolation: a user-session request may only target its own
+	// subscriptions. Trusting the body-supplied user_id would let any
+	// authenticated caller enumerate (and later push to) another tenant.
+	// Cross-user delivery must go through the internal-service-token path.
+	if targetUserID != user.ID {
+		s.respondError(w, http.StatusForbidden, "Forbidden")
+		return
+	}
+
 	// Fetch active subscriptions
 	rows, err := s.DB.Conn.QueryContext(r.Context(),
 		"SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1", targetUserID)

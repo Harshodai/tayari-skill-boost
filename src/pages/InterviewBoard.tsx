@@ -1,3 +1,4 @@
+import { isBackendUnavailable } from "@/api/client";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/layout";
 import { CandidateCommandCenter } from "@/components/interview/CandidateCommandCenter";
@@ -623,7 +624,11 @@ const InterviewBoard = () => {
       const updatedApp = updatedList.find((a: any) => a.id === selectedApp.id);
       if (updatedApp) setSelectedApp(updatedApp);
     } catch (e: any) {
-      toast.error("Failed to generate questions. Make sure Python AI engine is running.");
+      toast.error(
+        isBackendUnavailable(e)
+          ? "Interview question generation is unavailable right now. Nothing was saved — please try again later."
+          : e?.message || "Couldn't generate questions. Nothing was saved.",
+      );
     } finally {
       setIsGeneratingIQ(false);
     }
