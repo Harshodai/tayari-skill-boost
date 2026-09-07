@@ -1,5 +1,7 @@
 import { apiFetchResponse } from "@/api";
 import { apiFetch, API_URL, getHeaders } from "./client";
+import { withAiFallback } from "./aiFallback";
+
 
 function stableHash(input: string): string {
   let hash = 0;
