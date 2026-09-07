@@ -1,5 +1,7 @@
 import { apiFetchResponse } from "@/api";
 import { apiFetch, getHeaders, checkResponse, API_URL } from "./client";
+import { withAiFallback } from "./aiFallback";
+
 import type {
   Resume,
   JobDescription,
