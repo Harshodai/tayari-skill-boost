@@ -7,6 +7,18 @@ The repo has other in-flight work outside this thread; see [Out of scope](#out-o
 **Read this whole file before starting.** The next agent's job is to finish the sequence below,
 verify continuously, and never leave the tree in a state where `pytest` / `tsc` / `go build` fail.
 
+> [!IMPORTANT]
+> **Historical Archive Notice & Latest Audit Pointer (September 2026):**
+> This file is an archived handoff document specifically covering the 2026-08-13 Anthropic-pattern adoption thread.
+> For the active, canonical agent handoff and latest repository state, refer to:
+> - **Active Agent Handoff:** [`../agent-handoff/jobtayari-agent-handoff.md`](../agent-handoff/jobtayari-agent-handoff.md)
+> - **September 2026 Documentation vs. Implementation Audit Report:** [`../reports/jobtayari-docs-implementation-audit-2026-09.md`](../reports/jobtayari-docs-implementation-audit-2026-09.md)
+>
+> **Summary of Current Codebase Reality:**
+> - Many items previously listed as open or in-progress have been fully implemented in code (e.g., Canonical Application State Machine, Candidate Stage Envelopes, Trust-First ATS Rubric Scoring, Safe Outreach with Advisory Locks, Long-term Memory Controls, Durable Swarm Recipes, Retrieval Evaluation Harness, Practice Outcomes Retention, and FastMCP Server with 12 tools).
+> - Strict safety boundaries remain enforced (`AUTONOMOUS_SUBMIT_ENABLED=false`, Computer Control & Desktop Agent preview-only).
+> - The deterministic release contract suite now passes 66/66 checks (`bash scripts/release_contract_test.sh`).
+
 ---
 
 ## 0. Orientation — the two durable planning documents

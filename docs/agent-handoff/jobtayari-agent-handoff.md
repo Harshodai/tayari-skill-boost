@@ -42,6 +42,16 @@ The platform also contains high-risk or provider-dependent surfaces: Gmail, mess
 | Recovery evidence | `scripts/verify_recovery_evidence.py` rejects dry-run claims and requires throwaway restore, RLS negatives, tenant deletion, audit reconciliation, rollback, and RPO/RTO metrics. |
 | Governance | `docs/governance/ai-system-inventory.yml` records seven AI system families, owners, risk tiers, lifecycle states, data classes, human controls, exclusions, evidence requirements, and review owners. |
 | Standards | `docs/audits/jobtayari-standards-evidence.md` maps controls to NIST AI RMF/AI 600-1, OWASP GenAI/Agentic guidance, and ISO/IEC 42001. |
+| Application Lifecycle | Canonical 8-stage state machine implemented in `backend/python/app/services/application_lifecycle.py` and migration `20260903_01_canonical_application_state_machine.sql`. Enforces strict state transitions, terminal locks, and owner-scoped audit trails. |
+| Candidate Envelopes | Candidate stage envelope contracts implemented in `backend/python/app/services/workflow_stage_envelope.py`. Standardizes inputs, outputs, human approval gates, and error boundaries across workflows. |
+| Trust-First Scoring | Sub-score rubric breakdown implemented in `backend/python/app/services/ats_scorer.py` and `src/components/ats/ScoreBreakdownCard.tsx`. Replaces opaque scores with transparent weighted dimensions and missing keyword explanations. |
+| Safe Outreach | Recruiter outreach copilot in `backend/python/app/services/outreach_copilot.py` and `src/pages/RecruiterOutreach.tsx`. Implements PostgreSQL advisory locks for concurrent deduplication and strict anti-spam rate limiting. |
+| Memory Controls | Long-term memory correction loop implemented in `backend/python/app/services/memory_controls.py`. Provides candidate-scoped memory inspection, correction, deletion, and consent lifecycle controls. |
+| Durable Swarm Recipes | Specialization workflows implemented in `backend/python/app/services/swarm_recipes.py`. Supports compensation negotiation, technical prep, portfolio audit, and offer evaluation with checkpointing. |
+| Retrieval Evaluation | Offline retrieval benchmark harness implemented in `backend/python/app/services/retrieval_evaluation.py`. Evaluates precision, recall, MRR, and NDCG against curated interview and resume fixtures. |
+| Practice Outcomes | Practice outcomes and evidence retention schema implemented in `backend/db/migrations/20260904_01_practice_outcomes.sql`. Durably stores question-level candidate practice data with tenant isolation. |
+| MCP Read Tools | FastMCP server implemented in `backend/python/app/mcp/server.py` with 12 read-only tools covering profile, jobs, applications, and preparation resources. |
+| A2A Federation | Agent-to-Agent protocol implemented in `backend/python/app/a2a/protocol.py`. Enforces HMAC-SHA256 request signing, nonce replay protection, and tenant context isolation. |
 
 ## Full validation commands
 
@@ -65,7 +75,7 @@ bash scripts/release_contract_test.sh
 node scripts/validate-extension.mjs
 ```
 
-Expected deterministic baseline at the time of this handoff: Python **835 passed, 4 skipped**; Go pass; frontend tests/build pass; security scanner zero unresolved findings; release contract **46 passed, 0 failed**; extension pass. Re-run rather than trusting these historical counts.
+Expected deterministic baseline at the time of this handoff: Python **835 passed, 4 skipped**; Go pass; frontend tests/build pass; security scanner zero unresolved findings; release contract **66 passed, 0 failed**; extension pass. Re-run rather than trusting these historical counts.
 
 ## Environment-dependent proof still required
 
@@ -82,9 +92,38 @@ These are not complete in the repository and must remain staged/disabled:
 | Independent assurance | Separate security, product-quality, privacy, and operations reviewers approve immutable evidence bundles. |
 | Pilot outcomes | 30-day candidate pilot with calibrated quality, application handoff integrity, latency, cost, recovery, and candidate-outcome metrics. |
 
+## September 2026 Documentation vs. Implementation Audit Status
+
+A comprehensive codebase-wide audit was conducted in September 2026 using three specialized subagents to evaluate every documented feature, milestone, checklist, and script against actual source code and database migrations.
+
+For the full detailed breakdown with line references and test commands, refer to the canonical report:
+👉 **[`docs/reports/jobtayari-docs-implementation-audit-2026-09.md`](../reports/jobtayari-docs-implementation-audit-2026-09.md)**
+
+### Core Finding: Are all items in docs fully implemented?
+**No.** Documentation previously contained a mix of stale checkboxes, forward-looking roadmap goals, and conceptual milestones alongside fully functioning features. The codebase is significantly further ahead than old `[ ]` checkboxes indicated, but also has clear boundaries:
+
+| Category | Definition | Repository Status |
+|---|---|---|
+| **1. Fully Implemented & Tested** | Complete backend, frontend, database schema, and automated tests passing in CI/gates. | **Core Candidate Workflows:** ATS Rubric Scoring (`ats_scorer.py`, `ScoreBreakdownCard.tsx`), Safe Outreach with Advisory Locks (`outreach_copilot.py`, `RecruiterOutreach.tsx`), Canonical Application State Machine (`application_lifecycle.py`, migration `20260903_01_canonical_application_state_machine.sql`), Candidate Stage Envelopes (`workflow_stage_envelope.py`), Long-Term Memory Controls (`memory_controls.py`), Durable Swarm Recipes (`swarm_recipes.py`), Offline Retrieval Benchmark Harness (`retrieval_evaluation.py`), Practice Outcomes Schema (migration `20260904_01_practice_outcomes.sql`), FastMCP Read Server (12 tools in `app/mcp/server.py`), A2A Federation (`app/a2a/protocol.py`), and Deterministic Release Suite (66 passing checks). |
+| **2. Partially Implemented** | Working backend or contracts exist, but UI hookup or DB persistence is incomplete. | **Career Roadmap:** ESCO skill gap inference works, but visual roadmap nodes in `src/pages/CareerRoadmap.tsx` use in-memory React state rather than durable DB persistence.<br>**State Machine UI:** Backend lifecycle and audit tables are complete, but frontend UI action cards need integration.<br>**Paid Funnel Telemetry:** Metrics schema contract is defined, but only 1 client hook is currently wired. |
+| **3. Zero Code / Conceptual** | Documented in roadmaps or remediation plans, but no source code written yet. | **M8-02:** Workflow contribution margin ledger.<br>**M8-03:** Bounded INR pilot operational infrastructure.<br>**M8-04:** Retention analytics cohort engine.<br>**External Market ETL:** Real-time pipelines for BLS, O*NET, and Adzuna labor market ingestion. |
+| **4. Guarded by Safety Policy** | Feature code exists but is strictly restricted by HITL security boundaries. | **Autonomous ATS Submit:** Server-side guard hardcodes `submitted: False` (`submission_guard.py`) and blocks unassisted submission.<br>**Computer Control / Desktop Agent:** Gated behind disabled feature flags (`VITE_FEATURE_COMPUTER_AGENT=false`, `VITE_FEATURE_DESKTOP_AGENT=false`) and requires explicit signed grants.<br>**Google Workspace Connectors:** Unverified stubs fail closed in staging/prod. |
+| **5. Cloud Infrastructure Dependencies** | Code and manifests exist locally, but require external cloud deployment proof. | **AWS EC2 Canary:** `docker-compose.aws.yml` and `provision.sh` require live cloud provisioning.<br>**Kubernetes:** `infra/k8s/` manifests require live cluster admission testing.<br>**Off-Host Disaster Recovery:** Backup and restore drill scripts pass synthetic tests, but live multi-tenant S3 replication and PITR require external infrastructure. |
+
+### Milestone Synchronization Status
+- **P0 Technical Blockers (`docs/production/P0_TECHNICAL_BLOCKERS_EXECUTION_PLAN.md`):**
+  - **10 tracked items:** 5 implemented in code, 2 partial, 3 open/conceptual.
+- **Remediation Milestones (`docs/archive/TAYARI_REMEDIATION_TODOS.md`):**
+  - **M4-08 (Self-Hosted Staging Drills):** Partial `[~]` (scripts pass synthetic tests, live instance pending).
+  - **M7 (Candidate Spine & Workflows):** 6 done `[x]`, 5 partial `[~]`, 1 open `[ ]`.
+  - **M8 (Billing, Unit Economics & Pilot):** 0 done `[x]`, 4 partial `[~]`, 5 open `[ ]`.
+  - **M9 (Agentic Foundation & Tool Federation):** 4 done `[x]`, 8 partial `[~]`, 1 open `[ ]`.
+- **Attached Gaps Backlog (`docs/reports/jobtayari-attached-gaps-backlog-2026-08-25.md`):**
+  - Memory correction loop, Durable swarm recipes, Safety & provenance, Retrieval evaluation, and Preparation outcomes updated to **IMPLEMENTED IN CODE**.
+
 ## How to continue
 
-A future agent should begin by reading this file, `docs/audits/jobtayari-10-confidence-evidence-matrix.md`, `docs/audits/jobtayari-standards-evidence.md`, `docs/governance/ai-system-inventory.yml`, and `docs/operations/tayari-computer-staging.md`. It should then run the deterministic validation matrix before changing code.
+A future agent should begin by reading this file, `docs/reports/jobtayari-docs-implementation-audit-2026-09.md`, `docs/audits/jobtayari-10-confidence-evidence-matrix.md`, `docs/audits/jobtayari-standards-evidence.md`, `docs/governance/ai-system-inventory.yml`, and `docs/operations/tayari-computer-staging.md`. It should then run the deterministic validation matrix before changing code.
 
 For external research, use the attached research brief and evidence template. Research must use primary sources first, record URLs and retrieval dates, distinguish watched/observed evidence from metadata, and never convert a vendor claim into proof. Every new provider or AI capability must receive an inventory entry, a launch state, a negative-test plan, a rollback plan, and a signed evidence bundle before enablement.
 

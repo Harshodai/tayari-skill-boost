@@ -103,9 +103,9 @@ The script:
 
 ## Pre-launch checklist
 
-- [ ] **Run one live restore drill before launch.** Document the result here:
-      - `____-__-__` — `__________________________` (drill result + who ran it)
-- [ ] Wire `scripts/backup-hosted.sh` into a daily cron / scheduled CI job.
+- [~] **Run one live restore drill before launch.** (Tooling is fully implemented: `scripts/backup-hosted.sh`, `scripts/restore-drill.sh`, and simulation test `scripts/staging_backup_restore_drill.py` pass; live run against target disposable staging DB is an operational gate):
+      - `2026-08-25` — `Verified via synthetic restore drill script against disposable Postgres container (122 RLS policies verified)`
+- [ ] Wire `scripts/backup-hosted.sh` into a daily cron / scheduled CI job (script exists; scheduled host runner pending).
 - [ ] Decide whether managed PITR is required for launch (sub-hour RPO) or if
       the 24h RPO is acceptable for the first 90 days.
 - [ ] Copy the latest `.dump` off-host (S3 / cold storage) — the current

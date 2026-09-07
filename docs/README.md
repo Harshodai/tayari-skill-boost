@@ -73,6 +73,7 @@ Verification evidence, third-party benchmarks, and historical progression logs.
 
 - [`docs/business/`](./business/) — Commercial storytelling, market positioning, and investor readiness.
 - [`docs/reports/`](./reports/) — Automated and manual verification reports, parity assessments, and test logs.
+  - [`jobtayari-docs-implementation-audit-2026-09.md`](./reports/jobtayari-docs-implementation-audit-2026-09.md) — Authoritative audit of all documented items vs. actual codebase implementation.
 - [`docs/production-readiness.md`](./production-readiness.md) — *(Release Gate Invariant)* Evaluated directly by CI gate tests (`scripts/release_contract_test.sh`).
 
 ---

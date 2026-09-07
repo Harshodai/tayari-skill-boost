@@ -2,7 +2,7 @@
 
 **Repository:** `Harshodai/tayari-skill-boost`  
 **Source:** `TAYARI_REMEDIATION_TODOS.md`  
-**P0 count:** 10 unchecked items  
+**P0 count:** 10 tracked items (5 implemented in code, 2 partial, 3 open/conceptual)
 **Decision rule:** A P0 is not complete because code exists. It closes only when implementation, negative proof, positive proof, evidence artifact, and independent review all pass.
 
 ## P0 inventory and dependency graph
@@ -21,18 +21,18 @@ M8-02 margin ──────┼─> M8-03 pilot ───┤
 M8-04 retention ───┘                  │
 ```
 
-| TODO | P0 workstream | Direct production effect | Depends on | Primary owner |
-|---|---|---|---|---|
-| M9-01 | Candidate-controlled product spine | Prevents untraceable or unverifiable artifacts | Existing M1–M5 controls | Product + backend |
-| M9-02 | Live evidence before high-risk enablement | Direct production GO gate | M9-01, M9-03, staging infrastructure | Release/SRE |
-| M9-03 | Durable application state machine | Prevents duplicate or falsely verified actions | M2 approval/receipt controls | Backend/data |
-| M7-03 | Trust-first scoring experience | Prevents opaque or overstated ATS claims | M9-01 evidence/provenance | AI + frontend |
-| M7-06 | Safe networking assistance | Prevents wrong-recipient or autonomous sends | M2 approval/idempotency | Integrations/security |
-| M7-08 | Visible privacy and operational truth | Required for trustworthy public launch | M9-01/M9-02 evidence | Product/security |
-| M8-01 | Paid-funnel measurement | Blocks measured monetization decision | Privacy-safe event contract | Product/analytics |
-| M8-02 | Contribution margin | Blocks economic scale decision | Cost instrumentation | FinOps/backend |
-| M8-03 | Bounded paid pilot | Blocks pricing/profitability claim | M8-01/M8-02 | Product/finance |
-| M8-04 | Repeat usage and retention | Blocks recurring-value claim | M8-01/M8-03 | Product/analytics |
+| TODO | P0 workstream | Direct production effect | Depends on | Primary owner | Implementation status |
+|---|---|---|---|---|---|
+| M9-01 | Candidate-controlled product spine | Prevents untraceable or unverifiable artifacts | Existing M1–M5 controls | Product + backend | **IMPLEMENTED IN CODE** (`application_stage_envelopes`, `workflow_stage_envelope.py`) |
+| M9-02 | Live evidence before high-risk enablement | Direct production GO gate | M9-01, M9-03, staging infrastructure | Release/SRE | **PARTIAL** (Harness scripts ready; cloud execution pending) |
+| M9-03 | Durable application state machine | Prevents duplicate or falsely verified actions | M2 approval/receipt controls | Backend/data | **IMPLEMENTED IN BACKEND/DB** (`application_runs`, `application_lifecycle.py`; frontend hookup open) |
+| M7-03 | Trust-first scoring experience | Prevents opaque or overstated ATS claims | M9-01 evidence/provenance | AI + frontend | **IMPLEMENTED IN CODE** (`ats_scorer.py`, `ScoreBreakdownCard.tsx`, adversarial suite) |
+| M7-06 | Safe networking assistance | Prevents wrong-recipient or autonomous sends | M2 approval/idempotency | Integrations/security | **IMPLEMENTED IN CODE** (`outreach_copilot.py`, advisory lock deduplication, UI dialog) |
+| M7-08 | Visible privacy and operational truth | Required for trustworthy public launch | M9-01/M9-02 evidence | Product/security | **IMPLEMENTED IN CODE** (`Privacy.tsx`, `PrivacyReadiness.tsx`, contract tests) |
+| M8-01 | Paid-funnel measurement | Blocks measured monetization decision | Privacy-safe event contract | Product/analytics | **PARTIAL** (`product_events.py` contract exists; full route hooks open) |
+| M8-02 | Contribution margin | Blocks economic scale decision | Cost instrumentation | FinOps/backend | **OPEN / CONCEPTUAL** (Model in scripts; runtime attribution unbuilt) |
+| M8-03 | Bounded paid pilot | Blocks pricing/profitability claim | M8-01/M8-02 | Product/finance | **OPEN / CONCEPTUAL** (USD credit packs exist; INR consumer pilot unbuilt) |
+| M8-04 | Repeat usage and retention | Blocks recurring-value claim | M8-01/M8-03 | Product/analytics | **OPEN / CONCEPTUAL** (Tracking schema exists; retention engine unbuilt) |
 
 ## Track A — Candidate-controlled product spine
 
