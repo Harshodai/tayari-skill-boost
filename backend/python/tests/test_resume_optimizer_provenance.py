@@ -116,3 +116,35 @@ def test_instruction_ledger_rejects_unsupported_specific_credential():
     assert "truthfulness" in ledger[0]["reason"].lower() or "credential" in ledger[0]["reason"].lower()
 
 
+def test_instruction_ledger_rejects_as_title_when_words_occur_separately():
+    # 'principal' and 'engineer' appear separately, but not as a contiguous title
+    instructions = "Add Principal Engineer as title"
+    orig_text = "Software Engineer working on the principal component analysis system."
+    opt_text = "Software Engineer working on the principal component analysis system."
+
+    ledger = _build_instruction_ledger(instructions, opt_text, orig_text)
+    assert len(ledger) == 1
+    assert ledger[0]["status"] == "rejected"
+    assert "title" in ledger[0]["reason"].lower() or "truthfulness" in ledger[0]["reason"].lower()
+
+
+def test_instruction_ledger_allows_as_title_when_contiguous():
+    # 'Principal Engineer' appears contiguously in the resume
+    instructions = "Include Principal Engineer as title"
+    orig_text = "Principal Engineer at Acme Corp leading architecture."
+    opt_text = "Principal Engineer at Acme Corp leading architecture."
+
+    ledger = _build_instruction_ledger(instructions, opt_text, orig_text)
+    assert len(ledger) == 1
+    assert ledger[0]["status"] != "rejected"
+
+
+def test_instruction_ledger_constrains_cred_match_without_trailing_words():
+    # Valid credential should not be rejected due to trailing instruction words
+    instructions = "Emphasize AWS Certified Cloud Practitioner and mention my leadership skills"
+    orig_text = "Senior Engineer. AWS Certified Cloud Practitioner."
+    opt_text = "Senior Engineer with AWS Certified Cloud Practitioner and strong leadership."
+
+    ledger = _build_instruction_ledger(instructions, opt_text, orig_text)
+    assert len(ledger) == 1
+    assert ledger[0]["status"] != "rejected"

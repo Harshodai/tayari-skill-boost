@@ -172,13 +172,48 @@ describe("AtsParserSimulator UI Component", () => {
     expect(screen.getByText("PostgreSQL")).toBeInTheDocument();
   });
 
-  it("allows toggling raw ATS plaintext buffer view", () => {
+  it("allows toggling raw ATS plaintext buffer view via keyboard accessible button", () => {
     render(<AtsParserSimulator resumeText={SAMPLE_CLEAN_RESUME} />);
 
-    const bufferHeader = screen.getByText(/Inspect Raw Workday Parser \(Sovren\/Textkernel simulation\) Plaintext Buffer/i);
-    expect(bufferHeader).toBeInTheDocument();
+    const toggleBtn = screen.getByRole("button", {
+      name: /Inspect raw plaintext buffer/i,
+    });
+    expect(toggleBtn).toBeInTheDocument();
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+    // Ensure no nested button exists inside the toggle button
+    expect(toggleBtn.querySelectorAll("button").length).toBe(0);
 
-    fireEvent.click(bufferHeader);
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText(/WORKDAY\/SOVREN RESUME XML STREAM/i)).toBeInTheDocument();
+
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("avoids extracting false-positive locations from emails, URLs, compound words, or ordinary text", () => {
+    const resumeWithFalsePositives = `ALEX CHEN
+alex@india.com | (415) 555-0199 | linkedin.com/in/alexchen | github.com/remote
+Building scalable systems, especially with high reliability. I work remotely on usability.
+
+EXPERIENCE:
+Staff Engineer | Tech Corp | 2020 - Present
+- Built platforms.`;
+
+    const result = simulateAtsParsing(resumeWithFalsePositives, "workday");
+    expect(result.identity.location.value).toBeNull();
+    expect(result.identity.location.status).toBe("warning");
+
+    const resumeWithRemote = `ALEX CHEN
+remote | alex@example.com | (415) 555-0199`;
+    const resultRemote = simulateAtsParsing(resumeWithRemote, "workday");
+    expect(resultRemote.identity.location.value?.toLowerCase()).toBe("remote");
+    expect(resultRemote.identity.location.status).toBe("clean");
+
+    const resumeWithIndia = `ALEX CHEN
+India | alex@example.com | (415) 555-0199`;
+    const resultIndia = simulateAtsParsing(resumeWithIndia, "workday");
+    expect(resultIndia.identity.location.value).toBe("India");
+    expect(resultIndia.identity.location.status).toBe("clean");
   });
 });

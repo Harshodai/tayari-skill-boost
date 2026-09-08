@@ -210,7 +210,7 @@ function extractIdentity(text: string, engine: AtsEngineType): CandidateIdentity
     .map((l) => l.trim())
     .filter(Boolean);
   const headerLines = lines.slice(0, 10);
-  const headerJoined = headerLines.join(" ");
+  const headerJoined = headerLines.join("\n");
 
   // 1. Name: First non-empty line that looks like a person's name
   let nameValue: string | null = null;
@@ -264,7 +264,26 @@ function extractIdentity(text: string, engine: AtsEngineType): CandidateIdentity
   let locationValue: string | null = null;
   let locationStatus: "clean" | "warning" | "failed" = "failed";
   let locationNote = "No primary location detected.";
-  const locationMatch = headerJoined.match(/([A-Z][a-zA-Z\s.-]+,\s*(?:[A-Z]{2}|[A-Z][a-zA-Z\s]+)|Remote|United States|USA|Canada|UK|India)/i);
+
+  // Sanitize header to avoid extracting geographic tokens from email addresses, URLs, or handles
+  const sanitizedHeader = headerJoined
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, " ")
+    .replace(/(?:https?:\/\/|www\.)\S+/gi, " ")
+    .replace(/(?:linkedin|github)\.com\/\S+/gi, " ");
+
+  // Constrain generic City, Region branch using explicit delimiters/known regions (case-sensitive)
+  // while restricting case-insensitive matching to intended geographic alternatives with word boundaries.
+  const cityRegionMatch = sanitizedHeader.match(
+    /(?:^|[|•;/\n\-–—])\s*([A-Z][a-zA-Z.-]+(?:[ \t]+[A-Z][a-zA-Z.-]+){0,2},\s*(?:[A-Z]{2}|[A-Z][a-zA-Z]+(?:[ \t]+[A-Z][a-zA-Z]+)?))\b/
+  );
+  const geoAltMatch = sanitizedHeader.match(
+    /(?:^|[|•;/\n\-–—,\s])\b(Remote|United States|USA|Canada|UK|India)\b(?=[|•;/\n\-–—,\s]|$)/i
+  );
+
+  const locationMatch = cityRegionMatch
+    ? [cityRegionMatch[1].trim()]
+    : (geoAltMatch ? [geoAltMatch[1].trim()] : null);
+
   if (locationMatch && !locationMatch[0].toLowerCase().includes("resume")) {
     locationValue = locationMatch[0].trim();
     locationStatus = "clean";

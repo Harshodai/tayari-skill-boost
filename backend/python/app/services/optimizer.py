@@ -511,11 +511,14 @@ def _build_instruction_ledger(
                 if not re.search(pat, resume_lower):
                     return True, "Violates truthfulness guardrail: credential or employer not evidenced in original resume"
                 # When provider/category marker exists in resume, extract and normalize the
-                # specifically requested credential to ensure the candidate actually holds it,
-                # rather than falsely passing on a shared provider or category keyword.
-                cred_match = re.search(r"\b" + re.escape(cm) + r"(?:\s+[\w\s-]{3,50})?", t_lower)
+                # specifically requested credential entity without trailing instruction words.
+                cred_match = re.search(
+                    r"\b" + re.escape(cm)
+                    + r"((?:\s+(?!and\b|with\b|while\b|please\b|mention\b|highlight\b|emphasize\b|focus\b|also\b|or\b|for\b|to\b)[\w+-]+){0,6})",
+                    t_lower,
+                )
                 if cred_match:
-                    cred_phrase = cred_match.group(0).strip()
+                    cred_phrase = (cm + cred_match.group(1)).strip()
                     generic_cred_words = {
                         "phd", "master", "masters", "bachelor", "bachelors", "degree",
                         "certified", "certification", "aws", "ex", "worked", "at",
@@ -531,7 +534,16 @@ def _build_instruction_ledger(
                         if unsupported_spec:
                             return True, f"Violates truthfulness guardrail: specifically requested credential ('{cred_phrase}') not evidenced in original resume"
 
-        # 2. Employer / title / history phrasing
+        # 2. Specifically requested titles: require contiguous phrase in source resume
+        title_as_match = re.search(r"\b(?:add|adding|include)\s+([A-Za-z0-9&./\s]{2,40}?)\s+as\s+(?:an?\s+)?title\b", t_lower)
+        if title_as_match:
+            raw_title = title_as_match.group(1).strip()
+            norm_title = re.sub(r"\s+", " ", raw_title)
+            # Require the normalized requested title as a contiguous phrase in source resume
+            if norm_title and not re.search(r"\b" + re.escape(norm_title) + r"\b", resume_lower):
+                return True, f"Violates truthfulness guardrail: requested title ('{norm_title}') not evidenced in original resume"
+
+        # 3. Employer / title / history phrasing
         for ep in employer_phrasings:
             m = re.search(ep, t_lower)
             if m:
@@ -913,6 +925,9 @@ async def optimize_with_reflection(
     if fabrication_detected:
         logger.warning("optimizer_reverted_fabricated_output", extra={"rejected": list(_rejected_instructions)})
         optimized = resume_text
+        meta["changes"] = []
+        meta["keywords_added"] = []
+        removed_ai_phrases = []
 
     # ---- Recalculate on final cleaned (and possibly restored) text ------
     heuristic = semantic_ats_score(optimized, jd)

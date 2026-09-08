@@ -495,36 +495,32 @@ export function AtsParserSimulator({ resumeText, benchmarkRole }: AtsParserSimul
 
       {/* Raw Parser Stream / Buffer Inspection Toggle */}
       <Card className="border-border/80 bg-card/70">
-        <CardHeader
-          className="pb-3 cursor-pointer select-none"
-          onClick={() => setShowRawBuffer(!showRawBuffer)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Terminal className="h-4 w-4 text-muted-foreground" /> Inspect Raw {config.label} Plaintext Buffer
-            </CardTitle>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs px-2 text-muted-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowRawBuffer(!showRawBuffer);
-              }}
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">
+            <button
+              type="button"
+              onClick={() => setShowRawBuffer(!showRawBuffer)}
               aria-expanded={showRawBuffer}
+              aria-label={showRawBuffer ? "Hide raw plaintext buffer" : "Inspect raw plaintext buffer"}
+              className="flex items-center justify-between w-full text-left font-semibold text-foreground hover:text-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md group"
             >
-              {showRawBuffer ? (
-                <>
-                  <ChevronUp className="h-3.5 w-3.5 mr-1" /> Hide Buffer
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="h-3.5 w-3.5 mr-1" /> View Buffer
-                </>
-              )}
-            </Button>
-          </div>
-          <CardDescription className="text-xs">
+              <span className="flex items-center gap-2">
+                <Terminal className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" /> Inspect Raw {config.label} Plaintext Buffer
+              </span>
+              <span className="h-7 text-xs px-2 text-muted-foreground inline-flex items-center group-hover:text-primary transition-colors">
+                {showRawBuffer ? (
+                  <>
+                    <ChevronUp className="h-3.5 w-3.5 mr-1" /> Hide Buffer
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3.5 w-3.5 mr-1" /> View Buffer
+                  </>
+                )}
+              </span>
+            </button>
+          </CardTitle>
+          <CardDescription className="text-xs mt-1">
             View the serialized text stream as ingested by {config.label} before candidate scoring:
           </CardDescription>
         </CardHeader>
