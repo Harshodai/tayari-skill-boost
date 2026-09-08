@@ -23,8 +23,12 @@ export default defineTool({
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_PUBLISHABLE_KEY) {
       return { content: [{ type: "text", text: "Server misconfigured: SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY not set" }], isError: true };
     }
-    let q = sb(ctx).from("applications")
-      .select("application_id,title,company,stage,status,created_at,updated_at")
+    // saved_jobs is the pipeline table of record; the previously referenced
+    // "applications" table does not exist, so this tool always errored.
+    // user_id is filtered explicitly (defence in depth alongside RLS).
+    let q = sb(ctx).from("saved_jobs")
+      .select("id,title,company,location,url,stage,created_at,updated_at")
+      .eq("user_id", ctx.getUserId())
       .order("updated_at", { ascending: false })
       .limit(limit ?? 50);
     if (stage) q = q.eq("stage", stage);

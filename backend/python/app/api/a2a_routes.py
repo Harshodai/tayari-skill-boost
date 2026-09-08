@@ -50,7 +50,10 @@ async def verify_a2a_auth(
         if not principal.peer_id or not require_tenant_binding(principal):
             raise HTTPException(status_code=403, detail="Signed A2A tenant and peer binding are required")
         return principal
-    if environment in {"production", "prod", "staging"}:
+    # Fail closed: the shared-secret bearer fallback is allowed ONLY in an
+    # explicit local development environment. Every other value — including an
+    # unset, misspelled, or new environment name — requires signed federation.
+    if environment not in {"development", "dev", "local", "test"}:
         require_capability(Capability.INTEGRATION_A2A_FEDERATION)
         raise HTTPException(status_code=401, detail="Signed A2A authentication is required")
     expected_key = os.getenv("TAYARI_API_KEY") or os.getenv("A2A_API_KEY")

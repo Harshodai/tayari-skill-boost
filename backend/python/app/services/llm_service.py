@@ -593,6 +593,18 @@ async def llm_complete(
         provider_name = provider.active_engine_label()
     except Exception:
         pass
+    # Inbound prompt-size cap: untrusted job descriptions and scraped page
+    # content can be arbitrarily large. Truncate before the provider call so a
+    # single request cannot amplify cost or blow the provider timeout.
+    max_input_chars = int(os.getenv("LLM_MAX_INPUT_CHARS", "60000") or 60000)
+    if len(user_message) > max_input_chars:
+        logger.warning(
+            "llm_complete: user_message truncated from %d to %d chars",
+            len(user_message), max_input_chars,
+        )
+        user_message = user_message[:max_input_chars]
+    if len(system_message) > max_input_chars:
+        system_message = system_message[:max_input_chars]
     # ponytail: single choke point — scrub only the outbound copy; callers keep
     # the original for truthfulness/guardrail checks, only scrubbed text leaves.
     user_message_out, scrubbed_user = _scrub_pii(user_message)
@@ -615,13 +627,15 @@ async def llm_complete(
     completion_tokens = estimate_tokens(result)
     cost_usd = calculate_llm_cost(provider_name, prompt_tokens, completion_tokens)
 
-    # Daily budget tracking & alerting (do not fail the request)
+    # Daily budget tracking & alerting (do not fail the request).
+    # Anonymous/unattributed calls are billed to a shared "anonymous" bucket so
+    # a route without an authenticated caller cannot spend without a cap.
     try:
-        total_spend, exceeded, limit = daily_cost_tracker.record_cost(cost_usd, _user_id)
+        total_spend, exceeded, limit = daily_cost_tracker.record_cost(cost_usd, _user_id or "anonymous")
         if exceeded:
             logger.warning(
                 "Daily LLM cost budget exceeded for user=%s: accumulated $%.4f > limit $%.4f",
-                _user_id, total_spend, limit,
+                _user_id or "anonymous", total_spend, limit,
             )
             metrics.record_cost_budget_exceeded()
     except Exception as exc:  # noqa: BLE001

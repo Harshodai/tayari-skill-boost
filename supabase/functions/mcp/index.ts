@@ -329,7 +329,7 @@ var get_pipeline_default = defineTool8({
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_PUBLISHABLE_KEY) {
       return { content: [{ type: "text", text: "Server misconfigured: SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY not set" }], isError: true };
     }
-    let q = sb5(ctx).from("applications").select("application_id,title,company,stage,status,created_at,updated_at").order("updated_at", { ascending: false }).limit(limit ?? 50);
+    let q = sb5(ctx).from("saved_jobs").select("id,title,company,location,url,stage,created_at,updated_at").eq("user_id", ctx.getUserId()).order("updated_at", { ascending: false }).limit(limit ?? 50);
     if (stage) q = q.eq("stage", stage);
     const { data, error } = await q;
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };

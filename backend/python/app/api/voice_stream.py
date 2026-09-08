@@ -150,7 +150,10 @@ async def websocket_endpoint(websocket: WebSocket):
         except Exception as exc:
             logger.warning("Voice stream WebSocket JWT verification failed: %s", exc)
 
-    if environment == "production" and not valid:
+    # Fail closed: authentication is required everywhere except an explicit
+    # local development environment. Any unknown/misspelled ENVIRONMENT value
+    # (staging, test, unset) must NOT downgrade to anonymous access.
+    if not valid and environment not in ("development", "local"):
         logger.warning("Voice stream WebSocket rejected unauthenticated connection")
         await websocket.close(code=1008)
         return
