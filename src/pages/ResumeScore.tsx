@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiFetchResponse } from "@/api";
 import { Layout } from "@/components/layout";
-import { Seo } from "@/components/seo/Seo";
+import { Seo, SITE_URL } from "@/components/seo/Seo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -434,12 +434,17 @@ export default function ResumeScore() {
 
   const wordCount = resumeText.trim().split(/\s+/).filter(Boolean).length;
 
+  const runtimeOrigin =
+    (typeof window !== "undefined" && window.location?.origin)
+      ? window.location.origin
+      : (SITE_URL || "https://tayari-skill-boost.lovable.app");
+
   const seoJsonLd = [
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
       name: "Free ATS Resume Score Checker & Rating Tool",
-      url: "https://tayari-skill-boost.lovable.app/resume-score",
+      url: `${runtimeOrigin}/resume-score`,
       description: "Free instant ATS resume score checker. Check how ATS-friendly your resume is with role benchmark presets, skills breakdown, and bullet rewrite suggestions.",
       applicationCategory: "BusinessApplication",
       operatingSystem: "All",

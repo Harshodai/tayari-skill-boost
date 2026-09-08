@@ -134,9 +134,13 @@ export const TargetRoleReadinessCard: React.FC<TargetRoleReadinessCardProps> = (
   const [selectedRoleSlug, setSelectedRoleSlug] = useState<string>(() => {
     if (initialRoleSlug && TARGET_ROLE_OPTIONS.some((r) => r.slug === initialRoleSlug)) return initialRoleSlug;
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("tayari_target_role_slug");
-      if (saved && TARGET_ROLE_OPTIONS.some((r) => r.slug === saved)) {
-        return saved;
+      try {
+        const saved = localStorage.getItem("tayari_target_role_slug");
+        if (saved && TARGET_ROLE_OPTIONS.some((r) => r.slug === saved)) {
+          return saved;
+        }
+      } catch {
+        // Blocked storage access or restricted browser policies
       }
     }
     return "product-manager";

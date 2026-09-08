@@ -1036,4 +1036,13 @@ Master of Science in Computer Engineering | Texas A&M University`,
 
 export const getAllRoles = (): RoleData[] => Object.values(ROLES_DATA);
 export const getAllRoleSlugs = (): string[] => Object.keys(ROLES_DATA);
-export const getRoleBySlug = (slug: string): RoleData | undefined => ROLES_DATA[slug];
+export const getRoleBySlug = (slug: string): RoleData | undefined => {
+  if (!slug || typeof slug !== "string") {
+    return undefined;
+  }
+  const normalizedSlug = slug.toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(ROLES_DATA, normalizedSlug)) {
+    return ROLES_DATA[normalizedSlug];
+  }
+  return undefined;
+};

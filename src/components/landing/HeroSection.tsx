@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { ArrowRight, Check, ShieldCheck, Zap, Briefcase, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,13 +55,32 @@ export function HeroSection() {
   };
 
   const handleRunAnalysis = () => {
-    const rText = resumeInput.trim() || defaultPreset.resume;
-    const jText = jobInput.trim() || defaultPreset.jd;
+    if (selectedPreset === "custom") {
+      const rText = resumeInput.trim();
+      const jText = jobInput.trim();
+      if (!rText || !jText) {
+        toast.error("Please provide both your resume and the target job description to run custom analysis.");
+        return;
+      }
+      navigate("/free-scan", {
+        state: {
+          resumeText: rText,
+          jobDescription: jText,
+          activePreset: null,
+          autoScan: true,
+        },
+      });
+      return;
+    }
+
+    const currentPreset = SAMPLE_PRESETS.find((p) => p.company === selectedPreset) || defaultPreset;
+    const rText = resumeInput.trim() || currentPreset.resume;
+    const jText = jobInput.trim() || currentPreset.jd;
     navigate("/free-scan", {
       state: {
         resumeText: rText,
         jobDescription: jText,
-        activePreset: selectedPreset !== "custom" ? selectedPreset : null,
+        activePreset: selectedPreset,
         autoScan: true,
       },
     });

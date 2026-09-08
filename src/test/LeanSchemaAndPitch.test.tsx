@@ -77,9 +77,56 @@ describe("Lean MVP 12-Core Schema (scripts/lean-schema-12.sql)", () => {
   });
 
   it("revokes all permissions from anon and grants least privilege to authenticated and service_role", () => {
-    expect(schemaContent).toMatch(/REVOKE\s+ALL\s+ON\s+TABLE[\s\S]*?FROM\s+anon/i);
-    expect(schemaContent).toMatch(/GRANT\s+ALL\s+ON\s+TABLE[\s\S]*?TO\s+service_role/i);
-    expect(schemaContent).toMatch(/GRANT\s+SELECT[\s\S]*?TO\s+authenticated/i);
+    const cleanTableName = (raw: string) =>
+      raw.trim().replace(/^public\./i, "").replace(/["`]/g, "").toLowerCase();
+
+    const parseTablesList = (tablesBlock: string) =>
+      tablesBlock
+        .split(",")
+        .map(cleanTableName)
+        .filter((t) => t.length > 0 && !t.includes(" "));
+
+    const anonRevokedTables = new Set<string>();
+    const revokeRegex = /REVOKE\s+([\w\s,]+)\s+ON\s+(?:TABLE\s+)?([\s\S]*?)\s+FROM\s+([^\n;]+)/gi;
+    for (const match of schemaContent.matchAll(revokeRegex)) {
+      const [, privileges, tablesBlock, grantees] = match;
+      const granteeList = grantees.split(",").map((g) => g.trim().toLowerCase());
+      if (privileges.toUpperCase().includes("ALL") && granteeList.includes("anon")) {
+        parseTablesList(tablesBlock).forEach((tbl) => anonRevokedTables.add(tbl));
+      }
+    }
+
+    const serviceRoleAllTables = new Set<string>();
+    const authenticatedSelectTables = new Set<string>();
+    const grantRegex = /GRANT\s+([\w\s,]+)\s+ON\s+(?:TABLE\s+)?([\s\S]*?)\s+TO\s+([^\n;]+)/gi;
+    for (const match of schemaContent.matchAll(grantRegex)) {
+      const [, privileges, tablesBlock, grantees] = match;
+      const granteeList = grantees.split(",").map((g) => g.trim().toLowerCase());
+      const privsUpper = privileges.toUpperCase();
+
+      if (privsUpper.includes("ALL") && granteeList.includes("service_role")) {
+        parseTablesList(tablesBlock).forEach((tbl) => serviceRoleAllTables.add(tbl));
+      }
+
+      if (privsUpper.includes("SELECT") && granteeList.includes("authenticated")) {
+        parseTablesList(tablesBlock).forEach((tbl) => authenticatedSelectTables.add(tbl));
+      }
+    }
+
+    // Anon revoke covers every table in expected12Tables
+    for (const table of expected12Tables) {
+      expect(anonRevokedTables.has(table)).toBe(true);
+    }
+
+    // Service_role ALL covers every table in expected12Tables
+    for (const table of expected12Tables) {
+      expect(serviceRoleAllTables.has(table)).toBe(true);
+    }
+
+    // Authenticated SELECT covers every table in expected12Tables
+    for (const table of expected12Tables) {
+      expect(authenticatedSelectTables.has(table)).toBe(true);
+    }
   });
 
   it("creates Neon-compatible auth stubs before foreign keys and grants", () => {

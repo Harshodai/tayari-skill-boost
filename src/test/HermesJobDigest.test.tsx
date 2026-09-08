@@ -62,4 +62,28 @@ describe("Weekly Hermes Job Match Digest Re-engagement", () => {
     expect(turnedOff.toastMessage).toContain("Paused");
     expect(getHermesDigestPreferences().enabled).toBe(false);
   });
+
+  it("propagates error and avoids dispatch when localStorage.setItem fails", () => {
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    const setItemSpy = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError: storage full");
+    });
+
+    try {
+      expect(() => {
+        setHermesDigestPreferences({ enabled: true });
+      }).toThrow("QuotaExceededError: storage full");
+
+      expect(dispatchSpy).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: "tayari_hermes_digest_updated" })
+      );
+
+      expect(() => {
+        toggleHermesDigest(true);
+      }).toThrow("QuotaExceededError: storage full");
+    } finally {
+      setItemSpy.mockRestore();
+      dispatchSpy.mockRestore();
+    }
+  });
 });

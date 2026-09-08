@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import {
   TargetRoleReadinessCard,
@@ -34,11 +34,9 @@ describe("TargetRoleReadinessCard & Loss-Aversion Tracker", () => {
       </MemoryRouter>
     );
 
-    // Score is now dynamically computed from DEFAULT_CANDIDATE_SKILLS (no hardcoded fallback).
-    // Verify the headline contains the role name and a numeric percentage.
+    // Score is dynamically computed from DEFAULT_CANDIDATE_SKILLS (69% for product-manager).
     const headline = screen.getByTestId("readiness-headline");
-    expect(headline).toHaveTextContent("Senior Product Manager");
-    expect(headline.textContent).toMatch(/You're \d+% ready for Senior Product Manager roles\./);
+    expect(headline).toHaveTextContent("You're 69% ready for Senior Product Manager roles.");
 
     // Strategic requirement check: loss-aversion gaps surfaced
     expect(screen.getAllByText(/SQL/i).length).toBeGreaterThan(0);
@@ -60,8 +58,6 @@ describe("TargetRoleReadinessCard & Loss-Aversion Tracker", () => {
     expect(softwareOption).toBeDefined();
     expect(softwareOption.displayTitle).toBe("Senior Full Stack Engineer");
 
-    // Render component directly with the software-engineer role selected and assert
-    // the headline reflects the role switch (simulates the effect of selecting it).
     render(
       <MemoryRouter>
         <TargetRoleReadinessCard initialRoleSlug="software-engineer" />
@@ -69,6 +65,15 @@ describe("TargetRoleReadinessCard & Loss-Aversion Tracker", () => {
     );
 
     expect(screen.getByTestId("readiness-headline")).toHaveTextContent("Senior Full Stack Engineer");
+
+    const combobox = screen.getByRole("combobox", { name: /Select Target Role/i });
+    expect(combobox).toBeInTheDocument();
+
+    fireEvent.keyDown(combobox, { key: "ArrowDown" });
+    const productManagerOption = screen.getByRole("option", { name: /Senior Product Manager/i });
+    fireEvent.click(productManagerOption);
+
+    expect(screen.getByTestId("readiness-headline")).toHaveTextContent("Senior Product Manager");
   });
 
   it("computes dynamic readiness when custom user skills are provided", () => {
@@ -96,7 +101,15 @@ describe("TargetRoleReadinessCard & Loss-Aversion Tracker", () => {
     expect(screen.getByTestId("readiness-headline")).toHaveTextContent("43%");
 
     // Assert the acquired skill count matches the 4 matched skills.
-    expect(screen.getByText(/Top Skills Acquired/i).closest("[class]")).toBeTruthy();
+    expect(screen.getByText(/Top Skills Acquired \(4\)/i)).toBeInTheDocument();
+    const acquiredSection = screen.getByText(/Top Skills Acquired/i).closest("div.p-4");
+    expect(acquiredSection).toBeTruthy();
+    const acquiredScope = within(acquiredSection!);
+    expect(acquiredScope.getByText("Distributed Systems & Microservices")).toBeInTheDocument();
+    expect(acquiredScope.getByText("TypeScript / Node.js or Go")).toBeInTheDocument();
+    expect(acquiredScope.getByText("PostgreSQL & Database Indexing")).toBeInTheDocument();
+    expect(acquiredScope.getByText("Docker & Kubernetes Orchestration")).toBeInTheDocument();
+
     // Assert there are missing skills listed in the "Top Skill Gaps to Close" section.
     expect(screen.getByText(/Top Skill Gaps to Close/i)).toBeInTheDocument();
   });

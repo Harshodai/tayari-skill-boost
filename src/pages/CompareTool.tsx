@@ -42,11 +42,6 @@ export const CompareTool = () => {
   const activeComparison = tool ? getComparisonBySlug(tool) : undefined;
   const isDirectory = !tool || !activeComparison;
 
-  // Unknown tool slug → redirect to the comparison directory
-  if (tool && !activeComparison) {
-    return <Navigate to="/compare" replace />;
-  }
-
   // Group matrix capabilities by category if viewing a specific comparison
   const groupedMatrix = useMemo(() => {
     if (!activeComparison) return {};
@@ -57,6 +52,11 @@ export const CompareTool = () => {
       return acc;
     }, {} as Record<string, typeof activeComparison.matrix>);
   }, [activeComparison]);
+
+  // Unknown tool slug → redirect to the comparison directory
+  if (tool && !activeComparison) {
+    return <Navigate to="/compare" replace />;
+  }
 
   // Structured schema for SEO
   const jsonLd = activeComparison

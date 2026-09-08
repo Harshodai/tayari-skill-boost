@@ -54,13 +54,9 @@ export function setHermesDigestPreferences(
   };
 
   if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(HERMES_DIGEST_STORAGE_KEY, JSON.stringify(next));
-      // Also broadcast storage event for same-window listeners if needed
-      window.dispatchEvent(new Event("tayari_hermes_digest_updated"));
-    } catch {
-      // Ignore storage quota errors
-    }
+    localStorage.setItem(HERMES_DIGEST_STORAGE_KEY, JSON.stringify(next));
+    // Also broadcast storage event for same-window listeners if needed
+    window.dispatchEvent(new Event("tayari_hermes_digest_updated"));
   }
 
   return next;

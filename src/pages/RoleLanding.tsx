@@ -598,7 +598,7 @@ export const RoleLanding = () => {
                     <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs">
                       <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold mb-1">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        Optimized PAR Bullet (Passes ATS with 95%+ Match):
+                        Optimized PAR Bullet (Enhanced for ATS Parsing & Keyword Density):
                       </div>
                       <p className="text-foreground font-medium">"{par.after}"</p>
                     </div>
@@ -713,7 +713,7 @@ export const RoleLanding = () => {
                   Verified ATS Resume Template
                 </h2>
                 <p className="text-muted-foreground text-sm">
-                  Pre-formatted single-column text layout guaranteed to pass 100% of entity extractors.
+                  Pre-formatted single-column text layout engineered for clean, reliable ATS entity extraction without column distortion.
                 </p>
               </div>
               <Button

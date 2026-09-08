@@ -485,16 +485,60 @@ def _build_instruction_ledger(
     orig_lower = original_text.lower()
 
     malicious_markers = ["ignore previous", "system prompt", "jailbreak", "set score", "developer mode", "bypass"]
-    cred_markers = ["phd", "master", "bachelor", "degree", "certified", "aws certified", "pmp", "worked at", "ex-google", "ex-meta"]
+    cred_markers = [
+        "phd", "master", "bachelor", "degree", "certified", "aws certified", "pmp",
+        "worked at", "ex-google", "ex-meta", "ex-apple", "ex-amazon", "ex-netflix",
+        "employed at", "employed by", "interned at",
+    ]
+
+    # Phrasing patterns for unsupported employer, title, and employment-history requests
+    employer_phrasings = [
+        r"\b(?:add|adding|include|insert|list|state|claim)\s+(?:an?\s+)?(?:previous\s+|new\s+|past\s+)?(?:employer|company|job|role|title|position|employment\s+history|work\s+history)\b",
+        r"\b(?:add|adding|include|insert)\s+(?:experience|work|employment)\s+at\b",
+        r"\b(?:worked\s+at|employed\s+at|employed\s+by|interned\s+at|role\s+at)\b",
+        r"\b(?:add|adding|include)\s+([A-Za-z0-9&.\s]{2,40}?)\s+as\s+(?:an?\s+)?(?:employer|company|previous\s+company|past\s+company)\b",
+    ]
+
+    def _is_unsupported_history_or_cred(text: str, resume_lower: str) -> tuple[bool, str]:
+        t_lower = text.lower()
+
+        # 1. Credential / employer markers
+        for cm in cred_markers:
+            pat = r"\b" + re.escape(cm) + r"\b"
+            if re.search(pat, t_lower) and not re.search(pat, resume_lower):
+                return True, "Violates truthfulness guardrail: credential or employer not evidenced in original resume"
+
+        # 2. Employer / title / history phrasing
+        for ep in employer_phrasings:
+            m = re.search(ep, t_lower)
+            if m:
+                # Extract candidate entity tokens (excluding grammatical command words)
+                ignore_tokens = {
+                    "add", "adding", "employer", "company", "title", "previous", "work",
+                    "history", "experience", "worked", "employed", "interned", "include",
+                    "insert", "position", "past", "new", "role", "claim", "list", "state",
+                    "and", "the", "for", "with", "please",
+                }
+                tokens = [
+                    w for w in re.findall(r"\b[a-zA-Z0-9]{3,}\b", t_lower)
+                    if w not in STOPWORDS and w not in ignore_tokens
+                ]
+                if not tokens:
+                    return True, "Violates truthfulness guardrail: unsupported employer or employment-history request not evidenced in original resume"
+                unsupported_tokens = [tok for tok in tokens if tok not in resume_lower]
+                if unsupported_tokens:
+                    return True, f"Violates truthfulness guardrail: unsupported employer or title ('{unsupported_tokens[0]}') not evidenced in original resume"
+
+        return False, ""
 
     for raw in lines[:10]:
         lower = raw.lower()
         # Honour pre-classification: if this instruction was already marked
         # rejected before the LLM call, propagate the label without re-checking.
         if pre_rejected and raw in pre_rejected:
-            reason = "Flagged as unsafe prompt injection directive"
-            if any(cm in lower for cm in cred_markers):
-                reason = "Violates truthfulness guardrail: credential not evidenced in original resume"
+            is_unsupported, reason = _is_unsupported_history_or_cred(raw, orig_lower)
+            if not is_unsupported:
+                reason = "Flagged as unsafe prompt injection directive"
             ledger.append({"instruction": raw, "status": "rejected", "reason": reason})
             continue
 
@@ -506,17 +550,12 @@ def _build_instruction_ledger(
             })
             continue
 
-        has_new_cred = False
-        for cm in cred_markers:
-            pat = r"\b" + re.escape(cm) + r"\b"
-            if re.search(pat, lower) and not re.search(pat, orig_lower):
-                has_new_cred = True
-                break
-        if has_new_cred:
+        is_unsupported, reason = _is_unsupported_history_or_cred(raw, orig_lower)
+        if is_unsupported:
             ledger.append({
                 "instruction": raw,
                 "status": "rejected",
-                "reason": "Violates truthfulness guardrail: credential not evidenced in original resume",
+                "reason": reason,
             })
             continue
 
@@ -845,6 +884,32 @@ async def optimize_with_reflection(
 
     # ---- Semantic similarity (after optimization) ------------------------
     semantic_after = semantic_similarity_score(optimized, jd) if jd else None
+
+    # ---- Guardrail: Revert output if unsupported employer or credential was fabricated ---
+    orig_lower = resume_text.lower()
+    opt_lower = optimized.lower()
+    fabrication_detected = False
+    if _rejected_instructions:
+        for rej_raw in _rejected_instructions:
+            rej_tokens = [
+                w for w in re.findall(r"\b[a-zA-Z0-9]{3,}\b", rej_raw.lower())
+                if w not in STOPWORDS and w not in {
+                    "add", "adding", "employer", "company", "title", "previous", "work",
+                    "history", "experience", "worked", "employed", "interned", "include",
+                    "insert", "position", "past", "new", "role", "claim", "list", "state",
+                    "and", "the", "for", "with", "please",
+                }
+            ]
+            for tok in rej_tokens:
+                if tok in opt_lower and tok not in orig_lower:
+                    fabrication_detected = True
+                    break
+            if fabrication_detected:
+                break
+
+    if fabrication_detected:
+        logger.warning("optimizer_reverted_fabricated_output", extra={"rejected": list(_rejected_instructions)})
+        optimized = resume_text
 
     # ---- Score breakdown (WP-01 trust-first transparent dimensions) ------
     ats_scorer_inst = ATSScorer()

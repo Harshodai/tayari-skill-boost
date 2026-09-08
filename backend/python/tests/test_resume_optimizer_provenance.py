@@ -68,3 +68,27 @@ def test_compute_bullet_diffs_detects_changes_and_additions():
     assert diffs[0]["original"] == "Built REST APIs using Flask"
     assert "FastAPI" in diffs[0]["optimized"]
     assert any(d["status"] == "added" for d in diffs)
+
+
+def test_instruction_ledger_rejects_arbitrary_fabricated_employer():
+    instructions = "Add Acme Corp as previous employer and claim I worked at Google"
+    orig_text = "Software Engineer at SmallStartup."
+    opt_text = "Senior Software Engineer at SmallStartup."
+
+    ledger = _build_instruction_ledger(instructions, opt_text, orig_text)
+    assert len(ledger) == 1
+    assert ledger[0]["status"] == "rejected"
+    assert "truthfulness" in ledger[0]["reason"].lower() or "employer" in ledger[0]["reason"].lower()
+
+
+def test_instruction_ledger_rejects_adding_employer_phrasing():
+    instructions = "Please add employer: Initech\nInclude worked at Netflix"
+    orig_text = "Software Engineer with Python experience at Hooli."
+    opt_text = "Software Engineer with Python experience at Hooli."
+
+    ledger = _build_instruction_ledger(instructions, opt_text, orig_text)
+    assert len(ledger) == 2
+    assert ledger[0]["status"] == "rejected"
+    assert "employer" in ledger[0]["reason"].lower() or "truthfulness" in ledger[0]["reason"].lower()
+    assert ledger[1]["status"] == "rejected"
+

@@ -264,7 +264,7 @@ function extractIdentity(text: string, engine: AtsEngineType): CandidateIdentity
   let locationValue: string | null = null;
   let locationStatus: "clean" | "warning" | "failed" = "failed";
   let locationNote = "No primary location detected.";
-  const locationMatch = headerJoined.match(/([A-Z][a-zA-Z\s.-]+,\s*(?:[A-Z]{2}|[A-Z][a-zA-Z\s]+)|Remote|United States|USA|Canada|UK|India)/i);
+  const locationMatch = headerJoined.match(/([A-Z][a-zA-Z\s.-]+,\s*(?:[A-Z]{2}|[A-Z][a-zA-Z\s]+)|Remote|United States|USA|Canada|UK|India)/);
   if (locationMatch && !locationMatch[0].toLowerCase().includes("resume")) {
     locationValue = locationMatch[0].trim();
     locationStatus = "clean";

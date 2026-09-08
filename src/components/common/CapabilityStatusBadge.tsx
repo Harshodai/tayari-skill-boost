@@ -97,7 +97,12 @@ export const CapabilityStatusBadge: React.FC<CapabilityStatusBadgeProps> = ({
     <TooltipProvider delayDuration={150}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="inline-flex cursor-help">
+          <span
+            tabIndex={0}
+            role="button"
+            aria-label={config.label}
+            className="inline-flex cursor-help"
+          >
             <Badge
               variant={config.variant}
               className={cn(
