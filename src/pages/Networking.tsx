@@ -120,7 +120,9 @@ export function Networking() {
   };
 
   const removeContact = async (id: string) => {
-    const { error } = await supabase.from("contacts").delete().eq("id", id);
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) return toast.error("Sign in first");
+    const { error } = await supabase.from("contacts").delete().eq("id", id).eq("user_id", auth.user.id);
     if (error) return toast.error(error.message);
     if (selectedId === id) setSelectedId(null);
     queryClient.invalidateQueries({ queryKey: ["contacts"] });
@@ -196,16 +198,21 @@ export function Networking() {
   };
 
   const markSent = async (id: string) => {
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) return toast.error("Sign in first");
     const { error } = await supabase
       .from("outreach_messages")
       .update({ status: "sent", sent_at: new Date().toISOString() })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", auth.user.id);
     if (error) return toast.error(error.message);
     queryClient.invalidateQueries({ queryKey: ["outreach-messages"] });
   };
 
   const markReplied = async (id: string) => {
-    const { error } = await supabase.from("outreach_messages").update({ status: "replied" }).eq("id", id);
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) return toast.error("Sign in first");
+    const { error } = await supabase.from("outreach_messages").update({ status: "replied" }).eq("id", id).eq("user_id", auth.user.id);
     if (error) return toast.error(error.message);
     queryClient.invalidateQueries({ queryKey: ["outreach-messages"] });
   };

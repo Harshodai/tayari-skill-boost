@@ -4095,6 +4095,25 @@ in the API layer, not in pages — one wrapper keyed on a single sentinel error 
 features working without touching a single component, and the response contract stayed the
 source of truth for both paths.
 
+## 2026-09-07 — Ruthless audit cycle: live route sweep, tenant-isolation fixes, honest handoff docs
+
+**What was done.** Enabled/confirmed Google sign-in on Lovable Cloud auth. Ran a 20-route live Playwright sweep, a full typecheck, the 233-test vitest suite, a Cloud security scan, and two parallel audit subagents (frontend↔backend route parity; tenant isolation across React/Go/Python/edge functions). Fixed five issues and wrote six handoff documents under `docs/production/`.
+
+**Root causes found.**
+1. `handlePushSend` (Go) scoped its SQL by a body-supplied `user_id` instead of the authenticated user — a cross-tenant IDOR waiting to become a push-as-another-user primitive.
+2. Four descriptive URLs (`/resume-optimizer`, `/career-roadmap`, `/interview-prep`, `/job-search-autopilot`) were never registered as aliases for the real routes and rendered the 404 page.
+3. `contact_messages` had insert-only policies, so submissions were unreadable by anyone.
+4. `Networking.tsx` deletes/updates relied on RLS alone with no owner predicate.
+5. `InterviewBoard` surfaced "Make sure Python AI engine is running" to end users.
+
+**Fixes applied.** 403 on non-self push targets; four alias redirects; admin-only read policy on `contact_messages`; explicit `user_id` predicates plus signed-in guards in `Networking.tsx`; honest `isBackendUnavailable` copy in `InterviewBoard`. Verified with `go build ./...` (exit 0), clean tsgo typecheck, and a live browser re-run of all four redirects.
+
+**Reusable lessons.**
+- A Playwright edit-then-verify loop can read a *stale* bundle: `curl http://localhost:8080/src/App.tsx | grep <new-token>` before trusting a "still 404" result. Here the dev server needed a kill-restart before the new routes appeared.
+- Static audits of Supabase calls must be read with BYPASSRLS in mind: RLS-only filtering is correct today but is a single migration away from being a cross-tenant primitive. Always add the owner predicate client-side too.
+- Any endpoint that reads an identity from a request body is guilty until proven internal-token-gated; grep for `req.UserID` / `X-User-Id` as a category, not per-endpoint.
+- Do not let a green unit suite imply integration health: 233 tests passed while four advertised URLs 404'd and an IDOR sat in the gateway.
+
 ---
 
 ## 2026-09-08 — Ruthless Strategic Execution: Lean Cloud Deploy, ATS Parser Simulation, Programmatic Comparison Engine & Churn Prevention
@@ -4114,4 +4133,3 @@ Created dedicated comparison pages adhering to the strict "Job Tayari" token bou
 
 **Reusable lesson:**
 When implementing competitor comparison pages and public SEO tools in a strictly branded repository, ensure all brand references strictly adhere to the exact token boundary (`Job Tayari` or `JobTayari`), and keep internal data structure properties decoupled from global framework identifiers (`features`, `Tayari`) to avoid brittle test scanner false positives.
-

@@ -27,7 +27,10 @@ class ParseEmailRequest(BaseModel):
 
 
 @router.post("/gmail/parse-email")
-async def parse_email(payload: ParseEmailRequest):
+async def parse_email(
+    payload: ParseEmailRequest,
+    _user_id: str = Depends(get_current_user),
+):
     """Parse recruiter/application email text into structured Kanban data."""
     require_capability(Capability.AUTONOMOUS_GMAIL)
     if not payload.email_text or len(payload.email_text.strip()) < 10:
