@@ -593,6 +593,18 @@ async def llm_complete(
         provider_name = provider.active_engine_label()
     except Exception:
         pass
+    # Inbound prompt-size cap: untrusted job descriptions and scraped page
+    # content can be arbitrarily large. Truncate before the provider call so a
+    # single request cannot amplify cost or blow the provider timeout.
+    max_input_chars = int(os.getenv("LLM_MAX_INPUT_CHARS", "60000") or 60000)
+    if len(user_message) > max_input_chars:
+        logger.warning(
+            "llm_complete: user_message truncated from %d to %d chars",
+            len(user_message), max_input_chars,
+        )
+        user_message = user_message[:max_input_chars]
+    if len(system_message) > max_input_chars:
+        system_message = system_message[:max_input_chars]
     # ponytail: single choke point — scrub only the outbound copy; callers keep
     # the original for truthfulness/guardrail checks, only scrubbed text leaves.
     user_message_out, scrubbed_user = _scrub_pii(user_message)
