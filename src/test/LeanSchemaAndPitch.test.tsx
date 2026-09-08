@@ -77,6 +77,21 @@ describe("Lean MVP 12-Core Schema (scripts/lean-schema-12.sql)", () => {
   });
 
   it("revokes all permissions from anon and grants least privilege to authenticated and service_role", () => {
+    const roles = ["anon", "authenticated", "service_role"] as const;
+    type Role = (typeof roles)[number];
+
+    const effectivePermissions: Record<Role, Record<string, Set<string>>> = {
+      anon: {},
+      authenticated: {},
+      service_role: {},
+    };
+
+    for (const r of roles) {
+      for (const t of expected12Tables) {
+        effectivePermissions[r][t] = new Set<string>();
+      }
+    }
+
     const cleanTableName = (raw: string) =>
       raw.trim().replace(/^public\./i, "").replace(/["`]/g, "").toLowerCase();
 
@@ -86,46 +101,71 @@ describe("Lean MVP 12-Core Schema (scripts/lean-schema-12.sql)", () => {
         .map(cleanTableName)
         .filter((t) => t.length > 0 && !t.includes(" "));
 
-    const anonRevokedTables = new Set<string>();
-    const revokeRegex = /REVOKE\s+([\w\s,]+)\s+ON\s+(?:TABLE\s+)?([\s\S]*?)\s+FROM\s+([^\n;]+)/gi;
-    for (const match of schemaContent.matchAll(revokeRegex)) {
-      const [, privileges, tablesBlock, grantees] = match;
-      const granteeList = grantees.split(",").map((g) => g.trim().toLowerCase());
-      if (privileges.toUpperCase().includes("ALL") && granteeList.includes("anon")) {
-        parseTablesList(tablesBlock).forEach((tbl) => anonRevokedTables.add(tbl));
+    const parsePrivileges = (privsBlock: string) =>
+      privsBlock
+        .split(",")
+        .map((p) => p.trim().toUpperCase())
+        .filter((p) => p.length > 0);
+
+    // Capture GRANT and REVOKE statements in source order
+    const statementRegex =
+      /(?:(REVOKE)\s+([\w\s,]+)\s+ON\s+(?:TABLE\s+)?([\s\S]*?)\s+FROM\s+([^\n;]+)|(GRANT)\s+([\w\s,]+)\s+ON\s+(?:TABLE\s+)?([\s\S]*?)\s+TO\s+([^\n;]+))/gi;
+
+    for (const match of schemaContent.matchAll(statementRegex)) {
+      const isRevoke = Boolean(match[1]);
+      const privileges = isRevoke ? parsePrivileges(match[2]) : parsePrivileges(match[6]);
+      const tables = isRevoke ? parseTablesList(match[3]) : parseTablesList(match[7]);
+      const targetRoles = isRevoke
+        ? match[4].split(",").map((r) => r.trim().toLowerCase())
+        : match[8].split(",").map((r) => r.trim().toLowerCase());
+
+      for (const roleName of targetRoles) {
+        const affectedRoles: Role[] = [];
+        if (roleName === "public") {
+          affectedRoles.push("anon", "authenticated");
+        } else if (roles.includes(roleName as Role)) {
+          affectedRoles.push(roleName as Role);
+        }
+
+        for (const role of affectedRoles) {
+          for (const tbl of tables) {
+            if (!effectivePermissions[role][tbl]) {
+              effectivePermissions[role][tbl] = new Set<string>();
+            }
+
+            if (isRevoke) {
+              if (privileges.includes("ALL")) {
+                effectivePermissions[role][tbl].clear();
+              } else {
+                for (const p of privileges) {
+                  effectivePermissions[role][tbl].delete(p);
+                }
+              }
+            } else {
+              for (const p of privileges) {
+                effectivePermissions[role][tbl].add(p);
+              }
+            }
+          }
+        }
       }
     }
 
-    const serviceRoleAllTables = new Set<string>();
-    const authenticatedSelectTables = new Set<string>();
-    const grantRegex = /GRANT\s+([\w\s,]+)\s+ON\s+(?:TABLE\s+)?([\s\S]*?)\s+TO\s+([^\n;]+)/gi;
-    for (const match of schemaContent.matchAll(grantRegex)) {
-      const [, privileges, tablesBlock, grantees] = match;
-      const granteeList = grantees.split(",").map((g) => g.trim().toLowerCase());
-      const privsUpper = privileges.toUpperCase();
-
-      if (privsUpper.includes("ALL") && granteeList.includes("service_role")) {
-        parseTablesList(tablesBlock).forEach((tbl) => serviceRoleAllTables.add(tbl));
-      }
-
-      if (privsUpper.includes("SELECT") && granteeList.includes("authenticated")) {
-        parseTablesList(tablesBlock).forEach((tbl) => authenticatedSelectTables.add(tbl));
-      }
+    // 1. Final effective permissions: anon must have no permissions on any core table
+    for (const table of expected12Tables) {
+      expect(effectivePermissions.anon[table].size).toBe(0);
     }
 
-    // Anon revoke covers every table in expected12Tables
+    // 2. Final effective permissions: service_role retains ALL administrative access
     for (const table of expected12Tables) {
-      expect(anonRevokedTables.has(table)).toBe(true);
+      const perms = effectivePermissions.service_role[table];
+      expect(perms.has("ALL")).toBe(true);
     }
 
-    // Service_role ALL covers every table in expected12Tables
+    // 3. Final effective permissions: authenticated candidates must have SELECT access
     for (const table of expected12Tables) {
-      expect(serviceRoleAllTables.has(table)).toBe(true);
-    }
-
-    // Authenticated SELECT covers every table in expected12Tables
-    for (const table of expected12Tables) {
-      expect(authenticatedSelectTables.has(table)).toBe(true);
+      const perms = effectivePermissions.authenticated[table];
+      expect(perms.has("SELECT") || perms.has("ALL")).toBe(true);
     }
   });
 

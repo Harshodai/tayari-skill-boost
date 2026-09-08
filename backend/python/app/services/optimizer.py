@@ -497,16 +497,39 @@ def _build_instruction_ledger(
         r"\b(?:add|adding|include|insert)\s+(?:experience|work|employment)\s+at\b",
         r"\b(?:worked\s+at|employed\s+at|employed\s+by|interned\s+at|role\s+at)\b",
         r"\b(?:add|adding|include)\s+([A-Za-z0-9&.\s]{2,40}?)\s+as\s+(?:an?\s+)?(?:employer|company|previous\s+company|past\s+company)\b",
+        r"\b(?:add|adding|include)\s+([A-Za-z0-9&.\s]{2,40}?)\s+as\s+(?:an?\s+)?title\b",
     ]
 
     def _is_unsupported_history_or_cred(text: str, resume_lower: str) -> tuple[bool, str]:
         t_lower = text.lower()
 
-        # 1. Credential / employer markers
+        # 1. Credential / employer markers with full specific credential verification
         for cm in cred_markers:
             pat = r"\b" + re.escape(cm) + r"\b"
-            if re.search(pat, t_lower) and not re.search(pat, resume_lower):
-                return True, "Violates truthfulness guardrail: credential or employer not evidenced in original resume"
+            if re.search(pat, t_lower):
+                # If marker itself is not in resume_lower, reject immediately
+                if not re.search(pat, resume_lower):
+                    return True, "Violates truthfulness guardrail: credential or employer not evidenced in original resume"
+                # When provider/category marker exists in resume, extract and normalize the
+                # specifically requested credential to ensure the candidate actually holds it,
+                # rather than falsely passing on a shared provider or category keyword.
+                cred_match = re.search(r"\b" + re.escape(cm) + r"(?:\s+[\w\s-]{3,50})?", t_lower)
+                if cred_match:
+                    cred_phrase = cred_match.group(0).strip()
+                    generic_cred_words = {
+                        "phd", "master", "masters", "bachelor", "bachelors", "degree",
+                        "certified", "certification", "aws", "ex", "worked", "at",
+                        "employed", "by", "interned", "and", "or", "in", "of", "to",
+                        "for", "with", "a", "an", "the",
+                    }
+                    spec_tokens = [
+                        w for w in re.findall(r"\b[a-zA-Z0-9]{3,}\b", cred_phrase)
+                        if w not in STOPWORDS and w not in generic_cred_words
+                    ]
+                    if spec_tokens:
+                        unsupported_spec = [st for st in spec_tokens if not re.search(r"\b" + re.escape(st) + r"\b", resume_lower)]
+                        if unsupported_spec:
+                            return True, f"Violates truthfulness guardrail: specifically requested credential ('{cred_phrase}') not evidenced in original resume"
 
         # 2. Employer / title / history phrasing
         for ep in employer_phrasings:
@@ -517,7 +540,7 @@ def _build_instruction_ledger(
                     "add", "adding", "employer", "company", "title", "previous", "work",
                     "history", "experience", "worked", "employed", "interned", "include",
                     "insert", "position", "past", "new", "role", "claim", "list", "state",
-                    "and", "the", "for", "with", "please",
+                    "and", "the", "for", "with", "please", "as",
                 }
                 tokens = [
                     w for w in re.findall(r"\b[a-zA-Z0-9]{3,}\b", t_lower)
@@ -865,7 +888,33 @@ async def optimize_with_reflection(
     # ---- Phase 4b: Humanization pass ------------------------------------
     optimized = await _humanize_pass(optimized)
 
-    # ---- Recalculate on final cleaned text ------------------------------
+    # ---- Guardrail: Revert output if unsupported employer or credential was fabricated ---
+    orig_lower = resume_text.lower()
+    opt_lower = optimized.lower()
+    fabrication_detected = False
+    if _rejected_instructions:
+        for rej_raw in _rejected_instructions:
+            rej_tokens = [
+                w for w in re.findall(r"\b[a-zA-Z0-9]{3,}\b", rej_raw.lower())
+                if w not in STOPWORDS and w not in {
+                    "add", "adding", "employer", "company", "title", "previous", "work",
+                    "history", "experience", "worked", "employed", "interned", "include",
+                    "insert", "position", "past", "new", "role", "claim", "list", "state",
+                    "and", "the", "for", "with", "please", "as",
+                }
+            ]
+            for tok in rej_tokens:
+                if tok in opt_lower and tok not in orig_lower:
+                    fabrication_detected = True
+                    break
+            if fabrication_detected:
+                break
+
+    if fabrication_detected:
+        logger.warning("optimizer_reverted_fabricated_output", extra={"rejected": list(_rejected_instructions)})
+        optimized = resume_text
+
+    # ---- Recalculate on final cleaned (and possibly restored) text ------
     heuristic = semantic_ats_score(optimized, jd)
     alignment_report = validate_master_alignment(optimized, resume_text)
     critic_report = _audit_draft(optimized, resume_text)
@@ -884,32 +933,6 @@ async def optimize_with_reflection(
 
     # ---- Semantic similarity (after optimization) ------------------------
     semantic_after = semantic_similarity_score(optimized, jd) if jd else None
-
-    # ---- Guardrail: Revert output if unsupported employer or credential was fabricated ---
-    orig_lower = resume_text.lower()
-    opt_lower = optimized.lower()
-    fabrication_detected = False
-    if _rejected_instructions:
-        for rej_raw in _rejected_instructions:
-            rej_tokens = [
-                w for w in re.findall(r"\b[a-zA-Z0-9]{3,}\b", rej_raw.lower())
-                if w not in STOPWORDS and w not in {
-                    "add", "adding", "employer", "company", "title", "previous", "work",
-                    "history", "experience", "worked", "employed", "interned", "include",
-                    "insert", "position", "past", "new", "role", "claim", "list", "state",
-                    "and", "the", "for", "with", "please",
-                }
-            ]
-            for tok in rej_tokens:
-                if tok in opt_lower and tok not in orig_lower:
-                    fabrication_detected = True
-                    break
-            if fabrication_detected:
-                break
-
-    if fabrication_detected:
-        logger.warning("optimizer_reverted_fabricated_output", extra={"rejected": list(_rejected_instructions)})
-        optimized = resume_text
 
     # ---- Score breakdown (WP-01 trust-first transparent dimensions) ------
     ats_scorer_inst = ATSScorer()

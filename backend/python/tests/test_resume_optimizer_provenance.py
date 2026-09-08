@@ -92,3 +92,27 @@ def test_instruction_ledger_rejects_adding_employer_phrasing():
     assert "employer" in ledger[0]["reason"].lower() or "truthfulness" in ledger[0]["reason"].lower()
     assert ledger[1]["status"] == "rejected"
 
+
+def test_instruction_ledger_rejects_as_title_phrasing():
+    instructions = "Add Principal Engineer as title"
+    orig_text = "Software Engineer at Acme Corp."
+    opt_text = "Software Engineer at Acme Corp."
+
+    ledger = _build_instruction_ledger(instructions, opt_text, orig_text)
+    assert len(ledger) == 1
+    assert ledger[0]["status"] == "rejected"
+    assert "truthfulness" in ledger[0]["reason"].lower() or "title" in ledger[0]["reason"].lower()
+
+
+def test_instruction_ledger_rejects_unsupported_specific_credential():
+    # Candidate holds AWS Certified Cloud Practitioner, but instruction claims Solutions Architect
+    instructions = "Add AWS Certified Solutions Architect Professional"
+    orig_text = "Senior Developer. AWS Certified Cloud Practitioner."
+    opt_text = "Senior Developer. AWS Certified Cloud Practitioner."
+
+    ledger = _build_instruction_ledger(instructions, opt_text, orig_text)
+    assert len(ledger) == 1
+    assert ledger[0]["status"] == "rejected"
+    assert "truthfulness" in ledger[0]["reason"].lower() or "credential" in ledger[0]["reason"].lower()
+
+
