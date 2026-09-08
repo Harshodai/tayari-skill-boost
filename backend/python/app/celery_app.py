@@ -193,6 +193,15 @@ def _record_task_failure(
         queue_age_seconds=round(queue_age, 3),
         task_duration_seconds=round(duration, 3),
     )
+    # Dead-letter record: no payload, no PII — identifiers only, so a failed
+    # unit of work is always recoverable/auditable after retries are exhausted.
+    _event(
+        "celery_task_dead_letter",
+        queue=DEAD_LETTER_QUEUE,
+        task_id=identifier,
+        task_name=getattr(task, "name", "unknown"),
+        exception_type=type(exception).__name__ if exception else "unknown",
+    )
 
 
-__all__ = ["celery_app", "REDIS_URL"]
+__all__ = ["celery_app", "REDIS_URL", "DEAD_LETTER_QUEUE"]
