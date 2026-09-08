@@ -17,7 +17,7 @@ import {
   ArrowLeft, Download, Edit, RotateCcw, ChevronDown, ChevronUp, Check,
   Lightbulb, Target, Briefcase, GraduationCap, FileText, AlertCircle,
   CheckCircle2, XCircle, Wand2, Sparkles, Loader2, RefreshCw,
-  MessageSquare, Mail, MoreHorizontal
+  MessageSquare, Mail, MoreHorizontal, ExternalLink
 } from "lucide-react";
 import type { ResumeAnalysisResult } from "@/types/resume";
 import type { DeepATSResponse, GuardrailResult, ResumeOptimizationResponse } from "@/api/types";
@@ -25,7 +25,10 @@ import { SlideUp } from "@/components/ui/motion";
 import { Progress } from "@/components/ui/progress";
 import { ScoreBreakdownCard } from "@/components/resume/ScoreBreakdownCard";
 import { optimizeResume, deepATS, exportResume } from "@/api";
+import { getCourseRecommendationsForGaps } from "@/data/courseRecommendations";
 import { toast } from "sonner";
+import { InstructionLedgerCard } from "@/components/resume/InstructionLedgerCard";
+import { BulletDiffCard } from "@/components/resume/BulletDiffCard";
 
 // Icon mapping for sections
 const sectionIcons: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -760,6 +763,66 @@ const ResumeResults = () => {
                           <span className="text-xs text-success italic">All job keywords matched!</span>
                         )}
                       </div>
+
+                      {/* Recommended Courses to Bridge This Gap */}
+                      {optimizationResult.non_injectable_keywords && optimizationResult.non_injectable_keywords.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-border/40">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-1.5">
+                              <GraduationCap className="w-4 h-4 text-primary" />
+                              <h5 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                                Recommended Courses to Bridge This Gap
+                              </h5>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">Curated Programs</span>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2">
+                            {getCourseRecommendationsForGaps(optimizationResult.non_injectable_keywords).map((course) => (
+                              <div
+                                key={course.id}
+                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/30 transition-colors"
+                              >
+                                <div className="space-y-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-semibold text-foreground line-clamp-1">{course.title}</span>
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium">
+                                      {course.provider}
+                                    </Badge>
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/30 text-primary">
+                                      {course.skill}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground line-clamp-1">{course.description}</p>
+                                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                                    <span>⏱ {course.duration}</span>
+                                    <span>⭐ {course.rating} ({course.reviewCount})</span>
+                                    <span>📊 {course.level}</span>
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="shrink-0 text-xs h-7 gap-1 hover:text-primary hover:border-primary/50"
+                                  asChild
+                                >
+                                  <a
+                                    href={course.affiliateUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    Enroll & Bridge
+                                    <ExternalLink className="w-3 h-3 ml-0.5" />
+                                  </a>
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="mt-2 text-[10px] text-muted-foreground/80 italic">
+                            Curated partner courses. We may earn an affiliate commission at no extra cost to you.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -808,6 +871,16 @@ const ResumeResults = () => {
                   </div>
                 </CardContent>
               </Card>
+            )}
+            {optimizationResult?.instruction_ledger && (optimizationResult.instruction_ledger as any[]).length > 0 && (
+              <div className="col-span-1 md:col-span-2">
+                <InstructionLedgerCard entries={optimizationResult.instruction_ledger as any} />
+              </div>
+            )}
+            {optimizationResult?.bullet_diffs && (optimizationResult.bullet_diffs as any[]).length > 0 && (
+              <div className="col-span-1 md:col-span-2">
+                <BulletDiffCard diffs={optimizationResult.bullet_diffs as any} />
+              </div>
             )}
           </div>
         )}
@@ -961,6 +1034,64 @@ const ResumeResults = () => {
                         <span className="text-muted-foreground text-xs">Great! No critical keywords missing</span>
                       )}
                     </div>
+
+                    {/* Recommended Courses to Bridge Missing Keywords */}
+                    {analysisResults.missingKeywords.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-border/40">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <GraduationCap className="w-4 h-4 text-primary" />
+                            <span className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                              Recommended Courses to Bridge This Gap
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">Affiliated & Curated</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {getCourseRecommendationsForGaps(analysisResults.missingKeywords).map((course) => (
+                            <div
+                              key={course.id}
+                              className="p-2.5 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/30 transition-colors flex flex-col justify-between gap-2"
+                            >
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium">
+                                    {course.provider}
+                                  </Badge>
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/30 text-primary">
+                                    {course.skill}
+                                  </Badge>
+                                </div>
+                                <h6 className="text-xs font-semibold text-foreground line-clamp-1">{course.title}</h6>
+                                <p className="text-[11px] text-muted-foreground line-clamp-1">{course.description}</p>
+                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                                  <span>⏱ {course.duration}</span>
+                                  <span>⭐ {course.rating}</span>
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full text-xs h-7 gap-1 mt-1 hover:text-primary hover:border-primary/50"
+                                asChild
+                              >
+                                <a
+                                  href={course.affiliateUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  Enroll on {course.provider}
+                                  <ExternalLink className="w-3 h-3 ml-0.5" />
+                                </a>
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="mt-2 text-[10px] text-muted-foreground/80 italic">
+                          Curated partner courses. We may earn an affiliate commission at no extra cost to you.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

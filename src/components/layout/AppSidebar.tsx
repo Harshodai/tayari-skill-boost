@@ -52,71 +52,77 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
 import { features } from "@/config/features";
 import { cn } from "@/lib/utils";
+import { CapabilityStatusBadge, type CapabilityStatusType } from "@/components/common/CapabilityStatusBadge";
 
-type Item = { title: string; url: string; icon: any; enabled?: boolean };
+type Item = { title: string; url: string; icon: any; enabled?: boolean; status?: CapabilityStatusType };
 type Group = { label: string; items: Item[] };
 
-/** The five things that make the product work. Everything else lives below. */
+/** The core career workflow items that anchor the primary candidate journey. */
 const primaryItems = (): Item[] => [
-  { title: "Home", url: "/dashboard", icon: LayoutDashboard, enabled: true },
-  { title: "Find jobs", url: "/jobs", icon: Search, enabled: features.jobSearch },
-  { title: "My resume", url: "/resume", icon: FileText, enabled: features.resumeOptimizer },
-  { title: "Saved jobs", url: "/pipeline", icon: Bookmark, enabled: features.jobSearch },
-  { title: "Applications", url: "/applications", icon: KanbanSquare, enabled: true },
+  { title: "Home", url: "/dashboard", icon: LayoutDashboard, enabled: true, status: "ready" },
+  { title: "Find jobs", url: "/jobs", icon: Search, enabled: features.jobSearch, status: "ready" },
+  { title: "My resume", url: "/resume", icon: FileText, enabled: features.resumeOptimizer, status: "ready" },
+  { title: "Review queue", url: "/review-queue", icon: ClipboardCheck, enabled: true, status: "review_required" },
+  { title: "Applications", url: "/applications", icon: KanbanSquare, enabled: true, status: "ready" },
 ];
 
 /**
- * Everything the app can actually do. These pages were all built and routed
- * but had no entry point, which made them invisible to users.
+ * Structured capability hierarchy separating Core Tools, Advanced Tools,
+ * Integrations, Experimental, and Account management.
  */
 const moreGroups = (): Group[] => [
   {
-    label: "Apply",
+    label: "Core Tools",
     items: [
-      { title: "Apply agent", url: "/apply-agent", icon: Bot, enabled: features.applyAgent },
-      { title: "AutoPilot", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch },
-      { title: "Agent questions", url: "/questions", icon: HelpCircle, enabled: features.jobSearch },
-      { title: "Review queue", url: "/review-queue", icon: ClipboardCheck, enabled: true },
-      { title: "Application board", url: "/applications", icon: KanbanSquare, enabled: true },
+      { title: "Saved jobs", url: "/pipeline", icon: Bookmark, enabled: features.jobSearch, status: "ready" },
+      { title: "Resume studio", url: "/typst-studio", icon: PenTool, enabled: features.resumeOptimizer, status: "ready" },
+      { title: "Cover letters", url: "/cover-letter", icon: Mail, enabled: features.coverLetter, status: "ready" },
+      { title: "Answer bank", url: "/answer-bank", icon: MessageSquareText, enabled: true, status: "ready" },
+      { title: "Interview board", url: "/interview-board", icon: KanbanSquare, enabled: true, status: "ready" },
     ],
   },
   {
-    label: "Craft",
+    label: "Advanced Tools",
     items: [
-      { title: "Resume studio", url: "/typst-studio", icon: PenTool, enabled: features.resumeOptimizer },
-      { title: "Cover letters", url: "/cover-letter", icon: Mail, enabled: features.coverLetter },
-      { title: "Answer bank", url: "/answer-bank", icon: MessageSquareText, enabled: true },
-      { title: "Portfolio", url: "/portfolio", icon: Globe, enabled: true },
+      { title: "AutoPilot", url: "/jobs/autopilot", icon: Zap, enabled: features.jobSearch, status: "manual_handoff" },
+      { title: "Company radar", url: "/radar", icon: Radar, enabled: true, status: "ready" },
+      { title: "Negotiation", url: "/negotiation", icon: Handshake, enabled: true, status: "ready" },
+      { title: "Skill gaps", url: "/skill-gap-radar", icon: Target, enabled: true, status: "ready" },
+      { title: "Career roadmap", url: "/roadmap", icon: Map, enabled: features.careerRoadmap, status: "ready" },
+      { title: "Career radar", url: "/career-ops", icon: Terminal, enabled: features.careerOps, status: "ready" },
+      { title: "Knowledge hub", url: "/knowledge-hub", icon: BookOpen, enabled: features.knowledgeHub, status: "ready" },
+      { title: "Outcomes", url: "/outcomes", icon: TrendingUp, enabled: true, status: "ready" },
+      { title: "Funnel analytics", url: "/analytics-funnel", icon: BarChart3, enabled: true, status: "ready" },
+      { title: "Portfolio", url: "/portfolio", icon: Globe, enabled: true, status: "ready" },
+      { title: "Networking", url: "/networking", icon: Users, enabled: true, status: "ready" },
+      { title: "Recruiter outreach", url: "/outreach", icon: Send, enabled: true, status: "ready" },
+      { title: "Agent questions", url: "/questions", icon: HelpCircle, enabled: features.jobSearch, status: "ready" },
     ],
   },
   {
-    label: "Reach out",
+    label: "Integrations",
     items: [
-      { title: "Networking", url: "/networking", icon: Users, enabled: true },
-      { title: "Recruiter outreach", url: "/outreach", icon: Send, enabled: true },
-      { title: "Company radar", url: "/radar", icon: Radar, enabled: true },
-      { title: "Negotiation", url: "/negotiation", icon: Handshake, enabled: true },
+      { title: "OmniSave", url: "/omnisave", icon: BookOpen, enabled: true, status: "ready" },
+      { title: "LinkedIn import", url: "/linkedin-import", icon: Linkedin, enabled: true, status: "beta" },
+      { title: "Browser extension", url: "/extension/onboarding", icon: Globe, enabled: features.browserExtension, status: "ready" },
+      { title: "Desktop agent", url: "/desktop", icon: Terminal, enabled: features.desktopAgent, status: "beta" },
     ],
   },
   {
-    label: "Grow",
+    label: "Experimental & Beta",
     items: [
-      { title: "Outcomes", url: "/outcomes", icon: TrendingUp, enabled: true },
-      { title: "Funnel analytics", url: "/analytics-funnel", icon: BarChart3, enabled: true },
-      { title: "Skill gaps", url: "/skill-gap-radar", icon: Target, enabled: true },
-      { title: "Career roadmap", url: "/roadmap", icon: Map, enabled: features.careerRoadmap },
-      { title: "Career radar", url: "/career-ops", icon: Terminal, enabled: features.careerOps },
-      { title: "Knowledge hub", url: "/knowledge-hub", icon: BookOpen, enabled: features.knowledgeHub },
+      { title: "Apply agent", url: "/apply-agent", icon: Bot, enabled: features.applyAgent, status: "beta" },
+      { title: "Computer control", url: "/control-room", icon: Terminal, enabled: features.computerControl, status: "manual_handoff" },
+      { title: "Voice coach", url: "/interview-coach", icon: Mic, enabled: features.voiceCoach, status: "beta" },
     ],
   },
   {
     label: "Account",
     items: [
-      { title: "Credits", url: "/credits", icon: Coins, enabled: true },
-      { title: "LinkedIn import", url: "/linkedin-import", icon: Linkedin, enabled: true },
-      { title: "Privacy check", url: "/privacy-diagnostics", icon: ShieldCheck, enabled: true },
-      { title: "API keys", url: "/api-keys", icon: Key, enabled: true },
-      { title: "Help", url: "/help", icon: HelpCircle, enabled: features.help },
+      { title: "Credits", url: "/credits", icon: Coins, enabled: true, status: "ready" },
+      { title: "Privacy check", url: "/privacy-diagnostics", icon: ShieldCheck, enabled: true, status: "ready" },
+      { title: "API keys", url: "/api-keys", icon: Key, enabled: true, status: "ready" },
+      { title: "Help", url: "/help", icon: HelpCircle, enabled: features.help, status: "ready" },
     ],
   },
 ];
@@ -160,7 +166,10 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                     <NavLink to={item.url} className={({ isActive: a }) => linkClass(a)}>
                       <item.icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.title}</span>}
+                      {!collapsed && <span className="truncate flex-1">{item.title}</span>}
+                      {!collapsed && item.status && (
+                        <CapabilityStatusBadge status={item.status} size="sm" showIcon={false} />
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -201,7 +210,10 @@ export function AppSidebar() {
                           <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                             <NavLink to={item.url} className={({ isActive: a }) => linkClass(a)}>
                               <item.icon className="h-4 w-4 shrink-0" />
-                              {!collapsed && <span className="truncate">{item.title}</span>}
+                              {!collapsed && <span className="truncate flex-1">{item.title}</span>}
+                              {!collapsed && item.status && (
+                                <CapabilityStatusBadge status={item.status} size="sm" showIcon={false} />
+                              )}
                             </NavLink>
                           </SidebarMenuButton>
                         </SidebarMenuItem>

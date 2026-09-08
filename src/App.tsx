@@ -68,6 +68,10 @@ const APIKeys = lazy(() => import('./pages/APIKeys'));
 const ResumeGraph = lazy(() => import('./pages/ResumeGraph'));
 const OAuthConsent = lazy(() => import('./pages/OAuthConsent'));
 const FreeAtsScan = lazy(() => import('./pages/FreeAtsScan'));
+const ResumeScore = lazy(() => import('./pages/ResumeScore'));
+const JobMatch = lazy(() => import('./pages/JobMatch'));
+const RoleLanding = lazy(() => import('./pages/RoleLanding'));
+const CompareTool = lazy(() => import('./pages/CompareTool'));
 
 const CareerOpsDashboard = lazy(() => import('./pages/CareerOpsDashboard'));
 const LinkedInImport = lazy(() => import('./pages/LinkedInImport'));
@@ -171,6 +175,12 @@ const App = () => (
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/free-scan" element={<FreeAtsScan />} />
               <Route path="/free-ats-scan" element={<Navigate to="/free-scan" replace />} />
+              <Route path="/resume-score" element={<ResumeScore />} />
+              <Route path="/job-match" element={<JobMatch />} />
+              <Route path="/roles" element={<RoleLanding />} />
+              <Route path="/roles/:slug" element={<RoleLanding />} />
+              <Route path="/compare" element={<CompareTool />} />
+              <Route path="/compare/:tool" element={<CompareTool />} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/terms" element={<Terms />} />

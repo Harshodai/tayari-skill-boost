@@ -48,8 +48,13 @@ import {
   BookOpen,
   ChevronRight,
   Trophy,
-  HeartCrack
+  HeartCrack,
+  Share2,
+  Copy,
+  Gift,
+  PartyPopper
 } from "lucide-react";
+import { Confetti } from "@/components/ui/confetti";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -167,6 +172,51 @@ const InterviewBoard = () => {
   const retroIdempotencyKeyRef = useRef<string | null>(null);
   const retroVoiceUploadedRef = useRef<boolean>(false);
   const [isSavingRetro, setIsSavingRetro] = useState(false);
+
+  // LinkedIn Milestone & Job Landing Celebration state
+  const [milestoneOpen, setMilestoneOpen] = useState(false);
+  const [milestoneApp, setMilestoneApp] = useState<any>(null);
+  const [milestoneStage, setMilestoneStage] = useState<"interview" | "offer">("interview");
+  const [milestoneCustomText, setMilestoneCustomText] = useState<string>("");
+
+  const [celebrationOpen, setCelebrationOpen] = useState(false);
+  const [celebrationApp, setCelebrationApp] = useState<any>(null);
+
+  const getMilestonePostText = (app: any, stage: "interview" | "offer") => {
+    const role = app?.title || app?.job?.title || "Software Engineer";
+    const company = app?.company || app?.job?.company || "Company";
+    if (stage === "offer") {
+      return `Thrilled to share that I've received an offer for ${role} at ${company}! 🎉\n\nNavigating the job hunt deliberately with @JobTayari made a massive difference—ATS calibration, evidence-backed STAR delivery, and cryptographic proof of every submission.\n\nProud to officially join the Tayari Alumni community! Keep your job search deliberate. #JobOffer #Hired #TayariAlumni #CareerGrowth #JobTayari`;
+    }
+    return `Excited to advance to the interview stage for ${role} at ${company}! 🚀\n\nTaking a deliberate, calibrated approach to applications using @JobTayari made all the difference—honest ATS alignment, structured STAR preparation, and zero spam.\n\nLooking forward to the conversations ahead! #JobSearch #CareerMilestone #InterviewPrep #JobTayari`;
+  };
+
+  const openMilestoneModal = (app: any, stage: "interview" | "offer") => {
+    setMilestoneApp(app);
+    setMilestoneStage(stage);
+    setMilestoneCustomText(getMilestonePostText(app, stage));
+    setMilestoneOpen(true);
+  };
+
+  const openCelebrationModal = (app: any) => {
+    setCelebrationApp(app);
+    setCelebrationOpen(true);
+  };
+
+  const handleShareToLinkedIn = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Post copied to clipboard! Opening LinkedIn feed...");
+    const url = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const getReferralUrl = (app: any) => {
+    const code = app?.id ? String(app.id).slice(0, 8).toUpperCase() : "PRO3M";
+    if (typeof window !== "undefined" && window.location?.origin) {
+      return `${window.location.origin}/auth?mode=signup&ref=ALUMNI-${code}&gift=3m`;
+    }
+    return `https://tayari.app/auth?mode=signup&ref=ALUMNI-${code}&gift=3m`;
+  };
 
   // Gmail status state
   const { data: gmailStatus, refetch: refetchGmailStatus } = useQuery({
@@ -386,6 +436,9 @@ const InterviewBoard = () => {
     }
     setOptimisticApps((prev) => ({ ...prev, [app.id]: nextStatus }));
     updateMutation.mutate({ id: app.id, status: nextStatus });
+    if (nextStatus === "interview") {
+      openMilestoneModal(app, "interview");
+    }
   };
 
   // Retrospective recording helpers
@@ -465,6 +518,9 @@ const InterviewBoard = () => {
       return;
     }
 
+    const targetStage = retroTargetStage;
+    const completedApp = retroApp;
+
     retroIdempotencyKeyRef.current = null;
     retroVoiceUploadedRef.current = false;
     setIsSavingRetro(false);
@@ -475,8 +531,12 @@ const InterviewBoard = () => {
     setRetroAudioUrl(null);
     setRetroAudioBlob(null);
 
-    const emoji = retroTargetStage === "offer" ? "🎉" : "💪";
+    const emoji = targetStage === "offer" ? "🎉" : "💪";
     toast.success(`${emoji} Retrospective saved! Your reflection will help you grow.`);
+
+    if (targetStage === "offer" && completedApp) {
+      openCelebrationModal(completedApp);
+    }
   };
 
   const effectiveStatus = (app: any) => optimisticApps[app.id] || app.stage || app.status;
@@ -1160,6 +1220,36 @@ const InterviewBoard = () => {
                               )}
                             </div>
 
+                            {/* Milestone & Celebration Action Buttons */}
+                            {col.id === "interview" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full text-[11px] h-7 gap-1.5 border-blue-500/30 text-blue-500 hover:bg-blue-500/10 hover:text-blue-400 font-medium"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openMilestoneModal(app, "interview");
+                                }}
+                              >
+                                <Share2 className="w-3 h-3" />
+                                Share Milestone on LinkedIn
+                              </Button>
+                            )}
+                            {col.id === "offer" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full text-[11px] h-7 gap-1.5 border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openCelebrationModal(app);
+                                }}
+                              >
+                                <Trophy className="w-3 h-3 text-emerald-400" />
+                                Alumni Celebration & Perks
+                              </Button>
+                            )}
+
                             {/* Controls */}
                             <div className="flex items-center justify-between pt-1 border-t border-border/30" onClick={(e) => e.stopPropagation()}>
                               <div className="flex gap-0.5">
@@ -1227,9 +1317,33 @@ const InterviewBoard = () => {
                         )}
                       </p>
                     </div>
-                    <Badge variant="outline" className="capitalize text-xs font-bold border-primary/20 bg-primary/5 text-primary py-1 px-3 self-center">
-                      {selectedApp.stage}
-                    </Badge>
+                    <div className="flex items-center gap-2 self-center">
+                      {selectedApp.stage === "interview" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-8 gap-1.5 border-blue-500/30 text-blue-500 hover:bg-blue-500/10"
+                          onClick={() => openMilestoneModal(selectedApp, "interview")}
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          Share on LinkedIn
+                        </Button>
+                      )}
+                      {selectedApp.stage === "offer" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-8 gap-1.5 border-emerald-500/30 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold"
+                          onClick={() => openCelebrationModal(selectedApp)}
+                        >
+                          <Trophy className="w-3.5 h-3.5" />
+                          Alumni Celebration
+                        </Button>
+                      )}
+                      <Badge variant="outline" className="capitalize text-xs font-bold border-primary/20 bg-primary/5 text-primary py-1 px-3">
+                        {selectedApp.stage}
+                      </Badge>
+                    </div>
                   </div>
                 </DialogHeader>
 
@@ -2053,6 +2167,236 @@ const InterviewBoard = () => {
                       ) : (
                         <><ChevronRight className="w-4 h-4 mr-1" /> Save Reflection & Move Card</>
                       )}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* ============================================================
+            LINKEDIN MILESTONE SHARING MODAL
+        ============================================================ */}
+        <Dialog open={milestoneOpen} onOpenChange={setMilestoneOpen}>
+          <DialogContent className="max-w-xl p-0 overflow-hidden border border-border shadow-2xl bg-card">
+            {milestoneApp && (
+              <>
+                <div className="p-6 border-b bg-gradient-to-r from-blue-600/10 via-primary/10 to-transparent border-border">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600/15 text-blue-500 border border-blue-500/20 flex items-center justify-center shrink-0">
+                      <Share2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                        Share Milestone on LinkedIn
+                      </h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {milestoneStage === "offer" ? "Celebrate your offer" : "Share your interview progress"} for{" "}
+                        <span className="font-semibold text-foreground">
+                          {milestoneApp.title || milestoneApp.job?.title || "Software Engineer"}
+                        </span>{" "}
+                        at{" "}
+                        <span className="font-semibold text-foreground">
+                          {milestoneApp.company || milestoneApp.job?.company || "Company"}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                      <span>Post Preview (Editable)</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        Pre-populated with honest, tasteful messaging
+                      </span>
+                    </label>
+                    <Textarea
+                      value={milestoneCustomText}
+                      onChange={(e) => setMilestoneCustomText(e.target.value)}
+                      className="min-h-[140px] text-xs font-sans leading-relaxed bg-muted/20 border-border/70"
+                    />
+                  </div>
+
+                  <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 flex items-start gap-2.5 text-xs text-muted-foreground">
+                    <Sparkles className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                    <span>
+                      Clicking <strong>Share to LinkedIn</strong> copies this draft to your clipboard and opens the LinkedIn post editor with 1 click.
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-2 border-t border-border/40">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMilestoneOpen(false)}
+                      className="text-muted-foreground hover:text-foreground text-xs w-full sm:w-auto"
+                    >
+                      Dismiss
+                    </Button>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(milestoneCustomText);
+                          toast.success("Copied post text to clipboard!");
+                        }}
+                        className="text-xs gap-1.5 flex-1 sm:flex-initial"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy Text
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleShareToLinkedIn(milestoneCustomText)}
+                        className="bg-[#0a66c2] hover:bg-[#084e96] text-white text-xs gap-1.5 flex-1 sm:flex-initial"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        Share to LinkedIn
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* ============================================================
+            JOB LANDING CELEBRATION MODAL — Alumni & Viral Loop
+        ============================================================ */}
+        <Dialog open={celebrationOpen} onOpenChange={setCelebrationOpen}>
+          <DialogContent className="max-w-2xl p-0 overflow-hidden border border-emerald-500/30 shadow-2xl bg-card">
+            {celebrationOpen && <Confetti count={75} />}
+            {celebrationApp && (
+              <>
+                {/* Header banner */}
+                <div className="relative p-6 pb-5 border-b bg-gradient-to-br from-emerald-500/20 via-amber-500/10 to-primary/10 border-emerald-500/20 overflow-hidden">
+                  <div className="flex items-start gap-4 relative z-10">
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/10">
+                      <Trophy className="w-8 h-8 text-emerald-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-emerald-400 border border-emerald-500/30 mb-1.5">
+                        <PartyPopper className="w-3.5 h-3.5" />
+                        Offer Accepted / Hired
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-display font-bold text-foreground">
+                        Welcome to Tayari Alumni!
+                      </h2>
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                        Huge congratulations on landing{" "}
+                        <span className="font-semibold text-foreground">
+                          {celebrationApp.title || celebrationApp.job?.title || "Software Engineer"}
+                        </span>{" "}
+                        at{" "}
+                        <span className="font-semibold text-foreground">
+                          {celebrationApp.company || celebrationApp.job?.company || "Target Company"}
+                        </span>
+                        !
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-5 bg-card relative z-10">
+                  {/* Referral Gift Card */}
+                  <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-primary/20 text-primary flex items-center justify-center shrink-0">
+                        <Gift className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-foreground">
+                          Gift 3 Free Months of Job Tayari Pro to a Friend
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          As an alumni, sponsor a fellow job seeker with 3 months of unlimited ATS calibrations and tailoring.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Input
+                        readOnly
+                        value={getReferralUrl(celebrationApp)}
+                        className="font-mono text-xs bg-background/80 select-all"
+                      />
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => {
+                          navigator.clipboard.writeText(getReferralUrl(celebrationApp));
+                          toast.success("Referral link copied! Share it with a friend.");
+                        }}
+                        className="shrink-0 text-xs gap-1.5 px-4 font-semibold"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy Link
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* LinkedIn Announcement */}
+                  <div className="space-y-2.5 rounded-2xl border border-border/60 bg-muted/20 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Share2 className="w-4 h-4 text-blue-500" />
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                          Share the Good News on LinkedIn
+                        </h4>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                        Viral Alumni Post
+                      </Badge>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      Inspire fellow job seekers and share your success with our pre-populated post tagging Job Tayari.
+                    </p>
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const text = getMilestonePostText(celebrationApp, "offer");
+                          navigator.clipboard.writeText(text);
+                          toast.success("Offer announcement post copied!");
+                        }}
+                        className="text-xs gap-1.5"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy Post
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const text = getMilestonePostText(celebrationApp, "offer");
+                          handleShareToLinkedIn(text);
+                        }}
+                        className="bg-[#0a66c2] hover:bg-[#084e96] text-white text-xs gap-1.5 font-semibold shadow-sm"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        Share on LinkedIn
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Close button */}
+                  <div className="flex justify-end pt-2 border-t border-border/40">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setCelebrationOpen(false)}
+                      className="text-xs px-6"
+                    >
+                      Done & Back to Board
                     </Button>
                   </div>
                 </div>

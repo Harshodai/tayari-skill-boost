@@ -36,6 +36,7 @@ import {
   TrendingUp,
   RefreshCw,
   AlertCircle,
+  Zap,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_URL, apiFetch, apiFetchResponse, exportUserData, deleteUserAccount, deleteUserData, ApiError } from "@/api";
@@ -48,6 +49,11 @@ import { JobWatchesCard } from "@/components/JobWatchesCard";
 import { GoogleWorkspaceConnectCard } from "@/components/GoogleWorkspaceConnectCard";
 import { features } from "@/config/features";
 import { Link } from "react-router-dom";
+import {
+  getHermesDigestPreferences,
+  setHermesDigestPreferences,
+  toggleHermesDigest,
+} from "@/lib/hermesDigest";
 
 // ─── BillingTab: live credit balance and transaction history ─────────────────
 function BillingTab() {
@@ -365,12 +371,49 @@ const Settings = () => {
     confirmPassword: ""
   });
 
-  const [notifications, setNotifications] = useState({
-    emailUpdates: true,
-    applicationAlerts: true,
-    weeklyDigest: false,
-    marketingEmails: false,
+  const [notifications, setNotifications] = useState(() => {
+    const hermes = getHermesDigestPreferences();
+    let saved: any = {};
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("tayari_notification_preferences");
+        if (raw) saved = JSON.parse(raw);
+      } catch {
+        /* storage unavailable or parse error */
+      }
+    }
+    return {
+      emailUpdates: saved.emailUpdates ?? true,
+      applicationAlerts: saved.applicationAlerts ?? true,
+      weeklyDigest:
+        typeof hermes.enabled === "boolean"
+          ? hermes.enabled
+          : (saved.weeklyDigest ?? false),
+      marketingEmails: saved.marketingEmails ?? false,
+    };
   });
+
+  const handleNotificationToggle = (key: string, checked: boolean) => {
+    const next = { ...notifications, [key]: checked };
+    setNotifications(next);
+    if (key === "weeklyDigest") {
+      const res = toggleHermesDigest(checked);
+      toast({
+        title: res.toastMessage,
+        description: res.toastDescription,
+      });
+    }
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(
+          "tayari_notification_preferences",
+          JSON.stringify(next)
+        );
+      } catch {
+        /* storage unavailable */
+      }
+    }
+  };
 
   const [preferences, setPreferences] = useState({
     compactView: false,
@@ -491,9 +534,22 @@ const Settings = () => {
   };
 
   const handleSaveNotifications = () => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(
+          "tayari_notification_preferences",
+          JSON.stringify(notifications)
+        );
+        setHermesDigestPreferences({ enabled: notifications.weeklyDigest });
+      } catch {
+        /* storage unavailable */
+      }
+    }
     toast({
-      title: "Notification Preferences Updated",
-      description: "Your notification settings have been saved locally (Demo).",
+      title: "Notification Preferences Saved",
+      description: notifications.weeklyDigest
+        ? "Weekly Hermes Job Digest is active. You will receive scanned ATS matches every Tuesday."
+        : "Your notification settings have been updated.",
     });
   };
 
@@ -661,9 +717,9 @@ const Settings = () => {
                   },
                   {
                     key: "weeklyDigest",
-                    label: "Weekly Digest",
-                    description: "Receive a weekly summary of your job search progress",
-                    icon: Globe,
+                    label: "Weekly Hermes Job Digest",
+                    description: "Receive weekly job matches powered by Hermes direct ATS scanner every Tuesday",
+                    icon: Zap,
                   },
                   {
                     key: "marketingEmails",
@@ -685,8 +741,9 @@ const Settings = () => {
                     <Switch
                       checked={notifications[item.key as keyof typeof notifications]}
                       onCheckedChange={(checked) =>
-                        setNotifications({ ...notifications, [item.key]: checked })
+                        handleNotificationToggle(item.key, checked)
                       }
+                      aria-label={`Toggle ${item.label}`}
                     />
                   </div>
                 ))}

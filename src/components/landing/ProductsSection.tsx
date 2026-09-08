@@ -3,6 +3,7 @@ import { CardHeader, CardDescription, CardContent, CardFooter } from "@/componen
 import { Button } from "@/components/ui/button";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { FileText, Mic, Code, Swords, Search, Target, Check, ArrowRight } from "lucide-react";
+import { settings, features } from "@/config/features";
 
 const products = [
   {
@@ -104,6 +105,10 @@ const products = [
 ];
 
 export function ProductsSection() {
+  const displayedProducts = products.filter(
+    (product) => product.available || (settings.showComingSoonBadges && features.interviewPrep)
+  );
+
   return (
     <section className="py-20 lg:py-28 bg-card/25 border-y border-border/40">
       <div className="container mx-auto px-4">
@@ -119,7 +124,7 @@ export function ProductsSection() {
 
         {/* Product Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-          {products.map((product, index) => (
+          {displayedProducts.map((product, index) => (
             <SpotlightCard
               key={product.title}
               className="flex flex-col h-full bg-card/45 border-input animate-fade-in-up"

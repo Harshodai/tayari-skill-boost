@@ -38,10 +38,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { JobMatchScore } from "@/components/ui/job-match-score";
 import { StatsCard, StatsGrid } from "@/components/ui/stats-card";
 import type { ResumeAnalysisRecord } from "@/types/resume";
-import { USE_SELF_HOSTED, listAnalysisHistory, getFunnelData } from "@/api";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { USE_SELF_HOSTED, listAnalysisHistory, getFunnelData, getProfile } from "@/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { deleteSavedJob } from "@/api";
 import { useAutomation } from "@/contexts/AutomationContext";
+import { TargetRoleReadinessCard } from "@/components/career/TargetRoleReadinessCard";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ApplicationPipeline } from "@/components/pipeline/ApplicationPipeline";
@@ -80,6 +81,33 @@ const Dashboard = () => {
   const { analyses = [], savedJobs = [], roadmap = [], interviews = [], funnel = { saved: 0, applied: 0, interview: 0, offer: 0 }, credits, inbox = { total: 0, unread: 0, pending_followup: 0 }, isLoading, isError, refetch } = useDashboardData(userId);
   const { unavailable: backendUnavailable } = useBackendHealth();
   const queryClient = useQueryClient();
+
+  const { data: profile } = useQuery({
+    queryKey: ["profile", userId],
+    queryFn: () => getProfile(),
+    enabled: !!userId,
+    retry: false,
+  });
+
+  const userSkills = useMemo(() => {
+    const set = new Set<string>();
+    if (profile?.skills && Array.isArray(profile.skills)) {
+      profile.skills.forEach((s) => set.add(s));
+    }
+    if (profile?.transferable_skills && Array.isArray(profile.transferable_skills)) {
+      profile.transferable_skills.forEach((s) => set.add(s));
+    }
+    analyses.forEach((a) => {
+      if (a.parsed_resume?.skills && Array.isArray(a.parsed_resume.skills)) {
+        a.parsed_resume.skills.forEach((s) => set.add(s));
+      }
+      if (a.analysis_data?.matchedKeywords && Array.isArray(a.analysis_data.matchedKeywords)) {
+        a.analysis_data.matchedKeywords.forEach((s) => set.add(s));
+      }
+    });
+    return Array.from(set);
+  }, [profile, analyses]);
+
   const [unsaveError, setUnsaveError] = useState<string | null>(null);
   // ponytail: optimistic unsave — remove locally, rollback on apiFetch error
   // with a visible error state; keeps existing structure, no refactor.
@@ -334,6 +362,13 @@ const Dashboard = () => {
                 </Button>
               </CardContent>
             </Card>
+
+            {/* Target Role Career Readiness & Loss-Aversion Tracker */}
+            <TargetRoleReadinessCard
+              userSkills={userSkills}
+              initialRoleSlug={profile?.desired_roles?.[0]}
+              className="mb-6 animate-fade-in-up"
+            />
 
             {/* Ruthless Automation Center */}
             <Card className="mb-6 border-primary/25 bg-gradient-to-r from-primary/8 via-card to-card shadow-sm">

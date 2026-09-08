@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Central Agent Discovery Registry for A2A Protocol.
 Serves /.well-known/agent-card.json and manages agent capability discovery.

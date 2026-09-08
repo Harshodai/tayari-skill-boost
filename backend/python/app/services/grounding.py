@@ -57,9 +57,11 @@ def claims_supported(text: str, resume_text: str, job_description: str) -> bool:
         if digits and digits not in resume_digits:
             return False
     for employer in _EMPLOYER_RE.findall(text):
-        if employer.lower() not in sources:
+        clean_emp = employer.rstrip(".,;:!?").strip()
+        if clean_emp and clean_emp.lower() not in sources:
             return False
     for credential in _CREDENTIAL_RE.findall(text):
-        if credential.lower() not in sources:
+        clean_cred = credential.rstrip(".,;:!?").strip()
+        if clean_cred and clean_cred.lower() not in sources:
             return False
     return True

@@ -455,6 +455,101 @@ def _transition_directives(transition: dict | None) -> tuple[str, str]:
     return "", ""
 
 
+def _build_instruction_ledger(
+    custom_instructions: str | None,
+    optimized_text: str,
+    original_text: str,
+) -> list[dict[str, str]]:
+    """Audit and classify candidate custom instructions for transparent provenance."""
+    if not custom_instructions or not custom_instructions.strip():
+        return []
+    lines = [
+        line.strip(" -*•\t")
+        for line in custom_instructions.strip().splitlines()
+        if line.strip(" -*•\t")
+    ]
+    if not lines and custom_instructions.strip():
+        lines = [custom_instructions.strip()]
+
+    ledger: list[dict[str, str]] = []
+    opt_lower = optimized_text.lower()
+    orig_lower = original_text.lower()
+
+    malicious_markers = ["ignore previous", "system prompt", "jailbreak", "set score", "developer mode", "bypass"]
+    cred_markers = ["phd", "master", "bachelor", "degree", "certified", "aws certified", "pmp", "worked at", "ex-google", "ex-meta"]
+
+    for raw in lines[:10]:
+        lower = raw.lower()
+        if any(marker in lower for marker in malicious_markers):
+            ledger.append({
+                "instruction": raw,
+                "status": "rejected",
+                "reason": "Flagged as unsafe prompt injection directive",
+            })
+            continue
+
+        has_new_cred = False
+        for cm in cred_markers:
+            if cm in lower and cm not in orig_lower:
+                has_new_cred = True
+                break
+        if has_new_cred:
+            ledger.append({
+                "instruction": raw,
+                "status": "rejected",
+                "reason": "Violates truthfulness guardrail: credential not evidenced in original resume",
+            })
+            continue
+
+        tokens = [t for t in re.findall(r"\b[a-zA-Z]{3,}\b", lower) if t not in STOPWORDS]
+        matched_tokens = [t for t in tokens if t in opt_lower]
+        if matched_tokens or len(tokens) == 0:
+            ledger.append({
+                "instruction": raw,
+                "status": "applied",
+                "reason": "Successfully incorporated into tailored artifact",
+            })
+        else:
+            ledger.append({
+                "instruction": raw,
+                "status": "ignored",
+                "reason": "Could not be applied without exceeding brevity or relevance bounds",
+            })
+
+    return ledger
+
+
+def _compute_bullet_diffs(original_text: str, optimized_text: str) -> list[dict[str, str]]:
+    """Produce structured before/after bullet point diffs with status tags."""
+    orig_bullets = [
+        b.strip(" -*•\t")
+        for b in original_text.splitlines()
+        if b.strip().startswith(("-", "*", "•")) or (b.strip() and len(b.strip()) > 30)
+    ]
+    opt_bullets = [
+        b.strip(" -*•\t")
+        for b in optimized_text.splitlines()
+        if b.strip().startswith(("-", "*", "•")) or (b.strip() and len(b.strip()) > 30)
+    ]
+    diffs = []
+    max_len = max(len(orig_bullets), len(opt_bullets))
+    for i in range(min(max_len, 20)):
+        orig = orig_bullets[i] if i < len(orig_bullets) else ""
+        opt = opt_bullets[i] if i < len(opt_bullets) else ""
+        if orig and opt:
+            status = "unchanged" if orig.strip() == opt.strip() else "modified"
+        elif opt and not orig:
+            status = "added"
+        else:
+            status = "removed"
+        diffs.append({
+            "original": orig,
+            "optimized": opt,
+            "status": status,
+        })
+    return diffs
+
+
 async def optimize_with_reflection(
     resume_text: str,
     job_description: str | None = None,
@@ -716,6 +811,8 @@ async def optimize_with_reflection(
         "score_breakdown": score_breakdown,
         "changes": meta.get("changes", []),
         "keywords_added": meta.get("keywords_added", []),
+        "instruction_ledger": _build_instruction_ledger(custom_instructions, optimized, resume_text),
+        "bullet_diffs": _compute_bullet_diffs(resume_text, optimized),
         # ponytail: estimated_score is reported to callers (including the
         # public API-key endpoint) as a trust signal, so it must not be the
         # LLM's raw self-reported number from OPTIMIZE_SYSTEM's JSON output —

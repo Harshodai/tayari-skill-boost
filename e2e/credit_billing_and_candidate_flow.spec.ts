@@ -106,6 +106,13 @@ test.describe.serial('Tayari Skill Boost — Credit Billing, Candidate Flow & Lo
 
     // Verify page headings & verified-only pricing messaging
     await expect(page.getByRole('heading', { name: /Pay for Proof|Credit Packs|Pricing/i }).first()).toBeVisible();
+
+    // If billing tabs exist, switch to "Verified Submission Packs" tab to verify credit packs
+    const packsTab = page.getByRole('tab', { name: /Verified Submission Packs/i });
+    if (await packsTab.isVisible()) {
+      await packsTab.click();
+    }
+
     await expect(page.getByTestId('zero-risk-guarantee')).toBeVisible();
 
     // Verify Starter Pack (10 credits, $19, $1.90/sub)

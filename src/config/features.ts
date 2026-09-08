@@ -80,6 +80,12 @@ const CONFIG = {
     verification: [true, true],
     // Personalized referral-draft engine (Moat-1)
     referralDrafts: [true, true],
+    // Free programmatic SEO tools
+    resumeScore: [true, true],
+    jobMatch: [true, true],
+    rolePages: [true, true],
+    // Competitor comparison engine (Jobscan, Teal, Simplify, Rezi)
+    comparePages: [true, true],
   },
 
 
@@ -98,6 +104,8 @@ const CONFIG = {
 
     { label: "Job Search", href: "/jobs", feature: "jobSearch" },
     { label: "AutoPilot", href: "/jobs/autopilot", feature: "jobSearch" },
+    { label: "Role Benchmarks", href: "/roles", feature: "rolePages" },
+    { label: "Compare Tools", href: "/compare", feature: "comparePages" },
     { label: "Cover Letter", href: "/cover-letter", feature: "coverLetter" },
     { label: "Communication", href: "/communication", feature: "communicationHub" },
     { label: "Career-Ops", href: "/career-ops", feature: "careerOps" },
@@ -174,7 +182,7 @@ export const features = Object.keys(CONFIG.features).reduce((acc, key) => {
 // Global UI Settings
 export const settings = {
   showFullProductsSection: features.interviewPrep,
-  showComingSoonBadges: true,
+  showComingSoonBadges: false,
   showFullFooter: true,
   enableAllRoutes: true,
 } as const;

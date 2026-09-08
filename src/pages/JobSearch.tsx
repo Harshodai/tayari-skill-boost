@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout";
+import { Seo } from "@/components/seo/Seo";
 import { Link, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,11 @@ import { SavedSearches } from "@/components/jobs/SavedSearches";
 import { FitMatrixCard, type FitMatrixData } from "@/components/jobs/FitMatrixCard";
 import { buildApplyChain } from "@/lib/automation/applyChain";
 import { cn } from "@/lib/utils";
+import {
+  getHermesDigestPreferences,
+  toggleHermesDigest,
+  type HermesDigestPreferences,
+} from "@/lib/hermesDigest";
 
 
 const ATS_LOGOS: Record<string, string> = {
@@ -113,6 +119,41 @@ const JobSearch = () => {
   const [mobileDetail, setMobileDetail] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [refineQuery, setRefineQuery] = useState("");
+
+  const [hermesDigest, setHermesDigest] = useState<HermesDigestPreferences>(() =>
+    getHermesDigestPreferences()
+  );
+
+  useEffect(() => {
+    const handleSync = () => {
+      setHermesDigest(getHermesDigestPreferences());
+    };
+    window.addEventListener("tayari_hermes_digest_updated", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("tayari_hermes_digest_updated", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
+  }, []);
+
+  const handleToggleHermesDigest = (enabled: boolean) => {
+    const res = toggleHermesDigest(enabled, {
+      query: query.trim() || undefined,
+      location: location.trim() || undefined,
+      remoteOnly,
+      minScore,
+    });
+    setHermesDigest(res.preferences);
+    if (enabled) {
+      toast.success(res.toastMessage, {
+        description: res.toastDescription,
+      });
+    } else {
+      toast.info(res.toastMessage, {
+        description: res.toastDescription,
+      });
+    }
+  };
 
   const { data: savedJobs = [] } = useQuery({
     queryKey: ["saved-jobs"],
@@ -316,6 +357,29 @@ const JobSearch = () => {
 
 
   const selected = filtered[selectedIdx] || filtered[0];
+  const selectedJob = selected;
+
+  // Schema.org JobPosting structured data
+  const jobPostingJsonLd = useMemo(() => {
+    if (!selectedJob) return undefined;
+    return {
+      "@context": "https://schema.org",
+      "@type": "JobPosting",
+      title: selectedJob.title,
+      description: selectedJob.description || selectedJob.snippet || selectedJob.title,
+      hiringOrganization: {
+        "@type": "Organization",
+        name: selectedJob.company,
+      },
+      jobLocation: {
+        "@type": "Place",
+        address: selectedJob.location || "Remote",
+      },
+      employmentType: (selectedJob as any).employment_type || selectedJob.job_type || "FULL_TIME",
+      datePosted: selectedJob.posted_at || new Date().toISOString(),
+      directApply: true,
+    };
+  }, [selectedJob]);
 
   // Clear the hero callout when the selected job changes — the SkillGapWidget
   // remounts (key=dedupe_key) and re-emits via onResult once its fetch lands.
@@ -353,6 +417,20 @@ const JobSearch = () => {
 
   return (
     <AppShell title="Smart Job Search" subtitle="Search • Match • Apply — in one flow">
+      <Seo
+        title={
+          selectedJob
+            ? `${selectedJob.title} at ${selectedJob.company} | Smart Job Search`
+            : "Smart Job Search | Job Tayari"
+        }
+        description={
+          selectedJob
+            ? (selectedJob.snippet || selectedJob.description || `Apply for ${selectedJob.title} at ${selectedJob.company}`)
+            : "Search, match, and apply to enterprise jobs with real-time ATS match scoring and skill gap insights."
+        }
+        path="/jobs"
+        jsonLd={jobPostingJsonLd}
+      />
       {/* Backend unavailable — search, saved jobs, and profile all need Go+Python */}
       {backendUnavailable && (
         <div className="mb-6">
@@ -411,6 +489,11 @@ const JobSearch = () => {
                 <Sparkles className="w-3 h-3" /> Live job feeds
               </span>
               <span>Aggregating Greenhouse · Lever · Ashby · Workday · Remotive</span>
+              {hermesDigest.enabled && (
+                <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
+                  Weekly Hermes Digest: Tuesdays
+                </Badge>
+              )}
             </div>
             <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-foreground/80 hover:text-foreground">
               <input
@@ -538,6 +621,70 @@ const JobSearch = () => {
       <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_minmax(0,1.1fr)] gap-4 lg:min-h-[70vh]">
         {/* Filters & saved searches */}
         <aside className={cn("space-y-4 lg:block", filtersOpen ? "block" : "hidden")}>
+          {/* Weekly Hermes Job Match Digest Card */}
+          <Card
+            className="p-4 border-primary/30 bg-gradient-to-br from-primary/10 via-card to-card relative overflow-hidden shadow-sm"
+            data-testid="hermes-digest-card"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-primary font-mono">
+                  <Sparkles className="w-3.5 h-3.5 animate-pulse text-primary" />
+                  Weekly Hermes Job Digest
+                </div>
+                <h4 className="text-sm font-bold text-foreground leading-snug font-display">
+                  Get Weekly Job Matches in Your Inbox
+                </h4>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  &ldquo;3 new jobs match your profile&rdquo; — powered by the Hermes scraper scanning 4 tiers of direct ATS boards.
+                </p>
+              </div>
+              <Switch
+                checked={hermesDigest.enabled}
+                onCheckedChange={handleToggleHermesDigest}
+                aria-label="Toggle Weekly Hermes Job Digest"
+                className="shrink-0 mt-0.5"
+                data-testid="hermes-digest-toggle"
+              />
+            </div>
+
+            <div className="mt-3 pt-2.5 border-t border-border/50 flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
+              <div className="flex items-center gap-1.5 text-muted-foreground font-medium">
+                <span
+                  className={cn(
+                    "w-2 h-2 rounded-full",
+                    hermesDigest.enabled
+                      ? "bg-emerald-500 animate-pulse"
+                      : "bg-muted-foreground/40"
+                  )}
+                />
+                <span>
+                  {hermesDigest.enabled
+                    ? "Every Tuesday at 9:00 AM"
+                    : "Weekly digest paused"}
+                </span>
+              </div>
+              {hermesDigest.enabled && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] bg-primary/5 text-primary border-primary/20 font-mono"
+                >
+                  4 ATS Tiers
+                </Badge>
+              )}
+            </div>
+
+            {hermesDigest.enabled && (
+              <div className="mt-2 text-[10px] text-muted-foreground font-mono bg-background/50 p-2 rounded-md border border-border/40">
+                <span className="font-semibold text-foreground">Scrape target:</span>{" "}
+                {query ? `"${query}"` : "Profile match"}{" "}
+                {location ? `in ${location}` : ""}{" "}
+                {remoteOnly ? "• Remote only" : ""}{" "}
+                {minScore > 0 ? `• Min ${minScore}%` : ""}
+              </div>
+            )}
+          </Card>
+
           <Card className="p-4 space-y-4">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">

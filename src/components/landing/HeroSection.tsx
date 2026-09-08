@@ -1,7 +1,11 @@
-import { Link } from "react-router-dom";
-import { ArrowRight, Check, ShieldCheck } from "lucide-react";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowRight, Check, ShieldCheck, Zap, Briefcase, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Reveal, RevealGroup, RevealItem } from "@/components/ui/reveal";
+import { SAMPLE_PRESETS, type SamplePreset } from "@/data/samplePresets";
 
 const CHECKPOINTS = [
   "Choose opportunities with real hiring context",
@@ -31,6 +35,37 @@ const QUEUE = [
 ];
 
 export function HeroSection() {
+  const navigate = useNavigate();
+  const [selectedPreset, setSelectedPreset] = useState<string>("Stripe");
+  const defaultPreset = SAMPLE_PRESETS.find((p) => p.company === "Stripe") || SAMPLE_PRESETS[0];
+  const [resumeInput, setResumeInput] = useState<string>(defaultPreset.resume);
+  const [jobInput, setJobInput] = useState<string>(defaultPreset.jd);
+
+  const handleSelectPreset = (preset: SamplePreset) => {
+    setSelectedPreset(preset.company);
+    setResumeInput(preset.resume);
+    setJobInput(preset.jd);
+  };
+
+  const handleCustomMode = () => {
+    setSelectedPreset("custom");
+    setResumeInput("");
+    setJobInput("");
+  };
+
+  const handleRunAnalysis = () => {
+    const rText = resumeInput.trim() || defaultPreset.resume;
+    const jText = jobInput.trim() || defaultPreset.jd;
+    navigate("/free-scan", {
+      state: {
+        resumeText: rText,
+        jobDescription: jText,
+        activePreset: selectedPreset !== "custom" ? selectedPreset : null,
+        autoScan: true,
+      },
+    });
+  };
+
   return (
     <section className="relative overflow-hidden bg-background pb-20 pt-20 text-foreground sm:pt-24 lg:pb-28">
       <div
@@ -63,8 +98,141 @@ export function HeroSection() {
             </p>
           </Reveal>
 
-          <Reveal delay={0.18}>
-            <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          {/* ── 60-Second Magic Moment Intake Card ───────── */}
+          <Reveal delay={0.15}>
+            <div className="mx-auto mt-10 max-w-4xl text-left rounded-3xl border border-primary/25 bg-card/85 p-5 sm:p-7 shadow-2xl backdrop-blur-xl relative overflow-hidden">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -top-24 -left-24 h-56 w-56 rounded-full bg-primary/15 blur-3xl"
+              />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -bottom-24 -right-24 h-56 w-56 rounded-full bg-primary/10 blur-3xl"
+              />
+
+              <div className="relative z-10 space-y-4">
+                {/* Intake Card Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Zap className="h-3.5 w-3.5" />
+                      </span>
+                      <h2 className="text-base sm:text-lg font-bold text-foreground">
+                        60-Second ATS Gap Analysis
+                      </h2>
+                      <Badge variant="outline" className="text-[10px] uppercase font-semibold text-primary border-primary/30">
+                        Instant • 60s Magic Moment
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Paste your resume and target role, or test with verified engineering requisitions below.
+                    </p>
+                  </div>
+
+                  {/* Sample Presets */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-semibold text-muted-foreground mr-1 hidden md:inline">
+                      Sample Presets:
+                    </span>
+                    {SAMPLE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.company}
+                        type="button"
+                        onClick={() => handleSelectPreset(preset)}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                          selectedPreset === preset.company
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border/60"
+                        }`}
+                      >
+                        {preset.company}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleCustomMode}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                        selectedPreset === "custom"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "bg-secondary/60 text-muted-foreground hover:bg-secondary border border-border/40"
+                      }`}
+                    >
+                      Clear / Custom
+                    </button>
+                  </div>
+                </div>
+
+                {/* Input Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                  {/* Resume Textarea */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-primary" />
+                        Candidate Resume / CV
+                      </label>
+                      <span className="text-[10px] text-muted-foreground tabular-nums">
+                        {resumeInput.length} chars
+                      </span>
+                    </div>
+                    <Textarea
+                      value={resumeInput}
+                      onChange={(e) => {
+                        setResumeInput(e.target.value);
+                        if (selectedPreset !== "custom") setSelectedPreset("custom");
+                      }}
+                      placeholder="Paste your raw resume text, markdown, or summary here..."
+                      className="min-h-[120px] max-h-[160px] font-mono text-xs leading-relaxed bg-background/70 border-border/80"
+                    />
+                  </div>
+
+                  {/* Job Description or URL Textarea */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Briefcase className="w-3.5 h-3.5 text-primary" />
+                        Target Job Spec or Posting URL
+                      </label>
+                      <span className="text-[10px] text-muted-foreground tabular-nums">
+                        {jobInput.length} chars
+                      </span>
+                    </div>
+                    <Textarea
+                      value={jobInput}
+                      onChange={(e) => {
+                        setJobInput(e.target.value);
+                        if (selectedPreset !== "custom") setSelectedPreset("custom");
+                      }}
+                      placeholder="Paste job description text, requirements, or requisition URL..."
+                      className="min-h-[120px] max-h-[160px] font-mono text-xs leading-relaxed bg-background/70 border-border/80"
+                    />
+                  </div>
+                </div>
+
+                {/* Intake Card Bottom Actions */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>Client-side evaluated. Zero storage of unsaved credentials or sensitive data.</span>
+                  </div>
+
+                  <Button
+                    size="lg"
+                    onClick={handleRunAnalysis}
+                    className="w-full sm:w-auto font-semibold shadow-glow rounded-xl gap-2 px-6 hover:-translate-y-0.5 transition-transform"
+                  >
+                    <Zap className="h-4 w-4 fill-current" />
+                    Run 60s Gap Analysis
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+
+          <Reveal delay={0.2}>
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button
                 size="xl"
                 asChild

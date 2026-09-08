@@ -1,0 +1,48 @@
+# ==============================================================================
+# Railway Deployment Configuration for Tayari Skill Boost
+# https://docs.railway.app/reference/config-as-code
+# ==============================================================================
+
+# Default service build: Go API Gateway
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.backend"
+
+[deploy]
+startCommand = "./tayari-server"
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# ------------------------------------------------------------------------------
+# Multi-Service Definitions for Railway Monorepo Deployment
+# ------------------------------------------------------------------------------
+
+# Service 1: Go API Gateway (Routing, Auth, Database Queries, Reverse Proxy)
+[services.go-backend]
+name = "go-backend"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.backend"
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Service 2: Python AI Engine (FastAPI, ATS Heuristics, Scoring, Embedding)
+[services.python-ai]
+name = "python-ai"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.ai"
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Service 3: Celery Asynchronous Background Worker (Optional Background Queue)
+[services.celery-worker]
+name = "celery-worker"
+builder = "DOCKERFILE"
+dockerfilePath = "backend/python/Dockerfile.worker"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

@@ -9,7 +9,7 @@ assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.version, '3.2.0');
 for (const permission of ['sidePanel', 'contextMenus', 'identity', 'nativeMessaging', 'notifications']) assert.ok(manifest.permissions.includes(permission), `missing ${permission}`);
 assert.equal(manifest.action.default_popup, undefined);
-assert.equal(manifest.content_security_policy?.extension_pages, "script-src 'self'; object-src 'self'");
+assert.equal(manifest.content_security_policy?.extension_pages, "script-src 'self'; object-src 'none'");
 const captureMatches = manifest.content_scripts?.find((entry) => entry.js?.includes('omnisave_capture.js'))?.matches || [];
 assert.ok(captureMatches.includes('https://medium.com/me/list*'), 'missing Medium Lists capture match');
 assert.ok(captureMatches.includes('https://substack.com/saved*'), 'missing Substack Saved capture match');

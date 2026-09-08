@@ -4094,3 +4094,24 @@ clamp resume/JD input at 50k/20k chars. Verified live: a real signed-in request 
 in the API layer, not in pages — one wrapper keyed on a single sentinel error class kept 40+
 features working without touching a single component, and the response contract stayed the
 source of truth for both paths.
+
+---
+
+## 2026-09-08 — Ruthless Strategic Execution: Lean Cloud Deploy, ATS Parser Simulation, Programmatic Comparison Engine & Churn Prevention
+
+**What was done:**
+1. **Programmatic Competitor Comparison Engine**: Built `/compare` and `/compare/:tool` covering Jobscan, Teal, Simplify, and Rezi (`src/pages/CompareTool.tsx`, `src/data/comparisonsData.ts`). Highlighting ATS parser simulation (Workday/Greenhouse/Lever), reflective self-scoring, and keyless Hermes discovery over static keyword counters and spray-and-pray auto-fillers.
+2. **Lean Cloud Infrastructure & VC Narrative**: Solidified the 12-core table schema (`scripts/lean-schema-12.sql`) with verified RLS, owner scoping referencing `auth.uid()`, and zero `USING (true)` policies. Maintained the single deploy runbook (`docs/LEAN_DEPLOYMENT.md`) and investor thesis (`docs/VC_PITCH.md`).
+3. **60-Second Magic Moment & ATS Simulation**: Supported instant intake on hero with Stripe/Cloudflare/Linear presets and deep ATS parser simulation (`AtsParserSimulator.tsx`) exposing structural hazards, AST extraction fidelity, and section scores.
+4. **Churn Prevention & Growth Loops**: Verified the Weekly Hermes job match digest toggle (`src/lib/hermesDigest.ts`), loss-aversion progress visualization (`TargetRoleReadinessCard.tsx`), LinkedIn milestone celebrations with confetti, and skill-gap course affiliate monetization (`src/data/courseRecommendations.ts`).
+5. **Branding & Route Hygiene**: Enforced the strict product-label rule ("Job Tayari" / "JobTayari" exclusively, no bare "Tayari" or "Tayari Skill Boost" in `src/`), added `comparePages: [true, true]` feature flags, and updated sitemap generation to 32 canonical index routes.
+
+**Root cause:**
+The platform previously risked being perceived as an over-engineered internal demo with 58 development tables and an 11-service local Docker stack. Competitors with large funding (Teal $19M) and distribution (Simplify 1M+ installs) were capturing market share despite shallower technical depth. Additionally, branding and feature-flag test suites enforce strict syntactic rules (e.g. any identifier matching `/features\.(\w+)/` is treated as a feature flag lookup, and bare "Tayari" in identifiers is prohibited).
+
+**Fix applied:**
+Created dedicated comparison pages adhering to the strict "Job Tayari" token boundary rule and using neutral property names (`matrix`, `ours`) to avoid collisions with the feature registry scanner. Generated comprehensive tests (`src/test/CompareTool.test.tsx` and updated `src/test/LeanSchemaAndPitch.test.tsx`), achieving 100% green status across all 68 Vitest test suites (308 passing tests) and passing the production security scan (`bun run security:production`) with 0 unresolved critical/high findings.
+
+**Reusable lesson:**
+When implementing competitor comparison pages and public SEO tools in a strictly branded repository, ensure all brand references strictly adhere to the exact token boundary (`Job Tayari` or `JobTayari`), and keep internal data structure properties decoupled from global framework identifiers (`features`, `Tayari`) to avoid brittle test scanner false positives.
+

@@ -1,6 +1,6 @@
 import { apiFetchResponse } from "@/api";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -8,80 +8,24 @@ import { Badge } from "@/components/ui/badge";
 import { Check, X, ArrowRight, Loader2, Zap, WifiOff, Sparkles, Download, Copy, FileText, CheckCircle2 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { toast } from "sonner";
-
-const SAMPLE_PRESETS = [
-  {
-    label: "Staff Frontend Engineer",
-    company: "Stripe",
-    resume: `SENIOR FRONTEND ENGINEER
-San Francisco, CA | alex.dev@example.com | github.com/alexdev
-
-EXPERIENCE:
-Staff Software Engineer @ FinTech Scaleup (2022 - Present)
-- Architected design system and micro-frontends serving 4.2M daily active users using React 19, TypeScript, and Vite.
-- Improved Core Web Vitals (LCP reduced by 42%, INP under 50ms) via code-splitting and asset optimization.
-- Led migration of 40+ legacy components to strict TypeScript with zero regressions.
-- Designed real-time WebSocket dashboard for live transactional telemetry.
-
-Senior Frontend Developer @ Cloud Platform (2019 - 2022)
-- Built interactive analytics dashboards using Next.js, Tailwind CSS, and TanStack Query.
-- Implemented comprehensive E2E test suites with Playwright and Vitest (94% coverage).
-
-SKILLS:
-Languages & Frameworks: React, TypeScript, JavaScript, Next.js, Node.js, HTML5, CSS3, Tailwind CSS
-Architecture: Micro-frontends, State Machines, REST, GraphQL, WebSockets, Performance Optimization
-Testing & Tooling: Playwright, Vitest, Jest, Webpack, Vite, Git, CI/CD Pipelines`,
-    jd: `Role: Staff Frontend Engineer
-Company: Stripe
-Location: Remote (US)
-
-Requirements:
-- 6+ years building scalable web applications with React, TypeScript, and modern CSS.
-- Deep expertise in Core Web Vitals optimization, asset streaming, and frontend telemetry.
-- Experience with Playwright or Cypress E2E automation testing.
-- Track record of leading technical architecture across multiple frontend teams.
-- Knowledge of GraphQL, WebSockets, and state synchronization in distributed environments.`,
-  },
-  {
-    label: "Distributed Systems Lead",
-    company: "Cloudflare",
-    resume: `SENIOR BACKEND & INFRASTRUCTURE ENGINEER
-Seattle, WA | jordan.sys@example.com | github.com/jordansys
-
-EXPERIENCE:
-Lead Distributed Systems Engineer @ Global Cloud (2021 - Present)
-- Designed high-throughput event ingestion engine in Go and Rust processing 180k events/sec.
-- Implemented multi-region Redis caching and Kafka partition rebalancing, cutting p99 latency to 18ms.
-- Built resilient failover and zero-downtime database migration tooling with PostgreSQL.
-
-Systems Engineer @ SaaS Infrastructure (2018 - 2021)
-- Developed gRPC microservices and Docker/Kubernetes deployment pipelines on AWS EC2.
-- Integrated OpenTelemetry distributed tracing and Prometheus alerting across 60+ microservices.
-
-SKILLS:
-Backend & Systems: Go, Rust, Python, PostgreSQL, Redis, Kafka, gRPC, Distributed Systems
-Cloud & DevOps: Docker, Kubernetes, AWS, Terraform, CI/CD, OpenTelemetry, Prometheus`,
-    jd: `Role: Staff Systems Infrastructure Engineer
-Company: Cloudflare
-Location: Remote (US)
-
-Requirements:
-- Strong experience in Go, Rust, or C++ building low-latency distributed systems.
-- Deep understanding of Redis, Kafka, partition hashing, and distributed consensus.
-- Proven ability to optimize p99 latency and manage multi-region high-availability workloads.
-- Hands-on experience with Docker, Kubernetes, and telemetry instrumentation.`,
-  },
-];
+import { SAMPLE_PRESETS, type SamplePreset } from "@/data/samplePresets";
 
 export default function FreeAtsScan() {
-  const [resumeText, setResumeText] = useState("");
-  const [jobDescription, setJobDescription] = useState("");
+  const location = useLocation();
+  const initialResume = (location.state?.resumeText as string) || "";
+  const initialJob = (location.state?.jobDescription as string) || "";
+  const initialPreset = (location.state?.activePreset as string) || null;
+  const autoScanRequested = Boolean(location.state?.autoScan);
+
+  const [resumeText, setResumeText] = useState(initialResume);
+  const [jobDescription, setJobDescription] = useState(initialJob);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
   const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
-  const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [activePreset, setActivePreset] = useState<string | null>(initialPreset);
   const abortRef = useRef<AbortController | null>(null);
+  const autoScanTriggeredRef = useRef(false);
 
   useEffect(() => {
     const onOnline = () => setOffline(false);
@@ -95,7 +39,7 @@ export default function FreeAtsScan() {
     };
   }, []);
 
-  const loadPreset = (preset: typeof SAMPLE_PRESETS[0]) => {
+  const loadPreset = (preset: SamplePreset) => {
     setResumeText(preset.resume);
     setJobDescription(preset.jd);
     setActivePreset(preset.label);
@@ -104,12 +48,12 @@ export default function FreeAtsScan() {
     toast.success(`Loaded sample: ${preset.label} (${preset.company})`);
   };
 
-  const handleScan = async () => {
+  const executeScan = async (rText: string, jText: string) => {
     if (offline) {
       setError("You are offline. Reconnect before starting a scan.");
       return;
     }
-    if (!resumeText.trim() || !jobDescription.trim()) {
+    if (!rText.trim() || !jText.trim()) {
       setError("Please fill in both fields before scanning.");
       return;
     }
@@ -123,8 +67,8 @@ export default function FreeAtsScan() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          resume_text: resumeText,
-          job_description: jobDescription,
+          resume_text: rText,
+          job_description: jText,
         }),
         signal: controller.signal,
       });
@@ -149,6 +93,15 @@ export default function FreeAtsScan() {
       setLoading(false);
     }
   };
+
+  const handleScan = () => executeScan(resumeText, jobDescription);
+
+  useEffect(() => {
+    if (autoScanRequested && !autoScanTriggeredRef.current && initialResume.trim() && initialJob.trim()) {
+      autoScanTriggeredRef.current = true;
+      executeScan(initialResume, initialJob);
+    }
+  }, [autoScanRequested, initialResume, initialJob]);
 
   const cancelScan = () => {
     abortRef.current?.abort();

@@ -153,6 +153,31 @@ def analyze_fit_matrix(
         why = f"Skill gap detected ({len(missing_skills)} missing skills: {', '.join(missing_skills[:3])})."
         what_change = f"Tailor resume to emphasize experience in {', '.join(missing_skills[:2])}."
 
+    # 7. Transition fit and cross-domain skill transfer matrix
+    transferable_skills = (profile_preferences or {}).get("transferable_skills") or []
+    transition_type = (profile_preferences or {}).get("transition_type") or "same_domain"
+    cur_title = (profile_preferences or {}).get("current_title") or ""
+    tgt_level = (profile_preferences or {}).get("target_level") or ""
+    cur_ind = (profile_preferences or {}).get("current_industry") or ""
+    tgt_ind = (profile_preferences or {}).get("target_industry") or ""
+
+    if transition_type == "cross_domain" and (cur_ind or tgt_ind):
+        trans_why = f"Cross-domain transition from {cur_ind or 'current sector'} to {tgt_ind or 'target sector'}: leverages {len(transferable_skills)} transferable competencies for {job.get('title', 'target role')}."
+    elif cur_title:
+        trans_why = f"Same-domain progression from {cur_title} towards {tgt_level or 'advanced'} responsibilities in {job.get('title', 'this role')}."
+    else:
+        trans_why = f"Alignment based on candidate competencies and target requirements for {job.get('title', 'this role')}."
+
+    transfer_matrix = []
+    for miss in missing_skills:
+        for trans in transferable_skills:
+            transfer_matrix.append({
+                "source_skill": trans,
+                "target_skill": miss,
+                "transferability_score": 0.85,
+                "rationale": f"Candidate competence in '{trans}' translates to domain execution in '{miss}'."
+            })
+
     return {
         "hard_constraints": {
             "pass": hard_pass,
@@ -186,5 +211,10 @@ def analyze_fit_matrix(
             "action": rec_action,
             "why": why,
             "what_would_change": what_change,
+        },
+        "transition_fit": {
+            "transition_type": transition_type,
+            "explanation": trans_why,
+            "transfer_matrix": transfer_matrix[:6],
         },
     }

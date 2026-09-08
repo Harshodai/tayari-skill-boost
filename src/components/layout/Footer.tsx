@@ -15,8 +15,10 @@ export function Footer() {
     platform: [
       { label: "Desktop App", href: "/downloads", visible: true },
       { label: "Omnisave Reader", href: "/omnisave", visible: true },
-      { label: "Pricing & Packs", href: "/pricing", visible: features.pricing },
-      { label: "ATS Scan Tool", href: "/free-scan", visible: true },
+      { label: "Pricing & Plans", href: "/pricing", visible: features.pricing },
+      { label: "Free ATS Scanner", href: "/free-scan", visible: true },
+      { label: "Resume Score Checker", href: "/resume-score", visible: true },
+      { label: "Job Match Rate", href: "/job-match", visible: true },
     ],
     company: [
       { label: "About Us", href: "/about", visible: true },

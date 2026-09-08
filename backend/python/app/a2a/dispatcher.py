@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Asynchronous A2ADispatcher for inter-agent message routing and task delegation.
 Enforces Pydantic model contracts and bounded timeouts on every message hop.

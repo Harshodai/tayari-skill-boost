@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import { AlertCircle, RefreshCw, Mail, ArrowRight, Sparkles } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 
+import { EDUCATIONAL_ARTICLES } from "@/data/educationalArticles";
+
 interface BlogPost {
   id: string;
   title: string;
@@ -53,32 +55,56 @@ const Blog = () => {
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [isSubscribing, setIsSubscribing] = useState(false);
 
-  // Fetch all posts
+  // Fetch all posts with fallback to authoritative educational articles
   const { data: postsData, isLoading, error, refetch } = useQuery({
     queryKey: ["blog-posts", filters],
     queryFn: async () => {
-      let query = supabase
-        .from("blog_posts")
-        .select("*")
-        .not("published_at", "is", null)
-        .order("published_at", { ascending: false });
+      try {
+        let query = supabase
+          .from("blog_posts")
+          .select("*")
+          .not("published_at", "is", null)
+          .order("published_at", { ascending: false });
 
+        if (filters.category) {
+          query = query.eq("category", filters.category);
+        }
+
+        if (filters.tag) {
+          query = query.contains("tags", [filters.tag]);
+        }
+
+        if (filters.search) {
+          query = query.or(`title.ilike.%${filters.search}%,excerpt.ilike.%${filters.search}%,content.ilike.%${filters.search}%`);
+        }
+
+        const { data, error } = await query;
+
+        if (!error && data && data.length > 0) {
+          return data as unknown as BlogPost[];
+        }
+      } catch (err) {
+        console.warn("Supabase blog_posts query failed, using educational articles fallback:", err);
+      }
+
+      // Filter educational articles fallback
+      let fallback = [...EDUCATIONAL_ARTICLES];
       if (filters.category) {
-        query = query.eq("category", filters.category);
+        fallback = fallback.filter((p) => p.category === filters.category);
       }
-
       if (filters.tag) {
-        query = query.contains("tags", [filters.tag]);
+        fallback = fallback.filter((p) => p.tags.includes(filters.tag!));
       }
-
       if (filters.search) {
-        query = query.or(`title.ilike.%${filters.search}%,excerpt.ilike.%${filters.search}%,content.ilike.%${filters.search}%`);
+        const queryLower = filters.search.toLowerCase();
+        fallback = fallback.filter(
+          (p) =>
+            p.title.toLowerCase().includes(queryLower) ||
+            p.excerpt.toLowerCase().includes(queryLower) ||
+            p.content.toLowerCase().includes(queryLower)
+        );
       }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as unknown as BlogPost[];
+      return fallback;
     },
   });
 
