@@ -627,13 +627,15 @@ async def llm_complete(
     completion_tokens = estimate_tokens(result)
     cost_usd = calculate_llm_cost(provider_name, prompt_tokens, completion_tokens)
 
-    # Daily budget tracking & alerting (do not fail the request)
+    # Daily budget tracking & alerting (do not fail the request).
+    # Anonymous/unattributed calls are billed to a shared "anonymous" bucket so
+    # a route without an authenticated caller cannot spend without a cap.
     try:
-        total_spend, exceeded, limit = daily_cost_tracker.record_cost(cost_usd, _user_id)
+        total_spend, exceeded, limit = daily_cost_tracker.record_cost(cost_usd, _user_id or "anonymous")
         if exceeded:
             logger.warning(
                 "Daily LLM cost budget exceeded for user=%s: accumulated $%.4f > limit $%.4f",
-                _user_id, total_spend, limit,
+                _user_id or "anonymous", total_spend, limit,
             )
             metrics.record_cost_budget_exceeded()
     except Exception as exc:  # noqa: BLE001
