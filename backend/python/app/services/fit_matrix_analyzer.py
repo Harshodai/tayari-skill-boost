@@ -137,6 +137,11 @@ def analyze_fit_matrix(
                 "why": "No required skills listed — cannot assess skill fit",
                 "what_would_change": "Apply when you can verify direct experience alignment through the full job description.",
             },
+            "transition_fit": {
+                "transition_type": "unknown",
+                "explanation": "No required skills extracted; transition fit cannot be assessed.",
+                "transfer_matrix": [],
+            },
         }
 
     if not hard_pass:

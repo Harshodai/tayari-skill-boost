@@ -177,19 +177,25 @@ export function getCourseRecommendationsForGaps(
   const seenIds = new Set<string>();
 
   for (const gap of normalizedGaps) {
+    const gapTokens = new Set(gap.split(/[^a-z0-9+#]+/).filter(Boolean));
+    const hasToken = (...tokens: string[]) => tokens.some((t) => gapTokens.has(t));
     for (const course of COURSE_RECOMMENDATIONS) {
       if (seenIds.has(course.id)) continue;
 
       const skillLower = course.skill.toLowerCase();
-      // Check exact match, substring match, or reverse substring match
+      const skillTokens = new Set(skillLower.split(/[^a-z0-9+#]+/).filter(Boolean));
+      const sharesToken = [...skillTokens].some((t) => t.length >= 2 && gapTokens.has(t));
+      // Check exact match, whole-token overlap, or longer-substring match (min 4 chars)
       if (
-        gap.includes(skillLower) ||
-        skillLower.includes(gap) ||
-        (skillLower === "system design" && (gap.includes("architecture") || gap.includes("distributed") || gap.includes("design"))) ||
-        (skillLower === "golang" && gap.includes("go")) ||
-        (skillLower === "kubernetes" && (gap.includes("k8s") || gap.includes("container"))) ||
-        (skillLower === "aws" && (gap.includes("cloud") || gap.includes("amazon"))) ||
-        (skillLower === "generative ai" && (gap.includes("ai") || gap.includes("llm") || gap.includes("nlp") || gap.includes("rag")))
+        gap === skillLower ||
+        sharesToken ||
+        (skillLower.length >= 4 && gap.includes(skillLower)) ||
+        (gap.length >= 4 && skillLower.includes(gap)) ||
+        (skillLower === "system design" && hasToken("architecture", "distributed", "design", "systems")) ||
+        (skillLower === "golang" && hasToken("go", "golang")) ||
+        (skillLower === "kubernetes" && hasToken("k8s", "kubernetes", "container", "containers")) ||
+        (skillLower === "aws" && hasToken("cloud", "amazon", "aws")) ||
+        (skillLower === "generative ai" && hasToken("ai", "llm", "nlp", "rag", "genai", "generative"))
       ) {
         matchedCourses.push(course);
         seenIds.add(course.id);

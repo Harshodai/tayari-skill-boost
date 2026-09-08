@@ -38,6 +38,26 @@ def test_instruction_ledger_rejects_hallucinated_credentials():
     assert "truthfulness" in ledger[0]["reason"].lower()
 
 
+def test_instruction_ledger_rejects_unrelated_certification():
+    instructions = "Add PMP certification"
+    orig_text = "Software Engineer with Python experience."
+    opt_text = "Software Engineer with AWS certification and Python experience."
+
+    ledger = _build_instruction_ledger(instructions, opt_text, orig_text)
+    assert len(ledger) == 1
+    assert ledger[0]["status"] != "applied"
+
+
+def test_instruction_ledger_rejects_partial_multi_part_match():
+    instructions = "Add metrics around throughput and lead a team of five engineers"
+    orig_text = "Software Engineer with Python experience."
+    opt_text = "Software Engineer with improved throughput."
+
+    ledger = _build_instruction_ledger(instructions, opt_text, orig_text)
+    assert len(ledger) == 1
+    assert ledger[0]["status"] == "ignored"
+
+
 def test_compute_bullet_diffs_detects_changes_and_additions():
     orig = "- Built REST APIs using Flask\n- Maintained database"
     opt = "- Architected high-throughput REST APIs using FastAPI\n- Maintained PostgreSQL database with 99.9% uptime\n- Led team of 3 engineers"

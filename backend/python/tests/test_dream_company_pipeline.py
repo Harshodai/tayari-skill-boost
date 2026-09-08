@@ -48,11 +48,11 @@ async def test_dream_company_e2e_pipeline_verification():
 
     # Stage 4: Resume optimization with custom instructions ledger
     resume_text = "Software Engineer at TechCorp serving 10M DAU. Built distributed backend systems using Go and Python."
-    custom_instructions = "Emphasize high scale distributed systems\\nAdd metrics"
+    custom_instructions = "Emphasize high scale distributed systems\nAdd metrics"
     opt_text = "Senior Software Engineer at TechCorp. Architected high-throughput distributed systems in Go and Python scaling to 10M DAU."
 
     ledger = _build_instruction_ledger(custom_instructions, opt_text, resume_text)
-    assert len(ledger) >= 1
+    assert len(ledger) == 2
     assert ledger[0]["status"] == "applied"
 
     # Stage 5: Guardrails gate

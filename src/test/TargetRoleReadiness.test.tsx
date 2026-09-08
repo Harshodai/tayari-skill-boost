@@ -19,6 +19,14 @@ describe("TargetRoleReadinessCard & Loss-Aversion Tracker", () => {
     expect(checkSkillMatch("Distributed Systems & Microservices", ["Docker", "Kubernetes"])).toBe(false);
   });
 
+  it("rejects short-token substring false positives", () => {
+    expect(checkSkillMatch("Machine Learning", ["AI"])).toBe(false);
+    expect(checkSkillMatch("MongoDB", ["Go"])).toBe(false);
+    expect(checkSkillMatch("Digital Marketing", ["Git"])).toBe(false);
+    expect(checkSkillMatch("Go", ["Go"])).toBe(true);
+    expect(checkSkillMatch("Git", ["Git"])).toBe(true);
+  });
+
   it("benchmarks against default candidate profile yielding 73% readiness for Senior PM with expected top gaps", () => {
     render(
       <MemoryRouter>

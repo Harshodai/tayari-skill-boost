@@ -187,9 +187,9 @@ const InterviewBoard = () => {
     const role = app?.title || app?.job?.title || "Software Engineer";
     const company = app?.company || app?.job?.company || "Company";
     if (stage === "offer") {
-      return `Thrilled to share that I've received an offer for ${role} at ${company}! 🎉\n\nNavigating the job hunt deliberately with @JobTayari made a massive difference—ATS calibration, evidence-backed STAR delivery, and cryptographic proof of every submission.\n\nProud to officially join the Tayari Alumni community! Keep your job search deliberate. #JobOffer #Hired #TayariAlumni #CareerGrowth #JobTayari`;
+      return `Thrilled to share that I've received an offer for ${role} at ${company}! 🎉\n\nGrateful for the focused preparation and steady progress tracking along the way.\n\nProud to officially join the Tayari Alumni community! Keep your job search deliberate. #JobOffer #Hired #TayariAlumni #CareerGrowth #JobTayari`;
     }
-    return `Excited to advance to the interview stage for ${role} at ${company}! 🚀\n\nTaking a deliberate, calibrated approach to applications using @JobTayari made all the difference—honest ATS alignment, structured STAR preparation, and zero spam.\n\nLooking forward to the conversations ahead! #JobSearch #CareerMilestone #InterviewPrep #JobTayari`;
+    return `Excited to advance to the interview stage for ${role} at ${company}! 🚀\n\nTaking a deliberate, prepared approach to applications made all the difference—organized tracking, structured interview preparation, and steady follow-through.\n\nLooking forward to the conversations ahead! #JobSearch #CareerMilestone #InterviewPrep #JobTayari`;
   };
 
   const openMilestoneModal = (app: any, stage: "interview" | "offer") => {

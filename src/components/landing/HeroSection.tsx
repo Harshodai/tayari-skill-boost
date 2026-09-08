@@ -168,7 +168,7 @@ export function HeroSection() {
                   {/* Resume Textarea */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <label htmlFor="hero-resume-input" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5 text-primary" />
                         Candidate Resume / CV
                       </label>
@@ -177,6 +177,7 @@ export function HeroSection() {
                       </span>
                     </div>
                     <Textarea
+                      id="hero-resume-input"
                       value={resumeInput}
                       onChange={(e) => {
                         setResumeInput(e.target.value);
@@ -190,7 +191,7 @@ export function HeroSection() {
                   {/* Job Description or URL Textarea */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <label htmlFor="hero-job-input" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                         <Briefcase className="w-3.5 h-3.5 text-primary" />
                         Target Job Spec or Posting URL
                       </label>
@@ -199,6 +200,7 @@ export function HeroSection() {
                       </span>
                     </div>
                     <Textarea
+                      id="hero-job-input"
                       value={jobInput}
                       onChange={(e) => {
                         setJobInput(e.target.value);

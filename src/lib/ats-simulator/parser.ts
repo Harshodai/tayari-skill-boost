@@ -693,7 +693,7 @@ function detectHazards(text: string, engine: AtsEngineType): HazardFlag[] {
   hazards.push({
     id: "pipe-separator-ambiguity",
     title: "Pipe separator ambiguity",
-    severity: excessivePipes ? "low" : "low",
+    severity: excessivePipes ? "medium" : "low",
     description: excessivePipes
       ? "High frequency of vertical pipe characters (|). While modern parsers tolerate pipes, Lever plaintext streams occasionally misattribute piped attributes."
       : "Minimal or safe pipe separator usage.",

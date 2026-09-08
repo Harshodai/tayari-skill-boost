@@ -4133,3 +4133,42 @@ Created dedicated comparison pages adhering to the strict "Job Tayari" token bou
 
 **Reusable lesson:**
 When implementing competitor comparison pages and public SEO tools in a strictly branded repository, ensure all brand references strictly adhere to the exact token boundary (`Job Tayari` or `JobTayari`), and keep internal data structure properties decoupled from global framework identifiers (`features`, `Tayari`) to avoid brittle test scanner false positives.
+
+## 2026-09-08 — Batch review-findings remediation (22 items triaged, 20 fixed, 2 scoped out)
+
+**What was done:** Verified each finding against current code; fixed still-valid issues minimally:
+- `fit_matrix_analyzer.py`: no-evidence early return now includes `transition_fit` (`unknown`/`[]`) matching normal shape.
+- `optimizer.py`: credential gate uses `\b` word-boundary matching; applied-status requires full-outcome evidence (1-token: exact; multi-token: ≥2 and ≥50%); bullet diffs only use explicitly marked bullets + `difflib.SequenceMatcher` alignment. Added 2 negative provenance tests.
+- `test_dream_company_pipeline.py`: real newline in `custom_instructions`, assert exactly 2 ledger entries.
+- `VC_PITCH.md`: CAGR corrected 22.3%→22.0% with dated methodology note; SOM copy de-hyped ("ATS bypass" removed). Updated pitch test.
+- `lean-schema-12.sql`: Neon-compatible stubs (extension, roles, `auth.users`) + profiles RLS scoped to immutable `id` with `user_id=id` check constraint. Added static schema tests.
+- `TargetRoleReadinessCard.tsx`: `initialRoleSlug` validated; `useEffect` syncs later valid slugs; `checkSkillMatch` whole-token first, substring only when both sides ≥4 chars. Added short-token negative tests (AI/Go/Git).
+- `HeroSection.tsx`: `htmlFor`/`id` on the 2 label/Textarea pairs present (finding claimed 4; other 2 don't exist in file).
+- `AtsParserSimulator.tsx`: toggle moved to Button with `aria-expanded`; CardHeader non-interactive.
+- `courseRecommendations.ts`: token-level matching; substring branches need ≥4 chars; Go/AI special cases token-exact.
+- `parser.ts`: pipe hazard `medium` when detected.
+- `BlogPost.tsx`: fallback filters by category + slug.
+- `CompareTool.tsx`: "live Workday/Greenhouse/Lever engines" → simulated wording.
+- `Dashboard.tsx`: string-only filter before `Set.add`.
+- `InterviewBoard.tsx`: milestone posts neutralized (no ATS-crypto-proof claims).
+- `JobSearch.tsx`: digest summary reads `hermesDigest.filters`.
+- `Pricing.tsx`: `handleCheckout(id, billingMode)` sends `{plan+billing_mode:subscription}` vs `{pack_id+billing_mode:one_time}`; monthly CTA gate `billingEnabled !== true`; loading keys namespaced. Updated + added payload-distinction tests.
+- `ResumeScore.tsx`: dimensions are `number|null` from API only, "Not measured" UI, export omits nulls.
+
+**Skipped (with reason):**
+- `hermesDigest.ts` backend persistence: no digest/schedule backend endpoint exists anywhere in Go/Python (`grep digest` only hits frontend); building one is beyond minimal scope — toggle stays local-only.
+- Full live-DB integration test for lean-schema on every target: no database available in this environment; covered with static schema assertions instead.
+- `test_dream_company_pipeline.py` cannot execute here: pre-existing `StrEnum` import fails on system Python 3.9 (needs 3.11+); provenance suite (6 tests) green.
+
+**Root cause pattern:** Most findings were real: substring/positional heuristics (`in`, index-paired diffs, derived scores) fabricating precision, plus truthfulness gaps (live-engine claims, crypto-proof posts, score-from-score math).
+
+**Fix applied:** Verified with `pytest tests/test_resume_optimizer_provenance.py` (6 passed), `bun run test` on 6 affected suites (60 passed), `bun run lint` (0 errors).
+
+**Reusable lesson:** When a finding cites line numbers/locations, re-grep first — two claims here were stale (HeroSection has 2 pairs not 4; no digest backend exists). Fix the valid core, note the delta, don't build missing systems to satisfy a finding.
+
+## 2026-09-08 — Pricing test window.location cleanup hardened
+
+**What was done:** Wrapped both mocked-`window.location` checkout tests in `src/test/Pricing.test.tsx` in try/finally so `originalLocation` restores even on assertion failure.
+**Root cause:** Plain end-of-test restore skips cleanup when `waitFor` throws, leaking a mocked location into later tests.
+**Fix applied:** Render + assertions in `try`, restore in `finally`. Validated: Pricing suite 13/13 pass, lint 0 errors.
+**Reusable lesson:** Any test that mutates globals (`window.location`, env, timers) must restore in `finally`/`afterEach` — a failing assertion must never corrupt the next test.

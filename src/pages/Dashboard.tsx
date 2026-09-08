@@ -91,19 +91,14 @@ const Dashboard = () => {
 
   const userSkills = useMemo(() => {
     const set = new Set<string>();
-    if (profile?.skills && Array.isArray(profile.skills)) {
-      profile.skills.forEach((s) => set.add(s));
-    }
-    if (profile?.transferable_skills && Array.isArray(profile.transferable_skills)) {
-      profile.transferable_skills.forEach((s) => set.add(s));
-    }
+    const addStrings = (arr: unknown) => {
+      if (Array.isArray(arr)) arr.forEach((s) => { if (typeof s === "string" && s) set.add(s); });
+    };
+    addStrings(profile?.skills);
+    addStrings((profile as { transferable_skills?: unknown })?.transferable_skills);
     analyses.forEach((a) => {
-      if (a.parsed_resume?.skills && Array.isArray(a.parsed_resume.skills)) {
-        a.parsed_resume.skills.forEach((s) => set.add(s));
-      }
-      if (a.analysis_data?.matchedKeywords && Array.isArray(a.analysis_data.matchedKeywords)) {
-        a.analysis_data.matchedKeywords.forEach((s) => set.add(s));
-      }
+      addStrings(a.parsed_resume?.skills);
+      addStrings(a.analysis_data?.matchedKeywords);
     });
     return Array.from(set);
   }, [profile, analyses]);

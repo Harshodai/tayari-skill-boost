@@ -82,6 +82,22 @@ describe("Lean MVP 12-Core Schema (scripts/lean-schema-12.sql)", () => {
     expect(schemaContent).toMatch(/GRANT\s+SELECT[\s\S]*?TO\s+authenticated/i);
   });
 
+  it("creates Neon-compatible auth stubs before foreign keys and grants", () => {
+    expect(schemaContent).toMatch(/CREATE TABLE IF NOT EXISTS auth\.users/i);
+    expect(schemaContent).toMatch(/CREATE ROLE authenticated/i);
+    expect(schemaContent).toMatch(/CREATE ROLE service_role/i);
+  });
+
+  it("scopes the profiles owner policy to immutable id and rejects mismatched user_id", () => {
+    const policyBlock = schemaContent.match(
+      /CREATE POLICY profiles_owner_access[\s\S]*?WITH CHECK\s*\([^;]+\);/i
+    );
+    expect(policyBlock).not.toBeNull();
+    expect(policyBlock![0]).toMatch(/USING\s*\(\s*auth\.uid\(\)\s*=\s*id\s*\)/i);
+    expect(policyBlock![0]).toMatch(/WITH CHECK\s*\(\s*auth\.uid\(\)\s*=\s*id\s*\)/i);
+    expect(schemaContent).toMatch(/profiles_user_id_matches_id[\s\S]*?user_id\s*=\s*id/i);
+  });
+
   it("contains foreign key tie between application_attempts and agent_runs", () => {
     expect(schemaContent).toMatch(/application_attempts/i);
     expect(schemaContent).toMatch(/agent_runs/i);
@@ -126,10 +142,10 @@ describe("VC Pitch Deck & Investor Narrative (docs/VC_PITCH.md)", () => {
     expect(pitchContent).toMatch(/truthfulness/i);
   });
 
-  it("quantifies the market opportunity with $6.69B in 2026 to $14.82B in 2030 at 22.3% CAGR", () => {
+  it("quantifies the market opportunity with $6.69B in 2026 to $14.82B in 2030 at 22.0% CAGR", () => {
     expect(pitchContent).toMatch(/\$6\.69\s*Billion|\$6\.69B/i);
     expect(pitchContent).toMatch(/\$14\.82\s*Billion|\$14\.82B/i);
-    expect(pitchContent).toMatch(/22\.3%\s*CAGR/i);
+    expect(pitchContent).toMatch(/22\.0%\s*CAGR/i);
     expect(pitchContent).toMatch(/TAM/i);
     expect(pitchContent).toMatch(/SAM/i);
     expect(pitchContent).toMatch(/SOM/i);

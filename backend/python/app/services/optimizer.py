@@ -490,7 +490,8 @@ def _build_instruction_ledger(
 
         has_new_cred = False
         for cm in cred_markers:
-            if cm in lower and cm not in orig_lower:
+            pat = r"\b" + re.escape(cm) + r"\b"
+            if re.search(pat, lower) and not re.search(pat, orig_lower):
                 has_new_cred = True
                 break
         if has_new_cred:
@@ -502,8 +503,14 @@ def _build_instruction_ledger(
             continue
 
         tokens = [t for t in re.findall(r"\b[a-zA-Z]{3,}\b", lower) if t not in STOPWORDS]
-        matched_tokens = [t for t in tokens if t in opt_lower]
-        if matched_tokens or len(tokens) == 0:
+        matched_tokens = [t for t in tokens if re.search(r"\b" + re.escape(t) + r"\b", opt_lower)]
+        if len(tokens) == 0:
+            applied = True
+        elif len(tokens) == 1:
+            applied = len(matched_tokens) == 1
+        else:
+            applied = len(matched_tokens) >= 2 and len(matched_tokens) / len(tokens) >= 0.5
+        if applied:
             ledger.append({
                 "instruction": raw,
                 "status": "applied",
@@ -521,33 +528,43 @@ def _build_instruction_ledger(
 
 def _compute_bullet_diffs(original_text: str, optimized_text: str) -> list[dict[str, str]]:
     """Produce structured before/after bullet point diffs with status tags."""
+    import difflib
     orig_bullets = [
         b.strip(" -*•\t")
         for b in original_text.splitlines()
-        if b.strip().startswith(("-", "*", "•")) or (b.strip() and len(b.strip()) > 30)
+        if b.strip().startswith(("-", "*", "•"))
     ]
     opt_bullets = [
         b.strip(" -*•\t")
         for b in optimized_text.splitlines()
-        if b.strip().startswith(("-", "*", "•")) or (b.strip() and len(b.strip()) > 30)
+        if b.strip().startswith(("-", "*", "•"))
     ]
     diffs = []
-    max_len = max(len(orig_bullets), len(opt_bullets))
-    for i in range(min(max_len, 20)):
-        orig = orig_bullets[i] if i < len(orig_bullets) else ""
-        opt = opt_bullets[i] if i < len(opt_bullets) else ""
-        if orig and opt:
-            status = "unchanged" if orig.strip() == opt.strip() else "modified"
-        elif opt and not orig:
-            status = "added"
-        else:
-            status = "removed"
-        diffs.append({
-            "original": orig,
-            "optimized": opt,
-            "status": status,
-        })
-    return diffs
+    matcher = difflib.SequenceMatcher(a=orig_bullets, b=opt_bullets, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            for k in range(i2 - i1):
+                diffs.append({"original": orig_bullets[i1 + k], "optimized": opt_bullets[j1 + k], "status": "unchanged"})
+        elif tag == "replace":
+            for k in range(max(i2 - i1, j2 - j1)):
+                orig = orig_bullets[i1 + k] if i1 + k < i2 else ""
+                opt = opt_bullets[j1 + k] if j1 + k < j2 else ""
+                if orig and opt:
+                    status = "unchanged" if orig.strip() == opt.strip() else "modified"
+                elif opt and not orig:
+                    status = "added"
+                else:
+                    status = "removed"
+                diffs.append({"original": orig, "optimized": opt, "status": status})
+        elif tag == "delete":
+            for k in range(i1, i2):
+                diffs.append({"original": orig_bullets[k], "optimized": "", "status": "removed"})
+        elif tag == "insert":
+            for k in range(j1, j2):
+                diffs.append({"original": "", "optimized": opt_bullets[k], "status": "added"})
+        if len(diffs) >= 20:
+            break
+    return diffs[:20]
 
 
 async def optimize_with_reflection(

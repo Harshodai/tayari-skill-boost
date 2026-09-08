@@ -317,21 +317,29 @@ const Pricing = () => {
     };
   }, [user]);
 
-  const handleCheckout = async (packId: string) => {
+  const handleCheckout = async (id: string, billingMode: "subscription" | "one_time") => {
     if (!user) {
-      navigate(`/auth?pack=${packId}`);
+      navigate(`/auth?pack=${id}`);
       return;
     }
 
-    setLoadingPlan(packId);
+    setLoadingPlan(`${billingMode}:${id}`);
     try {
       const response = await apiFetchResponse("/v1/billing/create-checkout-session", {
         method: "POST",
-        body: JSON.stringify({
-          plan: packId,
-          pack_id: packId,
-          return_url: window.location.origin + "/pricing",
-        }),
+        body: JSON.stringify(
+          billingMode === "subscription"
+            ? {
+              plan: id,
+              billing_mode: billingMode,
+              return_url: window.location.origin + "/pricing",
+            }
+            : {
+              pack_id: id,
+              billing_mode: billingMode,
+              return_url: window.location.origin + "/pricing",
+            }
+        ),
       });
 
       if (!response.ok) {
@@ -363,7 +371,7 @@ const Pricing = () => {
         navigate("/auth?plan=pro");
         return;
       }
-      handleCheckout("pro");
+      handleCheckout("pro", "subscription");
       return;
     }
 
@@ -372,7 +380,7 @@ const Pricing = () => {
         navigate("/auth?plan=team");
         return;
       }
-      handleCheckout("team");
+      handleCheckout("team", "subscription");
       return;
     }
 
@@ -628,12 +636,12 @@ const Pricing = () => {
                         }`}
                         variant={isEnterprise ? "outline" : isPopular ? "default" : "secondary"}
                         disabled={
-                          (!isFree && !isEnterprise && Boolean(loadingPlan === tier.id)) ||
-                          (!isFree && !isEnterprise && Boolean(user && billingEnabled === false))
+                          (!isFree && !isEnterprise && Boolean(loadingPlan === `subscription:${tier.id}`)) ||
+                          (!isFree && !isEnterprise && Boolean(user && billingEnabled !== true))
                         }
                         onClick={() => handleMonthlyTierAction(tier)}
                       >
-                        {loadingPlan === tier.id ? (
+                        {loadingPlan === `subscription:${tier.id}` ? (
                           <Loader2 className="w-4 h-4 animate-spin mr-2" />
                         ) : null}
                         {tier.cta}
@@ -745,10 +753,10 @@ const Pricing = () => {
                             ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-md"
                             : "bg-secondary hover:bg-secondary/80 text-foreground border border-border"
                         }`}
-                        disabled={Boolean(loadingPlan === pack.id) || Boolean(user && billingEnabled !== true)}
-                        onClick={() => handleCheckout(pack.id)}
+                        disabled={Boolean(loadingPlan === `one_time:${pack.id}`) || Boolean(user && billingEnabled !== true)}
+                        onClick={() => handleCheckout(pack.id, "one_time")}
                       >
-                        {loadingPlan === pack.id ? (
+                        {loadingPlan === `one_time:${pack.id}` ? (
                           <Loader2 className="w-4 h-4 animate-spin mr-2" />
                         ) : null}
                         {billingEnabled === false ? "Billing unavailable" : pack.cta}

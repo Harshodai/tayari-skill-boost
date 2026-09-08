@@ -22,8 +22,30 @@ BEGIN;
 
 -- ------------------------------------------------------------------------------
 -- 0. Auth & Schema Prerequisites (safe for standalone PostgreSQL / Neon)
+-- Supabase provides auth.users plus the anon / authenticated / service_role
+-- roles natively. Plain Postgres / Neon do not, so create minimal
+-- Neon-compatible stubs first (no-ops where they already exist).
 -- ------------------------------------------------------------------------------
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE SCHEMA IF NOT EXISTS auth;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'anon') THEN
+        CREATE ROLE anon NOLOGIN;
+    END IF;
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authenticated') THEN
+        CREATE ROLE authenticated NOLOGIN;
+    END IF;
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'service_role') THEN
+        CREATE ROLE service_role NOLOGIN BYPASSRLS;
+    END IF;
+END
+$$;
+
+CREATE TABLE IF NOT EXISTS auth.users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+);
 
 CREATE OR REPLACE FUNCTION auth.uid()
 RETURNS uuid AS $$
@@ -369,8 +391,12 @@ ALTER TABLE public.agent_runs FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS profiles_owner_access ON public.profiles;
 CREATE POLICY profiles_owner_access ON public.profiles
     FOR ALL TO authenticated
-    USING (auth.uid() = id OR auth.uid() = user_id)
-    WITH CHECK (auth.uid() = id OR auth.uid() = user_id);
+    USING (auth.uid() = id)
+    WITH CHECK (auth.uid() = id);
+
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_user_id_matches_id;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_user_id_matches_id
+    CHECK (user_id IS NULL OR user_id = id);
 
 -- 2. user_roles: users can only view their own role assignments
 DROP POLICY IF EXISTS user_roles_owner_access ON public.user_roles;

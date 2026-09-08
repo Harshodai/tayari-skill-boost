@@ -495,12 +495,12 @@ export function AtsParserSimulator({ resumeText, benchmarkRole }: AtsParserSimul
 
       {/* Raw Parser Stream / Buffer Inspection Toggle */}
       <Card className="border-border/80 bg-card/70">
-        <CardHeader className="pb-3 cursor-pointer select-none" onClick={() => setShowRawBuffer(!showRawBuffer)}>
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Terminal className="h-4 w-4 text-muted-foreground" /> Inspect Raw {config.label} Plaintext Buffer
             </CardTitle>
-            <Button size="sm" variant="ghost" className="h-7 text-xs px-2 text-muted-foreground">
+            <Button size="sm" variant="ghost" className="h-7 text-xs px-2 text-muted-foreground" onClick={() => setShowRawBuffer(!showRawBuffer)} aria-expanded={showRawBuffer}>
               {showRawBuffer ? (
                 <>
                   <ChevronUp className="h-3.5 w-3.5 mr-1" /> Hide Buffer

@@ -191,7 +191,7 @@ export const CompareTool = () => {
                 Experience the ATS Difference in 60 Seconds
               </h2>
               <p className="text-muted-foreground max-w-xl mx-auto mb-6 text-sm md:text-base">
-                No credit card required. Test your resume against live Workday, Greenhouse, and Lever parsing engines right now.
+                No credit card required. Test your resume against simulated ATS compatibility checks modeled on common Greenhouse and Lever parsing behavior right now.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Button size="lg" onClick={() => navigate("/free-scan")}>

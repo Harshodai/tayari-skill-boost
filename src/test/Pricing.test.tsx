@@ -217,32 +217,82 @@ describe("Pricing Page - Credit Packs & Transparent Credit Policy", () => {
     delete (window as any).location;
     window.location = { ...originalLocation, href: "", origin: "http://localhost:3000" } as any;
 
-    render(
-      <MemoryRouter>
-        <Pricing />
-      </MemoryRouter>
-    );
-
-    const proCard = await screen.findByTestId("pricing-card-pro");
-    const buyButton = proCard.querySelector("button")!;
-    fireEvent.click(buyButton);
-
-    await waitFor(() => {
-      expect(apiFetchResponseSpy).toHaveBeenCalledWith(
-        "/v1/billing/create-checkout-session",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({
-            plan: "pro",
-            pack_id: "pro",
-            return_url: "http://localhost:3000/pricing",
-          }),
-        })
+    try {
+      render(
+        <MemoryRouter>
+          <Pricing />
+        </MemoryRouter>
       );
-      expect(window.location.href).toBe("https://checkout.stripe.com/test-session");
-    });
 
-    window.location = originalLocation;
+      const proCard = await screen.findByTestId("pricing-card-pro");
+      const buyButton = proCard.querySelector("button")!;
+      fireEvent.click(buyButton);
+
+      await waitFor(() => {
+        expect(apiFetchResponseSpy).toHaveBeenCalledWith(
+          "/v1/billing/create-checkout-session",
+          expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({
+              pack_id: "pro",
+              billing_mode: "one_time",
+              return_url: "http://localhost:3000/pricing",
+            }),
+          })
+        );
+        expect(window.location.href).toBe("https://checkout.stripe.com/test-session");
+      });
+    } finally {
+      window.location = originalLocation;
+    }
+  });
+
+  it("sends a distinct subscription payload for the monthly Pro CTA", async () => {
+    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
+      user: { id: "user-123", email: "candidate@tayari.io" },
+      profile: null,
+      loading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      signup: vi.fn(),
+    } as any);
+
+    vi.spyOn(apiModule, "apiFetch").mockResolvedValue({ packs: [], billing_enabled: true } as any);
+    const apiFetchResponseSpy = vi.spyOn(apiModule, "apiFetchResponse").mockResolvedValue({
+      ok: true,
+      json: async () => ({ url: "https://checkout.stripe.com/test-session" }),
+    } as any);
+
+    const originalLocation = window.location;
+    delete (window as any).location;
+    window.location = { ...originalLocation, href: "", origin: "http://localhost:3000" } as any;
+
+    try {
+      render(
+        <MemoryRouter>
+          <Pricing />
+        </MemoryRouter>
+      );
+
+      const proCard = await screen.findByTestId("pricing-card-monthly-pro");
+      fireEvent.click(within(proCard).getByRole("button", { name: "Get Pro ($12/mo)" }));
+
+      await waitFor(() => {
+        expect(apiFetchResponseSpy).toHaveBeenCalledWith(
+          "/v1/billing/create-checkout-session",
+          expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({
+              plan: "pro",
+              billing_mode: "subscription",
+              return_url: "http://localhost:3000/pricing",
+            }),
+          })
+        );
+      });
+    } finally {
+      window.location = originalLocation;
+    }
   });
 
   describe("Freemium Monthly Plans & Billing Tabs", () => {

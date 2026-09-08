@@ -359,10 +359,15 @@ export default function ResumeScore() {
   const score = Math.round(result?.overall_score ?? result?.result?.overall_score ?? 0);
   const rawBreakdown = result?.score_breakdown ?? result?.result?.section_scores ?? {};
 
-  const skillsScore = Math.round(rawBreakdown?.skills_match ?? (score > 0 ? Math.min(100, Math.max(45, score + 4)) : 0));
-  const experienceScore = Math.round(rawBreakdown?.experience_relevance ?? rawBreakdown?.experience_impact ?? (score > 0 ? Math.min(100, Math.max(40, score - 2)) : 0));
-  const formattingScore = Math.round(rawBreakdown?.formatting ?? (result?.result?.ats_compliance?.score ?? (score > 0 ? 88 : 0)));
-  const educationScore = Math.round(rawBreakdown?.education_fit ?? (score > 0 ? Math.min(100, Math.max(70, score + 6)) : 0));
+  const toScoreOrNull = (v: unknown): number | null => {
+    if (typeof v !== "number" || Number.isNaN(v)) return null;
+    return Math.round(v);
+  };
+
+  const skillsScore = toScoreOrNull(rawBreakdown?.skills_match);
+  const experienceScore = toScoreOrNull(rawBreakdown?.experience_relevance ?? rawBreakdown?.experience_impact);
+  const formattingScore = toScoreOrNull(rawBreakdown?.formatting ?? result?.result?.ats_compliance?.score);
+  const educationScore = toScoreOrNull(rawBreakdown?.education_fit);
 
   const matchedKeywords: string[] = result?.matching_skills ?? result?.result?.matched_keywords ?? [];
   const missingKeywords: string[] = result?.missing_skills ?? result?.result?.missing_keywords ?? [];
@@ -389,10 +394,10 @@ export default function ResumeScore() {
       benchmark_role: currentBenchmark.label,
       overall_score: score,
       breakdown: {
-        skills_match: skillsScore,
-        experience_impact: experienceScore,
-        formatting_compliance: formattingScore,
-        education_fit: educationScore,
+        ...(skillsScore !== null ? { skills_match: skillsScore } : {}),
+        ...(experienceScore !== null ? { experience_impact: experienceScore } : {}),
+        ...(formattingScore !== null ? { formatting_compliance: formattingScore } : {}),
+        ...(educationScore !== null ? { education_fit: educationScore } : {}),
       },
       matched_keywords: matchedKeywords,
       missing_keywords: missingKeywords,
@@ -849,9 +854,9 @@ export default function ResumeScore() {
                           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                             <Zap className="h-3.5 w-3.5 text-blue-500" /> Skills Match
                           </span>
-                          <span className="font-mono text-sm font-bold tabular-nums">{skillsScore}%</span>
+                          <span className="font-mono text-sm font-bold tabular-nums">{skillsScore !== null ? `${skillsScore}%` : "Not measured"}</span>
                         </div>
-                        <Progress value={skillsScore} className="h-2 mb-2" />
+                        <Progress value={skillsScore ?? 0} className="h-2 mb-2" />
                         <p className="text-[11px] text-muted-foreground leading-snug">
                           Overlap across must-have technical competencies and domain tools.
                         </p>
@@ -864,9 +869,9 @@ export default function ResumeScore() {
                           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                             <BarChart3 className="h-3.5 w-3.5 text-emerald-500" /> Experience Impact
                           </span>
-                          <span className="font-mono text-sm font-bold tabular-nums">{experienceScore}%</span>
+                          <span className="font-mono text-sm font-bold tabular-nums">{experienceScore !== null ? `${experienceScore}%` : "Not measured"}</span>
                         </div>
-                        <Progress value={experienceScore} className="h-2 mb-2" />
+                        <Progress value={experienceScore ?? 0} className="h-2 mb-2" />
                         <p className="text-[11px] text-muted-foreground leading-snug">
                           Quantifiable metrics, business results, and Problem-Action-Result format.
                         </p>
@@ -879,9 +884,9 @@ export default function ResumeScore() {
                           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                             <ShieldCheck className="h-3.5 w-3.5 text-purple-500" /> Formatting
                           </span>
-                          <span className="font-mono text-sm font-bold tabular-nums">{formattingScore}%</span>
+                          <span className="font-mono text-sm font-bold tabular-nums">{formattingScore !== null ? `${formattingScore}%` : "Not measured"}</span>
                         </div>
-                        <Progress value={formattingScore} className="h-2 mb-2" />
+                        <Progress value={formattingScore ?? 0} className="h-2 mb-2" />
                         <p className="text-[11px] text-muted-foreground leading-snug">
                           Single-column layout, standard headers, and unhindered parser legibility.
                         </p>
@@ -894,9 +899,9 @@ export default function ResumeScore() {
                           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                             <Layers className="h-3.5 w-3.5 text-amber-500" /> Education Fit
                           </span>
-                          <span className="font-mono text-sm font-bold tabular-nums">{educationScore}%</span>
+                          <span className="font-mono text-sm font-bold tabular-nums">{educationScore !== null ? `${educationScore}%` : "Not measured"}</span>
                         </div>
-                        <Progress value={educationScore} className="h-2 mb-2" />
+                        <Progress value={educationScore ?? 0} className="h-2 mb-2" />
                         <p className="text-[11px] text-muted-foreground leading-snug">
                           Degree alignment, certifications, and relevant continuous learning signals.
                         </p>

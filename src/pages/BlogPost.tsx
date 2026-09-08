@@ -142,7 +142,7 @@ const BlogPost = () => {
         console.warn("Supabase related posts query failed, using educational fallback:", err);
       }
 
-      return EDUCATIONAL_ARTICLES.filter((p) => p.slug !== post?.slug).slice(0, 3);
+      return EDUCATIONAL_ARTICLES.filter((p) => p.slug !== post?.slug && p.category === post?.category).slice(0, 3);
     },
     enabled: !!post,
   });

@@ -677,10 +677,10 @@ const JobSearch = () => {
             {hermesDigest.enabled && (
               <div className="mt-2 text-[10px] text-muted-foreground font-mono bg-background/50 p-2 rounded-md border border-border/40">
                 <span className="font-semibold text-foreground">Scrape target:</span>{" "}
-                {query ? `"${query}"` : "Profile match"}{" "}
-                {location ? `in ${location}` : ""}{" "}
-                {remoteOnly ? "• Remote only" : ""}{" "}
-                {minScore > 0 ? `• Min ${minScore}%` : ""}
+                {hermesDigest.filters?.query ? `"${hermesDigest.filters.query}"` : "Profile match"}{" "}
+                {hermesDigest.filters?.location ? `in ${hermesDigest.filters.location}` : ""}{" "}
+                {hermesDigest.filters?.remoteOnly ? "• Remote only" : ""}{" "}
+                {(hermesDigest.filters?.minScore ?? 0) > 0 ? `• Min ${hermesDigest.filters?.minScore}%` : ""}
               </div>
             )}
           </Card>

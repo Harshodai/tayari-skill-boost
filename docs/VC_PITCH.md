@@ -64,15 +64,17 @@ AI Recruitment & Career Enablement Market Size (USD Billions)
  2 │  │
  0 └──┴─────────────────────────────────────────────────────────
      2026                      2027      2028      2029      2030
-                    CAGR: 22.3% (2026 - 2030)
+                     CAGR: 22.0% (2026 - 2030)
 ```
 
-- **Total Addressable Market (TAM)**:  
-  **$6.69 Billion in 2026**, expanding to **$14.82 Billion in 2030** at a **22.3% CAGR**. Covers talent acquisition software, applicant-side career tools, and automated HR workflow automation globally.
-- **Serviceable Available Market (SAM)**:  
+- **Total Addressable Market (TAM)**:
+  **$6.69 Billion in 2026**, expanding to **$14.82 Billion in 2030** at a **22.0% CAGR**. Covers talent acquisition software, applicant-side career tools, and automated HR workflow automation globally.
+- **Serviceable Available Market (SAM)**:
   **$2.1 Billion** representing technical and knowledge-worker job seekers (software engineering, DevOps, product management, data science, cybersecurity) who actively manage high-velocity career transitions across the US, Europe, and APAC.
-- **Serviceable Obtainable Market (SOM)**:  
-  **$350 Million** targeting active job seekers and career switchers seeking algorithmic ATS bypass, verified skill calibration, and automated application workflow management.
+- **Serviceable Obtainable Market (SOM)**:
+  **$350 Million** targeting active job seekers and career switchers seeking ATS-compatible resume optimization and structured application workflow management.
+
+> **Methodology & source (2026-09-08):** TAM endpoints ($6.69B in 2026 → $14.82B in 2030) are internal planning estimates, not cited third-party forecasts — validate against a paid market report before publication. CAGR = (14.82 / 6.69)^(1/4) − 1 ≈ 22.0%. SAM (~31% of 2026 TAM) and SOM (~17% of SAM) are share-based planning assumptions derived from the TAM endpoints, not independently sourced measurements.
 
 ### Key Macro Tailwinds
 - **ATS Algorithmic Filtering**: Over 98% of Fortune 500 firms use automated ATS filters. A plain resume has less than a 2% chance of landing a human interview without semantic optimization.

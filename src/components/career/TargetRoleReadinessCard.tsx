@@ -103,10 +103,14 @@ export function checkSkillMatch(skillName: string, candidateSkills: string[]): b
   return candidateSkills.some((userSkill) => {
     const normUser = userSkill.toLowerCase().trim();
     if (!normUser) return false;
-    if (normSkill.includes(normUser) || normUser.includes(normSkill)) return true;
-    return tokens.some(
-      (token) => token.includes(normUser) || normUser.includes(token)
-    );
+    if (normUser === normSkill) return true;
+    const normUserTokens = normUser.split(/[\s/&,()]+/).map((t) => t.trim()).filter(Boolean);
+    if (normUserTokens.includes(normSkill)) return true;
+    return tokens.some((token) => {
+      if (token === normUser || normUserTokens.includes(token)) return true;
+      if (token.length < 4 || normUser.length < 4) return false;
+      return token.includes(normUser) || normUser.includes(token);
+    });
   });
 }
 
@@ -129,7 +133,7 @@ export const TargetRoleReadinessCard: React.FC<TargetRoleReadinessCardProps> = (
   className,
 }) => {
   const [selectedRoleSlug, setSelectedRoleSlug] = useState<string>(() => {
-    if (initialRoleSlug) return initialRoleSlug;
+    if (initialRoleSlug && TARGET_ROLE_OPTIONS.some((r) => r.slug === initialRoleSlug)) return initialRoleSlug;
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("tayari_target_role_slug");
       if (saved && TARGET_ROLE_OPTIONS.some((r) => r.slug === saved)) {
@@ -138,6 +142,12 @@ export const TargetRoleReadinessCard: React.FC<TargetRoleReadinessCardProps> = (
     }
     return "product-manager";
   });
+
+  useEffect(() => {
+    if (initialRoleSlug && TARGET_ROLE_OPTIONS.some((r) => r.slug === initialRoleSlug)) {
+      setSelectedRoleSlug(initialRoleSlug);
+    }
+  }, [initialRoleSlug]);
 
   const handleRoleChange = (slug: string) => {
     setSelectedRoleSlug(slug);
