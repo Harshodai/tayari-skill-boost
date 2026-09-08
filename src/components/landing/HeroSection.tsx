@@ -216,7 +216,7 @@ export function HeroSection() {
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>Client-side evaluated. Zero storage of unsaved credentials or sensitive data.</span>
+                    <span>Analyzed server-side via our API. Zero storage of unsaved credentials or sensitive data.</span>
                   </div>
 
                   <Button

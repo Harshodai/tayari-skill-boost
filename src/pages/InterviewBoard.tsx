@@ -204,9 +204,22 @@ const InterviewBoard = () => {
     setCelebrationOpen(true);
   };
 
-  const handleShareToLinkedIn = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Post copied to clipboard! Opening LinkedIn feed...");
+  const _writeToClipboard = async (text: string): Promise<boolean> => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleShareToLinkedIn = async (text: string) => {
+    const copied = await _writeToClipboard(text);
+    if (copied) {
+      toast.success("Post copied to clipboard! Opening LinkedIn feed...");
+    } else {
+      toast.error("Could not copy to clipboard. Please copy the text manually.");
+    }
     const url = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`;
     window.open(url, "_blank", "noopener,noreferrer");
   };
@@ -1323,7 +1336,7 @@ const InterviewBoard = () => {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 self-center">
-                      {selectedApp.stage === "interview" && (
+                      {effectiveStatus(selectedApp) === "interview" && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -1334,7 +1347,7 @@ const InterviewBoard = () => {
                           Share on LinkedIn
                         </Button>
                       )}
-                      {selectedApp.stage === "offer" && (
+                      {effectiveStatus(selectedApp) === "offer" && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -2246,9 +2259,13 @@ const InterviewBoard = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          navigator.clipboard.writeText(milestoneCustomText);
-                          toast.success("Copied post text to clipboard!");
+                        onClick={async () => {
+                          const copied = await _writeToClipboard(milestoneCustomText);
+                          if (copied) {
+                            toast.success("Copied post text to clipboard!");
+                          } else {
+                            toast.error("Could not copy to clipboard.");
+                          }
                         }}
                         className="text-xs gap-1.5 flex-1 sm:flex-initial"
                       >
@@ -2335,9 +2352,13 @@ const InterviewBoard = () => {
                       <Button
                         size="sm"
                         variant="default"
-                        onClick={() => {
-                          navigator.clipboard.writeText(getReferralUrl(celebrationApp));
-                          toast.success("Referral link copied! Share it with a friend.");
+                        onClick={async () => {
+                          const copied = await _writeToClipboard(getReferralUrl(celebrationApp));
+                          if (copied) {
+                            toast.success("Referral link copied! Share it with a friend.");
+                          } else {
+                            toast.error("Could not copy to clipboard.");
+                          }
                         }}
                         className="shrink-0 text-xs gap-1.5 px-4 font-semibold"
                       >
@@ -2369,10 +2390,14 @@ const InterviewBoard = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
+                        onClick={async () => {
                           const text = getMilestonePostText(celebrationApp, "offer");
-                          navigator.clipboard.writeText(text);
-                          toast.success("Offer announcement post copied!");
+                          const copied = await _writeToClipboard(text);
+                          if (copied) {
+                            toast.success("Offer announcement post copied!");
+                          } else {
+                            toast.error("Could not copy to clipboard.");
+                          }
                         }}
                         className="text-xs gap-1.5"
                       >

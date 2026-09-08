@@ -166,8 +166,11 @@ def analyze_fit_matrix(
     cur_ind = (profile_preferences or {}).get("current_industry") or ""
     tgt_ind = (profile_preferences or {}).get("target_industry") or ""
 
-    if transition_type == "cross_domain" and (cur_ind or tgt_ind):
-        trans_why = f"Cross-domain transition from {cur_ind or 'current sector'} to {tgt_ind or 'target sector'}: leverages {len(transferable_skills)} transferable competencies for {job.get('title', 'target role')}."
+    if transition_type == "cross_domain":
+        if cur_ind or tgt_ind:
+            trans_why = f"Cross-domain transition from {cur_ind or 'current sector'} to {tgt_ind or 'target sector'}: leverages {len(transferable_skills)} transferable competencies for {job.get('title', 'target role')}."
+        else:
+            trans_why = f"Cross-domain transition leveraging {len(transferable_skills)} transferable competencies for {job.get('title', 'target role')}."
     elif cur_title:
         trans_why = f"Same-domain progression from {cur_title} towards {tgt_level or 'advanced'} responsibilities in {job.get('title', 'this role')}."
     else:

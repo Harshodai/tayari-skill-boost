@@ -189,6 +189,15 @@ const ResumeResults = () => {
 
   const overallLabel = getScoreLabel(analysisResults.overallScore);
 
+  // Compute course recommendations once before rendering to avoid repeated
+  // inline calls and to allow gating sections on non-empty results.
+  const nonInjectableCourses = getCourseRecommendationsForGaps(
+    optimizationResult?.non_injectable_keywords ?? []
+  );
+  const missingKeywordCourses = getCourseRecommendationsForGaps(
+    analysisResults.missingKeywords ?? []
+  );
+
   return (
     <AppShell>
       <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -765,7 +774,7 @@ const ResumeResults = () => {
                       </div>
 
                       {/* Recommended Courses to Bridge This Gap */}
-                      {optimizationResult.non_injectable_keywords && optimizationResult.non_injectable_keywords.length > 0 && (
+                      {nonInjectableCourses.length > 0 && (
                         <div className="mt-4 pt-3 border-t border-border/40">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-1.5">
@@ -778,7 +787,7 @@ const ResumeResults = () => {
                           </div>
 
                           <div className="grid grid-cols-1 gap-2">
-                            {getCourseRecommendationsForGaps(optimizationResult.non_injectable_keywords).map((course) => (
+                            {nonInjectableCourses.map((course) => (
                               <div
                                 key={course.id}
                                 className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/30 transition-colors"
@@ -1036,7 +1045,7 @@ const ResumeResults = () => {
                     </div>
 
                     {/* Recommended Courses to Bridge Missing Keywords */}
-                    {analysisResults.missingKeywords.length > 0 && (
+                    {missingKeywordCourses.length > 0 && (
                       <div className="mt-4 pt-3 border-t border-border/40">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-1.5">
@@ -1048,7 +1057,7 @@ const ResumeResults = () => {
                           <span className="text-[10px] text-muted-foreground">Affiliated & Curated</span>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {getCourseRecommendationsForGaps(analysisResults.missingKeywords).map((course) => (
+                          {missingKeywordCourses.map((course) => (
                             <div
                               key={course.id}
                               className="p-2.5 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/30 transition-colors flex flex-col justify-between gap-2"

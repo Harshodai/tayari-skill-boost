@@ -791,7 +791,7 @@ const Pricing = () => {
               {/* Why Credits, Not Subscriptions */}
               <div className="max-w-4xl mx-auto mb-16">
                 <h2 className="font-display text-balance text-3xl font-bold text-center mb-10 tracking-tight">
-                  Why <span className="text-gradient">Credit Packs</span> Beat Monthly Subscriptions
+                  Pay <span className="text-gradient">Per Verified Application</span> — Not Per Month
                 </h2>
                 <div className="grid md:grid-cols-3 gap-6">
                   <div className="glass rounded-2xl p-6 border border-border/50">

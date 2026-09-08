@@ -323,10 +323,19 @@ export default function JobMatch() {
   const score = Math.round(result?.overall_score ?? result?.result?.overall_score ?? 0);
   const rawBreakdown = result?.score_breakdown ?? result?.result?.section_scores ?? {};
 
-  const skillsScore = Math.round(rawBreakdown?.skills_match ?? (score > 0 ? Math.min(100, Math.max(50, score + 2)) : 0));
-  const experienceScore = Math.round(rawBreakdown?.experience_relevance ?? rawBreakdown?.experience_impact ?? (score > 0 ? Math.min(100, Math.max(45, score - 3)) : 0));
-  const formattingScore = Math.round(rawBreakdown?.formatting ?? (result?.result?.ats_compliance?.score ?? (score > 0 ? 86 : 0)));
-  const educationScore = Math.round(rawBreakdown?.education_fit ?? (score > 0 ? Math.min(100, Math.max(65, score + 4)) : 0));
+  // Use toScoreOrNull: return null when a field is genuinely absent so the UI
+  // can render "Not measured" instead of fabricating a value.
+  const toScoreOrNull = (val: unknown): number | null =>
+    val != null && typeof val === "number" ? Math.round(val) : null;
+
+  const skillsScore = toScoreOrNull(rawBreakdown?.skills_match);
+  const experienceScore = toScoreOrNull(
+    rawBreakdown?.experience_relevance ?? rawBreakdown?.experience_impact
+  );
+  const formattingScore = toScoreOrNull(
+    rawBreakdown?.formatting ?? result?.result?.ats_compliance?.score
+  );
+  const educationScore = toScoreOrNull(rawBreakdown?.education_fit);
 
   const matchedKeywords: string[] = result?.matching_skills ?? result?.result?.matched_keywords ?? [];
   const missingKeywords: string[] = result?.missing_skills ?? result?.result?.missing_keywords ?? [];
@@ -335,18 +344,20 @@ export default function JobMatch() {
 
   const exportMatchJSON = () => {
     if (!result) return;
+    // Omit null section scores from the export so consumers know fields are
+    // genuinely unmeasured rather than scored as zero.
+    const sectionBreakdown: Record<string, number> = {};
+    if (skillsScore != null) sectionBreakdown.skills_match = skillsScore;
+    if (experienceScore != null) sectionBreakdown.experience_relevance = experienceScore;
+    if (formattingScore != null) sectionBreakdown.formatting_compliance = formattingScore;
+    if (educationScore != null) sectionBreakdown.education_fit = educationScore;
     const auditData = {
       tool: "Job Tayari Resume Job Match Rate Calculator",
       version: "2026.1",
       target_keywords: ["resume job match score", "does my resume match this job", "ATS match rate calculator"],
       timestamp: new Date().toISOString(),
       match_score_percentage: score,
-      section_breakdown: {
-        skills_match: skillsScore,
-        experience_relevance: experienceScore,
-        formatting_compliance: formattingScore,
-        education_fit: educationScore,
-      },
+      section_breakdown: sectionBreakdown,
       matched_keywords: matchedKeywords,
       missing_keywords: missingKeywords,
       recommendations,
@@ -739,9 +750,11 @@ export default function JobMatch() {
                       <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                         <Zap className="h-3.5 w-3.5 text-blue-500" /> Hard Skills Overlap
                       </span>
-                      <span className="font-mono text-sm font-bold tabular-nums">{skillsScore}%</span>
+                      <span className="font-mono text-sm font-bold tabular-nums">
+                        {skillsScore != null ? `${skillsScore}%` : "Not measured"}
+                      </span>
                     </div>
-                    <Progress value={skillsScore} className="h-2 mb-2" />
+                    <Progress value={skillsScore ?? 0} className="h-2 mb-2" />
                     <p className="text-[11px] text-muted-foreground leading-snug">
                       Core languages, frameworks, and tools explicitly requested by the employer.
                     </p>
@@ -754,9 +767,11 @@ export default function JobMatch() {
                       <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                         <BarChart3 className="h-3.5 w-3.5 text-emerald-500" /> Experience Fit
                       </span>
-                      <span className="font-mono text-sm font-bold tabular-nums">{experienceScore}%</span>
+                      <span className="font-mono text-sm font-bold tabular-nums">
+                        {experienceScore != null ? `${experienceScore}%` : "Not measured"}
+                      </span>
                     </div>
-                    <Progress value={experienceScore} className="h-2 mb-2" />
+                    <Progress value={experienceScore ?? 0} className="h-2 mb-2" />
                     <p className="text-[11px] text-muted-foreground leading-snug">
                       Relevance of previous job titles, project scale, and quantifiable results.
                     </p>
@@ -769,9 +784,11 @@ export default function JobMatch() {
                       <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                         <SlidersHorizontal className="h-3.5 w-3.5 text-purple-500" /> ATS Parseability
                       </span>
-                      <span className="font-mono text-sm font-bold tabular-nums">{formattingScore}%</span>
+                      <span className="font-mono text-sm font-bold tabular-nums">
+                        {formattingScore != null ? `${formattingScore}%` : "Not measured"}
+                      </span>
                     </div>
-                    <Progress value={formattingScore} className="h-2 mb-2" />
+                    <Progress value={formattingScore ?? 0} className="h-2 mb-2" />
                     <p className="text-[11px] text-muted-foreground leading-snug">
                       Clean parsing of job dates, company names, and bullet point structure.
                     </p>
@@ -784,9 +801,11 @@ export default function JobMatch() {
                       <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                         <Layers className="h-3.5 w-3.5 text-amber-500" /> Domain Alignment
                       </span>
-                      <span className="font-mono text-sm font-bold tabular-nums">{educationScore}%</span>
+                      <span className="font-mono text-sm font-bold tabular-nums">
+                        {educationScore != null ? `${educationScore}%` : "Not measured"}
+                      </span>
                     </div>
-                    <Progress value={educationScore} className="h-2 mb-2" />
+                    <Progress value={educationScore ?? 0} className="h-2 mb-2" />
                     <p className="text-[11px] text-muted-foreground leading-snug">
                       Industry background, education requirements, and specialized domain knowledge.
                     </p>

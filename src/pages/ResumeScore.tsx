@@ -379,9 +379,13 @@ export default function ResumeScore() {
   const recommendations: string[] = result?.recommendations ?? result?.result?.recommendations ?? [];
   const summary: string = result?.result?.summary ?? result?.summary ?? "";
 
-  const copyRewrite = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Rewritten bullet copied to clipboard!");
+  const copyRewrite = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Rewritten bullet copied to clipboard!");
+    } catch {
+      toast.error("Could not copy to clipboard. Please select and copy the text manually.");
+    }
   };
 
   const exportAuditJSON = () => {
@@ -514,14 +518,12 @@ export default function ResumeScore() {
                 {ROLE_BENCHMARKS.map((benchmark) => {
                   const isSelected = selectedBenchmarkId === benchmark.id;
                   return (
-                    <button
+                    <div
                       key={benchmark.id}
-                      type="button"
-                      onClick={() => handleSelectBenchmark(benchmark)}
-                      className={`text-left p-3 rounded-lg border transition-all duration-200 text-xs flex flex-col justify-between ${
+                      className={`p-3 rounded-lg border transition-all duration-200 text-xs flex flex-col justify-between ${
                         isSelected
                           ? "border-primary bg-primary/10 text-foreground ring-1 ring-primary shadow-sm"
-                          : "border-border/70 bg-card hover:border-primary/40 hover:bg-muted/50 text-muted-foreground"
+                          : "border-border/70 bg-card text-muted-foreground"
                       }`}
                     >
                       <div>
@@ -533,26 +535,23 @@ export default function ResumeScore() {
                           {benchmark.summary}
                         </p>
                       </div>
-                      <div className="mt-2 pt-2 border-t border-border/50 flex justify-end">
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleLoadSample(benchmark);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.stopPropagation();
-                              handleLoadSample(benchmark);
-                            }
-                          }}
-                          className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
+                      <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleSelectBenchmark(benchmark)}
+                          className="text-[11px] font-medium text-foreground hover:text-primary transition-colors"
+                        >
+                          {isSelected ? "Selected" : "Select"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleLoadSample(benchmark)}
+                          className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-1"
                         >
                           <Zap className="h-3 w-3" /> Load Sample
-                        </span>
+                        </button>
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>

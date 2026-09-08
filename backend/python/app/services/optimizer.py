@@ -459,8 +459,17 @@ def _build_instruction_ledger(
     custom_instructions: str | None,
     optimized_text: str,
     original_text: str,
+    pre_rejected: set[str] | None = None,
 ) -> list[dict[str, str]]:
-    """Audit and classify candidate custom instructions for transparent provenance."""
+    """Audit and classify candidate custom instructions for transparent provenance.
+
+    Args:
+        pre_rejected: Set of raw instruction strings already classified as
+            rejected before the LLM call (e.g. prompt-injection, fabricated
+            credentials). When provided, those entries are force-labelled
+            ``rejected`` regardless of token-match scoring so the ledger
+            reflects what was actually excluded from the model context.
+    """
     if not custom_instructions or not custom_instructions.strip():
         return []
     lines = [
@@ -480,6 +489,15 @@ def _build_instruction_ledger(
 
     for raw in lines[:10]:
         lower = raw.lower()
+        # Honour pre-classification: if this instruction was already marked
+        # rejected before the LLM call, propagate the label without re-checking.
+        if pre_rejected and raw in pre_rejected:
+            reason = "Flagged as unsafe prompt injection directive"
+            if any(cm in lower for cm in cred_markers):
+                reason = "Violates truthfulness guardrail: credential not evidenced in original resume"
+            ledger.append({"instruction": raw, "status": "rejected", "reason": reason})
+            continue
+
         if any(marker in lower for marker in malicious_markers):
             ledger.append({
                 "instruction": raw,
@@ -530,14 +548,14 @@ def _compute_bullet_diffs(original_text: str, optimized_text: str) -> list[dict[
     """Produce structured before/after bullet point diffs with status tags."""
     import difflib
     orig_bullets = [
-        b.strip(" -*•\t")
+        b.strip(" -*•□■\t")
         for b in original_text.splitlines()
-        if b.strip().startswith(("-", "*", "•"))
+        if b.strip().startswith(("-", "*", "•", "□", "■"))
     ]
     opt_bullets = [
-        b.strip(" -*•\t")
+        b.strip(" -*•□■\t")
         for b in optimized_text.splitlines()
-        if b.strip().startswith(("-", "*", "•"))
+        if b.strip().startswith(("-", "*", "•", "□", "■"))
     ]
     diffs = []
     matcher = difflib.SequenceMatcher(a=orig_bullets, b=opt_bullets, autojunk=False)
@@ -612,6 +630,27 @@ async def optimize_with_reflection(
     # ponytail: release the lookup connection before the long LLM calls; a fresh client is used for the store.
     await _close_client(_redis)
     _redis = None
+    # ---- Classify custom instructions before context build ---------------
+    # Rejected instructions (prompt injection, fabricated credentials) must
+    # never reach the LLM. We classify upfront using the ledger logic so
+    # _build_instruction_ledger in Phase 5 can reuse the result verbatim.
+    # Note: at this stage optimized_text is not yet available for the
+    # "applied/ignored" tokens check, so we pass an empty string; the Phase 5
+    # call will redo the applied/ignored split against the real output.
+    _pre_ledger = _build_instruction_ledger(custom_instructions, "", resume_text)
+    _rejected_instructions = {
+        entry["instruction"] for entry in _pre_ledger if entry["status"] == "rejected"
+    }
+
+    # Build a sanitized version of custom_instructions excluding rejected lines
+    _safe_instructions: str | None = None
+    if custom_instructions and custom_instructions.strip():
+        _safe_lines = [
+            line for line in custom_instructions.strip().splitlines()
+            if line.strip(" -*•\t") not in _rejected_instructions
+        ]
+        _safe_instructions = "\n".join(_safe_lines).strip() or None
+
     context = ""
     if jd:
         # ponytail: chunked via long_context (spec 2026-08-02) — JD condenses
@@ -628,8 +667,9 @@ async def optimize_with_reflection(
     # ponytail: custom_instructions are prompt guidance ONLY — they must never
     # be appended to job_description, or ATS/keyword/semantic scoring would
     # score against user instructions instead of the real job posting.
-    if custom_instructions:
-        context += f"\n\nUSER CUSTOM INSTRUCTIONS:\n{_untrusted(custom_instructions)}"
+    # Only safe (non-rejected) instructions are injected into the model context.
+    if _safe_instructions:
+        context += f"\n\nUSER CUSTOM INSTRUCTIONS:\n{_untrusted(_safe_instructions)}"
 
 
     # --- Phase 1: Baseline -----------------------------------------------
@@ -828,7 +868,10 @@ async def optimize_with_reflection(
         "score_breakdown": score_breakdown,
         "changes": meta.get("changes", []),
         "keywords_added": meta.get("keywords_added", []),
-        "instruction_ledger": _build_instruction_ledger(custom_instructions, optimized, resume_text),
+        "instruction_ledger": _build_instruction_ledger(
+            custom_instructions, optimized, resume_text,
+            pre_rejected=_rejected_instructions,
+        ),
         "bullet_diffs": _compute_bullet_diffs(resume_text, optimized),
         # ponytail: estimated_score is reported to callers (including the
         # public API-key endpoint) as a trust signal, so it must not be the

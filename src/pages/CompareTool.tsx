@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, Navigate } from "react-router-dom";
 import { Layout } from "@/components/layout";
 import { Seo } from "@/components/seo/Seo";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,11 @@ export const CompareTool = () => {
   const allComparisons = useMemo(() => getAllComparisons(), []);
   const activeComparison = tool ? getComparisonBySlug(tool) : undefined;
   const isDirectory = !tool || !activeComparison;
+
+  // Unknown tool slug → redirect to the comparison directory
+  if (tool && !activeComparison) {
+    return <Navigate to="/compare" replace />;
+  }
 
   // Group matrix capabilities by category if viewing a specific comparison
   const groupedMatrix = useMemo(() => {

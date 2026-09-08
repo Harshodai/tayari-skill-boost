@@ -7,7 +7,7 @@
 
 ## 📑 Table of Contents
 1. [Executive Summary & The Problem](#1-executive-summary--the-problem)
-2. [Market Opportunity ($6.69B → $14.82B at 22.3% CAGR)](#2-market-opportunity)
+2. [Market Opportunity ($6.69B → $14.82B at 22.0% CAGR)](#2-market-opportunity)
 3. [The Solution: AI-Native Application Infrastructure](#3-the-solution-ai-native-application-infrastructure)
 4. [Technical Moat & Defensibility](#4-technical-moat--defensibility)
 5. [Business & Monetization Model](#5-business--monetization-model)

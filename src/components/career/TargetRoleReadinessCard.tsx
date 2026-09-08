@@ -117,7 +117,6 @@ export function checkSkillMatch(skillName: string, candidateSkills: string[]): b
 function cleanGapName(name: string): string {
   if (/sql/i.test(name)) return "SQL";
   if (/a\/b testing|experiment/i.test(name)) return "A/B testing";
-  if (/growth|retention|churn/i.test(name)) return "stakeholder management";
   return name.split(/[/&,(]/)[0].trim();
 }
 
@@ -187,28 +186,21 @@ export const TargetRoleReadinessCard: React.FC<TargetRoleReadinessCardProps> = (
     });
 
     let score = 0;
-    if (!hasLoadedSkills && selectedRoleSlug === "product-manager") {
-      score = 73;
-    } else {
-      let totalWeight = 0;
-      let acquiredWeight = 0;
-      roleData.topSkills.forEach((skill) => {
-        const weight =
-          skill.importance === "Mandatory"
-            ? 1.3
-            : skill.importance === "Highly Preferred"
-            ? 1.0
-            : 0.7;
-        totalWeight += weight;
-        if (checkSkillMatch(skill.name, effectiveSkills)) {
-          acquiredWeight += weight;
-        }
-      });
-      score =
-        totalWeight > 0
-          ? Math.min(95, Math.max(30, Math.round((acquiredWeight / totalWeight) * 100)))
-          : 73;
-    }
+    let totalWeight = 0;
+    let acquiredWeight = 0;
+    roleData.topSkills.forEach((skill) => {
+      const weight =
+        skill.importance === "Mandatory"
+          ? 1.3
+          : skill.importance === "Highly Preferred"
+          ? 1.0
+          : 0.7;
+      totalWeight += weight;
+      if (checkSkillMatch(skill.name, effectiveSkills)) {
+        acquiredWeight += weight;
+      }
+    });
+    score = totalWeight > 0 ? Math.round((acquiredWeight / totalWeight) * 100) : 0;
 
     const gapLabels = missing.slice(0, 3).map((s) => cleanGapName(s.name));
     const topGapsSummary =

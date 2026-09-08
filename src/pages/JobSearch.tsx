@@ -376,7 +376,7 @@ const JobSearch = () => {
         address: selectedJob.location || "Remote",
       },
       employmentType: (selectedJob as any).employment_type || selectedJob.job_type || "FULL_TIME",
-      datePosted: selectedJob.posted_at || new Date().toISOString(),
+      ...(selectedJob.posted_at ? { datePosted: selectedJob.posted_at } : {}),
       directApply: true,
     };
   }, [selectedJob]);

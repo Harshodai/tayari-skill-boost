@@ -53,6 +53,7 @@ import {
   getHermesDigestPreferences,
   setHermesDigestPreferences,
   toggleHermesDigest,
+  HERMES_DIGEST_STORAGE_KEY,
 } from "@/lib/hermesDigest";
 
 // ─── BillingTab: live credit balance and transaction history ─────────────────
@@ -385,10 +386,15 @@ const Settings = () => {
     return {
       emailUpdates: saved.emailUpdates ?? true,
       applicationAlerts: saved.applicationAlerts ?? true,
-      weeklyDigest:
-        typeof hermes.enabled === "boolean"
-          ? hermes.enabled
-          : (saved.weeklyDigest ?? false),
+      weeklyDigest: (() => {
+        // Only use hermes.enabled when the Hermes storage record actually exists;
+        // otherwise DEFAULT_PREFERENCES (enabled: false) would silently override
+        // a user's previously saved weeklyDigest preference.
+        const hermesRecordExists =
+          typeof window !== "undefined" &&
+          localStorage.getItem(HERMES_DIGEST_STORAGE_KEY) !== null;
+        return hermesRecordExists ? hermes.enabled : (saved.weeklyDigest ?? false);
+      })(),
       marketingEmails: saved.marketingEmails ?? false,
     };
   });
