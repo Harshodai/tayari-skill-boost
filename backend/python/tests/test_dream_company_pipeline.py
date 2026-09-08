@@ -69,7 +69,7 @@ async def test_dream_company_e2e_pipeline_verification():
     assert origin_allowed("https://malicious-phishing.test", policy) is False
 
     # Stage 7: Autonomous submission blocked; requires candidate confirmation / takeover
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError, match="computer submission is disabled by the first-release contract"):
         ComputerRunPolicy(submission_enabled=True)
 
     # Stage 8: Verified Receipt creation

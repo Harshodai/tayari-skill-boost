@@ -226,8 +226,10 @@ Tayari engineered the **Lean MVP Architecture**, collapsing a 58-table developme
 - **API Routing (Go Gateway)**: $0.02 / user / month
 - **AI Inference (Cached LLM + Heuristics)**: $0.28 / user / month
 - **Database & Queue (Neon + Upstash)**: $0.05 / user / month
-- **Total COGS per Pro User**: **~$0.35 / month**
-- **Gross Margin on $12/month Subscription**: **> 96%**
+- **Listed Infrastructure Costs per Pro User**: **~$0.35 / month** *(CDN, API routing, AI inference, database & queue only)*
+- **Gross Margin on $12/month Subscription (listed costs)**: **> 97%**
+- **Estimated Fully-Loaded COGS per Pro User**: **~$0.95 / month** *(adds Celery workers, Redis queue, email delivery, monitoring)*
+- **Gross Margin on $12/month Subscription (fully-loaded)**: **> 92%**
 - **Total Fixed Cloud Burn at Inception**: **~$10 – $15 / month**
 
 ---
@@ -296,7 +298,7 @@ Tayari is preparing for a **$1.5M – $2.5M Seed Round** at an agreed post-money
 - **10% Operations & Legal**: Talent acquisition, enterprise partner contracts, and general reserve.
 
 ### Why Invest Now?
-1. **Unassailable Unit Economics**: Operates at >92% gross margin from Day 1 with a lean cloud burn of under $20/month.
+1. **Unassailable Unit Economics**: Operates at >92% gross margin (fully-loaded) from Day 1 with a lean cloud burn of under $20/month.
 2. **Defensible Infrastructure Layer**: Not a prompt wrapper; owns keyless discovery, graph-based skill extraction, and truthfulness validation.
 3. **Massive Market Wave**: Perfectly positioned at the intersection of AI recruitment automation and enterprise compliance demands.
 

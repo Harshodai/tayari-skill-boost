@@ -566,7 +566,7 @@ def _build_instruction_ledger(
 
         return False, ""
 
-    for raw in lines[:10]:
+    for raw in lines:
         lower = raw.lower()
         # Honour pre-classification: if this instruction was already marked
         # rejected before the LLM call, propagate the label without re-checking.
@@ -916,7 +916,7 @@ async def optimize_with_reflection(
                 }
             ]
             for tok in rej_tokens:
-                if tok in opt_lower and tok not in orig_lower:
+                if re.search(r"\b" + re.escape(tok) + r"\b", opt_lower) and not re.search(r"\b" + re.escape(tok) + r"\b", orig_lower):
                     fabrication_detected = True
                     break
             if fabrication_detected:
@@ -974,7 +974,7 @@ async def optimize_with_reflection(
         "instruction_ledger": _build_instruction_ledger(
             custom_instructions, optimized, resume_text,
             pre_rejected=_rejected_instructions,
-        ),
+        )[:10],
         "bullet_diffs": _compute_bullet_diffs(resume_text, optimized),
         # ponytail: estimated_score is reported to callers (including the
         # public API-key endpoint) as a trust signal, so it must not be the

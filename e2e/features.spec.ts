@@ -47,7 +47,7 @@ test('4. Pricing page renders monthly plans by default and toggles to verified s
 
   // Free Tier ($0/mo)
   await expect(freeCard).toBeVisible();
-  await expect(freeCard.getByText('Free')).toBeVisible();
+  await expect(freeCard.getByText('Free', { exact: true })).toBeVisible();
   await expect(freeCard.getByText('$0')).toBeVisible();
   await expect(freeCard.getByRole('button', { name: 'Start Free' })).toBeVisible();
 
@@ -60,14 +60,14 @@ test('4. Pricing page renders monthly plans by default and toggles to verified s
 
   // Team Tier ($49/mo)
   await expect(teamCard).toBeVisible();
-  await expect(teamCard.getByText('Team')).toBeVisible();
+  await expect(teamCard.getByText('Team', { exact: true })).toBeVisible();
   await expect(teamCard.getByText('$49')).toBeVisible();
   await expect(teamCard.getByRole('button', { name: /Get Team/i })).toBeVisible();
 
   // Enterprise Tier (Custom)
   await expect(enterpriseCard).toBeVisible();
-  await expect(enterpriseCard.getByText('Enterprise')).toBeVisible();
-  await expect(enterpriseCard.getByText('Custom')).toBeVisible();
+  await expect(enterpriseCard.getByText('Enterprise', { exact: true })).toBeVisible();
+  await expect(enterpriseCard.getByText('Custom', { exact: true })).toBeVisible();
   await expect(enterpriseCard.getByRole('button', { name: 'Contact Sales' })).toBeVisible();
 
   // 3. Switch to Verified Submission Packs tab

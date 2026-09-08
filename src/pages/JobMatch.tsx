@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiFetchResponse } from "@/api";
 import { Layout } from "@/components/layout";
-import { Seo } from "@/components/seo/Seo";
+import { Seo, SITE_URL } from "@/components/seo/Seo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -394,7 +394,7 @@ export default function JobMatch() {
       "@context": "https://schema.org",
       "@type": "WebApplication",
       name: "Resume Job Match Score & ATS Match Rate Calculator",
-      url: "https://tayari-skill-boost.lovable.app/job-match",
+      url: `${(typeof window !== "undefined" && window.location?.origin) || SITE_URL}/job-match`,
       description: "Free zero-auth side-by-side ATS resume match rate calculator. Check does your resume match this job description, analyze keyword overlap, and identify missing requirements.",
       applicationCategory: "BusinessApplication",
       operatingSystem: "All",

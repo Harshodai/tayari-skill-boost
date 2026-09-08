@@ -214,9 +214,9 @@ const InterviewBoard = () => {
   };
 
   const handleShareToLinkedIn = async (text: string) => {
+    const copied = await _writeToClipboard(text);
     const url = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`;
     window.open(url, "_blank", "noopener,noreferrer");
-    const copied = await _writeToClipboard(text);
     if (copied) {
       toast.success("Post copied to clipboard! Opening LinkedIn feed...");
     } else {

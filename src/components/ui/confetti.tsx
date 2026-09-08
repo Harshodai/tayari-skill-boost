@@ -10,6 +10,7 @@ interface ConfettiPiece {
   delay: number;
   duration: number;
   isCircle: boolean;
+  drift: number;
 }
 
 const COLORS = [
@@ -36,6 +37,7 @@ export function Confetti({ count = 60 }: { count?: number }) {
       delay: Math.random() * 1.2,
       duration: 2.2 + Math.random() * 2.2,
       isCircle: Math.random() > 0.6,
+      drift: (Math.random() - 0.5) * 80,
     }));
     setPieces(generated);
   }, [count]);
@@ -61,7 +63,6 @@ export function Confetti({ count = 60 }: { count?: number }) {
         }
       `}</style>
       {pieces.map((piece) => {
-        const drift = (Math.random() - 0.5) * 80;
         return (
           <div
             key={piece.id}
@@ -78,7 +79,7 @@ export function Confetti({ count = 60 }: { count?: number }) {
               transform: `rotate(${piece.rotation}deg)`,
               // CSS custom properties for drift
               ["--x-start" as any]: "0px",
-              ["--x-end" as any]: `${drift}px`,
+              ["--x-end" as any]: `${piece.drift}px`,
             }}
           />
         );

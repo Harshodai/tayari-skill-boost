@@ -75,7 +75,8 @@ const Blog = () => {
         }
 
         if (filters.search) {
-          query = query.or(`title.ilike.%${filters.search}%,excerpt.ilike.%${filters.search}%,content.ilike.%${filters.search}%`);
+          const sanitizedSearch = filters.search.replace(/[(),]/g, '');
+          query = query.or(`title.ilike.%${sanitizedSearch}%,excerpt.ilike.%${sanitizedSearch}%,content.ilike.%${sanitizedSearch}%`);
         }
 
         const { data, error } = await query;

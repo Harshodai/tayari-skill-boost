@@ -353,7 +353,7 @@ export const COMPARISONS_DATA: Record<string, ComparisonData> = {
         name: "Hermes Direct Job Search",
         category: "Job Discovery & Workflow",
         ours: { supported: true, label: "Integrated Keyless Engine", detail: "Scrapes verified career pages with zero stale aggregator listings." },
-        competitor: { supported: false, label: "None", detail: "No native job discovery engine." },
+        competitor: { supported: false, label: "External Only", detail: "No integrated job search; users must source openings independently from job boards." },
       },
       {
         name: "Career Roadmap & Readiness",

@@ -58,7 +58,7 @@ BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- ------------------------------------------------------------------------------
 -- 1. profiles
@@ -209,7 +209,7 @@ CREATE TABLE IF NOT EXISTS public.scraped_jobs (
     fetched_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at  TIMESTAMPTZ,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(dedupe_key, source)
+    UNIQUE(user_id, dedupe_key, source)
 );
 
 CREATE INDEX IF NOT EXISTS idx_scraped_jobs_source ON public.scraped_jobs(source);
@@ -342,6 +342,24 @@ BEGIN
             ADD CONSTRAINT fk_application_attempts_run
             FOREIGN KEY (run_id) REFERENCES public.agent_runs(run_id) ON DELETE CASCADE;
     END IF;
+END $$;
+
+-- ------------------------------------------------------------------------------
+-- updated_at Triggers (rerunnable — drops existing trigger before creating)
+-- ------------------------------------------------------------------------------
+DO $$
+DECLARE
+    tbl TEXT;
+BEGIN
+    FOREACH tbl IN ARRAY ARRAY[
+        'profiles', 'resumes', 'tailored_resumes', 'resume_analyses',
+        'saved_jobs', 'interview_sessions', 'credits', 'agent_runs'
+    ] LOOP
+        EXECUTE format(
+            'DROP TRIGGER IF EXISTS set_updated_at ON public.%I; CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();',
+            tbl, tbl
+        );
+    END LOOP;
 END $$;
 
 -- ------------------------------------------------------------------------------

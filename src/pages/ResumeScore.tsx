@@ -415,8 +415,12 @@ export default function ResumeScore() {
     const a = document.createElement("a");
     a.href = url;
     a.download = `resume_ats_score_audit_${Date.now()}.json`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 0);
     toast.success("ATS Audit report downloaded as JSON");
   };
 

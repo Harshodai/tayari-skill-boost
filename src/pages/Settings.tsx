@@ -546,7 +546,13 @@ const Settings = () => {
           "tayari_notification_preferences",
           JSON.stringify(notifications)
         );
-        setHermesDigestPreferences({ enabled: notifications.weeklyDigest });
+        const currentHermesPrefs = getHermesDigestPreferences();
+        setHermesDigestPreferences({
+          enabled: notifications.weeklyDigest,
+          filters: currentHermesPrefs.filters,
+          day: currentHermesPrefs.day,
+          frequency: currentHermesPrefs.frequency,
+        });
       } catch {
         /* storage unavailable */
       }

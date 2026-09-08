@@ -625,7 +625,8 @@ function extractSkillsBag(text: string): string[] {
     for (const word of words) {
       const cleanWord = word.replace(/^(Languages|Frameworks & Libraries|Databases & Cache|DevOps & Cloud|Testing & Tools|Core Systems|Data & Messaging|Analytics & Experimentation|Collaboration & Tools)\s*/i, "").trim();
       if (cleanWord && !cleanWord.includes("\n") && cleanWord.length > 1) {
-        const match = SKILLS_LEXICON[cleanWord.toLowerCase()];
+        const lowerKey = cleanWord.toLowerCase();
+        const match = Object.hasOwn(SKILLS_LEXICON, lowerKey) ? SKILLS_LEXICON[lowerKey] : undefined;
         if (match) {
           normalizedSet.add(match);
         } else if (/^[A-Z][a-zA-Z0-9.+/ -]{1,25}$/.test(cleanWord)) {
@@ -645,8 +646,8 @@ function detectHazards(text: string, engine: AtsEngineType): HazardFlag[] {
   const hazards: HazardFlag[] = [];
 
   // Hazard 1: Multi-column table risk
-  const hasTabs = /\t/.test(text);
-  const hasMultiSpacing = /[^\s]{2,}\s{4,}[^\s]{2,}/.test(text);
+  const hasTabs = /[^\n]\t[^\n]/.test(text);
+  const hasMultiSpacing = /[^\n\S]{4,}[^\n]/.test(text) && /[^\s]{2,}\s{4,}[^\s]{2,}/.test(text.replace(/\n/g, ' '));
   const multiColumnDetected = hasTabs || hasMultiSpacing;
   hazards.push({
     id: "multi-column-table-risk",

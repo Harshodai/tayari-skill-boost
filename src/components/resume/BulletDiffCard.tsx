@@ -19,7 +19,11 @@ export const BulletDiffCard: React.FC<BulletDiffCardProps> = ({
   diffs,
   className,
 }) => {
-  if (!diffs || diffs.length === 0) return null;
+  const visibleDiffs = React.useMemo(
+    () => (diffs ?? []).filter((d) => d.status !== "unchanged"),
+    [diffs],
+  );
+  if (visibleDiffs.length === 0) return null;
 
   return (
     <Card className={cn("border-border bg-card", className)}>
@@ -29,15 +33,14 @@ export const BulletDiffCard: React.FC<BulletDiffCardProps> = ({
             <GitCompare className="h-5 w-5 text-primary" />
             <CardTitle className="text-base font-semibold">Resume Bullet Changes (Before & After)</CardTitle>
           </div>
-          <span className="text-xs text-muted-foreground">{diffs.length} section(s) tracked</span>
+          <span className="text-xs text-muted-foreground">{visibleDiffs.length} section(s) tracked</span>
         </div>
         <CardDescription className="text-xs">
           Line-by-line provenance showing exactly how your achievements were re-expressed for ATS relevance and impact.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
-        {diffs.map((entry, idx) => {
-          if (entry.status === "unchanged") return null;
+        {visibleDiffs.map((entry, idx) => {
           return (
             <div key={idx} className="p-3 rounded-lg border border-border bg-muted/10 space-y-2 text-xs">
               <div className="flex items-center justify-between">

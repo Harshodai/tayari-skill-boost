@@ -882,12 +882,12 @@ const ResumeResults = () => {
               </Card>
             )}
             {optimizationResult?.instruction_ledger && (optimizationResult.instruction_ledger as any[]).length > 0 && (
-              <div className="col-span-1 md:col-span-2">
+              <div className="col-span-1 lg:col-span-2">
                 <InstructionLedgerCard entries={optimizationResult.instruction_ledger as any} />
               </div>
             )}
             {optimizationResult?.bullet_diffs && (optimizationResult.bullet_diffs as any[]).length > 0 && (
-              <div className="col-span-1 md:col-span-2">
+              <div className="col-span-1 lg:col-span-2">
                 <BulletDiffCard diffs={optimizationResult.bullet_diffs as any} />
               </div>
             )}
