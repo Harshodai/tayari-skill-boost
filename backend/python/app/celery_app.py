@@ -74,6 +74,22 @@ celery_app.conf.update(
     },
 )
 
+# Bounded retries for EVERY task, not just delivery.dispatch_pending_messages.
+# Without this a permanently failing ("poison") task can be redelivered
+# indefinitely under task_acks_late + task_reject_on_worker_lost.
+celery_app.conf.task_annotations = {
+    "*": {
+        "max_retries": 3,
+        "default_retry_delay": 30,
+        "retry_backoff": True,
+        "retry_backoff_max": 600,
+        "retry_jitter": True,
+    },
+}
+# Exhausted or unhandled failures are parked on a dedicated queue for operator
+# triage instead of silently disappearing into worker logs.
+DEAD_LETTER_QUEUE = os.environ.get("CELERY_DEAD_LETTER_QUEUE", "tayari_dead_letter")
+
 _task_started: dict[str, tuple[float, float]] = {}
 _task_lock = threading.Lock()
 
