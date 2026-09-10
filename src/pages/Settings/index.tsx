@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AppShell } from "@/components/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Bell, Shield, CreditCard, Palette, Globe } from "lucide-react";
+import { toast } from "sonner";
 import { ProfileSettings } from "./ProfileSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { SecuritySettings } from "./SecuritySettings";
@@ -9,8 +11,29 @@ import { BillingSettings } from "./BillingSettings";
 import { PreferencesSettings } from "./PreferencesSettings";
 import { IntegrationsSettings } from "./IntegrationsSettings";
 
+const VALID_TABS = ["profile", "notifications", "security", "billing", "preferences", "integrations"];
+
 export const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState("profile");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(
+    initialTab && VALID_TABS.includes(initialTab) ? initialTab : "profile"
+  );
+
+  // OAuth connect flows (e.g. Gmail) redirect back here with ?tab=integrations
+  // and a result flag — surface it once, then drop it from the URL so a
+  // refresh doesn't replay the toast.
+  useEffect(() => {
+    const gmailResult = searchParams.get("gmail");
+    if (!gmailResult) return;
+    if (gmailResult === "connected") toast.success("Gmail connected");
+    else if (gmailResult === "denied") toast.info("Gmail connection cancelled");
+    else toast.error("Gmail connection failed. Please try again.");
+    const next = new URLSearchParams(searchParams);
+    next.delete("gmail");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <AppShell>

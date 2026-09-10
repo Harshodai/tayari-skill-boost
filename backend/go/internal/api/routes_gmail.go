@@ -196,7 +196,7 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 
 	if errParam != "" || code == "" {
 		slog.Error("handleGmailCallback: OAuth denied or code missing (error=)", "error", errParam)
-		http.Redirect(w, r, frontendURL+"/interview-board?gmail=denied", http.StatusFound)
+		http.Redirect(w, r, frontendURL+"/settings?tab=integrations&gmail=denied", http.StatusFound)
 		return
 	}
 
@@ -211,7 +211,7 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		slog.Error("handleGmailCallback: invalid or expired state", "error", err)
-		http.Redirect(w, r, frontendURL+"/interview-board?gmail=error", http.StatusFound)
+		http.Redirect(w, r, frontendURL+"/settings?tab=integrations&gmail=error", http.StatusFound)
 		return
 	}
 
@@ -219,7 +219,7 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 	tokenData, err := gmailExchangeCode(r.Context(), code)
 	if err != nil {
 		slog.Error("handleGmailCallback: token exchange failed", "error", err)
-		http.Redirect(w, r, frontendURL+"/interview-board?gmail=error", http.StatusFound)
+		http.Redirect(w, r, frontendURL+"/settings?tab=integrations&gmail=error", http.StatusFound)
 		return
 	}
 
@@ -234,7 +234,7 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 		uuid.New(), userID, tenantID, tokenData.AccessToken, tokenData.RefreshToken, expiry, tokenData.Scope)
 	if err != nil {
 		slog.Error("handleGmailCallback: failed to store tokens", "error", err)
-		http.Redirect(w, r, frontendURL+"/interview-board?gmail=error", http.StatusFound)
+		http.Redirect(w, r, frontendURL+"/settings?tab=integrations&gmail=error", http.StatusFound)
 		return
 	}
 
@@ -242,7 +242,7 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 	_, _ = s.DB.Conn.ExecContext(r.Context(),
 		`DELETE FROM oauth_states WHERE user_id=$1 AND tenant_id=$2 AND provider=$3`, userID, tenantID, "gmail")
 
-	http.Redirect(w, r, frontendURL+"/interview-board?gmail=connected", http.StatusFound)
+	http.Redirect(w, r, frontendURL+"/settings?tab=integrations&gmail=connected", http.StatusFound)
 }
 
 // -------------------------------------------------------------------

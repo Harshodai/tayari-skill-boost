@@ -309,6 +309,11 @@ services:
       # revocation (DELETE /api/v1/account). Copy SERVICE_ROLE_KEY from
       # supabase-local/.env; without it, the direct SQL delete is used.
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GMAIL_REDIRECT_URI=${GMAIL_REDIRECT_URI:-}
+      - APP_URL=${APP_URL:-http://localhost:8083}
+      - CAPABILITY_AUTONOMOUS_GMAIL=${CAPABILITY_AUTONOMOUS_GMAIL:-}
       - PORT=8080
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8080,http://localhost:8083}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8083}
