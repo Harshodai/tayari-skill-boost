@@ -13,8 +13,6 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from app.services.external_research import ProviderNotConfigured, ProviderRejected
-
 logger = logging.getLogger(__name__)
 
 
@@ -156,62 +154,128 @@ async def check_lever_board(company: str, keywords: List[str]) -> RadarCheckResu
     return result
 
 
+_SEARCH_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+
+async def _keyless_web_search(query: str, limit: int = 5) -> List[str]:
+    """Real, keyless web search — no API key required.
+
+    This project has no configured search/scrape provider (Firecrawl,
+    SerpAPI, Apify are all unset in this deployment), so a paid-API design
+    isn't viable here. This mirrors the fallback pattern lean production
+    agents actually use when they don't want a single paid vendor as a hard
+    dependency for basic web lookup: DuckDuckGo's HTML endpoint requires no
+    key, returns real results, and its markup is stable enough to parse
+    with the stdlib-adjacent `lxml` (already a dependency here). Returns
+    real result URLs, decoded from DDG's redirect-wrapper links — never
+    fabricated.
+    """
+    import lxml.html
+    from urllib.parse import urlparse, parse_qs, unquote
+
+    async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": _SEARCH_USER_AGENT}) as client:
+        resp = await client.get("https://html.duckduckgo.com/html/", params={"q": query})
+        resp.raise_for_status()
+
+    tree = lxml.html.fromstring(resp.text)
+    urls: List[str] = []
+    for a in tree.xpath('//a[contains(concat(" ", normalize-space(@class), " "), " result__a ")]'):
+        href = a.get("href") or ""
+        # DDG's HTML endpoint wraps results as //duckduckgo.com/l/?uddg=<encoded real url>
+        parsed = urlparse(href)
+        real_url = href
+        if "duckduckgo.com" in parsed.netloc and parsed.path == "/l/":
+            qs = parse_qs(parsed.query)
+            if qs.get("uddg"):
+                real_url = unquote(qs["uddg"][0])
+        if real_url.startswith("http") and real_url not in urls:
+            urls.append(real_url)
+        if len(urls) >= limit:
+            break
+    return urls
+
+
+async def _fetch_page_text(url: str, max_chars: int = 6000) -> str:
+    """Real direct fetch + text extraction of one page — no scraping API."""
+    import lxml.html
+
+    async with httpx.AsyncClient(
+        timeout=15.0, headers={"User-Agent": _SEARCH_USER_AGENT}, follow_redirects=True
+    ) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+
+    tree = lxml.html.fromstring(resp.text)
+    for tag in tree.xpath("//script | //style | //noscript | //svg"):
+        tag.drop_tree()
+    text = tree.text_content()
+    # Collapse excessive whitespace from templated HTML without losing line breaks.
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+    # Also collect real hrefs on the page — job listing titles often live in
+    # <a> text with the posting URL right there, which the pure text
+    # extraction above loses. Pass both to the LLM so it can ground postings
+    # in an actual (text, url) pair instead of guessing a URL for a title.
+    links = []
+    for a in tree.xpath("//a[@href]"):
+        label = " ".join(a.text_content().split())
+        href = a.get("href") or ""
+        if label and href.startswith("http") and len(label) > 3:
+            links.append(f"{label} -> {href}")
+
+    body = "\n".join(lines)
+    link_block = "\n".join(links[:200])
+    combined = f"{body}\n\n--- LINKS ON PAGE ---\n{link_block}"
+    return combined[:max_chars]
+
+
 async def find_via_web_search(company: str, keywords: List[str]) -> RadarCheckResult:
     """Last-resort path for a company not on Greenhouse or Lever: search the
-    real web for its actual career page, scrape that real page, and extract
-    only job postings the LLM can point to in the scraped text — never
-    fabricated. Requires FIRECRAWL_API_KEY; degrades to the same honest
-    "board not found" result (not a crash, not fake data) if unconfigured.
+    real web (keylessly — see _keyless_web_search) for its actual career
+    page, fetch that real page directly, and extract only job postings the
+    LLM can point to in the fetched text/links — never fabricated.
     """
     result = RadarCheckResult(company=company)
     try:
-        from app.services.external_research import (
-            FirecrawlResearchProvider,
-            FirecrawlCrawlRequest,
-            ResearchRequest,
-            ResearchContext,
-        )
-
-        provider = FirecrawlResearchProvider()
-        context = ResearchContext(subject="company-radar", tenant_id=None, request_id=None)
-
         # 1. Real web search for the company's actual career page.
-        search_resp = await provider.search(
-            ResearchRequest(query=f"{company} careers jobs page", limit=5), context
-        )
-        career_url = next(
-            (item.url for item in search_resp.items if item.url and _looks_like_career_url(item.url)),
-            None,
-        )
+        urls = await _keyless_web_search(f"{company} careers jobs page")
+        career_url = next((u for u in urls if _looks_like_career_url(u)), None)
         if not career_url:
             result.error = "no career page found via web search"
             return result
 
-        # 2. Real scrape of that real page (not a guess — the URL a search
-        # engine actually returned for this company).
-        crawl_resp = await provider.crawl(FirecrawlCrawlRequest(url=career_url, limit=5), context)
-        scraped_text = "\n\n".join(
-            f"{item.title}\n{item.url}\n{item.description}" for item in crawl_resp.items if item.url
-        )[:6000]
-        if not scraped_text.strip():
-            result.error = f"found {career_url} but could not scrape any content"
+        # 2. Real direct fetch of that real page (not a guess — the URL a
+        # search engine actually returned for this company).
+        try:
+            page_text = await _fetch_page_text(career_url)
+        except Exception as exc:
+            result.error = f"found {career_url} but could not fetch it ({exc})"
+            return result
+        if not page_text.strip():
+            result.error = f"found {career_url} but page had no extractable content"
             return result
 
-        # 3. Extract ONLY postings the LLM can point to in the scraped text —
-        # grounded in real content just fetched, not invented.
+        # 3. Extract ONLY postings the LLM can point to in the fetched
+        # text/links — grounded in real content just fetched, not invented.
         from app.services.llm_service import llm_json, LLMNotConfiguredError
 
         system = (
-            "You extract real job postings from scraped career-page text. "
-            "List ONLY postings whose title and URL literally appear in the "
-            "provided text. Never invent a title or URL that isn't there."
+            "You extract real job postings from a fetched career-page's text "
+            "content and links. List ONLY postings whose title and URL "
+            "literally appear in the provided material. Never invent a title "
+            "or URL that isn't there — if the page doesn't list individual "
+            "postings (e.g. it's a redirect to a third-party ATS you can't "
+            "see), return an empty list rather than guessing."
         )
-        user = f"""Scraped content from {career_url} (company: {company}):
-{scraped_text}
+        user = f"""Fetched from {career_url} (company: {company}):
+{page_text}
 
 Keywords of interest: {', '.join(keywords)}
 
-Return JSON: {{"jobs": [{{"title": "<exact title from text>", "url": "<exact url from text>", "location": "<location if stated, else \\"Not specified\\">"}}]}}
+Return JSON: {{"jobs": [{{"title": "<exact title from text/links>", "url": "<exact url from links>", "location": "<location if stated, else \\"Not specified\\">"}}]}}
 Only include postings relevant to the keywords above. If none, return {{"jobs": []}}."""
         try:
             extracted = await llm_json(system, user, max_tokens=800)
@@ -236,12 +300,6 @@ Only include postings relevant to the keywords above. If none, return {{"jobs": 
                 )
             )
         result.new_jobs_count = len(result.jobs_found)
-        return result
-    except ProviderNotConfigured:
-        result.error = "board not found (web-search fallback not configured — FIRECRAWL_API_KEY unset)"
-        return result
-    except ProviderRejected as exc:
-        result.error = f"web search fallback failed: {exc}"
         return result
     except Exception as exc:  # noqa: BLE001 - fallback must never crash the scan
         logger.warning("company_radar: web-search fallback failed for %r: %s", company, exc)
