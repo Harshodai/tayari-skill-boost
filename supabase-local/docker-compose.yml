@@ -334,6 +334,7 @@ services:
       - ./volumes/db/init/77-20260815_omnisave_nlp_metadata.sql:/docker-entrypoint-initdb.d/migrations/zz-77-20260815_omnisave_nlp_metadata.sql:Z
       - ./volumes/db/init/78-20260815_omnisave_instagram_platform.sql:/docker-entrypoint-initdb.d/migrations/zz-78-20260815_omnisave_instagram_platform.sql:Z
       - ./volumes/db/init/79-20260815_secure_task_control_plane.sql:/docker-entrypoint-initdb.d/migrations/zz-79-20260815_secure_task_control_plane.sql:Z
+      - ./volumes/db/init/80-20260911_substack_watched_publications.sql:/docker-entrypoint-initdb.d/migrations/zz-80-20260911_substack_watched_publications.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:

@@ -48,6 +48,9 @@ func (s *Server) routesOmniSave(r chi.Router) {
 			r.Delete(prefix+"/saves/{source_id}/highlights/{highlight_id}", s.handleOmniSaveProxyDELETEPath(omniSaveUpstreamPrefix+"/saves/", "source_id", "/highlights/", "highlight_id"))
 			r.Get(prefix+"/saves/{source_id}/context", s.handleOmniSaveProxyGETPath(omniSaveUpstreamPrefix+"/saves/", "source_id", "/context"))
 			r.Post(prefix+"/saves/{source_id}/context", s.handleOmniSaveProxyBodyPath(omniSaveUpstreamPrefix+"/saves/", "source_id", "/context"))
+			r.Post(prefix+"/saves/substack-watches", s.handleOmniSaveProxyPost(omniSaveUpstreamPrefix+"/saves/substack-watches"))
+			r.Get(prefix+"/saves/substack-watches", s.handleOmniSaveProxyGET(omniSaveUpstreamPrefix+"/saves/substack-watches"))
+			r.Delete(prefix+"/saves/substack-watches/{watch_id}", s.handleOmniSaveProxyDELETESinglePath(omniSaveUpstreamPrefix+"/saves/substack-watches/", "watch_id"))
 		}
 	})
 }
@@ -215,6 +218,23 @@ func (s *Server) handleOmniSaveProxyDELETEPath(prefix, parameter, middle, childP
 			return
 		}
 		endpoint := prefix + parentID + middle + childID
+		result, err := s.AI.DeleteJSONWithHeaders(endpoint, s.getXUserHeaders(r))
+		if err != nil {
+			slog.Error("[OmniSaveProxy] DELETE failed", "value", endpoint, "error", err)
+			writeOmniSaveProxyError(w)
+			return
+		}
+		writeOmniSaveProxyJSON(w, http.StatusOK, result)
+	}
+}
+
+func (s *Server) handleOmniSaveProxyDELETESinglePath(prefix, parameter string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		value, ok := omniSavePathID(w, chi.URLParam(r, parameter), "resource identifier")
+		if !ok {
+			return
+		}
+		endpoint := prefix + value
 		result, err := s.AI.DeleteJSONWithHeaders(endpoint, s.getXUserHeaders(r))
 		if err != nil {
 			slog.Error("[OmniSaveProxy] DELETE failed", "value", endpoint, "error", err)

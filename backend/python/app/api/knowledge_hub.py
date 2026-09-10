@@ -365,6 +365,41 @@ async def import_public_saved_source(
     )
 
 
+class SubstackWatchRequest(BaseModel):
+    """A Substack publication URL the candidate is subscribed to, to poll for
+    new posts in the background — no browser tab required, since Substack
+    (unlike LinkedIn/Medium) publishes a public per-publication RSS feed."""
+
+    publication_url: HttpUrl
+
+
+@router.post("/saves/substack-watches", status_code=status.HTTP_201_CREATED)
+async def add_substack_watch(
+    payload: SubstackWatchRequest,
+    user_id: str = Depends(get_current_user),
+):
+    result = await get_omnisave_service().add_substack_watch(user_id=user_id, publication_url=str(payload.publication_url))
+    if result.get("success"):
+        return result
+    error = result.get("error", "watch_failed")
+    if error == "database_unavailable":
+        raise _storage_unavailable()
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error)
+
+
+@router.get("/saves/substack-watches")
+async def list_substack_watches(user_id: str = Depends(get_current_user)):
+    return {"watches": await get_omnisave_service().list_substack_watches(user_id=user_id)}
+
+
+@router.delete("/saves/substack-watches/{watch_id}")
+async def remove_substack_watch(watch_id: str, user_id: str = Depends(get_current_user)):
+    removed = await get_omnisave_service().remove_substack_watch(user_id=user_id, watch_id=watch_id)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="watch_not_found")
+    return {"success": True}
+
+
 @router.post("/saves/import/seed", status_code=status.HTTP_201_CREATED)
 async def create_seed_import(
     payload: SeedImportRequest,

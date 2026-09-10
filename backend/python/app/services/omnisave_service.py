@@ -139,7 +139,14 @@ async def fetch_substack_rss(publication_url: str) -> list[dict]:
             block = m.group(1)
             def _field(tag: str) -> str:
                 mm = re.search(rf"<{tag}[^>]*>(.*?)</{tag}>", block, re.IGNORECASE | re.DOTALL)
-                return mm.group(1).strip() if mm else ""
+                if not mm:
+                    return ""
+                value = mm.group(1).strip()
+                # Substack (like most RSS feeds) wraps title/creator/description
+                # text in a CDATA section — without unwrapping it, every title
+                # and author rendered the literal "<![CDATA[...]]>" markers.
+                cdata = re.match(r"^<!\[CDATA\[([\s\S]*?)\]\]>$", value)
+                return cdata.group(1).strip() if cdata else value
             link = _field("link")
             if not link:
                 continue
@@ -151,7 +158,11 @@ async def fetch_substack_rss(publication_url: str) -> list[dict]:
             items.append({
                 "url": link,
                 "title": title or link,
-                "author": _field("author") or "Substack",
+                # Substack's real per-item byline is the namespaced
+                # dc:creator element, not <author> (which this feed format
+                # doesn't emit at all) — dc:creator was never checked, so
+                # every item silently fell back to the literal "Substack".
+                "author": _field("dc:creator") or _field("author") or "",
                 "content": content[:8000],
             })
         return items[:25]
@@ -528,7 +539,7 @@ class OmnisaveService:
             # fallback fills in ONLY when summary_bullets is None (absent).
             "summary_bullets": summary_bullets if summary_bullets is not None else ([auto_summary] if auto_summary else []),
             "nlp_metadata": nlp_metadata,
-            "capture_origin": capture_origin if capture_origin in {"url_import", "browser_capture", "seed_csv", "manual"} else "url_import",
+            "capture_origin": capture_origin if capture_origin in {"url_import", "browser_capture", "seed_csv", "manual", "substack_rss_watch"} else "url_import",
             "content_hash": hashlib.sha256((raw_content or "").encode("utf-8")).hexdigest(),
             "saved_at": datetime.now(timezone.utc).isoformat()
         }
@@ -1223,6 +1234,221 @@ class OmnisaveService:
             if tag not in valid_tags:
                 return False
         return True
+
+    # ------------------------------------------------------------------
+    # Substack watched-publication background sync (WS-11)
+    #
+    # Unlike LinkedIn and Medium — which expose no public feed for a
+    # candidate's saved/reading content and stay dependent on the
+    # browser-companion extension actually being open on the right page —
+    # Substack publishes a public per-publication RSS feed with no login
+    # required. A candidate can register a publication they subscribe to
+    # here; a Celery beat task then polls it periodically and ingests new
+    # posts through the same durable, deduplicated ingest_source() path the
+    # browser companion uses, so new posts show up in OmniSave without the
+    # candidate ever opening a Substack tab.
+    # ------------------------------------------------------------------
+
+    async def add_substack_watch(self, user_id: str, publication_url: str) -> Dict[str, Any]:
+        """Register a Substack publication for background RSS polling.
+
+        Live-verified against real publications: Substack's raw
+        `<pub>.substack.com` subdomain is bot-walled for non-browser HTTP
+        clients (403 on both robots.txt and /feed, even for currently-active
+        publications), while a publication's real custom domain (what most
+        active Substack publications actually use, e.g.
+        blog.bytebytego.com) fetches its RSS feed fine. Restricting this to
+        `*.substack.com` hosts — the constraint the browser-companion
+        capture uses for classifying scraped *links* as Substack, where no
+        explicit user assertion exists — would reject almost every
+        publication a real candidate could actually add here. Instead:
+        accept any https URL, since the candidate is explicitly asserting
+        "this is a Substack publication I subscribe to," and verify that
+        assertion the same way ingestion itself will use it — by actually
+        fetching its RSS feed once and requiring at least one real item.
+        """
+        from urllib.parse import urlsplit
+
+        url = (publication_url or "").strip()
+        if not url:
+            return {"success": False, "error": "publication_url_required"}
+        parsed = urlsplit(url)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        if parsed.scheme != "https" or not host:
+            return {"success": False, "error": "must_be_a_valid_https_url"}
+        canonical = f"https://{host}"
+
+        probe_items = await fetch_substack_rss(canonical)
+        if not probe_items:
+            return {"success": False, "error": "not_a_reachable_substack_feed"}
+
+        pool = await get_pool()
+        if pool is None:
+            return {"success": False, "error": "database_unavailable"}
+        try:
+            user_uuid = uuid_lib.UUID(user_id)
+        except (ValueError, TypeError):
+            return {"success": False, "error": "invalid_user_id"}
+        try:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """
+                    INSERT INTO public.substack_watched_publications (user_id, publication_url)
+                    VALUES ($1, $2)
+                    ON CONFLICT (user_id, publication_url) DO UPDATE SET updated_at = NOW()
+                    RETURNING id, publication_url, last_polled_at, last_poll_status, last_ingested_count, created_at
+                    """,
+                    user_uuid,
+                    canonical,
+                )
+        except Exception as exc:
+            logger.warning("[Omnisave] add_substack_watch failed for %s: %s", canonical, exc)
+            return {"success": False, "error": "persistence_failed"}
+        return {
+            "success": True,
+            "watch": {
+                "id": str(row["id"]),
+                "publication_url": row["publication_url"],
+                "last_polled_at": row["last_polled_at"].isoformat() if row["last_polled_at"] else None,
+                "last_poll_status": row["last_poll_status"],
+                "last_ingested_count": row["last_ingested_count"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            },
+        }
+
+    async def list_substack_watches(self, user_id: str) -> List[Dict[str, Any]]:
+        pool = await get_pool()
+        if pool is None:
+            return []
+        try:
+            user_uuid = uuid_lib.UUID(user_id)
+        except (ValueError, TypeError):
+            return []
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, publication_url, last_polled_at, last_poll_status,
+                       last_poll_error, last_ingested_count, created_at
+                FROM public.substack_watched_publications
+                WHERE user_id = $1
+                ORDER BY created_at DESC
+                """,
+                user_uuid,
+            )
+        return [
+            {
+                "id": str(row["id"]),
+                "publication_url": row["publication_url"],
+                "last_polled_at": row["last_polled_at"].isoformat() if row["last_polled_at"] else None,
+                "last_poll_status": row["last_poll_status"],
+                "last_poll_error": row["last_poll_error"],
+                "last_ingested_count": row["last_ingested_count"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            }
+            for row in rows
+        ]
+
+    async def remove_substack_watch(self, user_id: str, watch_id: str) -> bool:
+        pool = await get_pool()
+        if pool is None:
+            return False
+        try:
+            user_uuid = uuid_lib.UUID(user_id)
+            watch_uuid = uuid_lib.UUID(watch_id)
+        except (ValueError, TypeError):
+            return False
+        async with pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM public.substack_watched_publications WHERE id = $1 AND user_id = $2",
+                watch_uuid,
+                user_uuid,
+            )
+        return result.endswith(" 1")
+
+    async def poll_substack_watch(self, watch_row: Dict[str, Any]) -> Dict[str, Any]:
+        """Fetch one watched publication's RSS and ingest any new posts.
+
+        ``watch_row`` carries ``id``, ``user_id``, ``publication_url`` — the
+        caller (the Celery beat task) owns selecting which rows are due;
+        this only does the fetch-and-ingest-one-publication work, so it
+        stays independently testable against a real feed.
+        """
+        watch_id = watch_row["id"]
+        user_id = watch_row["user_id"]
+        publication_url = watch_row["publication_url"]
+        pool = await get_pool()
+
+        ingested = 0
+        status = "ok"
+        error_message: Optional[str] = None
+        try:
+            items = await fetch_substack_rss(publication_url)
+            for item in items:
+                result = await self.ingest_source(
+                    platform="substack",
+                    url=item["url"],
+                    title=item["title"],
+                    author=item.get("author", ""),
+                    raw_content=item["content"],
+                    user_id=user_id,
+                    capture_origin="substack_rss_watch",
+                )
+                if result.get("success") and result.get("durably_persisted") and not result.get("message", "").startswith("Source already"):
+                    ingested += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[Omnisave] poll_substack_watch failed for %s: %s", publication_url, exc)
+            status = "failed"
+            error_message = str(exc)[:500]
+
+        if pool is not None:
+            try:
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        UPDATE public.substack_watched_publications
+                        SET last_polled_at = NOW(), last_poll_status = $2,
+                            last_poll_error = $3, last_ingested_count = $4,
+                            updated_at = NOW()
+                        WHERE id = $1
+                        """,
+                        uuid_lib.UUID(watch_id),
+                        status,
+                        error_message,
+                        ingested,
+                    )
+            except Exception as exc:
+                logger.warning("[Omnisave] failed to record poll result for watch %s: %s", watch_id, exc)
+
+        return {"watch_id": watch_id, "status": status, "ingested": ingested, "error": error_message}
+
+    async def poll_due_substack_watches(self, limit: int = 25) -> Dict[str, Any]:
+        """Poll the ``limit`` least-recently-polled watched publications.
+
+        Called by the Celery beat task on a fixed interval. Selecting
+        oldest-first (rather than all-at-once) bounds one beat tick's work
+        and gives every watched publication a fair turn even as the total
+        count grows.
+        """
+        pool = await get_pool()
+        if pool is None:
+            return {"polled": 0, "ingested": 0}
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, user_id, publication_url
+                FROM public.substack_watched_publications
+                ORDER BY last_polled_at ASC NULLS FIRST
+                LIMIT $1
+                """,
+                limit,
+            )
+        total_ingested = 0
+        for row in rows:
+            result = await self.poll_substack_watch(
+                {"id": str(row["id"]), "user_id": str(row["user_id"]), "publication_url": row["publication_url"]}
+            )
+            total_ingested += result.get("ingested", 0)
+        return {"polled": len(rows), "ingested": total_ingested}
 
 
 # Global singleton instance for in-memory service consistency
