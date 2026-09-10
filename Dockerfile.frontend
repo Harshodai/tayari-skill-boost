@@ -38,6 +38,15 @@ RUN chown -R nginx:nginx /usr/share/nginx/html \
 COPY --from=builder --chown=nginx:nginx /app/dist /usr/share/nginx/html
 COPY --chown=nginx:nginx nginx.conf /etc/nginx/conf.d/default.conf
 
+# The frontend calls Supabase (GoTrue/PostgREST via Kong) directly from the
+# browser — CSP connect-src must allow whatever origin VITE_SUPABASE_URL
+# actually points at (hosted https://*.supabase.co, or a self-hosted Kong
+# origin like http://localhost:8010 in dev), or every direct Supabase-JS
+# call gets silently blocked by the browser.
+ARG VITE_SUPABASE_URL
+RUN SUPABASE_ORIGIN=$(printf '%s' "$VITE_SUPABASE_URL" | sed -E 's#^(https?://[^/]+).*#\1#'); \
+    sed -i "s#__SUPABASE_ORIGIN__#${SUPABASE_ORIGIN}#" /etc/nginx/conf.d/default.conf
+
 USER nginx
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

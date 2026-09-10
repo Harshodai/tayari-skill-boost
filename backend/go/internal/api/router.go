@@ -178,6 +178,7 @@ func (s *Server) routes() {
 	s.routesApplicationsExtra(s.Router) // notes/interview-questions/parse-email/voice/stage (was dead)
 	s.RegisterChainRoutes(s.Router)     // GET /chain/{userId}, Dashboard pipeline strip (was dead)
 	s.routesCoverLetters(s.Router)
+	s.routesRoadmapInterviewSessions(s.Router)
 	s.routesHarness(s.Router)
 }
 

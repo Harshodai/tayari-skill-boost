@@ -320,11 +320,22 @@ func (c *Client) PatchJSONWithHeaders(endpoint string, payload interface{}, head
 	return result, nil
 }
 
+// GetJSON always expects a JSON object response (callers index it by key) —
+// unlike GetJSONWithHeaders, which is used as a generic proxy and must also
+// accept array-shaped upstream responses.
 func (c *Client) GetJSON(endpoint string) (map[string]interface{}, error) {
-	return c.GetJSONWithHeaders(endpoint, nil)
+	result, err := c.GetJSONWithHeaders(endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	obj, ok := result.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("GetJSON %s: expected a JSON object, got %T", endpoint, result)
+	}
+	return obj, nil
 }
 
-func (c *Client) GetJSONWithHeaders(endpoint string, headers map[string]string) (map[string]interface{}, error) {
+func (c *Client) GetJSONWithHeaders(endpoint string, headers map[string]string) (interface{}, error) {
 	req, err := http.NewRequest(http.MethodGet, c.BaseURL+endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -345,7 +356,10 @@ func (c *Client) GetJSONWithHeaders(endpoint string, headers map[string]string) 
 		c.record(apiErr)
 		return nil, apiErr
 	}
-	var result map[string]interface{}
+	// The upstream Python endpoint may return a JSON object or a JSON array
+	// (e.g. GET /api/v1/conversations returns a list) — decode into `any` so
+	// this proxy doesn't fail on shapes other than a bare object.
+	var result interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		// ponytail: corrupt payload after HTTP 200 proves reachability — skip breaker record either way.
 		return nil, err

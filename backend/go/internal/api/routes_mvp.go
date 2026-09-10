@@ -1489,7 +1489,7 @@ func (s *Server) handleCoverLetterGenerate(w http.ResponseWriter, r *http.Reques
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/cover-letter/generate", map[string]interface{}{
 		"resume_text":     resumeText,
 		"job_title":       jobTitle,
-		"company":         companyName,
+		"company_name":    companyName,
 		"job_description": jobDescription,
 		"tone":            tone,
 		"personal_notes":  personalNotes,

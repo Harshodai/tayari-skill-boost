@@ -121,7 +121,7 @@ var activeRunsListFields = []string{"runs", "data", "items", "results"}
 // countListItems best-effort counts the runs in a GetJSON response, which may
 // be either a bare JSON array or an object wrapping the list under one of
 // activeRunsListFields. SRP: isolates shape-tolerance from the handler.
-func countListItems(result map[string]interface{}) int {
+func countListItems(result interface{}) int {
 	b, err := json.Marshal(result)
 	if err != nil {
 		return 0
