@@ -266,7 +266,7 @@ function formatSavedSource(source: SavedSourceResponse): SavedArticleItem {
   const formatted: SavedArticleItem = {
     id: source.id || stableHash(source.canonical_url || source.title || "unknown"),
     title: source.title || "Saved Source",
-    author: source.author || "Unknown",
+    author: source.author || "",
     platform: source.source_platform || "custom_url",
     category: nlp.category,
     summary: source.summary_bullets || (nlp.summary ? [nlp.summary] : []),

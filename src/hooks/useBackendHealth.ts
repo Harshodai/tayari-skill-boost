@@ -27,6 +27,15 @@ export function useBackendHealth(): { unavailable: boolean; refetch: () => Promi
     retry: false,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
+    // ponytail: once a probe fails, react-query won't try again on its own
+    // (retry:false, refetchOnWindowFocus:false, and staleTime blocks a
+    // refetch-on-mount for a full minute) — every backend-gated button on
+    // the page stayed disabled for the rest of the session even after the
+    // backend recovered, with nothing telling the user to reload. Poll every
+    // 5s only while marked unavailable so a real recovery clears the flag
+    // on its own; a healthy backend never pays this cost since the interval
+    // callback receives the latest query state, not a stale closure.
+    refetchInterval: (query) => (query.state.error ? 5_000 : false),
   });
   const unavailable = useBackendUnavailable(error);
   // ponytail: refetch must reject when the gateway is still unreachable —

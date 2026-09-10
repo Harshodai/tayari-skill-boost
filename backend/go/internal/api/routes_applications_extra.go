@@ -715,12 +715,16 @@ func (s *Server) handleUpdateApplicationStage(w http.ResponseWriter, r *http.Req
 		return
 	}
 	req.Stage = normStage
-	_, err := s.DB.Conn.ExecContext(r.Context(), `
+	res, err := s.DB.Conn.ExecContext(r.Context(), `
 		UPDATE applications SET stage=$1, status=$1, updated_at=NOW()
 		WHERE (application_id::text=$2 OR id::text=$2) AND user_id=$3`,
 		req.Stage, appID, user.ID)
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, "Failed to update stage")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		s.respondError(w, http.StatusNotFound, "Application not found")
 		return
 	}
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "stage": req.Stage})

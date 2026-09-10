@@ -519,7 +519,7 @@ class OmnisaveService:
             "title": title,
             "author": author,
             "raw_content": raw_content,
-            "clean_markdown": f"# {title}\n*By {author} ({platform.title()})*\n\n{raw_content}",
+            "clean_markdown": f"# {title}\n*{f'By {author} ' if author else ''}({platform.title()})*\n\n{raw_content}",
             "primary_category": category,
             "secondary_tags": normalized_topics if normalized_topics else auto_topics,
             # WS-07: no fabricated "insight" bullets. If no real summary was
@@ -691,7 +691,7 @@ class OmnisaveService:
                         return {
                             "url": url_info["original_url"],
                             "title": content_eval.get("title") or title,
-                            "author": content_eval.get("author") or f"{platform.title()} Author",
+                            "author": content_eval.get("author") or "",
                             "category": cat,
                             "topics": topics,
                             "content": content_eval.get("body"),
