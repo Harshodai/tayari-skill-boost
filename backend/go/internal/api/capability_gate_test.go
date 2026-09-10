@@ -34,7 +34,7 @@ func TestBrowserRoutesAreLockedWhenCapabilityDisabled(t *testing.T) {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
 			req := authReq(tc.method, tc.path, tc.body)
 			rec := httptest.NewRecorder()
-			server.Router.ServeHTTP(rec, req)
+			server.Handler().ServeHTTP(rec, req)
 			if rec.Code != http.StatusLocked {
 				t.Fatalf("expected 423, got %d: %s", rec.Code, rec.Body.String())
 			}

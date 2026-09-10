@@ -2,12 +2,32 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+
+	"tayari-backend/internal/ai"
 )
+
+// writeOneStopProxyError forwards the real upstream 4xx status/body when the
+// Python call failed with a genuine application error (bad input, not-found,
+// validation) instead of collapsing every failure into a generic 502
+// "ai_service_unavailable" — the two used to be indistinguishable to the
+// caller, so a 422 "bad URL" looked identical to Python being completely
+// down. 5xx and non-HTTP errors (connection refused, timeout) still map to
+// 502, since those really are "the service is unavailable".
+func (s *Server) writeOneStopProxyError(w http.ResponseWriter, logPrefix, endpoint string, err error) {
+	slog.Error(logPrefix, "endpoint", endpoint, "error", err)
+	var apiErr *ai.APIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+		s.respondError(w, apiErr.StatusCode, apiErr.Body)
+		return
+	}
+	s.respondJSON(w, http.StatusBadGateway, map[string]string{"error": "ai_service_unavailable"})
+}
 
 // -------------------------------------------------------------------
 // One-Stop Jobseeker Proxy Routes (Typst PDF, Radar, Voice Coach, Negotiation)
@@ -132,8 +152,7 @@ func (s *Server) handleOneStopProxyDELETEPath(prefix, parameter string) http.Han
 		headers := s.getXUserHeaders(r)
 		result, err := s.AI.DeleteJSONWithHeaders(prefix+value, headers)
 		if err != nil {
-			slog.Error("[OneStopProxy] DELETE failed", "value", prefix+value, "error", err)
-			http.Error(w, "knowledge source deletion failed", http.StatusBadGateway)
+			s.writeOneStopProxyError(w, "[OneStopProxy] DELETE failed", prefix+value, err)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -155,8 +174,7 @@ func (s *Server) handleTypstExport(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := s.AI.PostJSONWithHeaders("/api/v1/export/typst-pdf", json.RawMessage(body), headers)
 	if err != nil {
-		slog.Error("[TypstExport] Proxy error", "error", err)
-		http.Error(w, "failed to export typst pdf", http.StatusBadGateway)
+		s.writeOneStopProxyError(w, "[TypstExport] Proxy error", "/api/v1/export/typst-pdf", err)
 		return
 	}
 
@@ -173,7 +191,7 @@ func (s *Server) handleOneStopProxyGET(endpoint string) http.HandlerFunc {
 		}
 		result, err := s.AI.GetJSONWithHeaders(endpoint, headers)
 		if err != nil {
-			s.respondJSON(w, http.StatusBadGateway, map[string]string{"error": "ai_service_unavailable"})
+			s.writeOneStopProxyError(w, "[OneStopProxyGET] AI service error", endpoint, err)
 			return
 		}
 
@@ -190,10 +208,7 @@ func (s *Server) handleOneStopProxyPUT(endpoint string) http.HandlerFunc {
 		}
 		result, err := s.AI.PutJSONWithHeaders(endpoint, payload, s.getXUserHeaders(r))
 		if err != nil {
-			slog.Error("[OneStopProxyPUT] AI service error for", "value", endpoint, "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadGateway)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
+			s.writeOneStopProxyError(w, "[OneStopProxyPUT] AI service error", endpoint, err)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -209,12 +224,10 @@ func (s *Server) handleRunActionGET(prefix string, action string) http.HandlerFu
 			http.Error(w, "missing run identifier", http.StatusBadRequest)
 			return
 		}
-		result, err := s.AI.GetJSONWithHeaders(prefix+runID+"/"+action, s.getXUserHeaders(r))
+		endpoint := prefix + runID + "/" + action
+		result, err := s.AI.GetJSONWithHeaders(endpoint, s.getXUserHeaders(r))
 		if err != nil {
-			slog.Error("[RunActionGET] AI service error", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadGateway)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
+			s.writeOneStopProxyError(w, "[RunActionGET] AI service error", endpoint, err)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -235,12 +248,10 @@ func (s *Server) handleRunActionPOST(prefix string, action string) http.HandlerF
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		result, err := s.AI.PostJSONWithHeaders(prefix+runID+"/"+action, payload, s.getXUserHeaders(r))
+		endpoint := prefix + runID + "/" + action
+		result, err := s.AI.PostJSONWithHeaders(endpoint, payload, s.getXUserHeaders(r))
 		if err != nil {
-			slog.Error("[RunActionProxy] AI service error", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadGateway)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
+			s.writeOneStopProxyError(w, "[RunActionProxy] AI service error", endpoint, err)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -264,12 +275,10 @@ func (s *Server) handleQuestionProxyPATCH(prefix string) http.HandlerFunc {
 		defer r.Body.Close()
 		headers := s.getXUserHeaders(r)
 		headers["Content-Type"] = "application/json"
-		result, err := s.AI.PatchJSONWithHeaders(prefix+questionID, json.RawMessage(body), headers)
+		endpoint := prefix + questionID
+		result, err := s.AI.PatchJSONWithHeaders(endpoint, json.RawMessage(body), headers)
 		if err != nil {
-			slog.Error("[QuestionProxy] AI service error", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadGateway)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
+			s.writeOneStopProxyError(w, "[QuestionProxy] AI service error", endpoint, err)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -288,7 +297,7 @@ func (s *Server) handleOneStopProxy(endpoint string) http.HandlerFunc {
 		headers := s.getXUserHeaders(r)
 		result, err := s.AI.PostJSONWithHeaders(endpoint, payload, headers)
 		if err != nil {
-			s.respondJSON(w, http.StatusBadGateway, map[string]string{"error": "ai_service_unavailable"})
+			s.writeOneStopProxyError(w, "[OneStopProxy] AI service error", endpoint, err)
 			return
 		}
 

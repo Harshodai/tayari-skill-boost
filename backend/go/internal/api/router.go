@@ -121,54 +121,18 @@ func (s *Server) routes() {
 	// it's an absolute cap that applies on top of any per-call context
 	// deadline), and Python's own per-route timeout
 	// (browser_agent_routes.py). The SSE stream route
-	// (/api/v1/browser/automation/stream) is a separate, larger problem:
-	// it's coded for a 20min (browserStreamTimeout) budget but is *also*
-	// subject to this same global middleware, so it is still capped at
-	// 300s today. Fixing that properly needs the stream route pulled out
-	// from under this blanket Timeout (a dedicated chi mount/group, not a
-	// bigger global number) — not done here; flagged for follow-up.
+	// (/api/v1/browser/automation/stream) is coded for a 20min
+	// (browserStreamTimeout) budget, which this 300s floor would silently
+	// truncate. It is no longer routed through s.Router at all — it is
+	// mounted as a sibling router in Handler() (router.go) with its own,
+	// longer Timeout, specifically so a global number here can never
+	// re-cap it by accident. See streamRouter() in routes_browser.go.
 	s.Router.Use(middleware.Timeout(300 * time.Second))
 	s.Router.Use(s.csrfCheck)
 	s.Router.Use(s.requestLoggingMiddleware)
 	s.Router.Use(s.tenantMiddleware)
 
-	defaultOrigins := []string{
-		"http://localhost:8080", "http://localhost:8083", "http://localhost:8085", "http://localhost:5173",
-		"http://127.0.0.1:8080", "http://127.0.0.1:8083", "http://127.0.0.1:8085", "http://127.0.0.1:5173",
-	}
-
-	if s.Config != nil {
-		for _, o := range s.Config.AllowedOrigins {
-			o = strings.TrimSpace(o)
-			if o != "" && o != "*" {
-				defaultOrigins = append(defaultOrigins, o)
-			}
-		}
-		for _, o := range s.Config.CORSAllowedOrigins {
-			o = strings.TrimSpace(o)
-			if o != "" && o != "*" {
-				defaultOrigins = append(defaultOrigins, o)
-			}
-		}
-	}
-
-	corsOriginSet := make(map[string]struct{}, len(defaultOrigins))
-	for _, o := range defaultOrigins {
-		corsOriginSet[o] = struct{}{}
-	}
-
-	s.Router.Use(cors.Handler(cors.Options{
-		AllowedOrigins: defaultOrigins,
-		AllowOriginFunc: func(r *http.Request, origin string) bool {
-			_, ok := corsOriginSet[origin]
-			return ok
-		},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Tenant-Domain"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300,
-	}))
+	s.Router.Use(cors.Handler(s.corsOptions()))
 
 	// Register Domain Routes
 	s.Router.Get("/metrics", s.handleMetrics)
@@ -294,8 +258,66 @@ func (s *Server) proxyToPython(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// corsOptions builds the shared CORS policy. Extracted so the SSE stream
+// router (which cannot reuse s.Router's middleware chain — see Handler())
+// can apply the identical origin policy without duplicating it by hand.
+func (s *Server) corsOptions() cors.Options {
+	defaultOrigins := []string{
+		"http://localhost:8080", "http://localhost:8083", "http://localhost:8085", "http://localhost:5173",
+		"http://127.0.0.1:8080", "http://127.0.0.1:8083", "http://127.0.0.1:8085", "http://127.0.0.1:5173",
+	}
+
+	if s.Config != nil {
+		for _, o := range s.Config.AllowedOrigins {
+			o = strings.TrimSpace(o)
+			if o != "" && o != "*" {
+				defaultOrigins = append(defaultOrigins, o)
+			}
+		}
+		for _, o := range s.Config.CORSAllowedOrigins {
+			o = strings.TrimSpace(o)
+			if o != "" && o != "*" {
+				defaultOrigins = append(defaultOrigins, o)
+			}
+		}
+	}
+
+	corsOriginSet := make(map[string]struct{}, len(defaultOrigins))
+	for _, o := range defaultOrigins {
+		corsOriginSet[o] = struct{}{}
+	}
+
+	return cors.Options{
+		AllowedOrigins: defaultOrigins,
+		AllowOriginFunc: func(r *http.Request, origin string) bool {
+			_, ok := corsOriginSet[origin]
+			return ok
+		},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Tenant-Domain"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}
+}
+
 // Handler returns the HTTP handler wrapped with OpenTelemetry tracing.
+//
+// The browser-automation SSE stream route is mounted as a SIBLING of
+// s.Router, not nested inside it: s.Router.Use(middleware.Timeout(300s))
+// applies to every route reachable through s.Router's own ServeHTTP,
+// including ones registered many r.Group()s deep (chi.Group clones the
+// middleware chain accumulated so far — it can add to it, it cannot strip
+// an already-applied middleware.Timeout off the parent). The only way to
+// give the SSE route a materially longer budget is to keep it off that
+// chain entirely and give it its own, with the same auth/CORS/logging
+// middleware applied explicitly. See streamRouter() in routes_browser.go.
 func (s *Server) Handler() http.Handler {
-	return otelhttp.NewHandler(s.Router, "tayari-gateway")
+	mux := http.NewServeMux()
+	streamHandler := s.streamRouter()
+	mux.Handle("/api/v1/browser/automation/stream", streamHandler)
+	mux.Handle("/api/browser/automation/stream", streamHandler)
+	mux.Handle("/", s.Router)
+	return otelhttp.NewHandler(mux, "tayari-gateway")
 }
 

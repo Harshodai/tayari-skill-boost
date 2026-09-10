@@ -329,6 +329,7 @@ services:
       - ./volumes/db/init/73-20260902_02_portal_scan_lease.sql:/docker-entrypoint-initdb.d/migrations/zz-73-20260902_02_portal_scan_lease.sql:Z
       - ./volumes/db/init/74-20260902_03_submission_receipt_unique.sql:/docker-entrypoint-initdb.d/migrations/zz-74-20260902_03_submission_receipt_unique.sql:Z
       - ./volumes/db/init/75-20260902_04_runtime_approval_ttl.sql:/docker-entrypoint-initdb.d/migrations/zz-75-20260902_04_runtime_approval_ttl.sql:Z
+      - ./volumes/db/init/76-20260815_omnisave_evidence_context.sql:/docker-entrypoint-initdb.d/migrations/zz-76-20260815_omnisave_evidence_context.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:

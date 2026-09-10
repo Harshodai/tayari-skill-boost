@@ -14,6 +14,8 @@ import (
 	"tayari-backend/internal/models"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 )
 
 // -------------------------------------------------------------------
@@ -45,15 +47,44 @@ const (
 
 // RegisterBrowserRoutes wires the browser automation proxy routes.
 // NOTE: these must stay inside the authenticated route group.
+//
+// The SSE stream route (POST .../automation/stream) is NOT registered here.
+// It is mounted separately via streamRouter() (see below) and wired as a
+// sibling of s.Router in Handler() (router.go), so it never inherits the
+// blanket 300s middleware.Timeout applied to s.Router — that timeout would
+// truncate a stream this handler deliberately budgets for 20 minutes
+// (browserStreamTimeout).
 func (s *Server) RegisterBrowserRoutes(r chi.Router) {
 	r.Post("/api/v1/browser/automation", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomation))
 	r.Post("/api/browser/automation", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomation))
-	r.Post("/api/v1/browser/automation/stream", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationStream))
-	r.Post("/api/browser/automation/stream", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationStream))
 	r.Post("/api/v1/browser/automation/cancel", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationCancel))
 	r.Post("/api/browser/automation/cancel", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationCancel))
 	r.Get("/api/v1/browser/automation/runs/{runID}/control", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationControl))
 	r.Get("/api/browser/automation/runs/{runID}/control", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationControl))
+}
+
+// streamRouter builds a standalone chi router for the browser-automation SSE
+// stream endpoint, applying the same request-handling middleware s.Router
+// uses (panic recovery, request logging, tenant resolution, CSRF check,
+// CORS, auth, per-user AI rate limiting) but with a route-specific Timeout
+// that matches the handler's real budget (browserStreamTimeout, 20min)
+// instead of the global 300s floor in router.go's routes(). Kept at 25min
+// here — a few minutes above the handler's own 20min context deadline — so
+// this outer timeout is a backstop, not the thing that actually cuts the
+// stream off; the handler's own ctx (browserStreamTimeout) does that.
+func (s *Server) streamRouter() chi.Router {
+	r := chi.NewRouter()
+	r.Use(s.recoverWithSentry)
+	r.Use(s.requestLoggingMiddleware)
+	r.Use(s.tenantMiddleware)
+	r.Use(cors.Handler(s.corsOptions()))
+	r.Use(s.csrfCheck)
+	r.Use(middleware.Timeout(25 * time.Minute))
+	r.Use(s.authMiddleware)
+	r.Use(s.authRateLimiter.Middleware)
+	r.Post("/api/v1/browser/automation/stream", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationStream))
+	r.Post("/api/browser/automation/stream", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationStream))
+	return r
 }
 
 // auditBrowser emits a single-line audit record for browser-agent actions.

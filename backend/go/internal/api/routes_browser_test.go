@@ -97,7 +97,7 @@ func TestBrowserAutomationStream_PassesEventsThrough(t *testing.T) {
 
 	server := newBrowserServer(t, srv.URL)
 	w := httptest.NewRecorder()
-	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/browser/automation/stream",
+	server.Handler().ServeHTTP(w, authReq(http.MethodPost, "/api/v1/browser/automation/stream",
 		[]byte(`{"instruction":"Apply"}`)))
 
 	if w.Code != http.StatusOK {
@@ -121,7 +121,7 @@ func TestBrowserAutomationStream_ForwardsUpstream503(t *testing.T) {
 
 	server := newBrowserServer(t, srv.URL)
 	w := httptest.NewRecorder()
-	server.Router.ServeHTTP(w, authReq(http.MethodPost, "/api/v1/browser/automation/stream",
+	server.Handler().ServeHTTP(w, authReq(http.MethodPost, "/api/v1/browser/automation/stream",
 		[]byte(`{"instruction":"x"}`)))
 
 	if w.Code != http.StatusServiceUnavailable {
@@ -155,7 +155,7 @@ func TestBrowserAutomationStream_ClientDisconnectCancelsUpstream(t *testing.T) {
 	w := httptest.NewRecorder()
 	done := make(chan struct{})
 	go func() {
-		server.Router.ServeHTTP(w, req)
+		server.Handler().ServeHTTP(w, req)
 		close(done)
 	}()
 

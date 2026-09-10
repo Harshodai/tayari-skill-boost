@@ -362,13 +362,26 @@ export interface SavedPost {
 
 export async function listSaves(category?: string): Promise<SavedPost[]> {
   const query = category ? `?category=${encodeURIComponent(category)}` : "";
-  return apiFetch<SavedPost[]>(`/saves${query}`);
+  // The Go route proxies straight through to Python's `/api/v1/saves`,
+  // which returns `{success, sources: [...]}`, not a bare array — unwrap it
+  // here rather than assuming apiFetch's generic type matches the real
+  // upstream shape (it didn't: callers doing `saves.filter(...)` crashed
+  // the whole Knowledge Hub route with "i.filter is not a function").
+  const result = await apiFetch<SavedPost[] | { success?: boolean; sources?: SavedPost[] }>(`/saves${query}`);
+  if (Array.isArray(result)) return result;
+  return result?.sources ?? [];
 }
 
 export async function createSave(payload: { url: string; note?: string; source?: string }): Promise<SavedPost> {
-  return apiFetch<SavedPost>("/saves", {
+  // Split-brain bug: POST /saves hits Go's legacy DB-backed handleCreateSave
+  // (a different, disused table) while listSaves() above reads from
+  // Python's real saved_sources store — anything created here would never
+  // appear in the list. The intended path (per routes_one_stop.go's own
+  // comment: "Omnisave is URL-import-first... no legacy saved_posts table
+  // participates") is Python's /saves/import, which only accepts `url`.
+  return apiFetch<SavedPost>("/saves/import", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ url: payload.url }),
   });
 }
 
