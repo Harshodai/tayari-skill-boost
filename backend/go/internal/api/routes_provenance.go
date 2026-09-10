@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -35,7 +35,7 @@ func (s *Server) handleProvenanceGET(endpoint string) http.HandlerFunc {
 		}
 		result, err := s.AI.GetJSONWithHeaders(target, s.getXUserHeaders(r))
 		if err != nil {
-			log.Printf("provenance GET %s: AI call failed: %v", target, err)
+			slog.Error("provenance GET: AI call failed", "target", target, "error", err)
 			s.respondError(w, http.StatusBadGateway, "Provenance service unavailable")
 			return
 		}
@@ -52,7 +52,7 @@ func (s *Server) handleProvenanceGETPath(prefix string) http.HandlerFunc {
 		}
 		result, err := s.AI.GetJSONWithHeaders(endpoint, s.getXUserHeaders(r))
 		if err != nil {
-			log.Printf("provenance GET %s: AI call failed: %v", endpoint, err)
+			slog.Error("provenance GET: AI call failed", "endpoint", endpoint, "error", err)
 			s.respondError(w, http.StatusBadGateway, "Provenance service unavailable")
 			return
 		}
@@ -71,7 +71,7 @@ func (s *Server) handleProvenancePOSTPath(prefix, suffix string) http.HandlerFun
 		endpoint := prefix + artifactID + suffix
 		result, err := s.AI.PostJSONWithHeaders(endpoint, json.RawMessage(body), s.getXUserHeaders(r))
 		if err != nil {
-			log.Printf("provenance POST %s: AI call failed: %v", endpoint, err)
+			slog.Error("provenance POST: AI call failed", "endpoint", endpoint, "error", err)
 			s.respondError(w, http.StatusBadGateway, "Provenance service unavailable")
 			return
 		}

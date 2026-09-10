@@ -19,6 +19,12 @@ OPTIMIZER_CACHE_TTL_SECONDS = 3600
 
 
 def _redis_url() -> str:
+    try:
+        from app.config import settings
+        if settings and getattr(settings, "redis_url", None):
+            return settings.redis_url
+    except Exception:
+        pass
     return os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 
@@ -44,6 +50,34 @@ def _material(parts: list[str]) -> bytes:
     return "\x00".join(parts).encode("utf-8")
 
 
+def build_llm_cache_key(
+    prompt: str = "",
+    payload: dict | None = None,
+    model: str = "default",
+    temperature: float = 0.0,
+    **kwargs,
+) -> str:
+    # Handle positional invocation where order is (model, temperature, prompt, payload)
+    if isinstance(payload, (int, float)) and isinstance(model, str):
+        actual_model = prompt
+        actual_temp = payload
+        actual_prompt = model
+        actual_payload = temperature if isinstance(temperature, dict) else kwargs.get("payload", {})
+        model, temperature, prompt, payload = actual_model, actual_temp, actual_prompt, actual_payload
+
+    if payload is None:
+        payload = {}
+    elif not isinstance(payload, dict):
+        try:
+            payload = dict(payload)
+        except Exception:
+            payload = {"data": payload}
+
+    cache_key_input = f"{model}:{temperature}:{prompt}:{json.dumps(payload, sort_keys=True)}"
+    digest = hashlib.sha256(cache_key_input.encode("utf-8")).hexdigest()
+    return f"tayari:llm:{digest}"
+
+
 def build_optimizer_cache_key(
     resume_text: str,
     jd_text: str | None,
@@ -52,25 +86,28 @@ def build_optimizer_cache_key(
     job_label: str | None = None,
     custom_instructions: str | None = None,
     transition: dict | None = None,
+    model: str | None = None,
+    temperature: float | None = None,
 ) -> str:
     # ponytail: transition dict is JSON-canonicalized (sorted keys) so key order never causes a false miss.
     try:
         transition_s = json.dumps(transition, sort_keys=True, default=str) if transition else ""
     except Exception:
         transition_s = str(transition or "")
-    digest = hashlib.sha256(
-        _material(
-            [
-                resume_text or "",
-                jd_text or "",
-                prompt_version or "",
-                target_role or "",
-                job_label or "",
-                custom_instructions or "",
-                transition_s,
-            ]
-        )
-    ).hexdigest()
+    parts = [
+        resume_text or "",
+        jd_text or "",
+        prompt_version or "",
+        target_role or "",
+        job_label or "",
+        custom_instructions or "",
+        transition_s,
+    ]
+    if model is not None:
+        parts.append(f"model:{model}")
+    if temperature is not None:
+        parts.append(f"temp:{temperature}")
+    digest = hashlib.sha256(_material(parts)).hexdigest()
     # ponytail: prompt_version in the prefix namespaces keys AND in the hash invalidates content on prompt change.
     return f"tayari:opt:{prompt_version}:{digest}"
 
@@ -79,10 +116,15 @@ def build_ats_cache_key(
     resume_text: str,
     jd_text: str | None,
     prompt_version: str = OPTIMIZER_PROMPT_VERSION,
+    model: str | None = None,
+    temperature: float | None = None,
 ) -> str:
-    digest = hashlib.sha256(
-        _material([resume_text or "", jd_text or "", prompt_version or ""])
-    ).hexdigest()
+    parts = [resume_text or "", jd_text or "", prompt_version or ""]
+    if model is not None:
+        parts.append(f"model:{model}")
+    if temperature is not None:
+        parts.append(f"temp:{temperature}")
+    digest = hashlib.sha256(_material(parts)).hexdigest()
     return f"tayari:ats:{prompt_version}:{digest}"
 
 

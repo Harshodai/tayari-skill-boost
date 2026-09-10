@@ -2,7 +2,7 @@ package api
 
 import (
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -23,7 +23,7 @@ func (s *Server) handleGetResumeGraph(w http.ResponseWriter, r *http.Request) {
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders(endpoint, headers)
 	if err != nil {
-		log.Printf("handleGetResumeGraph: AI call failed for run %s: %v", runID, err)
+		slog.Error("handleGetResumeGraph: AI call failed for run", "value", runID, "error", err)
 		s.proxyAIError(w, err)
 		return
 	}
@@ -40,7 +40,7 @@ func (s *Server) handlePostResumeGraph(w http.ResponseWriter, r *http.Request) {
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.PostJSONWithHeaders("/v1/resume-graph", payload, headers)
 	if err != nil {
-		log.Printf("handlePostResumeGraph: AI call failed: %v", err)
+		slog.Error("handlePostResumeGraph: AI call failed", "error", err)
 		s.proxyAIError(w, err)
 		return
 	}
@@ -53,7 +53,7 @@ func (s *Server) handleDeleteResumeGraph(w http.ResponseWriter, r *http.Request)
 	runID := chi.URLParam(r, "run_id")
 	headers := s.getXUserHeaders(r)
 	if err := s.AI.DeleteNoContent("/v1/resume-graph/"+url.PathEscape(runID), headers); err != nil {
-		log.Printf("handleDeleteResumeGraph: AI call failed for run %s: %v", runID, err)
+		slog.Error("handleDeleteResumeGraph: AI call failed for run", "value", runID, "error", err)
 		s.proxyAIError(w, err)
 		return
 	}
@@ -69,7 +69,7 @@ func (s *Server) handleExportResumeGraph(w http.ResponseWriter, r *http.Request)
 	headers := s.getXUserHeaders(r)
 	resp, err := s.AI.GetBlob(endpoint, headers)
 	if err != nil {
-		log.Printf("handleExportResumeGraph: AI call failed for run %s: %v", runID, err)
+		slog.Error("handleExportResumeGraph: AI call failed for run", "value", runID, "error", err)
 		s.proxyAIError(w, err)
 		return
 	}

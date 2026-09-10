@@ -5,20 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { updateApproval, listPendingApprovals } from '@/api/autopilot';
+import { updateApproval, listPendingApprovals, type PendingApprovalRecord } from '@/api/autopilot';
 
-interface PendingApproval {
-  id: string;
-  action_type: string;
-  action_payload: {
-    company?: string;
-    role?: string;
-    form_fields?: Record<string, string>;
-    keywords?: string[];
-  };
-  status: string;
-  expires_at: string;
-}
+export type PendingApproval = PendingApprovalRecord;
 
 export const ApprovalDrawer: React.FC = () => {
   const [open, setOpen] = useState(false);

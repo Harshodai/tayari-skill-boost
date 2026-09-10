@@ -783,10 +783,10 @@ export default function AgentPanel() {
                       <div>
                         <h4 className="font-semibold text-sm text-foreground">Critical Tool Approval Required</h4>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Agent requires your explicit permission to execute the following tool: <span className="font-mono text-amber-600 font-bold bg-amber-500/10 px-1 rounded">{String(latestWait.payload_json.tool_name ?? "")}</span>.
+                          Agent requires your explicit permission to execute the following tool: <span className="font-mono text-amber-600 font-bold bg-amber-500/10 px-1 rounded">{String(latestWait.payload_json?.tool_name ?? "")}</span>.
                         </p>
                         <div className="mt-2 text-xs font-mono bg-zinc-950 text-zinc-300 p-2.5 rounded border border-zinc-800">
-                          {String(latestWait.payload_json.content_preview ?? "")}
+                          {String(latestWait.payload_json?.content_preview ?? "")}
                         </div>
                       </div>
                     </div>

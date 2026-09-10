@@ -247,7 +247,23 @@ const Pricing = () => {
         setBillingEnabled(Array.isArray(res) ? null : res?.billing_enabled === true);
         const rawPacks = Array.isArray(res) ? res : res?.packs;
         if (Array.isArray(rawPacks) && rawPacks.length > 0) {
-          const mapped: CreditPackItem[] = rawPacks.map((p: any) => {
+          interface RawCreditPack {
+            id?: string;
+            key?: string;
+            name?: string;
+            price?: number;
+            price_formatted?: string;
+            credits?: number;
+            unit_price?: string;
+            price_per_submission?: string;
+            description?: string;
+            recommended?: boolean;
+            popular?: boolean;
+            best_value?: boolean;
+            features?: string[];
+            cta?: string;
+          }
+          const mapped: CreditPackItem[] = (rawPacks as RawCreditPack[]).map((p: RawCreditPack) => {
             const def = DEFAULT_PACKS.find(
               (d) => d.id === p.id || d.key === p.id || d.name.toLowerCase() === (p.name || "").toLowerCase()
             );
@@ -353,8 +369,8 @@ const Pricing = () => {
       } else {
         throw new Error("Billing provider did not return a checkout URL; purchase not completed.");
       }
-    } catch (err: any) {
-      toast.error(err.message || "Payment checkout is unavailable; no purchase was completed.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Payment checkout is unavailable; no purchase was completed.");
     } finally {
       setLoadingPlan(null);
     }
@@ -874,7 +890,7 @@ const Pricing = () => {
                     placeholder="advisor@university.edu"
                     value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   />
                   <Button type="submit" size="sm" className="bg-primary hover:bg-primary/90 active:scale-[0.98]">
                     <Mail className="w-4 h-4 mr-1" />

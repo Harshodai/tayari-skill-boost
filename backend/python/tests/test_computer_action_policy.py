@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.services.computer_action_policy import ComputerActionRejected, authorize_action
+from app.services.computer_action_policy import ComputerActionRejected, authorize_action, authorize_board
 from app.services.computer_control import ComputerActionClass, ComputerActionRequest, ComputerGrant, ComputerMode, ComputerRunPolicy
 from app.services.computer_grant_security import ComputerGrantReplayProtector, sign_grant
 
@@ -65,3 +65,16 @@ async def test_sensitive_action_requires_confirmation_and_submission_is_blocked(
     assert decision.requires_human_confirmation
     with pytest.raises(ComputerActionRejected, match="submission"):
         await authorize_action(action(g, ComputerActionClass.SUBMISSION, "click"), g, signature, expected_audience=g.audience, replay_protector=protector, secret=SECRET, now=NOW, human_confirmed=True)
+
+
+def test_authorize_board_expansion():
+    for url, host in [
+        ("https://boards.greenhouse.io/company/jobs/123", "boards.greenhouse.io"),
+        ("https://boards.lever.co/company/456", "boards.lever.co"),
+        ("https://jobs.lever.co/company/456", "jobs.lever.co"),
+        ("https://jobs.ashbyhq.com/company/789", "jobs.ashbyhq.com"),
+    ]:
+        res = authorize_board(url)
+        assert res["outcome"] == "allow"
+        assert res["host"] == host
+

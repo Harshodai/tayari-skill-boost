@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -90,7 +90,7 @@ func (s *Server) handleExtensionCapture(w http.ResponseWriter, r *http.Request) 
 		RETURNING id`
 	err := s.DB.Conn.QueryRowContext(r.Context(), querySaved, user.ID, dedupeKey, jobJSON).Scan(&savedJobID)
 	if err != nil {
-		log.Printf("handleExtensionCapture: failed to save to saved_jobs: %v", err)
+		slog.Error("handleExtensionCapture: failed to save to saved_jobs", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to save job")
 		return
 	}
@@ -112,7 +112,7 @@ func (s *Server) handleExtensionCapture(w http.ResponseWriter, r *http.Request) 
 		_, err = s.DB.Conn.ExecContext(r.Context(), queryApp,
 			appID, user.ID, req.Title, req.Company, req.Location, req.URL, req.Stage, req.Description, string(jobJSON))
 		if err != nil {
-			log.Printf("handleExtensionCapture: failed to create application: %v", err)
+			slog.Error("handleExtensionCapture: failed to create application", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to create application card")
 			return
 		}
@@ -173,7 +173,7 @@ func (s *Server) handleExtensionQuickATS(w http.ResponseWriter, r *http.Request)
 
 	aiResp, err := s.AI.PostJSONWithHeaders("/api/v1/resumes/analyze-text", aiReq, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleExtensionQuickATS: AI call failed: %v", err)
+		slog.Error("handleExtensionQuickATS: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "ATS check failed")
 		return
 	}

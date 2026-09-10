@@ -29,7 +29,7 @@ Coming in Week 4-5 of the roadmap.
 ## Setup
 
 1. **Sign in to Tayari** — Open the extension side panel and click "Sign in securely". New users should choose "Create an account"; signup happens in the JobTayari web app, never inside the extension.
-2. **Complete your profile** — Fill in your profile at http://localhost:5173/profile so autofill has data to work with
+2. **Complete your profile** — Fill in your profile at http://127.0.0.1:5173/profile so autofill has data to work with
 3. **Enable autofill** — In the extension settings, ensure "Enable Autofill" is checked
 
 ## How to Use
@@ -114,7 +114,7 @@ extension/
 
 ## API Endpoints Used
 
-The extension communicates with the configured JobTayari API base URL. Local development commonly uses `http://localhost:8085/api`; production deployments must use an HTTPS API URL configured through the extension options.
+The extension communicates with the configured JobTayari API base URL. Local development commonly uses `http://127.0.0.1:8085/api`; production deployments must use an HTTPS API URL configured through the extension options.
 
 - `GET /api/v1/profile` — Fetch profile data for autofill
 - `POST /api/v1/jobs/save` — Save a detected job
@@ -184,7 +184,7 @@ After making changes to any extension file:
 | "No visible saved links" diagnostic | Keep the authenticated Medium, LinkedIn, or Substack saved page open, wait for its saved cards to render, and retry; the companion does not treat an empty collector result as a successful import |
 | "Supported saved pages were open, but their collectors were unavailable" | Reload the extension, keep the source tab on its supported saved-library URL, and retry; dynamic recovery is restricted to supported HTTPS pages |
 | Job not detected | Try refreshing the page. SPA navigation may need a moment to detect |
-| Autofill not working | Ensure your profile is complete at http://localhost:5173/profile |
+| Autofill not working | Ensure your profile is complete at http://127.0.0.1:5173/profile |
 | Fields not filled correctly | Some custom forms may need manual entry. The extension shows which fields were filled |
 | Extension not appearing | Check that the extension is enabled in `chrome://extensions/` |
 | Token expired | Sign out and back in to Tayari web app |

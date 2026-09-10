@@ -65,7 +65,7 @@ export function SavedSearches({ current, onApply }: Props) {
       setName("");
       qc.invalidateQueries({ queryKey: ["saved-searches", user?.id] });
     },
-    onError: (e: any) => toast.error(e?.message || "Could not save"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not save"),
   });
 
   // Turning the bell on/off creates or deletes a real, backend-polled

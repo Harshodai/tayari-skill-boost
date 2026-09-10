@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"strings"
 )
@@ -60,7 +61,7 @@ func LoadConfig() *Config {
 		// it, deletion falls back to a direct `DELETE FROM auth.users`.
 		SupabaseServiceRoleKey: getEnv("SUPABASE_SERVICE_ROLE_KEY", ""),
 		FrontendURL:            getEnv("FRONTEND_URL", "http://localhost:5173"),
-		PythonAIURL:            getEnv("PYTHON_AI_URL", getEnv("AI_SERVICE_URL", "http://localhost:8000")),
+		PythonAIURL:            getPythonAIURL(),
 		AIInternalToken:        getEnv("AI_INTERNAL_TOKEN", ""),
 		MetricsToken:           getEnv("METRICS_TOKEN", getEnv("AI_INTERNAL_TOKEN", "")),
 		TrustedProxyCIDRs:      getEnv("TRUSTED_PROXY_CIDRS", ""),
@@ -133,7 +134,15 @@ func getEnvRequired(key string) string {
 			if appEnv == "production" || appEnv == "staging" || appEnv == "prod" {
 				log.Fatalf("FATAL: Insecure default JWT_SECRET detected in %s environment. Change JWT_SECRET immediately.", appEnv)
 			} else {
-				log.Printf("SECURITY WARNING: Using insecure default JWT_SECRET in %s mode. Do not use in production!", appEnv)
+				slog.Warn("SECURITY WARNING: Using insecure default JWT_SECRET. Do not use in production!", "app_env", appEnv)
+			}
+		}
+		if len(value) < 32 {
+			appEnv := strings.ToLower(os.Getenv("APP_ENV"))
+			if appEnv == "production" || appEnv == "staging" || appEnv == "prod" {
+				log.Fatalf("FATAL: JWT_SECRET must be at least 32 characters (128-bit entropy) in %s environment. Current length: %d", appEnv, len(value))
+			} else {
+				slog.Warn("SECURITY WARNING: JWT_SECRET is shorter than 32 characters. Use a stronger secret in production!", "length", len(value))
 			}
 		}
 	}
@@ -155,4 +164,16 @@ func parseAllowedOrigins(s string) []string {
 		}
 	}
 	return result
+}
+
+// getPythonAIURL returns the configured Python AI service URL.
+// Checks PYTHON_AI_URL first, then AI_SERVICE_URL, and cleanly defaults to http://localhost:8000.
+func getPythonAIURL() string {
+	if url := strings.TrimSpace(os.Getenv("PYTHON_AI_URL")); url != "" {
+		return strings.TrimRight(url, "/")
+	}
+	if url := strings.TrimSpace(os.Getenv("AI_SERVICE_URL")); url != "" {
+		return strings.TrimRight(url, "/")
+	}
+	return "http://localhost:8000"
 }

@@ -83,8 +83,8 @@ const Profile = () => {
       } else {
         toast.info("Verification completed — see the score breakdown for what to improve");
       }
-    } catch (err: any) {
-      toast.error(err?.message || "Verification failed — try again");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Verification failed — try again");
     } finally {
       setIsVerifying(false);
     }
@@ -159,8 +159,8 @@ const Profile = () => {
       setValidationErrors([]);
       queryClient.invalidateQueries({ queryKey: ["profile"] });
     },
-    onError: (err: any) => {
-      const msg = err.message || "Update failed";
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Update failed";
       toast.error(msg);
     },
   });
@@ -214,8 +214,8 @@ const Profile = () => {
       }));
       toast.success("Profile imported from resume! Review and save.");
       setIsEditing(true);
-    } catch (err: any) {
-      toast.error(err.message || "Import failed");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Import failed");
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

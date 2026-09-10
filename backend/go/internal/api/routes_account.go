@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -60,7 +60,7 @@ type exportCategoryResult struct {
 func (s *Server) exportJSONRows(ctx context.Context, query string, args ...interface{}) (json.RawMessage, error) {
 	var raw []byte
 	if err := s.DB.Conn.QueryRowContext(ctx, query, args...).Scan(&raw); err != nil {
-		log.Printf("handleExportAccount: query failed: %v", err)
+		slog.Error("handleExportAccount: query failed", "error", err)
 		return json.RawMessage("[]"), err
 	}
 	return json.RawMessage(raw), nil
@@ -81,7 +81,7 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 		err := s.AI.PurgeUserRuntime(purgeCtx, uid)
 		cancel()
 		if err != nil {
-			log.Printf("handleDeleteAccount: runtime purge failed: %v", err)
+			slog.Error("handleDeleteAccount: runtime purge failed", "error", err)
 			s.respondError(w, http.StatusBadGateway, "Runtime cleanup failed; account was not deleted")
 			return
 		}
@@ -89,7 +89,7 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := s.DB.Conn.BeginTx(r.Context(), nil)
 	if err != nil {
-		log.Printf("handleDeleteAccount: begin tx failed: %v", err)
+		slog.Error("handleDeleteAccount: begin tx failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to start deletion")
 		return
 	}
@@ -138,8 +138,11 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 		`DELETE FROM shared_interview_questions WHERE user_id=$1`,
 		`DELETE FROM memberships WHERE user_id=$1`,
 		`DELETE FROM push_subscriptions WHERE user_id=$1`,
+		`DELETE FROM credit_ledger WHERE user_id=$1`,
+		`DELETE FROM api_keys WHERE user_id=$1`,
 		`DELETE FROM agent_runs WHERE user_id=$1`,
 
+		`DELETE FROM user_credits WHERE user_id=$1`,
 		`DELETE FROM user_subscriptions WHERE user_id=$1`,
 		`DELETE FROM public.profiles WHERE id=$1`,
 		// auth.users is deliberately NOT in this list: when a GoTrue service
@@ -161,14 +164,14 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 
 	for _, q := range cascadeQueries {
 		if _, err := tx.ExecContext(r.Context(), q, uid); err != nil {
-			log.Printf("handleDeleteAccount: cascade delete failed (%s): %v", q, err)
+			slog.Error("handleDeleteAccount: cascade delete failed ()", "query", q, "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Deletion failed")
 			return
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		log.Printf("handleDeleteAccount: commit failed: %v", err)
+		slog.Error("handleDeleteAccount: commit failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Deletion failed")
 		return
 	}
@@ -180,9 +183,9 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 	// VerifyToken's existence check, which the deleted row already triggers.
 	if s.Config.SupabaseServiceRoleKey != "" {
 		if err := s.deleteSupabaseUser(r.Context(), uid); err != nil {
-			log.Printf("handleDeleteAccount: GoTrue admin delete failed, falling back to direct SQL: %v", err)
+			slog.Error("handleDeleteAccount: GoTrue admin delete failed, falling back to direct SQL", "error", err)
 			if _, derr := s.DB.Conn.ExecContext(r.Context(), `DELETE FROM auth.users WHERE id=$1`, uid); derr != nil {
-				log.Printf("handleDeleteAccount: fallback auth.users delete failed: %v", derr)
+				slog.Error("handleDeleteAccount: fallback auth.users delete failed", "error", derr)
 				// ponytail: this used to fall through to the 200 "deleted"
 				// response below even when BOTH the GoTrue admin delete and
 				// the direct-SQL fallback failed — a user could be told
@@ -196,7 +199,7 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 				// and the frontend would treat this as a clean success
 				// (apiFetch/checkResponse only throws on non-2xx) --
 				// deliberately non-2xx so the caller's error path fires.
-				log.Printf("[GDPR] Account data deleted but auth identity revocation FAILED: user_id=%s at %s", uid, time.Now().UTC().Format(time.RFC3339))
+				slog.Error("[GDPR] Account data deleted but auth identity revocation FAILED: user_id= at", "user_id", uid, "value", time.Now().UTC().Format(time.RFC3339))
 				s.respondJSON(w, http.StatusInternalServerError, map[string]string{
 					"error":   "Your account data was deleted, but we could not fully revoke your sign-in access. Contact support with this reference so we can complete it manually.",
 					"status":  "deletion_incomplete_auth_revocation_failed",
@@ -207,7 +210,7 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	log.Printf("[GDPR] Account hard-deleted: user_id=%s at %s", uid, time.Now().UTC().Format(time.RFC3339))
+	slog.Info("[GDPR] Account hard-deleted: user_id= at", "user_id", uid, "value", time.Now().UTC().Format(time.RFC3339))
 	s.respondJSON(w, http.StatusOK, map[string]string{
 		"status":  "deleted",
 		"user_id": uid,
@@ -229,7 +232,7 @@ func (s *Server) handleDeleteUserData(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := s.DB.Conn.BeginTx(r.Context(), nil)
 	if err != nil {
-		log.Printf("handleDeleteUserData: begin tx failed: %v", err)
+		slog.Error("handleDeleteUserData: begin tx failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to start deletion")
 		return
 	}
@@ -270,26 +273,29 @@ func (s *Server) handleDeleteUserData(w http.ResponseWriter, r *http.Request) {
 		`DELETE FROM shared_interview_questions WHERE user_id=$1`,
 		`DELETE FROM memberships WHERE user_id=$1`,
 		`DELETE FROM push_subscriptions WHERE user_id=$1`,
+		`DELETE FROM credit_ledger WHERE user_id=$1`,
+		`DELETE FROM api_keys WHERE user_id=$1`,
 		`DELETE FROM agent_runs WHERE user_id=$1`,
+		`DELETE FROM user_credits WHERE user_id=$1`,
 		`DELETE FROM user_subscriptions WHERE user_id=$1`,
 		`DELETE FROM public.profiles WHERE id=$1`,
 	}
 
 	for _, q := range dataOnlyQueries {
 		if _, err := tx.ExecContext(r.Context(), q, uid); err != nil {
-			log.Printf("handleDeleteUserData: data wipe failed (%s): %v", q, err)
+			slog.Error("handleDeleteUserData: data wipe failed ()", "query", q, "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Deletion failed")
 			return
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		log.Printf("handleDeleteUserData: commit failed: %v", err)
+		slog.Error("handleDeleteUserData: commit failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Deletion failed")
 		return
 	}
 
-	log.Printf("[GDPR] User data wiped (account kept): user_id=%s at %s", uid, time.Now().UTC().Format(time.RFC3339))
+	slog.Info("[GDPR] User data wiped (account kept): user_id= at", "user_id", uid, "value", time.Now().UTC().Format(time.RFC3339))
 	s.respondJSON(w, http.StatusOK, map[string]string{
 		"status":  "data_deleted",
 		"user_id": uid,
@@ -390,7 +396,7 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err := resumeRows.Err(); err != nil {
-			log.Printf("handleExportAccount: resumes rows iteration failed: %v", err)
+			slog.Error("handleExportAccount: resumes rows iteration failed", "error", err)
 			resumeResult.Status = "error"
 			resumeResult.Error = err.Error()
 		} else {
@@ -422,7 +428,7 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err := appRows.Err(); err != nil {
-			log.Printf("handleExportAccount: applications rows iteration failed: %v", err)
+			slog.Error("handleExportAccount: applications rows iteration failed", "error", err)
 			appResult.Status = "error"
 			appResult.Error = err.Error()
 		} else {
@@ -506,6 +512,11 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 			SELECT plan, status, stripe_customer_id, stripe_subscription_id, metered_limit, requests_used, current_period_end, created_at, updated_at
 			FROM user_subscriptions WHERE user_id=$1) t`, uid)
 
+	addCategory("credit_ledger",
+		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
+			SELECT id, amount, type, description, reference_id, created_at
+			FROM credit_ledger WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2) t`, uid, maxExportRows)
+
 	addCategory("privacy_audit_log",
 		`SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM (
 			SELECT id, action, resource, detail, created_at
@@ -538,7 +549,7 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	manifestJSON, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
-		log.Printf("handleExportAccount: manifest marshal failed: %v", err)
+		slog.Error("handleExportAccount: manifest marshal failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Export generation failed")
 		return
 	}
@@ -549,7 +560,7 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(exportJSON)+len(manifestJSON) > maxExportBytes {
-		log.Printf("handleExportAccount: export for %s exceeded %d bytes", uid, maxExportBytes)
+		slog.Error("handleExportAccount: export exceeded max size", "user_id", uid, "size_bytes", len(exportJSON)+len(manifestJSON), "max_bytes", maxExportBytes)
 		s.respondError(w, http.StatusRequestEntityTooLarge, "Export exceeds the maximum supported size")
 		return
 	}
@@ -569,17 +580,17 @@ func (s *Server) handleExportAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := writeZipFile("tayari_data_export.json", exportJSON); err != nil {
-		log.Printf("handleExportAccount: %v", err)
+		slog.Error("handleExportAccount", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Export generation failed")
 		return
 	}
 	if err := writeZipFile("manifest.json", manifestJSON); err != nil {
-		log.Printf("handleExportAccount: %v", err)
+		slog.Error("handleExportAccount", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Export generation failed")
 		return
 	}
 	if err := zw.Close(); err != nil {
-		log.Printf("handleExportAccount: zip close failed: %v", err)
+		slog.Error("handleExportAccount: zip close failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Export generation failed")
 		return
 	}

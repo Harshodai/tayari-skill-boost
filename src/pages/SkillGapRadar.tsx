@@ -35,12 +35,28 @@ Requirements:
   },
 ];
 
+interface SkillGapItem {
+  skill: string;
+  importance: string;
+  resource_name: string;
+  resource_type: string;
+  resource_url: string;
+}
+
+interface SkillGapResult {
+  match_percentage: number;
+  matched_skills: string[];
+  missing_gaps: SkillGapItem[];
+  missing_skills?: string[];
+  recommendations?: string[];
+}
+
 export function SkillGapRadar() {
   const { user } = useAuth();
   const [jobDescription, setJobDescription] = useState("");
   const [userSkills, setUserSkills] = useState<string[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<SkillGapResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -223,7 +239,7 @@ export function SkillGapRadar() {
                   <div className="space-y-3">
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">Missing Skills & Curated Learning Paths</h4>
                     <div className="space-y-2.5">
-                      {result.missing_gaps.map((gap: any, idx: number) => (
+                      {result.missing_gaps.map((gap: SkillGapItem, idx: number) => (
                         <div key={idx} className="p-3.5 rounded-xl bg-muted/40 border flex flex-col md:flex-row md:items-center justify-between gap-3">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">

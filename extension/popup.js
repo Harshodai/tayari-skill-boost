@@ -1,7 +1,7 @@
 // Tayari Browser Extension — Popup Controller (v2.0.0)
 // Bridges popup UI with background service worker and content script
 
-const CONFIG = { apiUrl: 'http://localhost:8085/api', token: null };
+const CONFIG = { apiUrl: '', token: null };
 
 const $ = (id) => document.getElementById(id);
 const $$ = (sel) => document.querySelectorAll(sel);
@@ -141,18 +141,16 @@ async function loadApplicationInfo(tabId) {
 
 async function loadStats() {
   try {
-    const res = await fetch(`${CONFIG.apiUrl}/v1/stats`, {
-      headers: { Authorization: `Bearer ${CONFIG.token}` }
-    });
+    const res = await TayariSession.fetchJson(CONFIG, 'v1/stats');
     if (!res.ok) return;
-    
+
     const stats = await res.json();
-    
+
     const saved = stats.saved_jobs || 0;
     const applied = stats.applied || 0;
     const interviews = stats.interviews || 0;
     const reviewQueue = stats.review_queue_count || 0;
-    
+
     // Update all stat displays
     $('stat-saved').textContent = saved;
     $('stat-applied').textContent = applied;

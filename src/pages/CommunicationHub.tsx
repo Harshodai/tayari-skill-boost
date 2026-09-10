@@ -41,7 +41,37 @@ async function fetchCommunicationSuggestions() {
   return res.json();
 }
 
-async function generateCommunication(payload: any) {
+interface CommApp {
+  id?: string;
+  application_id?: string;
+  saved_job_id?: string;
+  status: string;
+  job?: { title?: string; company?: string };
+}
+
+interface CommJob {
+  id: string | number;
+  job?: { title?: string; company?: string };
+}
+
+interface CommSuggestion {
+  application_id: string;
+  suggestion_type: string;
+  reason: string;
+  timing_note?: string;
+  days_since?: number;
+}
+
+interface GeneratedComm {
+  subject?: string;
+  body?: string;
+  word_count?: number;
+  timing_note?: string;
+  comm_id?: number;
+  [key: string]: unknown;
+}
+
+async function generateCommunication(payload: Record<string, unknown>) {
   const res = await apiFetchResponse(`/v1/communication/generate`, {
     method: "POST",
     headers: {
@@ -60,9 +90,9 @@ const COMM_TYPES = ["follow-up", "thank-you", "negotiation", "status-check"] as 
 
 const CommunicationHub = () => {
   const [activeTab, setActiveTab] = useState("suggestions");
-  const [selectedApp, setSelectedApp] = useState<any>(null);
-  const [commType, setCommType] = useState("follow-up");
-  const [generated, setGenerated] = useState<any>(null);
+  const [selectedApp, setSelectedApp] = useState<CommApp | null>(null);
+  const [commType, setCommType] = useState<string>("follow-up");
+  const [generated, setGenerated] = useState<GeneratedComm | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -88,7 +118,7 @@ const CommunicationHub = () => {
   useEffect(() => {
     const qAppId = searchParams.get("app");
     if (qAppId && applications.length > 0) {
-      const app = applications.find((a: any) => (a.application_id || a.id) === qAppId);
+      const app = (applications as CommApp[]).find((a: CommApp) => (a.application_id || a.id) === qAppId);
       if (app) {
         setSelectedApp(app);
         setActiveTab("generator");
@@ -107,7 +137,7 @@ const CommunicationHub = () => {
       setGenerated(data);
       toast.success("Communication generated!");
     },
-    onError: (err: any) => toast.error(err.message || "Generation failed"),
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Generation failed"),
   });
 
   // Audit #6 — per-touchpoint response rate. Stats power the Response Rate
@@ -124,15 +154,15 @@ const CommunicationHub = () => {
       qc.invalidateQueries({ queryKey: ["communication-stats"] });
       toast.success(vars.status === "responded" ? "Marked as responded" : "Marked no response");
     },
-    onError: (err: any) => toast.error(err.message || "Failed to update"),
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Failed to update"),
   });
 
   const suggestions = suggestionsData?.suggestions || [];
 
   const getAppDetails = (appId: string) => {
-    const app = applications.find((a: any) => a.application_id === appId || a.id === appId);
-    if (!app) return { title: "Unknown", company: "Unknown", status: app?.status || "saved" };
-    const job = savedJobs.find((j: any) => j.id === (app as any).saved_job_id);
+    const app = (applications as CommApp[]).find((a: CommApp) => a.application_id === appId || a.id === appId);
+    if (!app) return { title: "Unknown", company: "Unknown", status: "saved" };
+    const job = (savedJobs as unknown as CommJob[]).find((j: CommJob) => String(j.id) === String(app.saved_job_id));
     const jobData = job?.job || {};
     return {
       title: jobData.title || app.job?.title || "Unknown",
@@ -142,7 +172,7 @@ const CommunicationHub = () => {
   };
 
   const handleGenerate = (type: string, appId: string) => {
-    const app = applications.find((a: any) => a.application_id === appId || a.id === appId);
+    const app = (applications as CommApp[]).find((a: CommApp) => a.application_id === appId || a.id === appId);
     if (!app) return;
     const details = getAppDetails(appId);
     setCommType(type);
@@ -238,7 +268,7 @@ const CommunicationHub = () => {
               </div>
             ) : (
               <div className="grid gap-4">
-                {suggestions.map((s: any, idx: number) => {
+                {suggestions.map((s: CommSuggestion, idx: number) => {
                   const details = getAppDetails(s.application_id);
                   return (
                     <Card key={idx} className="hover:shadow-md transition-shadow">
@@ -296,8 +326,8 @@ const CommunicationHub = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3 max-h-80 overflow-y-auto">
-                      {applications.map((app: any) => {
-                        const details = getAppDetails(app.application_id || app.id);
+                      {(applications as CommApp[]).map((app: CommApp) => {
+                        const details = getAppDetails(app.application_id || app.id || "");
                         return (
                           <button
                             key={app.id || app.application_id}
@@ -343,7 +373,7 @@ const CommunicationHub = () => {
                       ))}
                       <Button
                         className="w-full"
-                        onClick={() => handleGenerate(commType, selectedApp.application_id || selectedApp.id)}
+                        onClick={() => handleGenerate(commType, selectedApp.application_id || selectedApp.id || "")}
                         disabled={isGenerating}
                       >
                         {isGenerating ? (
@@ -392,7 +422,7 @@ const CommunicationHub = () => {
                               className="text-xs gap-1 text-success border-success/30"
                               disabled={responseMutation.isPending}
                               onClick={() =>
-                                responseMutation.mutate({ commId: generated.comm_id, status: "responded" })
+                                responseMutation.mutate({ commId: generated.comm_id!, status: "responded" })
                               }
                             >
                               <Check className="w-3.5 h-3.5" /> Responded
@@ -403,7 +433,7 @@ const CommunicationHub = () => {
                               className="text-xs gap-1 text-muted-foreground"
                               disabled={responseMutation.isPending}
                               onClick={() =>
-                                responseMutation.mutate({ commId: generated.comm_id, status: "no_response" })
+                                responseMutation.mutate({ commId: generated.comm_id!, status: "no_response" })
                               }
                             >
                               No response

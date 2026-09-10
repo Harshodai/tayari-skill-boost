@@ -41,7 +41,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 # first time a request reaches BrowserOperator.initialize().
 RUN python -m playwright install --with-deps chromium
 
-COPY . .
+# Non-root user for security
+RUN groupadd -g 1001 -r app && useradd -r -u 1001 -g app -d /app -s /sbin/nologin app \
+    && mkdir -p /app/.cache/ms-playwright /tmp/playwright \
+    && chown -R app:app /app /tmp/playwright
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright
+ENV HOME=/app
+
+COPY --chown=app:app . .
+
+USER app
 
 # --reload starts a file-watching reloader and forces single-process mode —
 # right for local dev (this is the compose `dev` profile's default, and the

@@ -26,6 +26,10 @@ _current_recorder: contextvars.ContextVar[Optional[TrajectoryRecorder]] = contex
     "current_trajectory_recorder", default=None
 )
 
+_harness_trace_active: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "harness_trace_active", default=False
+)
+
 # Cost estimation per 1k tokens (blended input/output approximation)
 MODEL_COST_PER_1K_TOKENS: dict[str, float] = {
     "openai/gpt-4o-mini": 0.0003,
@@ -42,7 +46,30 @@ MODEL_COST_PER_1K_TOKENS: dict[str, float] = {
 def is_eval_active() -> bool:
     """Check whether evaluation recording is enabled via environment or context."""
     val = os.environ.get("EVAL_MODE", "").strip().lower()
-    return val in ("true", "1", "yes", "on")
+    if val in ("true", "1", "yes", "on"):
+        return True
+    if _harness_trace_active.get(False):
+        return True
+    if _current_recorder.get() is not None:
+        return True
+    return False
+
+
+def activate_harness_trace(active: bool = True) -> contextvars.Token[bool]:
+    """Set the harness_trace_active context variable."""
+    return _harness_trace_active.set(active)
+
+
+def set_harness_trace_from_headers(headers: Any) -> Optional[contextvars.Token[bool]]:
+    """Activate harness trace if request headers contain evaluation trace flag."""
+    if not headers:
+        return None
+    header_val = ""
+    if hasattr(headers, "get"):
+        header_val = headers.get("X-Harness-Trace") or headers.get("x-harness-trace") or ""
+    if str(header_val).strip().lower() in ("true", "1", "yes", "on"):
+        return _harness_trace_active.set(True)
+    return None
 
 
 def estimate_cost_usd(model: str, tokens: int) -> float:

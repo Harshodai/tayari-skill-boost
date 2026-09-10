@@ -1,7 +1,7 @@
 package api
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -50,8 +50,8 @@ func (s *Server) checkAdvisorRole(w http.ResponseWriter, r *http.Request) (*mode
 		return nil, nil, false
 	}
 
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	if user == nil || user.ID != authorization.Subject {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil || user.ID != authorization.Subject {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return nil, nil, false
 	}
@@ -74,7 +74,7 @@ func (s *Server) checkAdvisorRole(w http.ResponseWriter, r *http.Request) (*mode
 		"SELECT role FROM memberships WHERE tenant_id = $1 AND user_id = $2",
 		authorization.TenantID, authorization.Subject).Scan(&role)
 	if err != nil {
-		log.Printf("[TENANT] Membership not found for user:%s in tenant:%s: %v", authorization.Subject, authorization.TenantID, err)
+		slog.Warn("[TENANT] Membership not found for user: in tenant", "user_id", authorization.Subject, "value", authorization.TenantID, "error", err)
 		s.respondError(w, http.StatusForbidden, "Forbidden: not a member of this tenant")
 		return nil, nil, false
 	}
@@ -97,7 +97,7 @@ func (s *Server) handleListAdvisorCohorts(w http.ResponseWriter, r *http.Request
 		"SELECT id, tenant_id, name, created_at FROM cohorts WHERE tenant_id = $1 ORDER BY name ASC",
 		tenant.ID)
 	if err != nil {
-		log.Printf("handleListAdvisorCohorts: failed to query cohorts: %v", err)
+		slog.Error("handleListAdvisorCohorts: failed to query cohorts", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to query cohorts")
 		return
 	}
@@ -107,14 +107,14 @@ func (s *Server) handleListAdvisorCohorts(w http.ResponseWriter, r *http.Request
 	for rows.Next() {
 		var c models.Cohort
 		if err := rows.Scan(&c.ID, &c.TenantID, &c.Name, &c.CreatedAt); err != nil {
-			log.Printf("handleListAdvisorCohorts: scan error: %v", err)
+			slog.Error("handleListAdvisorCohorts: scan error", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to scan cohort")
 			return
 		}
 		cohorts = append(cohorts, c)
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("handleListAdvisorCohorts: rows iteration error: %v", err)
+		slog.Error("handleListAdvisorCohorts: rows iteration error", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
 		return
 	}
@@ -148,7 +148,7 @@ func (s *Server) handleCreateAdvisorCohort(w http.ResponseWriter, r *http.Reques
 		cohortID, tenant.ID, name,
 	)
 	if err != nil {
-		log.Printf("handleCreateAdvisorCohort: failed to create cohort: %v", err)
+		slog.Error("handleCreateAdvisorCohort: failed to create cohort", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to create cohort")
 		return
 	}
@@ -211,7 +211,7 @@ func (s *Server) handleListAdvisorStudents(w http.ResponseWriter, r *http.Reques
 
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, args...)
 	if err != nil {
-		log.Printf("handleListAdvisorStudents: failed to query students: %v", err)
+		slog.Error("handleListAdvisorStudents: failed to query students", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to query students")
 		return
 	}
@@ -222,7 +222,7 @@ func (s *Server) handleListAdvisorStudents(w http.ResponseWriter, r *http.Reques
 		var sp StudentProgress
 		var userID uuid.UUID
 		if err := rows.Scan(&userID, &sp.FullName, &sp.Email, &sp.Headline, &sp.CohortID, &sp.CohortName, &sp.ResumeCount, &sp.AvgInterviewScore); err != nil {
-			log.Printf("handleListAdvisorStudents: scan error: %v", err)
+			slog.Error("handleListAdvisorStudents: scan error", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to scan student progress")
 			return
 		}
@@ -230,7 +230,7 @@ func (s *Server) handleListAdvisorStudents(w http.ResponseWriter, r *http.Reques
 		students = append(students, sp)
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("handleListAdvisorStudents: rows iteration error: %v", err)
+		slog.Error("handleListAdvisorStudents: rows iteration error", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
 		return
 	}

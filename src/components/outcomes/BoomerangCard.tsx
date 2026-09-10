@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { AlertCircle, Radar } from "lucide-react";
 import { toast } from "sonner";
+import type { Json } from "@/integrations/supabase/types";
 
 /**
  * WS-10 Boomerang mode.
@@ -52,7 +53,9 @@ export function BoomerangCard({ userId, offers }: { userId?: string; offers: num
     },
   });
 
-  const enabled = Boolean((prefsQuery.data as any)?.boomerang?.enabled);
+  const enabled = Boolean(
+    (prefsQuery.data as { boomerang?: { enabled?: boolean } } | undefined)?.boomerang?.enabled
+  );
   const searches = searchesQuery.data ?? [];
 
   const toggle = useMutation({
@@ -63,15 +66,16 @@ export function BoomerangCard({ userId, offers }: { userId?: string; offers: num
 
       const { error: prefError } = await supabase
         .from("pet_preferences")
-        .upsert([{ user_id: userId, state: state as any }], { onConflict: "user_id" });
+        .upsert([{ user_id: userId, state: state as unknown as Json }], { onConflict: "user_id" });
       if (prefError) throw prefError;
 
 
       if (searches.length) {
+        const ids = searches.map((s: { id: string }) => s.id);
         const { error: searchError } = await supabase
           .from("saved_searches")
           .update({ alert_enabled: next })
-          .eq("user_id", userId);
+          .in("id", ids);
         if (searchError) throw searchError;
       }
       return next;
@@ -82,7 +86,7 @@ export function BoomerangCard({ userId, offers }: { userId?: string; offers: num
       queryClient.invalidateQueries({ queryKey: ["boomerang-searches", userId] });
       toast.success(next ? "Boomerang mode on — passive monitoring active" : "Boomerang mode off");
     },
-    onError: (e: any) => setError(e?.message || "Could not update boomerang mode"),
+    onError: (e: Error | { message?: string }) => setError(e?.message || "Could not update boomerang mode"),
   });
 
   if (offers < 1) return null;
@@ -133,7 +137,7 @@ export function BoomerangCard({ userId, offers }: { userId?: string; offers: num
             {searches.length === 0 ? (
               <li>No saved searches yet — nothing is being monitored.</li>
             ) : (
-              searches.map((s: any) => (
+              searches.map((s: { id: string; name: string; alert_enabled?: boolean }) => (
                 <li key={s.id} className="flex items-center justify-between rounded border px-2 py-1">
                   <span className="truncate">{s.name}</span>
                   <Badge variant="outline" className="ml-2 shrink-0 text-[10px]">

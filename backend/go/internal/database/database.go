@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // Import pgx driver
@@ -31,6 +31,7 @@ func NewDB(dsn string) (*DB, error) {
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(30 * time.Minute)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 
 	// Wait for DB to be ready
 	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -40,7 +41,7 @@ func NewDB(dsn string) (*DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	log.Println("Connected to PostgreSQL successfully")
+	slog.Info("Connected to PostgreSQL successfully")
 	dbInst := &DB{Conn: db}
 	migCtx, migCancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer migCancel()

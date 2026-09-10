@@ -53,8 +53,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { features } from "@/config/features";
 import { cn } from "@/lib/utils";
 import { CapabilityStatusBadge, type CapabilityStatusType } from "@/components/common/CapabilityStatusBadge";
+import type { LucideIcon } from "lucide-react";
 
-type Item = { title: string; url: string; icon: any; enabled?: boolean; status?: CapabilityStatusType };
+type Item = { title: string; url: string; icon: LucideIcon | React.ComponentType<{ className?: string }>; enabled?: boolean; status?: CapabilityStatusType };
 type Group = { label: string; items: Item[] };
 
 /** The core career workflow items that anchor the primary candidate journey. */

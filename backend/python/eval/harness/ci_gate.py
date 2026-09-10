@@ -259,10 +259,11 @@ def run_ci_gate(
     force_heuristic: bool = True,
     json_output_path: Optional[str] = None,
     verbose: bool = False,
+    quick: bool = False,
 ) -> int:
     """Execute complete evaluation gate and return exit code (0 = pass, 1 = fail)."""
     base_dir = datasets_dir or DEFAULT_DATASETS_DIR
-    logger.info("Initializing Evaluation Harness CI Gate...")
+    logger.info("Initializing Evaluation Harness CI Gate (quick=%s)...", quick)
     logger.info("Datasets directory: %s", base_dir)
 
     judge = LLMJudge(force_heuristic=force_heuristic)
@@ -365,6 +366,7 @@ def main() -> None:
     parser.add_argument("--use-llm", action="store_true", help="Use real configured LLM judge if available")
     parser.add_argument("--json-output", type=str, default=None, help="Path to export JSON evaluation report")
     parser.add_argument("--verbose", action="store_true", help="Verbose logging output")
+    parser.add_argument("--quick", action="store_true", help="Run quick evaluation subset")
     args = parser.parse_args()
 
     exit_code = run_ci_gate(
@@ -374,6 +376,7 @@ def main() -> None:
         force_heuristic=not args.use_llm,
         json_output_path=args.json_output,
         verbose=args.verbose,
+        quick=args.quick,
     )
     sys.exit(exit_code)
 

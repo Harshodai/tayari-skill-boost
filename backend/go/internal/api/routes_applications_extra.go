@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -120,7 +120,7 @@ func (s *Server) handleAddNote(w http.ResponseWriter, r *http.Request) {
 		WHERE (application_id::text=$2 OR id::text=$2) AND user_id=$3`,
 		string(noteJSON), appID, user.ID)
 	if err != nil {
-		log.Printf("handleAddNote: update failed: %v", err)
+		slog.Error("handleAddNote: update failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to add note")
 		return
 	}
@@ -250,7 +250,7 @@ func (s *Server) handleApplicationInterviewQuestions(w http.ResponseWriter, r *h
 	}
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/applications/interview-questions", aiPayload, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleApplicationInterviewQuestions: AI call failed: %v", err)
+		slog.Error("handleApplicationInterviewQuestions: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "AI interview questions failed")
 		return
 	}
@@ -419,7 +419,7 @@ func (s *Server) handleAddVoiceNote(w http.ResponseWriter, r *http.Request) {
 		WHERE (application_id::text=$2 OR id::text=$2) AND user_id=$3`,
 		string(vnJSON), appID, user.ID)
 	if err != nil {
-		log.Printf("handleAddVoiceNote: update failed: %v", err)
+		slog.Error("handleAddVoiceNote: update failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to save voice note")
 		return
 	}
@@ -593,10 +593,10 @@ func (s *Server) handleCreateApplicationKanban(w http.ResponseWriter, r *http.Re
 	req.Stage = normStage
 	id := uuid.New()
 	if _, err := s.DB.Conn.ExecContext(r.Context(), "INSERT INTO auth.users (id, email) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", user.ID, user.Email); err != nil {
-		log.Printf("handleCreateApplicationKanban: auth.users insert error: %v", err)
+		slog.Error("handleCreateApplicationKanban: auth.users insert error", "error", err)
 	}
 	if _, err := s.DB.Conn.ExecContext(r.Context(), "INSERT INTO profiles (id, email) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", user.ID, user.Email); err != nil {
-		log.Printf("handleCreateApplicationKanban: profiles insert error: %v", err)
+		slog.Error("handleCreateApplicationKanban: profiles insert error", "error", err)
 	}
 	_, err := s.DB.Conn.ExecContext(r.Context(), `
 		INSERT INTO applications
@@ -604,7 +604,7 @@ func (s *Server) handleCreateApplicationKanban(w http.ResponseWriter, r *http.Re
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,'{}'::jsonb,NOW(),NOW())`,
 		id, user.ID, req.Title, req.Company, req.Location, req.URL, req.Stage, req.Notes)
 	if err != nil {
-		log.Printf("handleCreateApplicationKanban: insert failed: %v", err)
+		slog.Error("handleCreateApplicationKanban: insert failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to create application")
 		return
 	}

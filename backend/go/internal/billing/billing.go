@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -190,7 +190,7 @@ func (b *BillingService) GetEntitlement(userID string) *Entitlement {
 			// exists". Never turn an entitlement outage into a free or
 			// cached entitlement: that would grant paid features while the
 			// source of truth is unavailable.
-			log.Printf("[billing] GetEntitlement: DB query failed for user %s (failing closed): %v", userID, err)
+			slog.Error("[billing] GetEntitlement: DB query failed for user (failing closed)", "user_id", userID, "error", err)
 			return &Entitlement{
 				UserID:       userID,
 				Plan:         "unavailable",
@@ -450,7 +450,7 @@ func (b *BillingService) CreateCheckoutSession(userID, userEmail, plan, returnUR
 
 	s, err := checkoutsession.New(params)
 	if err != nil {
-		log.Printf("[stripe] Error creating checkout session: %v", err)
+		slog.Error("[stripe] Error creating checkout session", "error", err)
 		return "", fmt.Errorf("failed to create Stripe checkout session: %w", err)
 	}
 
@@ -508,12 +508,12 @@ func (b *BillingService) ProcessStripeWebhook(eventID, eventType, customerID, su
 
 	if b.db != nil && b.db.Conn != nil {
 		if strings.TrimSpace(userID) == "" {
-			log.Printf("[billing] Stripe event %s has no user_id metadata; refusing entitlement mutation", eventID)
+			slog.Info("[billing] Stripe event has no user_id metadata; refusing entitlement mutation", "value", eventID)
 			return false
 		}
 		tx, err := b.db.Conn.Begin()
 		if err != nil {
-			log.Printf("[billing] Failed to begin Stripe event transaction: %v", err)
+			slog.Error("[billing] Failed to begin Stripe event transaction", "error", err)
 			return false
 		}
 		defer tx.Rollback()
@@ -530,7 +530,7 @@ func (b *BillingService) ProcessStripeWebhook(eventID, eventType, customerID, su
 			return true
 		}
 		if err != nil {
-			log.Printf("[billing] Failed to claim Stripe event %s: %v", eventID, err)
+			slog.Error("[billing] Failed to claim Stripe event", "value", eventID, "error", err)
 			return false
 		}
 
@@ -548,11 +548,11 @@ func (b *BillingService) ProcessStripeWebhook(eventID, eventType, customerID, su
 				updated_at = NOW()
 		`, userID, customerID, subscriptionID, plan, status, limit, expiresAt)
 		if err != nil {
-			log.Printf("[billing] Failed to save subscription for Stripe event %s: %v", eventID, err)
+			slog.Error("[billing] Failed to save subscription for Stripe event", "value", eventID, "error", err)
 			return false
 		}
 		if err := tx.Commit(); err != nil {
-			log.Printf("[billing] Failed to commit Stripe event %s: %v", eventID, err)
+			slog.Error("[billing] Failed to commit Stripe event", "value", eventID, "error", err)
 			return false
 		}
 
@@ -640,7 +640,7 @@ func (b *BillingService) ProcessStripeCreditPackPayment(eventID, eventType, cust
 		`, ledgerID, userID, pack.Credits, fmt.Sprintf("Purchased %s Pack (%d credits for $%.2f)", pack.Name, pack.Credits, pack.PriceUSD), sessionID)
 		if err != nil {
 			if strings.Contains(strings.ToLower(err.Error()), "duplicate key") || strings.Contains(strings.ToLower(err.Error()), "unique constraint") {
-				log.Printf("[billing] ProcessStripeCreditPackPayment duplicate ledger record: %v", err)
+				slog.Warn("[billing] ProcessStripeCreditPackPayment duplicate ledger record", "error", err)
 			} else {
 				return false
 			}
@@ -787,7 +787,7 @@ func (b *BillingService) GetCreditBalance(userID string) (*UserCreditBalance, er
 			return &bal, nil
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
-			log.Printf("[billing] GetCreditBalance DB query error for %s: %v", userID, err)
+			slog.Error("[billing] GetCreditBalance DB query error for", "user_id", userID, "error", err)
 			if isProductionBilling() {
 				return nil, errors.New("billing database unavailable")
 			}
@@ -834,7 +834,7 @@ func (b *BillingService) AddCredits(userID string, amount int, referenceID, desc
 	if b.db != nil && b.db.Conn != nil {
 		tx, err := b.db.Conn.Begin()
 		if err != nil {
-			log.Printf("[billing] AddCredits tx begin error: %v", err)
+			slog.Error("[billing] AddCredits tx begin error", "error", err)
 			return nil, errors.New("billing database unavailable")
 		}
 		defer tx.Rollback()
@@ -857,7 +857,7 @@ func (b *BillingService) AddCredits(userID string, amount int, referenceID, desc
 			&bal.UpdatedAt,
 		)
 		if err != nil {
-			log.Printf("[billing] AddCredits DB error for %s: %v", userID, err)
+			slog.Error("[billing] AddCredits DB error for", "user_id", userID, "error", err)
 			return nil, errors.New("billing database unavailable")
 		}
 
@@ -871,12 +871,12 @@ func (b *BillingService) AddCredits(userID string, amount int, referenceID, desc
 			VALUES ($1, $2::uuid, $3, 'purchase', $4, $5, NOW())
 		`, ledgerID, userID, amount, description, addRefIDParam)
 		if err != nil {
-			log.Printf("[billing] AddCredits ledger error for %s: %v", userID, err)
+			slog.Error("[billing] AddCredits ledger error for", "user_id", userID, "error", err)
 			return nil, errors.New("failed to record credit ledger entry")
 		}
 
 		if err := tx.Commit(); err != nil {
-			log.Printf("[billing] AddCredits commit error for %s: %v", userID, err)
+			slog.Error("[billing] AddCredits commit error for", "user_id", userID, "error", err)
 			return nil, errors.New("billing transaction commit failed")
 		}
 
@@ -962,7 +962,7 @@ func (b *BillingService) DebitCredit(userID string, amount int, referenceID, des
 	if b.db != nil && b.db.Conn != nil {
 		tx, err := b.db.Conn.Begin()
 		if err != nil {
-			log.Printf("[billing] DebitCredit tx begin error: %v", err)
+			slog.Error("[billing] DebitCredit tx begin error", "error", err)
 			return false, nil, errors.New("billing database unavailable")
 		}
 		defer tx.Rollback()
@@ -986,7 +986,7 @@ func (b *BillingService) DebitCredit(userID string, amount int, referenceID, des
 				_ = tx.Commit()
 				return true, &bal, nil
 			} else if !errors.Is(err, sql.ErrNoRows) {
-				log.Printf("[billing] DebitCredit duplicate check error: %v", err)
+				slog.Error("[billing] DebitCredit duplicate check error", "error", err)
 				return false, nil, errors.New("billing database error")
 			}
 		}
@@ -1012,7 +1012,7 @@ func (b *BillingService) DebitCredit(userID string, amount int, referenceID, des
 				currentBal, _ := b.GetCreditBalance(userID)
 				return false, currentBal, errors.New("insufficient credit balance for verified submission")
 			}
-			log.Printf("[billing] DebitCredit update error: %v", err)
+			slog.Error("[billing] DebitCredit update error", "error", err)
 			return false, nil, errors.New("billing database unavailable")
 		}
 
@@ -1026,12 +1026,12 @@ func (b *BillingService) DebitCredit(userID string, amount int, referenceID, des
 			VALUES ($1, $2::uuid, $3, 'debit', $4, $5, NOW())
 		`, ledgerID, userID, -amount, description, debitRefIDParam)
 		if err != nil {
-			log.Printf("[billing] DebitCredit ledger error: %v", err)
+			slog.Error("[billing] DebitCredit ledger error", "error", err)
 			return false, nil, errors.New("failed to record credit debit ledger entry")
 		}
 
 		if err := tx.Commit(); err != nil {
-			log.Printf("[billing] DebitCredit commit error: %v", err)
+			slog.Error("[billing] DebitCredit commit error", "error", err)
 			return false, nil, errors.New("billing transaction commit failed")
 		}
 
@@ -1099,7 +1099,7 @@ func (b *BillingService) RefundCredit(userID string, amount int, referenceID, de
 	if b.db != nil && b.db.Conn != nil {
 		tx, err := b.db.Conn.Begin()
 		if err != nil {
-			log.Printf("[billing] RefundCredit tx begin error: %v", err)
+			slog.Error("[billing] RefundCredit tx begin error", "error", err)
 			return nil, errors.New("billing database unavailable")
 		}
 		defer tx.Rollback()
@@ -1122,7 +1122,7 @@ func (b *BillingService) RefundCredit(userID string, amount int, referenceID, de
 			&bal.UpdatedAt,
 		)
 		if err != nil {
-			log.Printf("[billing] RefundCredit DB update error: %v", err)
+			slog.Error("[billing] RefundCredit DB update error", "error", err)
 			return nil, errors.New("billing database unavailable")
 		}
 
@@ -1136,12 +1136,12 @@ func (b *BillingService) RefundCredit(userID string, amount int, referenceID, de
 			VALUES ($1, $2::uuid, $3, 'refund', $4, $5, NOW())
 		`, ledgerID, userID, amount, description, refundRefIDParam)
 		if err != nil {
-			log.Printf("[billing] RefundCredit ledger insert error: %v", err)
+			slog.Error("[billing] RefundCredit ledger insert error", "error", err)
 			return nil, errors.New("failed to record credit refund ledger entry")
 		}
 
 		if err := tx.Commit(); err != nil {
-			log.Printf("[billing] RefundCredit commit error: %v", err)
+			slog.Error("[billing] RefundCredit commit error", "error", err)
 			return nil, errors.New("billing transaction commit failed")
 		}
 
@@ -1213,7 +1213,7 @@ func (b *BillingService) GetCreditLedger(userID string) ([]CreditLedgerEntry, er
 			ORDER BY created_at DESC
 		`, userID)
 		if err != nil {
-			log.Printf("[billing] GetCreditLedger query error for %s: %v", userID, err)
+			slog.Error("[billing] GetCreditLedger query error for", "user_id", userID, "error", err)
 			return nil, errors.New("billing database unavailable")
 		}
 		defer rows.Close()

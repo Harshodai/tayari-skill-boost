@@ -220,9 +220,11 @@ const STORAGE_KEY = 'tayari_config';
 const DEFAULT_CONFIG = { apiUrl: 'https://api.tayari.app/api', appUrl: 'https://tayari.app' };
 const LOCAL_APP_ROUTES = new Map([
   ['http://127.0.0.1:8083', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:8083' }],
-  ['http://localhost:8083', { apiUrl: 'http://localhost:8085/api', appUrl: 'http://localhost:8083' }],
-  ['http://localhost:5173', { apiUrl: 'http://localhost:8085/api', appUrl: 'http://localhost:5173' }],
-  ['http://localhost:8080', { apiUrl: 'http://localhost:8085/api', appUrl: 'http://localhost:8080' }],
+  ['http://127.0.0.1:5173', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:5173' }],
+  ['http://127.0.0.1:8080', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:8080' }],
+  ['http://localhost:8083', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:8083' }],
+  ['http://localhost:5173', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:5173' }],
+  ['http://localhost:8080', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:8080' }],
 ]);
 const PROFILE_CACHE_KEY = 'tayari_profile_cache';
 const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -244,12 +246,15 @@ const BASE_TRUSTED_APP_ORIGINS = [
 
 const DEV_LOOPBACK_ORIGINS = [
   'http://localhost:5173',
+  'http://127.0.0.1:5173',
   'http://localhost:8080',
+  'http://127.0.0.1:8080',
   'http://localhost:8081',
   'http://127.0.0.1:8081',
   'http://localhost:8083',
   'http://127.0.0.1:8083',
   'http://localhost:8085',
+  'http://127.0.0.1:8085',
 ];
 
 const isDevBuild = (typeof chrome !== 'undefined' &&
@@ -569,10 +574,9 @@ async function captureFullHistoryTab(config, tab, firstPage, preferences, trigge
 
 async function handleOmniSaveSync(payload) {
   const config = await getConfig();
-  if (!config.token) return { success: false, error: 'Not authenticated. Sign in to sync saved reading.' };
-  const response = await fetch(`${config.apiUrl}/v1/saves/sync`, {
+  if (!config.session?.access_token) return { success: false, error: 'Not authenticated. Sign in to sync saved reading.' };
+  const response = await TayariSession.fetchJson(config, 'v1/saves/sync', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.token}` },
     body: JSON.stringify({
       urls: Array.from(new Set((payload?.urls || []).filter(Boolean))).slice(0, 250),
       items: (payload?.items || []).slice(0, 250),
@@ -704,17 +708,13 @@ async function collectOmniSaveSources(force = false) {
 
 async function handleSaveJob(job) {
   const config = await getConfig();
-  if (!config.token) {
+  if (!config.session?.access_token) {
     return { success: false, error: 'Not authenticated' };
   }
-  
+
   try {
-    const res = await fetch(`${config.apiUrl}/v1/extension/capture`, {
+    const res = await TayariSession.fetchJson(config, 'v1/extension/capture', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.token}`
-      },
       body: JSON.stringify({
         title: job.title,
         company: job.company,
@@ -734,17 +734,13 @@ async function handleSaveJob(job) {
 
 async function handleQuickATS(jd) {
   const config = await getConfig();
-  if (!config.token) {
+  if (!config.session?.access_token) {
     return { success: false, error: 'Not authenticated' };
   }
-  
+
   try {
-    const res = await fetch(`${config.apiUrl}/v1/extension/quick-ats`, {
+    const res = await TayariSession.fetchJson(config, 'v1/extension/quick-ats', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.token}`
-      },
       body: JSON.stringify({
         job_description: jd
       })
@@ -764,17 +760,13 @@ async function handleQuickATS(jd) {
 
 async function handleTrackApplication(data) {
   const config = await getConfig();
-  if (!config.token) {
+  if (!config.session?.access_token) {
     return { success: false, error: 'Not authenticated' };
   }
-  
+
   try {
-    const res = await fetch(`${config.apiUrl}/v1/autopilot/applications`, {
+    const res = await TayariSession.fetchJson(config, 'v1/autopilot/applications', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.token}`
-      },
       body: JSON.stringify({
         job: {
           title: data.job.title,
@@ -800,17 +792,13 @@ async function handleTrackApplication(data) {
 
 async function handleQueueForReview(data) {
   const config = await getConfig();
-  if (!config.token) {
+  if (!config.session?.access_token) {
     return { success: false, error: 'Not authenticated' };
   }
-  
+
   try {
-    const res = await fetch(`${config.apiUrl}/v1/review-queue/queue`, {
+    const res = await TayariSession.fetchJson(config, 'v1/review-queue/queue', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.token}`
-      },
       body: JSON.stringify({
         job: {
           title: data.job.title,
@@ -1226,7 +1214,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     console.log('Job Tayari extension installed');
     chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
     // Open onboarding page
-    chrome.tabs.create({ url: 'http://localhost:8083/extension-onboarding' });
+    chrome.tabs.create({ url: 'http://127.0.0.1:8083/extension-onboarding' });
   } else if (details.reason === 'update') {
     console.log('Job Tayari extension updated from', details.previousVersion, 'to 3.0.0');
     chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});

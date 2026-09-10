@@ -31,3 +31,26 @@ def test_duplex_protocol_is_explicit_stub():
     except NotImplementedError:
         return
     raise AssertionError("expected NotImplementedError")
+
+
+def test_voice_live_start_endpoint(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("AI_INTERNAL_TOKEN", "test-internal-token")
+    client = TestClient(app)
+    headers = {
+        "X-User-Id": "11111111-1111-1111-1111-111111111111",
+        "X-Internal-Token": "test-internal-token",
+    }
+    response = client.post("/api/v1/interview/voice-live/start", headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ready"
+    assert "endpoint" in data
+
+    # Dual-route test
+    response_v1 = client.post("/v1/interview/voice-live/start", headers=headers)
+    assert response_v1.status_code == 200
+    assert response_v1.json()["status"] == "ready"

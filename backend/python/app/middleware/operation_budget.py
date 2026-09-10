@@ -100,7 +100,16 @@ class OperationBudget:
 class OperationBudgetMiddleware:
     """Apply operation quotas before route parsing and expensive work."""
 
-    _health_paths = frozenset({"/health", "/api/health", "/api/v1/health", "/healthz", "/readyz"})
+    _health_paths = frozenset({
+        "/health",
+        "/api/health",
+        "/api/v1/health",
+        "/healthz",
+        "/readyz",
+        "/metrics",
+        "/metrics/prometheus",
+        "/api/v1/metrics/prometheus",
+    })
 
     def __init__(self, app, budget: OperationBudget | None = None):
         self.app = app

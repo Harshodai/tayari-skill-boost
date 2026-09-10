@@ -28,13 +28,30 @@ const APIKeys = () => {
     enabled: visibleUsage !== null,
   });
 
+interface ApiKeyRecord {
+  id: number;
+  name: string;
+  is_active: boolean;
+  key_prefix: string;
+  created_at: string;
+  last_used_at?: string | null;
+  rate_limit: number;
+}
+
+interface ApiUsageRecord {
+  status_code: number;
+  endpoint: string;
+  response_ms: number;
+  created_at: string;
+}
+
   const createMut = useMutation({
     mutationFn: () => createAPIKey(newKeyName),
     onSuccess: (data) => {
       setCreatedKey(data.raw_key);
       qc.invalidateQueries({ queryKey: ["api-keys"] });
     },
-    onError: (err: any) => toast.error(err.message || "Failed to create key"),
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Failed to create key"),
   });
 
   const revokeMut = useMutation({
@@ -43,7 +60,7 @@ const APIKeys = () => {
       qc.invalidateQueries({ queryKey: ["api-keys"] });
       toast.success("API key revoked");
     },
-    onError: (err: any) => toast.error(err.message || "Failed to revoke key"),
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Failed to revoke key"),
   });
 
   const handleCopy = (rawKey?: string) => {
@@ -83,7 +100,7 @@ const APIKeys = () => {
           </Card>
         ) : (
           <div className="space-y-4">
-            {keys.map((k: any) => (
+            {(keys as ApiKeyRecord[]).map((k: ApiKeyRecord) => (
               <Card key={k.id} className={k.is_active ? "" : "opacity-60"}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
@@ -131,7 +148,7 @@ const APIKeys = () => {
                       </h4>
                       {usageData && usageData.length > 0 ? (
                         <div className="space-y-1">
-                          {usageData.slice(0, 10).map((u: any, i: number) => (
+                          {(usageData as ApiUsageRecord[]).slice(0, 10).map((u: ApiUsageRecord, i: number) => (
                             <div key={i} className="flex items-center gap-3 text-xs text-muted-foreground">
                               <Badge variant={u.status_code < 400 ? "default" : "destructive"} className="text-[10px] py-0">
                                 {u.status_code}

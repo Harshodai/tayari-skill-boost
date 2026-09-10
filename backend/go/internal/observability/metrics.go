@@ -3,7 +3,9 @@ package observability
 import (
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -156,6 +158,92 @@ func (m *Metrics) Snapshot() map[string]any {
 		"provider_errors_by_name":    providerErrors,
 		"queue_age_last_recorded_at": m.lastQueueRecorded,
 	}
+}
+
+// PrometheusHandler outputs metrics in Prometheus exposition text format.
+// It uses the same X-Internal-Token auth contract as Handler.
+func (m *Metrics) PrometheusHandler(expectedToken string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if expectedToken == "" {
+			http.Error(w, "metrics authentication is not configured", http.StatusServiceUnavailable)
+			return
+		}
+		provided := r.Header.Get("X-Internal-Token")
+		if subtle.ConstantTimeCompare([]byte(provided), []byte(expectedToken)) != 1 {
+			http.Error(w, "metrics authentication required", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+
+		var b strings.Builder
+
+		// tayari_requests_total
+		fmt.Fprintf(&b, "# HELP tayari_requests_total Total HTTP requests\n")
+		fmt.Fprintf(&b, "# TYPE tayari_requests_total counter\n")
+		fmt.Fprintf(&b, "tayari_requests_total %d\n", m.requestTotal)
+
+		// tayari_request_errors_total
+		fmt.Fprintf(&b, "# HELP tayari_request_errors_total Total 5xx HTTP requests\n")
+		fmt.Fprintf(&b, "# TYPE tayari_request_errors_total counter\n")
+		fmt.Fprintf(&b, "tayari_request_errors_total %d\n", m.requestErrors)
+
+		// tayari_budget_exceeded_total
+		fmt.Fprintf(&b, "# HELP tayari_budget_exceeded_total Total budget exceeded events\n")
+		fmt.Fprintf(&b, "# TYPE tayari_budget_exceeded_total counter\n")
+		fmt.Fprintf(&b, "tayari_budget_exceeded_total %d\n", m.budgetExceeded)
+
+		// tayari_queue_age_seconds
+		fmt.Fprintf(&b, "# HELP tayari_queue_age_seconds Age of oldest pending queue item in seconds\n")
+		fmt.Fprintf(&b, "# TYPE tayari_queue_age_seconds gauge\n")
+		fmt.Fprintf(&b, "tayari_queue_age_seconds %v\n", m.queueAgeSeconds)
+
+		// tayari_requests_by_method
+		fmt.Fprintf(&b, "# HELP tayari_requests_by_method Requests grouped by HTTP method\n")
+		fmt.Fprintf(&b, "# TYPE tayari_requests_by_method counter\n")
+		methods := sortedKeys(m.requestByMethod)
+		for _, method := range methods {
+			fmt.Fprintf(&b, "tayari_requests_by_method{method=%q} %d\n", method, m.requestByMethod[method])
+		}
+
+		// tayari_requests_by_status_class
+		fmt.Fprintf(&b, "# HELP tayari_requests_by_status_class Requests grouped by status class\n")
+		fmt.Fprintf(&b, "# TYPE tayari_requests_by_status_class counter\n")
+		statuses := sortedKeys(m.requestByStatus)
+		for _, status := range statuses {
+			fmt.Fprintf(&b, "tayari_requests_by_status_class{status=%q} %d\n", status, m.requestByStatus[status])
+		}
+
+		// tayari_provider_errors_total
+		fmt.Fprintf(&b, "# HELP tayari_provider_errors_total Provider errors by name\n")
+		fmt.Fprintf(&b, "# TYPE tayari_provider_errors_total counter\n")
+		providers := sortedKeys(m.providerErrors)
+		for _, provider := range providers {
+			fmt.Fprintf(&b, "tayari_provider_errors_total{provider=%q} %d\n", provider, m.providerErrors[provider])
+		}
+
+		// tayari_billing_events_total
+		fmt.Fprintf(&b, "# HELP tayari_billing_events_total Billing lifecycle events\n")
+		fmt.Fprintf(&b, "# TYPE tayari_billing_events_total counter\n")
+		events := sortedKeys(m.billingEvents)
+		for _, event := range events {
+			fmt.Fprintf(&b, "tayari_billing_events_total{event=%q} %d\n", event, m.billingEvents[event])
+		}
+
+		w.Write([]byte(b.String()))
+	})
+}
+
+func sortedKeys(m map[string]uint64) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // Handler protects the telemetry endpoint with the same X-Internal-Token

@@ -497,5 +497,9 @@ func (s *Server) routesAIProxy(r chi.Router) {
 		r.Post("/api/interview/copilot/stream", s.handleInterviewCopilotStream)
 		r.Post("/api/v1/interview/evaluate-star", s.handleInterviewEvaluateSTAR)
 		r.Post("/api/interview/evaluate-star", s.handleInterviewEvaluateSTAR)
+		r.Post("/api/v1/interview/experiences", s.handleInterviewExperienceSubmit)
+		r.Post("/api/interview/experiences", s.handleInterviewExperienceSubmit)
+		r.Post("/api/v1/interview/moderate", s.handleInterviewModerate)
+		r.Post("/api/interview/moderate", s.handleInterviewModerate)
 	})
 }

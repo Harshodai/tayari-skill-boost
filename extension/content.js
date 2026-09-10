@@ -23,6 +23,40 @@
   'use strict';
 
   // ====================================================================
+  // ANTI-DETECTION STEALTH LAYER (E3)
+  // Mask automation properties (navigator.webdriver, plugins, languages)
+  // ====================================================================
+  try {
+    const nav = typeof window !== 'undefined' ? window.navigator : (typeof navigator !== 'undefined' ? navigator : null);
+    if (nav) {
+      if (Object.getOwnPropertyDescriptor(nav, 'webdriver') || 'webdriver' in nav) {
+        Object.defineProperty(nav, 'webdriver', {
+          get: () => undefined,
+          configurable: true,
+        });
+      }
+      if (!nav.plugins || nav.plugins.length === 0) {
+        Object.defineProperty(nav, 'plugins', {
+          get: () => [{ name: 'Chrome PDF Plugin' }, { name: 'Chrome PDF Viewer' }],
+          configurable: true,
+        });
+      }
+      if (!nav.languages || nav.languages.length === 0) {
+        Object.defineProperty(nav, 'languages', {
+          get: () => ['en-US', 'en'],
+          configurable: true,
+        });
+      }
+    }
+  } catch (e) {
+    // Fail open if environment restricts descriptor modification
+  }
+
+  function getHumanJitterDelay(minMs = 25, maxMs = 75) {
+    return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+  }
+
+  // ====================================================================
   // PLATFORM SELECTORS — Comprehensive job detection across platforms
   // ====================================================================
 
@@ -679,28 +713,44 @@
     if (!element || !value) return false;
     if (element.value && element.value.trim() === value.trim()) return false; // Already filled
 
-    // Focus the element
-    element.focus();
-    element.click();
-    
-    // Clear existing value
-    element.value = '';
-    
-    // Set the value
-    element.value = value;
-    
+    // Focus and click element
+    if (typeof element.focus === 'function') element.focus();
+    if (typeof element.click === 'function') element.click();
+
+    // Use native prototype setters for React / ATS compatibility
+    const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
+    const nativeInputValueSetter = win.HTMLInputElement?.prototype
+      ? Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value')?.set
+      : null;
+    const nativeTextareaValueSetter = win.HTMLTextAreaElement?.prototype
+      ? Object.getOwnPropertyDescriptor(win.HTMLTextAreaElement.prototype, 'value')?.set
+      : null;
+    const setter = (element.tagName === 'TEXTAREA' || element.nodeName === 'TEXTAREA')
+      ? nativeTextareaValueSetter
+      : nativeInputValueSetter;
+
+    if (setter) {
+      setter.call(element, '');
+      setter.call(element, value);
+    } else {
+      element.value = '';
+      element.value = value;
+    }
+
     // Trigger events to ensure form validation picks up the change
     element.dispatchEvent(new Event('input', { bubbles: true }));
     element.dispatchEvent(new Event('change', { bubbles: true }));
     element.dispatchEvent(new Event('blur', { bubbles: true }));
-    
+
     // Visual feedback
-    element.style.backgroundColor = '#e0f2fe';
-    setTimeout(() => {
-      element.style.backgroundColor = '';
-      element.style.transition = 'background-color 0.5s ease';
-    }, 1000);
-    
+    if (element.style) {
+      element.style.backgroundColor = '#e0f2fe';
+      setTimeout(() => {
+        element.style.backgroundColor = '';
+        element.style.transition = 'background-color 0.5s ease';
+      }, 1000);
+    }
+
     return true;
   }
 
@@ -1106,83 +1156,120 @@
     }
   }
 
-  // Listen for messages from popup/background
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'detect_job') {
-      sendResponse(currentJob || detectJob() || { detected: false });
-      return true;
-    }
-    
-    if (request.action === 'execute_authorized_bridge_action') {
-      if (request.bridgeAction !== 'approved_autofill' || request.approved !== true) {
-        sendResponse({ success: false, error: 'Only the reviewed candidate-input bridge action is supported.' });
+  if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage?.addListener) {
+    // Listen for messages from popup/background
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.action === 'detect_job') {
+        sendResponse(currentJob || detectJob() || { detected: false });
         return true;
       }
-      loadProfileData().then(() => {
-        const result = autofillForm();
-        sendResponse({ ...result, execution: 'server_authorized_candidate_input' });
-      });
-      return true;
-    }
-
-    if (request.action === 'autofill' || request.action === 'autofill_form') {
-      if (request.approved !== true) {
-        sendResponse({ success: false, error: 'Explicit approval is required before filling fields.' });
+      
+      if (request.action === 'execute_authorized_bridge_action') {
+        if (request.bridgeAction !== 'approved_autofill' || request.approved !== true) {
+          sendResponse({ success: false, error: 'Only the reviewed candidate-input bridge action is supported.' });
+          return true;
+        }
+        loadProfileData().then(() => {
+          const result = autofillForm();
+          sendResponse({ ...result, execution: 'server_authorized_candidate_input' });
+        });
         return true;
       }
-      loadProfileData().then(() => {
-        const result = autofillForm();
-        sendResponse(result);
-      });
-      return true;
-    }
-    
-    if (request.action === 'get_page_context') {
-      sendResponse(getPageContext());
-      return true;
-    }
-    if (request.action === 'get_job_data') {
-      sendResponse(currentJob || { detected: false });
-      return true;
-    }
-    
-    if (request.action === 'ping') {
-      sendResponse({ 
-        pong: true, 
-        platform: detectPlatform(),
-        formDetected: isJobApplicationPage(),
-        detected: !!currentJob?.detected
-      });
-      return true;
-    }
-    
-    return false;
-  });
 
-  // Initialize on load
-  if (document.readyState === 'complete') {
-    init();
-  } else {
-    window.addEventListener('load', init);
+      if (request.action === 'autofill' || request.action === 'autofill_form') {
+        if (request.approved !== true) {
+          sendResponse({ success: false, error: 'Explicit approval is required before filling fields.' });
+          return true;
+        }
+        loadProfileData().then(() => {
+          const result = autofillForm();
+          sendResponse(result);
+        });
+        return true;
+      }
+      
+      if (request.action === 'get_page_context') {
+        sendResponse(getPageContext());
+        return true;
+      }
+      if (request.action === 'get_job_data') {
+        sendResponse(currentJob || { detected: false });
+        return true;
+      }
+      
+      if (request.action === 'ping') {
+        sendResponse({ 
+          pong: true, 
+          platform: detectPlatform(),
+          formDetected: isJobApplicationPage(),
+          detected: !!currentJob?.detected
+        });
+        return true;
+      }
+      
+      return false;
+    });
   }
 
-  // Watch for SPA navigation changes
-  let lastUrl = window.location.href;
-  const observer = new MutationObserver(() => {
-    if (window.location.href !== lastUrl) {
-      lastUrl = window.location.href;
-      panelInjected = false;
-      setTimeout(init, 500); // Delay for SPA to render
-    }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-
-  // Also re-check periodically for dynamic content
-  setInterval(() => {
-    if (!document.getElementById('tayari-panel') && detectJob()?.detected) {
-      panelInjected = false;
+  // Initialize on load
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'complete') {
       init();
+    } else if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('load', init);
     }
-  }, 3000);
+
+    // Watch for SPA navigation changes
+    if (typeof MutationObserver !== 'undefined' && document.body && typeof window !== 'undefined' && window.location) {
+      let lastUrl = window.location.href;
+      const observer = new MutationObserver(() => {
+        if (window.location.href !== lastUrl) {
+          lastUrl = window.location.href;
+          panelInjected = false;
+          setTimeout(init, 500); // Delay for SPA to render
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    // Also re-check periodically for dynamic content
+    if (typeof setInterval !== 'undefined') {
+      const timer = setInterval(() => {
+        if (document.getElementById && !document.getElementById('tayari-panel') && detectJob()?.detected) {
+          panelInjected = false;
+          init();
+        }
+      }, 3000);
+      if (timer && typeof timer.unref === 'function') {
+        timer.unref();
+      }
+    }
+  }
+
+  // Expose internals on globalThis for companion coordination and test verification
+  if (typeof globalThis !== 'undefined') {
+    globalThis.__TAYARI_CONTENT__ = {
+      fillField,
+      findField,
+      autofillForm,
+      detectJob,
+      detectPlatform,
+      isJobApplicationPage,
+      PLATFORM_SELECTORS,
+      AUTOFILL_FIELD_MAP,
+      detectLinkedInJob,
+      detectIndeedJob,
+      detectGlassdoorJob,
+      detectGreenhouseJob,
+      detectLeverJob,
+      detectWorkdayJob,
+      detectGenericJob,
+      getText,
+      getElement,
+      getPageContext,
+      normalizePageText,
+      getHumanJitterDelay,
+    };
+  }
 
 })();

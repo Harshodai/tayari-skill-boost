@@ -432,7 +432,8 @@ async def run_autopilot(
                 _update_run(run_id, status="cancelled", current_step="CANCELLED")
                 return
             try:
-                batch = await search_jobs(company, location, limit=15)
+                batch_raw = await search_jobs(company, location, limit=15, cursor=None, return_dict=False)
+                batch = batch_raw.get("results", []) if isinstance(batch_raw, dict) else batch_raw
                 hits = [j for j in batch if _is_dream_company(j["company"], [company])]
                 added = 0
                 for j in hits:
@@ -876,6 +877,13 @@ async def run_autopilot(
                                 f"Submission CONFIRMED for {job['title']} @ {job['company']}"
                                 + (f" (ref {receipt['confirmation_number']})" if receipt["confirmation_number"] else ""),
                             )
+                            try:
+                                from app.services.event_bus import publish_event
+                                user_id = config.get("user_id")
+                                job_url = job.get("url") or job.get("job_url") or ""
+                                await publish_event("tayari:events", "application.submitted", {"user_id": user_id, "job_url": job_url})
+                            except Exception as pub_exc:
+                                logger.warning("Failed to publish application.submitted event: %s", pub_exc)
                         elif evidence.get("success"):
                             application["status"] = "submitted_unverified"
                             _log(
@@ -884,6 +892,13 @@ async def run_autopilot(
                                 f"Agent finished {job['title']} @ {job['company']} but the site showed no "
                                 f"confirmation — marked unverified so you can check it yourself.",
                             )
+                            try:
+                                from app.services.event_bus import publish_event
+                                user_id = config.get("user_id")
+                                job_url = job.get("url") or job.get("job_url") or ""
+                                await publish_event("tayari:events", "application.submitted", {"user_id": user_id, "job_url": job_url})
+                            except Exception as pub_exc:
+                                logger.warning("Failed to publish application.submitted event: %s", pub_exc)
                         else:
                             _set_application_lifecycle(application, _LIFECYCLE_FAILED)
                             application["status"] = "apply_failed"
@@ -1095,3 +1110,13 @@ async def _consume_token_budget(user_id: str, estimated_tokens: int) -> bool:
     # Development fallback uses the same bounded process-local lock and is
     # intentionally not accepted as production evidence.
     return check_daily_llm_budget(user_id, estimated_tokens)
+
+
+async def record_application_submitted(user_id: str | None, job_url: str) -> None:
+    """Record that an application was submitted and publish application.submitted event."""
+    try:
+        from app.services.event_bus import publish_event
+        await publish_event("tayari:events", "application.submitted", {"user_id": user_id, "job_url": job_url})
+    except Exception as exc:
+        logger.warning("Failed to publish application.submitted event: %s", exc)
+

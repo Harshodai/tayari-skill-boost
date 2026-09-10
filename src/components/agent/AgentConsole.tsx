@@ -18,9 +18,9 @@ interface Step {
   thought: string;
   action: string;
   code?: string;
-  result?: any;
+  result?: unknown;
   swarm_output?: SwarmResult[];
-  mcp_output?: any;
+  mcp_output?: unknown;
   plan?: string[];
 }
 
@@ -72,8 +72,8 @@ export const AgentConsole: React.FC = () => {
       } else {
         throw new Error(resJson?.detail || 'Agent execution failed');
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to execute agent task.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to execute agent task.');
     } finally {
       setLoading(false);
     }
@@ -219,7 +219,7 @@ export const AgentConsole: React.FC = () => {
                     </div>
                   )}
 
-                  {st.result && (
+                  {Boolean(st.result) && (
                     <div className="bg-slate-900 p-3 rounded border border-slate-800 text-slate-300">
                       <div className="text-[10px] text-slate-500 uppercase mb-1"># Execution Result / Reflection Diagnosis</div>
                       <pre className="whitespace-pre-wrap">{JSON.stringify(st.result, null, 2)}</pre>

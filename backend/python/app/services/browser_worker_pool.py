@@ -24,6 +24,7 @@ import asyncio
 import base64
 import contextlib
 import hashlib
+import inspect
 import json
 import logging
 import os
@@ -34,6 +35,8 @@ from typing import Any, Callable, Dict, List, Optional, Set
 from urllib.parse import urlsplit
 
 from fastapi import HTTPException
+
+from app.services.saga import SagaContext
 
 from app.services.vision_fallback import (
     VISION_MIN_CONFIDENCE,
@@ -46,6 +49,7 @@ from app.services.vision_fallback import (
 )
 
 from app.services.computer_action_policy import BOARD_POLICIES, authorize_board
+from app.services.content_provenance import as_model_context, capture_page_content
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +195,19 @@ def compute_receipt_hash(text: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+async def scrape_page_content(page: Any, source: str = "browser_automation") -> dict[str, Any]:
+    """Scrape page content, wrap with capture_page_content, and prepare model context."""
+    if not page:
+        return as_model_context(capture_page_content("", "", source=source))
+    try:
+        page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+    except Exception:
+        page_text = ""
+    url = getattr(page, "url", "")
+    captured = capture_page_content(page_text, url, source=source)
+    return as_model_context(captured)
+
+
 class BrowserWorker:
     """Ephemeral, isolated browser worker for a single job application run."""
 
@@ -229,6 +246,7 @@ class BrowserWorker:
         self._task: asyncio.Task | None = None
         self._close_lock = asyncio.Lock()
         self.created_at = time.time()
+        self.last_page_context: dict[str, Any] | None = None
 
     def emit_event(self, event_type: str, payload: Any) -> dict[str, Any]:
         """Emit a structured event matching WP-04 schema."""
@@ -447,6 +465,24 @@ class BrowserWorker:
             logger.warning("[BrowserWorker %s] vision execution failed: %s", self.run_id, exc)
             return False
 
+    async def scrape_page_content(self) -> dict[str, Any]:
+        """Wrap scraped page content with capture_page_content and prepare LLM context."""
+        url = getattr(self.page, "url", self.target_url) if self.page else self.target_url
+        page_text = ""
+        if self.page:
+            try:
+                page_text = await self.page.evaluate("() => document.body ? document.body.innerText : ''")
+            except Exception as exc:
+                logger.warning("[BrowserWorker %s] scrape page content error: %s", self.run_id, exc)
+        captured = capture_page_content(page_text, url, source="browser_automation")
+        context = as_model_context(captured)
+        self.last_page_context = context
+        return context
+
+    async def read_page_content(self) -> dict[str, Any]:
+        """Read scraped page content with provenance tracking for LLM processing."""
+        return await self.scrape_page_content()
+
     async def parse_confirmation_receipt(self) -> dict[str, Any] | None:
         """Parse confirmation page text, generate SHA256 receipt hash, and extract metadata."""
         if not self.page:
@@ -469,8 +505,10 @@ class BrowserWorker:
                 return None
 
             confirmation_text = content.strip()
-            receipt_hash = compute_receipt_hash(confirmation_text)
             current_url = getattr(self.page, "url", self.target_url)
+            captured = capture_page_content(confirmation_text, current_url, source="browser_automation")
+            _model_ctx = as_model_context(captured)
+            receipt_hash = compute_receipt_hash(confirmation_text)
 
             return {
                 "receipt_hash": receipt_hash,
@@ -603,10 +641,13 @@ class BrowserWorker:
                 )
                 return  # FREEZE EXECUTION! Do NOT fill or submit.
 
-            # 6. Confidence score event for scanned form
+            # 6. Scrape page content and prepare context for LLM processing with provenance tracking
+            await self.scrape_page_content()
+
+            # 7. Confidence score event for scanned form
             self.emit_event("confidence", {"confidence": 0.95, "status": "form_scanned_clean"})
 
-            # 7. Post-submission Receipt Parsing
+            # 8. Post-submission Receipt Parsing
             receipt = await self.parse_confirmation_receipt()
             if receipt:
                 await self.record_submission_receipt(receipt, pool=pool)
@@ -673,6 +714,213 @@ class BrowserWorker:
                 except Exception:
                     pass
                 self.playwright = None
+
+    async def execute_application_flow(
+        self,
+        task_id: str | None = None,
+        user_id: str | None = None,
+        page: Any = None,
+        job_url: str | None = None,
+        form_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Execute multi-step application workflow using the Saga pattern.
+
+        Steps:
+        1. navigate_to_job: Navigate to target URL with compensation to close/clear tab.
+        2. fill_application_form: Fill form fields with compensation to reset/clear form.
+        3. review_before_submit: Capture screenshot for human review.
+
+        Note: Actual submission requires HITL approval and is retained outside the automated saga.
+        """
+        return await execute_application_flow(
+            task_id=task_id,
+            user_id=user_id,
+            page=page,
+            job_url=job_url,
+            form_data=form_data,
+            worker=self,
+        )
+
+
+async def execute_application_flow(
+    task_id: Any = None,
+    user_id: Any = None,
+    page: Any = None,
+    job_url: str | None = None,
+    form_data: dict[str, Any] | None = None,
+    worker: BrowserWorker | None = None,
+) -> dict[str, Any]:
+    """Execute multi-step application workflow using SagaContext.
+
+    Steps:
+    1. navigate_to_job: Validates ATS domain and navigates to target URL.
+       Compensation: closes or navigates to about:blank to clear the tab.
+    2. fill_application_form: Scans for sensitive fields and fills form data.
+       Compensation: resets/clears form inputs.
+    3. review_before_submit: Captures screenshot for candidate HITL review.
+       Compensation: None (review is read-only).
+
+    Note: Actual submission requires HITL approval and is retained outside the automated saga.
+    """
+    if isinstance(task_id, BrowserWorker):
+        target_worker = task_id
+        resolved_task_id = str(user_id or target_worker.run_id).strip()
+        resolved_user_id = str(page or target_worker.user_id).strip()
+        active_page = job_url if job_url is not None else target_worker.page
+        url = str(form_data or target_worker.target_url).strip()
+        data = {}
+    else:
+        target_worker = worker
+        resolved_task_id = str(task_id or (target_worker.run_id if target_worker else "")).strip()
+        resolved_user_id = str(user_id or (target_worker.user_id if target_worker else "")).strip()
+        active_page = page if page is not None else (target_worker.page if target_worker else None)
+        url = str(job_url or (target_worker.target_url if target_worker else "")).strip()
+        data = form_data if isinstance(form_data, dict) else {}
+
+    saga = SagaContext(task_id=resolved_task_id, user_id=resolved_user_id)
+
+    # 1. Step: navigate_to_job
+    async def _navigate():
+        validated_url = validate_ats_url(url)
+        handoff = board_handoff_for_url(validated_url)
+        if handoff is not None:
+            raise DomainForbiddenError(
+                f"Forbidden: board '{handoff.get('host')}' is disabled (board_disabled)."
+            )
+        if target_worker:
+            target_worker.emit_event("action", {"action": "navigate", "target": validated_url})
+        if active_page is not None and hasattr(active_page, "goto"):
+            res = active_page.goto(validated_url, wait_until="domcontentloaded", timeout=30000)
+            if asyncio.iscoroutine(res) or inspect.isawaitable(res):
+                await res
+        return {"url": validated_url}
+
+    async def _compensate_navigate():
+        if target_worker:
+            target_worker.emit_event("compensation", {"action": "clear_tab", "target": url})
+        if active_page is not None:
+            if hasattr(active_page, "goto"):
+                try:
+                    res = active_page.goto("about:blank")
+                    if asyncio.iscoroutine(res) or inspect.isawaitable(res):
+                        await res
+                    return
+                except Exception as exc:
+                    logger.warning("[Saga %s] failed to navigate to about:blank during compensation: %s", task_id, exc)
+            if hasattr(active_page, "close"):
+                try:
+                    res = active_page.close()
+                    if asyncio.iscoroutine(res) or inspect.isawaitable(res):
+                        await res
+                except Exception as exc:
+                    logger.warning("[Saga %s] failed to close page during compensation: %s", task_id, exc)
+
+    saga.add_step("navigate_to_job", execute=_navigate, compensate=_compensate_navigate)
+
+    # 2. Step: fill_application_form
+    async def _fill_form():
+        if target_worker:
+            target_worker.emit_event("action", {"action": "fill_form", "fields": list(data.keys())})
+
+        if active_page is not None:
+            html = ""
+            if hasattr(active_page, "content"):
+                c = active_page.content()
+                if asyncio.iscoroutine(c) or inspect.isawaitable(c):
+                    html = await c
+                elif isinstance(c, str):
+                    html = c
+            if html:
+                sensitive = scan_html_for_sensitive_fields(html)
+                if sensitive:
+                    raise ValueError(f"Sensitive field detected: {sensitive.get('field_name')}")
+
+            if hasattr(active_page, "fill"):
+                for selector, val in data.items():
+                    res = active_page.fill(selector, str(val))
+                    if asyncio.iscoroutine(res) or inspect.isawaitable(res):
+                        await res
+            elif hasattr(active_page, "evaluate"):
+                for selector, val in data.items():
+                    safe_sel = json.dumps(selector)
+                    safe_val = json.dumps(str(val))
+                    res = active_page.evaluate(f"""() => {{
+                        const el = document.querySelector({safe_sel});
+                        if (el) {{
+                            el.value = {safe_val};
+                            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        }}
+                    }}""")
+                    if asyncio.iscoroutine(res) or inspect.isawaitable(res):
+                        await res
+
+        return {"filled_fields": list(data.keys())}
+
+    async def _compensate_fill():
+        if target_worker:
+            target_worker.emit_event("compensation", {"action": "clear_form"})
+        if active_page is not None:
+            if hasattr(active_page, "evaluate"):
+                try:
+                    res = active_page.evaluate("""() => {
+                        const forms = document.querySelectorAll('form');
+                        forms.forEach(f => f.reset());
+                        const inputs = document.querySelectorAll('input, textarea');
+                        inputs.forEach(i => {
+                            if (i.type !== 'submit' && i.type !== 'button' && i.type !== 'hidden') {
+                                i.value = '';
+                                i.dispatchEvent(new Event('input', { bubbles: true }));
+                                i.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        });
+                    }""")
+                    if asyncio.iscoroutine(res) or inspect.isawaitable(res):
+                        await res
+                    return
+                except Exception as exc:
+                    logger.warning("[Saga %s] failed to reset form via evaluate: %s", task_id, exc)
+            if hasattr(active_page, "fill"):
+                for selector in data.keys():
+                    try:
+                        res = active_page.fill(selector, "")
+                        if asyncio.iscoroutine(res) or inspect.isawaitable(res):
+                            await res
+                    except Exception:
+                        pass
+
+    saga.add_step("fill_application_form", execute=_fill_form, compensate=_compensate_fill)
+
+    # 3. Step: review_before_submit
+    async def _review():
+        screenshot_b64 = None
+        if active_page is not None and hasattr(active_page, "screenshot"):
+            try:
+                raw = active_page.screenshot(full_page=False)
+                if asyncio.iscoroutine(raw) or inspect.isawaitable(raw):
+                    raw = await raw
+                if raw:
+                    screenshot_b64 = base64.b64encode(raw).decode("ascii")
+            except Exception as exc:
+                logger.warning("[Saga %s] review screenshot error: %s", task_id, exc)
+
+        if target_worker:
+            payload = {"status": "ready_for_review", "hitl_required": True}
+            if screenshot_b64:
+                payload["screenshot"] = screenshot_b64
+            target_worker.emit_event("action", payload)
+
+        return {
+            "screenshot": screenshot_b64,
+            "status": "ready_for_review",
+            "hitl_required": True,
+            "note": "Actual submit requires HITL approval and is retained outside automated saga.",
+        }
+
+    saga.add_step("review_before_submit", execute=_review, compensate=None)
+
+    return await saga.run()
+
 
 
 # ============================================================================

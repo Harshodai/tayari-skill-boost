@@ -60,6 +60,18 @@ import { WelcomeTour } from "@/components/onboarding/WelcomeTour";
 import { TASK_RECIPES } from "@/lib/agent/taskRecipes";
 
 
+interface SavedJobItem {
+  id: string | number;
+  saved_id?: number;
+  title?: string;
+  company?: string;
+  location?: string | null;
+  url?: string | null;
+  saved_at?: string;
+  dedupe_key?: string;
+  [key: string]: unknown;
+}
+
 const COMMAND_CENTER_TOOLS = [
   { title: "Company Radar", desc: "Review company signals", icon: Radar, to: "/radar" },
   { title: "Voice Coach", desc: "WPM, filler & STAR feedback", icon: Mic, to: "/interview/voice-coach" },
@@ -86,7 +98,7 @@ const Dashboard = () => {
     queryKey: ["profile", userId],
     queryFn: () => getProfile(),
     enabled: !!userId,
-    retry: false,
+    retry: 2,
   });
 
   const userSkills = useMemo(() => {
@@ -114,17 +126,17 @@ const Dashboard = () => {
         queryClient.cancelQueries({ queryKey: ["saved-jobs", userId] }),
         queryClient.cancelQueries({ queryKey: ["saved-jobs"] }),
       ]);
-      const prevScoped = queryClient.getQueryData<any[]>(["saved-jobs", userId]);
-      const prevFlat = queryClient.getQueryData<any[]>(["saved-jobs"]);
-      const drop = (old: any[] = []) => old.filter((j) => j.id !== id && (j as any).saved_id !== id);
-      queryClient.setQueryData<any[]>(["saved-jobs", userId], (old = []) => drop(old));
-      queryClient.setQueryData<any[]>(["saved-jobs"], (old = []) => drop(old));
+      const prevScoped = queryClient.getQueryData<SavedJobItem[]>(["saved-jobs", userId]);
+      const prevFlat = queryClient.getQueryData<SavedJobItem[]>(["saved-jobs"]);
+      const drop = (old: SavedJobItem[] = []) => old.filter((j) => j.id !== id && j.saved_id !== id);
+      queryClient.setQueryData<SavedJobItem[]>(["saved-jobs", userId], (old = []) => drop(old));
+      queryClient.setQueryData<SavedJobItem[]>(["saved-jobs"], (old = []) => drop(old));
       return { prevScoped, prevFlat };
     },
-    onError: (err: any, _id, ctx) => {
+    onError: (err: Error | { message?: string }, _id, ctx) => {
       if (ctx?.prevScoped) queryClient.setQueryData(["saved-jobs", userId], ctx.prevScoped);
       if (ctx?.prevFlat) queryClient.setQueryData(["saved-jobs"], ctx.prevFlat);
-      const msg = err?.message || "Failed to remove saved job";
+      const msg = (err as Error)?.message || "Failed to remove saved job";
       setUnsaveError(msg);
       toast.error(msg);
     },
@@ -713,8 +725,8 @@ const Dashboard = () => {
                       <p role="alert" className="mt-2 text-xs text-destructive">{unsaveError}</p>
                     )}
                     <ul className="mt-3 space-y-1">
-                      {savedJobs.slice(0, 5).map((j: any) => (
-                        <li key={String(j.id ?? j.dedupe_key)} className="flex items-center justify-between gap-2 text-xs">
+                      {savedJobs.slice(0, 5).map((j) => (
+                        <li key={String(j.id ?? (j as { dedupe_key?: string }).dedupe_key)} className="flex items-center justify-between gap-2 text-xs">
                           <span className="truncate text-muted-foreground">{j.title} · {j.company}</span>
                           <Button
                             variant="ghost"

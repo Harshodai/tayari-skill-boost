@@ -35,6 +35,26 @@ const PRESET_INTERVIEW_PROMPTS = [
 
 const SAMPLE_STAR_TRANSCRIPT = `During peak Black Friday traffic, our primary database cluster suffered sudden read-lock contention, spiking API latency to 4.2 seconds. As the lead on-call, I immediately isolated the root cause to an un-indexed analytics query, diverted read traffic to our secondary replica mesh, and enabled Redis caching for hot product catalogs. Within 8 minutes, p99 latency dropped back down to 38ms with zero lost orders. Afterwards, I authored a post-mortem and instituted query timeout circuit-breakers.`;
 
+interface SpeechRecognitionResultItem {
+  transcript: string;
+}
+
+interface SpeechRecognitionEventLike {
+  results: {
+    length: number;
+    [index: number]: SpeechRecognitionResultItem[];
+  };
+}
+
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
 export function InterviewVoiceCoach() {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -45,7 +65,7 @@ export function InterviewVoiceCoach() {
   const [consentModalOpen, setConsentModalOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     return () => {
@@ -78,7 +98,11 @@ export function InterviewVoiceCoach() {
   };
 
   const executeStartRecording = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const windowWithSpeech = window as unknown as {
+      SpeechRecognition?: new () => SpeechRecognitionLike;
+      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+    };
+    const SpeechRecognition = windowWithSpeech.SpeechRecognition || windowWithSpeech.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       toast.error("Speech Recognition Not Supported", {
         description: "Your browser does not support SpeechRecognition. Please use Chrome or Edge.",
@@ -102,7 +126,7 @@ export function InterviewVoiceCoach() {
       recognition.interimResults = true;
       recognition.lang = "en-US";
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: SpeechRecognitionEventLike) => {
         let current = "";
         for (let i = 0; i < event.results.length; ++i) {
           current += event.results[i][0].transcript;

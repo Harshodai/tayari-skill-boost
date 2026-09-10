@@ -1,4 +1,5 @@
 """Simple in-memory circuit breaker for LLM API calls."""
+import asyncio
 import functools
 import time
 import logging
@@ -12,7 +13,7 @@ STATE_HALF_OPEN = "HALF_OPEN"
 
 
 class CircuitBreaker:
-    """In-memory circuit breaker with decorator support."""
+    """In-memory circuit breaker with decorator and context manager support."""
 
     def __init__(
         self,
@@ -32,6 +33,9 @@ class CircuitBreaker:
     def state(self) -> str:
         return self._state
 
+    def can_attempt(self) -> bool:
+        return self._can_attempt()
+
     def _can_attempt(self) -> bool:
         if self._state == STATE_CLOSED:
             return True
@@ -45,6 +49,12 @@ class CircuitBreaker:
             return False
         # HALF_OPEN
         return True
+
+    def reset(self) -> None:
+        self._state = STATE_CLOSED
+        self._failure_count = 0
+        self._last_failure_time = 0.0
+        self._success_count = 0
 
     def record_success(self) -> None:
         if self._state == STATE_HALF_OPEN:
@@ -69,6 +79,34 @@ class CircuitBreaker:
                 "Circuit breaker '%s' OPEN after %s failures",
                 self.name, self._failure_count,
             )
+
+    def __enter__(self):
+        if not self._can_attempt():
+            raise CircuitBreakerOpen(
+                f"Circuit breaker '{self.name}' is OPEN. Retry after {self.recovery_timeout}s."
+            )
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            self.record_failure()
+        else:
+            self.record_success()
+        return False
+
+    async def __aenter__(self):
+        if not self._can_attempt():
+            raise CircuitBreakerOpen(
+                f"Circuit breaker '{self.name}' is OPEN. Retry after {self.recovery_timeout}s."
+            )
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            self.record_failure()
+        else:
+            self.record_success()
+        return False
 
     def __call__(self, func: Callable) -> Callable:
         @functools.wraps(func)
@@ -114,16 +152,14 @@ class CircuitBreakerOpen(Exception):
 _default_breakers: dict[str, CircuitBreaker] = {}
 
 
-def circuit_breaker(
+def get_circuit_breaker(
+    name: str = "default",
     failure_threshold: int = 5,
     recovery_timeout: float = 30.0,
-    name: str = "default",
-) -> Callable:
-    """Decorator factory for circuit breaker protection.
+) -> CircuitBreaker:
+    """Retrieve or create a circuit breaker by name.
 
-    Usage:
-        @circuit_breaker()
-        async def my_llm_call(...): ...
+    Supports per-provider circuit breaker naming e.g. name=f"llm_{provider_name}".
     """
     if name not in _default_breakers:
         _default_breakers[name] = CircuitBreaker(
@@ -134,5 +170,24 @@ def circuit_breaker(
     return _default_breakers[name]
 
 
-# Need asyncio import at the end to avoid circular import issues with functools
-import asyncio  # noqa: E402
+def circuit_breaker(
+    failure_threshold: int = 5,
+    recovery_timeout: float = 30.0,
+    name: str = "default",
+) -> CircuitBreaker:
+    """Decorator factory for circuit breaker protection.
+
+    Usage:
+        @circuit_breaker()
+        async def my_llm_call(...): ...
+    """
+    return get_circuit_breaker(
+        name=name,
+        failure_threshold=failure_threshold,
+        recovery_timeout=recovery_timeout,
+    )
+
+
+def reset_circuit_breakers() -> None:
+    """Clear all registered circuit breakers."""
+    _default_breakers.clear()

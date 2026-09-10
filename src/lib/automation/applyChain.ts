@@ -15,7 +15,7 @@ export interface ApplyChainJob {
   description?: string;
   url?: string;
   dedupe_key?: string;
-  [k: string]: any;
+  [k: string]: unknown;
 }
 
 const dedupeKeyFor = (job: ApplyChainJob) =>
@@ -47,7 +47,7 @@ export function buildApplyChain(job: ApplyChainJob): ChainStep[] {
         // ponytail: object form required since the Task 2 signature change —
         // a raw string would silently drop the JD.
         const result = await optimizeResume(resume.id, { jobDescription: jd });
-        ctx.optimizedText = result?.optimized_text || result?.text || "";
+        ctx.optimizedText = String(result?.optimized_text || result?.text || "");
         const score = (result?.ats_score_after ?? result?.score) as number | undefined;
         return score ? `ATS match now ${Math.round(score)}%` : `Tailored "${resume.title}"`;
       },
@@ -56,7 +56,7 @@ export function buildApplyChain(job: ApplyChainJob): ChainStep[] {
       label: "Drafting a matching cover letter",
       optional: true,
       run: async (ctx) => {
-        let resumeText: string = ctx.optimizedText;
+        let resumeText: string = ctx.optimizedText || "";
         if (!resumeText && ctx.resumeId) {
           const full = await getResume(ctx.resumeId);
           resumeText = full.original_text || "";
@@ -79,7 +79,7 @@ export function buildApplyChain(job: ApplyChainJob): ChainStep[] {
       label: "Saving the prepared application",
       run: async (ctx) => {
         const app = await createApplication({
-          job,
+          job: job as Record<string, unknown>,
           title: job.title,
           company: job.company,
           location: job.location,
@@ -88,7 +88,7 @@ export function buildApplyChain(job: ApplyChainJob): ChainStep[] {
           cover_letter: ctx.coverLetter,
           status: "saved",
           stage: "saved",
-        } as any);
+        });
         ctx.applicationId = app.application_id;
         return "Draft ready in Pipeline → Saved (not yet submitted)";
       },

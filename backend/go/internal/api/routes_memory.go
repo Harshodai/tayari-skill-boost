@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -76,7 +76,7 @@ func (s *Server) RegisterMemoryRoutes(r chi.Router) {
 // service is down. Genuine upstream/network failures (no *ai.APIError, or a
 // 5xx from Python) still respond 502.
 func (s *Server) respondMemoryError(w http.ResponseWriter, action, endpoint string, err error) {
-	log.Printf("memory %s %s: AI call failed: %v", action, endpoint, err)
+	slog.Error("memory: AI call failed", "action", action, "endpoint", endpoint, "error", err)
 	var apiErr *ai.APIError
 	if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
 		s.respondError(w, apiErr.StatusCode, apiErr.Body)

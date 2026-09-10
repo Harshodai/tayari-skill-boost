@@ -134,6 +134,13 @@ jobs:
           # app-tests-only threshold.
           pytest app/tests tests --cov=app --cov-report=term-missing --cov-fail-under=60
 
+      - name: Run Eval Harness CI Gate
+        working-directory: backend/python
+        env:
+          EVAL_MODE: "true"
+        run: python -m eval.harness.ci_gate --quick
+
+
   extension-build:
     name: Chrome Extension Check
     runs-on: ubuntu-latest

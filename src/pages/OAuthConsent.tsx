@@ -6,10 +6,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, ShieldCheck } from "lucide-react";
 
 // Local type wrapper for the beta supabase.auth.oauth namespace.
+interface OAuthClient {
+  name?: string;
+}
+
+interface OAuthConsentDetails {
+  redirect_url?: string;
+  redirect_to?: string;
+  client?: OAuthClient;
+}
+
 type OAuthApi = {
-  getAuthorizationDetails: (id: string) => Promise<{ data: any; error: { message: string } | null }>;
-  approveAuthorization: (id: string) => Promise<{ data: any; error: { message: string } | null }>;
-  denyAuthorization: (id: string) => Promise<{ data: any; error: { message: string } | null }>;
+  getAuthorizationDetails: (id: string) => Promise<{ data: OAuthConsentDetails | null; error: { message: string } | null }>;
+  approveAuthorization: (id: string) => Promise<{ data: OAuthConsentDetails | null; error: { message: string } | null }>;
+  denyAuthorization: (id: string) => Promise<{ data: OAuthConsentDetails | null; error: { message: string } | null }>;
 };
 
 function isSafeRelativePath(p: string | null): p is string {
@@ -19,7 +29,7 @@ function isSafeRelativePath(p: string | null): p is string {
 export default function OAuthConsent() {
   const [params] = useSearchParams();
   const authorizationId = params.get("authorization_id") ?? "";
-  const [details, setDetails] = useState<any>(null);
+  const [details, setDetails] = useState<OAuthConsentDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 

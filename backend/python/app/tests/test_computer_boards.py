@@ -11,8 +11,9 @@ from app.services.computer_action_policy import BOARD_POLICIES, authorize_board
 
 def test_board_policies_table():
     assert BOARD_POLICIES["boards.greenhouse.io"]["enabled"] is True
-    assert BOARD_POLICIES["boards.lever.co"]["enabled"] is False
-    assert BOARD_POLICIES["jobs.ashbyhq.com"]["enabled"] is False
+    assert BOARD_POLICIES["boards.lever.co"]["enabled"] is True
+    assert BOARD_POLICIES["jobs.lever.co"]["enabled"] is True
+    assert BOARD_POLICIES["jobs.ashbyhq.com"]["enabled"] is True
 
 
 def test_unknown_board_rejected():
@@ -31,13 +32,14 @@ def test_greenhouse_allowed():
 
 
 @pytest.mark.parametrize(
-    "url",
+    "url,host",
     [
-        "https://boards.lever.co/acme/12345",
-        "https://jobs.ashbyhq.com/acme/12345",
+        ("https://boards.disabled-lever.co/acme/12345", "boards.disabled-lever.co"),
+        ("https://jobs.disabled-ashby.com/acme/12345", "jobs.disabled-ashby.com"),
     ],
 )
-def test_disabled_boards_return_board_disabled_handoff(url):
+def test_disabled_boards_return_board_disabled_handoff(monkeypatch, url, host):
+    monkeypatch.setitem(BOARD_POLICIES, host, {"enabled": False})
     decision = authorize_board(url)
     assert decision["outcome"] == "handoff"
     assert decision["reason"] == "board_disabled"
@@ -47,16 +49,17 @@ def test_disabled_boards_return_board_disabled_handoff(url):
 
 
 @pytest.mark.asyncio
-async def test_disabled_board_never_executes():
+async def test_disabled_board_never_executes(monkeypatch):
     from app.services.browser_worker_pool import create_worker, get_worker
 
+    monkeypatch.setitem(BOARD_POLICIES, "boards.disabled-lever.co", {"enabled": False})
     run_id = "board-disabled-never-executes"
     assert get_worker(run_id) is None
     with pytest.raises(DomainForbiddenError) as exc_info:
         await create_worker(
             run_id=run_id,
             user_id="00000000-0000-0000-0000-000000000001",
-            target_url="https://boards.lever.co/acme/12345",
+            target_url="https://boards.disabled-lever.co/acme/12345",
         )
     assert "board_disabled" in exc_info.value.detail
     assert get_worker(run_id) is None

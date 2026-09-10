@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from app.services import llm_service
 from app.services.prompt_safety import untrusted as _untrusted, UNTRUSTED_INSTRUCTION as _UNTRUSTED_INSTRUCTION
+from app.unhobbling.signatures import HarnessSignatureRegistry
 
 logger = logging.getLogger("tayari.agent.skill_router")
 
@@ -38,6 +39,9 @@ class SkillTaskType(str, Enum):
     INTERVIEW_QUESTIONS = "interview_questions"
     COMPANY_BRIEF_EXTRACTION = "company_brief_extraction"
     FIT_MATRIX_DIMENSION = "fit_matrix_dimension"
+    SKILL_EXTRACTION = "skill_extraction"
+    ASSESSMENT_GENERATION = "assessment_gen"
+    CODE_ACTION = "code_action"
 
 
 class LatencyTarget(str, Enum):
@@ -45,6 +49,14 @@ class LatencyTarget(str, Enum):
     FAST = "fast"
     BALANCED = "balanced"
     QUALITY = "quality"
+
+
+# Map specialized task types to HarnessSignatureRegistry signature keys
+TASK_TYPE_TO_SIGNATURE: Dict[SkillTaskType, str] = {
+    SkillTaskType.SKILL_EXTRACTION: "skill_extraction",
+    SkillTaskType.ASSESSMENT_GENERATION: "assessment_gen",
+    SkillTaskType.CODE_ACTION: "code_action",
+}
 
 
 # Base tier mapping for each task type under balanced conditions
@@ -56,6 +68,9 @@ TASK_BASE_TIERS: Dict[SkillTaskType, Optional[str]] = {
     SkillTaskType.COVER_LETTER: "smart",
     SkillTaskType.INTERVIEW_QUESTIONS: "smart",
     SkillTaskType.FIT_MATRIX_DIMENSION: "fast",
+    SkillTaskType.SKILL_EXTRACTION: "smart",
+    SkillTaskType.ASSESSMENT_GENERATION: "smart",
+    SkillTaskType.CODE_ACTION: "fast",
 }
 
 # Human-readable target model descriptors
@@ -73,6 +88,8 @@ def normalize_task_type(task_type: Union[SkillTaskType, str]) -> SkillTaskType:
     if isinstance(task_type, SkillTaskType):
         return task_type
     val = str(task_type or "").strip().lower().replace("-", "_")
+    if val in ("assessment_generation", "assessment_gen"):
+        return SkillTaskType.ASSESSMENT_GENERATION
     for member in SkillTaskType:
         if member.value == val:
             return member
@@ -257,6 +274,53 @@ class SkillRouter:
                 "latency_target": target.value,
                 "output": text,
             }
+
+        # Specialized unhobbling harness tasks via HarnessSignatureRegistry
+        if task in TASK_TYPE_TO_SIGNATURE:
+            sig_name = TASK_TYPE_TO_SIGNATURE[task]
+            sig_schema = HarnessSignatureRegistry.schema_for_llm(sig_name)
+            sig_cls = HarnessSignatureRegistry.get(sig_name)
+
+            if task == SkillTaskType.SKILL_EXTRACTION:
+                target_role = payload.get("target_role") or payload.get("role") or ""
+                resume_content = payload.get("resume_text") or payload.get("resume") or payload.get("resume_handle") or payload.get("raw_text") or ""
+                jd_content = payload.get("job_description") or payload.get("jd") or payload.get("jd_handle") or ""
+                system = "You extract structured skills and alignment between candidate materials and job requirements." + _UNTRUSTED_INSTRUCTION
+                user = f"""Extract skills for target role: {_untrusted(str(target_role))}
+RESUME:
+{_untrusted(str(resume_content)[:8000])}
+JOB DESCRIPTION:
+{_untrusted(str(jd_content)[:6000])}"""
+            elif task == SkillTaskType.ASSESSMENT_GENERATION:
+                target_role = payload.get("target_role") or payload.get("role") or ""
+                skills_context = payload.get("profile_summary") or payload.get("skills") or payload.get("context") or payload.get("skill_extraction_result") or ""
+                jd_context = payload.get("job_description") or payload.get("gaps") or ""
+                system = "You generate skill-gap assessments and personalized learning paths." + _UNTRUSTED_INSTRUCTION
+                user = f"""Generate skill assessment and learning path.
+TARGET ROLE: {_untrusted(str(target_role))}
+CANDIDATE CONTEXT:
+{_untrusted(str(skills_context)[:6000])}
+JOB REQUIREMENTS:
+{_untrusted(str(jd_context)[:4000])}"""
+            else:  # CODE_ACTION
+                task_desc = payload.get("task_description") or payload.get("goal") or payload.get("task") or ""
+                variables = payload.get("variable_handles") or payload.get("variables") or []
+                system = "You generate safe Python code to operate on variable handles in a sandboxed REPL." + _UNTRUSTED_INSTRUCTION
+                user = f"""Generate code action.
+TASK: {_untrusted(str(task_desc))}
+VARIABLES: {variables}"""
+
+            res = await llm_service.llm_json(
+                system,
+                user,
+                response_model=sig_cls,
+                tier=tier,
+                _user_id=_user_id,
+                _resource=task.value,
+                schema=sig_schema,
+            )
+            out_res = res.model_dump() if hasattr(res, "model_dump") else res
+            return {"task_type": task.value, "tier": tier, "result": out_res}
 
         # Specialized skill implementations
         if task == SkillTaskType.JOB_DISCOVERY_EXTRACTION:

@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 )
 
@@ -18,7 +18,7 @@ func (s *Server) handleInterviewCopilotHint(w http.ResponseWriter, r *http.Reque
 	}
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/interview/copilot-hint", body, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleInterviewCopilotHint: AI call failed: %v", err)
+		slog.Error("handleInterviewCopilotHint: AI call failed", "error", err)
 		s.respondAIGatewayError(w, err, "Live interview copilot failed")
 		return
 	}
@@ -36,7 +36,7 @@ func (s *Server) handleInterviewVoiceFeedback(w http.ResponseWriter, r *http.Req
 	}
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/interview/voice-feedback", body, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleInterviewVoiceFeedback: AI call failed: %v", err)
+		slog.Error("handleInterviewVoiceFeedback: AI call failed", "error", err)
 		s.respondAIGatewayError(w, err, "Voice analysis failed")
 		return
 	}
@@ -55,7 +55,7 @@ func (s *Server) handleInterviewCopilotStream(w http.ResponseWriter, r *http.Req
 
 	upstream, err := s.AI.PostStream(r.Context(), "/api/v1/interview/copilot/stream", body, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleInterviewCopilotStream: upstream failed: %v", err)
+		slog.Error("handleInterviewCopilotStream: upstream failed", "error", err)
 		if s.respondAICircuitOpen(w, err) {
 			return
 		}
@@ -87,7 +87,7 @@ func (s *Server) handleInterviewCopilotStream(w http.ResponseWriter, r *http.Req
 		}
 		if err != nil {
 			if err != io.EOF {
-				log.Printf("handleInterviewCopilotStream: read error: %v", err)
+				slog.Error("handleInterviewCopilotStream: read error", "error", err)
 			}
 			return
 		}
@@ -102,9 +102,31 @@ func (s *Server) handleInterviewEvaluateSTAR(w http.ResponseWriter, r *http.Requ
 	}
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/interview/evaluate-star", body, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleInterviewEvaluateSTAR: AI call failed: %v", err)
+		slog.Error("handleInterviewEvaluateSTAR: AI call failed", "error", err)
 		s.respondAIGatewayError(w, err, "Adaptive interview evaluation failed")
 		return
 	}
 	s.respondJSON(w, http.StatusOK, result)
 }
+
+// handleInterviewExperienceSubmit handles interview experience submission, checking moderation status
+// (default 'approved' if clean, 'pending' if flagged).
+func (s *Server) handleInterviewExperienceSubmit(w http.ResponseWriter, r *http.Request) {
+	s.handleCreateInterviewQuestion(w, r)
+}
+
+// handleInterviewModerate proxies interview experience content to Python moderation service.
+func (s *Server) handleInterviewModerate(w http.ResponseWriter, r *http.Request) {
+	var body map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		body = make(map[string]interface{})
+	}
+	result, err := s.AI.PostJSONWithHeaders("/api/v1/interview/moderate", body, s.getXUserHeaders(r))
+	if err != nil {
+		slog.Error("handleInterviewModerate: AI call failed", "error", err)
+		s.respondAIGatewayError(w, err, "Content moderation failed")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, result)
+}
+

@@ -24,6 +24,10 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Post("/api/auth/register", s.handleRegister)
 		r.Post("/api/v1/auth/login", s.handleLogin)
 		r.Post("/api/auth/login", s.handleLogin)
+		r.Post("/api/v1/auth/verify-email", s.handleVerifyEmail)
+		r.Post("/api/auth/verify-email", s.handleVerifyEmail)
+		r.Post("/api/v1/auth/resend-verification", s.handleResendVerificationEmail)
+		r.Post("/api/auth/resend-verification", s.handleResendVerificationEmail)
 	})
 
 	// Public Health & Info
@@ -101,6 +105,7 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Post("/api/v1/resumes/upload", s.handleUploadResumeMultipart)
 		r.Get("/api/v1/resumes", s.handleListResumes)
 		r.Get("/api/v1/resumes/{id}", s.handleGetResume)
+		r.Put("/api/v1/resumes/{id}", s.handleUpdateResume)
 		r.Delete("/api/v1/resumes/{id}", s.handleDeleteResume)
 		r.Post("/api/v1/resumes/{id}/export", s.handleExportResume)
 		r.Post("/api/v1/resumes/generate-pdf", s.handleGenerateResumePdf)
@@ -174,6 +179,7 @@ func (s *Server) registerLegacyAliases(r chi.Router) {
 	r.Get("/api/resumes", s.handleListResumes)
 	r.Post("/api/resumes", s.handleCreateResume)
 	r.Get("/api/resumes/{id}", s.handleGetResume)
+	r.Put("/api/resumes/{id}", s.handleUpdateResume)
 	r.Delete("/api/resumes/{id}", s.handleDeleteResume)
 	// ponytail: /api twins for analyze/optimize/verification/referral/
 	// interview live in routesAIProxy so both prefixes share the per-user

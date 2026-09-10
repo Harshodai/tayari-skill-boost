@@ -170,8 +170,8 @@ const AutoPilot = () => {
       toast.success("Application approved and moved to saved jobs!");
       queryClient.invalidateQueries({ queryKey: ["applications", activeRunId] });
       queryClient.invalidateQueries({ queryKey: ["autopilot-runs"] });
-    } catch (err: any) {
-      toast.error(err.message || "Failed to approve application");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to approve application");
     }
   };
 
@@ -184,8 +184,8 @@ const AutoPilot = () => {
       toast.success("Application rejected");
       queryClient.invalidateQueries({ queryKey: ["applications", activeRunId] });
       queryClient.invalidateQueries({ queryKey: ["autopilot-runs"] });
-    } catch (err: any) {
-      toast.error(err.message || "Failed to reject application");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to reject application");
     }
   };
 
@@ -550,7 +550,7 @@ const AutoPilot = () => {
                               a.download = `resume-${app.application_id}.docx`;
                               a.click();
                               window.URL.revokeObjectURL(url);
-                            }).catch((err: any) => toast.error(err.message));
+                            }).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Download failed"));
                           }}
                         >
                           <Download className="w-3 h-3 mr-1" />
@@ -563,7 +563,7 @@ const AutoPilot = () => {
                             deleteApplication(app.application_id).then(() => {
                               toast.success("Deleted");
                               queryClient.invalidateQueries({ queryKey: ["applications", activeRunId] });
-                            }).catch((err: any) => toast.error(err.message));
+                            }).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Delete failed"));
                           }}
                         >
                           <Trash2 className="w-4 h-4 text-destructive" />

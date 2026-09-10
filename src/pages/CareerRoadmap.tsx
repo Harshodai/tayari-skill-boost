@@ -71,12 +71,12 @@ const CareerRoadmap = () => {
                     // Set latest resume as default
                     setSelectedResumeId(String(list[0].id));
                 }
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error("Failed to fetch resumes:", err);
                 toast({
                     variant: "destructive",
                     title: "Error fetching resumes",
-                    description: err.message || "Failed to load resumes. Please check connection.",
+                    description: err instanceof Error ? err.message : "Failed to load resumes. Please check connection.",
                 });
             } finally {
                 setLoadingResumes(false);
@@ -133,12 +133,12 @@ const CareerRoadmap = () => {
                 description: `Successfully analyzed roadmap for ${targetRole}.`,
             });
             setActiveTab("skills");
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Analysis error:", err);
             toast({
                 variant: "destructive",
                 title: "Analysis failed",
-                description: err.message || "Something went wrong during the intelligence analysis.",
+                description: err instanceof Error ? err.message : "Something went wrong during the intelligence analysis.",
             });
         } finally {
             setAnalyzing(false);
@@ -220,7 +220,7 @@ const CareerRoadmap = () => {
                                                 Select Resume
                                             </label>
                                             <select
-                                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                                 value={selectedResumeId}
                                                 onChange={(e) => setSelectedResumeId(e.target.value)}
                                             >

@@ -237,34 +237,67 @@ export async function deleteCareerOpsPortal(portalId: number): Promise<void> {
   await checkResponse(response);
 }
 
-export async function scanCareerOpsPortals(): Promise<{ jobs: any[] }> {
-  return apiFetch("/v1/career-ops/scan", {
+export interface CareerOpsScannedJob {
+  id?: string | number;
+  title?: string;
+  company?: string;
+  score?: number;
+  description?: string;
+  posted_date?: string;
+  location?: string;
+  url?: string;
+  portal?: string;
+  match_reasons?: string[];
+  [key: string]: unknown;
+}
+
+export interface CareerOpsRecommendation {
+  action: string;
+  impact: string;
+  reasoning: string;
+  [key: string]: unknown;
+}
+
+export interface CareerOpsPatterns {
+  total_analyzed?: number;
+  outcomes?: { positive?: number; [key: string]: unknown };
+  score_averages?: { positive?: number; [key: string]: unknown };
+  recommendations?: CareerOpsRecommendation[];
+  funnel?: Record<string, number>;
+  [key: string]: unknown;
+}
+
+export async function scanCareerOpsPortals(): Promise<{ jobs: CareerOpsScannedJob[] }> {
+  return apiFetch<{ jobs: CareerOpsScannedJob[] }>("/v1/career-ops/scan", {
     method: "POST",
     body: JSON.stringify({}),
   });
 }
 
-export async function getCareerOpsPatterns(): Promise<any> {
-  return apiFetch("/v1/career-ops/patterns");
+export async function getCareerOpsPatterns(): Promise<CareerOpsPatterns> {
+  return apiFetch<CareerOpsPatterns>("/v1/career-ops/patterns");
 }
 
 export async function listCareerOpsFollowups(): Promise<{ followups: CareerOpsFollowup[] }> {
-  return apiFetch("/v1/career-ops/followups");
+  return apiFetch<{ followups: CareerOpsFollowup[] }>("/v1/career-ops/followups");
 }
 
-export async function actionCareerOpsFollowup(applicationId: string, payload: { contact?: string; notes?: string }): Promise<any> {
-  return apiFetch("/v1/career-ops/followups/action", {
+export async function actionCareerOpsFollowup(applicationId: string, payload: { contact?: string; notes?: string }): Promise<{ success: boolean; [key: string]: unknown }> {
+  const response = await apiFetchResponse(`/v1/career-ops/followups/${applicationId}/action`, {
     method: "POST",
-    body: JSON.stringify({ application_id: applicationId, ...payload }),
+    headers: getHeaders(),
+    body: JSON.stringify(payload),
   });
+  await checkResponse(response);
+  return response.json();
 }
 
 export async function getCareerOpsStoryBank(): Promise<{ stories: CareerOpsStory[] }> {
   return apiFetch("/v1/career-ops/story-bank");
 }
 
-export async function saveCareerOpsStoryBank(stories: CareerOpsStory[]): Promise<any> {
-  return apiFetch("/v1/career-ops/story-bank", {
+export async function saveCareerOpsStoryBank(stories: CareerOpsStory[]): Promise<{ success: boolean; [key: string]: unknown }> {
+  return apiFetch<{ success: boolean; [key: string]: unknown }>("/v1/career-ops/story-bank", {
     method: "POST",
     body: JSON.stringify({ stories }),
   });

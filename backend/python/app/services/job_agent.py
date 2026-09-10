@@ -319,7 +319,9 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
                        scrape_enrich: bool = True,
                        target_board: dict | None = None,
                        user_id: str | None = None,
-                       conversation_id: str | None = None) -> dict:
+                       conversation_id: str | None = None,
+                       cursor: int = 0,
+                       limit: int | None = None) -> dict:
     trace = []
 
     def log_step(step, detail):
@@ -381,7 +383,8 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
     jobs = []
     seen = set()
     for q in queries:
-        batch = await search_jobs(q, location)
+        batch_raw = await search_jobs(q, location, cursor=None, return_dict=False)
+        batch = batch_raw.get("results", []) if isinstance(batch_raw, dict) else batch_raw
         for j in batch:
             key = (j["title"].lower(), j["company"].lower())
             if key not in seen:
@@ -405,7 +408,9 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
     log_step("PRERANK", f"Hybrid retrieval ranking ({method}) before AI scoring")
 
     candidate = _candidate_summary(profile, resume_text)
-    ranked = await rank_jobs(candidate, jobs, top_n=top_n)
+    effective_limit = limit or top_n or 20
+    rank_target = max(top_n, (cursor or 0) + effective_limit, 40)
+    ranked = await rank_jobs(candidate, jobs, top_n=rank_target)
     
     # 4. RANK (with personal preference boost)
     if preferences:
@@ -514,13 +519,21 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
         job["preparation_material"] = _preparation_material(job, role_meta)
     log_step("REPORT", f"Returning top {len(annotated)} matches sorted by fit with role-bound preparation material")
 
+    cur = cursor or 0
+    paginated_results = annotated[cur : cur + effective_limit]
+    next_cursor = cur + effective_limit if len(annotated) > cur + effective_limit else None
+
     return {
         "query": effective_query,
         "location": location,
         "total_found": len(jobs),
+        "total": len(annotated),
         "engine": active_engine(),
         "role_intelligence": role_meta,
-        "results": annotated,
+        "results": paginated_results,
+        "jobs": paginated_results,
+        "cursor": cur,
+        "next_cursor": next_cursor,
         "agent_trace": trace,
         "memory_used": bool(memory_context),
         "memory_tiers_used": list(memory_snapshot.tiers_used) if memory_snapshot else [],

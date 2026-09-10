@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,6 +18,7 @@ import (
 	"tayari-backend/internal/concurrency"
 	"tayari-backend/internal/config"
 	"tayari-backend/internal/database"
+	"tayari-backend/internal/observability"
 )
 
 const (
@@ -30,6 +32,13 @@ func main() {
 		log.Fatalf("FATAL: invalid startup configuration: %v", err)
 	}
 
+	shutdownTracer, tracerErr := observability.InitTracer(context.Background())
+	if tracerErr != nil {
+		slog.Warn("OTel init failed, tracing disabled", "error", tracerErr)
+	} else {
+		defer shutdownTracer()
+	}
+
 	if dsn := os.Getenv("SENTRY_DSN"); dsn != "" {
 		err := sentry.Init(sentry.ClientOptions{
 			Dsn:              dsn,
@@ -39,9 +48,9 @@ func main() {
 			TracesSampleRate: 0.2,
 		})
 		if err != nil {
-			log.Printf("Sentry init failed: %v", err)
+			slog.Error("Sentry init failed", "error", err)
 		} else {
-			log.Println("Sentry initialized")
+			slog.Info("Sentry initialized")
 			defer sentry.Flush(2 * time.Second)
 		}
 	}
@@ -56,12 +65,12 @@ func main() {
 	for i := 1; i <= maxDBRetries; i++ {
 		db, err = database.NewDB(cfg.DatabaseURL)
 		if err == nil {
-			log.Println("Successfully connected to database")
+			slog.Info("Successfully connected to database")
 			break
 		}
-		log.Printf("Database connection attempt %d/%d failed: %v", i, maxDBRetries, err)
+		slog.Error("Database connection attempt failed", "attempt", i, "max_attempts", maxDBRetries, "error", err)
 		if i < maxDBRetries {
-			log.Printf("Retrying in %v...", dbRetryInterval)
+			slog.Info("Retrying in ...", "value", dbRetryInterval)
 			time.Sleep(dbRetryInterval)
 		}
 	}
@@ -83,13 +92,13 @@ func main() {
 	// Supabase behavior or create a hidden auth bypass outside test mode.
 	e2eLocalAuth := strings.EqualFold(strings.TrimSpace(os.Getenv("TAYARI_E2E_TEST_MODE")), "true")
 	if cfg.UseSupabase && !e2eLocalAuth {
-		log.Println("Using Supabase Authentication Strategy")
+		slog.Info("Using Supabase Authentication Strategy")
 		authService = auth.NewSupabaseAuth(cfg, db)
 	} else {
 		if cfg.UseSupabase {
-			log.Println("Using Local Postgres Authentication Strategy for E2E test mode")
+			slog.Info("Using Local Postgres Authentication Strategy for E2E test mode")
 		} else {
-			log.Println("Using Local Postgres Authentication Strategy")
+			slog.Info("Using Local Postgres Authentication Strategy")
 		}
 		authService = auth.NewLocalAuth(db, cfg, auditWorker)
 	}
@@ -98,11 +107,11 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
-		Handler: server.Router,
+		Handler: server.Handler(),
 	}
 
 	go func() {
-		log.Printf("Server starting on port %s", cfg.Port)
+		slog.Info("Server starting on port", "value", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server failed to start: %v", err)
 		}
@@ -113,14 +122,14 @@ func main() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down server...")
+	slog.Info("Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("Server forced to shutdown: %v", err)
+		slog.Error("Server forced to shutdown", "error", err)
 	}
 
-	log.Println("Server stopped gracefully")
+	slog.Info("Server stopped gracefully")
 }

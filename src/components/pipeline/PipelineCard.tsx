@@ -1,3 +1,4 @@
+import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ExternalLink, GripVertical, MapPin, MessageSquare, CheckCheck, XCircle, AlertTriangle } from "lucide-react";
@@ -20,7 +21,7 @@ const STAGE_COMM_TYPE: Record<PipelineStage, string | null> = {
   rejected: "status-check",
 };
 
-export function PipelineCard({ job, isOverlay, selected, onSelect }: Props) {
+function PipelineCardInner({ job, isOverlay, selected, onSelect }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: job.id,
     data: { stage: job.stage },
@@ -170,3 +171,5 @@ export function PipelineCard({ job, isOverlay, selected, onSelect }: Props) {
     </div>
   );
 }
+
+export const PipelineCard = React.memo(PipelineCardInner);

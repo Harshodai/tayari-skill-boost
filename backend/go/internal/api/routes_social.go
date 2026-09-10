@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -43,6 +43,10 @@ func (s *Server) routesSocial(r chi.Router) {
 		r.Post("/api/interview-questions/{id}/upvote", s.handleUpvoteInterviewQuestion)
 		r.Post("/api/v1/interview-questions/{id}/report", s.handleReportInterviewQuestion)
 		r.Post("/api/interview-questions/{id}/report", s.handleReportInterviewQuestion)
+		r.Get("/api/v1/interview-questions/pending", s.handleListPendingInterviewQuestions)
+		r.Get("/api/interview-questions/pending", s.handleListPendingInterviewQuestions)
+		r.Post("/api/v1/interview-questions/{id}/moderate", s.handleModerateInterviewQuestion)
+		r.Post("/api/interview-questions/{id}/moderate", s.handleModerateInterviewQuestion)
 
 		// Application outcomes (M2 funnel)
 		r.Post("/api/v1/applications/{id}/outcome", s.handleUpsertOutcome)
@@ -129,7 +133,7 @@ func (s *Server) handleSendConnectionRequest(w http.ResponseWriter, r *http.Requ
 		s.respondError(w, http.StatusConflict, "Connection already exists")
 		return
 	} else if !errors.Is(checkErr, sql.ErrNoRows) {
-		log.Printf("handleSendConnectionRequest: existence check failed: %v", checkErr)
+		slog.Error("handleSendConnectionRequest: existence check failed", "error", checkErr)
 		s.respondError(w, http.StatusInternalServerError, "Failed to send connection request")
 		return
 	}
@@ -146,7 +150,7 @@ func (s *Server) handleSendConnectionRequest(w http.ResponseWriter, r *http.Requ
 		case "23503": // foreign_key_violation — addressee doesn't exist
 			s.respondError(w, http.StatusBadRequest, "Invalid user")
 		default:
-			log.Printf("handleSendConnectionRequest: %v", err)
+			slog.Error("handleSendConnectionRequest", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to send connection request")
 		}
 		return
@@ -170,7 +174,7 @@ func (s *Server) handleAcceptConnection(w http.ResponseWriter, r *http.Request) 
 		id, user.ID,
 	)
 	if err != nil {
-		log.Printf("handleAcceptConnection: %v", err)
+		slog.Error("handleAcceptConnection", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to accept connection")
 		return
 	}
@@ -196,7 +200,7 @@ func (s *Server) handleDeleteConnection(w http.ResponseWriter, r *http.Request) 
 		id, user.ID,
 	)
 	if err != nil {
-		log.Printf("handleDeleteConnection: %v", err)
+		slog.Error("handleDeleteConnection", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to remove connection")
 		return
 	}
@@ -218,7 +222,7 @@ func (s *Server) handleListConnections(w http.ResponseWriter, r *http.Request) {
 		 ORDER BY created_at DESC`, user.ID,
 	)
 	if err != nil {
-		log.Printf("handleListConnections: query failed: %v", err)
+		slog.Error("handleListConnections: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to list connections")
 		return
 	}
@@ -228,7 +232,7 @@ func (s *Server) handleListConnections(w http.ResponseWriter, r *http.Request) {
 		var id, reqID, addr, status string
 		var createdAt time.Time
 		if err := rows.Scan(&id, &reqID, &addr, &status, &createdAt); err != nil {
-			log.Printf("handleListConnections: scan failed: %v", err)
+			slog.Error("handleListConnections: scan failed", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to scan connection")
 			return
 		}
@@ -238,7 +242,7 @@ func (s *Server) handleListConnections(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("handleListConnections: rows iteration failed: %v", err)
+		slog.Error("handleListConnections: rows iteration failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to list connections")
 		return
 	}
@@ -256,7 +260,7 @@ func (s *Server) handleListPendingConnections(w http.ResponseWriter, r *http.Req
 		 ORDER BY created_at DESC`, user.ID,
 	)
 	if err != nil {
-		log.Printf("handleListPendingConnections: query failed: %v", err)
+		slog.Error("handleListPendingConnections: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to list pending connections")
 		return
 	}
@@ -266,7 +270,7 @@ func (s *Server) handleListPendingConnections(w http.ResponseWriter, r *http.Req
 		var id, reqID, status string
 		var createdAt time.Time
 		if err := rows.Scan(&id, &reqID, &status, &createdAt); err != nil {
-			log.Printf("handleListPendingConnections: scan failed: %v", err)
+			slog.Error("handleListPendingConnections: scan failed", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to scan pending connection")
 			return
 		}
@@ -276,7 +280,7 @@ func (s *Server) handleListPendingConnections(w http.ResponseWriter, r *http.Req
 		})
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("handleListPendingConnections: rows iteration failed: %v", err)
+		slog.Error("handleListPendingConnections: rows iteration failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to list pending connections")
 		return
 	}
@@ -328,7 +332,7 @@ func (s *Server) handleCreateInterviewQuestion(w http.ResponseWriter, r *http.Re
 		user.ID, strings.TrimSpace(req.Company), strings.TrimSpace(req.Role), strings.TrimSpace(req.QuestionText), strings.TrimSpace(req.AnswerText), req.Category, req.Visibility, moderationStatus, moderationReason,
 	).Scan(&id)
 	if err != nil {
-		log.Printf("handleCreateInterviewQuestion: %v", err)
+		slog.Error("handleCreateInterviewQuestion", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to create question")
 		return
 	}
@@ -359,7 +363,7 @@ func (s *Server) handleFeedInterviewQuestions(w http.ResponseWriter, r *http.Req
 		user.ID, company,
 	)
 	if err != nil {
-		log.Printf("handleFeedInterviewQuestions: query failed: %v", err)
+		slog.Error("handleFeedInterviewQuestions: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to load feed")
 		return
 	}
@@ -370,7 +374,7 @@ func (s *Server) handleFeedInterviewQuestions(w http.ResponseWriter, r *http.Req
 		var upvotes int
 		var createdAt time.Time
 		if err := rows.Scan(&id, &uid, &co, &role, &qt, &at, &cat, &vis, &upvotes, &createdAt); err != nil {
-			log.Printf("handleFeedInterviewQuestions: scan failed: %v", err)
+			slog.Error("handleFeedInterviewQuestions: scan failed", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to scan interview question")
 			return
 		}
@@ -382,7 +386,7 @@ func (s *Server) handleFeedInterviewQuestions(w http.ResponseWriter, r *http.Req
 		})
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("handleFeedInterviewQuestions: rows iteration failed: %v", err)
+		slog.Error("handleFeedInterviewQuestions: rows iteration failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to load feed")
 		return
 	}
@@ -418,7 +422,7 @@ func (s *Server) handleUpvoteInterviewQuestion(w http.ResponseWriter, r *http.Re
 		)`,
 		id, user.ID,
 	).Scan(&visible); err != nil {
-		log.Printf("handleUpvoteInterviewQuestion: visibility check failed: %v", err)
+		slog.Error("handleUpvoteInterviewQuestion: visibility check failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to record upvote")
 		return
 	}
@@ -434,7 +438,7 @@ func (s *Server) handleUpvoteInterviewQuestion(w http.ResponseWriter, r *http.Re
 		id, user.ID,
 	)
 	if err != nil {
-		log.Printf("handleUpvoteInterviewQuestion: insert failed: %v", err)
+		slog.Error("handleUpvoteInterviewQuestion: insert failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to record upvote")
 		return
 	}
@@ -444,7 +448,7 @@ func (s *Server) handleUpvoteInterviewQuestion(w http.ResponseWriter, r *http.Re
 	if err := s.DB.Conn.QueryRowContext(r.Context(),
 		`SELECT COUNT(*) FROM question_upvotes WHERE question_id=$1`, id,
 	).Scan(&total); err != nil {
-		log.Printf("handleUpvoteInterviewQuestion: count failed: %v", err)
+		slog.Error("handleUpvoteInterviewQuestion: count failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to record upvote")
 		return
 	}
@@ -473,7 +477,7 @@ func (s *Server) handleUpsertOutcome(w http.ResponseWriter, r *http.Request) {
 		`SELECT EXISTS (SELECT 1 FROM applications WHERE application_id=$1 AND user_id=$2)`,
 		appID, user.ID,
 	).Scan(&owned); err != nil {
-		log.Printf("handleUpsertOutcome: ownership check failed: %v", err)
+		slog.Error("handleUpsertOutcome: ownership check failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to save outcome")
 		return
 	}
@@ -519,7 +523,7 @@ func (s *Server) handleUpsertOutcome(w http.ResponseWriter, r *http.Request) {
 		req.SalaryOffered, req.Notes,
 	)
 	if err != nil {
-		log.Printf("handleUpsertOutcome: %v", err)
+		slog.Error("handleUpsertOutcome", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to save outcome")
 		return
 	}
@@ -535,12 +539,12 @@ func (s *Server) handleUpsertOutcome(w http.ResponseWriter, r *http.Request) {
 	if _, tenantID, tenantOK := calendarUser(r); tenantOK {
 		payload, marshalErr := json.Marshal(map[string]interface{}{"application_id": appID, "outcome": req})
 		if marshalErr != nil {
-			log.Printf("handleUpsertOutcome: automation event payload marshal failed: %v", marshalErr)
+			slog.Error("handleUpsertOutcome: automation event payload marshal failed", "error", marshalErr)
 		} else {
 			eventID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("tayari:application-outcome:"+user.ID.String()+":"+appID+":"+string(payload)))
 			_, eventErr := s.DB.Conn.ExecContext(r.Context(), `INSERT INTO automation_event_inbox (event_id,tenant_id,user_id,event_type,source,occurred_at,payload) VALUES ($1,$2,$3,'application.outcome_recorded','go.outcome_api',NOW(),$4) ON CONFLICT (event_id) DO NOTHING`, eventID, tenantID, user.ID, payload)
 			if eventErr != nil {
-				log.Printf("handleUpsertOutcome: automation event enqueue failed: %v", eventErr)
+				slog.Error("handleUpsertOutcome: automation event enqueue failed", "error", eventErr)
 			} else {
 				automationEventEnqueued = true
 			}
@@ -566,7 +570,7 @@ func (s *Server) handleGetOutcome(w http.ResponseWriter, r *http.Request) {
 			s.respondError(w, http.StatusNotFound, "Outcome not found")
 			return
 		}
-		log.Printf("handleGetOutcome: query failed: %v", err)
+		slog.Error("handleGetOutcome: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to load outcome")
 		return
 	}

@@ -116,12 +116,27 @@ export default function Pipeline() {
       }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["saved-jobs", userId] }),
-    onError: (e: any) => toast.error(e?.message || "Could not update stage"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not update stage"),
   });
+
+  interface RawSavedJobItem {
+    id?: string | number;
+    dedupe_key?: string;
+    saved_at?: string;
+    status?: string;
+    receipt?: PipelineJob["receipt"];
+    job?: Record<string, unknown>;
+    title?: string;
+    company?: string;
+    location?: string | null;
+    url?: string | null;
+    stage?: string;
+    [key: string]: unknown;
+  }
 
   const jobs = useMemo<PipelineJob[]>(
     () =>
-      (savedJobs as any[]).map((raw) => {
+      (savedJobs as RawSavedJobItem[]).map((raw) => {
         const j = raw.job && typeof raw.job === "object" ? { ...raw.job, ...raw } : raw;
         return {
           id: String(raw.id || raw.dedupe_key),

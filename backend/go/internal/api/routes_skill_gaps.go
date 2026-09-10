@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -54,7 +54,7 @@ func (s *Server) handleSkillGaps(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/skill-gaps", json.RawMessage(body), s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleSkillGaps: AI call failed: %v", err)
+		slog.Error("handleSkillGaps: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Skill-gap analysis failed")
 		return
 	}

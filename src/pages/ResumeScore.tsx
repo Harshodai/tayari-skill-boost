@@ -283,9 +283,10 @@ export default function ResumeScore() {
 
       setResumeText(extracted.trim());
       toast.success(`Extracted text from ${file.name}`);
-    } catch (err: any) {
-      setError(err?.message || "Failed to extract text from file");
-      toast.error("File extraction error: " + (err?.message || "Could not read file"));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to extract text from file";
+      setError(msg);
+      toast.error("File extraction error: " + msg);
     } finally {
       setIsExtracting(false);
     }
@@ -333,11 +334,12 @@ export default function ResumeScore() {
 
       setResult(data);
       toast.success("Resume scored successfully!");
-    } catch (caught: any) {
-      if (caught?.name !== "AbortError") {
-        if (caught?.status === 429) {
+    } catch (caught: unknown) {
+      const errObj = caught as { name?: string; status?: number; message?: string } | null;
+      if (errObj?.name !== "AbortError") {
+        if (errObj?.status === 429) {
           setError("Rate limit reached. Please wait a moment before trying again, or create a free account for higher limits.");
-        } else if (caught?.status === 400 || caught?.status === 422) {
+        } else if (errObj?.status === 400 || errObj?.status === 422) {
           setError("Invalid input. Please ensure your resume text is detailed and contains readable characters.");
         } else {
           setError(caught instanceof Error ? caught.message : "ATS score calculation failed. Please try again.");
@@ -624,7 +626,7 @@ export default function ResumeScore() {
                     }}
                     placeholder="Paste your plain-text resume here, or click 'Load Sample' from the benchmarks above..."
                     rows={12}
-                    className="w-full px-4 py-3 rounded-xl border border-border bg-background/90 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-y font-mono text-xs leading-relaxed"
+                    className="w-full px-4 py-3 rounded-xl border border-border bg-background/90 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-y font-mono text-xs leading-relaxed"
                   />
                   <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                     <span>Privacy guaranteed: Never stored or indexed. Evaluated strictly in-memory.</span>

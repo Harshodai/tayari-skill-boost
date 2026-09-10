@@ -43,7 +43,7 @@ function getToken() {
   return localStorage.getItem("auth_token");
 }
 
-async function fetchInterviewPrep(payload: any) {
+async function fetchInterviewPrep(payload: Record<string, unknown>) {
   const res = await apiFetchResponse(`/v1/interview/prep`, {
     method: "POST",
     headers: {
@@ -56,10 +56,63 @@ async function fetchInterviewPrep(payload: any) {
   return res.json();
 }
 
+interface AppItem {
+  id?: string;
+  application_id?: string;
+  status: string;
+  saved_job_id?: string;
+  company?: string;
+  role?: string;
+}
+
+interface SavedJobItem {
+  id: string | number;
+  job?: {
+    title?: string;
+    company?: string;
+    description?: string;
+  };
+}
+
+interface PrepQuestion {
+  id?: string;
+  question: string;
+  type?: string;
+  category?: string;
+  context?: string;
+  sample_answer?: string;
+  suggested_answer?: string;
+  suggested_approach?: string;
+  source_bullet?: string;
+  star_suggested?: {
+    situation?: string;
+    task?: string;
+    action?: string;
+    result?: string;
+    [key: string]: unknown;
+  };
+  tips?: string[];
+  key_points?: string[];
+}
+
+interface CompanySpecificInfo {
+  company?: string;
+  principles?: string[];
+  sample_questions?: string[];
+  [key: string]: unknown;
+}
+
+interface PrepData {
+  questions?: PrepQuestion[];
+  company_specific?: CompanySpecificInfo;
+  interview_type?: string;
+  [key: string]: unknown;
+}
+
 const InterviewPrep = () => {
   const [selectedAppId, setSelectedAppId] = useState<string>("");
   const [interviewType, setInterviewType] = useState("behavioral");
-  const [prepData, setPrepData] = useState<any>(null);
+  const [prepData, setPrepData] = useState<PrepData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [practiceMode, setPracticeMode] = useState(false);
   const [expandedQuestion, setExpandedQuestion] = useState<number | null>(null);
@@ -102,15 +155,15 @@ const InterviewPrep = () => {
     queryFn: () => listSavedJobs(),
   });
 
-  const interviewApps = applications.filter((a: any) =>
+  const interviewApps = (applications as AppItem[]).filter((a: AppItem) =>
     ["phone_screen", "interview"].includes(a.status)
   );
 
   const selectedApp = interviewApps.find(
-    (a: any) => (a.application_id || a.id) === selectedAppId
+    (a: AppItem) => (a.application_id || a.id) === selectedAppId
   );
   const selectedJob = selectedApp
-    ? savedJobs.find((j: any) => j.id === (selectedApp as any).saved_job_id)
+    ? (savedJobs as unknown as SavedJobItem[]).find((j: SavedJobItem) => String(j.id) === String(selectedApp.saved_job_id))
     : null;
 
   const handleGenerate = async () => {
@@ -120,7 +173,7 @@ const InterviewPrep = () => {
     }
     setIsGenerating(true);
     try {
-      const payload: any = {
+      const payload: Record<string, string> = {
         application_id: selectedAppId,
         interview_type: interviewType,
       };
@@ -135,8 +188,8 @@ const InterviewPrep = () => {
       setExpandedQuestion(null);
       setPracticeMode(false);
       toast.success("Interview prep generated!");
-    } catch (err: any) {
-      toast.error(err.message || "Generation failed");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Generation failed");
     } finally {
       setIsGenerating(false);
     }
@@ -302,7 +355,7 @@ const InterviewPrep = () => {
     setVoiceStatus("disconnected");
   };
 
-  const getCategoryVariant = (category: string): "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "info" | "subtle" => {
+  const getCategoryVariant = (category?: string): "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "info" | "subtle" => {
     switch (category?.toLowerCase()) {
       case "behavioral":
         return "info";
@@ -357,11 +410,11 @@ const InterviewPrep = () => {
                         <SelectValue placeholder="Choose an interview..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {interviewApps.map((app: any) => {
-                          const job = savedJobs.find((j: any) => j.id === app.saved_job_id);
+                        {interviewApps.map((app: AppItem) => {
+                          const job = (savedJobs as unknown as SavedJobItem[]).find((j: SavedJobItem) => String(j.id) === String(app.saved_job_id));
                           const jobData = job?.job || {};
                           return (
-                            <SelectItem key={app.id || app.application_id} value={app.application_id || app.id}>
+                            <SelectItem key={app.id || app.application_id} value={app.application_id || app.id || ""}>
                               {jobData.title || "Untitled"} @ {jobData.company || "Unknown"}
                             </SelectItem>
                           );
@@ -430,7 +483,7 @@ const InterviewPrep = () => {
             {/* Static Question List */}
             {questions.length > 0 && (
               <div className="space-y-4">
-                {questions.map((q: any, idx: number) => (
+                {questions.map((q: PrepQuestion, idx: number) => (
                   <Card key={idx} className="overflow-hidden border border-border/30 hover:border-border/60 transition-all shadow-sm">
                     <CardHeader className="p-4 pb-2">
                       <div className="flex items-center justify-between">

@@ -182,7 +182,7 @@ export default function DesktopAgent() {
             </div>
 
             {error && <div role="alert" className="mt-4 flex items-start gap-2.5 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm leading-6 text-rose-100"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
-            {result && <div className="mt-4 rounded-xl border border-emerald-300/15 bg-emerald-300/5 p-4"><div className="flex items-center gap-2 text-sm font-semibold text-emerald-100"><CheckCircle2 className="h-4 w-4" />Agent run returned a result</div><pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs leading-5 text-slate-300">{JSON.stringify(result, null, 2)}</pre></div>}
+            {Boolean(result) && <div className="mt-4 rounded-xl border border-emerald-300/15 bg-emerald-300/5 p-4"><div className="flex items-center gap-2 text-sm font-semibold text-emerald-100"><CheckCircle2 className="h-4 w-4" />Agent run returned a result</div><pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs leading-5 text-slate-300">{JSON.stringify(result, null, 2)}</pre></div>}
           </section>
 
           <aside className="space-y-5">

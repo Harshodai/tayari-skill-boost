@@ -1,7 +1,7 @@
 package api
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 )
 
@@ -54,7 +54,7 @@ func (s *Server) handleReferralDraft(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/referral/draft", req, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleReferralDraft: draft failed: %v", err)
+		slog.Error("handleReferralDraft: draft failed", "error", err)
 		s.respondAIGatewayError(w, err, "Failed to generate referral draft")
 		return
 	}

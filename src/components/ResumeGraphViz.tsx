@@ -53,16 +53,16 @@ export const ResumeGraphViz = forwardRef<{ exportAsPNG: () => Promise<Blob> }, {
 
     // Clone link objects so D3 forceLink does not mutate graph.links props
     const simLinks = graph.links.map((l) => ({
-      source: typeof l.source === 'object' ? (l.source as any).id : l.source,
-      target: typeof l.target === 'object' ? (l.target as any).id : l.target,
+      source: typeof l.source === 'object' ? (l.source as { id: string }).id : l.source,
+      target: typeof l.target === 'object' ? (l.target as { id: string }).id : l.target,
     }));
 
     try {
       const simulation = forceSimulation(simNodes);
       if (simulation && typeof simulation.force === "function") {
-        simulation.force("link", forceLink(simLinks).id((d: any) => d.id).distance(100) as any);
-        simulation.force("charge", forceManyBody().strength(-200) as any);
-        simulation.force("center", forceCenter(width / 2, height / 2) as any);
+        simulation.force("link", forceLink(simLinks).id((d: { id: string }) => d.id).distance(100));
+        simulation.force("charge", forceManyBody().strength(-200));
+        simulation.force("center", forceCenter(width / 2, height / 2));
         if (typeof simulation.stop === "function") simulation.stop();
         if (typeof simulation.tick === "function") {
           for (let i = 0; i < 300; ++i) simulation.tick();
@@ -95,6 +95,9 @@ export const ResumeGraphViz = forwardRef<{ exportAsPNG: () => Promise<Blob> }, {
         throw new Error('Export container not found');
       }
       const blob = await toBlob(containerRef.current);
+      if (!blob) {
+        throw new Error('Failed to generate PNG blob');
+      }
       return blob;
     },
   }));

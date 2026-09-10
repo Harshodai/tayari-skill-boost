@@ -2,7 +2,7 @@ package api
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -81,7 +81,7 @@ func (s *Server) handleListReviewQueue(w http.ResponseWriter, r *http.Request) {
 	`
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, user.ID, statusFilter, limit)
 	if err != nil {
-		log.Printf("handleListReviewQueue: query failed: %v", err)
+		slog.Error("handleListReviewQueue: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to fetch review queue")
 		return
 	}
@@ -144,7 +144,7 @@ func (s *Server) handleListReviewQueue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rows.Err(); err != nil {
-		log.Printf("handleListReviewQueue: rows iteration error: %v", err)
+		slog.Error("handleListReviewQueue: rows iteration error", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
 		return
 	}
@@ -337,7 +337,7 @@ func (s *Server) handleModifyReviewQueueItem(w http.ResponseWriter, r *http.Requ
 		WHERE application_id=$6 AND user_id=$7
 	`, req.TailoredResumeText, req.CoverLetter, req.Notes, req.Status, changesJSON, appIDStr, user.ID)
 	if err != nil {
-		log.Printf("handleModifyReviewQueueItem: update failed: %v", err)
+		slog.Error("handleModifyReviewQueueItem: update failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to modify application")
 		return
 	}
@@ -478,7 +478,7 @@ func (s *Server) handleReviewQueueHistory(w http.ResponseWriter, r *http.Request
 		ORDER BY created_at DESC
 	`, appIDStr, user.ID)
 	if err != nil {
-		log.Printf("handleReviewQueueHistory: query failed: %v", err)
+		slog.Error("handleReviewQueueHistory: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to fetch review history")
 		return
 	}
@@ -557,7 +557,7 @@ func (s *Server) handleQueueApplicationForReview(w http.ResponseWriter, r *http.
 		req.DreamScore, req.AISuggestion, req.AIConfidence, req.ApplyURL, req.Notes,
 	).Scan(&id)
 	if err != nil {
-		log.Printf("handleQueueApplicationForReview: insert failed: %v", err)
+		slog.Error("handleQueueApplicationForReview: insert failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to queue application for review")
 		return
 	}

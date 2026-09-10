@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -56,7 +56,7 @@ func (s *Server) handleCareerOpsEvaluate(w http.ResponseWriter, r *http.Request)
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/career-ops/evaluate", json.RawMessage(body), headers)
 	if err != nil {
-		log.Printf("handleCareerOpsEvaluate: AI call failed: %v", err)
+		slog.Error("handleCareerOpsEvaluate: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to run Career-Ops evaluation")
 		return
 	}
@@ -72,7 +72,7 @@ func (s *Server) handleCareerOpsScan(w http.ResponseWriter, r *http.Request) {
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/career-ops/scan", json.RawMessage(body), headers)
 	if err != nil {
-		log.Printf("handleCareerOpsScan: AI call failed: %v", err)
+		slog.Error("handleCareerOpsScan: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to scan portals")
 		return
 	}
@@ -83,7 +83,7 @@ func (s *Server) handleCareerOpsGetPatterns(w http.ResponseWriter, r *http.Reque
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/career-ops/patterns", headers)
 	if err != nil {
-		log.Printf("handleCareerOpsGetPatterns: AI call failed: %v", err)
+		slog.Error("handleCareerOpsGetPatterns: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to get targeting patterns")
 		return
 	}
@@ -94,7 +94,7 @@ func (s *Server) handleCareerOpsGetFollowups(w http.ResponseWriter, r *http.Requ
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/career-ops/followups", headers)
 	if err != nil {
-		log.Printf("handleCareerOpsGetFollowups: AI call failed: %v", err)
+		slog.Error("handleCareerOpsGetFollowups: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to get follow-up items")
 		return
 	}
@@ -110,7 +110,7 @@ func (s *Server) handleCareerOpsFollowupAction(w http.ResponseWriter, r *http.Re
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/career-ops/followups/action", json.RawMessage(body), headers)
 	if err != nil {
-		log.Printf("handleCareerOpsFollowupAction: AI call failed: %v", err)
+		slog.Error("handleCareerOpsFollowupAction: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to record follow-up")
 		return
 	}
@@ -121,7 +121,7 @@ func (s *Server) handleCareerOpsGetPortals(w http.ResponseWriter, r *http.Reques
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/career-ops/portals", headers)
 	if err != nil {
-		log.Printf("handleCareerOpsGetPortals: AI call failed: %v", err)
+		slog.Error("handleCareerOpsGetPortals: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to get portals list")
 		return
 	}
@@ -137,7 +137,7 @@ func (s *Server) handleCareerOpsSavePortal(w http.ResponseWriter, r *http.Reques
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/career-ops/portals", json.RawMessage(body), headers)
 	if err != nil {
-		log.Printf("handleCareerOpsSavePortal: AI call failed: %v", err)
+		slog.Error("handleCareerOpsSavePortal: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to save portal configuration")
 		return
 	}
@@ -154,7 +154,7 @@ func (s *Server) handleCareerOpsDeletePortal(w http.ResponseWriter, r *http.Requ
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.DeleteJSONWithHeaders("/api/v1/career-ops/portals/"+strconv.Itoa(portalID), headers)
 	if err != nil {
-		log.Printf("handleCareerOpsDeletePortal: AI call failed: %v", err)
+		slog.Error("handleCareerOpsDeletePortal: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to delete portal")
 		return
 	}
@@ -165,7 +165,7 @@ func (s *Server) handleCareerOpsGetStoryBank(w http.ResponseWriter, r *http.Requ
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/career-ops/story-bank", headers)
 	if err != nil {
-		log.Printf("handleCareerOpsGetStoryBank: AI call failed: %v", err)
+		slog.Error("handleCareerOpsGetStoryBank: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to get story bank")
 		return
 	}
@@ -181,7 +181,7 @@ func (s *Server) handleCareerOpsSaveStoryBank(w http.ResponseWriter, r *http.Req
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/career-ops/story-bank", json.RawMessage(body), headers)
 	if err != nil {
-		log.Printf("handleCareerOpsSaveStoryBank: AI call failed: %v", err)
+		slog.Error("handleCareerOpsSaveStoryBank: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to save story bank")
 		return
 	}
@@ -203,7 +203,7 @@ func (s *Server) handleCareerOpsUpdatePortal(w http.ResponseWriter, r *http.Requ
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.PatchJSONWithHeaders("/api/v1/career-ops/portals/"+strconv.Itoa(portalID), json.RawMessage(body), headers)
 	if err != nil {
-		log.Printf("handleCareerOpsUpdatePortal: AI call failed: %v", err)
+		slog.Error("handleCareerOpsUpdatePortal: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to update portal")
 		return
 	}
@@ -220,7 +220,7 @@ func (s *Server) handleCareerOpsDeleteStory(w http.ResponseWriter, r *http.Reque
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.DeleteJSONWithHeaders("/api/v1/career-ops/story-bank/"+strconv.Itoa(index), headers)
 	if err != nil {
-		log.Printf("handleCareerOpsDeleteStory: AI call failed: %v", err)
+		slog.Error("handleCareerOpsDeleteStory: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to delete story")
 		return
 	}
@@ -231,7 +231,7 @@ func (s *Server) handleCareerOpsGetStats(w http.ResponseWriter, r *http.Request)
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/career-ops/stats", headers)
 	if err != nil {
-		log.Printf("handleCareerOpsGetStats: AI call failed: %v", err)
+		slog.Error("handleCareerOpsGetStats: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to get stats")
 		return
 	}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -85,7 +85,7 @@ func (s *Server) handleComputerPOST(endpoint string) http.HandlerFunc {
 		}
 		result, err := s.AI.PostJSONWithHeaders(endpoint, json.RawMessage(body), headers)
 		if err != nil {
-			log.Printf("computer POST %s: AI call failed: %v", endpoint, err)
+			slog.Error("computer POST : AI call failed", "value", endpoint, "error", err)
 			s.respondError(w, http.StatusBadGateway, "Computer service unavailable")
 			return
 		}
@@ -107,7 +107,7 @@ func (s *Server) handleComputerGETPath(prefix string) http.HandlerFunc {
 		}
 		result, err := s.AI.GetJSONWithHeaders(prefix+runID, headers)
 		if err != nil {
-			log.Printf("computer GET %s: AI call failed: %v", prefix+runID, err)
+			slog.Error("computer GET : AI call failed", "value", prefix+runID, "error", err)
 			s.respondError(w, http.StatusBadGateway, "Computer service unavailable")
 			return
 		}
@@ -131,7 +131,7 @@ func (s *Server) handleComputerGETPathSuffix(prefix, suffix string) http.Handler
 		}
 		result, err := s.AI.GetJSONWithHeaders(target, headers)
 		if err != nil {
-			log.Printf("computer GET %s: AI call failed: %v", target, err)
+			slog.Error("computer GET : AI call failed", "value", target, "error", err)
 			s.respondError(w, http.StatusBadGateway, "Computer service unavailable")
 			return
 		}
@@ -158,7 +158,7 @@ func (s *Server) handleComputerPOSTBodyPath(prefix, suffix string) http.HandlerF
 		}
 		result, err := s.AI.PostJSONWithHeaders(prefix+runID+suffix, json.RawMessage(body), headers)
 		if err != nil {
-			log.Printf("computer POST %s: AI call failed: %v", prefix+runID+suffix, err)
+			slog.Error("computer POST : AI call failed", "value", prefix+runID+suffix, "error", err)
 			s.respondError(w, http.StatusBadGateway, "Computer service unavailable")
 			return
 		}
@@ -180,7 +180,7 @@ func (s *Server) handleComputerPOSTPath(prefix, suffix string) http.HandlerFunc 
 		}
 		result, err := s.AI.PostJSONWithHeaders(prefix+runID+suffix, json.RawMessage(`{}`), headers)
 		if err != nil {
-			log.Printf("computer POST %s: AI call failed: %v", prefix+runID+suffix, err)
+			slog.Error("computer POST : AI call failed", "value", prefix+runID+suffix, "error", err)
 			s.respondError(w, http.StatusBadGateway, "Computer service unavailable")
 			return
 		}
@@ -198,7 +198,7 @@ func (s *Server) handleComputerDELETEPath(prefix string) http.HandlerFunc {
 		runID := url.PathEscape(chi.URLParam(r, "runId"))
 		result, err := s.AI.DeleteJSONWithHeaders(prefix+runID, headers)
 		if err != nil {
-			log.Printf("computer DELETE %s: AI call failed: %v", prefix+runID, err)
+			slog.Error("computer DELETE : AI call failed", "value", prefix+runID, "error", err)
 			s.respondError(w, http.StatusBadGateway, "Computer service unavailable")
 			return
 		}
@@ -216,7 +216,7 @@ func (s *Server) handleComputerGETStream(prefix string) http.HandlerFunc {
 		runID := url.PathEscape(chi.URLParam(r, "runId"))
 		upstream, err := s.AI.GetBlob(prefix+runID+"/stream", headers)
 		if err != nil {
-			log.Printf("computer GET stream %s: AI call failed: %v", prefix+runID, err)
+			slog.Error("computer GET stream : AI call failed", "value", prefix+runID, "error", err)
 			s.respondError(w, http.StatusBadGateway, "Computer stream unavailable")
 			return
 		}
@@ -314,7 +314,7 @@ func (s *Server) handleComputerPOSTStream(prefix string) http.HandlerFunc {
 
 		upstream, err := s.AI.PostStream(ctx, prefix+runID+"/stream", payload, headers)
 		if err != nil {
-			log.Printf("computer POST stream %s: AI call failed: %v", prefix+runID, err)
+			slog.Error("computer POST stream : AI call failed", "value", prefix+runID, "error", err)
 			s.respondError(w, http.StatusBadGateway, "Computer stream unavailable")
 			return
 		}

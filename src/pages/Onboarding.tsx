@@ -205,14 +205,15 @@ export default function Onboarding() {
         transferable_skills: transferableSkills,
       });
       setIsGatewayOffline(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errObj = err as { status?: number; message?: string } | null;
       const isOutage =
         isBackendUnavailable(err) ||
-        err?.status === 502 ||
-        err?.status === 503 ||
-        err?.status === 504 ||
-        err?.message?.includes("network") ||
-        err?.message?.includes("fetch");
+        errObj?.status === 502 ||
+        errObj?.status === 503 ||
+        errObj?.status === 504 ||
+        errObj?.message?.includes("network") ||
+        errObj?.message?.includes("fetch");
 
       if (isOutage) {
         // Recoverable gateway outage: active local mode with localStorage progress
@@ -227,7 +228,7 @@ export default function Onboarding() {
         // Unexpected error (500, network failure, etc.) — clear gateway offline state
         // and use saveError so the banner heading reads "Save Failed" not "Profile Validation Error".
         setIsGatewayOffline(false);
-        setSaveError(err.message || "Could not save profile. Please try again.");
+        setSaveError(err instanceof Error ? err.message : "Could not save profile. Please try again.");
         return;
       }
 

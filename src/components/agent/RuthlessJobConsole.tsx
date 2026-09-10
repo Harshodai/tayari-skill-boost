@@ -10,15 +10,64 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfile, apiFetch } from '@/api';
 
+export interface ApplicationRecord {
+  app_id: string;
+  portal: string;
+  url: string;
+  status: string;
+}
+
+export interface EmailSequenceItem {
+  step: string;
+  content: string;
+}
+
+export interface AtsPrepareResult {
+  predicted_ats_score?: number;
+  recommended_additions?: string;
+  stealth_payload?: string;
+  injected_keywords?: string[];
+  [key: string]: unknown;
+}
+
+export interface BatchApplyResult {
+  total_reached?: number;
+  total_processed?: number;
+  applications: ApplicationRecord[];
+  [key: string]: unknown;
+}
+
+export interface OutreachResult {
+  company?: string;
+  recruiter_name?: string;
+  email_sequence: EmailSequenceItem[];
+  [key: string]: unknown;
+}
+
+export interface NegotiationResult {
+  current_offer?: number;
+  counter_offer?: number;
+  increase_amount?: number;
+  negotiation_email_script?: string;
+  [key: string]: unknown;
+}
+
+export interface CopilotResult {
+  question?: string;
+  response_time?: string;
+  star_method_answer?: string;
+  [key: string]: unknown;
+}
+
 export const RuthlessJobConsole: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [atsResult, setAtsResult] = useState<any>(null);
-  const [batchResult, setBatchResult] = useState<any>(null);
-  const [outreachResult, setOutreachResult] = useState<any>(null);
-  const [negotiationResult, setNegotiationResult] = useState<any>(null);
-  const [copilotResult, setCopilotResult] = useState<any>(null);
+  const [atsResult, setAtsResult] = useState<AtsPrepareResult | null>(null);
+  const [batchResult, setBatchResult] = useState<BatchApplyResult | null>(null);
+  const [outreachResult, setOutreachResult] = useState<OutreachResult | null>(null);
+  const [negotiationResult, setNegotiationResult] = useState<NegotiationResult | null>(null);
+  const [copilotResult, setCopilotResult] = useState<CopilotResult | null>(null);
 
   // Dynamic user profile state
   const [resumeText, setResumeText] = useState<string>("");
@@ -55,17 +104,17 @@ export const RuthlessJobConsole: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<any>('/v1/ai/agent/career/ats-prepare', {
+      const data = await apiFetch<Record<string, unknown>>('/v1/ai/agent/career/ats-prepare', {
         method: 'POST',
         body: JSON.stringify({
           resume_text: resumeText,
           job_description: jobDescription
         })
       });
-      if (data && data.success) setAtsResult(data.data);
-      else setError(data?.detail || 'ATS preparation failed.');
-    } catch (e: any) {
-      setError(e.message || 'ATS preparation failed.');
+      if (data && (data as { success?: boolean }).success) setAtsResult((data as { data: AtsPrepareResult }).data);
+      else setError((data as { detail?: string })?.detail || 'ATS preparation failed.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'ATS preparation failed.');
     } finally {
       setLoading(false);
     }
@@ -81,17 +130,17 @@ export const RuthlessJobConsole: React.FC = () => {
         setLoading(false);
         return;
       }
-      const data = await apiFetch<any>('/v1/ai/agent/career/universal-apply', {
+      const data = await apiFetch<Record<string, unknown>>('/v1/ai/agent/career/universal-apply', {
         method: 'POST',
         body: JSON.stringify({
           job_urls: parsedUrls,
           candidate_profile: { name: candidateName, email: candidateEmail }
         })
       });
-      if (data && data.success) setBatchResult(data.data);
-      else setError(data?.detail || 'Batch apply failed.');
-    } catch (e: any) {
-      setError(e.message || 'Batch apply failed.');
+      if (data && (data as { success?: boolean }).success) setBatchResult((data as { data: BatchApplyResult }).data);
+      else setError((data as { detail?: string })?.detail || 'Batch apply failed.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Batch apply failed.');
     } finally {
       setLoading(false);
     }
@@ -101,7 +150,7 @@ export const RuthlessJobConsole: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<any>('/v1/ai/agent/career/outreach', {
+      const data = await apiFetch<Record<string, unknown>>('/v1/ai/agent/career/outreach', {
         method: 'POST',
         body: JSON.stringify({
           company: outreachCompany,
@@ -109,10 +158,10 @@ export const RuthlessJobConsole: React.FC = () => {
           job_title: outreachJobTitle
         })
       });
-      if (data && data.success) setOutreachResult(data.data);
-      else setError(data?.detail || 'Recruiter outreach failed.');
-    } catch (e: any) {
-      setError(e.message || 'Recruiter outreach failed.');
+      if (data && (data as { success?: boolean }).success) setOutreachResult((data as { data: OutreachResult }).data);
+      else setError((data as { detail?: string })?.detail || 'Recruiter outreach failed.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Recruiter outreach failed.');
     } finally {
       setLoading(false);
     }
@@ -122,7 +171,7 @@ export const RuthlessJobConsole: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<any>('/v1/ai/agent/career/ai-negotiate', {
+      const data = await apiFetch<Record<string, unknown>>('/v1/ai/agent/career/ai-negotiate', {
         method: 'POST',
         body: JSON.stringify({
           current_offer: offerInput,
@@ -131,10 +180,10 @@ export const RuthlessJobConsole: React.FC = () => {
           company: companyInput
         })
       });
-      if (data && data.success) setNegotiationResult(data.data);
-      else setError(data?.detail || 'Salary negotiation failed.');
-    } catch (e: any) {
-      setError(e.message || 'Salary negotiation failed.');
+      if (data && (data as { success?: boolean }).success) setNegotiationResult((data as { data: NegotiationResult }).data);
+      else setError((data as { detail?: string })?.detail || 'Salary negotiation failed.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Salary negotiation failed.');
     } finally {
       setLoading(false);
     }
@@ -144,17 +193,17 @@ export const RuthlessJobConsole: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<any>('/v1/ai/agent/career/copilot', {
+      const data = await apiFetch<Record<string, unknown>>('/v1/ai/agent/career/copilot', {
         method: 'POST',
         body: JSON.stringify({
           question: copilotQuestion,
           role: outreachJobTitle || 'Principal Systems Engineer'
         })
       });
-      if (data && data.success) setCopilotResult(data.data);
-      else setError(data?.detail || 'Copilot response failed.');
-    } catch (e: any) {
-      setError(e.message || 'Copilot response failed.');
+      if (data && (data as { success?: boolean }).success) setCopilotResult((data as { data: CopilotResult }).data);
+      else setError((data as { detail?: string })?.detail || 'Copilot response failed.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Copilot response failed.');
     } finally {
       setLoading(false);
     }
@@ -265,7 +314,7 @@ export const RuthlessJobConsole: React.FC = () => {
                   </span>
                 </div>
                 <div className="space-y-2">
-                  {batchResult.applications.map((ap: any) => (
+                  {batchResult.applications.map((ap: ApplicationRecord) => (
                     <div key={ap.app_id} className="p-3 rounded bg-slate-950 border border-slate-800 flex justify-between items-center">
                       <div>
                         <span className="text-red-400 font-bold">{ap.app_id}</span> • {ap.portal} • <span className="text-slate-400">{ap.url}</span>
@@ -352,7 +401,7 @@ export const RuthlessJobConsole: React.FC = () => {
             {outreachResult && (
               <div className="space-y-3 pt-2 font-mono text-xs">
                 <div className="font-bold text-blue-400">Target Recruiter: {outreachResult.recruiter_name} ({outreachResult.company})</div>
-                {outreachResult.email_sequence.map((em: any, idx: number) => (
+                {outreachResult.email_sequence.map((em: EmailSequenceItem, idx: number) => (
                   <div key={idx} className="p-3 rounded bg-slate-950 border border-slate-800 space-y-1">
                     <div className="text-primary font-bold">{em.step}</div>
                     <pre className="text-slate-300 whitespace-pre-wrap">{em.content}</pre>

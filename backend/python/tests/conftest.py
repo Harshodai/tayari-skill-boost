@@ -13,6 +13,8 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-for-python-tests-min-32-chars")
+
 import pytest
 
 

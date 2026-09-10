@@ -76,6 +76,8 @@ export interface JobSearchResult {
   source_channel?: string;
   role_intelligence?: RoleIntelligence;
   preparation_material?: PreparationMaterial;
+  posting_health?: { badge?: string; [key: string]: unknown };
+  health_badge?: string;
   [key: string]: unknown;
 }
 
@@ -83,6 +85,9 @@ export interface JobSearchResponse {
   query?: string;
   location?: string;
   total_found?: number;
+  total?: number;
+  cursor?: number;
+  next_cursor?: number | null;
   engine?: string;
   role_intelligence?: RoleIntelligence;
   results?: JobSearchResult[];
@@ -97,10 +102,28 @@ export interface JobSearchResponse {
   [key: string]: unknown;
 }
 
-export async function searchJobs(payload: Record<string, unknown>): Promise<JobSearchResponse> {
+export interface SearchJobsPayload extends Record<string, unknown> {
+  query?: string;
+  location?: string;
+  profile?: Record<string, unknown>;
+  resume_text?: string;
+  top_n?: number;
+  cursor?: number;
+  limit?: number;
+  page_size?: number;
+}
+
+export async function searchJobs(
+  payload: SearchJobsPayload | Record<string, unknown>,
+  cursor?: number
+): Promise<JobSearchResponse> {
+  const body = {
+    ...payload,
+    ...(cursor !== undefined ? { cursor } : {}),
+  };
   return apiFetch<JobSearchResponse>("/jobs/search", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
 }
 

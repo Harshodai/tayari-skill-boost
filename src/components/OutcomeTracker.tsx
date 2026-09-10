@@ -133,9 +133,9 @@ export const OutcomeTracker: React.FC<OutcomeTrackerProps> = ({
       queryClient.invalidateQueries({ queryKey: ["outcome-analytics"] });
       queryClient.invalidateQueries({ queryKey: ["outcome-events"] });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast.error("Failed to record outcome", {
-        description: err.message || "An error occurred while saving outcome event.",
+        description: err instanceof Error ? err.message : "An error occurred while saving outcome event.",
       });
     },
   });

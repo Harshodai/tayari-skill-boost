@@ -1,6 +1,24 @@
 // Chrome runtime is injected by the browser extension; its ambient typings are not available in the web build.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const chrome: any;
+interface ChromeRuntimeResponse {
+  version?: string;
+  features?: string[];
+  success?: boolean;
+  token?: string | null;
+  [key: string]: unknown;
+}
+
+interface ChromeRuntime {
+  sendMessage: (
+    extensionId: string,
+    message: unknown,
+    callback?: (response: ChromeRuntimeResponse | undefined) => void
+  ) => void;
+  lastError?: { message?: string };
+}
+
+declare const chrome: {
+  runtime?: ChromeRuntime;
+} | undefined;
 import { useEffect, useCallback, useState } from "react";
 
 const EXTENSION_ID = import.meta.env.VITE_EXTENSION_ID || "tayari-extension-id";
@@ -48,7 +66,7 @@ export function useExtension() {
   const checkExtension = useCallback(async () => {
     setIsChecking(true);
     try {
-      if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
+      if (typeof chrome === "undefined" || !chrome?.runtime?.sendMessage) {
         setStatus({ installed: false, version: null, features: [] });
         setIsChecking(false);
         return;
@@ -61,11 +79,11 @@ export function useExtension() {
 
       const checkPromise = new Promise<ExtensionStatus>((resolve) => {
         try {
-          chrome.runtime.sendMessage(
+          chrome.runtime?.sendMessage(
             EXTENSION_ID,
             { action: "get_version" },
-            (response) => {
-              if (chrome.runtime.lastError) {
+            (response: ChromeRuntimeResponse | undefined) => {
+              if (chrome.runtime?.lastError) {
                 resolve({ installed: false, version: null, features: [] });
                 return;
               }
@@ -104,11 +122,11 @@ export function useExtension() {
       if (!status.installed) return false;
       try {
         return new Promise<boolean>((resolve) => {
-          chrome.runtime.sendMessage(
+          chrome?.runtime?.sendMessage(
             EXTENSION_ID,
             { action: token ? "set_token" : "clear_token", token },
-            (response) => {
-              if (chrome.runtime.lastError) {
+            (response: ChromeRuntimeResponse | undefined) => {
+              if (chrome.runtime?.lastError) {
                 resolve(false);
                 return;
               }
@@ -127,11 +145,11 @@ export function useExtension() {
     if (!status.installed) return null;
     try {
       return new Promise<string | null>((resolve) => {
-        chrome.runtime.sendMessage(
+        chrome?.runtime?.sendMessage(
           EXTENSION_ID,
           { action: "get_token" },
-          (response) => {
-            if (chrome.runtime.lastError) {
+          (response: ChromeRuntimeResponse | undefined) => {
+            if (chrome.runtime?.lastError) {
               resolve(null);
               return;
             }
@@ -155,15 +173,15 @@ export function useExtension() {
         resolve({ success: false, error: "Browser companion request timed out." });
       }, 1500);
       try {
-        chrome.runtime.sendMessage(EXTENSION_ID, { action, ...payload }, (response) => {
+        chrome?.runtime?.sendMessage(EXTENSION_ID, { action, ...payload }, (response: ChromeRuntimeResponse | undefined) => {
           if (settled) return;
           settled = true;
           window.clearTimeout(timer);
-          if (chrome.runtime.lastError) {
+          if (chrome.runtime?.lastError) {
             resolve({ success: false, error: chrome.runtime.lastError.message || "Browser companion did not respond." });
             return;
           }
-          resolve(response || { success: false, error: "Browser companion did not respond." });
+          resolve((response as Record<string, unknown>) || { success: false, error: "Browser companion did not respond." });
         });
       } catch (error) {
         if (settled) return;

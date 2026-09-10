@@ -24,7 +24,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 # and its OS deps in one layer so the cache holds across image rebuilds.
 RUN python -m playwright install --with-deps chromium
 
-COPY . .
+# Non-root user for security
+RUN groupadd -g 1001 -r app && useradd -r -u 1001 -g app -d /app -s /sbin/nologin app \
+    && mkdir -p /app/.cache/ms-playwright /tmp/playwright \
+    && chown -R app:app /app /tmp/playwright
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright
+ENV HOME=/app
+
+COPY --chown=app:app . .
+
+USER app
 
 # Healthcheck — verify Celery worker is processing
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

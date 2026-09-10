@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -59,7 +59,7 @@ func (s *Server) handleGoogleDriveStatus(w http.ResponseWriter, r *http.Request)
 	var count int
 	err := s.DB.Conn.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM google_drive_tokens WHERE user_id=$1 AND tenant_id=$2`, user.ID, tenantID).Scan(&count)
 	if err != nil {
-		log.Printf("handleGoogleDriveStatus: token lookup failed: %v", err)
+		slog.Error("handleGoogleDriveStatus: token lookup failed", "error", err)
 		s.respondError(w, http.StatusServiceUnavailable, "Drive connection status is unavailable")
 		return
 	}
@@ -81,7 +81,7 @@ func (s *Server) handleGoogleDriveLogin(w http.ResponseWriter, r *http.Request) 
 	}
 	state := "google-drive:" + uuid.NewString()
 	if _, err := s.DB.Conn.ExecContext(r.Context(), `INSERT INTO oauth_states (id, user_id, tenant_id, provider, state, created_at) VALUES ($1,$2,$3,$4,$5,NOW())`, uuid.New(), user.ID, tenantID, "google_drive", state); err != nil {
-		log.Printf("handleGoogleDriveLogin: failed to store OAuth state: %v", err)
+		slog.Error("handleGoogleDriveLogin: failed to store OAuth state", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to initiate Drive OAuth")
 		return
 	}
@@ -105,19 +105,19 @@ func (s *Server) handleGoogleDriveCallback(w http.ResponseWriter, r *http.Reques
 	var provider string
 	err := s.DB.Conn.QueryRowContext(r.Context(), `DELETE FROM oauth_states WHERE state=$1 AND provider=$2 AND created_at > NOW()-INTERVAL '10 minutes' RETURNING user_id, tenant_id, provider`, r.URL.Query().Get("state"), "google_drive").Scan(&userID, &tenantID, &provider)
 	if err != nil || provider != "google_drive" || userID == uuid.Nil || tenantID == uuid.Nil {
-		log.Printf("handleGoogleDriveCallback: invalid or expired state: %v", err)
+		slog.Error("handleGoogleDriveCallback: invalid or expired state", "error", err)
 		redirect("error")
 		return
 	}
 	token, err := googleWorkspaceExchangeCode(r.Context(), "drive", r.URL.Query().Get("code"))
 	if err != nil {
-		log.Printf("handleGoogleDriveCallback: token exchange failed: %v", err)
+		slog.Error("handleGoogleDriveCallback: token exchange failed", "error", err)
 		redirect("error")
 		return
 	}
 	_, err = s.DB.Conn.ExecContext(r.Context(), `INSERT INTO google_drive_tokens (id, user_id, tenant_id, access_token, refresh_token, expiry, scope, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW()) ON CONFLICT (user_id, tenant_id) DO UPDATE SET access_token=$4, refresh_token=CASE WHEN $5!='' THEN $5 ELSE google_drive_tokens.refresh_token END, expiry=$6, scope=$7, updated_at=NOW()`, uuid.New(), userID, tenantID, token.AccessToken, token.RefreshToken, googleWorkspaceExpiry(token.ExpiresIn), token.Scope)
 	if err != nil {
-		log.Printf("handleGoogleDriveCallback: token persistence failed: %v", err)
+		slog.Error("handleGoogleDriveCallback: token persistence failed", "error", err)
 		redirect("error")
 		return
 	}
@@ -155,7 +155,7 @@ func (s *Server) handleGoogleDriveSync(w http.ResponseWriter, r *http.Request) {
 	}
 	files, err := googleDriveListCandidateFiles(r.Context(), accessToken)
 	if err != nil {
-		log.Printf("handleGoogleDriveSync: Drive API call failed: %v", err)
+		slog.Error("handleGoogleDriveSync: Drive API call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to fetch Google Drive files")
 		return
 	}

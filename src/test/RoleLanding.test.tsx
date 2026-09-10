@@ -6,14 +6,21 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import RoleLanding from "@/pages/RoleLanding";
 import { toast } from "sonner";
 
-let capturedSeoProps: any = null;
+interface MockRoleSeoProps {
+  title?: string;
+  path?: string;
+  jsonLd?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+let capturedSeoProps: MockRoleSeoProps | null = null;
 
 vi.mock("@/components/layout", () => ({
   Layout: ({ children }: { children: ReactNode }) => <div data-testid="layout-wrapper">{children}</div>,
 }));
 
 vi.mock("@/components/seo/Seo", () => ({
-  Seo: (props: any) => {
+  Seo: (props: MockRoleSeoProps) => {
     capturedSeoProps = props;
     return <div data-testid="seo-wrapper" data-title={props.title} />;
   },
@@ -135,18 +142,18 @@ describe("RoleLanding Component", () => {
 
       // Schema.org Occupation & FAQPage JSON-LD
       expect(capturedSeoProps).not.toBeNull();
-      expect(capturedSeoProps.title).toContain("Software Engineer");
-      expect(capturedSeoProps.path).toBe("/roles/software-engineer");
-      expect(Array.isArray(capturedSeoProps.jsonLd)).toBe(true);
+      expect(capturedSeoProps?.title).toContain("Software Engineer");
+      expect(capturedSeoProps?.path).toBe("/roles/software-engineer");
+      expect(Array.isArray(capturedSeoProps?.jsonLd)).toBe(true);
 
-      const occupation = capturedSeoProps.jsonLd.find((item: any) => item["@type"] === "Occupation");
+      const occupation = capturedSeoProps?.jsonLd?.find((item: Record<string, unknown>) => item["@type"] === "Occupation") as { name?: string; estimatedSalary?: Array<{ currency?: string }> } | undefined;
       expect(occupation).toBeDefined();
-      expect(occupation.name).toBe("Software Engineer");
-      expect(occupation.estimatedSalary[0].currency).toBe("USD");
+      expect(occupation?.name).toBe("Software Engineer");
+      expect(occupation?.estimatedSalary?.[0]?.currency).toBe("USD");
 
-      const faq = capturedSeoProps.jsonLd.find((item: any) => item["@type"] === "FAQPage");
+      const faq = capturedSeoProps?.jsonLd?.find((item: Record<string, unknown>) => item["@type"] === "FAQPage") as { mainEntity?: unknown[] } | undefined;
       expect(faq).toBeDefined();
-      expect(faq.mainEntity.length).toBeGreaterThanOrEqual(1);
+      expect(faq?.mainEntity?.length).toBeGreaterThanOrEqual(1);
     });
 
     it("has a 1-click CTA button pointing to /resume with prefilled role slug", () => {

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -138,7 +138,7 @@ func (a *SupabaseAuth) SocialLogin(w http.ResponseWriter, r *http.Request) {
 	// Generate and store state token for CSRF protection
 	state, err := generateState()
 	if err != nil {
-		log.Printf("SocialLogin: failed to generate state: %v", err)
+		slog.Error("SocialLogin: failed to generate state", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -188,7 +188,7 @@ func (a *SupabaseAuth) SocialCallback(w http.ResponseWriter, r *http.Request) {
 	// Complete authentication via Goth
 	user, err := gothic.CompleteUserAuth(w, r)
 	if err != nil {
-		log.Printf("SocialCallback: authentication failed: %v", err)
+		slog.Error("SocialCallback: authentication failed", "error", err)
 		http.Error(w, "Authentication failed", http.StatusInternalServerError)
 		return
 	}
@@ -197,13 +197,13 @@ func (a *SupabaseAuth) SocialCallback(w http.ResponseWriter, r *http.Request) {
 
 func (a *SupabaseAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request, gothUser goth.User, returnTo string) {
 	if !validateEmail(gothUser.Email) || strings.TrimSpace(gothUser.Provider) == "" || strings.TrimSpace(gothUser.UserID) == "" {
-		log.Printf("handleSocialCallback: incomplete provider identity (provider: %s)", gothUser.Provider)
+		slog.Info("handleSocialCallback: incomplete provider identity (provider: )", "provider", gothUser.Provider)
 		http.Error(w, "Invalid identity from provider", http.StatusBadRequest)
 		return
 	}
 	if !validateEmail(gothUser.Email) {
 		// Log sanitized email or generic message to avoid PII leak
-		log.Printf("handleSocialCallback: invalid email from provider (provider: %s)", gothUser.Provider)
+		slog.Info("handleSocialCallback: invalid email from provider (provider: )", "provider", gothUser.Provider)
 		http.Error(w, "Invalid email from provider", http.StatusBadRequest)
 		return
 	}
@@ -222,13 +222,13 @@ func (a *SupabaseAuth) handleSocialCallback(w http.ResponseWriter, r *http.Reque
 		// Provision new user
 		newUser, err := a.provisionSocialUser(ctx, gothUser)
 		if err != nil {
-			log.Printf("handleSocialCallback: failed to create user for %s: %v", gothUser.Email, err)
+			slog.Error("handleSocialCallback: failed to create user", "provider", gothUser.Provider, "error", err)
 			http.Error(w, "Failed to create user", http.StatusInternalServerError)
 			return
 		}
 		dbUser = *newUser
 	} else if err != nil {
-		log.Printf("handleSocialCallback: database error: %v", err)
+		slog.Error("handleSocialCallback: database error", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	} else {
@@ -237,7 +237,7 @@ func (a *SupabaseAuth) handleSocialCallback(w http.ResponseWriter, r *http.Reque
 			metadata["provider"] == gothUser.Provider && metadata["provider_user_id"] == gothUser.UserID {
 			// Existing account is the same provider subject; continue.
 		} else {
-			log.Printf("handleSocialCallback: provider collision for existing account (provider: %s)", gothUser.Provider)
+			slog.Info("handleSocialCallback: provider collision for existing account (provider: )", "provider", gothUser.Provider)
 			http.Error(w, "Account already exists; sign in with the original method or explicitly link this provider", http.StatusConflict)
 			return
 		}
@@ -246,7 +246,7 @@ func (a *SupabaseAuth) handleSocialCallback(w http.ResponseWriter, r *http.Reque
 	// Generate JWT Token (Minting our own Supabase-compatible token)
 	token, err := a.generateToken(&dbUser)
 	if err != nil {
-		log.Printf("handleSocialCallback: failed to generate token: %v", err)
+		slog.Error("handleSocialCallback: failed to generate token", "error", err)
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return
 	}

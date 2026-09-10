@@ -109,10 +109,10 @@ export default function RouteInsights() {
     try {
       const [{ data: roles }, summaryRes, breakdownRes] = await Promise.all([
         supabase.from("user_roles").select("role").eq("user_id", user.id),
-        supabase.rpc("route_analytics_summary", { p_since: since, p_route: appliedFilter }),
+        supabase.rpc("route_analytics_summary", { p_since: since ?? undefined, p_route: appliedFilter || undefined }),
         supabase.rpc("route_analytics_breakdown", {
-          p_since: since,
-          p_route: appliedFilter,
+          p_since: since ?? undefined,
+          p_route: appliedFilter || undefined,
           p_sort: sort,
           p_dir: dir,
           p_limit: pageSize,
@@ -181,7 +181,7 @@ export default function RouteInsights() {
   };
 
   const exportCsv = () => {
-    const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const escape = (v: unknown) => `"${String(v).replace(/"/g, '""')}"`;
     const csv = [
       ["route", "views", "visitors", "last_seen"].join(","),
       ...rows.map((r) => [r.route, r.views, r.users, r.last_seen ?? ""].map(escape).join(",")),

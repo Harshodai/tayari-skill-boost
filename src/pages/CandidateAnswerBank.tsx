@@ -79,8 +79,8 @@ export default function CandidateAnswerBank() {
       const res = await matchCandidateBank(testQuestion);
       setMatchResult(res);
       toast.success(res.matched ? `Matched category: ${res.category}` : "No direct match, will use LLM fallback.");
-    } catch (err: any) {
-      toast.error(err.message || "Could not query candidate answer bank");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Could not query candidate answer bank");
     } finally {
       setIsMatching(false);
     }

@@ -66,7 +66,7 @@ export function AgentReachHub() {
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = (): Record<string, string> => {
     const token = localStorage.getItem("auth_token");
     return token ? { Authorization: `Bearer ${token}` } : {};
   };

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -59,8 +59,7 @@ func (s *Server) RegisterBrowserRoutes(r chi.Router) {
 // auditBrowser emits a single-line audit record for browser-agent actions.
 // Keep the shape stable — log shippers parse it.
 func auditBrowser(action, userID, runID, outcome string, detail interface{}) {
-	log.Printf("[Audit] component=browser-agent action=%s actor=%s run=%s outcome=%s detail=%v",
-		action, orDash(userID), orDash(runID), outcome, detail)
+	slog.Info("[Audit] browser-agent action", "action", action, "actor", orDash(userID), "run", orDash(runID), "outcome", outcome, "detail", detail)
 }
 
 func orDash(v string) string {
@@ -148,7 +147,7 @@ func (s *Server) handleBrowserAutomationControl(w http.ResponseWriter, r *http.R
 				return
 			}
 		}
-		log.Printf("[BrowserAutomation] Control-state proxy error: %v", err)
+		slog.Error("[BrowserAutomation] Control-state proxy error", "error", err)
 		http.Error(w, "failed to read browser run state", http.StatusBadGateway)
 		return
 	}
@@ -194,7 +193,7 @@ func (s *Server) handleBrowserAutomationCancel(w http.ResponseWriter, r *http.Re
 			s.respondError(w, status, "Run not found for this account")
 			return
 		}
-		log.Printf("[BrowserAutomation] Cancel proxy error: %v", err)
+		slog.Error("[BrowserAutomation] Cancel proxy error", "error", err)
 		http.Error(w, "failed to cancel browser run", http.StatusBadGateway)
 		return
 	}
@@ -226,7 +225,7 @@ func (s *Server) handleBrowserAutomation(w http.ResponseWriter, r *http.Request)
 	result, err := s.AI.PostJSONWithContext(ctx, "/api/v1/browser/automation", payload, headers)
 	if err != nil {
 		auditBrowser("run", userID, runID, "error", err)
-		log.Printf("[BrowserAutomation] Proxy error: %v", err)
+		slog.Error("[BrowserAutomation] Proxy error", "error", err)
 		http.Error(w, "failed to execute browser automation", http.StatusBadGateway)
 		return
 	}
@@ -259,7 +258,7 @@ func (s *Server) handleBrowserAutomationStream(w http.ResponseWriter, r *http.Re
 	upstream, err := s.AI.PostStream(ctx, "/api/v1/browser/automation/stream", body, s.getXUserHeaders(r))
 	if err != nil {
 		auditBrowser("stream", userID, runID, "error", err)
-		log.Printf("handleBrowserAutomationStream: upstream failed: %v", err)
+		slog.Error("handleBrowserAutomationStream: upstream failed", "error", err)
 		if status, ok := extractAIStatus(err); ok {
 			s.respondError(w, status, "Upstream AI service error")
 			return
@@ -290,7 +289,7 @@ func (s *Server) handleBrowserAutomationStream(w http.ResponseWriter, r *http.Re
 		if err != nil {
 			if err != io.EOF {
 				auditBrowser("stream", userID, runID, "error", err)
-				log.Printf("handleBrowserAutomationStream: read error: %v", err)
+				slog.Error("handleBrowserAutomationStream: read error", "error", err)
 			} else {
 				auditBrowser("stream", userID, runID, "ok", nil)
 			}

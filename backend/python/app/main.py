@@ -6,14 +6,24 @@ import io
 import json
 import logging
 import os
+import uuid
 from ipaddress import ip_address
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
+from app.services.voice_live import start_live_session
+
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Depends
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import (
+    http_exception_handler,
+    request_validation_exception_handler,
+)
+from fastapi.responses import StreamingResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from app.config import get_settings, settings
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -39,8 +49,8 @@ def rate_limit_key(request: Request) -> str:
     return f"user:{user_id}:ip:{ip}" if user_id else f"anon:ip:{ip}"
 
 
-_env_for_limits = os.getenv("ENV", "development").lower()
-_rate_limit_storage = os.getenv("RATELIMIT_STORAGE_URL") or os.getenv("REDIS_URL")
+_env_for_limits = settings.app_env.lower()
+_rate_limit_storage = settings.ratelimit_storage_url or settings.redis_url
 if _env_for_limits == "production" and not _rate_limit_storage:
     raise RuntimeError("REDIS_URL or RATELIMIT_STORAGE_URL must be set in production")
 
@@ -75,11 +85,11 @@ try:
     import sentry_sdk
     from sentry_sdk.integrations.fastapi import FastApiIntegration
 
-    sentry_dsn = os.getenv("SENTRY_DSN", "")
+    sentry_dsn = (settings.sentry_dsn if settings else "") or ""
     if sentry_dsn:
         sentry_sdk.init(
             dsn=sentry_dsn,
-            environment=os.getenv("SENTRY_ENVIRONMENT", "development"),
+            environment=settings.sentry_environment if settings else "development",
             integrations=[FastApiIntegration()],
             traces_sample_rate=0.2,
         )
@@ -114,6 +124,8 @@ from app.api.practice_outcome_routes import router as practice_outcome_router
 from app.api.application_runs_routes import router as application_runs_router
 from app.api.outcome_routes import router as outcome_router
 from app.routes.agent import router as agent_router
+from app.unhobbling.orchestrator import JobTayariOrchestrator
+from app.unhobbling.signatures import HarnessSignatureRegistry
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +158,8 @@ async def lifespan(app: FastAPI):
             await sched_task
         except asyncio.CancelledError:
             pass
+        from app.services.llm_service import close_http_client
+        await close_http_client()
         logger.info("scheduler stopped")
 
 
@@ -158,6 +172,9 @@ app = FastAPI(
     description="Python AI Engine for the Tayari Resume Optimizer",
     lifespan=lifespan,
 )
+
+from app.telemetry.tracing import init_tracing
+init_tracing(app)
 
 app.include_router(a2a_router)
 app.include_router(external_research_router)
@@ -174,7 +191,7 @@ app.add_middleware(SlowAPIMiddleware)
 
 # Apply bounded per-operation quotas before expensive route work.
 operation_budget = OperationBudget(
-    redis_url=os.getenv("RATELIMIT_STORAGE_URL") or os.getenv("REDIS_URL"),
+    redis_url=settings.ratelimit_storage_url or settings.redis_url,
     fail_closed=_env_for_limits == "production",
 )
 app.add_middleware(OperationBudgetMiddleware, budget=operation_budget)
@@ -190,6 +207,19 @@ app.add_middleware(InternalGatewayMiddleware)
 app.add_middleware(RequestTelemetryMiddleware)
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    if isinstance(exc, (HTTPException, StarletteHTTPException)):
+        return await http_exception_handler(request, exc)
+    if isinstance(exc, RequestValidationError):
+        return await request_validation_exception_handler(request, exc)
+    logger.error("Unhandled exception: %s", exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"},
+    )
+
 # Read CORS origins from environment variable (comma-separated)
 # Default includes common development origins only
 _default_origins = [
@@ -200,18 +230,18 @@ _default_origins = [
     "http://localhost:4173",
 ]
 
-_cors_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
+_cors_env = settings.cors_allowed_origins
 if _cors_env:
     allowed_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
 else:
     allowed_origins = _default_origins
 
 # Production safety: validate no wildcard in production
-_env = os.getenv("ENV", "development").lower()
-if _env == "production":
-    if not os.getenv("AI_INTERNAL_TOKEN", ""):
+_env = settings.app_env.lower()
+if _env in ("production", "prod"):
+    if not settings.ai_internal_token:
         raise RuntimeError("AI_INTERNAL_TOKEN must be set in production")
-    if not os.getenv("APPROVAL_SIGNING_KEY", ""):
+    if not settings.approval_signing_key:
         raise RuntimeError("APPROVAL_SIGNING_KEY must be set in production")
     allowed_origins = [o for o in allowed_origins if o != "*"]
     if not allowed_origins:
@@ -250,6 +280,13 @@ app.include_router(health.router)
 app.include_router(ats.router)
 app.include_router(ai_router)
 app.include_router(adaptations_router)
+
+from app.celery_app import format_prometheus_metrics
+
+@app.get("/metrics/prometheus")
+@app.get("/api/v1/metrics/prometheus")
+def prometheus_metrics():
+    return Response(content=format_prometheus_metrics(), media_type="text/plain")
 
 from app.api.strategic_routes import (
     router as strategic_router,
@@ -445,9 +482,13 @@ class JobSearchRequest(BaseModel):
     target_board: Optional[dict] = None
     user_id: Optional[str] = None
     conversation_id: Optional[str] = None
+    cursor: Optional[int] = 0
+    limit: Optional[int] = None
+    page_size: Optional[int] = None
 
 
 @app.post("/api/v1/jobs/search")
+@app.post("/api/jobs/search")
 async def jobs_search(
     payload: JobSearchRequest,
     _user_id: str = Depends(get_current_user),
@@ -459,17 +500,30 @@ async def jobs_search(
     before ranking. Both default safely so existing callers are unaffected.
     """
     try:
+        limit = payload.limit or payload.page_size or payload.top_n or 20
+        cursor = payload.cursor if payload.cursor is not None else 0
         result = await job_agent.smart_search(
             payload.query,
             payload.location,
             payload.profile,
             payload.resume_text,
-            top_n=payload.top_n,
+            top_n=max(payload.top_n, cursor + limit),
             scrape_enrich=payload.scrape_enrich,
             target_board=payload.target_board,
             user_id=_user_id,
             conversation_id=payload.conversation_id,
+            cursor=cursor,
+            limit=limit,
         )
+        if isinstance(result, dict):
+            raw_results = result.get("results") or result.get("jobs") or []
+            if "next_cursor" not in result:
+                result["results"] = raw_results[cursor : cursor + limit]
+                result["jobs"] = result["results"]
+                result["next_cursor"] = cursor + limit if len(raw_results) > cursor + limit else None
+                result["total"] = len(raw_results)
+            elif "results" not in result:
+                result["results"] = raw_results
         return result
     except Exception as exc:
         logger.error("jobs/search failed: %s", exc)
@@ -484,7 +538,7 @@ class AutopilotRunRequest(BaseModel):
 
 
 _AUTOPILOT_QUEUE_CAPACITY = max(
-    1, min(int(os.getenv("AUTOPILOT_QUEUE_CAPACITY", "4")), 16)
+    1, min(settings.autopilot_queue_capacity, 16)
 )
 _autopilot_active = 0
 _autopilot_active_lock = asyncio.Lock()
@@ -783,7 +837,7 @@ async def radar_check_endpoint(payload: RadarCheckRequest):
         return await monitor_target_companies(payload.companies, keywords=payload.keywords)
     except Exception as exc:
         logger.error("radar check failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="An internal error occurred") from exc
 
 
 class SkillGapRequest(BaseModel):
@@ -803,7 +857,7 @@ async def skill_gap_analyze_endpoint(payload: SkillGapRequest):
         )
     except Exception as exc:
         logger.error("skill gap analyze failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="An internal error occurred") from exc
 
 
 class PortfolioRequest(BaseModel):
@@ -823,7 +877,7 @@ async def portfolio_endpoint(payload: PortfolioRequest):
         return {"html": html}
     except Exception as exc:
         logger.error("portfolio generate failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="An internal error occurred") from exc
 
 
 class OutreachRequest(BaseModel):
@@ -971,7 +1025,7 @@ async def analytics_funnel_endpoint(payload: FunnelAnalyticsRequest):
         }
     except Exception as exc:
         logger.error("funnel analytics failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="An internal error occurred") from exc
 
 
 class AgentQuestionUpdate(BaseModel):
@@ -1159,11 +1213,17 @@ async def one_shot_execute_endpoint(
         raise HTTPException(status_code=500, detail="One-shot pipeline execution failed") from exc
 
 
+class ATSSimulateRequest(BaseModel):
+    resume_text: str = Field(..., description="Plain-text resume to simulate ATS parsing on")
+    job_description: Optional[str] = Field("", description="Optional target job description")
+    ats_type: str = Field("generic", description="Target ATS vendor type")
+
+
 @app.post("/api/v1/ats/simulate")
-async def ats_simulate_endpoint(payload: dict):
+async def ats_simulate_endpoint(payload: ATSSimulateRequest):
     """Run the explicit development ATS fixture; never expose it as live analysis."""
-    app_env = os.getenv("APP_ENV", os.getenv("ENV", "development")).strip().lower()
-    demo_enabled = os.getenv("ENABLE_DEMO_FIXTURES", "false").strip().lower() in {"1", "true", "yes", "on"}
+    app_env = settings.app_env.strip().lower()
+    demo_enabled = settings.enable_demo_fixtures or (os.getenv("ENABLE_DEMO_FIXTURES", "").lower() == "true")
     if app_env in {"production", "prod", "staging"} or not demo_enabled:
         raise HTTPException(
             status_code=423,
@@ -1174,7 +1234,7 @@ async def ats_simulate_endpoint(payload: dict):
             },
         )
     from app.services.ats_simulator import simulate_ats_parsing
-    resume_text = payload.get("resume_text", "")
+    resume_text = payload.resume_text
     return {
         "evidence_class": "demo_fixture",
         "runtime_mode": "development_demo",
@@ -1182,17 +1242,49 @@ async def ats_simulate_endpoint(payload: dict):
     }
 
 
+from app.services.live_interview_copilot import CopilotHintRequest
+InterviewCopilotHintPayload = CopilotHintRequest
+
+
 @app.post("/api/v1/interview/copilot-hint")
-async def interview_copilot_hint_endpoint(payload: dict):
+async def interview_copilot_hint_endpoint(payload: InterviewCopilotHintPayload):
     """Generate real-time STAR response hints during live interview."""
-    from app.services.live_interview_copilot import CopilotHintRequest, generate_interview_hint
-    req = CopilotHintRequest(**payload)
+    from app.services.live_interview_copilot import generate_interview_hint
     try:
-        res = await generate_interview_hint(req)
+        res = await generate_interview_hint(payload)
     except LLMNotConfiguredError as exc:
         logger.error("interview/copilot-hint: LLM not configured: %s", exc)
         raise HTTPException(status_code=503, detail="ai_service_unavailable") from exc
-    return res.dict()
+    return res.dict() if hasattr(res, "dict") else res.model_dump()
+
+
+class ModerateExperiencePayload(BaseModel):
+    text: str = ""
+    company: str = ""
+    role: str = ""
+    question_text: str = ""
+    answer_text: str = ""
+
+
+@app.post("/api/v1/interview/moderate")
+@app.post("/api/interview/moderate")
+async def interview_moderate_endpoint(payload: ModerateExperiencePayload):
+    """Moderate interview experience content for profanity, PII, and confidential leaks."""
+    from app.services.moderation import moderate_experience_content
+    combined_text = " ".join(filter(None, [
+        payload.text,
+        payload.company,
+        payload.role,
+        payload.question_text,
+        payload.answer_text,
+    ]))
+    result = moderate_experience_content(combined_text)
+    status = "approved" if result.get("approved") else "pending"
+    return {
+        "approved": result.get("approved", False),
+        "flags": result.get("flags", []),
+        "status": status,
+    }
 
 
 @app.get("/api/v1/candidate/answers")
@@ -1240,22 +1332,28 @@ async def candidate_answers_save_endpoint(
 
 
 
+class RecruiterPatternsRequest(BaseModel):
+    company_name: str = Field("Target Company", description="Target company name")
+    job_title: str = Field("Software Engineer", description="Target job title")
+
+
 @app.post("/api/v1/recruiter/patterns")
-async def recruiter_patterns_endpoint(payload: dict):
+async def recruiter_patterns_endpoint(payload: RecruiterPatternsRequest):
     """Generate corporate email permutations and multi-touch cold outreach sequence."""
     from app.services.recruiter_intelligence import find_recruiter_intel
-    company_name = payload.get("company_name", "Target Company")
-    job_title = payload.get("job_title", "Software Engineer")
-    return find_recruiter_intel(company_name, job_title)
+    return find_recruiter_intel(payload.company_name, payload.job_title)
+
+
+from app.services.agent_reach import AgentReachRequest
+AgentReachExtractRequest = AgentReachRequest
 
 
 @app.post("/api/v1/agent-reach/extract")
-async def agent_reach_extract_endpoint(payload: dict):
+async def agent_reach_extract_endpoint(payload: AgentReachExtractRequest):
     """Extract YouTube transcripts, LinkedIn posts, Substack/Medium articles & Reddit threads into Knowledge Graph."""
-    from app.services.agent_reach import AgentReachRequest, process_agent_reach
-    req = AgentReachRequest(**payload)
-    res = await process_agent_reach(req)
-    return res.dict()
+    from app.services.agent_reach import process_agent_reach
+    res = await process_agent_reach(payload)
+    return res.dict() if hasattr(res, "dict") else res.model_dump()
 
 
 @app.get("/api/v1/agent-reach/doctor")
@@ -1266,23 +1364,30 @@ async def agent_reach_doctor_endpoint():
     return report.dict()
 
 
+class AgentReachSearchRequest(BaseModel):
+    query: str = Field("Software Engineer Interview Prep", description="Search query")
+
+
 @app.post("/api/v1/agent-reach/search")
-async def agent_reach_search_endpoint(payload: dict):
+async def agent_reach_search_endpoint(payload: AgentReachSearchRequest):
     """Perform Exa AI semantic search over web and career platforms."""
     from app.services.agent_reach import run_exa_search
-    query = payload.get("query", "Software Engineer Interview Prep")
+    query = payload.query
     results = await run_exa_search(query)
     return {"query": query, "results": results}
 
 
+class AgentReachTranscribeRequest(BaseModel):
+    url: str = Field("", description="Audio or video URL to transcribe")
+    provider: str = Field("auto", description="Transcription provider: auto, groq, or openai")
+
+
 @app.post("/api/v1/agent-reach/transcribe")
-async def agent_reach_transcribe_endpoint(payload: dict):
+async def agent_reach_transcribe_endpoint(payload: AgentReachTranscribeRequest):
     """Transcribe audio/video podcast or URL using Whisper API (Groq/OpenAI)."""
     from app.services.agent_reach_transcribe import process_audio_transcription
-    url = payload.get("url", "")
-    provider = payload.get("provider", "auto")
-    transcript = await process_audio_transcription(url, provider=provider)
-    return {"url": url, "provider": provider, "transcript": transcript}
+    transcript = await process_audio_transcription(payload.url, provider=payload.provider)
+    return {"url": payload.url, "provider": payload.provider, "transcript": transcript}
 
 
 @app.get("/api/v1/agent-reach/cookies")
@@ -1292,9 +1397,15 @@ async def agent_reach_cookies_endpoint():
     return {"browsers": extract_browser_cookies()}
 
 
+class CandidateBankMatchRequest(BaseModel):
+    question_text: str = Field("", description="Form question or label text to match against the answer bank")
+    application_id: Optional[str] = Field(None, description="Optional application ID context")
+    custom_qa: dict = Field(default_factory=dict, description="Custom Q&A overrides")
+
+
 @app.post("/api/v1/candidate-bank/match")
 async def match_candidate_bank_endpoint(
-    payload: dict,
+    payload: CandidateBankMatchRequest,
     user_id: str = Depends(get_current_user),
 ):
     """Match an ATS form label against the caller's persisted answer bank."""
@@ -1304,46 +1415,60 @@ async def match_candidate_bank_endpoint(
     )
     from app.services.candidate_answer_bank import CandidateAnswers, match_question_to_answer
 
-    question = payload.get("question_text", "")
-    application_id = payload.get("application_id")
-    custom_qa = payload.get("custom_qa", {})
+    question = payload.question_text
+    application_id = payload.application_id
+    custom_qa = payload.custom_qa
     try:
         snapshot = await load_candidate_answer_snapshot(user_id, application_id=application_id)
     except AnswerBankStoreUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     bank = CandidateAnswers(**snapshot.answers, custom_qa=custom_qa)
     return match_question_to_answer(question, bank)
+
+
+class ATSDetectRequest(BaseModel):
+    url: str = Field("", description="Job posting or application URL")
+    html_snippet: str = Field("", description="Optional HTML snippet of application form")
+
+
 @app.post("/api/v1/ats/detect")
-async def detect_ats_endpoint(payload: dict):
+async def detect_ats_endpoint(payload: ATSDetectRequest):
     """Detect ATS vendor from job post URL or HTML snippet and return tailored formatting rules."""
     from app.services.ats_detector import detect_ats_from_url
-    url = payload.get("url", "")
-    html_snippet = payload.get("html_snippet", "")
-    rules = detect_ats_from_url(url, html_snippet)
-    return rules
+    return detect_ats_from_url(payload.url, payload.html_snippet)
+
+
+class TruthCheckRequest(BaseModel):
+    original_text: str = Field("", description="Original master resume text")
+    optimized_text: str = Field("", description="Optimized or tailored resume text")
 
 
 @app.post("/api/v1/guardrails/truth-check")
-async def truth_check_endpoint(payload: dict):
+async def truth_check_endpoint(payload: TruthCheckRequest):
     """Verify optimized resume against master profile to flag hallucinated titles or metrics."""
     from app.guardrails.truth_gate import verify_resume_truthfulness
-    orig = payload.get("original_text", "")
-    opt = payload.get("optimized_text", "")
-    res = verify_resume_truthfulness(orig, opt)
-    return res
+    return verify_resume_truthfulness(payload.original_text, payload.optimized_text)
+
+
+class RecruiterLookupRequest(BaseModel):
+    company_name: str = Field("Target Company", description="Target company name")
+    job_title: str = Field("Software Engineer", description="Target job title")
+    hiring_manager_name: Optional[str] = Field(None, description="Hiring manager or team lead name if known")
+    user_name: str = Field("Candidate", description="Applicant name")
+    user_skills: list[str] = Field(default_factory=list, description="Applicant skills list")
 
 
 @app.post("/api/v1/recruiter/lookup")
-async def recruiter_lookup_endpoint(payload: dict):
+async def recruiter_lookup_endpoint(payload: RecruiterLookupRequest):
     """Generate recruiter email candidates, pattern heuristics, and warm referral intro templates."""
     from app.services.recruiter_intelligence import generate_recruiter_intelligence
-    company = payload.get("company_name", "Target Company")
-    title = payload.get("job_title", "Software Engineer")
-    manager = payload.get("hiring_manager_name")
-    user = payload.get("user_name", "Candidate")
-    skills = payload.get("user_skills", [])
-    intel = generate_recruiter_intelligence(company, title, manager, user, skills)
-    return intel
+    return generate_recruiter_intelligence(
+        payload.company_name,
+        payload.job_title,
+        payload.hiring_manager_name,
+        payload.user_name,
+        payload.user_skills,
+    )
 
 
 class InternalRuntimePurgeRequest(BaseModel):
@@ -1359,7 +1484,7 @@ async def internal_account_runtime_purge(
     import hmac
     from uuid import UUID
 
-    expected = os.getenv("AI_INTERNAL_TOKEN", "")
+    expected = settings.ai_internal_token
     supplied = request.headers.get("X-Internal-Token", "")
     if not expected or not supplied or not hmac.compare_digest(supplied, expected):
         raise HTTPException(status_code=401, detail="Internal service authentication required")
@@ -1421,7 +1546,7 @@ async def internal_account_runtime_purge(
     except Exception as exc:  # noqa: BLE001
         errors.append(f"process-local run cleanup failed: {exc}")
 
-    redis_url = os.getenv("REDIS_URL")
+    redis_url = settings.redis_url
     if redis_url:
         try:
             from redis.asyncio import Redis
@@ -1440,9 +1565,105 @@ async def internal_account_runtime_purge(
     except Exception as exc:  # noqa: BLE001
         errors.append(f"privacy ledger cleanup failed: {exc}")
 
-    if errors and os.getenv("ENV", "development").lower() == "production":
+    if errors and settings.app_env.lower() in ("production", "prod"):
         raise HTTPException(status_code=503, detail="Runtime purge incomplete; account deletion was not started")
     return {"status": "purged", "revoked_tasks": revoked, "browser_runs": len(run_ids), "errors": errors}
+
+
+# ---------------------------------------------------------------------------
+# Unhobbling Harness Endpoints (arXiv:2407.01449 / DSPy Pydantic Signatures)
+# ---------------------------------------------------------------------------
+
+class _AuthenticatedUser:
+    def __init__(self, user_id: str):
+        self.id = user_id
+
+    def __str__(self) -> str:
+        return self.id
+
+
+async def get_authenticated_user(request: Request) -> _AuthenticatedUser:
+    """Extract and verify authenticated user from request context."""
+    auth = request.headers.get("Authorization")
+    x_user_id = request.headers.get("X-User-Id")
+    x_internal_token = request.headers.get("X-Internal-Token")
+    uid = await get_current_user(authorization=auth, x_user_id=x_user_id, x_internal_token=x_internal_token)
+    return _AuthenticatedUser(uid)
+
+
+def _get_real_llm_adapter():
+    from app.unhobbling.orchestrator import RealLLMCallable, MockLLMCallable
+    from app.services.llm_service import build_provider, MockProvider
+    try:
+        provider = build_provider()
+        if isinstance(provider, MockProvider):
+            return MockLLMCallable()
+        return RealLLMCallable()
+    except Exception:
+        return MockLLMCallable()
+
+
+@app.post("/v1/harness/run")
+@app.post("/api/v1/harness/run")
+async def harness_run(
+    request: Request,
+    user_id: Optional[str] = Depends(get_current_user),
+):
+    """Execute a harness run through the unhobbling orchestrator."""
+    if isinstance(user_id, str):
+        user = _AuthenticatedUser(user_id)
+    elif hasattr(user_id, "id"):
+        user = user_id
+    else:
+        user = await get_authenticated_user(request)
+
+    body = await request.json()
+
+    context_inputs = body.get("context_inputs", {})
+    task_type = body.get("task_type", "skill_extraction")
+    target_role = body.get("target_role", "")
+
+    if not context_inputs:
+        return JSONResponse({"error": "context_inputs required"}, status_code=400)
+
+    orchestrator = JobTayariOrchestrator(llm=_get_real_llm_adapter())
+    state = await orchestrator.run(
+        user_id=user.id,
+        context_inputs=context_inputs,
+        task_type=task_type,
+        target_role=target_role,
+    )
+
+    return JSONResponse({
+        "status": state["route"],
+        "output": state.get("pydantic_output"),
+        "iterations": state["current_iteration"],
+        "validation_passed": state["validation_passed"],
+        "run_id": state["run_id"],
+    })
+
+
+@app.get("/v1/harness/schemas")
+@app.get("/api/v1/harness/schemas")
+async def harness_schemas():
+    """Return available task type schemas."""
+    return JSONResponse({
+        task_type: HarnessSignatureRegistry.schema_for_llm(task_type)
+        for task_type in HarnessSignatureRegistry.all_task_types()
+    })
+
+
+# ---------------------------------------------------------------------------
+# Voice Live Duplex Session
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/v1/interview/voice-live/start")
+@app.post("/v1/interview/voice-live/start")
+async def voice_live_start(request: Request):
+    user = await get_authenticated_user(request)
+    result = start_live_session(user_id=user.id, run_id=str(uuid.uuid4()))
+    return JSONResponse(result)
 
 
 # ---------------------------------------------------------------------------
@@ -1460,5 +1681,5 @@ if __name__ == "__main__":
 
     # Containers must listen on all interfaces by default; operators can
     # narrow the bind with BIND_HOST for local or host-network deployments.
-    bind_host = os.getenv("BIND_HOST", "0.0.0.0")  # nosec B104 - container listener is explicitly configurable
-    uvicorn.run(app, host=bind_host, port=int(os.getenv("PORT", "8000")))
+    bind_host = settings.bind_host  # nosec B104 - container listener is explicitly configurable
+    uvicorn.run(app, host=bind_host, port=settings.port)

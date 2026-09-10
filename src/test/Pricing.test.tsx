@@ -215,7 +215,7 @@ describe("Pricing Page - Credit Packs & Transparent Credit Policy", () => {
     // Mock window.location
     const originalLocation = window.location;
     delete (window as any).location;
-    window.location = { ...originalLocation, href: "", origin: "http://localhost:3000" } as any;
+    window.location = { ...originalLocation, href: "", origin: "http://127.0.0.1:3000" } as any;
 
     try {
       render(
@@ -236,7 +236,7 @@ describe("Pricing Page - Credit Packs & Transparent Credit Policy", () => {
             body: JSON.stringify({
               pack_id: "pro",
               billing_mode: "one_time",
-              return_url: "http://localhost:3000/pricing",
+              return_url: "http://127.0.0.1:3000/pricing",
             }),
           })
         );
@@ -265,7 +265,7 @@ describe("Pricing Page - Credit Packs & Transparent Credit Policy", () => {
 
     const originalLocation = window.location;
     delete (window as any).location;
-    window.location = { ...originalLocation, href: "", origin: "http://localhost:3000" } as any;
+    window.location = { ...originalLocation, href: "", origin: "http://127.0.0.1:3000" } as any;
 
     try {
       render(
@@ -285,7 +285,7 @@ describe("Pricing Page - Credit Packs & Transparent Credit Policy", () => {
             body: JSON.stringify({
               plan: "pro",
               billing_mode: "subscription",
-              return_url: "http://localhost:3000/pricing",
+              return_url: "http://127.0.0.1:3000/pricing",
             }),
           })
         );

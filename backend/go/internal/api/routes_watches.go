@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -254,7 +254,7 @@ func (s *Server) handleUpdateJobWatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Printf("handleUpdateJobWatch: failed to update watch: %v", err)
+		slog.Error("handleUpdateJobWatch: failed to update watch", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "failed to update watch")
 		return
 	}
@@ -296,7 +296,7 @@ func (s *Server) handleDeleteJobWatch(w http.ResponseWriter, r *http.Request) {
 			WHERE user_id = $1::uuid AND (watch_id::text = $2 OR id::text = $2)
 		`, user.ID.String(), watchID)
 		if err != nil {
-			log.Printf("handleDeleteJobWatch: failed to delete watch: %v", err)
+			slog.Error("handleDeleteJobWatch: failed to delete watch", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "failed to delete watch")
 			return
 		}

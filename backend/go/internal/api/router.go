@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -14,10 +16,13 @@ import (
 	"tayari-backend/internal/database"
 	"tayari-backend/internal/models"
 	"tayari-backend/internal/observability"
+	"tayari-backend/internal/repository"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/time/rate"
 )
 
@@ -34,6 +39,7 @@ type Server struct {
 	Auth              auth.AuthService
 	Config            *config.Config
 	DB                *database.DB
+	Repos             *repository.Repositories
 	AI                *ai.Client
 	Billing           *billing.BillingService
 	startTime         time.Time
@@ -44,9 +50,20 @@ type Server struct {
 	aiPerUserLimiter  *perUserAILimiter
 	metrics           *observability.Metrics
 	capabilities      *capabilities.Registry
+	allowedOriginSet  map[string]struct{}
 }
 
 func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB) *Server {
+	allowedOriginSet := make(map[string]struct{})
+	if cfg != nil {
+		for _, o := range cfg.AllowedOrigins {
+			o = strings.TrimSpace(o)
+			if o != "" && o != "*" {
+				allowedOriginSet[o] = struct{}{}
+			}
+		}
+	}
+
 	s := &Server{
 		Router:            chi.NewRouter(),
 		Auth:              authService,
@@ -66,7 +83,8 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 		aiPerUserLimiter: newPerUserAILimiter(),
 		metrics:          observability.NewMetrics(),
 
-		capabilities: capabilities.NewFromEnv(),
+		capabilities:     capabilities.NewFromEnv(),
+		allowedOriginSet: allowedOriginSet,
 	}
 	resolver, err := clientip.NewResolver(cfg.TrustedProxyCIDRs)
 	if err != nil {
@@ -76,13 +94,18 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 	s.authRateLimiter.ipResolver = resolver
 	s.loginRateLimiter.ipResolver = resolver
 	s.voiceRateLimiter.ipResolver = resolver
+	if db != nil && db.Conn != nil {
+		s.Repos = repository.NewPostgresRepositories(db.Conn)
+	}
 	s.routes()
 	return s
 
 }
 
 func (s *Server) routes() {
-	s.Router.Use(middleware.Recoverer)
+	s.Router.Use(s.recoverWithSentry)
+	s.Router.Use(middleware.Timeout(60 * time.Second))
+	s.Router.Use(s.csrfCheck)
 	s.Router.Use(s.requestLoggingMiddleware)
 	s.Router.Use(s.tenantMiddleware)
 
@@ -106,15 +129,15 @@ func (s *Server) routes() {
 		}
 	}
 
-	allowedOriginSet := make(map[string]struct{}, len(defaultOrigins))
+	corsOriginSet := make(map[string]struct{}, len(defaultOrigins))
 	for _, o := range defaultOrigins {
-		allowedOriginSet[o] = struct{}{}
+		corsOriginSet[o] = struct{}{}
 	}
 
 	s.Router.Use(cors.Handler(cors.Options{
 		AllowedOrigins: defaultOrigins,
 		AllowOriginFunc: func(r *http.Request, origin string) bool {
-			_, ok := allowedOriginSet[origin]
+			_, ok := corsOriginSet[origin]
 			return ok
 		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -126,6 +149,7 @@ func (s *Server) routes() {
 
 	// Register Domain Routes
 	s.Router.Get("/metrics", s.handleMetrics)
+	s.Router.Get("/metrics/prometheus", s.handlePrometheusMetrics)
 	s.registerCoreRoutes(s.Router)
 	s.RegisterOneStopRoutes(s.Router)
 	s.routesOmniSave(s.Router)
@@ -153,7 +177,40 @@ func (s *Server) routes() {
 	s.RegisterSkillGapRoutes(s.Router)  // POST /skill-gaps (was dead — defined since 4998855, never wired)
 	s.routesApplicationsExtra(s.Router) // notes/interview-questions/parse-email/voice/stage (was dead)
 	s.RegisterChainRoutes(s.Router)     // GET /chain/{userId}, Dashboard pipeline strip (was dead)
+	s.routesCoverLetters(s.Router)
+	s.routesHarness(s.Router)
+}
 
+func (s *Server) recoverWithSentry(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rvr := recover(); rvr != nil {
+				if rvr != http.ErrAbortHandler {
+					sentry.CaptureException(fmt.Errorf("panic: %v", rvr))
+					sentry.Flush(2 * time.Second)
+					slog.Error("recovered from panic", "error", rvr)
+					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				}
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) csrfCheck(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+			origin := r.Header.Get("Origin")
+			if origin != "" && len(s.allowedOriginSet) > 0 {
+				if _, ok := s.allowedOriginSet[origin]; !ok {
+					slog.Warn("CSRF check blocked request with invalid origin", "origin", origin, "path", r.URL.Path)
+					http.Error(w, "CSRF: origin not allowed", http.StatusForbidden)
+					return
+				}
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // requireFeature checks billing entitlement for the given feature name.
@@ -187,3 +244,34 @@ func (s *Server) requireFeature(w http.ResponseWriter, r *http.Request, feature 
 	}
 	return true
 }
+
+func (s *Server) routesHarness(r chi.Router) {
+	r.Route("/api/v1/harness", func(r chi.Router) {
+		r.Use(s.requireAuth)
+		r.Post("/run", s.handleOneStopProxy("/api/v1/harness/run"))
+		r.Get("/schemas", s.handleOneStopProxyGET("/api/v1/harness/schemas"))
+	})
+	r.Route("/api/harness", func(r chi.Router) {
+		r.Use(s.requireAuth)
+		r.Post("/run", s.handleOneStopProxy("/api/v1/harness/run"))
+		r.Get("/schemas", s.handleOneStopProxyGET("/api/v1/harness/schemas"))
+	})
+}
+
+func (s *Server) requireAuth(next http.Handler) http.Handler {
+	return s.authMiddleware(next)
+}
+
+func (s *Server) proxyToPython(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		s.handleOneStopProxyGET(r.URL.Path)(w, r)
+	} else {
+		s.handleOneStopProxy(r.URL.Path)(w, r)
+	}
+}
+
+// Handler returns the HTTP handler wrapped with OpenTelemetry tracing.
+func (s *Server) Handler() http.Handler {
+	return otelhttp.NewHandler(s.Router, "tayari-gateway")
+}
+

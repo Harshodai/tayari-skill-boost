@@ -80,7 +80,7 @@ export function HeroSection() {
       state: {
         resumeText: rText,
         jobDescription: jText,
-        activePreset: currentPreset.label,
+        activePreset: currentPreset.company,
         autoScan: true,
       },
     });

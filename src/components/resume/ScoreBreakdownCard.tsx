@@ -24,7 +24,7 @@ export interface ScoreBreakdownCardProps {
   className?: string;
 }
 
-export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
+export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = React.memo(({
   breakdown,
   className = "",
 }) => {
@@ -357,4 +357,4 @@ export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
       </Card>
     </TooltipProvider>
   );
-};
+});

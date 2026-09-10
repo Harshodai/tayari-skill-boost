@@ -7,7 +7,7 @@ const originalFetch = globalThis.fetch;
 // ponytail: mock @/api/client's apiFetch directly so the test is isolated from
 // cross-file vi.mock("@/api") leaks (same pattern as RateLimiter.test.ts).
 vi.mock("@/api/client", () => ({
-  apiFetch: async (path: string, options: any = {}) => {
+  apiFetch: async (path: string, options: RequestInit = {}) => {
     // ponytail: bun's mock.module is process-global and never unloads, so this
     // stub leaks into every later test file. Delegate to whatever
     // globalThis.fetch is *at call time* (this file installs mockFetch in

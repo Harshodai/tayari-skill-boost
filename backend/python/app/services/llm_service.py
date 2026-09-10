@@ -38,6 +38,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import random
 import re
 import time
 import uuid
@@ -48,13 +49,18 @@ from threading import Lock
 from typing import Optional, Type, TypeVar, Any, Dict, List
 from pydantic import BaseModel, ValidationError
 
+import asyncio
+
 import httpx
 
+from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerOpen, circuit_breaker, get_circuit_breaker
 from app.services.hermes import config as hermes_config
 from app.services.ai_orchestration import SUPPORTED_TIERS, normalize_tier
 from app.services.pii_scrubber import scrub as _scrub_pii
+from app.services.token_compressor import TokenCompressor
 from app.telemetry import metrics
 from app.telemetry.langfuse_client import trace_llm_call
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +68,21 @@ logger = logging.getLogger(__name__)
 # LLM Observability & Token Pricing (WP-06)
 # ---------------------------------------------------------------------------
 
-def estimate_tokens(text: str) -> int:
-    """Fast approximation of token count (~4 chars per token)."""
-    if not text:
-        return 0
-    return max(1, len(text) // 4)
+try:
+    import tiktoken
+    _encoding = tiktoken.encoding_for_model("gpt-4")
+    def estimate_tokens(text: str) -> int:
+        if not text:
+            return 0
+        try:
+            return len(_encoding.encode(text))
+        except Exception:
+            return max(1, len(text) // 4)
+except (ImportError, Exception):
+    def estimate_tokens(text: str) -> int:
+        if not text:
+            return 0
+        return max(1, len(text) // 4)  # fallback
 
 
 def get_model_pricing(model_name: str) -> tuple[float, float]:
@@ -115,7 +131,7 @@ class DailyCostTracker:
         uid = str(user_id).strip()
         key = (today, uid)
 
-        limit_str = os.getenv("MAX_DAILY_LLM_COST_USD", "0.50").strip()
+        limit_str = os.getenv("MAX_DAILY_LLM_COST_USD") or str(getattr(settings, "max_daily_llm_cost_usd", 0.50))
         try:
             limit = float(limit_str)
         except ValueError:
@@ -142,6 +158,35 @@ _background_tasks: set = set()
 
 
 # ---------------------------------------------------------------------------
+# Shared HTTP client — reuse across all providers to avoid TCP churn
+# ---------------------------------------------------------------------------
+
+_http_client: httpx.AsyncClient | None = None
+
+HTTP_TIMEOUT = 180  # seconds — generous for slow LLM providers
+
+
+def get_http_client() -> httpx.AsyncClient:
+    """Return the shared httpx.AsyncClient, creating it on first use.
+
+    Reusing a single client reuses the underlying TCP connection pool,
+    avoiding the overhead of establishing a new connection per LLM call.
+    """
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(timeout=HTTP_TIMEOUT)
+    return _http_client
+
+
+async def close_http_client() -> None:
+    """Close the shared client — call on app shutdown (FastAPI lifespan)."""
+    global _http_client
+    if _http_client is not None and not _http_client.is_closed:
+        await _http_client.aclose()
+        _http_client = None
+
+
+# ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
 
@@ -159,6 +204,13 @@ class LLMNotConfiguredError(RuntimeError):
 
 class LLMProvider(ABC):
     """Abstract base — every concrete provider must implement complete()."""
+
+    @property
+    def provider_name(self) -> str:
+        name = self.__class__.__name__.lower()
+        if name.endswith("provider"):
+            name = name[:-8]
+        return name or "default"
 
     @abstractmethod
     async def complete(
@@ -180,6 +232,12 @@ class LLMProvider(ABC):
 class OpenAICompatibleProvider(LLMProvider):
     """Any OpenAI-compatible /chat/completions endpoint (vLLM, Together, Groq, etc.)."""
 
+    MAX_RETRIES = 3
+
+    @property
+    def provider_name(self) -> str:
+        return "openai_compatible"
+
     def __init__(self, base_url: str, api_key: str, model: str) -> None:
         self._base = base_url.rstrip("/")
         self._key = api_key
@@ -199,11 +257,38 @@ class OpenAICompatibleProvider(LLMProvider):
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        async with httpx.AsyncClient(timeout=180) as client:
-            resp = await client.post(f"{self._base}/chat/completions",
-                                     json=payload, headers=headers)
-            resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+        last_exc: Exception | None = None
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                resp = await get_http_client().post(f"{self._base}/chat/completions",
+                                                    json=payload, headers=headers)
+                if resp.status_code == 429:
+                    delay = (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning(
+                        "OpenAI-compatible 429 rate-limit (attempt %d/%d); retrying in %.1fs",
+                        attempt + 1, self.MAX_RETRIES, delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                resp.raise_for_status()
+                return resp.json()["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as exc:
+                logger.warning("OpenAI-compatible HTTP error attempt %d: %s", attempt + 1, exc)
+                last_exc = exc
+                if exc.response.status_code not in (429, 500, 502, 503, 504):
+                    raise
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                delay = (2 ** attempt) + random.uniform(0, 1)
+                await asyncio.sleep(delay)
+            except Exception as exc:
+                logger.warning("OpenAI-compatible error attempt %d: %s", attempt + 1, exc)
+                last_exc = exc
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                delay = (2 ** attempt) + random.uniform(0, 1)
+                await asyncio.sleep(delay)
+        raise RuntimeError(f"OpenAI-compatible exhausted {self.MAX_RETRIES} retries") from last_exc
 
     def active_engine_label(self) -> str:
         return f"openai-compatible ({self._model})"
@@ -211,6 +296,12 @@ class OpenAICompatibleProvider(LLMProvider):
 
 class OllamaProvider(LLMProvider):
     """Local Ollama server — uses /api/generate (not chat/completions)."""
+
+    MAX_RETRIES = 3
+
+    @property
+    def provider_name(self) -> str:
+        return "ollama"
 
     def __init__(self, base_url: str, model: str) -> None:
         self._base = base_url.rstrip("/")
@@ -224,10 +315,37 @@ class OllamaProvider(LLMProvider):
             "stream": False,
             "options": {"temperature": temperature, "num_predict": max_tokens},
         }
-        async with httpx.AsyncClient(timeout=300) as client:
-            resp = await client.post(f"{self._base}/api/generate", json=payload)
-            resp.raise_for_status()
-        return resp.json().get("response", "")
+        last_exc: Exception | None = None
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                resp = await get_http_client().post(f"{self._base}/api/generate", json=payload)
+                if resp.status_code == 429:
+                    delay = (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning(
+                        "Ollama 429 rate-limit (attempt %d/%d); retrying in %.1fs",
+                        attempt + 1, self.MAX_RETRIES, delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                resp.raise_for_status()
+                return resp.json().get("response", "")
+            except httpx.HTTPStatusError as exc:
+                logger.warning("Ollama HTTP error attempt %d: %s", attempt + 1, exc)
+                last_exc = exc
+                if exc.response.status_code not in (429, 500, 502, 503, 504):
+                    raise
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                delay = (2 ** attempt) + random.uniform(0, 1)
+                await asyncio.sleep(delay)
+            except Exception as exc:
+                logger.warning("Ollama error attempt %d: %s", attempt + 1, exc)
+                last_exc = exc
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                delay = (2 ** attempt) + random.uniform(0, 1)
+                await asyncio.sleep(delay)
+        raise RuntimeError(f"Ollama exhausted {self.MAX_RETRIES} retries") from last_exc
 
     def active_engine_label(self) -> str:
         return f"ollama-{self._model}"
@@ -239,6 +357,10 @@ class OpenRouterProvider(LLMProvider):
     BASE = "https://openrouter.ai/api/v1"
     DEFAULT_MODEL = "openrouter/free"
     MAX_RETRIES = 3
+
+    @property
+    def provider_name(self) -> str:
+        return "openrouter"
 
     def __init__(self, api_key: str, model: str) -> None:
         self._key = api_key
@@ -261,32 +383,39 @@ class OpenRouterProvider(LLMProvider):
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        client = get_http_client()
+        last_exc: Exception | None = None
         for attempt in range(self.MAX_RETRIES):
             try:
-                async with httpx.AsyncClient(timeout=180) as client:
-                    resp = await client.post(f"{self.BASE}/chat/completions",
-                                             json=payload, headers=headers)
-                    if resp.status_code == 429:
-                        remaining = resp.headers.get("X-RateLimit-Remaining", "0")
-                        reset = resp.headers.get("X-RateLimit-Reset", "5")
-                        wait = (2 ** attempt) + (int(reset) if reset.isdigit() else 5)
-                        logger.warning("OpenRouter 429 (attempt %d/%d, remaining=%s); retrying in %ds",
-                                       attempt + 1, self.MAX_RETRIES, remaining, wait)
-                        import asyncio
-                        await asyncio.sleep(wait)
-                        continue
-                    resp.raise_for_status()
-                return resp.json()["choices"][0]["message"]["content"]
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 429 and attempt < self.MAX_RETRIES - 1:
+                resp = await client.post(f"{self.BASE}/chat/completions",
+                                         json=payload, headers=headers)
+                if resp.status_code == 429:
+                    remaining = resp.headers.get("X-RateLimit-Remaining", "0")
+                    reset = resp.headers.get("X-RateLimit-Reset", "5")
+                    delay = (2 ** attempt) + (int(reset) if reset.isdigit() else 5) + random.uniform(0, 1)
+                    logger.warning("OpenRouter 429 (attempt %d/%d, remaining=%s); retrying in %.1fs",
+                                   attempt + 1, self.MAX_RETRIES, remaining, delay)
+                    await asyncio.sleep(delay)
                     continue
-                logger.error("OpenRouter HTTP error after %d retries: %s", attempt + 1, e)
-                raise
-            except Exception as e:
-                logger.error("OpenRouter request error (attempt %d/%d): %s", attempt + 1, self.MAX_RETRIES, e)
+                resp.raise_for_status()
+                return resp.json()["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as exc:
+                logger.warning("OpenRouter HTTP error attempt %d: %s", attempt + 1, exc)
+                last_exc = exc
+                if exc.response.status_code not in (429, 500, 502, 503, 504):
+                    raise
                 if attempt == self.MAX_RETRIES - 1:
                     raise
-        raise RuntimeError("OpenRouter exhausted retries")
+                delay = (2 ** attempt) + random.uniform(0, 1)
+                await asyncio.sleep(delay)
+            except Exception as exc:
+                logger.warning("OpenRouter error attempt %d: %s", attempt + 1, exc)
+                last_exc = exc
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                delay = (2 ** attempt) + random.uniform(0, 1)
+                await asyncio.sleep(delay)
+        raise RuntimeError("OpenRouter exhausted retries") from last_exc
 
     def active_engine_label(self) -> str:
         return f"openrouter/{self._model}"
@@ -301,6 +430,10 @@ class NVIDIANIMProvider(LLMProvider):
     DEFAULT_MODEL = "meta/llama-3.1-70b-instruct"
     MAX_RETRIES = 3
 
+    @property
+    def provider_name(self) -> str:
+        return "nvidia_nim"
+
     def __init__(self, api_key: str, model: str, base_url: str) -> None:
         self._key = api_key
         self._model = model or self.DEFAULT_MODEL
@@ -308,7 +441,6 @@ class NVIDIANIMProvider(LLMProvider):
 
     async def complete(self, system_message: str, user_message: str,
                        max_tokens: int = 800, temperature: float = 0.3) -> str:
-        import asyncio
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self._key}",
@@ -323,24 +455,24 @@ class NVIDIANIMProvider(LLMProvider):
             "max_tokens": max_tokens,
             "stream": False,
         }
+        client = get_http_client()
         last_exc: Exception | None = None
         for attempt in range(self.MAX_RETRIES):
             try:
-                async with httpx.AsyncClient(timeout=180) as client:
-                    resp = await client.post(
-                        f"{self._base}/chat/completions",
-                        json=payload,
-                        headers=headers,
+                resp = await client.post(
+                    f"{self._base}/chat/completions",
+                    json=payload,
+                    headers=headers,
+                )
+                if resp.status_code == 429:
+                    delay = (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning(
+                        "NVIDIA NIM 429 rate-limit (attempt %d/%d); retrying in %.1fs",
+                        attempt + 1, self.MAX_RETRIES, delay,
                     )
-                    if resp.status_code == 429:
-                        wait = 2 ** attempt  # 1s, 2s, 4s
-                        logger.warning(
-                            "NVIDIA NIM 429 rate-limit (attempt %d/%d); retrying in %ds",
-                            attempt + 1, self.MAX_RETRIES, wait,
-                        )
-                        await asyncio.sleep(wait)
-                        continue
-                    resp.raise_for_status()
+                    await asyncio.sleep(delay)
+                    continue
+                resp.raise_for_status()
                 content = resp.json()["choices"][0]["message"]["content"]
                 if attempt > 0:
                     logger.info("NVIDIA NIM succeeded on attempt %d", attempt + 1)
@@ -348,15 +480,19 @@ class NVIDIANIMProvider(LLMProvider):
             except httpx.HTTPStatusError as exc:
                 logger.warning("NVIDIA NIM HTTP error attempt %d: %s", attempt + 1, exc)
                 last_exc = exc
-                if exc.response.status_code not in (429, 500, 502, 503) or attempt == self.MAX_RETRIES - 1:
+                if exc.response.status_code not in (429, 500, 502, 503, 504):
                     raise
-                await asyncio.sleep(2 ** attempt)
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                delay = (2 ** attempt) + random.uniform(0, 1)
+                await asyncio.sleep(delay)
             except Exception as exc:
                 logger.warning("NVIDIA NIM error attempt %d: %s", attempt + 1, exc)
                 last_exc = exc
                 if attempt == self.MAX_RETRIES - 1:
                     raise
-                await asyncio.sleep(2 ** attempt)
+                delay = (2 ** attempt) + random.uniform(0, 1)
+                await asyncio.sleep(delay)
         raise RuntimeError(f"NVIDIA NIM exhausted {self.MAX_RETRIES} retries") from last_exc
 
     def active_engine_label(self) -> str:
@@ -364,7 +500,13 @@ class NVIDIANIMProvider(LLMProvider):
 
 
 class HermesProvider(LLMProvider):
-    """Hermes agent endpoint — OpenAI-compatible, falls back to mock on error."""
+    """Hermes agent endpoint — OpenAI-compatible, with retry and exponential backoff."""
+
+    MAX_RETRIES = 3
+
+    @property
+    def provider_name(self) -> str:
+        return "hermes"
 
     async def complete(self, system_message: str, user_message: str,
                        max_tokens: int = 800, temperature: float = 0.3) -> str:
@@ -381,17 +523,41 @@ class HermesProvider(LLMProvider):
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
-        try:
-            async with httpx.AsyncClient(timeout=180) as client:
+        client = get_http_client()
+        last_exc: Exception | None = None
+        for attempt in range(self.MAX_RETRIES):
+            try:
                 resp = await client.post(f"{base}/chat/completions",
                                          json=payload, headers=headers)
+                if resp.status_code == 429:
+                    delay = (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning(
+                        "Hermes 429 rate-limit (attempt %d/%d); retrying in %.1fs",
+                        attempt + 1, self.MAX_RETRIES, delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
                 resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"]
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("hermes completion failed (%s)", exc)
-            raise LLMNotConfiguredError(
-                f"Hermes provider failed: {exc}"
-            ) from exc
+                return resp.json()["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as exc:
+                logger.warning("Hermes HTTP error attempt %d: %s", attempt + 1, exc)
+                last_exc = exc
+                if exc.response.status_code not in (429, 500, 502, 503, 504):
+                    raise LLMNotConfiguredError(f"Hermes HTTP error {exc.response.status_code}: {exc}") from exc
+                if attempt == self.MAX_RETRIES - 1:
+                    break
+                delay = (2 ** attempt) + random.uniform(0, 1)
+                await asyncio.sleep(delay)
+            except Exception as exc:
+                logger.warning("Hermes error attempt %d: %s", attempt + 1, exc)
+                last_exc = exc
+                if attempt == self.MAX_RETRIES - 1:
+                    break
+                delay = (2 ** attempt) + random.uniform(0, 1)
+                await asyncio.sleep(delay)
+        raise LLMNotConfiguredError(
+            f"Hermes exhausted {self.MAX_RETRIES} retries"
+        ) from last_exc
 
     def active_engine_label(self) -> str:
         return f"hermes-{hermes_config.HERMES_MODEL}"
@@ -400,6 +566,10 @@ class HermesProvider(LLMProvider):
 class MockProvider(LLMProvider):
     """Used only when no LLM is configured. Always raises LLMNotConfiguredError
     so callers never receive fabricated AI data."""
+
+    @property
+    def provider_name(self) -> str:
+        return "mock"
 
     async def complete(self, system_message: str, user_message: str,
                        max_tokens: int = 800, temperature: float = 0.3) -> str:
@@ -588,21 +758,33 @@ async def llm_complete(
         metrics.record_provider_error("factory")
         raise
 
+    provider_key = getattr(provider, "provider_name", "unknown")
+    cb = None
+    if provider_key != "mock":
+        cb = get_circuit_breaker(name=f"llm_{provider_key}", failure_threshold=5, recovery_timeout=30.0)
+        if not cb.can_attempt():
+            raise CircuitBreakerOpen(
+                f"Circuit breaker '{cb.name}' is OPEN. Retry after {cb.recovery_timeout}s."
+            )
+
     provider_name = "unknown"
     try:
         provider_name = provider.active_engine_label()
     except Exception:
         pass
     # Inbound prompt-size cap: untrusted job descriptions and scraped page
-    # content can be arbitrarily large. Truncate before the provider call so a
+    # content can be arbitrarily large. Truncate/compress before the provider call so a
     # single request cannot amplify cost or blow the provider timeout.
-    max_input_chars = int(os.getenv("LLM_MAX_INPUT_CHARS", "60000") or 60000)
+    max_input_chars = int(os.getenv("LLM_MAX_INPUT_CHARS") or getattr(settings, "llm_max_input_chars", 60000))
     if len(user_message) > max_input_chars:
+        compressed_res = TokenCompressor.compress_text(user_message, max_chars=max_input_chars)
         logger.warning(
-            "llm_complete: user_message truncated from %d to %d chars",
-            len(user_message), max_input_chars,
+            "llm_complete: user_message compressed from %d to %d chars (is_compressed=%s)",
+            compressed_res.get("original_length", len(user_message)),
+            compressed_res.get("compressed_length", max_input_chars),
+            compressed_res.get("is_compressed", True),
         )
-        user_message = user_message[:max_input_chars]
+        user_message = compressed_res.get("compressed_text", user_message[:max_input_chars])
     if len(system_message) > max_input_chars:
         system_message = system_message[:max_input_chars]
     # ponytail: single choke point — scrub only the outbound copy; callers keep
@@ -618,7 +800,11 @@ async def llm_complete(
                                          max_tokens=max_tokens, temperature=temperature)
         if not result:
             raise LLMNotConfiguredError("LLM provider returned an empty response.")
+        if cb is not None:
+            cb.record_success()
     except Exception:
+        if cb is not None:
+            cb.record_failure()
         metrics.record_provider_error(provider_name)
         raise
 
@@ -727,8 +913,10 @@ async def llm_json(
     tier: str = "fast",
     max_tokens: int = 1500,
     max_retries: int = 2,
+    temperature: float = 0.3,
     _user_id: Optional[str] = None,
     _resource: Optional[str] = None,
+    **kwargs: Any,
 ) -> T | dict | list:
     """Complete and parse LLM response into a Pydantic model T or JSON dict/list.
 
@@ -738,7 +926,16 @@ async def llm_json(
     # ponytail: no scrub here — llm_json delegates to llm_complete, the single
     # choke point, so user text is scrubbed once before leaving the process.
     schema_instruction = ""
-    if response_model is not None:
+    target_schema = kwargs.get("schema")
+    if target_schema is not None:
+        json_schema = json.dumps(target_schema, indent=2)
+        schema_instruction = (
+            f"\n\nSTRICT JSON OUTPUT REQUIREMENT:\n"
+            f"You MUST return a single JSON object strictly matching this schema:\n"
+            f"```json\n{json_schema}\n```\n"
+            f"Do not include any prose, commentary, or markdown formatting outside the JSON."
+        )
+    elif response_model is not None:
         json_schema = json.dumps(response_model.model_json_schema(), indent=2)
         schema_instruction = (
             f"\n\nSTRICT JSON OUTPUT REQUIREMENT:\n"
@@ -759,6 +956,7 @@ async def llm_json(
             current_user_msg,
             tier=tier,
             max_tokens=max_tokens,
+            temperature=temperature,
             _user_id=_user_id,
             _resource=_resource,
         )

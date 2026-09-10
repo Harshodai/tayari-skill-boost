@@ -5,17 +5,23 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import JobSearch from "@/pages/JobSearch";
 
-const capturedSeoProps: any[] = [];
+interface MockSeoProps {
+  title?: string;
+  jsonLd?: unknown;
+  [key: string]: unknown;
+}
+
+const capturedSeoProps: MockSeoProps[] = [];
 
 vi.mock("@/components/seo/Seo", () => ({
-  Seo: (props: any) => {
+  Seo: (props: MockSeoProps) => {
     capturedSeoProps.push(props);
     return <div data-testid="mock-seo" data-title={props.title} data-jsonld={JSON.stringify(props.jsonLd)} />;
   },
 }));
 
 vi.mock("@/components/layout", () => ({
-  AppShell: ({ children }: any) => <div data-testid="app-shell">{children}</div>,
+  AppShell: ({ children }: { children?: React.ReactNode }) => <div data-testid="app-shell">{children}</div>,
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({

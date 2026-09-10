@@ -26,16 +26,22 @@ DB_USER="${SUPABASE_DB_USER:-postgres}"
 DB_NAME="${SUPABASE_DB_NAME:-postgres}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 
-# REQUIRED — fail fast if the password is not supplied rather than hanging on
+# REQUIRED — fail fast if the password or connection string is not supplied rather than hanging on
 # a PGPASSWORD prompt or silently using an empty password.
-: "${SUPABASE_DB_PASSWORD:?Set SUPABASE_DB_PASSWORD (see supabase-local/.env POSTGRES_PASSWORD)}"
+if [ -z "${DATABASE_URL:-}" ]; then
+    : "${SUPABASE_DB_PASSWORD:?Set SUPABASE_DB_PASSWORD (see supabase-local/.env POSTGRES_PASSWORD) or DATABASE_URL}"
+fi
 
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 DUMP_FILE="${BACKUP_DIR}/tayari_hosted_${TIMESTAMP}.dump"
 
 START_EPOCH=$(date +%s)
 echo "[backup-hosted] START $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-echo "[backup-hosted] target: ${DB_HOST}:${DB_PORT}/${DB_NAME} user=${DB_USER}"
+if [ -n "${DATABASE_URL:-}" ]; then
+    echo "[backup-hosted] target: DATABASE_URL provided"
+else
+    echo "[backup-hosted] target: ${DB_HOST}:${DB_PORT}/${DB_NAME} user=${DB_USER}"
+fi
 echo "[backup-hosted] dump file: ${DUMP_FILE}"
 echo "[backup-hosted] retention: ${RETENTION_DAYS} days"
 
@@ -44,21 +50,30 @@ if ! command -v pg_dump >/dev/null 2>&1; then
     exit 2
 fi
 
-export PGPASSWORD="${SUPABASE_DB_PASSWORD}"
-
 # --format=custom    : pg_restore-friendly binary dump (parallel-restore capable)
 # --schema=public    : application schema only; managed Supabase schemas are
 #                      restored by their own service or provisioning workflow.
 # --no-owner --no-acl: portable across environments (no role/OID dependencies)
-if ! pg_dump -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" \
-        --format=custom --schema=public --no-owner --no-acl \
-        --file "${DUMP_FILE}" "${DB_NAME}"; then
-    echo "[backup-hosted] ERROR: pg_dump failed." >&2
-    rm -f "${DUMP_FILE}"
+if [ -n "${DATABASE_URL:-}" ]; then
+    if ! pg_dump "${DATABASE_URL}" \
+            --format=custom --schema=public --no-owner --no-acl \
+            --file "${DUMP_FILE}"; then
+        echo "[backup-hosted] ERROR: pg_dump failed." >&2
+        rm -f "${DUMP_FILE}"
+        exit 1
+    fi
+else
+    export PGPASSWORD="${SUPABASE_DB_PASSWORD}"
+    if ! pg_dump -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" \
+            --format=custom --schema=public --no-owner --no-acl \
+            --file "${DUMP_FILE}" "${DB_NAME}"; then
+        echo "[backup-hosted] ERROR: pg_dump failed." >&2
+        rm -f "${DUMP_FILE}"
+        unset PGPASSWORD
+        exit 1
+    fi
     unset PGPASSWORD
-    exit 1
 fi
-unset PGPASSWORD
 
 END_EPOCH=$(date +%s)
 DUMP_SIZE=$(stat -c %s "${DUMP_FILE}" 2>/dev/null || stat -f %z "${DUMP_FILE}" 2>/dev/null || echo 0)
@@ -68,6 +83,15 @@ ELAPSED=$(( END_EPOCH - START_EPOCH ))
 echo "[backup-hosted] END   $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 echo "[backup-hosted] dump size: ${DUMP_SIZE_MB} MB (${DUMP_SIZE} bytes)"
 echo "[backup-hosted] elapsed: ${ELAPSED}s"
+
+if [ -n "${BACKUP_S3_BUCKET:-}" ]; then
+    if command -v aws >/dev/null 2>&1; then
+        echo "[backup-hosted] uploading to s3://${BACKUP_S3_BUCKET}/..."
+        aws s3 cp "${DUMP_FILE}" "s3://${BACKUP_S3_BUCKET}/$(basename "${DUMP_FILE}")"
+    else
+        echo "[backup-hosted] WARNING: BACKUP_S3_BUCKET set but aws CLI not found on PATH" >&2
+    fi
+fi
 
 # Prune dumps older than RETENTION_DAYS (only our custom-format files; leave
 # scripts/backup.sh's .sql.gz files untouched).

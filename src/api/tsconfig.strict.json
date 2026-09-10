@@ -1,0 +1,25 @@
+{
+  "extends": "../../tsconfig.app.json",
+  "compilerOptions": {
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "../api/**/*.ts",
+    "../api/**/*.tsx",
+    "../contexts/**/*.ts",
+    "../contexts/**/*.tsx"
+  ],
+  "exclude": [
+    "../api/**/*.test.ts",
+    "../api/**/*.test.tsx",
+    "../contexts/**/*.test.ts",
+    "../contexts/**/*.test.tsx"
+  ]
+}

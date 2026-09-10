@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"tayari-backend/internal/capabilities"
+	"tayari-backend/internal/models"
 )
 
 type approvalNotifyRequest struct {
@@ -42,6 +44,18 @@ func (s *Server) routesNotifications(r chi.Router) {
 		r.Post("/api/notification-preferences/whatsapp/confirm", s.handleConfirmWhatsAppLink)
 		r.Post("/api/v1/approvals/{approvalID}/notify", s.handleNotifyApproval)
 		r.Post("/api/approvals/{approvalID}/notify", s.handleNotifyApproval)
+
+		// In-app notifications
+		r.Get("/api/v1/notifications", s.handleListNotifications)
+		r.Get("/api/notifications", s.handleListNotifications)
+		r.Patch("/api/v1/notifications/{id}/read", s.handleMarkNotificationRead)
+		r.Patch("/api/notifications/{id}/read", s.handleMarkNotificationRead)
+		r.Post("/api/v1/notifications/{id}/read", s.handleMarkNotificationRead)
+		r.Post("/api/notifications/{id}/read", s.handleMarkNotificationRead)
+		r.Patch("/api/v1/notifications/read-all", s.handleMarkAllNotificationsRead)
+		r.Patch("/api/notifications/read-all", s.handleMarkAllNotificationsRead)
+		r.Post("/api/v1/notifications/read-all", s.handleMarkAllNotificationsRead)
+		r.Post("/api/notifications/read-all", s.handleMarkAllNotificationsRead)
 	})
 }
 
@@ -205,3 +219,129 @@ func (s *Server) handleEmailNotificationWebhook(w http.ResponseWriter, r *http.R
 func (s *Server) handleWhatsAppNotificationWebhook(w http.ResponseWriter, r *http.Request) {
 	s.handleWhatsAppWebhook(w, r)
 }
+
+type NotificationResponse struct {
+	ID        string          `json:"id"`
+	UserID    string          `json:"user_id"`
+	Title     string          `json:"title"`
+	Body      string          `json:"body"`
+	Channel   string          `json:"channel"`
+	Read      bool            `json:"read"`
+	Data      json.RawMessage `json:"data,omitempty"`
+	CreatedAt string          `json:"created_at"`
+}
+
+func (s *Server) handleListNotifications(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	if s.DB == nil || s.DB.Conn == nil {
+		s.respondError(w, http.StatusServiceUnavailable, "database unavailable")
+		return
+	}
+
+	rows, err := s.DB.Conn.QueryContext(r.Context(),
+		`SELECT id, user_id, title, COALESCE(body, ''), COALESCE(channel, 'in_app'), COALESCE(read, false), COALESCE(data, '{}'::jsonb), created_at
+		 FROM notifications
+		 WHERE user_id = $1
+		 ORDER BY created_at DESC
+		 LIMIT 50`,
+		user.ID,
+	)
+	if err != nil {
+		slog.Error("handleListNotifications: query failed", "error", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to load notifications")
+		return
+	}
+	defer rows.Close()
+
+	items := make([]NotificationResponse, 0)
+	for rows.Next() {
+		var item NotificationResponse
+		var createdAt time.Time
+		var rawData []byte
+		if err := rows.Scan(&item.ID, &item.UserID, &item.Title, &item.Body, &item.Channel, &item.Read, &rawData, &createdAt); err != nil {
+			slog.Error("handleListNotifications: scan failed", "error", err)
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan notification")
+			return
+		}
+		item.CreatedAt = createdAt.Format(time.RFC3339)
+		if len(rawData) > 0 {
+			item.Data = json.RawMessage(rawData)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		slog.Error("handleListNotifications: rows iteration error", "error", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to iterate notifications")
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, items)
+}
+
+func (s *Server) handleMarkNotificationRead(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	if s.DB == nil || s.DB.Conn == nil {
+		s.respondError(w, http.StatusServiceUnavailable, "database unavailable")
+		return
+	}
+
+	rawID := chi.URLParam(r, "id")
+	notifID, err := uuid.Parse(rawID)
+	if err != nil {
+		s.respondError(w, http.StatusBadRequest, "invalid notification id")
+		return
+	}
+
+	res, err := s.DB.Conn.ExecContext(r.Context(),
+		`UPDATE notifications SET read = true WHERE id = $1 AND user_id = $2`,
+		notifID, user.ID,
+	)
+	if err != nil {
+		slog.Error("handleMarkNotificationRead: update failed", "error", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to update notification")
+		return
+	}
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected == 0 {
+		s.respondError(w, http.StatusNotFound, "Notification not found")
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"id":   rawID,
+		"read": true,
+	})
+}
+
+func (s *Server) handleMarkAllNotificationsRead(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	if s.DB == nil || s.DB.Conn == nil {
+		s.respondError(w, http.StatusServiceUnavailable, "database unavailable")
+		return
+	}
+
+	_, err := s.DB.Conn.ExecContext(r.Context(),
+		`UPDATE notifications SET read = true WHERE user_id = $1 AND read = false`,
+		user.ID,
+	)
+	if err != nil {
+		slog.Error("handleMarkAllNotificationsRead: update failed", "error", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to update notifications")
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+

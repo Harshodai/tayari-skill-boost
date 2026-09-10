@@ -68,6 +68,8 @@ const CONFIG = {
     knowledgeHub: [true, true],
     // Career operations dashboard
     careerOps: [true, true],
+    // Career intelligence telemetry and skill/salary analysis
+    careerIntelligence: [true, true],
     // One-Shot Autopilot Console
     oneShotPipeline: [true, true],
     // Typst ATS Resume Studio

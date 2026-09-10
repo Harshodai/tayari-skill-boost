@@ -1,4 +1,9 @@
 /**
+ * DEPRECATED: This file is dead code. It is not imported by any other file in
+ * the extension. The active autofill logic lives in content.js (which loads
+ * profile data from background.js via get_profile_data). Kept for reference
+ * only — safe to delete.
+ *
  * Tayari Smart ATS Form Autofill Engine
  * Supports Greenhouse, Lever, Ashby, Workday, and generic application portals.
  */

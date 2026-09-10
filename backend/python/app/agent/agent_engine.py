@@ -1,5 +1,6 @@
 import os
 import ast
+import re
 import urllib.parse
 import socket
 import ipaddress
@@ -11,6 +12,61 @@ from app.agent.browser_operator import BrowserOperator
 from app.agent.agent_memory import AgentMemory
 from app.agent.reflection_engine import ReflectionEngine
 from app.agent.subagent_orchestrator import SubagentOrchestrator
+from app.unhobbling.orchestrator import JobTayariOrchestrator
+
+
+class RealLLMCallable:
+    """Real LLM adapter for JobTayariOrchestrator using llm_service with Mock fallback."""
+
+    async def generate_code_action(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        handles = list(state.get("variable_handles", {}).keys())
+        system = (
+            "You are an AI engineer generating sandboxed Python code to operate on variable handles. "
+            "Available helpers: get_variable(key), slice_variable(key, start, end), search_variable(key, pattern), token_count(key), list_variables(). "
+            "Assign your final output to a variable named 'result'. "
+            "Never import os, sys, subprocess, socket, or call eval/exec/open."
+        )
+        user = (
+            f"Generate Python code action.\n"
+            f"Goal / Target Role: {state.get('target_role', '')}\n"
+            f"Variable handles: {handles}\n"
+            f"Task: {state.get('task_type', 'code_action')}\n"
+        )
+        from app.services import llm_service
+        from app.unhobbling.signatures import CodeActionOutput
+        try:
+            res = await llm_service.llm_json(system, user, response_model=CodeActionOutput, tier="fast")
+        except llm_service.LLMNotConfiguredError:
+            from app.unhobbling.orchestrator import MockLLMCallable
+            return await MockLLMCallable().generate_code_action(state)
+        if hasattr(res, "model_dump"):
+            return res.model_dump()
+        if isinstance(res, dict):
+            return res
+        raise TypeError(f"llm_json returned unexpected type {type(res)!r} for generate_code_action")
+
+    async def generate_repair(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        system = (
+            "You are an AI engineer repairing Python code that failed execution or validation. "
+            "Return repaired code assigned to 'result'."
+        )
+        user = (
+            f"Failed code:\n{state.get('code_to_execute')}\n\n"
+            f"Error trace:\n{state.get('error_trace')}\n"
+        )
+        from app.services import llm_service
+        from app.unhobbling.signatures import CodeRepairOutput
+        try:
+            res = await llm_service.llm_json(system, user, response_model=CodeRepairOutput, tier="fast")
+        except llm_service.LLMNotConfiguredError:
+            from app.unhobbling.orchestrator import MockLLMCallable
+            return await MockLLMCallable().generate_repair(state)
+        if hasattr(res, "model_dump"):
+            return res.model_dump()
+        if isinstance(res, dict):
+            return res
+        raise TypeError(f"llm_json returned unexpected type {type(res)!r} for generate_repair")
+
 
 def _resolve_and_validate_url(url: str) -> Optional[Dict[str, Any]]:
     """
@@ -79,6 +135,14 @@ class GeneralistAgentEngine:
 
         self.session_history: List[Dict[str, Any]] = []
         self._register_default_mcp_tools()
+
+    def _get_llm_adapter(self):
+        """Return the orchestrator LLM adapter (e.g. from app.main or RealLLMCallable)."""
+        try:
+            from app.main import _get_real_llm_adapter
+            return _get_real_llm_adapter()
+        except (ImportError, AttributeError):
+            return RealLLMCallable()
 
     async def close(self):
         """Release browser operator and engine resources."""
@@ -287,6 +351,9 @@ class GeneralistAgentEngine:
             raise ValueError("max_steps must be a positive integer")
         memory_load = await self.memory.load()
         self.session_history.append({"role": "user", "content": goal})
+        MAX_SESSION_HISTORY = 100
+        if len(self.session_history) > MAX_SESSION_HISTORY:
+            self.session_history = self.session_history[-MAX_SESSION_HISTORY:]
         self.memory.store_knowledge("current_goal", goal)
 
         steps_log = []
@@ -436,6 +503,20 @@ class GeneralistAgentEngine:
         self.memory.record_episode(3, "MCP & Computer Use", None, mcp_res, step_3_succeeded)
 
         # Final Summary. Never claim complete when a required browser, REPL, MCP, or memory step failed.
+        # JobTayari state orchestrator execution path
+        orchestrator_execution = None
+        try:
+            orchestrator = JobTayariOrchestrator(llm=self._get_llm_adapter())
+            safe_user_id = self.user_id if (self.user_id and re.match(r"^[a-zA-Z0-9_-]{1,128}$", self.user_id)) else "system_user"
+            orchestrator_execution = await orchestrator.run(
+                user_id=safe_user_id,
+                context_inputs={"goal": goal, "workspace": str(self.workspace_path)},
+                task_type="code_action",
+                target_role=goal,
+            )
+        except Exception as exc:
+            orchestrator_execution = {"error": f"Orchestrator execution error: {exc}"}
+
         memory_flush = await self.memory.flush()
         steps_log = steps_log[:max_steps]
         browser_ok = all(item.get("success") is True for item in browser_results)
@@ -451,6 +532,7 @@ class GeneralistAgentEngine:
             "memory_summary": self.memory.get_summary(),
             "swarm_execution": swarm_results,
             "browser_results": browser_results,
+            "orchestrator_execution": orchestrator_execution,
             "memory_persistence": {"load": memory_load, "flush": memory_flush},
             "verification": {
                 "swarm_success": swarm_ok,

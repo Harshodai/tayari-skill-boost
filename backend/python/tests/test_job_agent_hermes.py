@@ -88,7 +88,7 @@ HERMES_DUP = {
 @pytest.fixture
 def stub_free_search(monkeypatch):
     """Replace search_jobs so smart_search never hits the network."""
-    async def _fake_search_jobs(query, location="", limit=40):
+    async def _fake_search_jobs(query, location="", limit=40, *args, **kwargs):
         return [dict(FREE_JOB_A), dict(FREE_JOB_B)]
     monkeypatch.setattr(job_agent, "search_jobs", _fake_search_jobs)
     return _fake_search_jobs

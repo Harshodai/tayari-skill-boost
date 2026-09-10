@@ -100,6 +100,10 @@ const JobSearch = () => {
   const [remoteOnly, setRemoteOnly] = useState(false);
   const [minScore, setMinScore] = useState(0);
   const [results, setResults] = useState<Job[]>([]);
+  const [cursor, setCursor] = useState<number>(0);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [totalFound, setTotalFound] = useState<number>(0);
+  const PAGE_SIZE = 20;
   const [selectedIdx, setSelectedIdx] = useState<number>(0);
   // K3 hero callout: top missing skills for the selected job, surfaced above
   // the 3-pane grid so users see the conversion lever without opening detail.
@@ -163,13 +167,13 @@ const JobSearch = () => {
   const { data: profile } = useQuery({
     queryKey: ["profile"],
     queryFn: () => getProfile(),
-    retry: false,
+    retry: 2,
   });
 
   const { data: resumes } = useQuery({
     queryKey: ["resumes"],
     queryFn: () => listResumes(),
-    retry: false,
+    retry: 2,
   });
 
   const savedDedupeKeys = new Set(savedJobs.map((j) => j.dedupe_key));
@@ -178,10 +182,10 @@ const JobSearch = () => {
   // error with a visible error state; non-2xx always surfaces via toast.
   const saveMutation = useMutation({
     mutationFn: saveJob,
-    onMutate: async (vars: any) => {
+    onMutate: async (vars: { dedupe_key: string; job: JobSearchResult }) => {
       await queryClient.cancelQueries({ queryKey: ["saved-jobs"] });
-      const prev = queryClient.getQueryData<any[]>(["saved-jobs"]);
-      queryClient.setQueryData<any[]>(["saved-jobs"], (old = []) => {
+      const prev = queryClient.getQueryData<{ dedupe_key: string; job: JobSearchResult; status?: string }[]>(["saved-jobs"]);
+      queryClient.setQueryData<{ dedupe_key: string; job: JobSearchResult; status?: string }[]>(["saved-jobs"], (old = []) => {
         if (old.some((j) => j.dedupe_key === vars.dedupe_key)) return old;
         return [...old, { dedupe_key: vars.dedupe_key, job: vars.job, status: "saved" }];
       });
@@ -190,9 +194,9 @@ const JobSearch = () => {
     onSuccess: () => {
       toast.success("Saved to your list");
     },
-    onError: (err: any, _vars, ctx) => {
+    onError: (err: unknown, _vars, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(["saved-jobs"], ctx.prev);
-      const msg = err?.message || "Failed to save";
+      const msg = err instanceof Error ? err.message : "Failed to save";
       setSearchError(msg);
       toast.error(msg);
     },
@@ -201,7 +205,7 @@ const JobSearch = () => {
     },
   });
 
-  const handleSearch = async () => {
+  const handleSearch = async (targetCursor: number = 0, isLoadMore: boolean = false) => {
     if (!query.trim()) return;
     if (backendUnavailable) {
       setSearchError("Search is unavailable while the backend is down.");
@@ -230,26 +234,44 @@ const JobSearch = () => {
         location,
         profile: profilePayload,
         resume_text: resumeText,
-        top_n: 20,
+        top_n: PAGE_SIZE,
+        cursor: targetCursor,
+        limit: PAGE_SIZE,
       });
-      const jobs: Job[] = res?.report?.jobs || res?.jobs || [];
+      const jobs: Job[] = res?.results || res?.jobs || res?.report?.jobs || [];
       setRoleIntelligence(res?.role_intelligence || null);
       setMemoryInfo({
         used: res?.memory_used === true,
         tiers: res?.memory_tiers_used || [],
         truncated: res?.memory_truncated === true,
       });
-      setResults(jobs);
-      setSelectedIdx(0);
-      if (jobs.length === 0) toast.info("No jobs matched. Try broader keywords.");
-    } catch (err: any) {
+
+      if (isLoadMore) {
+        setResults((prev) => [...prev, ...jobs]);
+      } else {
+        setResults(jobs);
+        setSelectedIdx(0);
+      }
+
+      setCursor(targetCursor);
+      const computedNextCursor =
+        res?.next_cursor !== undefined
+          ? res.next_cursor
+          : jobs.length >= PAGE_SIZE
+          ? targetCursor + jobs.length
+          : null;
+      setNextCursor(computedNextCursor);
+      setTotalFound(res?.total ?? res?.total_found ?? (targetCursor + jobs.length));
+
+      if (jobs.length === 0 && targetCursor === 0) toast.info("No jobs matched. Try broader keywords.");
+    } catch (err: unknown) {
       // ponytail: re-probe the gateway before reporting the failure — the
       // banner and disabled states key off `backendUnavailable`, which only
       // refreshes on the poll interval otherwise.
       await refetchHealth().catch(() => null);
       const msg = isBackendUnavailable(err)
         ? "Search is unavailable while the backend is down."
-        : err.message || "Search failed";
+        : (err instanceof Error ? err.message : "Search failed");
       setSearchError(msg);
       toast.error(msg);
     } finally {
@@ -289,12 +311,21 @@ const JobSearch = () => {
         location,
         profile: profilePayload,
         resume_text: resumeText,
-        top_n: 20,
+        top_n: PAGE_SIZE,
+        cursor: 0,
+        limit: PAGE_SIZE,
       });
 
       const events = (res?.events as unknown[]) || [];
       const agentResult = res?.result as JobSearchResponse | undefined;
-      const finalJobs: Job[] = agentResult?.report?.jobs || agentResult?.jobs || res?.report?.jobs || res?.jobs || [];
+      const finalJobs: Job[] =
+        agentResult?.results ||
+        agentResult?.jobs ||
+        agentResult?.report?.jobs ||
+        res?.results ||
+        res?.jobs ||
+        res?.report?.jobs ||
+        [];
       setRoleIntelligence(agentResult?.role_intelligence || res?.role_intelligence || null);
       setMemoryInfo({
         used: agentResult?.memory_used === true,
@@ -311,15 +342,24 @@ const JobSearch = () => {
       await new Promise((resolve) => setTimeout(resolve, 400));
       setResults(finalJobs);
       setSelectedIdx(0);
+      setCursor(0);
+      setNextCursor(
+        agentResult?.next_cursor !== undefined
+          ? agentResult.next_cursor
+          : finalJobs.length >= PAGE_SIZE
+          ? PAGE_SIZE
+          : null
+      );
+      setTotalFound(agentResult?.total ?? agentResult?.total_found ?? finalJobs.length);
       if (finalJobs.length === 0) toast.info("No jobs matched. Try broader keywords.");
-    } catch (err: any) {
+    } catch (err: unknown) {
       // ponytail: re-probe the gateway before reporting the failure — same
       // rationale as handleSearch; the agent-search path must not leave the
       // backend state stale either.
       await refetchHealth().catch(() => null);
       const msg = isBackendUnavailable(err)
         ? "Agent search is unavailable while the backend is down."
-        : err.message || "Agent search failed";
+        : (err instanceof Error ? err.message : "Agent search failed");
       setSearchError(msg);
       toast.error(msg);
     } finally {
@@ -336,7 +376,7 @@ const JobSearch = () => {
 
   const filtered = useMemo(
     () =>
-      results.filter((j: any) => {
+      results.filter((j: JobSearchResult) => {
         const s = j.score ?? j.fit_score ?? j.match_score ?? 0;
         if (s < debouncedMinScore) return false;
         if (remoteOnly && j.location && !/remote/i.test(j.location)) return false;
@@ -460,7 +500,7 @@ const JobSearch = () => {
                 className="pl-10 h-11 bg-background/60 border-border/70 text-sm"
               />
             </div>
-            <Button onClick={handleSearch} disabled={isSearching || backendUnavailable} variant="outline" className="h-11 min-w-[100px] border-border/60">
+            <Button onClick={() => { void handleSearch(); }} disabled={isSearching || backendUnavailable} variant="outline" className="h-11 min-w-[100px] border-border/60">
               {isSearching && !isAgentSearching ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
@@ -566,7 +606,7 @@ const JobSearch = () => {
         <Card className="mb-4 border-destructive/40 bg-destructive/5 p-3 flex items-center gap-3">
           <AlertCircle className="w-4 h-4 text-destructive" />
           <span className="text-sm flex-1">{searchError}</span>
-          <Button size="sm" variant="outline" onClick={handleSearch}>
+          <Button size="sm" variant="outline" onClick={() => { void handleSearch(); }}>
             <RotateCcw className="w-3 h-3 mr-1" /> Retry
           </Button>
         </Card>
@@ -743,7 +783,7 @@ const JobSearch = () => {
               </p>
             ) : (
               <ul className="space-y-2 text-sm">
-                {savedJobs.slice(0, 6).map((j: any) => (
+                {savedJobs.slice(0, 6).map((j: { dedupe_key?: string; job?: { title?: string; company?: string } }) => (
                   <li key={j.dedupe_key} className="truncate">
                     <span className="font-medium">{j.job?.title}</span>
                     <span className="text-muted-foreground"> · {j.job?.company}</span>
@@ -900,6 +940,49 @@ const JobSearch = () => {
                       </button>
                     );
                   })}
+
+                {!isSearching && !isRefining && results.length > 0 && (
+                  <div className="pt-3 pb-1 border-t border-border/60 space-y-2 mt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1"
+                        disabled={cursor === 0 || isSearching}
+                        onClick={() => handleSearch(Math.max(0, cursor - PAGE_SIZE), false)}
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" /> Previous Page
+                      </Button>
+                      <span className="text-[11px] font-medium text-muted-foreground text-center">
+                        Showing {cursor + 1} - {cursor + results.length}
+                        {totalFound > 0 ? ` of ${totalFound}` : ""}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1"
+                        disabled={nextCursor === null || isSearching}
+                        onClick={() => nextCursor !== null && handleSearch(nextCursor, false)}
+                      >
+                        Next Page <ChevronDown className="w-3.5 h-3.5 -rotate-90" />
+                      </Button>
+                    </div>
+                    {nextCursor !== null && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-xs text-primary hover:bg-primary/10 h-8"
+                        disabled={isSearching}
+                        onClick={() => handleSearch(nextCursor, true)}
+                      >
+                        {isSearching ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                        ) : null}
+                        Load More (+{PAGE_SIZE})
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </Card>

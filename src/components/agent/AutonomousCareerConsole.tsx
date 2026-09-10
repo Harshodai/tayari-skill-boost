@@ -11,16 +11,85 @@ import { useAuth } from '@/contexts/AuthContext';
 import { apiFetchResponse, getProfile, apiFetch } from "@/api";
 import { useToast } from '@/hooks/use-toast';
 
+interface KanbanCardItem {
+  card_id: string;
+  company: string;
+  role: string;
+  interview_date?: string;
+  prep_brief?: {
+    tech_stack?: string[];
+  };
+}
+
+interface ParsedInvite {
+  email_id: string;
+  company: string;
+  subject: string;
+  proposed_date: string;
+  meeting_link: string;
+  auto_reply_draft: {
+    body: string;
+  };
+}
+
+interface EmailSyncResult {
+  email_scan_summary?: {
+    invites_detected?: number;
+    parsed_invites?: ParsedInvite[];
+  };
+  current_kanban_board?: Record<string, KanbanCardItem[]>;
+}
+
+interface UniversalApplicationItem {
+  run_id: string;
+  portal: string;
+  url: string;
+  status: string;
+  questions_queued?: number;
+}
+
+interface UniversalResult {
+  total_prepared?: number;
+  total_processed?: number;
+  portals_covered: string[];
+  applications: UniversalApplicationItem[];
+}
+
+interface HitlProposal {
+  approval_id: string;
+  predicted_ats_score_before: number;
+  predicted_ats_score_after: number;
+  extracted_keywords?: string[];
+}
+
+interface HitlConfirmed {
+  status: string;
+  final_ats_score: number;
+}
+
+interface AiNegotiationResult {
+  llm_available?: boolean;
+  current_offer?: number;
+  target_counter_offer?: number;
+  ai_negotiation_strategy?: string;
+  counter_offer_script?: string;
+}
+
+interface CopilotResult {
+  question: string;
+  star_answer: string;
+}
+
 export const AutonomousCareerConsole: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const [hitlProposal, setHitlProposal] = useState<any>(null);
-  const [hitlConfirmed, setHitlConfirmed] = useState<any>(null);
-  const [universalResult, setUniversalResult] = useState<any>(null);
-  const [outreachResult, setOutreachResult] = useState<any>(null);
-  const [aiNegotiationResult, setAiNegotiationResult] = useState<any>(null);
-  const [copilotResult, setCopilotResult] = useState<any>(null);
-  const [emailSyncResult, setEmailSyncResult] = useState<any>(null);
-  const [kanbanBoard, setKanbanBoard] = useState<any>(null);
+  const [hitlProposal, setHitlProposal] = useState<HitlProposal | null>(null);
+  const [hitlConfirmed, setHitlConfirmed] = useState<HitlConfirmed | null>(null);
+  const [universalResult, setUniversalResult] = useState<UniversalResult | null>(null);
+  const [outreachResult, setOutreachResult] = useState<unknown>(null);
+  const [aiNegotiationResult, setAiNegotiationResult] = useState<AiNegotiationResult | null>(null);
+  const [copilotResult, setCopilotResult] = useState<CopilotResult | null>(null);
+  const [emailSyncResult, setEmailSyncResult] = useState<EmailSyncResult | null>(null);
+  const [kanbanBoard, setKanbanBoard] = useState<Record<string, KanbanCardItem[]> | null>(null);
 
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const interviewBoardReqIdRef = useRef(0);
@@ -380,7 +449,7 @@ export const AutonomousCareerConsole: React.FC = () => {
 
             {kanbanBoard && (
               <div className="grid grid-cols-1 md:grid-cols-6 gap-4 overflow-x-auto pt-2">
-                {Object.entries(kanbanBoard).map(([stage, cards]: [string, any]) => {
+                {Object.entries(kanbanBoard).map(([stage, cards]: [string, KanbanCardItem[]]) => {
                   const stageCards = Array.isArray(cards) ? cards : [];
                   return (
                     <div key={stage} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-3 min-w-[180px]">
@@ -389,7 +458,7 @@ export const AutonomousCareerConsole: React.FC = () => {
                         <Badge className="bg-slate-800 text-slate-200">{stageCards.length}</Badge>
                       </div>
 
-                      {stageCards.map((cd: any) => (
+                      {stageCards.map((cd: KanbanCardItem) => (
                         <div key={cd.card_id} className="p-3 rounded bg-slate-900 border border-slate-800 space-y-2 text-xs">
                           <div className="font-bold text-slate-100">{cd.company}</div>
                           <div className="text-[11px] text-primary">{cd.role}</div>
@@ -441,7 +510,7 @@ export const AutonomousCareerConsole: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  {emailSyncResult.email_scan_summary?.parsed_invites?.map((inv: any) => (
+                  {emailSyncResult.email_scan_summary?.parsed_invites?.map((inv: ParsedInvite) => (
                     <div key={inv.email_id} className="p-4 bg-slate-950 rounded border border-slate-800 space-y-2">
                       <div className="flex justify-between items-center text-slate-200 font-bold">
                         <span>{inv.company}: {inv.subject}</span>
@@ -545,7 +614,7 @@ export const AutonomousCareerConsole: React.FC = () => {
                   across Portals: {universalResult.portals_covered.join(', ')} — nothing submitted
                 </div>
                 <div className="space-y-2">
-                  {universalResult.applications.map((ap: any) => (
+                  {universalResult.applications.map((ap: UniversalApplicationItem) => (
                     <div key={ap.run_id} className="p-3 rounded bg-slate-950 border border-slate-800 flex justify-between items-center">
                       <div>
                         <span className="text-primary font-bold">{ap.run_id}</span> • Portal: <span className="text-slate-200 font-bold">{ap.portal}</span> • <span className="text-slate-400">{ap.url}</span>

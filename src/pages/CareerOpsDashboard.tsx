@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EvaluationReportPanel } from '../components/EvaluationReportPanel';
 import { DecisionQueue } from '@/components/DecisionQueue';
-import { listCareerOpsPortals, createCareerOpsPortal, deleteCareerOpsPortal, updateCareerOpsPortal, scanCareerOpsPortals, getCareerOpsPatterns, listCareerOpsFollowups, actionCareerOpsFollowup, getCareerOpsStoryBank, saveCareerOpsStoryBank, deleteCareerOpsStoryBank, getCareerOpsStats } from '../api';
+import { listCareerOpsPortals, createCareerOpsPortal, deleteCareerOpsPortal, updateCareerOpsPortal, scanCareerOpsPortals, getCareerOpsPatterns, listCareerOpsFollowups, actionCareerOpsFollowup, getCareerOpsStoryBank, saveCareerOpsStoryBank, deleteCareerOpsStoryBank, getCareerOpsStats, type CareerOpsScannedJob, type CareerOpsPatterns, type CareerOpsRecommendation } from '../api';
 
 interface Portal {
   id?: number;
@@ -79,9 +79,9 @@ export const CareerOpsDashboard: React.FC = () => {
   const [newPortalName, setNewPortalName] = useState('');
   const [newPortalUrl, setNewPortalUrl] = useState('');
   const [isScanning, setIsScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<any[]>([]);
+  const [scanResult, setScanResult] = useState<CareerOpsScannedJob[]>([]);
 
-  const [patterns, setPatterns] = useState<any>(null);
+  const [patterns, setPatterns] = useState<CareerOpsPatterns | null>(null);
 
   const [followups, setFollowups] = useState<Followup[]>([]);
   const [sendingFollowupId, setSendingFollowupId] = useState<string | null>(null);
@@ -296,11 +296,11 @@ export const CareerOpsDashboard: React.FC = () => {
     let results = [...scanResult];
     if (f.minScore) {
       const min = parseFloat(f.minScore);
-      if (!isNaN(min)) results = results.filter((j: any) => (j.score || 0) >= min);
+      if (!isNaN(min)) results = results.filter((j: CareerOpsScannedJob) => (j.score || 0) >= min);
     }
     if (f.keyword) {
       const kw = f.keyword.toLowerCase();
-      results = results.filter((j: any) =>
+      results = results.filter((j: CareerOpsScannedJob) =>
         (j.title || '').toLowerCase().includes(kw) ||
         (j.company || '').toLowerCase().includes(kw) ||
         (j.description || '').toLowerCase().includes(kw)
@@ -310,7 +310,7 @@ export const CareerOpsDashboard: React.FC = () => {
       const n = parseInt(f.lastNDays, 10);
       if (!isNaN(n)) {
         const cutoff = Date.now() - n * 86400000;
-        results = results.filter((j: any) => {
+        results = results.filter((j: CareerOpsScannedJob) => {
           if (!j.posted_date) return true;
           return new Date(j.posted_date).getTime() >= cutoff;
         });
@@ -367,7 +367,7 @@ export const CareerOpsDashboard: React.FC = () => {
                 </Button>
               </div>
               <div className="p-4">
-                <EvaluationReportPanel report={null as any} onClose={() => setEvaluateAppId(null)} />
+                <EvaluationReportPanel report={{}} onClose={() => setEvaluateAppId(null)} />
               </div>
             </div>
           </div>
@@ -632,12 +632,12 @@ export const CareerOpsDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="p-5 rounded-xl bg-card border border-border space-y-1.5">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Evaluated</span>
-                    <p className="text-3xl font-extrabold text-foreground tabular-nums">{patterns.total_analyzed}</p>
+                    <p className="text-3xl font-extrabold text-foreground tabular-nums">{patterns.total_analyzed ?? 0}</p>
                   </div>
                   <div className="p-5 rounded-xl bg-card border border-border space-y-1.5">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Funnel Conversion</span>
                     <p className="text-3xl font-extrabold text-foreground tabular-nums">
-                      {patterns.total_analyzed > 0 ? `${Math.round(((patterns.outcomes?.positive || 0) / patterns.total_analyzed) * 100)}%` : '0%'}
+                      {(patterns.total_analyzed || 0) > 0 ? `${Math.round(((patterns.outcomes?.positive || 0) / (patterns.total_analyzed || 1)) * 100)}%` : '0%'}
                     </p>
                   </div>
                   <div className="p-5 rounded-xl bg-card border border-border space-y-1.5">
@@ -668,7 +668,7 @@ export const CareerOpsDashboard: React.FC = () => {
                       <PieChart className="w-4.5 h-4.5 text-primary" /> Data-Driven Targeting Recommendations
                     </h3>
                     <div className="space-y-3">
-                      {patterns.recommendations.map((rec: any, idx: number) => (
+                      {patterns.recommendations.map((rec: CareerOpsRecommendation, idx: number) => (
                         <div key={idx} className="p-4 rounded-xl border border-primary/15 bg-primary/5 space-y-2">
                           <div className="flex justify-between items-center">
                             <span className="text-sm font-semibold text-foreground">{rec.action}</span>

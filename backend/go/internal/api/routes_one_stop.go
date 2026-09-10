@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -132,7 +132,7 @@ func (s *Server) handleOneStopProxyDELETEPath(prefix, parameter string) http.Han
 		headers := s.getXUserHeaders(r)
 		result, err := s.AI.DeleteJSONWithHeaders(prefix+value, headers)
 		if err != nil {
-			log.Printf("[OneStopProxy] DELETE %s failed: %v", prefix+value, err)
+			slog.Error("[OneStopProxy] DELETE failed", "value", prefix+value, "error", err)
 			http.Error(w, "knowledge source deletion failed", http.StatusBadGateway)
 			return
 		}
@@ -155,7 +155,7 @@ func (s *Server) handleTypstExport(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := s.AI.PostJSONWithHeaders("/api/v1/export/typst-pdf", json.RawMessage(body), headers)
 	if err != nil {
-		log.Printf("[TypstExport] Proxy error: %v", err)
+		slog.Error("[TypstExport] Proxy error", "error", err)
 		http.Error(w, "failed to export typst pdf", http.StatusBadGateway)
 		return
 	}
@@ -190,7 +190,7 @@ func (s *Server) handleOneStopProxyPUT(endpoint string) http.HandlerFunc {
 		}
 		result, err := s.AI.PutJSONWithHeaders(endpoint, payload, s.getXUserHeaders(r))
 		if err != nil {
-			log.Printf("[OneStopProxyPUT] AI service error for %s: %v", endpoint, err)
+			slog.Error("[OneStopProxyPUT] AI service error for", "value", endpoint, "error", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
 			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
@@ -211,7 +211,7 @@ func (s *Server) handleRunActionGET(prefix string, action string) http.HandlerFu
 		}
 		result, err := s.AI.GetJSONWithHeaders(prefix+runID+"/"+action, s.getXUserHeaders(r))
 		if err != nil {
-			log.Printf("[RunActionGET] AI service error: %v", err)
+			slog.Error("[RunActionGET] AI service error", "error", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
 			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
@@ -237,7 +237,7 @@ func (s *Server) handleRunActionPOST(prefix string, action string) http.HandlerF
 		}
 		result, err := s.AI.PostJSONWithHeaders(prefix+runID+"/"+action, payload, s.getXUserHeaders(r))
 		if err != nil {
-			log.Printf("[RunActionProxy] AI service error: %v", err)
+			slog.Error("[RunActionProxy] AI service error", "error", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
 			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
@@ -266,7 +266,7 @@ func (s *Server) handleQuestionProxyPATCH(prefix string) http.HandlerFunc {
 		headers["Content-Type"] = "application/json"
 		result, err := s.AI.PatchJSONWithHeaders(prefix+questionID, json.RawMessage(body), headers)
 		if err != nil {
-			log.Printf("[QuestionProxy] AI service error: %v", err)
+			slog.Error("[QuestionProxy] AI service error", "error", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
 			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})

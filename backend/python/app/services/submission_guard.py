@@ -5,10 +5,48 @@ import hashlib
 import hmac
 import json
 import os
+import secrets
+import time
 from typing import Any
 
 from app.services.approval_gate import job_fingerprint, resume_fingerprint
 from app.services.capabilities import Capability, capability_enabled
+
+
+def sign_approval(payload: dict, signing_key: str) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("payload must be a dict")
+    if not signing_key:
+        raise ValueError("signing_key is required")
+    nonce = secrets.token_hex(16)
+    timestamp = int(time.time())
+    payload_with_meta = {**payload, "_nonce": nonce, "_timestamp": timestamp}
+    canonical = json.dumps(payload_with_meta, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    key_bytes = signing_key.encode("utf-8") if isinstance(signing_key, str) else signing_key
+    signature = hmac.new(key_bytes, canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+    return {**payload_with_meta, "_signature": signature}
+
+
+def verify_approval(signed_payload: dict, signing_key: str, max_age_seconds: int = 900) -> bool:
+    if not isinstance(signed_payload, dict):
+        return False
+    if not signing_key:
+        return False
+    timestamp = signed_payload.get("_timestamp", 0)
+    try:
+        ts = float(timestamp)
+    except (ValueError, TypeError):
+        raise ValueError("Invalid timestamp")
+    if time.time() - ts > max_age_seconds:
+        raise ValueError("Approval expired")
+    signature = str(signed_payload.get("_signature") or "")
+    if not signature:
+        return False
+    unsigned = {k: v for k, v in signed_payload.items() if k != "_signature"}
+    canonical = json.dumps(unsigned, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    key_bytes = signing_key.encode("utf-8") if isinstance(signing_key, str) else signing_key
+    expected_signature = hmac.new(key_bytes, canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(signature, expected_signature)
 
 
 def _sha256(value: str) -> str:
@@ -58,14 +96,20 @@ def _signing_key() -> bytes | None:
     return raw.encode("utf-8") if raw else None
 
 
-def sign_guard(fingerprint: dict[str, str], approval_id: str) -> dict[str, str] | None:
+def sign_guard(fingerprint: dict[str, str], approval_id: str) -> dict[str, Any] | None:
     """Return a server-MACed guard only when a signing key is configured."""
     key = _signing_key()
     if not key or not approval_id:
         return None
+    nonce = secrets.token_hex(16)
+    timestamp = int(time.time())
     payload = {
         **fingerprint,
         "approval_id": str(approval_id),
+        "nonce": nonce,
+        "timestamp": timestamp,
+        "_nonce": nonce,
+        "_timestamp": timestamp,
     }
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     payload["signature"] = hmac.new(key, canonical.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -87,16 +131,31 @@ def verify_guard(
     resume_text: str,
     cover_letter: str | None,
     form_fields: Any = None,
+    max_age_seconds: int = 900,
 ) -> bool:
     if not autonomous_submission_enabled():
         return False
     if not isinstance(guard, dict):
         return False
-    signature = str(guard.get("signature") or "")
-    unsigned = {key: value for key, value in guard.items() if key != "signature"}
     key = _signing_key()
-    if not key or not signature:
+    if not key:
         return False
+
+    effective_max_age = min(max_age_seconds, 900)
+    timestamp = guard.get("timestamp") if "timestamp" in guard else guard.get("_timestamp")
+    if timestamp is None:
+        return False
+    try:
+        ts = float(timestamp)
+    except (ValueError, TypeError):
+        return False
+    if time.time() - ts > effective_max_age:
+        return False
+
+    signature = str(guard.get("signature") or guard.get("_signature") or "")
+    if not signature:
+        return False
+    unsigned = {key: value for key, value in guard.items() if key not in ("signature", "_signature")}
     canonical = json.dumps(unsigned, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     expected_signature = hmac.new(key, canonical.encode("utf-8"), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(signature, expected_signature):

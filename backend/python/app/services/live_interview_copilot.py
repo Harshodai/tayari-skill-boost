@@ -117,58 +117,17 @@ class VoiceAnalysisResponse(BaseModel):
     coaching_tips: List[str]
 
 
-_FILLER_WORDS = ("um", "uh", "like", "you know", "basically", "actually", "sort of", "kind of")
-
-
 def analyze_candidate_speech(req: VoiceAnalysisRequest) -> VoiceAnalysisResponse:
     """Deterministic cadence/filler analysis (no LLM — never mock, never 503)."""
-    words = [w for w in req.transcript.lower().split() if w]
-    duration = max(req.duration_seconds, 1.0)
-    wpm = int(round(len(words) / (duration / 60.0))) if words else 0
-    if wpm == 0:
-        wpm_status = "no speech detected"
-    elif wpm < 110:
-        wpm_status = "slow"
-    elif wpm <= 160:
-        wpm_status = "good"
-    else:
-        wpm_status = "fast"
-
-    lower = req.transcript.lower()
-    filler_counts: Dict[str, int] = {}
-    for filler in _FILLER_WORDS:
-        count = len(re.findall(rf"\b{re.escape(filler)}\b", lower))
-        if count:
-            filler_counts[filler] = count
-
-    star_breakdown = {
-        "situation": "Present" if any(k in lower for k in ("at ", "in my", "when i", "during")) else "Missing",
-        "task": "Present" if any(k in lower for k in ("needed to", "had to", "goal", "objective", "task")) else "Missing",
-        "action": "Present" if any(k in lower for k in ("i ", "we ", "built", "led", "designed", "implemented")) else "Missing",
-        "result": "Present" if any(k in lower for k in ("result", "outcome", "improved", "reduced", "increased", "%")) else "Missing",
-    }
-
-    tips = []
-    if wpm and wpm < 110:
-        tips.append("Pace is slow — aim for 120-150 words per minute.")
-    if wpm > 160:
-        tips.append("Pace is fast — slow down for clarity.")
-    if filler_counts:
-        top = max(filler_counts, key=filler_counts.get)
-        tips.append(f"Most-used filler: \"{top}\" — pause instead.")
-    missing = [k for k, v in star_breakdown.items() if v == "Missing"]
-    if missing:
-        tips.append(f"STAR gap: {', '.join(missing)} not clearly covered.")
-    if not tips:
-        tips.append("Strong cadence and STAR coverage — keep it up.")
-
+    from app.services.speech_analysis import analyze_speech
+    telemetry = analyze_speech(req.transcript, req.duration_seconds)
     return VoiceAnalysisResponse(
-        wpm=wpm,
-        wpm_status=wpm_status,
-        filler_word_count=sum(filler_counts.values()),
-        filler_words_found=filler_counts,
-        star_breakdown=star_breakdown,
-        coaching_tips=tips,
+        wpm=telemetry.wpm,
+        wpm_status=telemetry.wpm_status,
+        filler_word_count=telemetry.filler_count,
+        filler_words_found=telemetry.filler_words_found,
+        star_breakdown=telemetry.star_breakdown,
+        coaching_tips=telemetry.coaching_tips,
     )
 
 

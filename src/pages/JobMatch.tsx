@@ -297,11 +297,12 @@ export default function JobMatch() {
 
       setResult(data);
       toast.success("Job match rate calculated successfully!");
-    } catch (caught: any) {
-      if (caught?.name !== "AbortError") {
-        if (caught?.status === 429) {
+    } catch (caught: unknown) {
+      const errObj = caught as { name?: string; status?: number; message?: string } | null;
+      if (errObj?.name !== "AbortError") {
+        if (errObj?.status === 429) {
           setError("Rate limit reached. Please wait a moment before trying again, or create a free account for higher limits.");
-        } else if (caught?.status === 400 || caught?.status === 422) {
+        } else if (errObj?.status === 400 || errObj?.status === 422) {
           setError("Invalid input. Please ensure both fields contain readable text and try again.");
         } else {
           setError(caught instanceof Error ? caught.message : "Job match analysis failed. Please try again.");
@@ -516,9 +517,9 @@ export default function JobMatch() {
                     setActivePreset(null);
                     if (error) setError("");
                   }}
-                  placeholder="Paste your full resume text here (Summary, Experience, Skills, Education)..."
-                  rows={14}
-                  className="w-full flex-1 px-4 py-3 rounded-xl border border-border bg-background/90 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-y font-mono text-xs leading-relaxed"
+                   placeholder="Paste your full resume text here (Summary, Experience, Skills, Education)..."
+                   rows={14}
+                   className="w-full flex-1 px-4 py-3 rounded-xl border border-border bg-background/90 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-y font-mono text-xs leading-relaxed"
                 />
                 <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                   <span>Candidate resume text</span>
@@ -563,9 +564,9 @@ export default function JobMatch() {
                     setActivePreset(null);
                     if (error) setError("");
                   }}
-                  placeholder="Paste the target job description here (Requirements, Responsibilities, Qualifications)..."
-                  rows={14}
-                  className="w-full flex-1 px-4 py-3 rounded-xl border border-border bg-background/90 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-y font-mono text-xs leading-relaxed"
+                   placeholder="Paste the target job description here (Requirements, Responsibilities, Qualifications)..."
+                   rows={14}
+                   className="w-full flex-1 px-4 py-3 rounded-xl border border-border bg-background/90 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-y font-mono text-xs leading-relaxed"
                 />
                 <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                   <span>Requisition requirements</span>

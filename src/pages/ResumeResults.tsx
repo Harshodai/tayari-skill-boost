@@ -647,20 +647,20 @@ const ResumeResults = () => {
                   )}
 
                   {/* ── Flattened STAR Bullet Analysis ───────────────────────────── */}
-                  {optimizationResult.star_analysis?.bullets_needing_improvement?.length > 0 && (
+                  {(optimizationResult.star_analysis?.bullets_needing_improvement?.length ?? 0) > 0 && (
                     <div className="space-y-2.5 pt-2 border-t border-border/40">
                       <h4 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-foreground">
                         <Target className="w-3.5 h-3.5 text-amber-500" />
                         STAR Bullet Analysis
                       </h4>
                       <div className="space-y-2">
-                        {optimizationResult.star_analysis.bullets_needing_improvement.slice(0, 4).map((b, idx) => (
+                        {optimizationResult.star_analysis?.bullets_needing_improvement?.slice(0, 4).map((b, idx) => (
                           <div key={idx} className="bg-muted/20 rounded-lg p-2.5 text-xs space-y-1">
                             <div className="flex items-center justify-between">
                               <span className="text-muted-foreground font-mono truncate max-w-[220px]">{b.bullet}</span>
                               <Badge variant="outline" className={`ml-1 shrink-0 text-[10px] ${
-                                b.star_score >= 3 ? 'bg-success/10 text-success border-success/20' :
-                                b.star_score >= 2 ? 'bg-warning/10 text-warning border-warning/20' :
+                                (b.star_score ?? 0) >= 3 ? 'bg-success/10 text-success border-success/20' :
+                                (b.star_score ?? 0) >= 2 ? 'bg-warning/10 text-warning border-warning/20' :
                                 'bg-destructive/10 text-destructive border-destructive/20'
                               }`}>
                                 STAR {b.star_grade}
@@ -678,7 +678,7 @@ const ResumeResults = () => {
                   )}
 
                   {/* ── Flattened JD Keyword Matrix ─────────────────────────────── */}
-                  {optimizationResult.keyword_matrix?.hard_skills_matrix?.length > 0 && (
+                  {(optimizationResult.keyword_matrix?.hard_skills_matrix?.length ?? 0) > 0 && (
                     <div className="space-y-2.5 pt-2 border-t border-border/40">
                       <h4 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-foreground">
                         <Sparkles className="w-3.5 h-3.5 text-primary" />
@@ -686,11 +686,11 @@ const ResumeResults = () => {
                       </h4>
                       <div className="grid grid-cols-1 gap-2.5">
                         {/* Hard Skills */}
-                        {optimizationResult.keyword_matrix.hard_skills_matrix?.length > 0 && (
+                        {(optimizationResult.keyword_matrix?.hard_skills_matrix?.length ?? 0) > 0 && (
                           <div>
                             <span className="text-[10px] font-bold text-primary uppercase tracking-wider block mb-1">Hard Skills</span>
                             <div className="flex flex-wrap gap-1">
-                              {optimizationResult.keyword_matrix.hard_skills_matrix.slice(0, 12).map((item) => (
+                              {optimizationResult.keyword_matrix?.hard_skills_matrix?.slice(0, 12).map((item) => (
                                 <Badge
                                   key={item.keyword}
                                   variant="outline"
@@ -707,11 +707,11 @@ const ResumeResults = () => {
                           </div>
                         )}
                         {/* Soft Skills */}
-                        {optimizationResult.keyword_matrix.soft_skills_matrix?.length > 0 && (
+                        {(optimizationResult.keyword_matrix?.soft_skills_matrix?.length ?? 0) > 0 && (
                           <div>
                             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Soft Skills</span>
                             <div className="flex flex-wrap gap-1">
-                              {optimizationResult.keyword_matrix.soft_skills_matrix.slice(0, 8).map((item) => (
+                              {optimizationResult.keyword_matrix?.soft_skills_matrix?.slice(0, 8).map((item) => (
                                 <Badge
                                   key={item.keyword}
                                   variant="outline"
@@ -744,8 +744,8 @@ const ResumeResults = () => {
                         Keywords Woven In (From Master Resume):
                       </span>
                       <div className="flex flex-wrap gap-1">
-                        {optimizationResult.injectable_keywords?.length > 0 ? (
-                          optimizationResult.injectable_keywords.map((kw: string) => (
+                        {(optimizationResult.injectable_keywords?.length ?? 0) > 0 ? (
+                          optimizationResult.injectable_keywords?.map((kw: string) => (
                             <Badge key={kw} variant="secondary" className="bg-success/10 text-success border-success/20 text-[11px]">
                               +{kw}
                             </Badge>
@@ -762,8 +762,8 @@ const ResumeResults = () => {
                         Remaining Skill Gaps (Not in master resume):
                       </span>
                       <div className="flex flex-wrap gap-1">
-                        {optimizationResult.non_injectable_keywords?.length > 0 ? (
-                          optimizationResult.non_injectable_keywords.map((kw: string) => (
+                        {(optimizationResult.non_injectable_keywords?.length ?? 0) > 0 ? (
+                          optimizationResult.non_injectable_keywords?.map((kw: string) => (
                             <Badge key={kw} variant="outline" className="bg-destructive/5 text-destructive border-destructive/20 text-[11px]">
                               {kw}
                             </Badge>
@@ -841,9 +841,9 @@ const ResumeResults = () => {
                       <Wand2 className="w-3.5 h-3.5 text-primary" />
                       AI Buzzword Cleanup
                     </h4>
-                    {optimizationResult.removed_ai_phrases?.length > 0 ? (
+                    {(optimizationResult.removed_ai_phrases?.length ?? 0) > 0 ? (
                       <div className="grid grid-cols-2 gap-1.5 text-xs">
-                        {optimizationResult.removed_ai_phrases.map((item, idx) => (
+                        {optimizationResult.removed_ai_phrases?.map((item, idx) => (
                           <div key={idx} className="bg-muted/20 rounded p-2 flex items-center justify-between">
                             <span className="line-through text-muted-foreground font-mono text-[11px]">{item.buzzword}</span>
                             <span className="text-primary font-bold text-xs">→</span>
@@ -862,9 +862,9 @@ const ResumeResults = () => {
                       <Lightbulb className="w-3.5 h-3.5 text-primary" />
                       Experience Bullet Recommendations
                     </h4>
-                    {optimizationResult.metric_suggestions?.length > 0 ? (
+                    {(optimizationResult.metric_suggestions?.length ?? 0) > 0 ? (
                       <ul className="space-y-1.5">
-                        {optimizationResult.metric_suggestions.map((sug: string, idx: number) => (
+                        {optimizationResult.metric_suggestions?.map((sug: string, idx: number) => (
                           <li key={idx} className="text-xs text-muted-foreground flex items-start gap-1.5">
                             <span className="text-primary font-bold mt-0.5">•</span>
                             <span>{sug}</span>
@@ -881,14 +881,14 @@ const ResumeResults = () => {
                 </CardContent>
               </Card>
             )}
-            {optimizationResult?.instruction_ledger && (optimizationResult.instruction_ledger as any[]).length > 0 && (
+            {Boolean(optimizationResult?.instruction_ledger && (optimizationResult.instruction_ledger as any[]).length > 0) && (
               <div className="col-span-1 lg:col-span-2">
-                <InstructionLedgerCard entries={optimizationResult.instruction_ledger as any} />
+                <InstructionLedgerCard entries={optimizationResult?.instruction_ledger as any} />
               </div>
             )}
-            {optimizationResult?.bullet_diffs && (optimizationResult.bullet_diffs as any[]).length > 0 && (
+            {Boolean(optimizationResult?.bullet_diffs && (optimizationResult.bullet_diffs as any[]).length > 0) && (
               <div className="col-span-1 lg:col-span-2">
-                <BulletDiffCard diffs={optimizationResult.bullet_diffs as any} />
+                <BulletDiffCard diffs={optimizationResult?.bullet_diffs as any} />
               </div>
             )}
           </div>

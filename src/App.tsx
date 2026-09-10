@@ -183,7 +183,6 @@ const App = () => (
               <Route path="/compare/:tool" element={<CompareTool />} />
               {/* Legacy / commonly guessed URLs that used to 404 */}
               <Route path="/resume-optimizer" element={<Navigate to="/resume" replace />} />
-              <Route path="/career-roadmap" element={<Navigate to="/roadmap" replace />} />
               <Route path="/interview-prep" element={<Navigate to="/interview/prep" replace />} />
               <Route path="/job-search-autopilot" element={<Navigate to="/jobs/autopilot" replace />} />
               <Route path="/faq" element={<FAQ />} />
@@ -229,8 +228,11 @@ const App = () => (
               {features.careers && (
                 <Route path="/careers" element={<Careers />} />
               )}
-              {features.careerOps && (
-                <Route path="/career-intelligence" element={<ProtectedRoute><CareerIntelligence /></ProtectedRoute>} />
+              {(features.careerIntelligence || features.careerOps) && (
+                <>
+                  <Route path="/career-intelligence" element={<ProtectedRoute><CareerIntelligence /></ProtectedRoute>} />
+                  <Route path="/career-roadmap" element={<ProtectedRoute><CareerIntelligence /></ProtectedRoute>} />
+                </>
               )}
               {features.blog && (
                 <>

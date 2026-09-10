@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -59,7 +59,7 @@ func (s *Server) handleGoogleCalendarStatus(w http.ResponseWriter, r *http.Reque
 	var count int
 	err := s.DB.Conn.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM google_calendar_tokens WHERE user_id=$1 AND tenant_id=$2`, user.ID, tenantID).Scan(&count)
 	if err != nil {
-		log.Printf("handleGoogleCalendarStatus: token lookup failed: %v", err)
+		slog.Error("handleGoogleCalendarStatus: token lookup failed", "error", err)
 		s.respondError(w, http.StatusServiceUnavailable, "Calendar connection status is unavailable")
 		return
 	}
@@ -81,7 +81,7 @@ func (s *Server) handleGoogleCalendarLogin(w http.ResponseWriter, r *http.Reques
 	}
 	state := "google-calendar:" + uuid.NewString()
 	if _, err := s.DB.Conn.ExecContext(r.Context(), `INSERT INTO oauth_states (id, user_id, tenant_id, provider, state, created_at) VALUES ($1,$2,$3,$4,$5,NOW())`, uuid.New(), user.ID, tenantID, "google_calendar", state); err != nil {
-		log.Printf("handleGoogleCalendarLogin: failed to store OAuth state: %v", err)
+		slog.Error("handleGoogleCalendarLogin: failed to store OAuth state", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to initiate Calendar OAuth")
 		return
 	}
@@ -105,19 +105,19 @@ func (s *Server) handleGoogleCalendarCallback(w http.ResponseWriter, r *http.Req
 	var provider string
 	err := s.DB.Conn.QueryRowContext(r.Context(), `DELETE FROM oauth_states WHERE state=$1 AND provider=$2 AND created_at > NOW()-INTERVAL '10 minutes' RETURNING user_id, tenant_id, provider`, r.URL.Query().Get("state"), "google_calendar").Scan(&userID, &tenantID, &provider)
 	if err != nil || provider != "google_calendar" || userID == uuid.Nil || tenantID == uuid.Nil {
-		log.Printf("handleGoogleCalendarCallback: invalid or expired state: %v", err)
+		slog.Error("handleGoogleCalendarCallback: invalid or expired state", "error", err)
 		redirect("error")
 		return
 	}
 	token, err := googleWorkspaceExchangeCode(r.Context(), "calendar", r.URL.Query().Get("code"))
 	if err != nil {
-		log.Printf("handleGoogleCalendarCallback: token exchange failed: %v", err)
+		slog.Error("handleGoogleCalendarCallback: token exchange failed", "error", err)
 		redirect("error")
 		return
 	}
 	_, err = s.DB.Conn.ExecContext(r.Context(), `INSERT INTO google_calendar_tokens (id, user_id, tenant_id, access_token, refresh_token, expiry, scope, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW()) ON CONFLICT (user_id, tenant_id) DO UPDATE SET access_token=$4, refresh_token=CASE WHEN $5!='' THEN $5 ELSE google_calendar_tokens.refresh_token END, expiry=$6, scope=$7, updated_at=NOW()`, uuid.New(), userID, tenantID, token.AccessToken, token.RefreshToken, googleWorkspaceExpiry(token.ExpiresIn), token.Scope)
 	if err != nil {
-		log.Printf("handleGoogleCalendarCallback: token persistence failed: %v", err)
+		slog.Error("handleGoogleCalendarCallback: token persistence failed", "error", err)
 		redirect("error")
 		return
 	}
@@ -155,7 +155,7 @@ func (s *Server) handleGoogleCalendarSync(w http.ResponseWriter, r *http.Request
 	}
 	events, err := googleCalendarFetchUpcoming(r.Context(), accessToken)
 	if err != nil {
-		log.Printf("handleGoogleCalendarSync: Calendar API call failed: %v", err)
+		slog.Error("handleGoogleCalendarSync: Calendar API call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to fetch Google Calendar events")
 		return
 	}
@@ -175,7 +175,7 @@ func (s *Server) handleGoogleCalendarSync(w http.ResponseWriter, r *http.Request
 				payload := []byte(fmt.Sprintf(`{"provider_event_id":%q,"summary":%q,"start":%q,"html_link":%q}`, event.ID, event.Summary, event.Start, event.HTMLLink))
 				eventID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("tayari:calendar-interview:"+user.ID.String()+":"+event.ID))
 				if _, eventErr := s.DB.Conn.ExecContext(r.Context(), `INSERT INTO automation_event_inbox (event_id,tenant_id,user_id,event_type,source,occurred_at,payload) VALUES ($1,$2,$3,'calendar.interview_detected','google.calendar.readonly',NOW(),$4) ON CONFLICT (event_id) DO NOTHING`, eventID, tenantID, user.ID, payload); eventErr != nil {
-					log.Printf("handleGoogleCalendarSync: interview automation event enqueue failed: %v", eventErr)
+					slog.Error("handleGoogleCalendarSync: interview automation event enqueue failed", "error", eventErr)
 				}
 			}
 		}

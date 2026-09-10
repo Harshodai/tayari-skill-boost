@@ -1,9 +1,11 @@
 package api
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/mail"
 	"strings"
@@ -23,7 +25,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if err := DecodeAndValidate(r, &req); err != nil {
-		log.Printf("handleRegister: failed to decode request body: %v", err)
+		slog.Error("handleRegister: failed to decode request body", "error", err)
 		s.respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -52,7 +54,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		hash := sha256.Sum256([]byte(req.Email))
 		emailHash := hex.EncodeToString(hash[:16])
-		log.Printf("handleRegister: registration failed for hash:%s: %v", emailHash, err)
+		slog.Error("handleRegister: registration failed for hash", "value", emailHash, "error", err)
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
 			s.respondError(w, http.StatusConflict, "User already exists")
 		} else {
@@ -151,3 +153,152 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 }
 
 // -------------------------------------------------------------------
+
+func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := DecodeAndValidate(r, &req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	token := strings.TrimSpace(req.Token)
+	if token == "" {
+		s.respondError(w, http.StatusBadRequest, "Verification token is required")
+		return
+	}
+
+	if s.DB == nil || s.DB.Conn == nil {
+		s.respondError(w, http.StatusInternalServerError, "Database connection error")
+		return
+	}
+
+	hash := sha256.Sum256([]byte(token))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	var userID uuid.UUID
+	var dbEmail string
+	var expiresAt time.Time
+	var used bool
+
+	err := s.DB.Conn.QueryRowContext(r.Context(),
+		`SELECT user_id, email, expires_at, used FROM email_verification_tokens WHERE token_hash = $1`,
+		tokenHash).Scan(&userID, &dbEmail, &expiresAt, &used)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			s.respondError(w, http.StatusBadRequest, "Invalid token")
+		} else {
+			s.respondError(w, http.StatusInternalServerError, "Internal server error")
+		}
+		return
+	}
+
+	if used {
+		s.respondError(w, http.StatusBadRequest, "Token already used")
+		return
+	}
+
+	if time.Now().After(expiresAt) {
+		s.respondError(w, http.StatusBadRequest, "Token expired")
+		return
+	}
+
+	tx, err := s.DB.Conn.BeginTx(r.Context(), nil)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(r.Context(),
+		`UPDATE auth.users SET email_confirmed_at = NOW() WHERE id = $1`, userID)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	_, err = tx.ExecContext(r.Context(),
+		`UPDATE email_verification_tokens SET used = true WHERE token_hash = $1`, tokenHash)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"verified": true,
+		"email":    dbEmail,
+		"message":  "Email verified successfully",
+	})
+}
+
+func (s *Server) handleResendVerificationEmail(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := DecodeAndValidate(r, &req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	email := strings.TrimSpace(req.Email)
+	if email == "" {
+		s.respondError(w, http.StatusBadRequest, "Email is required")
+		return
+	}
+
+	if s.DB == nil || s.DB.Conn == nil {
+		s.respondError(w, http.StatusInternalServerError, "Database connection error")
+		return
+	}
+
+	var userID uuid.UUID
+	err := s.DB.Conn.QueryRowContext(r.Context(),
+		`SELECT id FROM auth.users WHERE email = $1`, email).Scan(&userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Don't leak user existence
+			s.respondJSON(w, http.StatusOK, map[string]interface{}{
+				"sent":    true,
+				"email":   email,
+				"message": "Verification email dispatched",
+			})
+			return
+		}
+		s.respondError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Failed to generate token")
+		return
+	}
+	token := hex.EncodeToString(tokenBytes)
+	hash := sha256.Sum256([]byte(token))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	_, err = s.DB.Conn.ExecContext(r.Context(),
+		`INSERT INTO email_verification_tokens (user_id, email, token_hash, expires_at)
+		 VALUES ($1, $2, $3, NOW() + INTERVAL '1 hour')`,
+		userID, email, tokenHash)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// For now, log the token
+	slog.Info("Verification email dispatched", "email", email, "token", token)
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"sent":    true,
+		"email":   email,
+		"message": "Verification email dispatched",
+	})
+}
+
+

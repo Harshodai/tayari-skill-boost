@@ -58,7 +58,7 @@ export default function KnowledgeHub() {
     try {
       const data = await listSaves(activeCategory);
       setSaves(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to fetch saved posts", error);
       toast.error("Failed to load Knowledge Hub items");
     } finally {
@@ -82,8 +82,8 @@ export default function KnowledgeHub() {
       toast.success("Saved and AI-analyzed successfully!");
       setForm({ url: "", note: "", source: "linkedin" });
       loadData();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to analyze and save post");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to analyze and save post");
     } finally {
       setBusy(false);
     }
@@ -97,7 +97,7 @@ export default function KnowledgeHub() {
       await deleteSave(id);
       toast.success("Item removed");
       setSaves(saves.filter(s => s.id !== id));
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("Failed to delete item");
     }
   };
@@ -185,7 +185,7 @@ export default function KnowledgeHub() {
                     <select
                       value={form.source}
                       onChange={(e) => setForm({ ...form, source: e.target.value })}
-                      className="w-full h-10 rounded-md border border-input bg-background/80 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="w-full h-10 rounded-md border border-input bg-background/80 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {SOURCES.map((s) => (
                         <option key={s.value} value={s.value}>{s.label}</option>

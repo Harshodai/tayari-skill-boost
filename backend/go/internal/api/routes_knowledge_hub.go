@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -73,7 +73,7 @@ func (s *Server) handleCreateSave(w http.ResponseWriter, r *http.Request) {
 	}
 	enriched, err := s.AI.PostJSONWithHeaders("/api/v1/saves/analyze", aiPayload, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleCreateSave: AI enrichment failed (continuing): %v", err)
+		slog.Error("handleCreateSave: AI enrichment failed (continuing)", "error", err)
 	} else {
 		aiResult = enriched
 	}
@@ -100,7 +100,7 @@ func (s *Server) handleCreateSave(w http.ResponseWriter, r *http.Request) {
 		string(tagsRaw), category, isInterviewRelated,
 	).Scan(&retID, &createdAt)
 	if err != nil {
-		log.Printf("handleCreateSave: db insert failed: %v", err)
+		slog.Error("handleCreateSave: db insert failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to save post")
 		return
 	}
@@ -158,7 +158,7 @@ func (s *Server) handleListSaves(w http.ResponseWriter, r *http.Request) {
 			user.ID)
 	}
 	if err != nil {
-		log.Printf("handleListSaves: query failed: %v", err)
+		slog.Error("handleListSaves: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to fetch saves")
 		return
 	}

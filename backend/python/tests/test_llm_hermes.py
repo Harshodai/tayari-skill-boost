@@ -40,6 +40,7 @@ def _patch_client(monkeypatch: pytest.MonkeyPatch, handler: Any) -> None:
                 k: v for k, v in kwargs.items() if k != "timeout"
             })
     monkeypatch.setattr(llm_service.httpx, "AsyncClient", _MockClient)
+    monkeypatch.setattr(llm_service, "_http_client", None)
 
 
 @pytest.fixture

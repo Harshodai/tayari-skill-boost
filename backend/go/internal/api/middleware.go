@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -183,7 +182,7 @@ func (rl *rateLimiter) Middleware(next http.Handler) http.Handler {
 			if client.strikes > 5 {
 				penaltyDuration := time.Duration(client.strikes) * time.Minute
 				client.penaltyEnd = now.Add(penaltyDuration)
-				log.Printf("[RATE LIMIT] Penalty applied to %s for %v", clientID, penaltyDuration)
+				slog.Info("[RATE LIMIT] Penalty applied", "client_id", clientID, "penalty_duration", penaltyDuration)
 			}
 			rl.mu.Unlock()
 
@@ -255,7 +254,7 @@ func (s *Server) tenantMiddleware(next http.Handler) http.Handler {
 			ctx := context.WithValue(r.Context(), contextKeyTenant, &tenant)
 			r = r.WithContext(ctx)
 		} else if domain != "localhost" && domain != "127.0.0.1" && domain != "" {
-			log.Printf("[TENANT] Could not resolve tenant for domain '%s' (subdomain '%s'): %v", domain, subdomain, err)
+			slog.Warn("[TENANT] Could not resolve tenant", "domain", domain, "subdomain", subdomain, "error", err)
 		}
 
 		next.ServeHTTP(w, r)

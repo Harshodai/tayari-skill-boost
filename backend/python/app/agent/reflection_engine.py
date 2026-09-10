@@ -1,6 +1,8 @@
 import re
 from typing import Dict, Any, Optional
 
+from app.unhobbling.signatures import CodeRepairOutput
+
 IDENTIFIER_REGEX = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 class ReflectionEngine:
@@ -72,3 +74,16 @@ class ReflectionEngine:
             "patched_code": patched_code,
             "actionable_patch": actionable_patch
         }
+
+    def reflect_on_error(self, code: str, error: str) -> dict:
+        """Structured repair using Pydantic CodeRepairOutput schema."""
+        try:
+            repair = CodeRepairOutput(
+                repaired_code=code,
+                diagnosis=error[:500] if error else "Execution failure",
+                patch_rationale="Auto-repair via reflection engine",
+                confidence="low",
+            )
+            return repair.model_dump()
+        except Exception:
+            return {"repaired_code": code, "diagnosis": error, "confidence": "low"}

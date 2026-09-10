@@ -1,7 +1,7 @@
 import { apiFetch } from "./client";
 import type { AutopilotRun, Application, AutopilotSchedule } from "./types";
 
-export async function startAutopilot(payload: Record<string, any>): Promise<{ run_id: string; db_id: number; status: string }> {
+export async function startAutopilot(payload: Record<string, unknown>): Promise<{ run_id: string; db_id: number; status: string }> {
   return apiFetch<{ run_id: string; db_id: number; status: string }>("/autopilot/start", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -177,7 +177,7 @@ export interface OneShotExecuteResponse {
     company_specific?: { company: string; principles: string[]; sample_questions: string[] } | null;
     [key: string]: unknown;
   };
-  proof_vault?: any[];
+  proof_vault?: unknown[];
   answers_draft?: Record<string, unknown>;
   recruiter_outreach?: { linkedin_message?: string; [key: string]: unknown };
   interview_prep?: { expected_questions?: string[]; [key: string]: unknown };
@@ -197,8 +197,23 @@ export interface ApprovalUpdateRequest {
   form_fields?: Record<string, string>;
 }
 
-export async function listPendingApprovals(): Promise<any[]> {
-  return apiFetch<any[]>("/v1/approvals");
+export interface PendingApprovalRecord {
+  id: string;
+  action_type: string;
+  action_payload: {
+    company?: string;
+    role?: string;
+    form_fields?: Record<string, string>;
+    keywords?: string[];
+    [key: string]: unknown;
+  };
+  status: string;
+  expires_at: string;
+  [key: string]: unknown;
+}
+
+export async function listPendingApprovals(): Promise<PendingApprovalRecord[]> {
+  return apiFetch<PendingApprovalRecord[]>("/v1/approvals");
 }
 
 export async function updateApproval(

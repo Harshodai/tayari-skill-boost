@@ -160,13 +160,7 @@
           <summary>Settings</summary>
           <div class="setting-row">
             <label>API URL</label>
-            <input type="text" id="api-url" value="http://localhost:8085/api" />
-          </div>
-          <div class="setting-row">
-            <label class="checkbox-label">
-              <input type="checkbox" id="autofill-enabled" checked />
-              Enable Autofill on application forms
-            </label>
+            <input type="text" id="api-url" value="" />
           </div>
           <div class="setting-row">
             <button id="btn-refresh-profile" class="btn btn-small">Refresh Profile</button>
@@ -181,6 +175,7 @@
     <div id="message" class="message hidden"></div>
   </div>
 
+  <script src="auth/session.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

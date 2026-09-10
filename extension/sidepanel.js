@@ -13,6 +13,15 @@ const ROLE_FAMILIES = [
   { family: 'data engineering', matches: ['data engineer', 'software engineer data', 'data platform', 'data infrastructure', 'data pipeline', 'analytics engineer', 'etl developer', 'big data engineer'], adjacent: ['backend engineer', 'machine learning engineer', 'data analyst'] },
   { family: 'software engineering', matches: ['software engineer', 'software developer', 'backend engineer', 'platform engineer', 'full stack engineer', 'distributed systems engineer'], adjacent: ['data platform engineer', 'site reliability engineer'] },
   { family: 'machine learning engineering', matches: ['machine learning engineer', 'ml engineer', 'applied scientist', 'ai engineer', 'ml platform engineer'], adjacent: ['data scientist', 'data engineer', 'software engineer'] },
+  { family: 'data science', matches: ['data scientist', 'research scientist', 'quantitative analyst', 'decision scientist', 'applied data scientist', 'analytics scientist'], adjacent: ['data engineer', 'machine learning engineer', 'business analyst'] },
+  { family: 'product management', matches: ['product manager', 'senior product manager', 'product owner', 'group product manager', 'director of product', 'technical product manager', 'product lead'], adjacent: ['program manager', 'project manager', 'design lead'] },
+  { family: 'design', matches: ['product designer', 'ux designer', 'ui designer', 'ux researcher', 'design lead', 'design manager', 'interaction designer', 'visual designer', 'user experience designer'], adjacent: ['frontend engineer', 'product manager', 'ux researcher'] },
+  { family: 'marketing', matches: ['marketing manager', 'growth marketer', 'content marketer', 'digital marketing specialist', 'brand manager', 'marketing director', 'marketing analyst', 'performance marketer'], adjacent: ['product manager', 'data analyst', 'content strategist'] },
+  { family: 'sales', matches: ['account executive', 'sales representative', 'sales manager', 'business development representative', 'account manager', 'sales engineer', 'solutions consultant', 'enterprise sales'], adjacent: ['customer success manager', 'business analyst', 'product manager'] },
+  { family: 'finance', matches: ['financial analyst', 'accountant', 'controller', 'finance manager', 'treasurer', 'budget analyst', 'cost accountant', 'fp&a analyst'], adjacent: ['business analyst', 'data analyst', 'operations manager'] },
+  { family: 'operations', matches: ['operations manager', 'business operations', 'program manager', 'project manager', 'scrum master', 'process improvement', 'supply chain manager', 'logistics manager'], adjacent: ['product manager', 'business analyst', 'engineering manager'] },
+  { family: 'devops', matches: ['devops engineer', 'site reliability engineer', 'sre', 'infrastructure engineer', 'cloud engineer', 'platform engineer', 'systems administrator', 'release engineer'], adjacent: ['backend engineer', 'security engineer', 'data platform engineer'] },
+  { family: 'security', matches: ['security engineer', 'information security analyst', 'application security engineer', 'security architect', 'penetration tester', 'security operations', 'soc analyst'], adjacent: ['devops engineer', 'backend engineer', 'cloud engineer'] },
 ];
 function roleFamilyInfo(title) {
   const normalized = String(title || '').toLowerCase().replace(/[^a-z0-9+#]+/g, ' ').trim();
@@ -20,8 +29,9 @@ function roleFamilyInfo(title) {
   if (!definition) return { family: '', variants: title ? [title] : [], adjacent: [] };
   return { family: definition.family, variants: [title, ...definition.matches.filter((match) => match !== normalized).slice(0, 5)], adjacent: definition.adjacent };
 }
-async function loadEvidence() {
+async function loadEvidence(gen) {
   const result = await send('list_research_notes');
+  if (typeof gen === 'number' && gen !== refreshGeneration) return;
   const notes = result?.notes || [];
   $('evidence-list').innerHTML = notes.slice(0, 5).map((note) => { const url = safeHttpsUrl(note.url); return `<article class="evidence-item"><strong>${escapeHtml(note.title)}</strong>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>` : '<span class="muted">No safe HTTPS source URL</span>'}<p>${escapeHtml(note.text).slice(0, 260)}</p><small>${escapeHtml(note.capturedAt)}</small></article>`; }).join('') || '<p class="muted">No local evidence captured yet.</p>';
 }
@@ -65,8 +75,11 @@ async function refreshComputerBridge() {
   return status;
 }
 
+let refreshGeneration = 0;
 async function refresh() {
+  const gen = ++refreshGeneration;
   const [config, context, native, bridgeStatus] = await Promise.all([send('get_config'), send('get_active_context'), send('native_status'), send('computer_bridge_status')]);
+  if (gen !== refreshGeneration) return;
   current = context || { tab: null, job: { detected: false } };
   const key = `${current.tab?.url || ''}|${current.job?.title || ''}`;
   const changed = key !== contextKey;
@@ -94,7 +107,7 @@ async function refresh() {
   $('no-job').classList.toggle('hidden', !job.detected);
   $('actions').classList.toggle('hidden', !job.detected || !authenticated);
   if (changed) { $('analysis').classList.add('hidden'); $('approval-check').checked = false; $('fill').disabled = true; setStatus(''); }
-  await loadEvidence();
+  await loadEvidence(gen);
 }
 async function run(action, payload) { setStatus('Working...'); const result = await send(action, payload); setStatus(result?.success ? (result.message || 'Done.') : (result?.error || 'Action failed.'), result?.success ? 'ok' : 'error'); return result; }
 $('refresh').addEventListener('click', () => void refresh());
@@ -141,5 +154,7 @@ $('clear-evidence').addEventListener('click', async () => { const result = await
 async function refreshActiveTask() { if (!activeTask?.id) return; const result = await send('get_agent_task_status', { taskId: activeTask.id }); if (!result?.success || !result.task) return; activeTask = result.task; $('plan-scope').textContent = `Task status: ${result.task.status}. Durable execution and policy controls remain visible; final submission is blocked.`; if (['stopped', 'completed', 'failed', 'expired'].includes(result.task.status)) $('takeover-task').classList.add('hidden'); if (result.task.status === 'completed') { const artifacts = await send('get_agent_task_artifacts', { taskId: activeTask.id }); if (!artifacts?.success) return setAgentStatus(artifacts?.error || 'Could not load the durable task result.', 'error'); if (renderTaskArtifacts(artifacts)) setAgentStatus('Durable task result ready for review.', 'ok'); } if (result.task.status === 'failed') setAgentStatus('Durable task failed; no fabricated result was shown.', 'error'); }
 chrome.runtime.onMessage.addListener((request) => { if (request.action === 'selection_context' && request.text) { $('agent-prompt').value = `Explain this selected text and relate it to my job search:\n\n${request.text.slice(0, 4000)}`; setAgentStatus('Selection added to the prompt.', 'ok'); } if (request.action === 'context_changed') void refresh(); });
 void refresh();
-setInterval(() => void refresh(), 6000);
-setInterval(() => void refreshActiveTask(), 6000);
+chrome.tabs.onActivated.addListener(() => void refresh());
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => { if (changeInfo.status === 'complete' || changeInfo.url) void refresh(); });
+setInterval(() => void refresh(), 30000);
+setInterval(() => void refreshActiveTask(), 30000);

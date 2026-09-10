@@ -68,12 +68,12 @@ const PredictiveAnalytics = () => {
 
       const banditRes = await getBanditStats();
       setBanditStats(banditRes);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to load analytics data:", err);
       toast({
         variant: "destructive",
         title: "Error loading analytics",
-        description: err.message || "Could not load stats.",
+        description: err instanceof Error ? err.message : "Could not load stats.",
       });
     } finally {
       setLoading(false);
@@ -91,7 +91,7 @@ const PredictiveAnalytics = () => {
       try {
         const list = await listResumeVariants(selectedResumeId);
         setVariants(list);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to fetch variants:", err);
       }
     };
@@ -137,12 +137,12 @@ const PredictiveAnalytics = () => {
       // Refresh bandit statistics
       const stats = await getBanditStats();
       setBanditStats(stats);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to create variant:", err);
       toast({
         variant: "destructive",
         title: "Creation failed",
-        description: err.message || "Failed to save and score variant."
+        description: err instanceof Error ? err.message : "Failed to save and score variant.",
       });
     } finally {
       setCreating(false);
@@ -299,7 +299,7 @@ const PredictiveAnalytics = () => {
                       <div className="space-y-2">
                         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Parent Resume</label>
                         <select
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           value={selectedResumeId}
                           onChange={(e) => setSelectedResumeId(e.target.value)}
                         >

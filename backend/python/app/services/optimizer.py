@@ -42,6 +42,7 @@ from app.parsers.document_parser import ResumeParser
 from app.scoring.ats_scorer import ATSScorer
 from app.analysis.similarity import KeywordAnalyzer
 from app.analysis.ngram_analyzer import NGramAnalyzer
+from app.services.style_delta_logger import StyleDeltaLogger
 
 logger = logging.getLogger(__name__)
 
@@ -666,6 +667,8 @@ async def optimize_with_reflection(
     job_label: str | None = None,
     custom_instructions: str | None = None,
     transition: dict | None = None,
+    user_id: str | None = None,
+    resume_id: str | None = None,
 ) -> dict:
 
     """
@@ -700,6 +703,16 @@ async def optimize_with_reflection(
         _hit = None
     if isinstance(_hit, dict) and _hit:
         await _close_client(_redis)
+        try:
+            from app.services.event_bus import publish_event
+            rid = resume_id or _hit.get("resume_id") or str(uuid.uuid4())
+            await publish_event(
+                "tayari:events",
+                "resume.optimized",
+                {"user_id": user_id or "anonymous", "resume_id": rid},
+            )
+        except Exception as exc:
+            logger.warning("Failed to publish resume.optimized event: %s", exc)
         return _hit
     # ponytail: release the lookup connection before the long LLM calls; a fresh client is used for the store.
     await _close_client(_redis)
@@ -965,10 +978,19 @@ async def optimize_with_reflection(
     )
 
     # ---- Phase 5: Consolidate final output ------------------------------
+    initial_style = StyleDeltaLogger.compute_style_metrics(resume_text)
+    optimized_style = StyleDeltaLogger.compute_style_metrics(optimized)
+    style_delta = StyleDeltaLogger.compute_delta(initial_style, optimized_style)
+
     result = {
         # Core output
         "optimized_text": optimized,
         "score_breakdown": score_breakdown,
+        "style_metrics": {
+            "initial": initial_style,
+            "optimized": optimized_style,
+            "delta": style_delta,
+        },
         "changes": meta.get("changes", []),
         "keywords_added": meta.get("keywords_added", []),
         "instruction_ledger": _build_instruction_ledger(
@@ -1012,6 +1034,8 @@ async def optimize_with_reflection(
             "avg_star_score": round(avg_star, 1),
             "buzzwords_cleaned": len(removed_ai_phrases),
             "refinement_passes": passes,
+            "action_verb_ratio_delta": style_delta.get("action_verb_ratio_delta"),
+            "improved_action_density": style_delta.get("improved_action_density"),
         },
     }
 
@@ -1042,6 +1066,18 @@ async def optimize_with_reflection(
         await _close_client(_store)
     except Exception:
         pass
+
+    try:
+        from app.services.event_bus import publish_event
+        rid = resume_id or result.get("resume_id") or str(uuid.uuid4())
+        await publish_event(
+            "tayari:events",
+            "resume.optimized",
+            {"user_id": user_id or "anonymous", "resume_id": rid},
+        )
+    except Exception as exc:
+        logger.warning("Failed to publish resume.optimized event: %s", exc)
+
     return result
 
 
@@ -1097,6 +1133,8 @@ async def optimize_resume_with_options(
     target_role: str = "",
     custom_instructions: str = "",
     transition: dict | None = None,
+    user_id: str | None = None,
+    resume_id: str | None = None,
 ) -> dict:
 
     """Reflective Resume Optimizer supporting file upload parsing, raw text input,
@@ -1135,6 +1173,8 @@ async def optimize_resume_with_options(
         target_role=target_role or None,
         custom_instructions=custom_instructions or None,
         transition=transition,
+        user_id=user_id,
+        resume_id=resume_id,
     )
 
 

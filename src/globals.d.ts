@@ -5,3 +5,4 @@ declare global {
   var chrome: any;
   var process: { env: Record<string, string | undefined> };
 }
+

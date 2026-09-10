@@ -7,10 +7,20 @@ import hashlib
 import logging
 import re
 import uuid
+from typing import Optional, Union, Dict, Any, List
 
 import httpx
 
+from app.services.portal_scaffolder import PortalScaffolder
+
 logger = logging.getLogger(__name__)
+
+_portal_scaffolder = PortalScaffolder()
+
+
+def get_portal_scaffolder() -> PortalScaffolder:
+    """Return the global PortalScaffolder instance for custom job portals."""
+    return _portal_scaffolder
 
 UA = {"User-Agent": "Mozilla/5.0 (Tayari/1.0; +https://tayari.app)"}
 
@@ -170,8 +180,14 @@ async def _call_provider(p, client: httpx.AsyncClient, query: str, location: str
         return []
 
 
-async def search_jobs(query: str, location: str = "", limit: int = 40) -> list:
-    """Aggregate all providers in parallel."""
+async def search_jobs(
+    query: str,
+    location: str = "",
+    limit: int = 20,
+    cursor: Optional[int] = 0,
+    return_dict: bool = True,
+) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+    """Aggregate all providers in parallel with cursor-based pagination."""
     async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
         results = await asyncio.gather(
             *[_call_provider(p, client, query, location) for p in PROVIDERS],
@@ -185,4 +201,19 @@ async def search_jobs(query: str, location: str = "", limit: int = 40) -> list:
         scored = sorted(jobs, key=lambda j: 0 if loc in j["location"].lower() else 1)
         jobs = scored
 
-    return jobs[:limit]
+    # Maintain backward compatibility if cursor is None and return_dict is False
+    if cursor is None and not return_dict:
+        return jobs[:limit]
+
+    cur = cursor if cursor is not None else 0
+    paginated = jobs[cur : cur + limit]
+    next_cursor = cur + limit if len(jobs) > cur + limit else None
+
+    if return_dict is False and cursor is None:
+        return paginated
+
+    return {
+        "results": paginated,
+        "next_cursor": next_cursor,
+        "total": len(jobs),
+    }

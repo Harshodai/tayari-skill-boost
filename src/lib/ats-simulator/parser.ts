@@ -646,8 +646,10 @@ function detectHazards(text: string, engine: AtsEngineType): HazardFlag[] {
   const hazards: HazardFlag[] = [];
 
   // Hazard 1: Multi-column table risk
-  const hasTabs = /[^\n]\t[^\n]/.test(text);
-  const hasMultiSpacing = /[^\n\S]{4,}[^\n]/.test(text) && /[^\s]{2,}\s{4,}[^\s]{2,}/.test(text.replace(/\n/g, ' '));
+  const hasTabs = /\S\t\S/.test(text);
+  const hasMultiSpacing = text.split('\n').some(line =>
+    /\s{4,}/.test(line) && /[^\s]{2,}\s{4,}[^\s]{2,}/.test(line)
+  );
   const multiColumnDetected = hasTabs || hasMultiSpacing;
   hazards.push({
     id: "multi-column-table-risk",

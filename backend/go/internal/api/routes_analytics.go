@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -52,8 +52,8 @@ type VariantResponse struct {
 }
 
 func (s *Server) handleCreateResumeVariant(w http.ResponseWriter, r *http.Request) {
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	if user == nil {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
@@ -91,7 +91,7 @@ func (s *Server) handleCreateResumeVariant(w http.ResponseWriter, r *http.Reques
 	}
 	scores, err := s.AI.PostJSONWithHeaders("/api/v1/predictive/score", pythonPayload, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleCreateResumeVariant: AI score failed: %v", err)
+		slog.Error("handleCreateResumeVariant: AI score failed", "error", err)
 		// Never fabricate a numeric score when the AI engine is unavailable.
 		// Keep the variant creation flow usable, but make the degraded state
 		// explicit so the UI cannot present invented analytics as measured data.
@@ -109,7 +109,7 @@ func (s *Server) handleCreateResumeVariant(w http.ResponseWriter, r *http.Reques
 	insertQuery := `INSERT INTO public.resume_variants (resume_id, name, original_text, created_at) VALUES ($1, $2, $3, NOW()) RETURNING id, created_at`
 	err = s.DB.Conn.QueryRowContext(r.Context(), insertQuery, resumeID, req.Name, req.OriginalText).Scan(&id, &createdAt)
 	if err != nil {
-		log.Printf("handleCreateResumeVariant: DB insert failed: %v", err)
+		slog.Error("handleCreateResumeVariant: DB insert failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to save variant")
 		return
 	}
@@ -130,8 +130,8 @@ func (s *Server) handleCreateResumeVariant(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) handleListResumeVariants(w http.ResponseWriter, r *http.Request) {
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	if user == nil {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
@@ -161,7 +161,7 @@ func (s *Server) handleListResumeVariants(w http.ResponseWriter, r *http.Request
 	`
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, resumeID)
 	if err != nil {
-		log.Printf("handleListResumeVariants: query failed: %v", err)
+		slog.Error("handleListResumeVariants: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to query variants")
 		return
 	}
@@ -173,7 +173,7 @@ func (s *Server) handleListResumeVariants(w http.ResponseWriter, r *http.Request
 		var createdAtTime interface{}
 		err := rows.Scan(&v.ID, &v.ResumeID, &v.Name, &v.OriginalText, &createdAtTime, &v.Pulls, &v.Conversions)
 		if err != nil {
-			log.Printf("handleListResumeVariants: scan failed: %v", err)
+			slog.Error("handleListResumeVariants: scan failed", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to scan resume variant")
 			return
 		}
@@ -198,7 +198,7 @@ func (s *Server) handleListResumeVariants(w http.ResponseWriter, r *http.Request
 		variants = append(variants, v)
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("handleListResumeVariants: rows iteration failed: %v", err)
+		slog.Error("handleListResumeVariants: rows iteration failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to iterate resume variants")
 		return
 	}
@@ -207,8 +207,8 @@ func (s *Server) handleListResumeVariants(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleGetFunnel(w http.ResponseWriter, r *http.Request) {
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	if user == nil {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
@@ -222,7 +222,7 @@ func (s *Server) handleGetFunnel(w http.ResponseWriter, r *http.Request) {
 	`
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, userID)
 	if err != nil {
-		log.Printf("handleGetFunnel: query failed: %v", err)
+		slog.Error("handleGetFunnel: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to query funnel data")
 		return
 	}
@@ -239,14 +239,14 @@ func (s *Server) handleGetFunnel(w http.ResponseWriter, r *http.Request) {
 		var status string
 		var count int
 		if err := rows.Scan(&status, &count); err != nil {
-			log.Printf("handleGetFunnel: scan failed: %v", err)
+			slog.Error("handleGetFunnel: scan failed", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to scan funnel stage count")
 			return
 		}
 		stages[status] = count
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("handleGetFunnel: rows iteration failed: %v", err)
+		slog.Error("handleGetFunnel: rows iteration failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to iterate funnel data")
 		return
 	}
@@ -255,8 +255,8 @@ func (s *Server) handleGetFunnel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetBanditStats(w http.ResponseWriter, r *http.Request) {
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	if user == nil {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
@@ -273,7 +273,7 @@ func (s *Server) handleGetBanditStats(w http.ResponseWriter, r *http.Request) {
 	`
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, userID)
 	if err != nil {
-		log.Printf("handleGetBanditStats: query failed: %v", err)
+		slog.Error("handleGetBanditStats: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to query bandit stats")
 		return
 	}
@@ -291,14 +291,14 @@ func (s *Server) handleGetBanditStats(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var stat BanditStat
 		if err := rows.Scan(&stat.VariantID, &stat.Name, &stat.ResumeTitle, &stat.Pulls, &stat.Conversions); err != nil {
-			log.Printf("handleGetBanditStats: scan failed: %v", err)
+			slog.Error("handleGetBanditStats: scan failed", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to scan bandit stats")
 			return
 		}
 		stats = append(stats, stat)
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("handleGetBanditStats: rows iteration failed: %v", err)
+		slog.Error("handleGetBanditStats: rows iteration failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to iterate bandit stats")
 		return
 	}
@@ -313,7 +313,7 @@ func (s *Server) incrementBanditPull(ctx context.Context, variantID int) {
 	}
 	_, err := s.DB.Conn.ExecContext(ctx, `UPDATE public.ab_testing_bandit SET pulls = pulls + 1 WHERE variant_id = $1`, variantID)
 	if err != nil {
-		log.Printf("incrementBanditPull failed: %v", err)
+		slog.Error("incrementBanditPull failed", "error", err)
 	}
 }
 
@@ -323,7 +323,7 @@ func (s *Server) incrementBanditConversion(ctx context.Context, variantID int) {
 	}
 	_, err := s.DB.Conn.ExecContext(ctx, `UPDATE public.ab_testing_bandit SET conversions = conversions + 1 WHERE variant_id = $1`, variantID)
 	if err != nil {
-		log.Printf("incrementBanditConversion failed: %v", err)
+		slog.Error("incrementBanditConversion failed", "error", err)
 	}
 }
 
@@ -337,7 +337,7 @@ func (s *Server) handlePostOutcomeEvent(w http.ResponseWriter, r *http.Request) 
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/outcomes", json.RawMessage(body), headers)
 	if err != nil {
-		log.Printf("handlePostOutcomeEvent: AI call failed: %v", err)
+		slog.Error("handlePostOutcomeEvent: AI call failed", "error", err)
 		var apiErr *ai.APIError
 		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
 			s.respondError(w, apiErr.StatusCode, apiErr.Body)
@@ -359,7 +359,7 @@ func (s *Server) handleListOutcomeEvents(w http.ResponseWriter, r *http.Request)
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders(endpoint, headers)
 	if err != nil {
-		log.Printf("handleListOutcomeEvents: AI call failed: %v", err)
+		slog.Error("handleListOutcomeEvents: AI call failed", "error", err)
 		var apiErr *ai.APIError
 		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
 			s.respondError(w, apiErr.StatusCode, apiErr.Body)
@@ -376,7 +376,7 @@ func (s *Server) handleGetOutcomeAnalytics(w http.ResponseWriter, r *http.Reques
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/outcomes/analytics", headers)
 	if err != nil {
-		log.Printf("handleGetOutcomeAnalytics: AI call failed: %v", err)
+		slog.Error("handleGetOutcomeAnalytics: AI call failed", "error", err)
 		var apiErr *ai.APIError
 		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
 			s.respondError(w, apiErr.StatusCode, apiErr.Body)

@@ -2,11 +2,12 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 	"unicode/utf8"
@@ -148,7 +149,7 @@ func (a *LocalAuth) LoginWithRequest(ctx context.Context, email, password string
 			}:
 			default:
 				// Channel full, log warning to avoid losing security-critical audit events
-				log.Printf("WARNING: Audit queue full, dropping event: Action=LOGIN_ATTEMPT Success=%v IPHash=%s", success, ipHash)
+				slog.Warn("Audit queue full, dropping LOGIN_ATTEMPT event", "success", success, "ip_hash", ipHash)
 			}
 		}
 	}
@@ -211,12 +212,50 @@ func (a *LocalAuth) VerifyToken(tokenString string) (*models.User, error) {
 	role, ok := claims["role"].(string)
 	if !ok {
 		// Fallback for older tokens or missing role (issuer already validated by parser)
-		log.Println("Token missing role claim, defaulting to 'user'")
+		slog.Info("Token missing role claim, defaulting to 'user'")
 		role = "user"
 	}
 
 	email, _ := claims["email"].(string)
 	return &models.User{ID: userID, Email: email, Role: role}, nil
+}
+
+// ResetPassword generates a single-use, 1-hour password reset token for the
+// given email. It returns the raw token (sent to the user via email) and
+// stores only the SHA-256 hash in public.password_reset_tokens.
+// If the email does not exist, it returns ("", nil) to avoid user enumeration.
+func (a *LocalAuth) ResetPassword(ctx context.Context, email string) (string, error) {
+	if !validateEmail(email) {
+		return "", nil // invalid email, treat as "not found" to avoid leaking info
+	}
+
+	var userID uuid.UUID
+	err := a.DB.Conn.QueryRowContext(ctx,
+		`SELECT id FROM auth.users WHERE email = $1`, email).Scan(&userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Email not found — return empty token, no error (constant-time response).
+			return "", nil
+		}
+		return "", fmt.Errorf("user lookup failed: %w", err)
+	}
+
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return "", fmt.Errorf("failed to generate reset token: %w", err)
+	}
+	token := hex.EncodeToString(tokenBytes)
+	tokenHash := resetTokenHash(token)
+
+	_, err = a.DB.Conn.ExecContext(ctx,
+		`INSERT INTO public.password_reset_tokens (user_id, token_hash, expires_at)
+		 VALUES ($1, $2, NOW() + INTERVAL '1 hour')`,
+		userID, tokenHash)
+	if err != nil {
+		return "", fmt.Errorf("failed to store reset token: %w", err)
+	}
+
+	return token, nil
 }
 
 func (a *LocalAuth) generateToken(user *models.User) (string, error) {
@@ -230,4 +269,10 @@ func (a *LocalAuth) generateToken(user *models.User) (string, error) {
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(a.Config.JWTSecret))
+}
+
+// resetTokenHash returns the hex-encoded SHA-256 hash of a reset token.
+func resetTokenHash(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
 }

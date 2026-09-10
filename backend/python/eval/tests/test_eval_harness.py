@@ -97,6 +97,34 @@ def test_trajectory_zero_production_overhead_when_inactive(monkeypatch):
     assert traj.final_output is None
 
 
+def test_trajectory_harness_trace_context_and_header(monkeypatch):
+    """Verify is_eval_active respects contextvar and header activation."""
+    from eval.harness.trajectory_recorder import (
+        _harness_trace_active,
+        activate_harness_trace,
+        set_harness_trace_from_headers,
+    )
+    monkeypatch.delenv("EVAL_MODE", raising=False)
+    assert not is_eval_active()
+
+    # Test contextvar activation
+    token = activate_harness_trace(True)
+    try:
+        assert is_eval_active()
+    finally:
+        _harness_trace_active.reset(token)
+    assert not is_eval_active()
+
+    # Test header activation
+    token_hdr = set_harness_trace_from_headers({"X-Harness-Trace": "true"})
+    assert token_hdr is not None
+    try:
+        assert is_eval_active()
+    finally:
+        _harness_trace_active.reset(token_hdr)
+    assert not is_eval_active()
+
+
 def test_record_trajectory_decorator_sync_and_async():
     """Verify @record_trajectory decorator captures function calls in active context."""
     @record_trajectory(tool_name="sync_search", model="gpt-4o-mini")
@@ -309,6 +337,35 @@ def test_judge_empty_or_malformed_input():
         assert result.passed is False
         assert result.overall_score == 0.0
         assert "Empty or invalid input" in result.rationale
+
+
+def test_judge_evaluate_inside_running_event_loop(monkeypatch):
+    """Verify evaluate() executes properly via ThreadPoolExecutor when called inside an event loop."""
+    judge = LLMJudge(force_heuristic=False)
+    rubric = load_rubric("resume_quality")
+
+    monkeypatch.setattr(judge, "_is_real_llm_available", lambda: True)
+
+    called = {"llm": False}
+
+    async def mock_evaluate_llm(raw_text, cand, exp, rub, ctx):
+        called["llm"] = True
+        return EvalResult(
+            overall_score=0.92,
+            dimension_scores={dim: 0.92 for dim in rub.dimensions},
+            rationale="Mock LLM evaluation completed inside worker thread",
+            pass_=True,
+        )
+
+    monkeypatch.setattr(judge, "_evaluate_llm", mock_evaluate_llm)
+
+    async def run_inside_loop():
+        return judge.evaluate("Some resume text to grade with genuine content", rubric=rubric)
+
+    result = asyncio.run(run_inside_loop())
+    assert called["llm"] is True
+    assert result.overall_score == 0.92
+    assert result.passed is True
 
 
 # ---------------------------------------------------------------------------

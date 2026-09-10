@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { USE_SELF_HOSTED, listAnalysisHistory, getFunnelData, listSavedJobs, listApplications, listConversations } from "@/api";
+import type { AnalysisResult, Conversation } from "@/api";
 import { apiFetch } from "@/api/client";
 import type { ResumeAnalysisRecord } from "@/types/resume";
 
@@ -62,7 +63,7 @@ export function useDashboardData(userId?: string) {
     queryFn: async () => {
       if (USE_SELF_HOSTED) {
         const res = await listAnalysisHistory();
-        return res.map((item: any) => ({
+        return res.map((item: AnalysisResult) => ({
           id: String(item.id),
           user_id: item.user_id ?? "",
           resume_filename: `Resume #${item.resume_id}`,
@@ -189,7 +190,7 @@ export function useDashboardData(userId?: string) {
         const total = Array.isArray(conversations) ? conversations.length : 0;
         const unread = Array.isArray(conversations)
           ? conversations.filter(
-              (c: any) =>
+              (c: Conversation) =>
                 !c.is_archived &&
                 (c.unread === true ||
                   c.is_unread === true ||

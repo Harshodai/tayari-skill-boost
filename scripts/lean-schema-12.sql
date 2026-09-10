@@ -208,13 +208,35 @@ CREATE TABLE IF NOT EXISTS public.scraped_jobs (
     location    TEXT,
     fetched_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at  TIMESTAMPTZ,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(user_id, dedupe_key, source)
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_scraped_jobs_source ON public.scraped_jobs(source);
 CREATE INDEX IF NOT EXISTS idx_scraped_jobs_user_id ON public.scraped_jobs(user_id);
 CREATE INDEX IF NOT EXISTS idx_scraped_jobs_fetched_at ON public.scraped_jobs(fetched_at DESC);
+
+-- Deduplication: UNIQUE(user_id, dedupe_key, source) doesn't cover NULL user_id
+-- rows in PostgreSQL (NULL != NULL).  Use a partial unique index that coalesces
+-- NULL user_id to a sentinel so anonymous rows are also deduplicated.
+-- ---------------------------------------------------------------------------
+-- 1. Drop stale duplicates before applying the index.
+WITH ranked AS (
+    SELECT ctid,
+           ROW_NUMBER() OVER (
+               PARTITION BY COALESCE(user_id, '00000000-0000-0000-0000-000000000000'::uuid),
+                            dedupe_key, source
+               ORDER BY created_at DESC
+           ) AS rn
+    FROM public.scraped_jobs
+)
+DELETE FROM public.scraped_jobs WHERE ctid IN (SELECT ctid FROM ranked WHERE rn > 1);
+
+-- 2. Create the partial unique index (idempotent).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_scraped_jobs_dedupe
+    ON public.scraped_jobs (
+        COALESCE(user_id, '00000000-0000-0000-0000-000000000000'::uuid),
+        dedupe_key, source
+    );
 
 -- ------------------------------------------------------------------------------
 -- 8. application_attempts

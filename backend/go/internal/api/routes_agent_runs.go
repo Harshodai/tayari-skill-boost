@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"tayari-backend/internal/auth"
@@ -97,7 +97,7 @@ func (s *Server) handleListAgentRuns(w http.ResponseWriter, r *http.Request) {
 		LIMIT 50
 	`, uid)
 	if err != nil {
-		log.Printf("handleListAgentRuns: query failed: %v", err)
+		slog.Error("handleListAgentRuns: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to load runs")
 		return
 	}
@@ -108,14 +108,14 @@ func (s *Server) handleListAgentRuns(w http.ResponseWriter, r *http.Request) {
 		var run agentRunRow
 		if err := rows.Scan(&run.ID, &run.JobTitle, &run.Company, &run.JobURL, &run.Mode,
 			&run.Status, &run.Progress, &run.CurrentStep, &run.Outcome, &run.SubmittedAt, &run.CreatedAt); err != nil {
-			log.Printf("handleListAgentRuns: scan failed: %v", err)
+			slog.Error("handleListAgentRuns: scan failed", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to load runs")
 			return
 		}
 		runs = append(runs, run)
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("handleListAgentRuns: rows err: %v", err)
+		slog.Error("handleListAgentRuns: rows err", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to load runs")
 		return
 	}
@@ -140,7 +140,7 @@ func (s *Server) handleGetAgentRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Printf("handleGetAgentRun: query failed: %v", err)
+		slog.Error("handleGetAgentRun: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to load run")
 		return
 	}
@@ -159,7 +159,7 @@ func (s *Server) handleListAgentRunSteps(w http.ResponseWriter, r *http.Request)
 		ORDER BY idx ASC
 	`, runID, uid)
 	if err != nil {
-		log.Printf("handleListAgentRunSteps: query failed: %v", err)
+		slog.Error("handleListAgentRunSteps: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to load run steps")
 		return
 	}
@@ -170,14 +170,14 @@ func (s *Server) handleListAgentRunSteps(w http.ResponseWriter, r *http.Request)
 		var step agentRunStepRow
 		if err := rows.Scan(&step.ID, &step.RunID, &step.Idx, &step.Name, &step.Status,
 			&step.Detail, &step.Logs, &step.ScreenshotURL, &step.CreatedAt); err != nil {
-			log.Printf("handleListAgentRunSteps: scan failed: %v", err)
+			slog.Error("handleListAgentRunSteps: scan failed", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to load run steps")
 			return
 		}
 		steps = append(steps, step)
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("handleListAgentRunSteps: rows err: %v", err)
+		slog.Error("handleListAgentRunSteps: rows err", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to load run steps")
 		return
 	}
@@ -227,7 +227,7 @@ func (s *Server) handleAgentRunTransition(w http.ResponseWriter, r *http.Request
 		  AND status IN ('queued', 'running', 'awaiting_review')
 	`, runID, uid, newStatus)
 	if err != nil {
-		log.Printf("handleAgentRunTransition: update failed: %v", err)
+		slog.Error("handleAgentRunTransition: update failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to update the run")
 		return
 	}
@@ -251,12 +251,12 @@ func (s *Server) handleAgentRunTransition(w http.ResponseWriter, r *http.Request
 		case errors.Is(lookupErr, sql.ErrNoRows):
 			response["credit_note"] = "Recorded as candidate-confirmed. No credit spent until a verified receipt is captured."
 		case lookupErr != nil:
-			log.Printf("handleAgentRunTransition: receipt lookup failed: %v", lookupErr)
+			slog.Error("handleAgentRunTransition: receipt lookup failed", "error", lookupErr)
 			response["credit_note"] = "Submission recorded; credit status could not be checked."
 		default:
 			okDebit, balance, debitErr := s.Billing.DebitCredit(uid, 1, "receipt_"+runID, "Verified submission")
 			if debitErr != nil {
-				log.Printf("handleAgentRunTransition: debit failed: %v", debitErr)
+				slog.Error("handleAgentRunTransition: debit failed", "error", debitErr)
 				response["credit_note"] = "Verified submission recorded; the credit could not be charged."
 			} else if !okDebit {
 				response["credit_note"] = "Verified submission recorded, but you have no submission credits left."

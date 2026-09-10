@@ -78,11 +78,12 @@ export default function FreeAtsScan() {
         throw new Error("The service returned no measurable score. Please try again.");
       }
       setResult(data);
-    } catch (caught: any) {
-      if (caught?.name !== "AbortError") {
-        if (caught?.status === 429) {
+    } catch (caught: unknown) {
+      const errObj = caught as { name?: string; status?: number; message?: string } | null;
+      if (errObj?.name !== "AbortError") {
+        if (errObj?.status === 429) {
           setError("Rate limit reached. Please wait a moment before trying again, or create a free account for higher limits.");
-        } else if (caught?.status === 400 || caught?.status === 422) {
+        } else if (errObj?.status === 400 || errObj?.status === 422) {
           setError("Invalid input. Please check your resume and job description text and try again.");
         } else {
           setError(caught instanceof Error ? caught.message : "Analysis failed. Please try again.");
@@ -166,7 +167,7 @@ export default function FreeAtsScan() {
                   <Button
                     key={preset.label}
                     type="button"
-                    variant={activePreset === preset.label ? "secondary" : "outline"}
+                    variant={activePreset === preset.label || activePreset === preset.company ? "secondary" : "outline"}
                     size="sm"
                     onClick={() => loadPreset(preset)}
                     className="text-xs h-7 font-medium active:scale-[0.98]"
@@ -205,7 +206,7 @@ export default function FreeAtsScan() {
                 }}
                 placeholder="Paste your full resume text here..."
                 rows={12}
-                className="w-full px-4 py-3 rounded-xl border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-y font-mono text-xs leading-relaxed"
+                className="w-full px-4 py-3 rounded-xl border border-border bg-card text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-y font-mono text-xs leading-relaxed"
               />
               <p id="resume-help" className="mt-1 text-xs text-muted-foreground">Paste only the text needed for this scan; do not include secrets.</p>
             </div>
@@ -228,7 +229,7 @@ export default function FreeAtsScan() {
                 }}
                 placeholder="Paste the job description here..."
                 rows={12}
-                className="w-full px-4 py-3 rounded-xl border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-y font-mono text-xs leading-relaxed"
+                className="w-full px-4 py-3 rounded-xl border border-border bg-card text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-y font-mono text-xs leading-relaxed"
               />
             </div>
           </div>

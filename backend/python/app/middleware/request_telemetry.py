@@ -29,7 +29,7 @@ def _route_for_metrics(request: Request) -> str:
     if route_path:
         return str(route_path)
     path = request.url.path
-    return path if path in {"/health", "/healthz", "/readyz", "/metrics"} else "unmatched"
+    return path if path in {"/health", "/healthz", "/readyz", "/metrics", "/metrics/prometheus", "/api/v1/metrics/prometheus"} else "unmatched"
 
 
 class RequestTelemetryMiddleware(BaseHTTPMiddleware):

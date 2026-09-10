@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -143,7 +143,7 @@ func (s *Server) handleVerificationSubmit(w http.ResponseWriter, r *http.Request
 		"resume_text": resumeText,
 	}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleVerificationSubmit: AI scoring failed: %v", err)
+		slog.Error("handleVerificationSubmit: AI scoring failed", "error", err)
 		if s.respondAICircuitOpen(w, err) {
 			return
 		}
@@ -183,7 +183,7 @@ func (s *Server) handleVerificationSubmit(w http.ResponseWriter, r *http.Request
 		user.ID, row.Status, row.TruthfulScore, string(redFlagsJSON), row.ScreeningScore,
 		string(strengthsJSON), string(gapsJSON), string(questionsJSON), row.VerifiedAt,
 	); err != nil {
-		log.Printf("handleVerificationSubmit: persist failed: %v", err)
+		slog.Error("handleVerificationSubmit: persist failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to persist verification")
 		return
 	}
@@ -224,7 +224,7 @@ func (s *Server) handleVerificationStatus(w http.ResponseWriter, r *http.Request
 			s.respondJSON(w, http.StatusOK, row)
 			return
 		}
-		log.Printf("handleVerificationStatus: query failed: %v", err)
+		slog.Error("handleVerificationStatus: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to load verification status")
 		return
 	}

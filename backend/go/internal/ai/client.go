@@ -12,6 +12,9 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // APIError preserves the Python service's real HTTP status code and response
@@ -48,6 +51,7 @@ func NewClient(baseURL string) *Client {
 // service token. User identity headers remain caller-specific and are applied
 // after this helper, while the internal token cannot be overridden by callers.
 func NewClientWithToken(baseURL, internalToken string) *Client {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
 		baseURL = "http://localhost:8000"
 	}
@@ -120,6 +124,9 @@ func (c *Client) setHeaders(req *http.Request, headers map[string]string) {
 	}
 	if req.Header.Get("X-Request-ID") == "" {
 		req.Header.Set("X-Request-ID", fmt.Sprintf("req-%d", time.Now().UnixNano()))
+	}
+	if req.Context() != nil {
+		otel.GetTextMapPropagator().Inject(req.Context(), propagation.HeaderCarrier(req.Header))
 	}
 }
 

@@ -174,8 +174,8 @@ export interface Application {
   notes?: string;
   submission_mode?: string;
   apply_url?: string;
-  notes_log?: Array<{ at: string; text: string }>;
-  voice_notes?: Array<{ at: string; url: string; transcript?: string }>;
+  notes_log?: Array<{ id?: string; at: string; text: string }>;
+  voice_notes?: Array<{ id?: string; at: string; url?: string; transcript?: string }>;
   interview_research?: Record<string, any>;
   created_at: string;
   updated_at: string;

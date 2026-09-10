@@ -9,15 +9,57 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfile, apiFetch } from '@/api';
 
+interface SearchJobItem {
+  id: string;
+  title: string;
+  company: string;
+  portal?: string;
+  ats_score?: number;
+  url: string;
+  [key: string]: unknown;
+}
+
+interface SearchResultsData {
+  total_found?: number;
+  jobs: SearchJobItem[];
+  [key: string]: unknown;
+}
+
+interface TailorResultData {
+  ats_match_score?: number;
+  codeact_repl_output?: { stdout?: string; error?: string; [key: string]: unknown };
+  cover_letter_file?: string;
+  [key: string]: unknown;
+}
+
+interface AutofillResultData {
+  status: string;
+  actions_taken?: string[];
+  [key: string]: unknown;
+}
+
+interface InterviewBriefData {
+  company: string;
+  key_talking_points?: string[];
+  [key: string]: unknown;
+}
+
+interface AgentApiResponse<T> {
+  success?: boolean;
+  data?: T;
+  error?: string;
+  detail?: string;
+}
+
 export const JobSeekerAgentDashboard: React.FC = () => {
   const { user } = useAuth();
   const [jobQuery, setJobQuery] = useState('Full Stack Engineer');
   const [location, setLocation] = useState('Remote');
   const [loading, setLoading] = useState(false);
-  const [searchResults, setSearchResults] = useState<any>(null);
-  const [tailorResult, setTailorResult] = useState<any>(null);
-  const [autofillResult, setAutofillResult] = useState<any>(null);
-  const [interviewBrief, setInterviewBrief] = useState<any>(null);
+  const [searchResults, setSearchResults] = useState<SearchResultsData | null>(null);
+  const [tailorResult, setTailorResult] = useState<TailorResultData | null>(null);
+  const [autofillResult, setAutofillResult] = useState<AutofillResultData | null>(null);
+  const [interviewBrief, setInterviewBrief] = useState<InterviewBriefData | null>(null);
   const [tailorError, setTailorError] = useState<string | null>(null);
   const [autofillError, setAutofillError] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -46,13 +88,12 @@ export const JobSeekerAgentDashboard: React.FC = () => {
   const handleSearch = async () => {
     setLoading(true);
     setSearchError(null);
-    setSearchResults(null);
     try {
-      const data = await apiFetch<any>('/v1/ai/agent/job-seeker/search', {
+      const data = await apiFetch<AgentApiResponse<SearchResultsData>>('/v1/ai/agent/job-seeker/search', {
         method: 'POST',
         body: JSON.stringify({ query: jobQuery, location })
       });
-      if (data && data.success) {
+      if (data && data.success && data.data) {
         setSearchResults(data.data);
       } else {
         setSearchError(data?.error || 'Job search failed.');
@@ -67,7 +108,7 @@ export const JobSeekerAgentDashboard: React.FC = () => {
   const handleTailor = async (company: string = targetCompany) => {
     setLoading(true);
     try {
-      const data = await apiFetch<any>('/v1/ai/agent/job-seeker/tailor', {
+      const data = await apiFetch<AgentApiResponse<TailorResultData>>('/v1/ai/agent/job-seeker/tailor', {
         method: 'POST',
         body: JSON.stringify({
           job_title: jobQuery,
@@ -75,7 +116,7 @@ export const JobSeekerAgentDashboard: React.FC = () => {
           job_description: jobDescription
         })
       });
-      if (data && data.success) {
+      if (data && data.success && data.data) {
         const repl = data.data?.codeact_repl_output;
         if (repl && typeof repl === 'object' && (typeof repl.stdout === 'string' || typeof repl.error === 'string')) {
           setTailorResult(data.data);
@@ -94,14 +135,14 @@ export const JobSeekerAgentDashboard: React.FC = () => {
   const handleAutoFill = async (url: string = targetFormUrl) => {
     setLoading(true);
     try {
-      const data = await apiFetch<any>('/v1/ai/agent/job-seeker/autofill', {
+      const data = await apiFetch<AgentApiResponse<AutofillResultData>>('/v1/ai/agent/job-seeker/autofill', {
         method: 'POST',
         body: JSON.stringify({
           form_url: url || targetFormUrl,
           user_profile: { name: candidateName, email: candidateEmail }
         })
       });
-      if (data && data.success) {
+      if (data && data.success && data.data) {
         if (typeof data.data?.status === 'string') {
           setAutofillResult(data.data);
         } else {
@@ -121,11 +162,11 @@ export const JobSeekerAgentDashboard: React.FC = () => {
     setInterviewError(null);
     setInterviewBrief(null);
     try {
-      const data = await apiFetch<any>('/v1/ai/agent/job-seeker/interview-prep', {
+      const data = await apiFetch<AgentApiResponse<InterviewBriefData>>('/v1/ai/agent/job-seeker/interview-prep', {
         method: 'POST',
         body: JSON.stringify({ company: company || targetCompany })
       });
-      if (data && data.success) {
+      if (data && data.success && data.data) {
         setInterviewBrief(data.data);
       } else {
         setInterviewError(data?.error || 'Interview prep failed.');
@@ -214,7 +255,7 @@ export const JobSeekerAgentDashboard: React.FC = () => {
               <div className="space-y-3 pt-4">
                 <h4 className="text-sm font-semibold text-emerald-400">Found {searchResults.total_found} Targeted Positions:</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(Array.isArray(searchResults.jobs) ? searchResults.jobs : []).map((jb: any) => (
+                  {(Array.isArray(searchResults.jobs) ? searchResults.jobs : []).map((jb: SearchJobItem) => (
                     <div key={jb.id} className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-100">{jb.title}</span>

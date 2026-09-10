@@ -98,6 +98,9 @@ const BlogPost = () => {
   const { data: post, isLoading, error, refetch } = useQuery({
     queryKey: ["blog-post", slug],
     queryFn: async () => {
+      if (!slug) {
+        throw new Error("Article not found");
+      }
       try {
         const { data, error } = await supabase
           .from("blog_posts")

@@ -33,7 +33,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { extractTextFromFile } from "@/lib/resume-parser";
 import { toast } from "sonner";
 import { resumeUploadSchema } from "@/lib/schemas";
-import { createResume, createJD, analyzeResume, importJobDescription, uploadResumeMultipart, isBackendUnavailable } from "@/api";
+import { createResume, createJD, analyzeResume, importJobDescription, uploadResumeMultipart, isBackendUnavailable, type Resume } from "@/api";
 import { buildAnalyzePayload, normalizeGoAnalysis } from "@/lib/resumeAnalysis";
 import { Input } from "@/components/ui/input";
 import { ResumeFilePreview } from "@/components/resume/ResumeFilePreview";
@@ -130,7 +130,7 @@ const ResumeUpload = () => {
     try {
       // Phase 1: create/upload resume record
       setAnalysisStep(1);
-      let newResume: any;
+      let newResume: Resume;
       if (resumeFile) {
         newResume = await uploadResumeMultipart(resumeFile);
       } else {
@@ -141,7 +141,7 @@ const ResumeUpload = () => {
           file_type: fileType,
         });
       }
-      const resumeId = newResume.id || newResume.resume_id;
+      const resumeId = newResume.id;
 
       // Phase 2: create job description record
       setAnalysisStep(2);

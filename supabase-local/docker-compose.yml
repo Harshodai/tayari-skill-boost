@@ -68,6 +68,9 @@ services:
       DASHBOARD_USERNAME: ${DASHBOARD_USERNAME}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
     entrypoint: bash -c 'eval "echo \"$$(cat ~/temp.yml)\"" > ~/kong.yml && /docker-entrypoint.sh kong docker-start'
+    networks:
+      default: {}
+      backend: {}
 
   auth:
     container_name: supabase-auth
@@ -352,6 +355,11 @@ services:
         "-c",
         "log_min_messages=fatal"
       ]
+    networks:
+      default: {}
+      backend: {}
+      database: {}
+      internal: {}
 
   supavisor:
     container_name: supabase-pooler

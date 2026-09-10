@@ -1,19 +1,80 @@
 import React from 'react';
 import { CheckCircle2, AlertTriangle, AlertCircle, HelpCircle, Award, Target, Zap, DollarSign, ListTodo, FileText } from 'lucide-react';
 
+interface BlockGSignal {
+  signal: string;
+  finding: string;
+  weight: string;
+}
+
+interface BlockBMapping {
+  requirement: string;
+  cv_mapping: string;
+}
+
+interface BlockBGap {
+  gap: string;
+  importance: string;
+  mitigation: string;
+}
+
+interface BlockECVChange {
+  section: string;
+  proposed: string;
+  reason: string;
+}
+
+interface BlockFStory {
+  requirement: string;
+  situation: string;
+  task: string;
+  action: string;
+  result: string;
+  reflection?: string;
+}
+
+interface BlockAData {
+  domain?: string;
+  function?: string;
+  seniority?: string;
+  remote?: string;
+  tldr?: string;
+  [key: string]: unknown;
+}
+
+interface BlockGData {
+  tier?: string;
+  legitimacy_tier?: string;
+  reasons?: string[];
+  signals?: BlockGSignal[];
+  context_notes?: string;
+  [key: string]: unknown;
+}
+
 interface EvaluationReportPanelProps {
-  report: Record<string, any>;
+  report: {
+    archetype?: string;
+    block_a?: BlockAData;
+    block_b?: { mappings?: BlockBMapping[]; gaps?: BlockBGap[] };
+    block_c?: { level_detected?: string; sell_senior_plan?: string; downlevel_plan?: string };
+    block_d?: { comp_estimate?: string; demand_trend?: string };
+    block_e?: { cv_changes?: BlockECVChange[] };
+    block_f?: { stories?: BlockFStory[] };
+    block_g?: BlockGData;
+    cover_letter_draft?: string;
+    [key: string]: unknown;
+  };
   onClose?: () => void;
 }
 
 export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ report, onClose }) => {
-  const blockA = report.block_a || {};
-  const blockB = report.block_b || {};
-  const blockC = report.block_c || {};
-  const blockD = report.block_d || {};
-  const blockE = report.block_e || {};
-  const blockF = report.block_f || {};
-  const blockG = report.block_g || {};
+  const blockA = (report.block_a || {}) as BlockAData;
+  const blockB = (report.block_b || {}) as { mappings?: BlockBMapping[]; gaps?: BlockBGap[] };
+  const blockC = (report.block_c || {}) as { level_detected?: string; sell_senior_plan?: string; downlevel_plan?: string };
+  const blockD = (report.block_d || {}) as { comp_estimate?: string; demand_trend?: string };
+  const blockE = (report.block_e || {}) as { cv_changes?: BlockECVChange[] };
+  const blockF = (report.block_f || {}) as { stories?: BlockFStory[] };
+  const blockG = (report.block_g || {}) as BlockGData;
 
   const getLegitimacyBadge = (tier: string) => {
     switch (tier) {
@@ -62,7 +123,7 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold text-white tracking-tight">Career-Ops Agent Evaluation</h2>
-            {report.archetype && (
+            {Boolean(report.archetype) && (
               <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
                 {report.archetype} Archetype
               </span>
@@ -87,7 +148,7 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
               </h3>
               <p className="text-xs text-slate-500 mt-1">Rule-based legitimacy signals and company hiring freeze context.</p>
             </div>
-            {getLegitimacyBadge(blockG.legitimacy_tier)}
+            {getLegitimacyBadge(blockG.legitimacy_tier || blockG.tier || 'Unknown')}
           </div>
           
           {blockG.context_notes && (
@@ -105,7 +166,7 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-850">
-                  {blockG.signals.map((sig: any, idx: number) => (
+                  {blockG.signals.map((sig: BlockGSignal, idx: number) => (
                     <tr key={idx} className="hover:bg-slate-900/40">
                       <td className="px-4 py-2.5 font-medium text-slate-200">{sig.signal}</td>
                       <td className="px-4 py-2.5 text-slate-400">{sig.finding}</td>
@@ -141,7 +202,7 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
               <p className="text-sm font-medium text-slate-200 mt-0.5">{blockA.remote || 'N/A'}</p>
             </div>
           </div>
-          {blockA.tldr && (
+          {Boolean(blockA.tldr) && (
             <p className="text-sm text-slate-300 bg-slate-950/20 p-3.5 rounded-xl border border-slate-850 italic">
               "<strong>TL;DR:</strong> {blockA.tldr}"
             </p>
@@ -158,7 +219,7 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
             <div className="space-y-2">
               <span className="text-xs font-semibold text-slate-400">Competency Mapping:</span>
               <div className="space-y-2">
-                {blockB.mappings.map((m: any, idx: number) => (
+                {blockB.mappings.map((m: BlockBMapping, idx: number) => (
                   <div key={idx} className="p-3.5 rounded-xl bg-slate-950/30 border border-slate-850 flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div className="flex-1">
                       <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Requirement</span>
@@ -178,7 +239,7 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
             <div className="space-y-2">
               <span className="text-xs font-semibold text-slate-400">Identified Gaps & Mitigation:</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {blockB.gaps.map((g: any, idx: number) => (
+                {blockB.gaps.map((g: BlockBGap, idx: number) => (
                   <div key={idx} className="p-4 rounded-xl border border-rose-500/10 bg-rose-500/5 space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-semibold text-rose-300">{g.gap}</span>
@@ -242,7 +303,7 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
             <div className="p-4 rounded-xl bg-slate-950/30 border border-slate-850 space-y-3">
               {blockE.cv_changes && blockE.cv_changes.length > 0 ? (
                 <div className="space-y-2">
-                  {blockE.cv_changes.map((ch: any, idx: number) => (
+                  {blockE.cv_changes.map((ch: BlockECVChange, idx: number) => (
                     <div key={idx} className="text-xs space-y-1">
                       <span className="font-semibold text-pink-400">{ch.section}:</span>
                       <p className="text-slate-300 italic">"Proposed: {ch.proposed}"</p>
@@ -264,7 +325,7 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
               <FileText className="w-4 h-4 text-accent" /> Block F: Mapped STAR+R Stories
             </h3>
             <div className="space-y-3">
-              {blockF.stories.map((st: any, idx: number) => (
+              {blockF.stories.map((st: BlockFStory, idx: number) => (
                 <div key={idx} className="p-4 rounded-xl bg-slate-950/30 border border-slate-850 space-y-3">
                   <div className="flex justify-between items-center border-b border-slate-850 pb-2">
                     <span className="text-xs font-bold text-slate-400">Requirement: {st.requirement}</span>
@@ -287,17 +348,16 @@ export const EvaluationReportPanel: React.FC<EvaluationReportPanelProps> = ({ re
           </div>
         )}
 
-        {/* Cover Letter Draft */}
-        {report.cover_letter_draft && (
+        {report.cover_letter_draft ? (
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
               <FileText className="w-4 h-4 text-sky-400" /> Auto-Generated Cover Letter Draft
             </h3>
             <pre className="p-4 rounded-xl bg-slate-950 border border-slate-850 text-xs text-slate-300 font-mono whitespace-pre-wrap leading-relaxed shadow-inner">
-              {report.cover_letter_draft}
+              {String(report.cover_letter_draft)}
             </pre>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

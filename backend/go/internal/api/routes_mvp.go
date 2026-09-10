@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"strconv"
@@ -148,7 +148,7 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	var updatedAt time.Time
 	err := s.DB.Conn.QueryRowContext(r.Context(), query, user.ID, req.FullName, req.AvatarURL, user.Email, req.Headline, req.Summary, req.Skills, req.DesiredRoles, req.Locations, req.ExperienceYears, req.OpenToRemote, req.Links, transitionType, req.CurrentTitle, req.TargetLevel, req.CurrentIndustry, req.TargetIndustry, req.TransferableSkills).Scan(&updatedAt)
 	if err != nil {
-		log.Printf("handleUpdateProfile: failed to upsert profile: %v", err)
+		slog.Error("handleUpdateProfile: failed to upsert profile", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to update profile")
 		return
 	}
@@ -180,7 +180,7 @@ func (s *Server) handleJobSearch(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/jobs/search", req, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleJobSearch: AI call failed: %v", err)
+		slog.Error("handleJobSearch: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Job search failed")
 		return
 	}
@@ -203,7 +203,7 @@ func (s *Server) handleAgentSearch(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/jobs/agent-search", req, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleAgentSearch: AI call failed: %v", err)
+		slog.Error("handleAgentSearch: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Agent search failed")
 		return
 	}
@@ -235,7 +235,7 @@ func (s *Server) handleAgentSearch(w http.ResponseWriter, r *http.Request) {
 		VALUES ($1, $2, $3, 'job_search', 'done', $4, NOW(), NOW())`,
 		sessionID, user.ID, queryStr, eventsJSON)
 	if err != nil {
-		log.Printf("handleAgentSearch: failed to insert hermes session: %v", err)
+		slog.Error("handleAgentSearch: failed to insert hermes session", "error", err)
 		// non-fatal, continue returning response
 	}
 
@@ -276,7 +276,7 @@ func (s *Server) handleSaveJob(w http.ResponseWriter, r *http.Request) {
 	var id int
 	err := s.DB.Conn.QueryRowContext(r.Context(), query, user.ID, req.DedupeKey, jobJSON, status).Scan(&id)
 	if err != nil {
-		log.Printf("handleSaveJob: failed to save job: %v", err)
+		slog.Error("handleSaveJob: failed to save job", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to save job")
 		return
 	}
@@ -301,7 +301,7 @@ func (s *Server) handleListSavedJobs(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, args...)
 	if err != nil {
-		log.Printf("handleListSavedJobs: query failed: %v", err)
+		slog.Error("handleListSavedJobs: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to fetch saved jobs")
 		return
 	}
@@ -447,7 +447,7 @@ func (s *Server) handleAutopilotStart(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/autopilot/run", pythonPayload, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleAutopilotStart: AI call failed: %v", err)
+		slog.Error("handleAutopilotStart: AI call failed", "error", err)
 		if debited {
 			_, _ = s.Billing.RefundCredit(user.ID.String(), 1, reservationRef, "Autopilot launch failure compensation")
 		}
@@ -516,7 +516,7 @@ func (s *Server) handleListAutopilotRuns(w http.ResponseWriter, r *http.Request)
 
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, args...)
 	if err != nil {
-		log.Printf("handleListAutopilotRuns: query failed: %v", err)
+		slog.Error("handleListAutopilotRuns: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to fetch runs")
 		return
 	}
@@ -682,16 +682,16 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 	}
 	appID := uuid.New().String()
 	if _, err := s.DB.Conn.ExecContext(r.Context(), "INSERT INTO auth.users (id, email) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", user.ID, user.Email); err != nil {
-		log.Printf("handleCreateApplication: auth.users insert error: %v", err)
+		slog.Error("handleCreateApplication: auth.users insert error", "error", err)
 	}
 	if _, err := s.DB.Conn.ExecContext(r.Context(), "INSERT INTO profiles (id, email) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", user.ID, user.Email); err != nil {
-		log.Printf("handleCreateApplication: profiles insert error: %v", err)
+		slog.Error("handleCreateApplication: profiles insert error", "error", err)
 	}
 	query := `INSERT INTO applications (application_id, user_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, stage, submission_mode, apply_url, resume_variant_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, NOW(), NOW()) RETURNING id`
 	var id int
 	err := s.DB.Conn.QueryRowContext(r.Context(), query, appID, user.ID, models.JSONMap(req.Job), req.TailoredResumeText, req.CoverLetter, models.JSONMap(req.Changes), models.StringSlice(req.KeywordsAdded), req.ATSScoreBefore, req.ATSScoreAfter, req.IsDreamCompany, req.Status, req.SubmissionMode, req.ApplyURL, req.ResumeVariantID).Scan(&id)
 	if err != nil {
-		log.Printf("handleCreateApplication: insert failed: %v", err)
+		slog.Error("handleCreateApplication: insert failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to create application")
 		return
 	}
@@ -732,7 +732,7 @@ func (s *Server) handleListApplications(w http.ResponseWriter, r *http.Request) 
 	}
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, args...)
 	if err != nil {
-		log.Printf("handleListApplications: query failed: %v", err)
+		slog.Error("handleListApplications: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to fetch applications")
 		return
 	}
@@ -890,14 +890,14 @@ func (s *Server) handleUpdateApplication(w http.ResponseWriter, r *http.Request)
 		vID := int(variantID.Int64)
 		if currentStatus != "applied" && req.Status == "applied" {
 			if _, err := tx.ExecContext(r.Context(), `UPDATE public.ab_testing_bandit SET pulls = pulls + 1 WHERE variant_id = $1`, vID); err != nil {
-				log.Printf("incrementBanditPull failed: %v", err)
+				slog.Error("incrementBanditPull failed", "error", err)
 			}
 		}
 		isOldConversion := currentStatus == "interview" || currentStatus == "offer"
 		isNewConversion := req.Status == "interview" || req.Status == "offer"
 		if !isOldConversion && isNewConversion {
 			if _, err := tx.ExecContext(r.Context(), `UPDATE public.ab_testing_bandit SET conversions = conversions + 1 WHERE variant_id = $1`, vID); err != nil {
-				log.Printf("incrementBanditConversion failed: %v", err)
+				slog.Error("incrementBanditConversion failed", "error", err)
 			}
 		}
 	}
@@ -949,7 +949,7 @@ func (s *Server) handleDownloadApplicationResume(w http.ResponseWriter, r *http.
 	}
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/export/docx", map[string]interface{}{"text": resumeText, "title": "Tailored Resume"}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleDownloadApplicationResume: export failed: %v", err)
+		slog.Error("handleDownloadApplicationResume: export failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to export resume")
 		return
 	}
@@ -1024,7 +1024,7 @@ func (s *Server) handleCreateSchedule(w http.ResponseWriter, r *http.Request) {
 	var id int
 	err := s.DB.Conn.QueryRowContext(r.Context(), query, scheduleID, user.ID, req.Frequency, models.JSONMap(req.Config), active, nextRunAt).Scan(&id)
 	if err != nil {
-		log.Printf("handleCreateSchedule: insert failed: %v", err)
+		slog.Error("handleCreateSchedule: insert failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to create schedule")
 		return
 	}
@@ -1041,7 +1041,7 @@ func (s *Server) handleListSchedules(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := s.DB.Conn.QueryContext(r.Context(), "SELECT schedule_id, frequency, config, active, next_run_at, last_run_at, created_at FROM autopilot_schedules WHERE user_id=$1 ORDER BY created_at DESC", user.ID)
 	if err != nil {
-		log.Printf("handleListSchedules: query failed: %v", err)
+		slog.Error("handleListSchedules: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to fetch schedules")
 		return
 	}
@@ -1165,7 +1165,7 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 		`SELECT COALESCE(transition_type, ''), COALESCE(current_industry, ''), COALESCE(target_industry, ''), COALESCE(transferable_skills, '{}') FROM profiles WHERE id=$1`,
 		user.ID,
 	).Scan(&transitionType, &currentIndustry, &targetIndustry, &transferableSkills); err != nil {
-		log.Printf("handleOptimizeResume: profile transition lookup skipped: %v", err)
+		slog.Error("handleOptimizeResume: profile transition lookup skipped", "error", err)
 	}
 
 	// ponytail: forward every input the UI collects so the Python engine's
@@ -1183,7 +1183,7 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 	}, s.getXUserHeaders(r))
 
 	if err != nil {
-		log.Printf("handleOptimizeResume: AI call failed: %v", err)
+		slog.Error("handleOptimizeResume: AI call failed", "error", err)
 		s.respondAIGatewayError(w, err, "Optimization failed")
 		return
 	}
@@ -1195,7 +1195,7 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 	if optText != "" {
 		_, err = s.DB.Conn.ExecContext(r.Context(), "UPDATE resumes SET optimized_text=$1, status='optimized', updated_at=NOW() WHERE id=$2 AND user_id=$3", optText, id, user.ID)
 		if err != nil {
-			log.Printf("handleOptimizeResume: failed to update resume status/optimized_text: %v", err)
+			slog.Error("handleOptimizeResume: failed to update resume status/optimized_text", "error", err)
 		}
 	}
 
@@ -1206,7 +1206,7 @@ func (s *Server) handleOptimizeResume(w http.ResponseWriter, r *http.Request) {
 		VALUES ($1, 'optimized', $2, NOW()) RETURNING id`,
 		id, string(resultJSON)).Scan(&versionID)
 	if err != nil {
-		log.Printf("handleOptimizeResume: failed to insert resume_version: %v", err)
+		slog.Error("handleOptimizeResume: failed to insert resume_version", "error", err)
 		versionID = id
 	}
 
@@ -1245,7 +1245,7 @@ func (s *Server) handleDeepATS(w http.ResponseWriter, r *http.Request) {
 		"job_description": req.JobDescription,
 	}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleDeepATS: AI call failed: %v", err)
+		slog.Error("handleDeepATS: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Deep ATS analysis failed")
 		return
 	}
@@ -1283,7 +1283,7 @@ func (s *Server) handleExportResume(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/export/docx", map[string]interface{}{"text": resumeText, "title": "Resume"}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleExportResume: export failed: %v", err)
+		slog.Error("handleExportResume: export failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Export failed")
 		return
 	}
@@ -1308,9 +1308,13 @@ func (s *Server) handleExportResume(w http.ResponseWriter, r *http.Request) {
 // -------------------------------------------------------------------
 
 func (s *Server) handleUploadResumeMultipart(w http.ResponseWriter, r *http.Request) {
+	safeHeaderNames := map[string]bool{"Content-Type": true, "User-Agent": true, "Accept": true}
 	for name, values := range r.Header {
+		if !safeHeaderNames[name] {
+			continue
+		}
 		for _, value := range values {
-			log.Printf("Header: %s = %s", name, value)
+			slog.Info("request header", "name", name, "value", value)
 		}
 	}
 	user, ok := r.Context().Value(contextKeyUser).(*models.User)
@@ -1319,13 +1323,13 @@ func (s *Server) handleUploadResumeMultipart(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
-		log.Printf("handleUploadResumeMultipart: ParseMultipartForm failed: %v", err)
+		slog.Error("handleUploadResumeMultipart: ParseMultipartForm failed", "error", err)
 		s.respondError(w, http.StatusBadRequest, "Failed to parse multipart form")
 		return
 	}
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		log.Printf("handleUploadResumeMultipart: FormFile failed: %v", err)
+		slog.Error("handleUploadResumeMultipart: FormFile failed", "error", err)
 		s.respondError(w, http.StatusBadRequest, "Missing file field")
 		return
 	}
@@ -1384,7 +1388,7 @@ func (s *Server) handleJobSearchGET(w http.ResponseWriter, r *http.Request) {
 		"top_n":    topN,
 	}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleJobSearchGET: AI call failed: %v", err)
+		slog.Error("handleJobSearchGET: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Job search failed")
 		return
 	}
@@ -1491,7 +1495,7 @@ func (s *Server) handleCoverLetterGenerate(w http.ResponseWriter, r *http.Reques
 		"personal_notes":  personalNotes,
 	}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleCoverLetterGenerate: AI call failed: %v", err)
+		slog.Error("handleCoverLetterGenerate: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Cover letter generation failed")
 		return
 	}
@@ -1573,7 +1577,7 @@ func (s *Server) handleCommunicationGenerate(w http.ResponseWriter, r *http.Requ
 		"days_since":        int(daysSince),
 	}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleCommunicationGenerate: AI call failed: %v", err)
+		slog.Error("handleCommunicationGenerate: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Communication generation failed")
 		return
 	}
@@ -1589,7 +1593,7 @@ func (s *Server) handleCommunicationGenerate(w http.ResponseWriter, r *http.Requ
 			VALUES ($1, NULLIF($2, ''), $3, $4, $5, $6, $7)
 			RETURNING id
 		`, user.ID, applicationID, commType, jobTitle, companyName, subject, body).Scan(&commID); err != nil {
-			log.Printf("handleCommunicationGenerate: persist comm failed: %v", err)
+			slog.Error("handleCommunicationGenerate: persist comm failed", "error", err)
 		} else {
 			result["comm_id"] = commID
 		}
@@ -1639,7 +1643,7 @@ func (s *Server) handleCommunicationResponse(w http.ResponseWriter, r *http.Requ
 		WHERE id = $3 AND user_id = $4
 	`, req.ResponseStatus, respondedAt, commID, user.ID)
 	if err != nil {
-		log.Printf("handleCommunicationResponse: update failed: %v", err)
+		slog.Error("handleCommunicationResponse: update failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to update communication")
 		return
 	}
@@ -1664,7 +1668,7 @@ func (s *Server) handleCommunicationStats(w http.ResponseWriter, r *http.Request
 		GROUP BY comm_type
 	`, user.ID)
 	if err != nil {
-		log.Printf("handleCommunicationStats: query failed: %v", err)
+		slog.Error("handleCommunicationStats: query failed", "error", err)
 		s.respondJSON(w, http.StatusOK, map[string]interface{}{"stats": []interface{}{}})
 		return
 	}
@@ -1713,7 +1717,7 @@ func (s *Server) handleCommunicationSuggestions(w http.ResponseWriter, r *http.R
 		ORDER BY a.updated_at DESC
 	`, user.ID)
 	if err != nil {
-		log.Printf("handleCommunicationSuggestions: query failed: %v", err)
+		slog.Error("handleCommunicationSuggestions: query failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to query communication suggestions")
 		return
 	}
@@ -1848,7 +1852,7 @@ func (s *Server) handleInterviewPrep(w http.ResponseWriter, r *http.Request) {
 		"interview_type":  interviewType,
 	}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleInterviewPrep: AI call failed: %v", err)
+		slog.Error("handleInterviewPrep: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Interview prep generation failed")
 		return
 	}
@@ -1874,7 +1878,7 @@ func (s *Server) handleResumeKnowledgeGraph(w http.ResponseWriter, r *http.Reque
 	}
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/resume/knowledge-graph", map[string]interface{}{"resume_text": resumeText}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleResumeKnowledgeGraph: AI call failed: %v", err)
+		slog.Error("handleResumeKnowledgeGraph: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Knowledge graph extraction failed")
 		return
 	}
@@ -1904,7 +1908,7 @@ func (s *Server) handleImportProfilePDF(w http.ResponseWriter, r *http.Request) 
 	}
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/profile/import-text", map[string]interface{}{"resume_text": string(data)}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleImportProfilePDF: AI call failed: %v", err)
+		slog.Error("handleImportProfilePDF: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Profile import failed")
 		return
 	}
@@ -1918,7 +1922,7 @@ func (s *Server) handleImportProfilePDF(w http.ResponseWriter, r *http.Request) 
 	// request (the AI extraction itself, already error-handled above).
 	if headline, ok := result["headline"].(string); ok && headline != "" {
 		if _, execErr := s.DB.Conn.ExecContext(r.Context(), "UPDATE profiles SET headline=$1, updated_at=NOW() WHERE user_id=$2", headline, user.ID); execErr != nil {
-			log.Printf("handleImportProfilePDF: failed to save headline: %v", execErr)
+			slog.Error("handleImportProfilePDF: failed to save headline", "error", execErr)
 		}
 	}
 	if skills, ok := result["skills"].([]interface{}); ok && len(skills) > 0 {
@@ -1931,7 +1935,7 @@ func (s *Server) handleImportProfilePDF(w http.ResponseWriter, r *http.Request) 
 		if len(skillStrings) > 0 {
 			jsonSkills, _ := json.Marshal(skillStrings)
 			if _, execErr := s.DB.Conn.ExecContext(r.Context(), "UPDATE profiles SET skills=$1, updated_at=NOW() WHERE user_id=$2", string(jsonSkills), user.ID); execErr != nil {
-				log.Printf("handleImportProfilePDF: failed to save skills: %v", execErr)
+				slog.Error("handleImportProfilePDF: failed to save skills", "error", execErr)
 			}
 		}
 	}
@@ -1958,7 +1962,7 @@ func (s *Server) handleDownloadResumeDocx(w http.ResponseWriter, r *http.Request
 
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/export/docx", map[string]interface{}{"text": resumeText, "title": "Resume"}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleDownloadResumeDocx: export failed: %v", err)
+		slog.Error("handleDownloadResumeDocx: export failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Export failed")
 		return
 	}
@@ -2008,7 +2012,7 @@ func (s *Server) handleDownloadVersionDocx(w http.ResponseWriter, r *http.Reques
 
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/export/docx", map[string]interface{}{"text": optText, "title": "Optimized Resume"}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleDownloadVersionDocx: export failed: %v", err)
+		slog.Error("handleDownloadVersionDocx: export failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Export failed")
 		return
 	}
@@ -2055,7 +2059,7 @@ func (s *Server) handleGenerateResumePdf(w http.ResponseWriter, r *http.Request)
 	}
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/resumes/generate-pdf", req, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleGenerateResumePdf: generate failed: %v", err)
+		slog.Error("handleGenerateResumePdf: generate failed", "error", err)
 		s.proxyAIError(w, err)
 		return
 	}
@@ -2093,7 +2097,7 @@ func (s *Server) handleLinkedInAnalyze(w http.ResponseWriter, r *http.Request) {
 		"profile_text": req.ProfileText,
 	}, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleLinkedInAnalyze: AI call failed: %v", err)
+		slog.Error("handleLinkedInAnalyze: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "LinkedIn analysis failed")
 		return
 	}
@@ -2135,7 +2139,7 @@ func (s *Server) handleOptimizeResumeStream(w http.ResponseWriter, r *http.Reque
 
 	resp, err := s.AI.PostMultipartStream(ctx, "/api/v1/optimize/stream", bodyBuf, bodyWriter.FormDataContentType(), s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleOptimizeResumeStream: AI call failed: %v", err)
+		slog.Error("handleOptimizeResumeStream: AI call failed", "error", err)
 		if s.respondAICircuitOpen(w, err) {
 			return
 		}

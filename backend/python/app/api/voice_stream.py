@@ -16,8 +16,7 @@ router = APIRouter(prefix="/api/v1/interview", tags=["Voice Interview AI"])
 DEEPGRAM_API_KEY = os.environ.get("DEEPGRAM_API_KEY", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
-# Standard fillers list
-FILLER_WORDS = ["um", "uh", "like", "you know", "so", "actually", "basically"]
+from app.services.speech_analysis import analyze_speech as _analyze_speech
 
 async def synthesize_speech(text: str) -> bytes:
     """Synthesizes text to speech using OpenAI TTS API."""
@@ -68,42 +67,20 @@ async def generate_llm_response(prompt: str, system_message: str) -> str:
     )
 
 def analyze_speech_telemetry(transcript: str, duration_seconds: float) -> Dict[str, Any]:
-    """Analyzes WPM, filler words, and STAR compliance heuristics."""
-    words = transcript.lower().split()
-    word_count = len(words)
-    
-    # 1. Words Per Minute (WPM)
-    duration_mins = max(duration_seconds, 1.0) / 60.0
-    wpm = int(word_count / duration_mins)
-    
-    # 2. Filler words count
-    fillers_found = []
-    for word in words:
-        # Check direct match or multi-word phrases
-        if word in FILLER_WORDS:
-            fillers_found.append(word)
-    
-    # 3. STAR Compliance simple heuristics
-    # We look for transition indicator words or phases
-    has_situation = any(w in words for w in ["when", "project", "time", "at", "role", "background"])
-    has_task = any(w in words for w in ["task", "goal", "assigned", "required", "need"])
-    has_action = any(w in words for w in ["i", "built", "wrote", "lead", "designed", "created", "refactored", "implemented", "resolved"])
-    has_result = any(w in words for w in ["result", "metrics", "percent", "saved", "improved", "delivered", "outcome", "finally"])
-    
-    star_compliance = {
-        "situation": has_situation,
-        "task": has_task,
-        "action": has_action,
-        "result": has_result,
-        "score": sum([has_situation, has_task, has_action, has_result]) * 25
-    }
-    
+    """Delegates to shared speech analysis module."""
+    t = _analyze_speech(transcript, duration_seconds)
     return {
-        "wpm": wpm,
-        "word_count": word_count,
-        "fillers": fillers_found,
-        "filler_count": len(fillers_found),
-        "star_compliance": star_compliance
+        "wpm": t.wpm,
+        "word_count": t.word_count,
+        "fillers": list(t.filler_words_found.keys()),
+        "filler_count": t.filler_count,
+        "star_compliance": {
+            "situation": t.star_breakdown["situation"] == "Present",
+            "task": t.star_breakdown["task"] == "Present",
+            "action": t.star_breakdown["action"] == "Present",
+            "result": t.star_breakdown["result"] == "Present",
+            "score": t.star_score,
+        },
     }
 
 @router.websocket("/stream")

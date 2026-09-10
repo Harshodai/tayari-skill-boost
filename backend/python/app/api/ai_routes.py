@@ -475,6 +475,7 @@ async def optimize_resume(payload: OptimizerRequest, user_id: str = Depends(get_
                 target_role=payload.target_role,
                 custom_instructions=payload.custom_instructions or "",
                 transition=transition,
+                user_id=user_id,
             )
         else:
             result = await optimizer.optimize_with_reflection(
@@ -483,6 +484,7 @@ async def optimize_resume(payload: OptimizerRequest, user_id: str = Depends(get_
                 target_role=payload.target_role,
                 custom_instructions=payload.custom_instructions,
                 transition=transition,
+                user_id=user_id,
             )
         if transition:
             result["transition_mode"] = transition["transition_type"]
@@ -558,6 +560,9 @@ async def generate_cover_letter_endpoint(payload: CoverLetterInput, user_id: str
             job_title=payload.job_title,
             tone=payload.tone,
             personal_notes=payload.personal_notes,
+            user_id=user_id,
+            job_url=payload.job_url,
+            resume_id=payload.resume_id,
         )
         provenance = await _capture_ai_output(
             user_id=user_id,

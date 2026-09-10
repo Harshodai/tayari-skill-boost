@@ -1,0 +1,94 @@
+name: Staging Deployment Gate
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+    inputs:
+      confirm_staging:
+        description: 'Type "I_UNDERSTAND_STAGING_ONLY" to confirm deployment'
+        required: true
+        default: 'I_UNDERSTAND_STAGING_ONLY'
+
+jobs:
+  staging-verify:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: staging
+      STAGING_ENVIRONMENT: staging
+      STAGING_CONFIRM: I_UNDERSTAND_STAGING_ONLY
+      JWT_SECRET: staging-jwt-secret-with-at-least-32-chars-entropy
+      APPROVAL_SIGNING_KEY: staging-approval-signing-key
+      PYTHONPATH: ${{ github.workspace }}/backend/python
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        run: |
+          set -e
+          cd backend/python
+          pip install -r requirements.txt
+          pip install pytest pytest-cov 'pytest-asyncio==1.4.0'
+
+      - name: Run backend tests
+        run: |
+          set -e
+          cd backend/python
+          python -m pytest app/tests -q
+
+      - name: Set up Go
+        uses: actions/setup-go@41dfa10bad2bb2aeab7976c79664bc302405b6db # v5.3.0
+        with:
+          go-version: '1.24'
+
+      - name: Go build and vet
+        run: |
+          set -e
+          cd backend/go
+          go build ./...
+          go vet ./...
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.0.0
+        with:
+          version: 11.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install frontend dependencies
+        run: |
+          pnpm install --frozen-lockfile
+
+      - name: Type check and frontend build
+        env:
+          VITE_SUPABASE_URL: https://staging.example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_staging
+          VITE_API_URL: https://staging-api.example.com/api
+          VITE_USE_SELF_HOSTED: 'false'
+        run: |
+          set -e
+          pnpm exec tsc --noEmit
+          pnpm run build
+
+      - name: Run Staging Integration Gate Contract Tests
+        run: |
+          set -e
+          bash scripts/staging_integration_gate_contract_test.sh
+          bash scripts/staging_integration_gate.sh --dry-run
+
+      - name: Validate Docker Compose Config
+        run: |
+          cp .env.example .env
+          cp supabase-local/.env.example supabase-local/.env
+          docker compose config

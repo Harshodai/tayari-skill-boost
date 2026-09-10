@@ -291,7 +291,9 @@ async def _count_watch_matches(title: str, location: str) -> int | None:
     """
     try:
         from app.services.job_providers import search_jobs
-        results = await search_jobs(title, location, limit=40)
+        results = await search_jobs(title, location, limit=40, cursor=None, return_dict=False)
+        if isinstance(results, dict):
+            return results.get("total", len(results.get("results", [])))
         return len(results)
     except Exception as exc:  # noqa: BLE001 - a failed count must not block dispatch
         logger.warning("run_standing_job_watches: match count failed for %r: %s", title, exc)
@@ -364,6 +366,35 @@ def run_standing_job_watches(self) -> dict:
                         now_dt, match_count, w["watch_id"],
                     )
                     triggered += 1
+
+                    if match_count is not None and match_count > 0:
+                        matches = [None] * match_count
+                        try:
+                            from app.services.event_bus import publish_event
+                            await publish_event(
+                                "tayari:events",
+                                "watch.matched",
+                                {"user_id": user_id, "count": len(matches)},
+                            )
+                        except Exception as pub_exc:
+                            logger.warning("run_standing_job_watches: event publish failed for %s: %s", user_id, pub_exc)
+
+                        try:
+                            from app.services.notifications import notify_user
+                            await notify_user(
+                                user_id=user_id,
+                                title=f"New matches for '{title}'",
+                                body=f"Found {match_count} new job match{'es' if match_count != 1 else ''} for '{title}' in {loc}.",
+                                channel="in_app",
+                                data={
+                                    "watch_id": str(w["watch_id"]),
+                                    "match_count": match_count,
+                                    "title": title,
+                                    "location": loc,
+                                },
+                            )
+                        except Exception as n_exc:
+                            logger.warning("run_standing_job_watches: notification failed for %s: %s", user_id, n_exc)
                 return {"status": "success", "watches_triggered": triggered, "watches_skipped": skipped}
 
     try:

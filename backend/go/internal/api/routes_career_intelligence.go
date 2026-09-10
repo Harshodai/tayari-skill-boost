@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -22,8 +22,10 @@ func (s *Server) routesCareerIntelligence(r chi.Router) {
 
 		// v1 routes
 		r.Post("/api/v1/career-intelligence/skills-gap", s.handleGetSkillsGap)
+		r.Post("/api/v1/career-intelligence/skills", s.handleGetSkillsGap)
 		r.Post("/api/v1/career-intelligence/learning-path", s.handleGetLearningPath)
 		r.Post("/api/v1/career-intelligence/salary-benchmark", s.handleGetSalaryBenchmark)
+		r.Post("/api/v1/career-intelligence/salary", s.handleGetSalaryBenchmark)
 		r.Get("/api/v1/career-intelligence/trending-skills", s.handleGetTrendingSkills)
 		r.Get("/api/v1/career/next-actions", s.handleCareerNextActions)
 		r.Get("/api/v1/career-intelligence/next-actions", s.handleCareerNextActions)
@@ -32,8 +34,10 @@ func (s *Server) routesCareerIntelligence(r chi.Router) {
 
 		// aliases
 		r.Post("/api/career-intelligence/skills-gap", s.handleGetSkillsGap)
+		r.Post("/api/career-intelligence/skills", s.handleGetSkillsGap)
 		r.Post("/api/career-intelligence/learning-path", s.handleGetLearningPath)
 		r.Post("/api/career-intelligence/salary-benchmark", s.handleGetSalaryBenchmark)
+		r.Post("/api/career-intelligence/salary", s.handleGetSalaryBenchmark)
 		r.Get("/api/career-intelligence/trending-skills", s.handleGetTrendingSkills)
 		r.Get("/api/career/next-actions", s.handleCareerNextActions)
 		r.Get("/api/career-intelligence/next-actions", s.handleCareerNextActions)
@@ -118,8 +122,8 @@ func (s *Server) fetchJobDescriptionText(r *http.Request, userID string, jdID *i
 }
 
 func (s *Server) handleGetSkillsGap(w http.ResponseWriter, r *http.Request) {
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	if user == nil {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
@@ -133,7 +137,7 @@ func (s *Server) handleGetSkillsGap(w http.ResponseWriter, r *http.Request) {
 	// Fetch resume
 	resumeText, resumeID, err := s.fetchResumeText(r, userID, req.ResumeID)
 	if err != nil {
-		log.Printf("handleGetSkillsGap: failed to fetch resume: %v", err)
+		slog.Error("handleGetSkillsGap: failed to fetch resume", "error", err)
 		s.respondError(w, http.StatusBadRequest, "No resume found. Please upload a resume first.")
 		return
 	}
@@ -144,7 +148,7 @@ func (s *Server) handleGetSkillsGap(w http.ResponseWriter, r *http.Request) {
 		var err error
 		jdText, err = s.fetchJobDescriptionText(r, userID, req.JobDescriptionID)
 		if err != nil {
-			log.Printf("handleGetSkillsGap: failed to fetch job description: %v", err)
+			slog.Error("handleGetSkillsGap: failed to fetch job description", "error", err)
 			s.respondError(w, http.StatusBadRequest, "Job description not found.")
 			return
 		}
@@ -171,7 +175,7 @@ func (s *Server) handleGetSkillsGap(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/career-intelligence/skills-gap", payload, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleGetSkillsGap: AI call failed: %v", err)
+		slog.Error("handleGetSkillsGap: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "AI skill gap analysis failed")
 		return
 	}
@@ -213,7 +217,7 @@ func (s *Server) handleGetSkillsGap(w http.ResponseWriter, r *http.Request) {
 		pgStringArray(missingSkills),
 	)
 	if dbErr != nil {
-		log.Printf("handleGetSkillsGap: DB insert failed: %v", dbErr)
+		slog.Error("handleGetSkillsGap: DB insert failed", "error", dbErr)
 		// Don't fail the request if DB logging fails, just log it.
 	}
 
@@ -221,8 +225,8 @@ func (s *Server) handleGetSkillsGap(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetLearningPath(w http.ResponseWriter, r *http.Request) {
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	if user == nil {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
@@ -236,7 +240,7 @@ func (s *Server) handleGetLearningPath(w http.ResponseWriter, r *http.Request) {
 	// Fetch resume
 	resumeText, _, err := s.fetchResumeText(r, userID, req.ResumeID)
 	if err != nil {
-		log.Printf("handleGetLearningPath: failed to fetch resume: %v", err)
+		slog.Error("handleGetLearningPath: failed to fetch resume", "error", err)
 		s.respondError(w, http.StatusBadRequest, "No resume found. Please upload a resume first.")
 		return
 	}
@@ -247,7 +251,7 @@ func (s *Server) handleGetLearningPath(w http.ResponseWriter, r *http.Request) {
 		var err error
 		jdText, err = s.fetchJobDescriptionText(r, userID, req.JobDescriptionID)
 		if err != nil {
-			log.Printf("handleGetLearningPath: failed to fetch job description: %v", err)
+			slog.Error("handleGetLearningPath: failed to fetch job description", "error", err)
 			s.respondError(w, http.StatusBadRequest, "Job description not found.")
 			return
 		}
@@ -274,7 +278,7 @@ func (s *Server) handleGetLearningPath(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/career-intelligence/learning-path", payload, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleGetLearningPath: AI call failed: %v", err)
+		slog.Error("handleGetLearningPath: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "AI learning path generation failed")
 		return
 	}
@@ -283,8 +287,8 @@ func (s *Server) handleGetLearningPath(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetSalaryBenchmark(w http.ResponseWriter, r *http.Request) {
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	if user == nil {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
@@ -319,7 +323,7 @@ func (s *Server) handleGetSalaryBenchmark(w http.ResponseWriter, r *http.Request
 
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/career-intelligence/salary-benchmark", payload, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleGetSalaryBenchmark: AI call failed: %v", err)
+		slog.Error("handleGetSalaryBenchmark: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "AI salary benchmarking failed")
 		return
 	}
@@ -331,7 +335,7 @@ func (s *Server) handleGetTrendingSkills(w http.ResponseWriter, r *http.Request)
 	// Python registers this as @router.get (no body param) — POST 405s.
 	result, err := s.AI.GetJSON("/api/v1/career-intelligence/trending-skills")
 	if err != nil {
-		log.Printf("handleGetTrendingSkills: AI call failed: %v", err)
+		slog.Error("handleGetTrendingSkills: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "ai_service_unavailable")
 		return
 	}
@@ -339,8 +343,8 @@ func (s *Server) handleGetTrendingSkills(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleCareerNextActions(w http.ResponseWriter, r *http.Request) {
-	user, _ := r.Context().Value(contextKeyUser).(*models.User)
-	if user == nil {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
@@ -353,7 +357,7 @@ func (s *Server) handleCareerNextActions(w http.ResponseWriter, r *http.Request)
 
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/career/next-actions", headers)
 	if err != nil {
-		log.Printf("handleCareerNextActions: AI call failed: %v", err)
+		slog.Error("handleCareerNextActions: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to fetch career next actions")
 		return
 	}
@@ -372,7 +376,7 @@ func (s *Server) handleCareerScenarioPlan(w http.ResponseWriter, r *http.Request
 	}
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/career/scenario-plan", body, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleCareerScenarioPlan: AI call failed: %v", err)
+		slog.Error("handleCareerScenarioPlan: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to generate scenario plan")
 		return
 	}
@@ -391,7 +395,7 @@ func (s *Server) handleJobFitMatrix(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/jobs/fit-matrix", body, s.getXUserHeaders(r))
 	if err != nil {
-		log.Printf("handleJobFitMatrix: AI call failed: %v", err)
+		slog.Error("handleJobFitMatrix: AI call failed", "error", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to calculate job fit matrix")
 		return
 	}
