@@ -690,6 +690,33 @@ export async function fetchOmniSaveExport(): Promise<OmniSaveExportBundle> {
   return response.bundle;
 }
 
+export interface SubstackWatch {
+  id: string;
+  publication_url: string;
+  last_polled_at: string | null;
+  last_poll_status: string | null;
+  last_poll_error?: string | null;
+  last_ingested_count: number;
+  created_at: string | null;
+}
+
+export async function listSubstackWatches(): Promise<SubstackWatch[]> {
+  const response = await apiFetch<{ watches: SubstackWatch[] }>("/v1/saves/substack-watches");
+  return response.watches || [];
+}
+
+export async function addSubstackWatch(publicationUrl: string): Promise<SubstackWatch> {
+  const response = await apiFetch<{ success: boolean; watch: SubstackWatch }>("/v1/saves/substack-watches", {
+    method: "POST",
+    body: JSON.stringify({ publication_url: publicationUrl }),
+  });
+  return response.watch;
+}
+
+export async function removeSubstackWatch(watchId: string): Promise<void> {
+  await apiFetch(`/v1/saves/substack-watches/${watchId}`, { method: "DELETE" });
+}
+
 
 export interface OmniSaveSeedJob {
   id: string;

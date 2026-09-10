@@ -3,10 +3,11 @@ import { Layout } from "@/components/layout";
 import { listApplications } from "@/api/autopilot";
 import { OmniSaveCapturePanel } from "@/components/omnisave/OmniSaveCapturePanel";
 import { OmniSaveSeedImportCard } from "@/components/omnisave/OmniSaveSeedImportCard";
+import { OmniSaveSubstackWatchCard } from "@/components/omnisave/OmniSaveSubstackWatchCard";
 import { OmniSaveBriefCard, type OmniSaveBriefSuggestions } from "@/components/omnisave/OmniSaveBriefCard";
 import { OmniSaveActivityTimeline } from "@/components/omnisave/OmniSaveActivityTimeline";
 import { useExtension } from "@/hooks/use-extension";
-import { apiFetch } from "@/api/client";
+import { apiFetch, ApiError } from "@/api/client";
 import { BackendUnavailableBanner } from "@/components/BackendUnavailableBanner";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,6 +66,10 @@ import {
   fetchOmniSaveCaptureRuns,
   OmniSaveSeedJob,
   createOmniSaveSeedImport,
+  listSubstackWatches,
+  addSubstackWatch,
+  removeSubstackWatch,
+  SubstackWatch,
   fetchOmniSaveSeedJobs,
   hydrateOmniSaveSeedJob,
   updateOmniSaveSyncSettings,
@@ -227,6 +232,7 @@ export default function Omnisave() {
   const [activity, setActivity] = useState<OmniSaveActivityEvent[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [seedJobs, setSeedJobs] = useState<OmniSaveSeedJob[]>([]);
+  const [substackWatches, setSubstackWatches] = useState<SubstackWatch[]>([]);
   const [seedBusy, setSeedBusy] = useState(false);
   const [brief, setBrief] = useState<OmniSaveBrief | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
@@ -267,11 +273,12 @@ export default function Omnisave() {
   useEffect(() => { void loadBriefSuggestions(); }, [loadBriefSuggestions]);
 
   const loadSyncState = useCallback(async () => {
-    const [settingsResult, runsResult, captureRunsResult, jobsResult] = await Promise.allSettled([
+    const [settingsResult, runsResult, captureRunsResult, jobsResult, watchesResult] = await Promise.allSettled([
       fetchOmniSaveSyncSettings(),
       fetchOmniSaveSyncRuns(10),
       fetchOmniSaveCaptureRuns(10),
       fetchOmniSaveSeedJobs(10),
+      listSubstackWatches(),
     ]);
     if (settingsResult.status === "fulfilled") {
       setSyncSettings(settingsResult.value);
@@ -292,6 +299,11 @@ export default function Omnisave() {
       setSeedJobs(jobsResult.value);
     } else {
       setSeedJobs([]);
+    }
+    if (watchesResult.status === "fulfilled") {
+      setSubstackWatches(watchesResult.value);
+    } else {
+      setSubstackWatches([]);
     }
   }, []);
 
@@ -375,6 +387,31 @@ export default function Omnisave() {
       setError(seedError instanceof Error ? seedError.message : "The seed import could not be created or started. Check the AI engine and database are available.");
     } finally {
       setSeedBusy(false);
+    }
+  };
+
+  const substackWatchErrorMessages: Record<string, string> = {
+    must_be_a_valid_https_url: "Enter a full https:// publication URL.",
+    not_a_reachable_substack_feed: "Couldn't find a working Substack feed at that URL — check it's the publication's own address.",
+    database_unavailable: "The database is unavailable right now. Try again shortly.",
+  };
+
+  const handleAddSubstackWatch = async (publicationUrl: string) => {
+    try {
+      const watch = await addSubstackWatch(publicationUrl);
+      setSubstackWatches((current) => [watch, ...current.filter((item) => item.id !== watch.id)]);
+    } catch (watchError) {
+      const detail = watchError instanceof ApiError ? (watchError.body?.detail as string | undefined) : undefined;
+      throw new Error((detail && substackWatchErrorMessages[detail]) || (watchError instanceof Error ? watchError.message : "That publication couldn't be added."));
+    }
+  };
+
+  const handleRemoveSubstackWatch = async (watchId: string) => {
+    try {
+      await removeSubstackWatch(watchId);
+      setSubstackWatches((current) => current.filter((item) => item.id !== watchId));
+    } catch {
+      setError("That watch could not be removed. Try again.");
     }
   };
 
@@ -611,6 +648,7 @@ export default function Omnisave() {
         {error && <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive" role="alert"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{error}</span></div>}
         <SlideUp delay={0.05}><Card className="border-primary/20 bg-gradient-to-r from-primary/[0.06] via-card to-card"><CardContent className="p-5"><div className="flex flex-col gap-3 md:flex-row"><div className="relative flex-1"><Plus className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" /><Input value={urlInput} onChange={(event) => setUrlInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void handleIngestUrl(); }} placeholder="Paste a public LinkedIn, Medium, Substack, Instagram, or web URL" className="pl-9" disabled={backendUnavailable || ingesting} aria-label="Public URL to save" /></div><Button type="button" onClick={() => void handleIngestUrl()} disabled={backendUnavailable || ingesting || !urlInput.trim()}>{ingesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}Save and enrich</Button></div><p className="mt-3 text-xs text-muted-foreground">Only candidate-selected public URLs are imported. OmniSaveAI keeps the original link, creates NLP metadata, and lets you verify the exact evidence used in answers.</p></CardContent></Card></SlideUp>
         <SlideUp delay={0.06}><OmniSaveSeedImportCard jobs={seedJobs} onCreate={handleCreateSeedImport} onHydrate={handleHydrateSeed} busy={seedBusy || syncBusy} /></SlideUp>
+        <SlideUp delay={0.07}><OmniSaveSubstackWatchCard watches={substackWatches} onAdd={handleAddSubstackWatch} onRemove={handleRemoveSubstackWatch} busy={seedBusy || syncBusy} /></SlideUp>
         <SlideUp delay={0.07}><OmniSaveBriefCard brief={brief} onLoad={handleLoadBrief} loading={briefLoading} suggestions={briefSuggestions} /></SlideUp>
         <SlideUp delay={0.075}><OmniSaveActivityTimeline events={activity} loading={activityLoading} onRefresh={loadActivity} /></SlideUp>
         <ContextGraphPanel graph={graph} skill={graphSkill} role={graphRole} onSkillChange={setGraphSkill} onRoleChange={setGraphRole} onRefresh={() => void refreshGraph()} loading={graphLoading} />

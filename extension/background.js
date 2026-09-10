@@ -591,9 +591,16 @@ function platformForCaptureUrl(value) {
   try {
     const parsed = new URL(String(value || ''));
     const path = parsed.pathname;
+    // ponytail: kept in lockstep with omnisave_capture.js's platformForPage()
+    // — this is a second, independent copy of the same URL-matching contract
+    // used to gate the alarm-driven automatic-capture path (collectOmniSaveSources),
+    // and it had drifted onto the same dead paths that were already fixed
+    // there (medium.com/me/list.../substack.com/home,saved) — the automatic
+    // background sync silently never fired on a real Medium or Substack tab
+    // even after that fix, because this copy never got the same update.
     if (parsed.hostname === 'www.linkedin.com' && /\/my-items\/saved-posts(?:\/|$)/i.test(path)) return 'linkedin';
-    if (parsed.hostname === 'medium.com' && /\/me\/(?:list|readinglist)/i.test(path)) return 'medium';
-    if (parsed.hostname === 'substack.com' && /^\/(?:home|saved)(?:\/|$)/i.test(path)) return 'substack';
+    if (parsed.hostname === 'medium.com' && (/\/me\/(?:list|readinglist)/i.test(path) || /^\/@[^/]+\/list\//i.test(path))) return 'medium';
+    if (parsed.hostname === 'substack.com' && /^\/(?:home|saved|inbox)(?:\/|$)/i.test(path)) return 'substack';
     if (parsed.hostname === 'www.instagram.com' && /\/your_activity\/saved(?:\/|$)/i.test(path)) return 'instagram';
     return null;
   } catch {
@@ -922,6 +929,29 @@ async function authorizeComputerBridgeAction(tabId) {
   }
 }
 
+async function handleExtensionSessionHandoff(rawCode) {
+  const code = typeof rawCode === 'string' ? rawCode.trim() : '';
+  if (!/^[a-f0-9]{64}$/i.test(code)) {
+    return { success: false, error: 'Invalid extension handoff code.' };
+  }
+  try {
+    const config = await getConfig();
+    const response = await fetch(`${String(config.apiUrl).replace(/\/$/, '')}/v1/auth/extension/handoff/exchange`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const session = await response.json().catch(() => ({}));
+    if (!response.ok || !session?.access_token) {
+      return { success: false, error: session?.error || 'Extension handoff failed.' };
+    }
+    const stored = await TayariSession.write(session);
+    return { success: true, expires_at: stored?.expires_at || null, user: stored?.user || null };
+  } catch (error) {
+    return { success: false, error: error?.message || 'Extension handoff failed.' };
+  }
+}
+
 async function approvedAutofill(tabId) {
   if (!Number.isInteger(tabId) || tabId <= 0) return { success: false, error: 'No active page selected.' };
   const bridge = await getComputerBridge();
@@ -1005,6 +1035,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         } catch (error) {
           sendResponse({ success: false, error: error.message || 'OmniSaveAI sync failed.' });
         }
+        break;
+      }
+      case 'get_version': {
+        sendResponse({ version: '3.2.0', features: ['pkce_auth', 'job_detection', 'approval_gated_autofill', 'native_bridge', 'omnisave_auto_capture', 'omnisave_full_history', 'omnisave_export', 'retry_resume'] });
+        break;
+      }
+      case 'extension_session_handoff': {
+        sendResponse(await handleExtensionSessionHandoff(request.code));
         break;
       }
       case 'answer_approved_page': {
@@ -1193,30 +1231,7 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
     return false;
   }
   if (request.action === 'extension_session_handoff') {
-    const code = typeof request.code === 'string' ? request.code.trim() : '';
-    if (!/^[a-f0-9]{64}$/i.test(code)) {
-      sendResponse({ success: false, error: 'Invalid extension handoff code.' });
-      return false;
-    }
-    (async () => {
-      try {
-        const config = await getConfig();
-        const response = await fetch(`${String(config.apiUrl).replace(/\/$/, '')}/v1/auth/extension/handoff/exchange`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code }),
-        });
-        const session = await response.json().catch(() => ({}));
-        if (!response.ok || !session?.access_token) {
-          sendResponse({ success: false, error: session?.error || 'Extension handoff failed.' });
-          return;
-        }
-        const stored = await TayariSession.write(session);
-        sendResponse({ success: true, expires_at: stored?.expires_at || null, user: stored?.user || null });
-      } catch (error) {
-        sendResponse({ success: false, error: error?.message || 'Extension handoff failed.' });
-      }
-    })();
+    (async () => sendResponse(await handleExtensionSessionHandoff(request.code)))();
     return true;
   }
   if (request.action === 'clear_token') {
