@@ -115,6 +115,16 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    # WORKER_IMAGE bakes a HEALTHCHECK that runs `celery inspect ping`,
+    # which only a worker node answers — celery-beat is a scheduler, not
+    # a worker, so the inherited check always fails and the container
+    # shows permanently unhealthy. Override with the same lenient check
+    # docker-compose.yml (dev) already uses for this service.
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.celery_app status || exit 0"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
 
   go-backend:
     image: ${GATEWAY_IMAGE:?GATEWAY_IMAGE must be an immutable image digest}
@@ -122,6 +132,10 @@ services:
       ENV: production
       APP_ENV: production
       PORT: "8080"
+      # go-backend's own startup validation fatals if this isn't exactly
+      # "true" in production (self-hosted local-auth is dev-only) — this
+      # compose file has no self-hosted DB path, so it must always be true.
+      USE_SUPABASE: "true"
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       AI_SERVICE_URL: http://python-ai:8000
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:?AI_INTERNAL_TOKEN is required}
@@ -179,6 +193,9 @@ services:
     environment:
       CADDY_DOMAIN: ${CADDY_DOMAIN:?CADDY_DOMAIN is required}
       CADDY_EMAIL: ${CADDY_EMAIL:?CADDY_EMAIL is required}
+      # Only needed if SUPABASE_URL points at a self-hosted stack rather
+      # than hosted Supabase — see the comment in Caddyfile.
+      SUPABASE_ORIGIN: ${SUPABASE_ORIGIN:-}
     depends_on:
       frontend:
         condition: service_healthy

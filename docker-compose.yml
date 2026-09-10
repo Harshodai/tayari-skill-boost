@@ -426,6 +426,7 @@ services:
     environment:
       - CADDY_DOMAIN
       - CADDY_EMAIL=${CADDY_EMAIL:-admin@tayari.app}
+      - SUPABASE_ORIGIN=${SUPABASE_PUBLIC_URL:-http://localhost:8010}
     depends_on:
       - frontend
       - go-backend

@@ -9,7 +9,12 @@
     X-Frame-Options "DENY"
     Referrer-Policy "no-referrer"
     Permissions-Policy "camera=(), microphone=(), geolocation=()"
-    Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.tayari.app"
+    # SUPABASE_ORIGIN is only needed when Supabase sits behind this edge as
+    # a self-hosted stack (its own direct-to-browser calls need connect-src
+    # to include that origin, or the frontend image's own CSP fix — see
+    # nginx.conf — is silently overwritten by this proxied response header).
+    # Leave unset for hosted Supabase; https://*.supabase.co already covers it.
+    Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.tayari.app {$SUPABASE_ORIGIN:}"
     -Server
   }
 
