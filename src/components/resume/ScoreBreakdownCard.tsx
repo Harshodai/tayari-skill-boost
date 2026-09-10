@@ -82,7 +82,7 @@ export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = React.memo(
     }
   };
 
-  const getSeniorityBadgeVariant = (alignment: string | number) => {
+  const getSeniorityBadgeVariant = (alignment: string | number | null | undefined) => {
     if (typeof alignment === "number") {
       return alignment >= 75 ? "success" : alignment >= 50 ? "warning" : "destructive";
     }
@@ -98,8 +98,9 @@ export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = React.memo(
     }
   };
 
-  const formatSeniorityText = (alignment: string | number) => {
+  const formatSeniorityText = (alignment: string | number | null | undefined) => {
     if (typeof alignment === "number") return `${alignment}% Match`;
+    if (!alignment) return "Not assessed";
     return alignment.charAt(0).toUpperCase() + alignment.slice(1);
   };
 

@@ -104,7 +104,12 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 
 func (s *Server) routes() {
 	s.Router.Use(s.recoverWithSentry)
-	s.Router.Use(middleware.Timeout(60 * time.Second))
+	// 240s, not 60s: multi-step AI operations (resume optimize/reflection,
+	// cover letter generation) legitimately run past a minute, and this was
+	// the global request deadline — every such call got force-cut here
+	// before the downstream AI client's own (already 240s-budgeted, see
+	// deploy/nginx/python-upstream.conf) timeout ever had a chance to fire.
+	s.Router.Use(middleware.Timeout(240 * time.Second))
 	s.Router.Use(s.csrfCheck)
 	s.Router.Use(s.requestLoggingMiddleware)
 	s.Router.Use(s.tenantMiddleware)
