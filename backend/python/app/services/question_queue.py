@@ -58,6 +58,15 @@ _ALWAYS_ASK: tuple[re.Pattern[str], ...] = tuple(
 # Rough type hint so the UI can render the right control.
 _CHOICE_ROLES = {"combobox", "radio", "checkbox", "select"}
 
+# Accessibility roles that represent an actual form input a candidate answers,
+# as opposed to page furniture (nav links, buttons, headings) whose visible
+# text can coincidentally match an _ALWAYS_ASK pattern — a marketing link
+# like "Authorization Boost" (a real Stripe product name) or a "Diversity &
+# Inclusion" nav link must never be treated as a work-authorization or EEO
+# question. Sensitivity/answerability checks are only meaningful against
+# these roles.
+ANSWERABLE_ROLES = {"textbox", "searchbox", "textarea", "combobox", "radio", "checkbox", "select"}
+
 
 def is_sensitive_field(label: str) -> bool:
     """True when ``label`` names a field the agent must never answer itself."""
@@ -122,7 +131,7 @@ def classify_fields(
     for node in nodes:
         label = (node.get("name") or "").strip()
         role = (node.get("role") or "").lower()
-        if not label or role == "button":
+        if not label or role not in ANSWERABLE_ROLES:
             continue
         key = label.lower()
         if key in already or key in seen:

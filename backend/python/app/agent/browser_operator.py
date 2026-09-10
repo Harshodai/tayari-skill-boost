@@ -307,6 +307,35 @@ class BrowserOperator:
             self._refs[ref] = locator
             elements.append({"ref": ref, "role": role, "name": name})
 
+        # Many real ATS integrations (this project has live-confirmed
+        # Greenhouse's own embed mode on a company's own careers domain, e.g.
+        # stripe.com embedding job-boards.greenhouse.io/embed/job_app in an
+        # <iframe>) put the entire application form in a same-origin-scoped
+        # child frame that page.locator("body") never reaches — the main
+        # frame's snapshot looks like a normal marketing page with zero
+        # inputs. Walk every child frame and merge in whatever it will let us
+        # read; a frame that throws (cross-origin, about:blank, a third-party
+        # widget like reCAPTCHA) is skipped rather than failing the whole
+        # observation — losing one frame's fields is not losing the form.
+        for frame in self.page.frames:
+            if frame == self.page.main_frame:
+                continue
+            try:
+                frame_tree = await frame.locator("body").aria_snapshot()
+            except Exception as frame_exc:
+                logger.debug("Skipping unreadable frame %s: %s", frame.url, frame_exc)
+                continue
+            for parsed in self._parse_accessibility_tree(frame_tree):
+                role, name, index = parsed["role"], parsed["name"], parsed["index"]
+                ref = f"ref_{len(elements) + 1}"
+                locator = (
+                    frame.get_by_role(role, name=name, exact=True).nth(index)
+                    if name
+                    else frame.get_by_role(role).nth(index)
+                )
+                self._refs[ref] = locator
+                elements.append({"ref": ref, "role": role, "name": name})
+
         return {"success": True, "url": self.page.url, "elements": elements}
 
     async def screenshot(self, full_page: bool = False) -> Dict[str, Any]:

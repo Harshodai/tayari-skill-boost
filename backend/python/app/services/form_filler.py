@@ -9,6 +9,7 @@ from app.services.question_queue import (
     classify_fields,
     enqueue_questions,
     is_sensitive_field,
+    ANSWERABLE_ROLES,
     QuestionQueueUnavailable,
     pending_answers,  # compatibility export; sensitive values are never auto-filled
 )
@@ -215,7 +216,11 @@ class FormFiller:
 
             # Never guess a legal/compensation/self-identification field, even
             # when the profile happens to contain something that looks right.
-            if is_sensitive_field(label):
+            # Restricted to actual form-input roles — a nav link or heading
+            # whose visible text happens to match a sensitive pattern (e.g.
+            # a real "Authorization Boost" product-name link on Stripe's own
+            # careers page) is not a question and must never be escalated.
+            if role in ANSWERABLE_ROLES and is_sensitive_field(label):
                 actions.append(f"Escalated '{label}' to you — the agent never auto-fills sensitive fields")
                 continue
 
