@@ -738,7 +738,7 @@ from app.services.llm_service import interview_questions as _interview_questions
 from app.services.transcribe import transcribe as _transcribe_fn  # noqa: E402
 from app.services.llm_service import analyze_resume as _analyze_resume_fn  # noqa: E402
 
-_VOICE_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "voice")
+_VOICE_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads", "voice")
 os.makedirs(_VOICE_UPLOAD_DIR, exist_ok=True)
 
 
