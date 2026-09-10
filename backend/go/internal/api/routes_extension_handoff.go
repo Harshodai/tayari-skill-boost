@@ -108,16 +108,24 @@ func (s *Server) handleExtensionHandoffExchange(w http.ResponseWriter, r *http.R
 	}
 
 	expiresAt := time.Now().UTC().Add(15 * time.Minute)
+	// ponytail: this mints a token for THIS gateway's own auth, not a
+	// Supabase-issued one being relayed — auth.LocalAuth.VerifyToken (the
+	// verifier every non-Supabase request goes through) hardcodes
+	// jwt.WithIssuer("tayari-backend") and requires the claim to be present,
+	// not just matching when set. The previous version only set "iss" from
+	// SupabaseJWTIssuer, which is empty outside Supabase mode, so every
+	// handed-off extension session came back with no "iss" claim at all and
+	// 401'd on its very first authenticated call. Match local.go's own
+	// token-minting exactly (see IssueToken below) instead of conditionally
+	// borrowing a config value meant for a different auth mode.
 	claims := jwt.MapClaims{
 		"sub":   userID,
 		"aud":   "authenticated",
 		"email": email,
 		"role":  role,
+		"iss":   "tayari-backend",
 		"exp":   expiresAt.Unix(),
 		"iat":   time.Now().UTC().Unix(),
-	}
-	if issuer := strings.TrimSpace(s.Config.SupabaseJWTIssuer); issuer != "" {
-		claims["iss"] = issuer
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	accessToken, err := token.SignedString([]byte(s.Config.JWTSecret))
