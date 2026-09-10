@@ -1348,18 +1348,31 @@ func (s *Server) handleUploadResumeMultipart(w http.ResponseWriter, r *http.Requ
 	}
 	resumeText := string(data)
 	if fileType == "pdf" || fileType == "docx" {
-		parsed, err := s.AI.ParseDocument(data, fileType)
-		if err == nil {
-			if text, ok := parsed["text"].(string); ok && text != "" {
-				resumeText = text
-			}
+		parsed, err := s.AI.ParseDocument(data, fileType, s.getXUserHeaders(r))
+		if err != nil {
+			// Do NOT fall back to the raw file bytes here — for pdf/docx that's
+			// binary data (invalid UTF-8, often containing NUL bytes), and
+			// inserting it as resumeText fails the query below with an opaque
+			// "Failed to create resume" that gives no clue the real cause was
+			// an upstream parse failure.
+			slog.Error("handleUploadResumeMultipart: document parse failed", "file_type", fileType, "error", err)
+			s.respondError(w, http.StatusBadGateway, "Failed to parse resume file")
+			return
 		}
+		text, ok := parsed["text"].(string)
+		if !ok || text == "" {
+			slog.Error("handleUploadResumeMultipart: parser returned no text", "file_type", fileType)
+			s.respondError(w, http.StatusUnprocessableEntity, "Could not extract text from resume file")
+			return
+		}
+		resumeText = text
 	}
 	query := `INSERT INTO resumes (user_id, title, original_text, file_type, status, created_at) VALUES ($1, $2, $3, $4, 'uploaded', NOW()) RETURNING id, created_at`
 	var id int
 	var createdAt time.Time
 	err = s.DB.Conn.QueryRowContext(r.Context(), query, user.ID, header.Filename, resumeText, fileType).Scan(&id, &createdAt)
 	if err != nil {
+		slog.Error("handleUploadResumeMultipart: insert failed", "error", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to create resume")
 		return
 	}

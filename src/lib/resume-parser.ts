@@ -74,12 +74,31 @@ async function extractTextFromPDF(file: File): Promise<string> {
   
   // Clean up the extracted text
   text = cleanExtractedText(text);
-  
-  if (!text || text.length < 50) {
+
+  if (!text || text.length < 50 || !looksLikeProse(text)) {
+    // Most real-world PDFs compress their content streams (FlateDecode), so
+    // this regex-based extractor recovers binary noise, not text, for any
+    // resume beyond a trivial one. Fail honestly here rather than showing a
+    // fake "parsed successfully" preview of garbage — the actual analysis
+    // submission re-parses the file server-side with a real PDF library
+    // (see uploadResumeMultipart / ParseDocument) and doesn't depend on this.
     throw new Error('Could not extract text from PDF. Please paste your resume content manually or try a different file format.');
   }
-  
+
   return text;
+}
+
+/**
+ * Heuristic: does this look like real extracted prose, or the binary noise
+ * left over from stripping non-ASCII bytes out of a compressed PDF stream?
+ * Real text is mostly whitespace-separated words of 2+ letters; noise is
+ * mostly 1-character tokens and stray punctuation.
+ */
+function looksLikeProse(text: string): boolean {
+  const tokens = text.split(/\s+/).filter(Boolean);
+  if (tokens.length < 20) return false;
+  const wordLike = tokens.filter((t) => /^[A-Za-z][A-Za-z.,'-]{1,}$/.test(t)).length;
+  return wordLike / tokens.length > 0.4;
 }
 
 /**

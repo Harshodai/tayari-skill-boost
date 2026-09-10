@@ -130,8 +130,11 @@ func (c *Client) setHeaders(req *http.Request, headers map[string]string) {
 	}
 }
 
-// ParseDocument sends a file to the Python service for parsing.
-func (c *Client) ParseDocument(fileData []byte, fileType string) (map[string]interface{}, error) {
+// ParseDocument sends a file to the Python service for parsing. headers must
+// carry the caller's X-User-Id (see getXUserHeaders) — the Python endpoint
+// requires get_current_user, which fails closed on an internal-token request
+// with no forwarded user identity.
+func (c *Client) ParseDocument(fileData []byte, fileType string, headers map[string]string) (map[string]interface{}, error) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	part, err := w.CreateFormFile("resume_file", "resume."+fileType)
@@ -146,7 +149,7 @@ func (c *Client) ParseDocument(fileData []byte, fileType string) (map[string]int
 		return nil, err
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
-	c.setHeaders(req, nil)
+	c.setHeaders(req, headers)
 	if c.blocked() {
 		return nil, ErrCircuitOpen
 	}

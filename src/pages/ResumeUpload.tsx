@@ -192,7 +192,12 @@ const ResumeUpload = () => {
   // relaxing this gate to custom-instructions-only only enabled a guaranteed
   // error toast. Custom-instructions-only optimization lives on the results
   // page, gated by resumeId alone.
-  const canAnalyze = (resumeText || resumeFile) && jobDescription.trim().length > 50 && !parsingError;
+  // parsingError only reflects the client-side text preview (best-effort,
+  // and PDFs commonly fail it — see resume-parser.ts). When a file is
+  // selected, the actual analysis re-parses it server-side via
+  // uploadResumeMultipart and never uses this preview text, so a failed
+  // preview must not block submission as long as a file is present.
+  const canAnalyze = (resumeText || resumeFile) && jobDescription.trim().length > 50 && (!parsingError || !!resumeFile);
 
   const handlePaste = async () => {
     try {
