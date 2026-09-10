@@ -761,7 +761,7 @@ class OmnisaveService:
                         "platform": str(item.get("platform") or self._platform_for_url(url)),
                         "url": url,
                         "title": str(item.get("title") or url)[:240],
-                        "author": str(item.get("author") or "Unknown")[:160],
+                        "author": str(item.get("author") or "")[:160],
                         "raw_content": captured_content,
                         "user_id": user_id,
                         "capture_origin": capture_origin,
@@ -1155,7 +1155,7 @@ class OmnisaveService:
             if chk.get("title"):
                 src_info = chk
             else:
-                src_info = next((s for s in self.saved_sources if s["id"] == chk.get("source_id")), {"title": "Saved Article", "author": "Unknown", "canonical_url": "#"})
+                src_info = next((s for s in self.saved_sources if s["id"] == chk.get("source_id")), {"title": "Saved Article", "author": "", "canonical_url": "#"})
             citation_tag = f"[Source {i}]"
             sources_reference.append({
                 "citation": citation_tag,
@@ -1163,7 +1163,7 @@ class OmnisaveService:
                 "highlight_id": chk.get("highlight_id"),
                 "evidence_type": chk.get("evidence_type", "source_chunk"),
                 "title": src_info.get("title", "Saved Article"),
-                "author": src_info.get("author", "Unknown"),
+                "author": src_info.get("author", ""),
                 "url": src_info.get("canonical_url", "#"),
                 # Evidence is intentionally bounded: citations should be useful
                 # for inspection without exposing the entire imported document.
