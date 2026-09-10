@@ -104,12 +104,30 @@ func NewServer(authService auth.AuthService, cfg *config.Config, db *database.DB
 
 func (s *Server) routes() {
 	s.Router.Use(s.recoverWithSentry)
-	// 240s, not 60s: multi-step AI operations (resume optimize/reflection,
-	// cover letter generation) legitimately run past a minute, and this was
-	// the global request deadline — every such call got force-cut here
-	// before the downstream AI client's own (already 240s-budgeted, see
-	// deploy/nginx/python-upstream.conf) timeout ever had a chance to fire.
-	s.Router.Use(middleware.Timeout(240 * time.Second))
+	// 300s, not 240s: this must be >= every synchronous per-route budget
+	// underneath it, or this outer deadline force-cuts the request before
+	// the route's own (deliberately longer) timeout gets to fire. Verified
+	// live: handleBrowserAutomation (routes_browser.go) sets its own 5min
+	// (300s) context via browserRunTimeout for a single blocking automation
+	// run, and Python's browser_agent_routes.py BROWSER_RUN_TIMEOUT_SECONDS
+	// defaults to 300s to match — but this global middleware was still
+	// 240s, so it silently killed any automation run past 240s regardless
+	// of the 300s budget both layers below it were coded for. 300s is now
+	// the floor for every layer in the chain: this middleware, nginx's
+	// proxy_read_timeout/proxy_send_timeout on /api/ (nginx.conf,
+	// infra/routing/nginx.conf), the python-lb nginx upstream
+	// (deploy/nginx/python-upstream.conf), the Go AI client's
+	// http.Client.Timeout (internal/ai/client.go, also raised to 300s —
+	// it's an absolute cap that applies on top of any per-call context
+	// deadline), and Python's own per-route timeout
+	// (browser_agent_routes.py). The SSE stream route
+	// (/api/v1/browser/automation/stream) is a separate, larger problem:
+	// it's coded for a 20min (browserStreamTimeout) budget but is *also*
+	// subject to this same global middleware, so it is still capped at
+	// 300s today. Fixing that properly needs the stream route pulled out
+	// from under this blanket Timeout (a dedicated chi mount/group, not a
+	// bigger global number) — not done here; flagged for follow-up.
+	s.Router.Use(middleware.Timeout(300 * time.Second))
 	s.Router.Use(s.csrfCheck)
 	s.Router.Use(s.requestLoggingMiddleware)
 	s.Router.Use(s.tenantMiddleware)

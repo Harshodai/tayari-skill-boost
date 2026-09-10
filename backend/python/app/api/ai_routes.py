@@ -347,6 +347,22 @@ class OptimizerRequest(BaseModel):
     target_industry: Optional[str] = None
     transferable_skills: Optional[List[str]] = None
 
+    @field_validator("resume_text")
+    @classmethod
+    def validate_resume_text_not_blank(cls, v: str) -> str:
+        # ponytail: without real resume content there is nothing to ground
+        # the optimizer in, and the LLM will fabricate a complete fictional
+        # career history (employer names, dates, a degree) rather than
+        # erroring — confirmed live via a blank-original_text optimize call
+        # that returned a fabricated resume as a 200 "success". Reject
+        # near-empty input before it ever reaches the LLM.
+        if len((v or "").strip()) < 20:
+            raise ValueError(
+                "resume_text is missing or too short to optimize — provide the "
+                "actual resume content, not a placeholder"
+            )
+        return v
+
     @field_validator("transition_type", mode="before")
     @classmethod
     def normalize_transition_type(cls, v: Any) -> Any:

@@ -283,10 +283,10 @@ export async function listCareerOpsFollowups(): Promise<{ followups: CareerOpsFo
 }
 
 export async function actionCareerOpsFollowup(applicationId: string, payload: { contact?: string; notes?: string }): Promise<{ success: boolean; [key: string]: unknown }> {
-  const response = await apiFetchResponse(`/v1/career-ops/followups/${applicationId}/action`, {
+  const response = await apiFetchResponse(`/v1/career-ops/followups/action`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ application_id: applicationId, ...payload }),
   });
   await checkResponse(response);
   return response.json();

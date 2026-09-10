@@ -325,6 +325,10 @@ services:
       - ./volumes/db/init/69-20260910_notifications.sql:/docker-entrypoint-initdb.d/migrations/zz-69-20260910_notifications.sql:Z
       - ./volumes/db/init/70-20260910_email_verification_tokens.sql:/docker-entrypoint-initdb.d/migrations/zz-70-20260910_email_verification_tokens.sql:Z
       - ./volumes/db/init/71-20260910_interview_question_moderation.sql:/docker-entrypoint-initdb.d/migrations/zz-71-20260910_interview_question_moderation.sql:Z
+      - ./volumes/db/init/72-20260902_01_fix_credit_ledger_idx.sql:/docker-entrypoint-initdb.d/migrations/zz-72-20260902_01_fix_credit_ledger_idx.sql:Z
+      - ./volumes/db/init/73-20260902_02_portal_scan_lease.sql:/docker-entrypoint-initdb.d/migrations/zz-73-20260902_02_portal_scan_lease.sql:Z
+      - ./volumes/db/init/74-20260902_03_submission_receipt_unique.sql:/docker-entrypoint-initdb.d/migrations/zz-74-20260902_03_submission_receipt_unique.sql:Z
+      - ./volumes/db/init/75-20260902_04_runtime_approval_ttl.sql:/docker-entrypoint-initdb.d/migrations/zz-75-20260902_04_runtime_approval_ttl.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:

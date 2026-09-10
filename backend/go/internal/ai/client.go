@@ -59,14 +59,21 @@ func NewClientWithToken(baseURL, internalToken string) *Client {
 		BaseURL:       baseURL,
 		internalToken: internalToken,
 		client: http.Client{
-			// 240s: the resume optimizer runs a 2-call reflection loop
+			// 300s: the resume optimizer runs a 2-call reflection loop
 			// (optimize + re-prompt) against whatever LLM is configured —
 			// a free-tier/shared-capacity model can push past 120s total,
 			// which was silently 502ing every optimize call under that
 			// condition (verified live: OpenRouter free-tier google/gemma
 			// completions, 2m0s "context deadline exceeded" in go-backend
-			// logs while python-ai was still working).
-			Timeout: 240 * time.Second,
+			// logs while python-ai was still working). Raised from 240s to
+			// 300s: http.Client.Timeout is an absolute wall-clock cap that
+			// applies on top of any per-call context deadline (effective
+			// timeout is min(ctx deadline, client.Timeout)) — so even
+			// though handleBrowserAutomation (routes_browser.go) opens its
+			// own 300s context for a blocking browser automation run, this
+			// field was silently re-capping it to 240s. Must stay >= the
+			// longest PostJSONWithContext deadline used by any caller.
+			Timeout: 300 * time.Second,
 		},
 		// ponytail: http.Client.Timeout covers full body reads, so the
 		// 240s client kills SSE streams at 4min despite a 20min ctx and
