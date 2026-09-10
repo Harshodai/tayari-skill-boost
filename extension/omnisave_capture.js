@@ -13,8 +13,8 @@
   const platformForPage = () => {
     const host = window.location.hostname.toLowerCase();
     if (host === 'www.linkedin.com' && /my-items\/saved-posts/i.test(window.location.pathname)) return 'linkedin';
-    if (host === 'medium.com' && /\/me\/(list|readinglist)/i.test(window.location.pathname)) return 'medium';
-    if (host === 'substack.com' && /^\/(?:home|saved)(?:\/|$)/i.test(window.location.pathname)) return 'substack';
+    if (host === 'medium.com' && (/\/me\/(list|readinglist)/i.test(window.location.pathname) || /^\/@[^/]+\/list\//i.test(window.location.pathname))) return 'medium';
+    if (host === 'substack.com' && /^\/(?:home|saved|inbox)(?:\/|$)/i.test(window.location.pathname)) return 'substack';
     if (host === 'www.instagram.com' && /your_activity\/saved/i.test(window.location.pathname)) return 'instagram';
     return null;
   };
@@ -24,7 +24,14 @@
       const parsed = new URL(url);
       const path = parsed.pathname;
       if (platform === 'linkedin') return (parsed.hostname === 'linkedin.com' || parsed.hostname.endsWith('.linkedin.com')) && (/\/posts\//i.test(path) || /\/feed\/update\//i.test(path));
-      if (platform === 'medium') return parsed.hostname === 'medium.com' && (/^\/p\//i.test(path) || /^\/@[^/]+\/[^/]+/i.test(path));
+      if (platform === 'medium') {
+        if (parsed.hostname !== 'medium.com') return false;
+        if (/^\/p\//i.test(path) || /^\/@[^/]+\/[^/]+/i.test(path)) return true;
+        // Publication-hosted articles: /<publication-slug>/<title-slug>-<hex-id>, e.g.
+        // /gitconnected/context-engineering-the-missing-piece-e2bbb8012e4e
+        if (/^\/(me|search|new-story|sitemap|tag|topic|plans|about|jobs-at-medium)(\/|$)/i.test(path)) return false;
+        return /^\/[^/]+\/[^/]+-[0-9a-f]{6,}$/i.test(path);
+      }
       if (platform === 'substack') {
         const isSubstackHost = parsed.hostname === 'substack.com' || parsed.hostname.endsWith('.substack.com');
         if (!isSubstackHost) return false;

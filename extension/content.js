@@ -457,6 +457,120 @@
     return 'generic';
   }
 
+  // Heuristic match for a post-submission confirmation/thank-you page —
+  // used to offer capturing the real receipt URL back to the tracked
+  // application, distinct from the original job-posting URL captured when
+  // the panel was first opened.
+  function detectConfirmationPage() {
+    const url = window.location.href.toLowerCase();
+    const urlPatterns = ['/confirmation', '/thank-you', '/thankyou', '/application-submitted', '/applied', '/success'];
+    if (urlPatterns.some((pattern) => url.includes(pattern))) return true;
+
+    const bodyText = normalizePageText(document.body?.innerText || '', 2000).toLowerCase();
+    const textPatterns = [
+      'application has been submitted',
+      'application has been received',
+      'thank you for applying',
+      'thank you for your application',
+      'your application was submitted',
+      'we have received your application',
+    ];
+    return textPatterns.some((pattern) => bodyText.includes(pattern));
+  }
+
+  // Pending-application marker: set when the candidate clicks Autofill and
+  // fields were actually filled — a real signal of applying intent, not
+  // just page visits. Consumed (or expired after 30 min) when a confirmation
+  // page is later detected, so the receipt banner only offers to capture a
+  // link that plausibly belongs to the application the candidate just filled.
+  const PENDING_APPLICATION_KEY = 'tayariPendingApplication';
+  const PENDING_APPLICATION_TTL_MS = 30 * 60 * 1000;
+
+  function rememberPendingApplication(job) {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local || !job) return;
+    chrome.storage.local.set({
+      [PENDING_APPLICATION_KEY]: {
+        title: job.title || '',
+        company: job.company || '',
+        location: job.location || '',
+        description: job.description || '',
+        platform: job.platform || 'unknown',
+        jobUrl: job.url || window.location.href,
+        startedAt: Date.now(),
+      },
+    });
+  }
+
+  async function getPendingApplication() {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) return null;
+    const stored = await chrome.storage.local.get(PENDING_APPLICATION_KEY);
+    const pending = stored?.[PENDING_APPLICATION_KEY];
+    if (!pending || Date.now() - pending.startedAt > PENDING_APPLICATION_TTL_MS) return null;
+    return pending;
+  }
+
+  function clearPendingApplication() {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
+    chrome.storage.local.remove(PENDING_APPLICATION_KEY);
+  }
+
+  async function maybeShowReceiptBanner() {
+    if (document.getElementById('tayari-receipt-banner')) return;
+    if (!detectConfirmationPage()) return;
+    const pending = await getPendingApplication();
+    if (!pending) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'tayari-receipt-banner';
+    banner.className = 'tayari-receipt-banner';
+    banner.innerHTML = `
+      <div class="tayari-receipt-text">
+        <strong>Looks like you just submitted an application${pending.company ? ` to ${escapeHtml(pending.company)}` : ''}.</strong>
+        Save this confirmation link as your application receipt?
+      </div>
+      <div class="tayari-receipt-actions">
+        <button class="tayari-btn tayari-btn-primary" id="tayari-receipt-save">Save receipt</button>
+        <button class="tayari-btn tayari-btn-secondary" id="tayari-receipt-dismiss">Not now</button>
+      </div>
+    `;
+    document.body.appendChild(banner);
+
+    document.getElementById('tayari-receipt-save').addEventListener('click', async () => {
+      const saveBtn = document.getElementById('tayari-receipt-save');
+      saveBtn.textContent = 'Saving…';
+      saveBtn.disabled = true;
+      try {
+        const res = await chrome.runtime.sendMessage({
+          action: 'application_submitted',
+          job: {
+            title: pending.title,
+            company: pending.company,
+            location: pending.location,
+            description: pending.description,
+            url: pending.jobUrl,
+            platform: pending.platform,
+          },
+          receiptUrl: window.location.href,
+        });
+        if (res && res.success) {
+          saveBtn.textContent = '✅ Receipt saved';
+          clearPendingApplication();
+          setTimeout(() => banner.remove(), 2500);
+        } else {
+          throw new Error(res?.error || 'Failed');
+        }
+      } catch (err) {
+        saveBtn.textContent = 'Save receipt';
+        saveBtn.disabled = false;
+        console.error('Tayari: receipt save failed', err);
+      }
+    });
+    document.getElementById('tayari-receipt-dismiss').addEventListener('click', () => {
+      clearPendingApplication();
+      banner.remove();
+    });
+  }
+
   function isJobApplicationPage() {
     const url = window.location.href.toLowerCase();
     const path = window.location.pathname.toLowerCase();
@@ -1039,6 +1153,7 @@
             ? `${fieldList}\n⚠️ Using your last-known profile — a fresh sync failed. Double-check these fields before submitting.`
             : fieldList;
           status.classList.add('tayari-status-success');
+          rememberPendingApplication(job);
         } else if (lastProfileLoadFailed) {
           btn.innerHTML = '<span class="tayari-icon">❌</span> Autofill Failed';
           status.textContent = 'Could not load your profile data. Check your connection and try again.';
@@ -1133,8 +1248,10 @@
   let panelInjected = false;
 
   function init() {
+    void maybeShowReceiptBanner();
+
     const job = detectJob();
-    
+
     if (job && job.detected) {
       currentJob = job;
       

@@ -790,6 +790,45 @@ async function handleTrackApplication(data) {
   }
 }
 
+// Records a real application submission using the confirmation/thank-you
+// page's own URL as apply_url — a genuine portal receipt, unlike
+// handleTrackApplication's apply_url (the original job-posting URL, which
+// proves the candidate viewed the listing, not that they submitted it).
+async function handleApplicationSubmitted(data) {
+  const config = await getConfig();
+  if (!config.session?.access_token) {
+    return { success: false, error: 'Not authenticated' };
+  }
+  if (!data.receiptUrl) {
+    return { success: false, error: 'Missing receipt URL' };
+  }
+
+  try {
+    const res = await TayariSession.fetchJson(config, 'v1/autopilot/applications', {
+      method: 'POST',
+      body: JSON.stringify({
+        job: {
+          title: data.job?.title || '',
+          company: data.job?.company || '',
+          location: data.job?.location || '',
+          description: data.job?.description || '',
+          url: data.job?.url || data.receiptUrl,
+          platform: data.job?.platform || 'unknown'
+        },
+        status: 'applied',
+        submission_mode: 'manual_extension_confirmed',
+        apply_url: data.receiptUrl
+      })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const result = await res.json();
+    return { success: true, application_id: result.application_id };
+  } catch (err) {
+    console.error('Tayari: application_submitted failed', err);
+    return { success: false, error: err.message };
+  }
+}
+
 async function handleQueueForReview(data) {
   const config = await getConfig();
   if (!config.session?.access_token) {
@@ -1044,7 +1083,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse(result);
         break;
       }
-      
+
+      case 'application_submitted': {
+        const result = await handleApplicationSubmitted(request);
+        sendResponse(result);
+        break;
+      }
+
       case 'queue_for_review': {
         const result = await handleQueueForReview(request);
         sendResponse(result);

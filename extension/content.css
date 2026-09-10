@@ -1,5 +1,36 @@
 /* Tayari Extension — Content Script Styles (v2.0.0) */
 
+.tayari-receipt-banner {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 320px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+  animation: tayari-slide-in 0.3s ease-out;
+}
+
+.tayari-receipt-text {
+  margin-bottom: 12px;
+}
+
+.tayari-receipt-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tayari-receipt-actions .tayari-btn {
+  flex: 1;
+}
+
 .tayari-panel {
   position: fixed;
   top: 80px;

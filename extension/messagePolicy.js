@@ -5,6 +5,7 @@
     "indeed.com",
     "greenhouse.io",
     "workday.com",
+    "myworkdayjobs.com",
     "lever.co",
     "ashbyhq.com",
   ]);
@@ -14,6 +15,7 @@
     'save_job',
     'quick_ats',
     'track_application',
+    'application_submitted',
     'queue_for_review',
     'open_tayari',
   ]);
