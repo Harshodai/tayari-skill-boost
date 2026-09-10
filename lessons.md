@@ -5822,3 +5822,17 @@ Confirmed the real backend response independently (49 nodes / 1 edge / 1 link) v
 ### Reusable lesson
 - **Two distinct browser caches can both plausibly explain "stale data after refresh," and clearing the wrong one looks like a fix attempt that silently did nothing.** Service Worker Cache Storage (`caches.*`) and the browser's own HTTP heuristic disk cache are unrelated systems; an endpoint with no `Cache-Control` header is invisible to Cache Storage inspection entirely but can still serve byte-identical stale GET responses from the HTTP cache. When a UI "Refresh" button doesn't fix visibly-stale data, check whether the endpoint sets `Cache-Control` and whether the calling code passes `cache: "no-store"` before assuming the bug is elsewhere.
 - **A long-lived local browser profile used across many rounds of manual/scripted testing accumulates unrelated stale auth sessions in `localStorage`.** Before trusting a fresh-tab UI read as "the real account's current state," decode the JWT in `localStorage['auth_token']` and confirm its `sub`/`email` match the account under test — a leftover session from an earlier, unrelated test (e.g. two-user IDOR testing) can silently make a correct fix look broken.
+
+## 2026-09-11 — LinkedIn saved-post title fallback to page title fixed
+
+### What was done
+Fixed the LinkedIn card-scraping gap flagged (not fixed) in the entry above: `titleFor()` in `extension/omnisave_capture.js` fell back to `document.title` whenever a card had neither a matching heading selector nor anchor text — on LinkedIn's saved-posts page, `document.title` is literally "Saved Posts" (the tab's own title), so any card missing a heading match got that generic string instead of its actual content, matching the two real rows found ingested with that exact title.
+
+### Root cause
+Fallback order was heading → anchor text → page title. LinkedIn post cards often wrap the permalink around an image/reaction icon with no visible anchor text and no element matching `h1, h2, h3, h4, [role="heading"]`, so the chain always bottomed out at `document.title` — the listing page's title, never the individual post's.
+
+### Fix applied
+Inserted the card's own full visible text (`textFrom(card)`, already computed elsewhere for `content`) as a fallback before `document.title`, so a card with no heading now surfaces its own text instead of the page-level title. `document.title` remains the last resort only when the card itself has no visible text at all.
+
+### Reusable lesson
+- **A scraping fallback chain that ends at a page-level property (`document.title`, `location.href`) will silently look plausible while being systematically wrong for exactly the DOM shapes least likely to have a clean heading** — image-wrapped or icon-only permalink cards are common on LinkedIn/Instagram-style feeds, and a page-title fallback there doesn't error, it just quietly returns the same wrong string for every such card. Prefer the nearest real content block (even messy/unstructured) over a page-level fallback; reserve the page-level fallback for genuinely contentless cards.

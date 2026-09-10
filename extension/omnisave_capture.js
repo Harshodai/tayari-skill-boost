@@ -56,7 +56,14 @@
   const titleFor = (anchor, platform) => {
     const card = anchor.closest('article, li, [role="article"], [data-testid*="card"], .post, .item') || anchor.parentElement;
     const heading = card?.querySelector('h1, h2, h3, h4, [role="heading"]');
-    const title = textFrom(heading) || textFrom(anchor);
+    const cardBody = textFrom(card);
+    // LinkedIn/other card layouts often wrap the permalink around an image
+    // with no heading and no anchor text — falling back to document.title
+    // here previously produced the literal generic page title (e.g.
+    // "Saved Posts", the LinkedIn saved-items tab title) instead of the
+    // post's own content. Prefer the card's own visible text before ever
+    // touching document.title, which describes the listing page, not the item.
+    const title = textFrom(heading) || textFrom(anchor) || cardBody;
     if (title) return title.slice(0, 240);
     if (platform === 'instagram') return 'Instagram saved post';
     return document.title.replace(/\s*[|·-].*$/, '').trim().slice(0, 240) || 'Saved source';
