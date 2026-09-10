@@ -72,6 +72,7 @@ services:
       - UVICORN_RELOAD=${UVICORN_RELOAD:-true}
       - UVICORN_WORKERS=${UVICORN_WORKERS:-2}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+      - CAPABILITY_AUTONOMOUS_GMAIL=${CAPABILITY_AUTONOMOUS_GMAIL:-}
     volumes:
       - ./backend/python:/app
     # The AI engine is an internal dependency of go-backend. Bind the optional

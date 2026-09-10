@@ -162,22 +162,31 @@ def _preparation_material(job: dict, role_meta: dict) -> dict:
     }
 
 
-def _candidate_tokens(profile: dict | None, resume_text: str | None) -> set:
+def _candidate_tokens(profile: dict | None, resume_text: str | None, query: str | None = None) -> set:
     parts = []
     if profile:
         parts += profile.get("skills", []) + profile.get("desired_roles", [])
         parts.append(profile.get("headline", ""))
     if resume_text:
         parts.append(resume_text[:3000])
+    if query:
+        parts.append(query)
     text = " ".join(parts).lower()
     return {t for t in re.findall(r"[a-z][a-z+#.\-]{2,}", text)}
 
 
-def lexical_prerank(jobs: list, profile: dict | None, resume_text: str | None) -> list:
+def lexical_prerank(jobs: list, profile: dict | None, resume_text: str | None,
+                     query: str | None = None) -> list:
     """Stage-1 ranking (cheap, deterministic): skill/keyword overlap + recency boost.
     Ensures the LLM (stage 2) spends its context on the most promising jobs
-    instead of an arbitrary first-N slice."""
-    cand = _candidate_tokens(profile, resume_text)
+    instead of an arbitrary first-N slice.
+
+    `query` (the role the candidate actually searched for) is folded into the
+    same token set as their profile/resume — without it, prerank matches
+    postings purely against stored profile data and can rank an unrelated job
+    highly for any search string when the profile is thin or generic.
+    """
+    cand = _candidate_tokens(profile, resume_text, query)
     if not cand:
         return jobs
     now = datetime.now(timezone.utc)
@@ -201,7 +210,7 @@ def lexical_prerank(jobs: list, profile: dict | None, resume_text: str | None) -
     return [j for _, j in scored]
 
 
-def _candidate_text(profile: dict | None, resume_text: str | None) -> str:
+def _candidate_text(profile: dict | None, resume_text: str | None, query: str | None = None) -> str:
     parts = []
     if profile:
         parts += profile.get("skills", []) + profile.get("desired_roles", [])
@@ -209,23 +218,36 @@ def _candidate_text(profile: dict | None, resume_text: str | None) -> str:
         parts.append((profile.get("summary") or "")[:400])
     if resume_text:
         parts.append(resume_text[:2500])
+    if query:
+        # The role actually searched for — weighted in by repetition so it
+        # isn't drowned out by a long resume excerpt in taxonomy/embedding
+        # similarity, which otherwise ignore the query entirely.
+        parts.append(f"{query}. {query}.")
     return " ".join(p for p in parts if p)
 
 
 async def hybrid_prerank(jobs: list, profile: dict | None,
-                         resume_text: str | None) -> tuple:
+                         resume_text: str | None, query: str | None = None) -> tuple:
     """World-class hybrid retrieval (research-backed): three independent rankers -
       1. lexical (keyword overlap + recency)
       2. skill-taxonomy (canonical skills + adjacency, ESCO/O*NET-style)
       3. semantic embeddings (local open-source BGE model)
     fused with Reciprocal Rank Fusion. Degrades gracefully if embeddings unavailable.
+
+    `query` is the role text the candidate actually searched for. Every
+    ranker here previously scored purely against the candidate's stored
+    profile/resume, never the search query itself — a job unrelated to what
+    was typed could still rank #1 whenever the profile was thin, generic, or
+    just happened to share incidental tokens. Folding query into the
+    candidate text/tokens makes "what you searched for" a first-class signal
+    alongside "who you are", which is what a hybrid search is supposed to do.
     Returns (ranked_jobs, method_description)."""
     if len(jobs) <= 1:
         return jobs, "none"
-    cand_text = _candidate_text(profile, resume_text)
+    cand_text = _candidate_text(profile, resume_text, query)
 
     # Ranker 1: lexical
-    lex_sorted = lexical_prerank(list(jobs), profile, resume_text)
+    lex_sorted = lexical_prerank(list(jobs), profile, resume_text, query)
     lex_rank = {j["job_id"]: r for r, j in enumerate(lex_sorted)}
 
     # Ranker 2: skill taxonomy with adjacency
@@ -264,7 +286,7 @@ async def hybrid_prerank(jobs: list, profile: dict | None,
     return ranked, method
 
 
-async def rank_jobs(candidate: str, jobs: list, top_n: int = 12) -> list:
+async def rank_jobs(candidate: str, jobs: list, top_n: int = 12, query: str | None = None) -> list:
     """Agent RANK step - one batched LLM call scoring all jobs."""
     subset = jobs[:top_n * 2][:20]
     if not subset:
@@ -274,8 +296,10 @@ async def rank_jobs(candidate: str, jobs: list, top_n: int = 12) -> list:
         lines.append(
             f"[{i}] {j['title']} @ {j['company']} | {j['location']} | "
             f"tags: {', '.join(j['tags'][:8])} | {j['description'][:280]}")
+    query_line = f"\n\nSEARCHED ROLE: \"{query}\" — weigh fit against this role first; " \
+                 "the candidate profile is secondary context, not the target." if query else ""
     user_msg = (
-        f"CANDIDATE:\n{candidate}\n\nJOBS:\n" + "\n".join(lines) +
+        f"CANDIDATE:\n{candidate}{query_line}\n\nJOBS:\n" + "\n".join(lines) +
         "\n\nScore every job for this candidate. Respond with a JSON array, one item "
         "per job: {\"index\": <int>, \"match_score\": <0-100 int>, "
         "\"matched_skills\": [<=5 strings], \"missing_skills\": [<=4 strings], "
@@ -310,7 +334,14 @@ async def rank_jobs(candidate: str, jobs: list, top_n: int = 12) -> list:
         ranked.append(j)
     ranked.sort(key=lambda x: (x["match_score"] is None, -x["_fused"]))
     for j in ranked:
-        j.pop("_fused", None)
+        # The displayed match_score must reflect the value results are
+        # actually sorted by — otherwise the list shows a non-monotonic
+        # percentage column (e.g. 60%, 50%, 40%, 20%, 30%...) even though
+        # rows are correctly ordered by the fused score underneath it.
+        if j.get("match_score") is not None:
+            j["match_score"] = max(0, min(100, int(round(j.pop("_fused")))))
+        else:
+            j.pop("_fused", None)
     return ranked[:top_n]
 
 
@@ -404,13 +435,13 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
                        + (f" + Hermes" if hermes_added else ""))
 
     # Stage-1 hybrid retrieval: lexical + taxonomy + embeddings, RRF-fused
-    jobs, method = await hybrid_prerank(jobs, profile, resume_text)
+    jobs, method = await hybrid_prerank(jobs, profile, resume_text, effective_query)
     log_step("PRERANK", f"Hybrid retrieval ranking ({method}) before AI scoring")
 
     candidate = _candidate_summary(profile, resume_text)
     effective_limit = limit or top_n or 20
     rank_target = max(top_n, (cursor or 0) + effective_limit, 40)
-    ranked = await rank_jobs(candidate, jobs, top_n=rank_target)
+    ranked = await rank_jobs(candidate, jobs, top_n=rank_target, query=effective_query)
     
     # 4. RANK (with personal preference boost)
     if preferences:

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,8 @@ import { Camera, Save, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { USE_SELF_HOSTED } from "@/api/client";
+import { getGoProfile, updateGoProfile } from "@/api/account";
 import { profileSchema } from "@/lib/schemas";
 import type { ProfileData } from "./types";
 
@@ -29,6 +31,30 @@ export const ProfileSettings: React.FC = () => {
     location: user?.user_metadata?.location || "",
     bio: user?.user_metadata?.bio || "",
   });
+
+  // Self-hosted mode: user.user_metadata never carries `bio` (it's not part
+  // of the local-auth JWT/user shape), and `full_name` may be stale relative
+  // to what's actually persisted in the profiles table. Load the real values
+  // once on mount so the form doesn't show blank/stale data after a reload.
+  useEffect(() => {
+    if (!USE_SELF_HOSTED) return;
+    let cancelled = false;
+    getGoProfile()
+      .then((p) => {
+        if (cancelled) return;
+        setProfileData((prev) => ({
+          ...prev,
+          name: p.full_name || prev.name,
+          bio: p.summary || prev.bio,
+        }));
+      })
+      .catch((err) => {
+        console.warn("Failed to load profile:", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const getInitials = (name: string) => {
     const trimmed = name.trim();
@@ -61,30 +87,45 @@ export const ProfileSettings: React.FC = () => {
         throw new Error("User not authenticated");
       }
 
-      // Update Auth Metadata
-      const { error: authError } = await supabase.auth.updateUser({
-        data: {
+      if (USE_SELF_HOSTED) {
+        // Self-hosted mode has no Supabase Auth session (the Go gateway
+        // issues its own JWT), so supabase.auth.updateUser() always fails
+        // with "Auth session missing!" here. Persist through the Go
+        // gateway's own profile endpoint instead. It's a full upsert, so
+        // GET-then-merge to avoid clobbering fields this form doesn't show
+        // (skills, desired_roles, career-goal fields, etc).
+        const current = await getGoProfile();
+        await updateGoProfile({
+          ...current,
           full_name: profileData.name,
-          name: profileData.name,
-          phone: profileData.phone,
-          location: profileData.location,
-          bio: profileData.bio,
-        },
-      });
+          summary: profileData.bio,
+        });
+      } else {
+        // Update Auth Metadata
+        const { error: authError } = await supabase.auth.updateUser({
+          data: {
+            full_name: profileData.name,
+            name: profileData.name,
+            phone: profileData.phone,
+            location: profileData.location,
+            bio: profileData.bio,
+          },
+        });
 
-      if (authError) throw authError;
+        if (authError) throw authError;
 
-      // Update Profiles Table (if exists and synced)
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          full_name: profileData.name,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id);
+        // Update Profiles Table (if exists and synced)
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({
+            full_name: profileData.name,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", user.id);
 
-      if (profileError) {
-        console.warn("Profile table update failed:", profileError);
+        if (profileError) {
+          console.warn("Profile table update failed:", profileError);
+        }
       }
 
       toast({
@@ -158,7 +199,9 @@ export const ProfileSettings: React.FC = () => {
               id="phone"
               value={profileData.phone}
               onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-              placeholder="+1 (555) 000-0000"
+              placeholder={USE_SELF_HOSTED ? "Not available in self-hosted mode yet" : "+1 (555) 000-0000"}
+              disabled={USE_SELF_HOSTED}
+              className={USE_SELF_HOSTED ? "opacity-70 cursor-not-allowed" : undefined}
             />
           </div>
           <div className="space-y-2">
@@ -167,7 +210,9 @@ export const ProfileSettings: React.FC = () => {
               id="location"
               value={profileData.location}
               onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
-              placeholder="San Francisco, CA"
+              placeholder={USE_SELF_HOSTED ? "Not available in self-hosted mode yet" : "San Francisco, CA"}
+              disabled={USE_SELF_HOSTED}
+              className={USE_SELF_HOSTED ? "opacity-70 cursor-not-allowed" : undefined}
             />
           </div>
           <div className="col-span-2 space-y-2">

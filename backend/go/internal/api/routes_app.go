@@ -88,6 +88,8 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 
 		r.Get("/api/v1/profile", s.handleGetProfile)
 		r.Put("/api/v1/profile", s.handleUpdateProfile)
+		r.Patch("/api/v1/account/password", s.handleChangePassword)
+		r.Patch("/api/account/password", s.handleChangePassword)
 
 		r.Get("/api/v1/analyze/history", s.handleListAnalysisHistory)
 		s.routesKnowledgeHub(r)

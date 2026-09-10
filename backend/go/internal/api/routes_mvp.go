@@ -404,7 +404,12 @@ func (s *Server) handleAutopilotStart(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	var activeCount int
-	if err := tx.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM autopilot_runs WHERE user_id=$1 AND status IN ('queued', 'running')", user.ID).Scan(&activeCount); err != nil {
+	// A run stuck in queued/running past a generous ceiling almost certainly
+	// means the process actually driving it (an in-memory Python task) died
+	// or was redeployed mid-run — nothing ever flips its status again, and
+	// without this staleness cutoff it would block every future run for this
+	// user forever with no way to recover short of manual DB surgery.
+	if err := tx.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM autopilot_runs WHERE user_id=$1 AND status IN ('queued', 'running') AND updated_at > NOW() - INTERVAL '30 minutes'", user.ID).Scan(&activeCount); err != nil {
 		if debited {
 			_, _ = s.Billing.RefundCredit(user.ID.String(), 1, reservationRef, "Autopilot reservation release")
 		}
@@ -419,11 +424,17 @@ func (s *Server) handleAutopilotStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	provisionalRunID := "pending_" + uuid.NewString()
+	// autopilot_runs.run_id is a uuid column — it's replaced with the real
+	// run id once Python starts the run, but the placeholder inserted here
+	// must itself be a valid UUID (a "pending_"-prefixed string previously
+	// failed the column's UUID cast on every single call, 500ing before
+	// Python was ever reached).
+	provisionalRunID := uuid.NewString()
 	configJSON := models.JSONMap(req.RunConfig)
 	var dbID int
 	query := `INSERT INTO autopilot_runs (run_id, user_id, config, status, progress, created_at, updated_at) VALUES ($1, $2, $3, 'queued', 0, NOW(), NOW()) RETURNING id`
 	if err := tx.QueryRowContext(r.Context(), query, provisionalRunID, user.ID, configJSON).Scan(&dbID); err != nil {
+		slog.Error("handleAutopilotStart: failed to claim run", "error", err)
 		if debited {
 			_, _ = s.Billing.RefundCredit(user.ID.String(), 1, reservationRef, "Autopilot reservation release")
 		}
@@ -564,8 +575,14 @@ func (s *Server) handleGetAutopilotRun(w http.ResponseWriter, r *http.Request) {
 	}
 	run.CurrentStep = currentStep.String
 	run.Error = errMsg.String
-	// Enrich with Python status
-	pythonStatus, err := s.AI.GetJSON(fmt.Sprintf("/api/v1/autopilot/status/%s", runID))
+	// Enrich with Python status. Must forward X-User-Id — Python's
+	// get_current_user requires it alongside the internal token and 401s
+	// without it, which silently skipped this enrichment on every poll
+	// (the DB row above still exists, so the endpoint never errored outright
+	// — it just always showed the stale "queued"/0% the row was created
+	// with, never the live progress only Python's in-memory run state has).
+	pythonResult, err := s.AI.GetJSONWithHeaders(fmt.Sprintf("/api/v1/autopilot/status/%s", runID), s.getXUserHeaders(r))
+	pythonStatus, _ := pythonResult.(map[string]interface{})
 	if err == nil && pythonStatus != nil {
 		if st, ok := pythonStatus["status"].(string); ok && st != "" {
 			run.Status = st
@@ -646,6 +663,10 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 	}
 	var req struct {
 		Job                map[string]interface{} `json:"job"`
+		Title              string                 `json:"title,omitempty"`
+		Company            string                 `json:"company,omitempty"`
+		Location           string                 `json:"location,omitempty"`
+		URL                string                 `json:"url,omitempty"`
 		TailoredResumeText string                 `json:"tailored_resume_text,omitempty"`
 		CoverLetter        string                 `json:"cover_letter,omitempty"`
 		Changes            map[string]interface{} `json:"changes,omitempty"`
@@ -654,6 +675,7 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 		ATSScoreAfter      int                    `json:"ats_score_after"`
 		IsDreamCompany     bool                   `json:"is_dream_company"`
 		Status             string                 `json:"status"`
+		Stage              string                 `json:"stage"`
 		SubmissionMode     string                 `json:"submission_mode,omitempty"`
 		ApplyURL           string                 `json:"apply_url,omitempty"`
 		ResumeVariantID    *int                   `json:"resume_variant_id,omitempty"`
@@ -663,7 +685,25 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if req.Status == "" {
+		req.Status = req.Stage
+	}
+	if req.Status == "" {
 		req.Status = "saved"
+	}
+	if req.Job == nil {
+		req.Job = map[string]interface{}{}
+	}
+	if req.Title != "" {
+		req.Job["title"] = req.Title
+	}
+	if req.Company != "" {
+		req.Job["company"] = req.Company
+	}
+	if req.Location != "" {
+		req.Job["location"] = req.Location
+	}
+	if req.URL != "" {
+		req.Job["url"] = req.URL
 	}
 	var validStatus bool
 	req.Status, validStatus = normalizeApplicationStatus(req.Status)
@@ -722,7 +762,7 @@ func (s *Server) handleListApplications(w http.ResponseWriter, r *http.Request) 
 	statusFilter := r.URL.Query().Get("status")
 	var query string
 	var args []interface{}
-	selectFields := `id, application_id, run_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, submission_mode, apply_url, created_at, updated_at, COALESCE(title, ''), COALESCE(company, ''), COALESCE(location, ''), stage`
+	selectFields := `id, application_id, run_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, submission_mode, apply_url, created_at, updated_at, COALESCE(title, ''), COALESCE(company, ''), COALESCE(location, ''), stage, COALESCE(notes_log, '[]'::jsonb)::text, COALESCE(voice_notes, '[]'::jsonb)::text`
 	if statusFilter != "" {
 		query = fmt.Sprintf(`SELECT %s FROM applications WHERE user_id=$1 AND (status=$2 OR stage=$2) ORDER BY created_at DESC`, selectFields)
 		args = []interface{}{user.ID, statusFilter}
@@ -743,7 +783,8 @@ func (s *Server) handleListApplications(w http.ResponseWriter, r *http.Request) 
 		var runID sql.NullString
 		var colTitle, colCompany, colLocation string
 		var colStage sql.NullString
-		if err := rows.Scan(&a.ID, &a.ApplicationID, &runID, &a.Job, &a.TailoredResumeText, &a.CoverLetter, &a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter, &a.IsDreamCompany, &a.Status, &a.SubmissionMode, &a.ApplyURL, &a.CreatedAt, &a.UpdatedAt, &colTitle, &colCompany, &colLocation, &colStage); err != nil {
+		var notesLogRaw, voiceNotesRaw string
+		if err := rows.Scan(&a.ID, &a.ApplicationID, &runID, &a.Job, &a.TailoredResumeText, &a.CoverLetter, &a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter, &a.IsDreamCompany, &a.Status, &a.SubmissionMode, &a.ApplyURL, &a.CreatedAt, &a.UpdatedAt, &colTitle, &colCompany, &colLocation, &colStage, &notesLogRaw, &voiceNotesRaw); err != nil {
 			s.respondError(w, http.StatusInternalServerError, "Failed to scan application record")
 			return
 		}
@@ -781,6 +822,7 @@ func (s *Server) handleListApplications(w http.ResponseWriter, r *http.Request) 
 			"is_dream_company": a.IsDreamCompany, "status": a.Status,
 			"submission_mode": a.SubmissionMode, "apply_url": a.ApplyURL,
 			"created_at": a.CreatedAt, "updated_at": a.UpdatedAt,
+			"notes_log": json.RawMessage(notesLogRaw), "voice_notes": json.RawMessage(voiceNotesRaw),
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -917,7 +959,7 @@ func (s *Server) handleDeleteApplication(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	appIDStr := chi.URLParam(r, "id")
-	res, err := s.DB.Conn.ExecContext(r.Context(), "DELETE FROM applications WHERE application_id=$1 AND user_id=$2", appIDStr, user.ID)
+	res, err := s.DB.Conn.ExecContext(r.Context(), "DELETE FROM applications WHERE (application_id::text=$1 OR id::text=$1) AND user_id=$2", appIDStr, user.ID)
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, "Failed to delete application")
 		return

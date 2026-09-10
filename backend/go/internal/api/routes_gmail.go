@@ -345,18 +345,30 @@ func (s *Server) handleGmailSync(w http.ResponseWriter, r *http.Request) {
 
 		company, _ := aiResult["company"].(string)
 		title, _ := aiResult["title"].(string)
+		if strings.TrimSpace(title) == "" && strings.TrimSpace(company) == "" {
+			// LLM flagged the email job-related but couldn't extract either
+			// field — importing it would only produce an "Untitled Role" /
+			// "Unknown" junk card, so treat it the same as not job-related.
+			skipped++
+			continue
+		}
 		stage, _ := aiResult["stage"].(string)
 		if stage == "" {
 			stage = "applied"
 		}
-		// Upsert application (dedupe by company+title)
+		// Upsert application (dedupe by company+title). `job` jsonb is the
+		// field every read path (list/board) actually renders from — the
+		// plain title/company columns are legacy and unread, so both must be
+		// populated or imported cards show as "Untitled Role"/"Unknown".
+		jobJSON, _ := json.Marshal(map[string]interface{}{"title": title, "company": company})
 		_, _ = s.DB.Conn.ExecContext(r.Context(), `
 			INSERT INTO applications
 			  (application_id, user_id, title, company, stage, status, notes, job, created_at, updated_at)
-			VALUES ($1,$2,$3,$4,$5,$5,$6,'{}',NOW(),NOW())
+			VALUES ($1,$2,$3,$4,$5,$5,$6,$7,NOW(),NOW())
 			ON CONFLICT DO NOTHING`,
 			uuid.New(), user.ID, title, company, stage,
-			fmt.Sprintf("Imported from Gmail (read-only): %s | provenance=google_gmail_readonly", msg.Subject))
+			fmt.Sprintf("Imported from Gmail (read-only): %s | provenance=google_gmail_readonly", msg.Subject),
+			jobJSON)
 		parsed++
 	}
 
@@ -594,18 +606,23 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 
 			company, _ := aiResult["company"].(string)
 			title, _ := aiResult["title"].(string)
+			if strings.TrimSpace(title) == "" && strings.TrimSpace(company) == "" {
+				continue
+			}
 			stage, _ := aiResult["stage"].(string)
 			if stage == "" {
 				stage = "applied"
 			}
 
+			webhookJobJSON, _ := json.Marshal(map[string]interface{}{"title": title, "company": company})
 			_, _ = s.DB.Conn.ExecContext(ctx, `
 				INSERT INTO applications
 				  (application_id, user_id, title, company, stage, status, notes, job, created_at, updated_at)
-				VALUES ($1,$2,$3,$4,$5,$5,$6,'{}',NOW(),NOW())
+				VALUES ($1,$2,$3,$4,$5,$5,$6,$7,NOW(),NOW())
 				ON CONFLICT DO NOTHING`,
 				uuid.New(), userID, title, company, stage,
-				fmt.Sprintf("Imported via Gmail Webhook (read-only): %s | provenance=google_gmail_readonly", msg.Subject))
+				fmt.Sprintf("Imported via Gmail Webhook (read-only): %s | provenance=google_gmail_readonly", msg.Subject),
+				webhookJobJSON)
 		}
 	}(gmailData.EmailAddress)
 
@@ -632,7 +649,15 @@ type gmailMessage struct {
 }
 
 const (
-	defaultGmailSearchQuery = "subject:(offer OR interview OR application OR applied OR reject)"
+	// Cast a wide net here — this only decides which messages the Gmail API
+	// returns for local LLM classification (is_job_related), which is the
+	// real filter. Restricting to subject-only text with a handful of exact
+	// words misses common real-world phrasing ("thanks for applying",
+	// "we've received your application", "next steps", a recruiter's name
+	// with no job keyword at all) — searching subject OR body with a wider
+	// vocabulary trades a few more (cheap, LLM-filtered) false positives for
+	// far fewer missed real applications.
+	defaultGmailSearchQuery = "(offer OR interview OR application OR applying OR applied OR candidacy OR candidate OR recruiter OR recruiting OR hiring OR shortlisted OR screening OR \"next steps\" OR position OR role OR reject OR rejection OR declined)"
 	maxGmailSyncResults     = 50
 	maxGmailWindowDays      = 90
 )

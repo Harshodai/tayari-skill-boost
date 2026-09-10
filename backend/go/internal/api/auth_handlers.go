@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Auth Handlers
@@ -83,6 +84,76 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.respondJSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
+// handleChangePassword lets an authenticated self-hosted user change their
+// password after re-proving the current one. This is the Go-gateway
+// counterpart the frontend now calls in self-hosted mode: SecuritySettings
+// previously called supabase.auth.signInWithPassword/updateUser
+// unconditionally, which always fails with "Auth session missing!" in
+// self-hosted mode because these users have no Supabase Auth session at all
+// (the Go gateway issues its own JWT; Supabase Auth is never involved).
+// PATCH /api/v1/account/password | /api/account/password
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "User not found in context")
+		return
+	}
+
+	var req struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if err := DecodeAndValidate(r, &req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		s.respondError(w, http.StatusBadRequest, "Current and new password are required")
+		return
+	}
+	if err := auth.ValidatePassword(req.NewPassword); err != nil {
+		s.respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if s.DB == nil || s.DB.Conn == nil {
+		s.respondError(w, http.StatusInternalServerError, "Database unavailable")
+		return
+	}
+
+	var currentHash string
+	if err := s.DB.Conn.QueryRowContext(r.Context(),
+		`SELECT encrypted_password FROM auth.users WHERE id = $1`, user.ID).Scan(&currentHash); err != nil {
+		slog.Error("handleChangePassword: lookup failed", "error", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to change password")
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(currentHash), []byte(req.CurrentPassword)); err != nil {
+		// 400, not 401: client.ts's checkResponse() treats any 401 from the Go
+		// gateway in self-hosted mode as "the session itself is invalid" and
+		// force-signs the user out (see handleUnauthorized's comment) -- a
+		// wrong *current* password is a form validation error, not an
+		// expired/invalid session, and must not log the user out.
+		s.respondError(w, http.StatusBadRequest, "Current password is incorrect")
+		return
+	}
+
+	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		slog.Error("handleChangePassword: bcrypt error", "error", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to change password")
+		return
+	}
+	if _, err := s.DB.Conn.ExecContext(r.Context(),
+		`UPDATE auth.users SET encrypted_password=$1, updated_at=NOW() WHERE id=$2`,
+		string(newHash), user.ID); err != nil {
+		slog.Error("handleChangePassword: update failed", "error", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to change password")
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Password changed successfully."})
 }
 
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {

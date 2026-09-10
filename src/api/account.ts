@@ -30,6 +30,48 @@ export async function deleteUserData(): Promise<{ status: string; user_id: strin
   }
 }
 
+// GoProfile mirrors backend/go/internal/models.Profile (PUT /v1/profile does a
+// full upsert, not a partial patch — callers must GET first and merge, or
+// every field the caller omits gets overwritten with its zero value).
+export interface GoProfile {
+  profile_id?: string;
+  full_name: string;
+  avatar_url?: string;
+  email?: string;
+  headline?: string;
+  summary?: string;
+  skills?: string[];
+  desired_roles?: string[];
+  locations?: string[];
+  experience_years?: number;
+  open_to_remote?: boolean;
+  links?: Record<string, unknown>;
+  transition_type?: string;
+  current_title?: string;
+  target_level?: string;
+  current_industry?: string;
+  target_industry?: string;
+  transferable_skills?: string[];
+}
+
+export async function getGoProfile(): Promise<GoProfile> {
+  return apiFetch<GoProfile>("/v1/profile");
+}
+
+export async function updateGoProfile(profile: GoProfile): Promise<{ updated_at: string }> {
+  return apiFetch<{ updated_at: string }>("/v1/profile", {
+    method: "PUT",
+    body: JSON.stringify(profile),
+  });
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<{ ok: boolean; message: string }> {
+  return apiFetch<{ ok: boolean; message: string }>("/v1/account/password", {
+    method: "PATCH",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
 export async function exportUserData(): Promise<Blob> {
   // handleExportAccount returns application/zip; use fetch directly
   // so we get a raw Blob rather than going through apiFetch's JSON decode.

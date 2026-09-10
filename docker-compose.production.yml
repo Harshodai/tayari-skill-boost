@@ -47,6 +47,9 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       NOTIFICATIONS_FROM_EMAIL: ${NOTIFICATIONS_FROM_EMAIL:-}
       NOTIFICATIONS_UNSUBSCRIBE_URL: ${NOTIFICATIONS_UNSUBSCRIBE_URL:-}
+      # Python's own /api/v1/gmail/parse-email gate reads this directly —
+      # see the matching note on go-backend above.
+      CAPABILITY_AUTONOMOUS_GMAIL: ${CAPABILITY_AUTONOMOUS_GMAIL:-}
     depends_on:
       redis:
         condition: service_healthy
@@ -160,6 +163,15 @@ services:
       WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
       CAPABILITY_WORKSPACE_NOTIFICATION_WHATSAPP: ${CAPABILITY_WORKSPACE_NOTIFICATION_WHATSAPP:-false}
       CAPABILITY_WORKSPACE_APPROVALS: ${CAPABILITY_WORKSPACE_APPROVALS:-false}
+      # Gmail OAuth integration — this file previously omitted all of these,
+      # the same env-var-passthrough gap dev's docker-compose.yml had until
+      # fixed this session. Without them the Gmail connect/sync flow fails
+      # closed in production with no indication why (missing OAuth client,
+      # or the autonomous.gmail capability silently staying off).
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GMAIL_REDIRECT_URI: ${GMAIL_REDIRECT_URI:-}
+      CAPABILITY_AUTONOMOUS_GMAIL: ${CAPABILITY_AUTONOMOUS_GMAIL:-}
     depends_on:
       python-ai:
         condition: service_healthy

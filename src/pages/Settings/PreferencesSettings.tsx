@@ -14,10 +14,33 @@ import type { DisplayPreferences } from "./types";
 export const PreferencesSettings: React.FC = () => {
   const { toast } = useToast();
 
-  const [preferences, setPreferences] = useState<DisplayPreferences>({
-    compactView: false,
-    autoSave: true,
+  // Toggling these never persisted anything (no localStorage write, no
+  // server call) -- a reload silently reset both back to their hardcoded
+  // defaults with no indication the "save" never happened. Mirror
+  // NotificationSettings' localStorage pattern so the toggle state actually
+  // sticks.
+  const [preferences, setPreferences] = useState<DisplayPreferences>(() => {
+    if (typeof window === "undefined") return { compactView: false, autoSave: true };
+    try {
+      const raw = localStorage.getItem("tayari_display_preferences");
+      if (raw) return { compactView: false, autoSave: true, ...JSON.parse(raw) };
+    } catch {
+      /* storage unavailable or parse error */
+    }
+    return { compactView: false, autoSave: true };
   });
+
+  const updatePreference = (key: keyof DisplayPreferences, checked: boolean) => {
+    const next = { ...preferences, [key]: checked };
+    setPreferences(next);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tayari_display_preferences", JSON.stringify(next));
+      } catch {
+        /* storage unavailable */
+      }
+    }
+  };
 
   // Export & Delete data state
   const [isExporting, setIsExporting] = useState(false);
@@ -108,9 +131,7 @@ export const PreferencesSettings: React.FC = () => {
               </div>
               <Switch
                 checked={preferences[item.key]}
-                onCheckedChange={(checked) =>
-                  setPreferences({ ...preferences, [item.key]: checked })
-                }
+                onCheckedChange={(checked) => updatePreference(item.key, checked)}
               />
             </div>
           ))}

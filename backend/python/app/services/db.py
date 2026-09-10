@@ -377,6 +377,19 @@ async def persist_application_stage_envelope(envelope: dict) -> bool:
     if not pool:
         return False
     import json as _json
+    from datetime import datetime as _datetime
+
+    observed_at = envelope.get("observed_at")
+    if isinstance(observed_at, str):
+        # Job-identity timestamps arrive as ISO strings from the scraper;
+        # asyncpg needs a real datetime for a timestamptz column and raises
+        # on a bare str, which previously failed silently (caught below,
+        # logged as a warning) on every single autopilot stage write.
+        try:
+            observed_at = _datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+        except ValueError:
+            observed_at = None
+
     try:
         async with pool.acquire() as conn:
             await conn.execute(
@@ -427,7 +440,7 @@ async def persist_application_stage_envelope(envelope: dict) -> bool:
                 _json.dumps(envelope.get("failure_state")) if envelope.get("failure_state") is not None else None,
                 envelope.get("input_hash"),
                 envelope.get("output_hash"),
-                envelope.get("observed_at"),
+                observed_at,
             )
         return True
     except Exception as exc:  # noqa: BLE001

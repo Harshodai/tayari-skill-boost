@@ -15,8 +15,9 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { USE_SELF_HOSTED } from "@/api/client";
 import { changePasswordSchema } from "@/lib/schemas";
-import { deleteUserAccount, ApiError } from "@/api";
+import { deleteUserAccount, changePassword, ApiError } from "@/api";
 import type { PasswordData } from "./types";
 
 export const SecuritySettings: React.FC = () => {
@@ -54,23 +55,31 @@ export const SecuritySettings: React.FC = () => {
         throw new Error("Cannot verify current password: missing user email");
       }
 
-      try {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: user.email,
-          password: passwordData.currentPassword,
+      if (USE_SELF_HOSTED) {
+        // Self-hosted users were never authenticated via Supabase Auth (the
+        // Go gateway issues its own JWT), so supabase.auth.signInWithPassword
+        // / updateUser always failed here with "Auth session missing!".
+        // Verify + change the password through the Go gateway instead.
+        await changePassword(passwordData.currentPassword, passwordData.newPassword);
+      } else {
+        try {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: user.email,
+            password: passwordData.currentPassword,
+          });
+
+          if (signInError) throw signInError;
+        } catch (error) {
+          console.error("Password verification failed:", error instanceof Error ? error.message : error);
+          throw new Error("Incorrect current password");
+        }
+
+        const { error } = await supabase.auth.updateUser({
+          password: passwordData.newPassword,
         });
 
-        if (signInError) throw signInError;
-      } catch (error) {
-        console.error("Password verification failed:", error instanceof Error ? error.message : error);
-        throw new Error("Incorrect current password");
+        if (error) throw error;
       }
-
-      const { error } = await supabase.auth.updateUser({
-        password: passwordData.newPassword,
-      });
-
-      if (error) throw error;
 
       toast({
         title: "Password Updated",
