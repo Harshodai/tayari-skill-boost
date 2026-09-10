@@ -356,10 +356,26 @@ func (s *Server) handleGmailSync(w http.ResponseWriter, r *http.Request) {
 		if stage == "" {
 			stage = "applied"
 		}
-		// Upsert application (dedupe by company+title). `job` jsonb is the
-		// field every read path (list/board) actually renders from — the
-		// plain title/company columns are legacy and unread, so both must be
-		// populated or imported cards show as "Untitled Role"/"Unknown".
+		// Real dedup check: `ON CONFLICT DO NOTHING` below is a no-op —
+		// application_id is a fresh UUID every call and there is no unique
+		// constraint on (user_id, title, company), so it never actually
+		// conflicted. Every "Sync now" click re-imported the same emails as
+		// new duplicate cards. Skip explicitly if a matching application
+		// (case-insensitive title+company) already exists for this user.
+		var dupCount int
+		if err := s.DB.Conn.QueryRowContext(r.Context(), `
+			SELECT COUNT(*) FROM applications
+			WHERE user_id=$1
+			  AND lower(job->>'title')=lower($2)
+			  AND lower(job->>'company')=lower($3)`,
+			user.ID, title, company).Scan(&dupCount); err == nil && dupCount > 0 {
+			skipped++
+			continue
+		}
+		// `job` jsonb is the field every read path (list/board) actually
+		// renders from — the plain title/company columns are legacy and
+		// unread, so both must be populated or imported cards show as
+		// "Untitled Role"/"Unknown".
 		jobJSON, _ := json.Marshal(map[string]interface{}{"title": title, "company": company})
 		_, _ = s.DB.Conn.ExecContext(r.Context(), `
 			INSERT INTO applications
@@ -614,6 +630,15 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 				stage = "applied"
 			}
 
+			var webhookDupCount int
+			if err := s.DB.Conn.QueryRowContext(ctx, `
+				SELECT COUNT(*) FROM applications
+				WHERE user_id=$1
+				  AND lower(job->>'title')=lower($2)
+				  AND lower(job->>'company')=lower($3)`,
+				userID, title, company).Scan(&webhookDupCount); err == nil && webhookDupCount > 0 {
+				continue
+			}
 			webhookJobJSON, _ := json.Marshal(map[string]interface{}{"title": title, "company": company})
 			_, _ = s.DB.Conn.ExecContext(ctx, `
 				INSERT INTO applications

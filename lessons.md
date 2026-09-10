@@ -5291,3 +5291,20 @@ Testing the fixed `createSave()` against a URL Python's content-extractor legiti
 - **A comment describing the "intended" architecture (`"Omnisave is URL-import-first... no legacy saved_posts table participates"`) is not evidence that architecture is what's actually wired up.** The legacy Go handler this comment implicitly deprecated was still registered and still reachable for POST — only GET had been migrated to the proxy. Partial migrations that leave one HTTP verb on the old path and another on the new one are exactly the shape of bug that "read the code" review misses and only real execution (create something, then look for it) catches.
 - **A helper function's own bug, once written, gets copy-pasted into every caller.** `handleOneStopProxy`'s generic-502 pattern was duplicated (not shared) across 8 functions in one file — fixing one instance without grepping for the same inline pattern elsewhere in the same file would have left 7 more silently broken. When a bug is in a copy-pasted block rather than a shared function, search the whole file (or package) for the same literal pattern before considering the fix complete.
 - **`errors.As(err, &apiErr)` to recover a typed upstream status already existed correctly in `routes_agents.go`** — this bug class had already been solved once in the same codebase, just not generalized to every proxy helper. When you fix a bug, grep for whether the correct pattern already exists somewhere else in the repo and is simply unapplied elsewhere, not just whether the bug exists elsewhere.
+
+## 2026-09-10: Gmail sync created duplicate application cards on every re-sync
+
+### What was done
+Acting as a real user (real kharshaengineer@gmail.com account, already connected), clicked "Sync now" on the Interview Board a second time (first sync was verified earlier this session). Found 5 new rows in `applications` for the exact same 5 real emails already imported an hour earlier — every "Sync now" click duplicates the entire board.
+
+### Root cause
+`handleGmailSync` and the Gmail webhook handler both insert with `ON CONFLICT DO NOTHING` and a comment claiming "dedupe by company+title" — but the `INSERT` supplies a fresh `uuid.New()` for `application_id` on every call, and there is no unique constraint on `(user_id, title, company)` or any other column that would actually make that `ON CONFLICT` fire. The clause was inert decoration; it silently never triggered, so nothing was ever deduplicated.
+
+### Fix
+Added an explicit pre-insert check in both handlers: `SELECT COUNT(*) FROM applications WHERE user_id=$1 AND lower(job->>'title')=lower($2) AND lower(job->>'company')=lower($3)`, skipping the insert (and counting it as `skipped`, not `parsed`) when a match already exists.
+
+### Verification
+`go build ./...` clean, `go test ./internal/api/...` 322/322. Rebuilt+redeployed `go-backend`. Cleaned up the 6 duplicate rows already created (one batch had an internal duplicate too — the same "Data Engineer @ Google" email apparently matched twice in one sync). Clicked "Sync now" again on the real account/real inbox: **zero new rows created** — confirmed via direct `psql` query before and after, exactly the 4 unique applications remained, none re-duplicated.
+
+### Reusable lesson
+- **A bare `ON CONFLICT DO NOTHING` with no column list is not a dedup mechanism unless a matching unique constraint actually exists on the table** — Postgres only skips the insert when the row violates a real unique/exclusion constraint; without one, the clause is silently inert and the query still always inserts. A code comment claiming "dedupe by X+Y" next to an `ON CONFLICT DO NOTHING` with no `ON CONFLICT (x, y)` target is a strong signal the dedup was never actually wired up — grep for this exact shape (`ON CONFLICT DO NOTHING` with no column list, on a table with no matching unique index) elsewhere in the codebase as a systemic check.
