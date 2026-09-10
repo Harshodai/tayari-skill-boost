@@ -1315,8 +1315,7 @@ chrome.runtime.onInstalled.addListener(() => {
       'https://*.greenhouse.io/*',
       'https://*.lever.co/*',
       'https://*.workday.com/*',
-      'https://jobs.*/*',
-      'https://careers.*/*'
+      'https://*.myworkdayjobs.com/*'
     ]
   });
 });
