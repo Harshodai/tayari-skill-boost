@@ -621,9 +621,21 @@ func (s *Server) handleGetAutopilotRun(w http.ResponseWriter, r *http.Request) {
 			var a models.Application
 			var changes models.JSONMap
 			var keywords models.StringSlice
-			if err := appRows.Scan(&a.ID, &a.ApplicationID, &a.Job, &a.TailoredResumeText, &a.CoverLetter, &changes, &keywords, &a.ATSScoreBefore, &a.ATSScoreAfter, &a.IsDreamCompany, &a.Status, &a.SubmissionMode, &a.ApplyURL, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			var tailoredResumeText, coverLetter, submissionMode, applyURL sql.NullString
+			if err := appRows.Scan(&a.ID, &a.ApplicationID, &a.Job, &tailoredResumeText, &coverLetter, &changes, &keywords, &a.ATSScoreBefore, &a.ATSScoreAfter, &a.IsDreamCompany, &a.Status, &submissionMode, &applyURL, &a.CreatedAt, &a.UpdatedAt); err != nil {
+				// NULL tailored_resume_text/cover_letter/submission_mode/
+				// apply_url (any app not yet through AutoPilot's tailoring
+				// step, or never given a submission mode) used to fail this
+				// Scan outright (plain string can't hold NULL) and silently
+				// vanish from the run's application list — same root cause
+				// as handleListApplications below, fixed the same way.
+				slog.Error("handleGetAutopilotRun: application row scan failed", "error", err)
 				continue
 			}
+			a.TailoredResumeText = tailoredResumeText.String
+			a.CoverLetter = coverLetter.String
+			a.SubmissionMode = submissionMode.String
+			a.ApplyURL = applyURL.String
 			apps = append(apps, map[string]interface{}{
 				"id": a.ID, "application_id": a.ApplicationID, "job": a.Job,
 				"tailored_resume_text": a.TailoredResumeText, "cover_letter": a.CoverLetter,
@@ -784,10 +796,25 @@ func (s *Server) handleListApplications(w http.ResponseWriter, r *http.Request) 
 		var colTitle, colCompany, colLocation string
 		var colStage sql.NullString
 		var notesLogRaw, voiceNotesRaw string
-		if err := rows.Scan(&a.ID, &a.ApplicationID, &runID, &a.Job, &a.TailoredResumeText, &a.CoverLetter, &a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter, &a.IsDreamCompany, &a.Status, &a.SubmissionMode, &a.ApplyURL, &a.CreatedAt, &a.UpdatedAt, &colTitle, &colCompany, &colLocation, &colStage, &notesLogRaw, &voiceNotesRaw); err != nil {
+		// tailored_resume_text/cover_letter are NULL for any application that
+		// was never run through AutoPilot's tailoring step (e.g. every
+		// Gmail-imported or manually-added card) — models.Application declares
+		// both as plain string, and database/sql refuses to Scan a NULL
+		// column into a non-nullable *string ("converting NULL to string is
+		// unsupported"). That error hit the branch below, which had no
+		// slog.Error call, so this endpoint 500'd with zero log output for
+		// any user whose board contained a single card without a tailored
+		// resume — silently breaking the entire application list.
+		var tailoredResumeText, coverLetter, submissionMode, applyURL sql.NullString
+		if err := rows.Scan(&a.ID, &a.ApplicationID, &runID, &a.Job, &tailoredResumeText, &coverLetter, &a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter, &a.IsDreamCompany, &a.Status, &submissionMode, &applyURL, &a.CreatedAt, &a.UpdatedAt, &colTitle, &colCompany, &colLocation, &colStage, &notesLogRaw, &voiceNotesRaw); err != nil {
+			slog.Error("handleListApplications: row scan failed", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to scan application record")
 			return
 		}
+		a.TailoredResumeText = tailoredResumeText.String
+		a.CoverLetter = coverLetter.String
+		a.SubmissionMode = submissionMode.String
+		a.ApplyURL = applyURL.String
 		if runID.Valid {
 			a.RunID = runID.String
 		}
@@ -841,12 +868,25 @@ func (s *Server) handleGetApplication(w http.ResponseWriter, r *http.Request) {
 	appIDStr := chi.URLParam(r, "id")
 	var a models.Application
 	var runID sql.NullString
+	var tailoredResumeText, coverLetter, submissionMode, applyURL sql.NullString
 	query := `SELECT id, application_id, run_id, job, tailored_resume_text, cover_letter, changes, keywords_added, ats_score_before, ats_score_after, is_dream_company, status, submission_mode, apply_url, created_at, updated_at FROM applications WHERE (application_id::text=$1 OR id::text=$1) AND user_id=$2`
-	err := s.DB.Conn.QueryRowContext(r.Context(), query, appIDStr, user.ID).Scan(&a.ID, &a.ApplicationID, &runID, &a.Job, &a.TailoredResumeText, &a.CoverLetter, &a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter, &a.IsDreamCompany, &a.Status, &a.SubmissionMode, &a.ApplyURL, &a.CreatedAt, &a.UpdatedAt)
+	err := s.DB.Conn.QueryRowContext(r.Context(), query, appIDStr, user.ID).Scan(&a.ID, &a.ApplicationID, &runID, &a.Job, &tailoredResumeText, &coverLetter, &a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter, &a.IsDreamCompany, &a.Status, &submissionMode, &applyURL, &a.CreatedAt, &a.UpdatedAt)
 	if err != nil {
+		// A NULL tailored_resume_text/cover_letter/submission_mode/apply_url
+		// (any application not yet through AutoPilot's tailoring step) used
+		// to fail this Scan outright — a real, existing application then
+		// misreported as a plain 404 "not found", indistinguishable from
+		// actually not existing.
+		if !errors.Is(err, sql.ErrNoRows) {
+			slog.Error("handleGetApplication: query/scan failed", "error", err)
+		}
 		s.respondError(w, http.StatusNotFound, "Application not found")
 		return
 	}
+	a.TailoredResumeText = tailoredResumeText.String
+	a.CoverLetter = coverLetter.String
+	a.SubmissionMode = submissionMode.String
+	a.ApplyURL = applyURL.String
 	if runID.Valid {
 		a.RunID = runID.String
 	}

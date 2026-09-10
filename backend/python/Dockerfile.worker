@@ -20,6 +20,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# PLAYWRIGHT_BROWSERS_PATH must be set BEFORE `playwright install` runs — see
+# the matching comment in ../Dockerfile for why (installs land in the wrong
+# directory otherwise and every browser call fails at runtime).
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright
+ENV HOME=/app
+
 # Crawl4AI depends on Playwright + a Chromium browser. Install the browser
 # and its OS deps in one layer so the cache holds across image rebuilds.
 RUN python -m playwright install --with-deps chromium
@@ -28,9 +34,6 @@ RUN python -m playwright install --with-deps chromium
 RUN groupadd -g 1001 -r app && useradd -r -u 1001 -g app -d /app -s /sbin/nologin app \
     && mkdir -p /app/.cache/ms-playwright /tmp/playwright \
     && chown -R app:app /app /tmp/playwright
-
-ENV PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright
-ENV HOME=/app
 
 COPY --chown=app:app . .
 

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowUp, BookOpen, LockKeyhole, Plus, Search, Share2, Sparkles, Users } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout";
@@ -19,8 +19,11 @@ import {
   type InterviewExperienceVisibility,
 } from "@/api/social";
 
+const VALID_CATEGORIES: InterviewExperienceCategory[] = ["behavioral", "technical", "system_design", "culture", "hr", "other"];
+
 export default function InterviewExperiences() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [company, setCompany] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState({
@@ -31,6 +34,34 @@ export default function InterviewExperiences() {
     category: "behavioral" as InterviewExperienceCategory,
     visibility: "connections" as InterviewExperienceVisibility,
   });
+
+  // Deep-linked here from the Interview Board's post-outcome retrospective
+  // ("Share this outcome with the community?") — pre-fill company/role/
+  // category from the application the reflection was about, but never
+  // auto-open with content pre-written; the user still has to write and
+  // submit the question/answer themselves.
+  useEffect(() => {
+    const prefCompany = searchParams.get("company");
+    const prefRole = searchParams.get("role");
+    const prefCategoryRaw = searchParams.get("category");
+    if (!prefCompany && !prefRole && !prefCategoryRaw) return;
+    const prefCategory = VALID_CATEGORIES.includes(prefCategoryRaw as InterviewExperienceCategory)
+      ? (prefCategoryRaw as InterviewExperienceCategory)
+      : "behavioral";
+    setForm((current) => ({
+      ...current,
+      company: prefCompany || current.company,
+      role: prefRole || current.role,
+      category: prefCategory,
+    }));
+    setFormOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("company");
+    next.delete("role");
+    next.delete("category");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const experiences = useQuery({
     queryKey: ["interview-experiences", company],
     queryFn: () => listSharedInterviewExperiences(company),

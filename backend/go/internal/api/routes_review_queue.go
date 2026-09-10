@@ -1,6 +1,8 @@
 package api
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -92,16 +94,28 @@ func (s *Server) handleListReviewQueue(w http.ResponseWriter, r *http.Request) {
 		var a models.Application
 		var runID, reviewedAt, queuedAt, aiSuggestion, reviewNotes interface{}
 		var dreamScore, aiConfidence interface{}
+		// tailored_resume_text/cover_letter are NULL for any queued
+		// application not yet tailored — models.Application declares both as
+		// plain string, which database/sql refuses to Scan a NULL into, so
+		// this used to 500 the entire review queue the moment a single
+		// untailored application reached it (see the matching fix + comment
+		// in routes_mvp.go's handleListApplications for the full story).
+		var tailoredResumeText, coverLetter, submissionMode, applyURL sql.NullString
 		if err := rows.Scan(
-			&a.ID, &a.ApplicationID, &runID, &a.Job, &a.TailoredResumeText, &a.CoverLetter,
+			&a.ID, &a.ApplicationID, &runID, &a.Job, &tailoredResumeText, &coverLetter,
 			&a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter,
-			&a.IsDreamCompany, &dreamScore, &a.Status, &a.SubmissionMode, &a.ApplyURL,
+			&a.IsDreamCompany, &dreamScore, &a.Status, &submissionMode, &applyURL,
 			&aiSuggestion, &aiConfidence, &reviewNotes, &queuedAt, &reviewedAt,
 			&a.CreatedAt, &a.UpdatedAt,
 		); err != nil {
+			slog.Error("handleListReviewQueue: row scan failed", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to scan review queue item")
 			return
 		}
+		a.TailoredResumeText = tailoredResumeText.String
+		a.CoverLetter = coverLetter.String
+		a.SubmissionMode = submissionMode.String
+		a.ApplyURL = applyURL.String
 		appMap := map[string]interface{}{
 			"id":                   a.ID,
 			"application_id":       a.ApplicationID,
@@ -171,17 +185,29 @@ func (s *Server) handleGetReviewQueueItem(w http.ResponseWriter, r *http.Request
 	var a models.Application
 	var runID, reviewedAt, queuedAt, aiSuggestion, reviewNotes interface{}
 	var dreamScore, aiConfidence interface{}
+	var tailoredResumeText, coverLetter, submissionMode, applyURL sql.NullString
 	err := s.DB.Conn.QueryRowContext(r.Context(), query, appIDStr, user.ID).Scan(
-		&a.ID, &a.ApplicationID, &runID, &a.Job, &a.TailoredResumeText, &a.CoverLetter,
+		&a.ID, &a.ApplicationID, &runID, &a.Job, &tailoredResumeText, &coverLetter,
 		&a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter,
-		&a.IsDreamCompany, &dreamScore, &a.Status, &a.SubmissionMode, &a.ApplyURL,
+		&a.IsDreamCompany, &dreamScore, &a.Status, &submissionMode, &applyURL,
 		&aiSuggestion, &aiConfidence, &reviewNotes, &queuedAt, &reviewedAt,
 		&a.CreatedAt, &a.UpdatedAt,
 	)
 	if err != nil {
+		// A NULL tailored_resume_text/cover_letter/submission_mode/apply_url
+		// used to fail this Scan outright, misreporting a real queued item
+		// as "not found" — see handleListReviewQueue above for the full
+		// root cause.
+		if !errors.Is(err, sql.ErrNoRows) {
+			slog.Error("handleGetReviewQueueItem: query/scan failed", "error", err)
+		}
 		s.respondError(w, http.StatusNotFound, "Review queue item not found")
 		return
 	}
+	a.TailoredResumeText = tailoredResumeText.String
+	a.CoverLetter = coverLetter.String
+	a.SubmissionMode = submissionMode.String
+	a.ApplyURL = applyURL.String
 
 	appMap := map[string]interface{}{
 		"id":                   a.ID,

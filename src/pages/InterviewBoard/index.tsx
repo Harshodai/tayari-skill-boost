@@ -334,6 +334,31 @@ export const InterviewBoard: React.FC = () => {
     const emoji = targetStage === "offer" ? "🎉" : "💪";
     toast.success(`${emoji} Retrospective saved! Your reflection will help you grow.`);
 
+    // Offer this exact reflection as the seed of a community-shared
+    // learning card — the "Share an experience" feature already existed
+    // (src/pages/InterviewExperiences.tsx) but was never connected to the
+    // one moment a candidate is actually reflecting on an outcome. Never
+    // auto-publish: this only opens the existing form, pre-filled with
+    // company/role/category, for the user to review and write themselves —
+    // the same "sanitize before sharing" discipline the experiences page
+    // already asks for, just reached from the point where it's relevant.
+    if (!skip && completedApp) {
+      const shareCompany = completedApp.company || completedApp.job?.company || "";
+      const shareRole = completedApp.title || completedApp.job?.title || "";
+      const shareCategory = "hr";
+      toast("Share this outcome with the candidate community?", {
+        description: "Your private reflection stays private — this opens a blank, pre-filled draft for you to write and review before anything is shared.",
+        action: {
+          label: "Share",
+          onClick: () =>
+            navigate(
+              `/interview/experiences?company=${encodeURIComponent(shareCompany)}&role=${encodeURIComponent(shareRole)}&category=${shareCategory}`
+            ),
+        },
+        duration: 10000,
+      });
+    }
+
     if (targetStage === "offer" && completedApp) {
       openCelebrationModal(completedApp);
     }

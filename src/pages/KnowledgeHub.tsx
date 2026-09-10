@@ -83,7 +83,15 @@ export default function KnowledgeHub() {
       setForm({ url: "", note: "", source: "linkedin" });
       loadData();
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to analyze and save post");
+      // "source_unavailable" is the honest FastAPI detail for a page that
+      // could not be extracted (bot-blocked, 403/Cloudflare, requires
+      // login, etc) — surface a message a candidate can act on instead of
+      // the raw backend error code.
+      const rawMessage = error instanceof Error ? error.message : "";
+      const message = rawMessage === "source_unavailable"
+        ? "Couldn't read that page automatically — it may require login or be blocking automated access. Try pasting the article text as a note instead."
+        : rawMessage || "Failed to analyze and save post";
+      toast.error(message);
     } finally {
       setBusy(false);
     }

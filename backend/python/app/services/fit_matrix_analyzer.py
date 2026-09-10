@@ -190,9 +190,11 @@ def analyze_fit_matrix(
     # 2. Skill Alignment
     required_skills = job.get("skills") or []
     if not required_skills:
-        # Extract potential tech keywords from JD
-        candidates = ["python", "go", "golang", "react", "typescript", "aws", "docker", "kubernetes", "sql", "postgres"]
-        required_skills = [c for c in candidates if c in j_desc or c in j_title]
+        # Extract required skills from the actual JD text via the shared taxonomy
+        # (same "extract from source, not a fixed shortlist" pattern used by
+        # skill_gap_radar.py / skill_gap_analyzer.py) instead of a 10-word list
+        # that silently ignored everything else the JD asked for.
+        required_skills = sorted(extract_skills(f"{j_title} {j_desc}"))
 
     strong_skills = []
     missing_skills = []

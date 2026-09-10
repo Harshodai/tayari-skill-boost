@@ -75,6 +75,13 @@ services:
       - CAPABILITY_AUTONOMOUS_GMAIL=${CAPABILITY_AUTONOMOUS_GMAIL:-}
     volumes:
       - ./backend/python:/app
+      # The bind mount above shadows the image-baked Playwright browser cache
+      # at /app/.cache/ms-playwright (the host has no such directory), which
+      # makes every browser-automation extraction (OmniSave/Knowledge Hub
+      # capture, form_filler) fail with "Executable doesn't exist" in dev.
+      # A named volume on this subpath is seeded from the image on first
+      # mount and survives the bind mount above it.
+      - python_ai_playwright_cache:/app/.cache/ms-playwright
     # The AI engine is an internal dependency of go-backend. Bind the optional
     # developer port to loopback so prod never publishes it to the network.
     ports:
@@ -508,6 +515,7 @@ volumes:
   redis_data:
   caddy_data:
   caddy_config:
+  python_ai_playwright_cache:
 
 networks:
   frontend:

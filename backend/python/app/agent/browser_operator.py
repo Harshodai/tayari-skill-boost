@@ -33,18 +33,29 @@ class BrowserOperator:
         # navigation and after any mutating action.
         self._refs: Dict[str, Any] = {}
 
-    async def initialize(self):
-        """Initialize Playwright chromium instance."""
+    async def initialize(self, pin_hostname: Optional[str] = None, pin_ip: Optional[str] = None):
+        """Initialize Playwright chromium instance.
+
+        ``pin_hostname``/``pin_ip`` add a ``MAP <hostname> <ip>`` host-resolver
+        rule so Chromium's actual connection targets the exact IP that was
+        DNS-rebinding-checked at navigate() time, while still using the real
+        hostname for TLS SNI and the Host header (an IP-rewritten netloc
+        breaks SNI on every HTTPS site). Re-resolving and trusting a second,
+        later OS-level DNS lookup would reopen the TOCTOU gap this closes.
+        """
         try:
             from playwright.async_api import async_playwright
             self.playwright = await async_playwright().start()
+            resolver_rules = ["MAP 169.254.169.254 ~NOTFOUND", "MAP 127.0.0.1 ~NOTFOUND", "MAP ::1 ~NOTFOUND"]
+            if pin_hostname and pin_ip:
+                resolver_rules.insert(0, f"MAP {pin_hostname} {pin_ip}")
             self.browser = await self.playwright.chromium.launch(
                 headless=self.headless,
                 args=[
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
                     "--disable-dev-shm-usage",
-                    "--host-resolver-rules=MAP 169.254.169.254 ~NOTFOUND, MAP 127.0.0.1 ~NOTFOUND, MAP ::1 ~NOTFOUND",
+                    f"--host-resolver-rules={', '.join(resolver_rules)}",
                     "--block-insecure-private-network-requests",
                 ],
             )
@@ -121,7 +132,14 @@ class BrowserOperator:
             await await_backoff(url)
 
         if not self.page:
-            init_ok = await self.initialize()
+            # Resolve+pin before the browser process even exists so the
+            # launch-time host-resolver-rules MAP targets the same IP this
+            # check validated — no window between check and connect.
+            from app.agent.agent_engine import _resolve_and_validate_url
+            url_info = _resolve_and_validate_url(url)
+            if not url_info:
+                return {"success": False, "error": f"Rejected URL '{url}': unsafe scheme or non-public address."}
+            init_ok = await self.initialize(pin_hostname=url_info["original_hostname"], pin_ip=url_info["pinned_ip"])
             if not init_ok or not self.page:
                 return {"success": False, "error": "Browser engine not initialized (Playwright missing or restricted)."}
 

@@ -23,10 +23,32 @@ func (s *Server) writeOneStopProxyError(w http.ResponseWriter, logPrefix, endpoi
 	slog.Error(logPrefix, "endpoint", endpoint, "error", err)
 	var apiErr *ai.APIError
 	if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
-		s.respondError(w, apiErr.StatusCode, apiErr.Body)
+		s.respondError(w, apiErr.StatusCode, extractUpstreamErrorMessage(apiErr.Body))
 		return
 	}
 	s.respondJSON(w, http.StatusBadGateway, map[string]string{"error": "ai_service_unavailable"})
+}
+
+// extractUpstreamErrorMessage unwraps Python's JSON error body (typically
+// {"detail": "..."} from a FastAPI HTTPException) into a plain string.
+// Passing apiErr.Body straight into respondError double-JSON-encodes it —
+// the frontend then shows the user a raw '{"detail":"source_unavailable"}'
+// blob instead of a readable message. Falls back to the raw body verbatim
+// when it isn't JSON or has no detail/error field, so nothing is ever lost.
+func extractUpstreamErrorMessage(body string) string {
+	var parsed struct {
+		Detail string `json:"detail"`
+		Error  string `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(body), &parsed); err == nil {
+		if parsed.Detail != "" {
+			return parsed.Detail
+		}
+		if parsed.Error != "" {
+			return parsed.Error
+		}
+	}
+	return body
 }
 
 // -------------------------------------------------------------------
