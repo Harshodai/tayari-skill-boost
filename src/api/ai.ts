@@ -523,7 +523,13 @@ export async function fetchCareerContextGraph(filters: { skill?: string; role?: 
   if (filters.skill?.trim()) params.set("skill", filters.skill.trim());
   if (filters.role?.trim()) params.set("role", filters.role.trim());
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  return apiFetch<CareerContextGraph>(`/v1/context/graph${suffix}`);
+  // ponytail: no Cache-Control header on this response, so the browser's
+  // default HTTP heuristic caching can serve a stale body for an identical
+  // URL+query (e.g. the graph fetched before the candidate's first
+  // evidence/context link existed) even after "Refresh graph" is clicked
+  // again — the graph then looks permanently empty despite the backend
+  // genuinely having real nodes. no-store forces a real round-trip.
+  return apiFetch<CareerContextGraph>(`/v1/context/graph${suffix}`, { cache: "no-store" });
 }
 
 
