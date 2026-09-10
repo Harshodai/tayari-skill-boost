@@ -5361,3 +5361,59 @@ Registered `GET /api/applications/{id}/resume-docx` and `GET /api/v1/application
 
 ### Reusable lesson
 - **"No frontend route found" and "no backend implementation exists" are different claims — always check for the second before writing new code for the first.** This function was fully correct and had clearly been written deliberately (matches the DOCX-export pattern used elsewhere), just never wired into any `router.go`/`routes_*.go` registration list. Writing a second implementation (which happened here before the duplicate-symbol compile error caught it) would have left genuinely dead code sitting next to the real one.
+
+## 2026-09-10: Negotiation Copilot's "first-year total comp" counted a full 4-year equity grant as if it all vested in year one
+
+### What was done
+Real-user test of `/negotiation`: filled the form via "Sample Benchmark" (Base $210,000, Equity $240,000 — the field explicitly labeled "Equity Grant ($ / 4yr)", Sign-on $30,000), clicked "Generate Strategy". Noticed the page's own quick-preview badge (shown before generating) said **$300,000** est. year-1 comp, but the generated strategy result showed **$480,000** for the identical numbers — two different calculations on the same page disagreeing by $180,000.
+
+### Root cause
+`negotiation_copilot.py`'s `generate_negotiation_strategy`: `"total_first_year": base_offer + equity_offer + signon_offer` summed the full 4-year equity grant value into a "first year" total, rather than annualizing it. The frontend's own quick-preview (`$210k + $240k/4 + $30k = $300k`) already divided by 4 — only the backend's generated-strategy response didn't, so accepting the field's own stated meaning ("$/4yr") was inconsistent within the same feature.
+
+### Fix
+Divided `equity_offer`/`target_equity` by 4 in both `total_first_year` calculations (current offer and recommended counter), matching the frontend convention and the field's own label.
+
+### Verification
+`python -m py_compile` clean. Rebuilt+redeployed `python-ai`. Re-ran the identical real flow (Sample Benchmark → Generate Strategy, real LLM call for the email/script prose): "Current First-Year Package" now correctly shows $300,000, matching the quick-preview badge; "Recommended Target Counter" correspondingly corrected to $334,000 (was inflated the same way).
+
+### Reusable lesson
+- **When a page shows the same derived number twice — a live preview and a "final" generated result — they're a free consistency check against each other.** This bug was only visible because both calculations were on screen at once and disagreed; had the quick-preview badge not existed, a materially wrong (60% overstated) compensation figure would have shipped silently in every negotiation strategy generated. When adding a live-preview/estimate alongside an async "real" result for the same value, treat any drift between them as a bug signal worth investigating immediately, not a rounding quirk.
+- **A field labeled with its own unit semantics (`"Equity Grant ($ / 4yr)"`) is a contract the surrounding math must honor** — treating that value as already-annualized elsewhere in the same function is a silent unit-mismatch bug, the financial-math equivalent of miles vs. kilometers.
+
+## 2026-09-10: Skill Gap Radar claimed "100% Match" against a JD it never actually read
+
+### What was done
+Real-user test of `/skill-gap-radar`: loaded the "Sample: Staff Frontend Architect" JD (explicitly requiring WebAssembly/Wasm, Canvas 2D rendering, Playwright E2E automation, state machines, performance budgeting), clicked "Analyze Skill Gaps" against a profile with only React/TypeScript/Next.js/Tailwind/GraphQL. Result: **"100% Match"**, zero missing skills — despite the profile obviously lacking most of what the JD asked for. User flagged this class of problem directly: results need to be grounded in what's actually in the source text, not an ungrounded fixed list.
+
+### Root cause
+`analyze_skill_gaps` (`backend/python/app/services/skill_gap_radar.py`) matched the JD against a **hardcoded 16-item keyword checklist** (`kubernetes, docker, system design, graphql, kafka, redis, python, go, golang, aws, gcp, react, typescript, postgres, sql, ci/cd`) — anything outside that list was silently invisible to the analysis. Since none of the JD's actual differentiating requirements (WebAssembly, Canvas, Playwright, state machines) were in the list, they were never checked, never counted as "required," and the match percentage was computed only over the handful of checklist words that happened to be present — reporting a perfect score while ignoring most of the JD's real content. A better implementation already existed elsewhere in the same codebase (`skill_gap_analyzer.py`'s `SkillGapAnalyzer`, using a real ~200-term taxonomy) but wasn't used here, and even that taxonomy — tested directly — still didn't cover WebAssembly/Canvas/Playwright, since it's still a fixed vocabulary.
+
+### Fix
+Replaced the keyword checklist with **LLM-grounded extraction**: a new `_extract_required_skills_llm` asks the model to list only skills "explicitly named or unambiguously implied" by the literal JD text (capped at 4000 chars, `max_tokens=500`, matching this codebase's existing `llm_json` pattern used in `negotiation_copilot.py`/`optimizer.py`), with a taxonomy-based fallback (`skill_taxonomy.py`'s `extract_skills`, not the old 16-item list) for when no LLM is configured — same graceful-degradation pattern this codebase already uses everywhere else, never a fabricated result. Also expanded `FREE_RESOURCE_DIRECTORY` with real curated links for WebAssembly/Canvas/Playwright specifically, since those are now actually detectable.
+
+### Verification
+`python -m py_compile` clean. Rebuilt+redeployed `python-ai`. Re-ran the identical real flow (same sample JD, real LLM call, ~7s): now correctly reports **25% match**, with `Canvas 2D`, `Playwright`, `WebAssembly`, `State Machines`, `Performance Budgeting`, `Edge Middleware`, `Distributed Telemetry`, `Caching`, `E2E Automation` all correctly flagged as missing with real learning-resource links — a result that actually reflects the JD's stated requirements instead of silently ignoring most of them.
+
+### Reusable lesson
+- **A fixed keyword checklist checked against arbitrary user-supplied text (a job description that can name literally any real-world technology) will always be wrong for any input outside its own vocabulary — and worse, it fails silently as a false "everything matches," not as a visible error.** This is a stronger failure mode than a missing feature: the tool actively told the user their skills were a perfect fit when they weren't, on a feature whose entire purpose is catching exactly that gap. When a comparison/analysis feature's accuracy depends on recognizing arbitrary real-world terms (skills, technologies, company names, tools), prefer LLM-grounded extraction from the actual source text over any fixed list, however large — a "better" static list is still the same class of bug at a different size, only harder to notice because it covers more common cases.
+
+## 2026-09-10: Company Radar silently misreported "board not found" as "zero open roles"
+
+### What was done
+Following up on the user's direct concern ("companies can have different links... make sure whatever we're giving is grounded") — tested Company Radar with a real company (Phenom People) whose career board isn't on Greenhouse or Lever. It resolved with 0 matches and a green checkmark, visually identical to a company that was successfully scanned and genuinely has zero open roles right now.
+
+### Root cause (two bugs)
+1. `check_greenhouse_board`/`check_lever_board` (`backend/python/app/services/company_radar.py`) guessed exactly one board slug — the literal lowercased company name, unmodified — with no variation. A real company whose board token doesn't match its display name character-for-character (e.g. "Phenom People" as typed vs. whatever slug its actual board uses) simply 404s.
+2. Even when the `error` field was correctly set by that 404, `monitor_target_companies` unconditionally fell through to try Lever whenever Greenhouse's `jobs_found` list was empty — including when Greenhouse's own board *was* found but genuinely had zero keyword-matching jobs (a correct, successful "0 matches" result). Falling through to Lever in that case silently overwrote a correct result with an unrelated 404 from a platform the company was never on. And on the frontend, `CompanyRadar.tsx` never read `res.error` at all — every card rendered the same green checkmark and "N matches" badge regardless.
+
+### Fix
+- Added `_slug_candidates()`: tries the exact name, a no-space variant, and a hyphenated variant against both Greenhouse and Lever before giving up — real HTTP calls against each, no fabricated data, just broader honest coverage of how board tokens actually get chosen.
+- Fixed the Greenhouse→Lever fallback to only trigger when Greenhouse genuinely found no board (`error is not None`), not merely zero keyword matches, so a real "found the board, no matches for your keywords" result never gets silently clobbered.
+- `CompanyRadar.tsx`: cards with `res.error` set now render an amber warning icon, a "Board not found" badge (not a match count), and an explanatory line — visually and textually distinct from a real "0 matches" success state.
+
+### Verification
+`python -m py_compile` clean, `tsc --noEmit` clean. Rebuilt+redeployed `python-ai` and `frontend`. Live test with a real mixed roster (`Phenom People`, `Stripe`) via direct authenticated API call: `Phenom People` → `{"count": 0, "error": "HTTP 404"}`, `Stripe` → `{"count": 120, "error": null}` — genuinely distinguishable. Confirmed in the real UI: added "Phenom People" to the roster, ran a real scan, got a clearly-labeled amber "Board not found" card alongside correctly-populated real job cards for the companies that were found.
+
+### Reusable lesson
+- **Falling through a "if empty, try the next source" chain based on an empty result list conflates two different meanings of empty: "this source has nothing" and "this source doesn't exist for this input."** Only the second should trigger a fallback; the first is itself a valid, complete answer. Check the actual error/not-found signal, not just emptiness, before cascading to a fallback that can silently overwrite a correct result.
+- **A UI that renders the same success icon regardless of whether the underlying data call actually succeeded turns every backend error into invisible data loss from the user's perspective.** The `error` field existed in the TypeScript interface from the start — it was simply never read in the render path. When a backend response type includes an error/status field per item, grep the frontend for whether it's actually consumed before assuming per-item failures are visible to the user.

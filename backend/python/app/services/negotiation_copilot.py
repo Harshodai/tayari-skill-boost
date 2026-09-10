@@ -86,6 +86,13 @@ Provide:
 3. Word-for-word Verbal Phone Call Negotiation Script
 """
 
+    # `equity`/`target_equity` are 4-year grant values (the frontend field is
+    # labeled "Equity Grant ($ / 4yr)") — only 1/4 of a standard 4-year vest
+    # is realized in year one. Summing the full grant into "total_first_year"
+    # overstates first-year comp by roughly 3x the equity portion; annualize
+    # it here so this matches the quick-preview estimate the frontend shows
+    # before the user even clicks "Generate Strategy" (which already divides
+    # by 4), instead of silently disagreeing with its own UI.
     base_response: Dict[str, Any] = {
         "company": company,
         "role": role,
@@ -93,13 +100,13 @@ Provide:
             "base": base_offer,
             "equity": equity_offer,
             "signon": signon_offer,
-            "total_first_year": base_offer + equity_offer + signon_offer,
+            "total_first_year": base_offer + (equity_offer / 4) + signon_offer,
         },
         "market_benchmark": benchmark,
         "recommended_counter": {
             "base": target_base,
             "equity": target_equity,
-            "total_first_year": target_base + target_equity + signon_offer,
+            "total_first_year": target_base + (target_equity / 4) + signon_offer,
         },
     }
 

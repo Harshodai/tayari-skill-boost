@@ -204,13 +204,31 @@ export function CompanyRadar() {
                 <div key={res.company} className="space-y-3 p-3.5 rounded-xl border bg-muted/20">
                   <div className="flex items-center justify-between border-b border-border/50 pb-2">
                     <h3 className="text-sm font-bold flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      {res.error ? (
+                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      )}
                       {res.company}
                     </h3>
-                    <Badge variant="outline" className="text-[10px] font-mono">
-                      {res.count} match{res.count !== 1 ? "es" : ""}
-                    </Badge>
+                    {res.error ? (
+                      <Badge variant="outline" className="text-[10px] font-mono text-amber-500 border-amber-500/40">
+                        Board not found
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        {res.count} match{res.count !== 1 ? "es" : ""}
+                      </Badge>
+                    )}
                   </div>
+
+                  {res.error && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Couldn't find a Greenhouse or Lever career board for "{res.company}" — this company may use a
+                      different ATS, or its board slug may not match its display name. Not the same as "zero open
+                      roles."
+                    </p>
+                  )}
 
                   <div className="space-y-2">
                     {res.jobs.map((job, idx) => (
