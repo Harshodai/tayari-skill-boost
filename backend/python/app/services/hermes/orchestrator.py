@@ -20,6 +20,11 @@ from app.services.hermes.normalize import _classify_board, _dedupe
 from app.services.hermes.providers import ALL_PROVIDERS
 from app.services.hermes.router import select_tier
 
+# Must match scraped_jobs_source_check in backend/db/migrations/20260620_hermes_agents.sql.
+_SCRAPED_JOBS_ALLOWED_SOURCES = {
+    "greenhouse", "lever", "ashby", "workday", "firecrawl", "apify", "serp", "crawl4ai",
+}
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_LIMIT = 40
@@ -163,6 +168,16 @@ async def _persist(
     """Write the batch to the cache, attributed to the providers that ran."""
     if not jobs:
         return
-    sources = ",".join(sorted({p.name for p in selected}))
+    # scraped_jobs.source has a CHECK constraint allowing exactly one of a
+    # fixed enum (greenhouse/lever/ashby/workday/firecrawl/apify/serp/
+    # crawl4ai) — a comma-joined multi-provider string always violates it,
+    # and providers outside that set (e.g. "playwright_local") aren't valid
+    # at all. Attribute the cache entry to the first selected provider that
+    # actually matches the allowed enum; if none do, skip caching rather
+    # than attempt a write guaranteed to fail the constraint.
+    allowed_sources = {p.name for p in selected} & _SCRAPED_JOBS_ALLOWED_SOURCES
+    if not allowed_sources:
+        return
+    source = sorted(allowed_sources)[0]
     token = (board or {}).get("token")
-    await write_cached(sources, board_class, token, query, location, jobs)
+    await write_cached(source, board_class, token, query, location, jobs)

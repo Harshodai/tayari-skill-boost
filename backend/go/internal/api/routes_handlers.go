@@ -96,4 +96,5 @@ func (s *Server) routesApplications(r chi.Router) {
 	r.Get("/api/v1/applications/{id}", s.handleGetApplication)
 	r.Put("/api/v1/applications/{id}", s.handleUpdateApplication)
 	r.Delete("/api/v1/applications/{id}", s.handleDeleteApplication)
+	r.Get("/api/v1/applications/{id}/resume-docx", s.handleDownloadApplicationResume)
 }

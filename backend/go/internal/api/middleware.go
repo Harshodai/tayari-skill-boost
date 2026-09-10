@@ -60,7 +60,9 @@ func (s *Server) requestLoggingMiddleware(next http.Handler) http.Handler {
 		traceID := requestTraceID(r)
 		w.Header().Set("X-Request-ID", traceID)
 		r.Header.Set("X-Request-ID", traceID)
+		identityBox := &requestIdentityBox{}
 		ctx := context.WithValue(r.Context(), contextKeyTraceID, traceID)
+		ctx = context.WithValue(ctx, contextKeyRequestIdentity, identityBox)
 		r = r.WithContext(ctx)
 		rr := &responseRecorder{ResponseWriter: w}
 		next.ServeHTTP(rr, r)
@@ -70,13 +72,21 @@ func (s *Server) requestLoggingMiddleware(next http.Handler) http.Handler {
 			status = http.StatusOK
 		}
 
+		// authMiddleware runs downstream of this middleware and derives its
+		// own *http.Request via r.WithContext(), which this outer `r` never
+		// sees — read the identity back out of the shared box instead of
+		// r.Context() directly (see requestIdentityBox's doc comment).
 		userID := "anonymous"
-		if user, ok := r.Context().Value(contextKeyUser).(*models.User); ok && user != nil {
+		if identityBox.userID != "" {
+			userID = identityBox.userID
+		} else if user, ok := r.Context().Value(contextKeyUser).(*models.User); ok && user != nil {
 			userID = user.ID.String()
 		}
-		tenantID := ""
-		if tenant, ok := r.Context().Value(contextKeyTenant).(*models.Tenant); ok && tenant != nil {
-			tenantID = tenant.ID.String()
+		tenantID := identityBox.tenantID
+		if tenantID == "" {
+			if tenant, ok := r.Context().Value(contextKeyTenant).(*models.Tenant); ok && tenant != nil {
+				tenantID = tenant.ID.String()
+			}
 		}
 		if s.metrics != nil {
 			s.metrics.ObserveRequest(r.Method, r.URL.Path, status, duration)

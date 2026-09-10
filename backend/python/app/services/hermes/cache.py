@@ -61,7 +61,7 @@ async def get_cached(
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                SELECT jobs FROM scraped_jobs
+                SELECT job FROM scraped_jobs
                 WHERE board_class = $1 AND query = $2 AND location = $3
                   AND fetched_at > now() - make_interval(secs => $4)
                 ORDER BY fetched_at DESC LIMIT 1
@@ -70,7 +70,7 @@ async def get_cached(
             )
             if not row:
                 return None
-            return json.loads(row["jobs"]) if row["jobs"] else []
+            return json.loads(row["job"]) if row["job"] else []
     except Exception as exc:  # noqa: BLE001 - cache miss must never break scrape
         logger.warning("hermes.cache: get_cached failed (%s)", exc)
         return None
@@ -94,11 +94,11 @@ async def write_cached(
                 """
                 INSERT INTO scraped_jobs
                     (dedupe_key, source, board_class, board_token, query,
-                     location, jobs, fetched_at, expires_at)
+                     location, job, fetched_at, expires_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, now(),
                         now() + make_interval(secs => $8))
-                ON CONFLICT (dedupe_key) DO UPDATE
-                    SET jobs = EXCLUDED.jobs, fetched_at = now(),
+                ON CONFLICT (dedupe_key, source) DO UPDATE
+                    SET job = EXCLUDED.job, fetched_at = now(),
                         expires_at = EXCLUDED.expires_at
                 """,
                 _dedupe_key(board_class, query, location),
@@ -118,7 +118,7 @@ async def list_by_board(board_class: str, limit: int = 50) -> list[dict]:
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT jobs FROM scraped_jobs
+                SELECT job FROM scraped_jobs
                 WHERE board_class = $1
                 ORDER BY fetched_at DESC LIMIT $2
                 """,
@@ -126,7 +126,7 @@ async def list_by_board(board_class: str, limit: int = 50) -> list[dict]:
             )
             out: list[dict] = []
             for r in rows:
-                out.extend(json.loads(r["jobs"]) if r["jobs"] else [])
+                out.extend(json.loads(r["job"]) if r["job"] else [])
             return out[:limit]
     except Exception as exc:  # noqa: BLE001
         logger.warning("hermes.cache: list_by_board failed (%s)", exc)

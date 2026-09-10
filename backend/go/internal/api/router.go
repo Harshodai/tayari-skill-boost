@@ -32,7 +32,26 @@ const (
 	contextKeyUser               = auth.ContextKeyUser
 	contextKeyTenant  contextKey = "tenant"
 	contextKeyTraceID contextKey = "trace_id"
+	// contextKeyRequestIdentity carries a *requestIdentityBox — see
+	// requestLoggingMiddleware for why this indirection exists.
+	contextKeyRequestIdentity contextKey = "request_identity_box"
 )
+
+// requestIdentityBox is a mutable box requestLoggingMiddleware installs into
+// the request context before calling downstream handlers. authMiddleware
+// (which runs *inside* the logging middleware in the chain) writes the
+// resolved user/tenant into this same shared pointer. Because
+// r.WithContext() always returns a new *http.Request, authMiddleware's own
+// context enrichment is invisible to requestLoggingMiddleware's outer `r` —
+// it captured that before calling next.ServeHTTP and never sees the derived
+// request object. A shared mutable pointer sidesteps that: both middlewares
+// hold the same *requestIdentityBox regardless of which request object they
+// each see, so a write from the inner middleware is visible to the outer one
+// after next.ServeHTTP returns.
+type requestIdentityBox struct {
+	userID   string
+	tenantID string
+}
 
 type Server struct {
 	Router            *chi.Mux

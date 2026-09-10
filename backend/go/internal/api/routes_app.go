@@ -203,6 +203,7 @@ func (s *Server) registerLegacyAliases(r chi.Router) {
 	r.Get("/api/applications/{id}", s.handleGetApplication)
 	r.Put("/api/applications/{id}", s.handleUpdateApplication)
 	r.Delete("/api/applications/{id}", s.handleDeleteApplication)
+	r.Get("/api/applications/{id}/resume-docx", s.handleDownloadApplicationResume)
 	r.Post("/api/applications/{id}/notes", s.handleAddApplicationNote)
 	r.Post("/api/applications/parse-email", s.handleParseApplicationEmail)
 }

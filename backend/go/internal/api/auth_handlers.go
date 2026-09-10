@@ -211,6 +211,16 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		if tenant, ok := ctx.Value(contextKeyTenant).(*models.Tenant); ok && tenant != nil {
 			tenantID = tenant.ID
 		}
+		// See requestIdentityBox's doc comment: this is how the outer
+		// request-logging middleware learns who the authenticated user is,
+		// since it can't see the derived request object we're about to
+		// create below.
+		if box, ok := ctx.Value(contextKeyRequestIdentity).(*requestIdentityBox); ok && box != nil {
+			box.userID = user.ID.String()
+			if tenantID != uuid.Nil {
+				box.tenantID = tenantID.String()
+			}
+		}
 		requestID := requestTraceID(r)
 		ctx = auth.WithAuthorizationContext(ctx, &auth.AuthorizationContext{
 			Subject:   user.ID,

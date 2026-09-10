@@ -5308,3 +5308,56 @@ Added an explicit pre-insert check in both handlers: `SELECT COUNT(*) FROM appli
 
 ### Reusable lesson
 - **A bare `ON CONFLICT DO NOTHING` with no column list is not a dedup mechanism unless a matching unique constraint actually exists on the table** — Postgres only skips the insert when the row violates a real unique/exclusion constraint; without one, the clause is silently inert and the query still always inserts. A code comment claiming "dedupe by X+Y" next to an `ON CONFLICT DO NOTHING` with no `ON CONFLICT (x, y)` target is a strong signal the dedup was never actually wired up — grep for this exact shape (`ON CONFLICT DO NOTHING` with no column list, on a table with no matching unique index) elsewhere in the codebase as a systemic check.
+
+## 2026-09-10: Hermes scrape cache had never successfully written a single row
+
+### What was done
+Followed up on a bug flagged (not fixed) earlier this session: `hermes.cache: write_cached failed` on every job search, `scraped_jobs` table permanently empty despite the container running for days. Root-caused fully — three independent, stacked bugs, not one:
+
+1. **Wrong column name everywhere.** `scraped_jobs`'s real column is `job` (singular, one job per row), but `cache.py`'s `get_cached`, `write_cached`, and `list_by_board` all read/wrote a column literally named `jobs` — which does not exist. Every call failed immediately on column resolution, before the other two bugs could even matter.
+2. **`ON CONFLICT (dedupe_key)` didn't match any real constraint.** The table's only relevant unique constraint is the composite `scraped_jobs_dedupe_key_source_key` on `(dedupe_key, source)`, not `dedupe_key` alone — Postgres requires an exact match between an `ON CONFLICT` target and an existing constraint, so this target was invalid regardless of bug 1.
+3. **`orchestrator.py`'s `_persist` comma-joined every selected provider's name into one `source` string** (e.g. `"ashby,crawl4ai,greenhouse"`) before calling `write_cached` — `scraped_jobs_source_check` only allows one single value from a fixed 8-item enum, and some provider names in play (`playwright_local`) aren't in that enum at all even singly.
+
+Any one of these alone would have blocked every write; all three together meant this cache had a 0% success rate since the table was created, silently (the write is wrapped in a broad `except Exception: logger.warning(...)` specifically so a cache failure never breaks a live search) — every job search has been re-scraping every provider from scratch, permanently, with zero caching benefit ever realized.
+
+### Fix
+- `cache.py`: renamed every `jobs` column reference to `job` (read and write); changed `ON CONFLICT (dedupe_key)` to the real composite `ON CONFLICT (dedupe_key, source)`.
+- `orchestrator.py`: `_persist` now intersects the selected providers' names against the actual CHECK-allowed enum and attributes the cache entry to the first valid match (skipping the write entirely, same as before, only if none of the selected providers are in the allowed set) instead of joining them into an always-invalid string.
+
+### Verification
+`python -m py_compile` clean on both files; grepped for other callers of `write_cached`/`get_cached`/`list_by_board` — only `hermes_routes.py`'s `list_by_board` call, unaffected by the signature (unchanged). Rebuilt+redeployed `python-ai`. Confirmed `scraped_jobs` was 0 rows before; ran a real authenticated job search (`POST /api/v1/jobs/search`, "Backend Engineer") through the live stack; confirmed via direct `psql` a real row was written (`source='ashby'`, real query/board_class/fetched_at) and no `hermes.cache` warning appeared in the logs for that request.
+
+### Reusable lesson
+- **A silently-swallowed write failure that's "safe" by design (never breaks the user-facing feature) can still hide a total, permanent loss of the feature it was meant to provide** — this cache existed in the schema, in the code, and in every code review, but never worked for a single day since it was built, and nothing ever surfaced that because the fallback (re-scrape live) always produced a correct-looking result to the user. When investigating a "harmless" warning log line, check whether the thing it's warning about has EVER succeeded (`SELECT count(*)`), not just whether the current request is behaving acceptably.
+- **Three bugs of totally different types (column-name typo, wrong `ON CONFLICT` target, a value-encoding mismatch against a CHECK constraint) had stacked in the same fifteen-line function.** Fixing only the first one found (as the earlier flag-not-fix pass correctly declined to do under time pressure) would have surfaced the next one immediately on retry — a good instinct when time-boxed is to flag "there's at least one bug here" rather than claim a partial trace is the whole story.
+
+## 2026-09-10: Request logs always showed user_id:"anonymous", even for authenticated requests
+
+### What was done
+Followed up on an observability gap flagged (not fixed) by an earlier audit pass this session. Every `http_request` log line showed `"user_id":"anonymous"` regardless of who the real authenticated caller was — a real security-relevant observability gap: none of this session's audit work (or any real incident response) could correlate a request in the logs back to the user who made it.
+
+### Root cause
+`requestLoggingMiddleware` (outermost, registered globally in `router.go`) reads the authenticated user from `r.Context()` *after* calling `next.ServeHTTP(rr, r)` — but `authMiddleware` (which runs downstream, per-route-group, and actually resolves the user) enriches the context via `r.WithContext(ctx)`, which always returns a *new* `*http.Request`. That new, enriched request is only ever passed to further-downstream handlers; the outer logging middleware's own `r` variable — captured before it called `next.ServeHTTP` — is a different Go object and never observes the mutation. This is a standard Go net/http middleware-ordering pitfall: an outer middleware cannot see context set by an inner one through the request object alone, because context enrichment always happens on a request copy that only flows forward, never back up the call stack.
+
+### Fix
+Added a `requestIdentityBox` — a small mutable struct (not a new context value replacing the request) that `requestLoggingMiddleware` allocates and installs into the context *before* calling `next`, and that `authMiddleware` writes the resolved `user.ID`/`tenant.ID` into after successful verification. Both middlewares hold the same pointer regardless of which derived `*http.Request` each one sees, so the write from the inner middleware is visible to the outer one once `next.ServeHTTP` returns. `requestLoggingMiddleware` now reads from the box first, falling back to the old `r.Context()` read for any code path that doesn't go through `authMiddleware` (keeps `"anonymous"` correctly accurate for genuinely unauthenticated routes).
+
+### Verification
+`go build ./...` clean, `go test ./internal/api/...` 322/322. Rebuilt+redeployed `go-backend`. Real authenticated request (`GET /api/me` with a real bearer token) — log line now shows the real `user_id` (`cc285a0d-...`) and `tenant_id`, not `"anonymous"`.
+
+### Reusable lesson
+- **An outer HTTP middleware can never observe context enrichment performed by an inner middleware through the request object alone** — `r.WithContext()` always returns a new `*http.Request`; only code that receives that specific derived object (i.e. code further down the same call chain) sees the new context. When an outer middleware genuinely needs to know something an inner one computes (auth identity, a computed correlation ID, a feature flag resolved mid-chain), install a mutable pointer into the context before calling `next` and have the inner code write into it, rather than relying on `r.Context()` lookups after `next.ServeHTTP` returns — that pattern silently reads stale/default values forever, with no error, exactly as it did here.
+
+## 2026-09-10: AutoPilot's "Download Resume" button always 404'd — a real implementation existed but was never routed
+
+### What was done
+Followed up on a gap flagged earlier this session: `AutoPilot.tsx`'s "Resume" download button calls `GET /applications/{id}/resume-docx`, which had no matching Go route anywhere — confirmed a real, complete handler implementation (`handleDownloadApplicationResume`) already existed in `routes_mvp.go`, correctly looking up the application's `tailored_resume_text`, calling Python's existing `/api/v1/export/docx`, and streaming back real DOCX bytes — it was simply never registered on any router. The "defined but never wired" pattern this session already found several other instances of.
+
+### Fix
+Registered `GET /api/applications/{id}/resume-docx` and `GET /api/v1/applications/{id}/resume-docx` (route-parity pair) against the existing handler in `routes_app.go` and `routes_handlers.go`.
+
+### Verification
+`go build ./...` clean, `go test ./internal/api/...` 322/322. Rebuilt+redeployed `go-backend`. Live tests against the real running stack with a real bearer token: (a) a nonexistent application ID correctly returns the handler's own `{"error":"Application not found"}` 404 (proving the route is reached, not router-level-404ing), (b) set a real application's `tailored_resume_text` directly in the DB, called the route — got a real 200 with `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document` and a genuine 36KB DOCX blob body.
+
+### Reusable lesson
+- **"No frontend route found" and "no backend implementation exists" are different claims — always check for the second before writing new code for the first.** This function was fully correct and had clearly been written deliberately (matches the DOCX-export pattern used elsewhere), just never wired into any `router.go`/`routes_*.go` registration list. Writing a second implementation (which happened here before the duplicate-symbol compile error caught it) would have left genuinely dead code sitting next to the real one.

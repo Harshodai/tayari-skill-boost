@@ -280,12 +280,11 @@ No Go->Python proxy call was found targeting a Python path that doesn't exist, i
 
 ## Orphaned / backend-only routes (no frontend caller found in `src/`)
 
-A full enumeration of all ~380 unique Go route paths against all `src/` callers was not completed exhaustively (out of budget for this pass). Backend-only routes are expected and common in this codebase for: browser-extension-only endpoints (`extension/` calls Go directly, not via `src/api/`), admin/moderation endpoints, internal Hermes/Celery-triggered paths, and webhook receivers. Examples observed during this pass that had no obvious `src/api/` caller:
-- `/api/v1/public/analyze-text` (`routes_app.go`) — public/unauthenticated variant, likely for the browser extension or a public widget, not called from `src/api/`.
-- `/api/v1/linkedin/analyze` (`routes_mvp.go`) — no `src/api/*.ts` caller found; may be extension-only.
-- `/api/automation-runs/{runID}/approvals` (`routes_automations.go`) — no direct `src/api/*.ts` caller found (frontend uses `/v1/approvals` list + `/v1/approvals/{id}/approve|deny` instead).
+A full enumeration of all ~380 unique Go route paths against all `src/` callers was not completed exhaustively. The three candidates originally flagged here have since been resolved:
 
-These are flagged as "backend-only, orphaned or intentionally internal" per the task instructions — not resolved to one or the other without further investigation (e.g. checking `extension/` and Hermes/Celery callers, which were out of scope for this pass).
+- `/api/v1/public/analyze-text` (`routes_app.go`) — **false positive.** Called from `src/pages/ResumeScore.tsx:317`, `FreeAtsScan.tsx:66`, and `JobMatch.tsx:280` as `/v1/public/analyze-text` — the earlier grep pass missed the un-prefixed form these callers actually use. Live and reachable.
+- `/api/v1/linkedin/analyze` (`routes_mvp.go`) — **false positive.** Called from `src/pages/LinkedInImport.tsx:29` as `/linkedin/analyze`. Live and reachable.
+- `/api/automation-runs/{runID}/approvals` (`routes_automations.go`, `handleCreateAutomationApproval`) — **confirmed genuinely backend-only, not a bug.** No `src/` caller exists; the web UI creates/decides approvals through a different, already-used pair (`GET /v1/approvals`, `POST /v1/approvals/{id}/{decision}` — see `src/api/dashboard.ts:587-609`, `ReviewQueue.tsx`, `AgentPanel.tsx`). This route reads a client-supplied JSON body and is gated behind `capabilities.WorkspaceApprovals`, matching the shape of an API meant for the Desktop Agent / MCP integration (Settings → Integrations → "Desktop Agent Integration", a personal-access-token-authenticated API client, not the web UI) to register its own approval requests programmatically. Intentional, not dead code.
 
 ## Critical findings (live broken links)
 
