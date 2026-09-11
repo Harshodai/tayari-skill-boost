@@ -211,6 +211,21 @@ export default function Outcomes() {
           <p className="text-sm text-muted-foreground">
             Your real funnel and verified submission audit receipts. 1 Credit is debited only on verified ATS confirmation.
           </p>
+          {/* ponytail: this page's funnel numbers come from saved_jobs.stage
+              (a simpler bookmark field), while /analytics-funnel computes the
+              same-sounding stages from the real applications table the
+              Kanban board actually tracks — the two can legitimately show
+              different counts for the same user. This isn't a duplicate to
+              merge (this page's numbers are specifically tied to verified
+              receipts, which the other page doesn't have) but the two must
+              be disambiguated so neither reads as "the" wrong number. */}
+          <p className="text-xs text-muted-foreground">
+            Looking for pure application-conversion stats instead of receipt-backed ones?{" "}
+            <Link to="/analytics-funnel" className="underline hover:text-foreground">
+              See Application Analytics
+            </Link>
+            .
+          </p>
         </div>
 
         {error ? (
