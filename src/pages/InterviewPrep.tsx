@@ -714,7 +714,7 @@ const InterviewPrep = () => {
                       STAR Interview Method
                     </div>
                     <p className="leading-relaxed">
-                      Structured responses are critical. Describe the **Situation**, explain the **Task** you had to perform, detailing the **Actions** you took, and close with the final **Result** (include quantitative metrics where possible).
+                      Structured responses are critical. Describe the <strong className="font-semibold text-foreground">Situation</strong>, explain the <strong className="font-semibold text-foreground">Task</strong> you had to perform, detailing the <strong className="font-semibold text-foreground">Actions</strong> you took, and close with the final <strong className="font-semibold text-foreground">Result</strong> (include quantitative metrics where possible).
                     </p>
                   </CardContent>
                 </Card>

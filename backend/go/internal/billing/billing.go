@@ -52,6 +52,10 @@ type UserCreditBalance struct {
 	LifetimePurchased int       `json:"lifetime_purchased"`
 	LifetimeUsed      int       `json:"lifetime_used"`
 	UpdatedAt         time.Time `json:"updated_at"`
+	// Unlimited is true when billing is disabled for this deployment — the
+	// 999999 sentinel values above are not a real balance, and the client
+	// must not render them as one (see routes/billing display fix).
+	Unlimited bool `json:"unlimited,omitempty"`
 }
 
 // CreditLedgerEntry records every credit transaction (purchase, debit, refund, grant)
@@ -762,6 +766,7 @@ func (b *BillingService) GetCreditBalance(userID string) (*UserCreditBalance, er
 			LifetimePurchased: 999999,
 			LifetimeUsed:      0,
 			UpdatedAt:         time.Now(),
+			Unlimited:         true,
 		}, nil
 	}
 	if err := b.requireDurableBillingStorage(); err != nil {
@@ -950,6 +955,7 @@ func (b *BillingService) DebitCredit(userID string, amount int, referenceID, des
 			LifetimePurchased: 999999,
 			LifetimeUsed:      0,
 			UpdatedAt:         time.Now(),
+			Unlimited:         true,
 		}, nil
 	}
 	if err := b.requireDurableBillingStorage(); err != nil {

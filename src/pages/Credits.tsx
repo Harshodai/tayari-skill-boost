@@ -97,7 +97,7 @@ export default function Credits() {
               {balanceQuery.isLoading ? (
                 <Skeleton className="h-9 w-20" />
               ) : (
-                <p className="text-3xl font-semibold tabular-nums">{unavailable ? "—" : balance?.balance ?? 0}</p>
+                <p className="text-3xl font-semibold tabular-nums">{unavailable ? "—" : balance?.unlimited ? "Unlimited" : balance?.balance ?? 0}</p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">credits ready to use</p>
             </CardContent>
@@ -113,7 +113,7 @@ export default function Credits() {
                 <Skeleton className="h-9 w-20" />
               ) : (
                 <p className="text-3xl font-semibold tabular-nums">
-                  {unavailable ? "—" : balance?.lifetime_purchased ?? 0}
+                  {unavailable ? "—" : balance?.unlimited ? "—" : balance?.lifetime_purchased ?? 0}
                 </p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">across all packs</p>

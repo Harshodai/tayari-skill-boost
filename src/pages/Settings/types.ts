@@ -39,4 +39,7 @@ export interface BillingData {
   lifetime_purchased: number;
   lifetime_used: number;
   history: BillingTransaction[];
+  // True when billing is disabled for this deployment — balance/lifetime_purchased
+  // are a sentinel value (999999), not a real count; the UI must show "Unlimited".
+  unlimited?: boolean;
 }

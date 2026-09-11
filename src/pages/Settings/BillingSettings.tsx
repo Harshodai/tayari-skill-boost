@@ -18,6 +18,7 @@ export const BillingSettings: React.FC = () => {
   const [balance, setBalance] = useState<number>(0);
   const [lifetimePurchased, setLifetimePurchased] = useState<number>(0);
   const [lifetimeUsed, setLifetimeUsed] = useState<number>(0);
+  const [unlimited, setUnlimited] = useState(false);
   const [history, setHistory] = useState<BillingTransaction[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,6 +32,7 @@ export const BillingSettings: React.FC = () => {
           typeof res?.lifetime_purchased === "number" ? res.lifetime_purchased : 0
         );
         setLifetimeUsed(typeof res?.lifetime_used === "number" ? res.lifetime_used : 0);
+        setUnlimited(res?.unlimited === true);
         setHistory(Array.isArray(res?.history) ? res.history : []);
       })
       .catch((err) => setError(err?.message || "Could not load billing data"))
@@ -78,13 +80,18 @@ export const BillingSettings: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {unlimited && (
+            <p className="text-xs text-muted-foreground">
+              Billing is disabled for this deployment — submissions are unmetered.
+            </p>
+          )}
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center p-4 rounded-xl bg-primary/5 border border-primary/20">
-              <p className="text-3xl font-extrabold tabular-nums text-primary">{balance}</p>
+              <p className="text-3xl font-extrabold tabular-nums text-primary">{unlimited ? "Unlimited" : balance}</p>
               <p className="text-xs text-muted-foreground mt-1 font-medium">Available</p>
             </div>
             <div className="text-center p-4 rounded-xl bg-muted/40 border border-border/50">
-              <p className="text-3xl font-extrabold tabular-nums">{lifetimePurchased}</p>
+              <p className="text-3xl font-extrabold tabular-nums">{unlimited ? "—" : lifetimePurchased}</p>
               <p className="text-xs text-muted-foreground mt-1 font-medium">Purchased (lifetime)</p>
             </div>
             <div className="text-center p-4 rounded-xl bg-muted/40 border border-border/50">

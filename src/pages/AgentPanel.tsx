@@ -614,7 +614,7 @@ export default function AgentPanel() {
                 <div className="space-y-3">
                   <h3 className="font-semibold text-sm">How it works</h3>
                   <ol className="list-decimal pl-5 space-y-2 text-sm text-muted-foreground">
-                    <li>Download and install the native **Job Tayari Desktop Agent** or install the CLI (`npm install -g @jobtayari/desktop-agent`).</li>
+                    <li>Download and install the native <strong className="font-semibold text-foreground">Job Tayari Desktop Agent</strong> or install the CLI (<code>npm install -g @jobtayari/desktop-agent</code>).</li>
                     <li>Synchronize settings by placing the configuration block below in your local agent settings file.</li>
                     <li>Every time you trigger autonomous agent workflows locally, they will securely check for job matches, apply constraints, and request human-in-the-loop approvals on your Job Tayari dashboard.</li>
                   </ol>

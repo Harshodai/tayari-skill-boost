@@ -661,70 +661,6 @@ const JobSearch = () => {
       <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_minmax(0,1.1fr)] gap-4 lg:min-h-[70vh]">
         {/* Filters & saved searches */}
         <aside className={cn("space-y-4 lg:block", filtersOpen ? "block" : "hidden")}>
-          {/* Weekly Hermes Job Match Digest Card */}
-          <Card
-            className="p-4 border-primary/30 bg-gradient-to-br from-primary/10 via-card to-card relative overflow-hidden shadow-sm"
-            data-testid="hermes-digest-card"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-primary font-mono">
-                  <Sparkles className="w-3.5 h-3.5 animate-pulse text-primary" />
-                  Weekly Hermes Job Digest
-                </div>
-                <h4 className="text-sm font-bold text-foreground leading-snug font-display">
-                  Get Weekly Job Matches in Your Inbox
-                </h4>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  &ldquo;3 new jobs match your profile&rdquo; — powered by the Hermes scraper scanning 4 tiers of direct ATS boards.
-                </p>
-              </div>
-              <Switch
-                checked={hermesDigest.enabled}
-                onCheckedChange={handleToggleHermesDigest}
-                aria-label="Toggle Weekly Hermes Job Digest"
-                className="shrink-0 mt-0.5"
-                data-testid="hermes-digest-toggle"
-              />
-            </div>
-
-            <div className="mt-3 pt-2.5 border-t border-border/50 flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
-              <div className="flex items-center gap-1.5 text-muted-foreground font-medium">
-                <span
-                  className={cn(
-                    "w-2 h-2 rounded-full",
-                    hermesDigest.enabled
-                      ? "bg-emerald-500 animate-pulse"
-                      : "bg-muted-foreground/40"
-                  )}
-                />
-                <span>
-                  {hermesDigest.enabled
-                    ? "Every Tuesday at 9:00 AM"
-                    : "Weekly digest paused"}
-                </span>
-              </div>
-              {hermesDigest.enabled && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] bg-primary/5 text-primary border-primary/20 font-mono"
-                >
-                  4 ATS Tiers
-                </Badge>
-              )}
-            </div>
-
-            {hermesDigest.enabled && (
-              <div className="mt-2 text-[10px] text-muted-foreground font-mono bg-background/50 p-2 rounded-md border border-border/40">
-                <span className="font-semibold text-foreground">Scrape target:</span>{" "}
-                {hermesDigest.filters?.query ? `"${hermesDigest.filters.query}"` : "Profile match"}{" "}
-                {hermesDigest.filters?.location ? `in ${hermesDigest.filters.location}` : ""}{" "}
-                {hermesDigest.filters?.remoteOnly ? "• Remote only" : ""}{" "}
-                {(hermesDigest.filters?.minScore ?? 0) > 0 ? `• Min ${hermesDigest.filters?.minScore}%` : ""}
-              </div>
-            )}
-          </Card>
-
           <Card className="p-4 space-y-4">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
@@ -790,6 +726,48 @@ const JobSearch = () => {
                   </li>
                 ))}
               </ul>
+            )}
+          </Card>
+
+          {/* ponytail: demoted below the actual filters/saved-searches/saved-jobs
+              tools (was previously the first, most prominent sidebar card,
+              outranking the controls a user actually came here to use). The
+              "Scrape target" readout is now plain prose instead of a
+              monospace debug-looking line. */}
+          <Card className="p-4 border-primary/20 bg-card" data-testid="hermes-digest-card">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" />
+                  Weekly Hermes Job Digest
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Weekly job matches in your inbox, scanning 4 tiers of direct ATS boards.
+                </p>
+              </div>
+              <Switch
+                checked={hermesDigest.enabled}
+                onCheckedChange={handleToggleHermesDigest}
+                aria-label="Toggle Weekly Hermes Job Digest"
+                className="shrink-0 mt-0.5"
+                data-testid="hermes-digest-toggle"
+              />
+            </div>
+
+            <div className="mt-3 pt-2.5 border-t border-border/50 flex flex-wrap items-center justify-between gap-1.5 text-[11px] text-muted-foreground">
+              <span>{hermesDigest.enabled ? "Every Tuesday at 9:00 AM" : "Weekly digest paused"}</span>
+              {hermesDigest.enabled && (
+                <Badge variant="outline" className="text-[10px]">4 ATS Tiers</Badge>
+              )}
+            </div>
+
+            {hermesDigest.enabled && (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Matching {hermesDigest.filters?.query ? `"${hermesDigest.filters.query}"` : "your profile"}
+                {hermesDigest.filters?.location ? ` in ${hermesDigest.filters.location}` : ""}
+                {hermesDigest.filters?.remoteOnly ? " · remote only" : ""}
+                {(hermesDigest.filters?.minScore ?? 0) > 0 ? ` · min ${hermesDigest.filters?.minScore}% match` : ""}
+              </p>
             )}
           </Card>
         </aside>

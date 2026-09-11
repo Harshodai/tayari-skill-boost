@@ -208,7 +208,7 @@ const AutoPilot = () => {
             AutoPilot Agent
           </h1>
           <p className="text-muted-foreground text-lg">
-            Configure search criteria to let AI scan roles, optimize your resume, and draft tailored cover letters. **Submissions are gated inside the Review Queue for your safety.**
+            Configure search criteria to let AI scan roles, optimize your resume, and draft tailored cover letters. <strong className="font-semibold text-foreground">Submissions are gated inside the Review Queue for your safety.</strong>
           </p>
         </div>
 

@@ -459,11 +459,11 @@ const Dashboard = () => {
                       {credits ? (
                         <>
                           <p className="text-2xl font-extrabold tabular-nums text-foreground font-mono">
-                            {credits.balance}
+                            {credits.unlimited ? "Unlimited" : credits.balance}
                             <span className="text-sm font-normal text-muted-foreground ml-1.5">available</span>
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {credits.lifetime_used > 0 ? `${credits.lifetime_used} used · ${credits.lifetime_purchased} purchased lifetime` : "Buy a pack to start verified applications"}
+                            {credits.unlimited ? "Billing disabled for this deployment" : credits.lifetime_used > 0 ? `${credits.lifetime_used} used · ${credits.lifetime_purchased} purchased lifetime` : "Buy a pack to start verified applications"}
                           </p>
                         </>
                       ) : (
@@ -475,7 +475,7 @@ const Dashboard = () => {
                     </div>
                     <div className="shrink-0">
                       <Badge variant="outline" className="text-xs text-primary border-primary/30 bg-primary/5 group-hover:bg-primary/10">
-                        {!credits ? "Check Balance" : credits.balance === 0 ? "Buy Credits" : "Top Up"}
+                        {!credits ? "Check Balance" : credits.unlimited ? "Unmetered" : credits.balance === 0 ? "Buy Credits" : "Top Up"}
                       </Badge>
                     </div>
                   </CardContent>

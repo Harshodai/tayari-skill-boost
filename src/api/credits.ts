@@ -17,6 +17,10 @@ export interface CreditBalance {
   lifetime_purchased: number;
   lifetime_used: number;
   source: "gateway" | "cloud" | "unavailable";
+  // True when the gateway has billing disabled for this deployment — the
+  // numeric balance is a sentinel, not a real count, and must render as
+  // "Unlimited" rather than a literal number.
+  unlimited?: boolean;
 }
 
 export type LedgerType = "purchase" | "debit" | "refund" | "grant";
@@ -65,6 +69,7 @@ export async function getCreditBalance(): Promise<CreditBalance> {
       lifetime_purchased: toNumber(res?.lifetime_purchased),
       lifetime_used: toNumber(res?.lifetime_used),
       source: "gateway",
+      unlimited: res?.unlimited === true,
     };
   } catch {
     // Gateway absent (hosted preview) or degraded — read the Cloud mirror.
