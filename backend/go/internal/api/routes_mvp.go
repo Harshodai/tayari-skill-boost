@@ -283,6 +283,52 @@ func (s *Server) handleSaveJob(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{"saved_id": id, "status": "saved"})
 }
 
+// handleListSubmissionReceipts lists the caller's own verified/unverified
+// submission receipts. Pipeline.tsx and Outcomes.tsx already call
+// GET /v1/jobs/receipts and gracefully fall back to a direct Supabase query
+// (or an empty list) on any non-2xx — but that meant self-hosted deployments
+// (no Supabase path available) silently showed zero receipts forever, even
+// with real rows in submission_receipts, because this route never existed.
+func (s *Server) handleListSubmissionReceipts(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
+	if !ok || user == nil {
+		s.respondError(w, http.StatusUnauthorized, "User not found in context")
+		return
+	}
+	rows, err := s.DB.Conn.QueryContext(r.Context(), `
+		SELECT job_url, job_title, company, ats_vendor, submitted_at, verified,
+		       confirmation_number, confirmation_text, outcome, created_at
+		FROM submission_receipts WHERE user_id=$1 ORDER BY created_at DESC`, user.ID)
+	if err != nil {
+		slog.Error("handleListSubmissionReceipts: query failed", "error", err)
+		s.respondError(w, http.StatusInternalServerError, "Failed to fetch submission receipts")
+		return
+	}
+	defer rows.Close()
+	receipts := []map[string]interface{}{}
+	for rows.Next() {
+		var jobURL, jobTitle, company, atsVendor, confirmationNumber, confirmationText, outcome sql.NullString
+		var submittedAt sql.NullTime
+		var verified bool
+		var createdAt time.Time
+		if err := rows.Scan(&jobURL, &jobTitle, &company, &atsVendor, &submittedAt, &verified, &confirmationNumber, &confirmationText, &outcome, &createdAt); err != nil {
+			s.respondError(w, http.StatusInternalServerError, "Failed to scan submission receipt")
+			return
+		}
+		receipts = append(receipts, map[string]interface{}{
+			"job_url": jobURL.String, "job_title": jobTitle.String, "company": company.String,
+			"ats_vendor": atsVendor.String, "submitted_at": submittedAt.Time, "verified": verified,
+			"confirmation_number": confirmationNumber.String, "confirmation_text": confirmationText.String,
+			"outcome": outcome.String, "created_at": createdAt,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
+		return
+	}
+	s.respondJSON(w, http.StatusOK, receipts)
+}
+
 func (s *Server) handleListSavedJobs(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(contextKeyUser).(*models.User)
 	if !ok || user == nil {
@@ -2450,6 +2496,8 @@ func (s *Server) routesMVP(r chi.Router) {
 		r.Post("/api/jobs/save", s.handleSaveJob)
 		r.Get("/api/v1/jobs/saved", s.handleListSavedJobs)
 		r.Get("/api/jobs/saved", s.handleListSavedJobs)
+		r.Get("/api/v1/jobs/receipts", s.handleListSubmissionReceipts)
+		r.Get("/api/jobs/receipts", s.handleListSubmissionReceipts)
 		r.Delete("/api/v1/jobs/saved/{id}", s.handleDeleteSavedJob)
 		r.Delete("/api/jobs/saved/{id}", s.handleDeleteSavedJob)
 

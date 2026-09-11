@@ -5906,3 +5906,18 @@ Reworded the instruction to explicitly say the shown token is truncated/non-func
 
 ### Reusable lesson
 - **An illustrative code sample and a functional copy-paste instruction must never share the same block unless the sample is actually complete.** Truncating a secret for safe on-screen display is correct; leaving the surrounding instruction copy written as if it were literally actionable is not — the mismatch is invisible in code review (both pieces look reasonable in isolation) and only surfaces when someone actually follows the instructions as written.
+
+## 2026-09-11 — Self-hosted deployments could never see real submission receipts (missing GET route)
+
+### What was done
+Checked the remaining unswept pages (Pipeline, and by extension Outcomes.tsx which shares the same call). `GET /api/v1/jobs/receipts` returned a real 404 in the browser console. `Pipeline.tsx`/`Outcomes.tsx` both already handle this gracefully — the fetch is wrapped in try/catch that falls back to a direct Supabase query, or an empty array in self-hosted mode — so nothing crashed or showed an error to the user. But that graceful fallback meant the 404 was completely silent: self-hosted deployments (`USE_SELF_HOSTED`/no Supabase path) got a permanently empty receipts list with zero indication anything was missing, even with real rows sitting in `submission_receipts` (confirmed the table is real and actively used elsewhere in Go — account-erasure deletes from it, `agent_runs` checks for its existence).
+
+### Root cause
+The route was simply never implemented on the Go side — `submission_receipts` had a write/delete path but no owner-scoped list endpoint, only the Supabase-direct fallback query the frontend already had for hosted-Cloud deployments. Self-hosted mode has no Supabase path to fall back to, so this feature (proof of a real, verified submission — a core part of this project's own manual-submit safety design) silently didn't work at all for the deployment mode this repo is explicitly built to support.
+
+### Fix applied
+Added `handleListSubmissionReceipts` (`routes_mvp.go`), modeled on the existing `handleListSavedJobs` pattern — owner-scoped `SELECT ... WHERE user_id=$1`, no fabricated fields, `sql.NullString`/`sql.NullTime` for the receipt's genuinely-optional columns. Registered both `/api/v1/jobs/receipts` and `/api/jobs/receipts` per the project's route-parity convention. Verified live: previously 404, now returns `200 []` for an account with no receipts yet (correct — not fabricated data, a real empty result).
+
+### Reusable lesson
+- **A frontend's defensive fallback (try/catch → alternate data source → empty array) can fully hide a missing backend route from ever surfacing as a bug report**, because the user-visible symptom is just "no data yet," indistinguishable from genuinely having none. This is the right frontend behavior (never crash, never show a wall of red), but it means a missing self-hosted-mode endpoint can ship invisibly — the only way to catch it is watching actual network requests during a live walkthrough (a 404 in the console/network tab), not trusting that a clean-looking empty state means nothing is wrong.
+- **When a feature has two data paths (self-hosted Go vs. hosted-Cloud Supabase) and only one was ever implemented, grep the table name across the Go codebase before assuming the missing route is intentional** — `submission_receipts` already had write/delete usage elsewhere in Go, which was the tell that a list route was a real gap, not a deliberate Supabase-only feature.
