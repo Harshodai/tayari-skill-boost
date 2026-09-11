@@ -286,13 +286,14 @@ async def hybrid_prerank(jobs: list, profile: dict | None,
     return ranked, method
 
 
-async def rank_jobs(candidate: str, jobs: list, top_n: int = 12, query: str | None = None) -> list:
-    """Agent RANK step - one batched LLM call scoring all jobs."""
-    subset = jobs[:top_n * 2][:20]
-    if not subset:
-        return []
+_RANK_CHUNK_SIZE = 20
+_RANK_POOL_CEILING = 60  # bounds worst-case concurrent LLM calls per search
+
+
+async def _score_rank_chunk(candidate: str, chunk: list, query: str | None) -> list:
+    """Score one <=20-job chunk with a single LLM call. Mutates and returns `chunk`."""
     lines = []
-    for i, j in enumerate(subset):
+    for i, j in enumerate(chunk):
         lines.append(
             f"[{i}] {j['title']} @ {j['company']} | {j['location']} | "
             f"tags: {', '.join(j['tags'][:8])} | {j['description'][:280]}")
@@ -309,26 +310,52 @@ async def rank_jobs(candidate: str, jobs: list, top_n: int = 12, query: str | No
         scores = extract_json(raw)
     except Exception as exc:
         logger.error("Job ranking LLM failed: %s", exc)
-        # graceful degradation: return unranked jobs
-        for j in subset:
+        for j in chunk:
             j["match_score"] = None
             j["match_reason"] = "AI ranking unavailable"
             j["matched_skills"] = []
             j["missing_skills"] = []
-        return subset[:top_n]
+        return chunk
 
     by_index = {s.get("index"): s for s in scores if isinstance(s, dict)}
-    ranked = []
-    for i, j in enumerate(subset):
+    for i, j in enumerate(chunk):
         s = by_index.get(i, {})
         j["match_score"] = s.get("match_score")
         j["matched_skills"] = s.get("matched_skills", [])[:5]
         j["missing_skills"] = s.get("missing_skills", [])[:4]
         j["match_reason"] = s.get("reason", "")
+    return chunk
+
+
+async def rank_jobs(candidate: str, jobs: list, top_n: int = 12, query: str | None = None) -> list:
+    """Agent RANK step - LLM scoring, chunked at 20 jobs/call.
+
+    Previously this hardcoded `jobs[:top_n * 2][:20]` — a single LLM call
+    scoring at most 20 jobs no matter what `top_n` (the caller's actual
+    target, e.g. smart_search's `rank_target = max(top_n, cursor+limit, 40)`
+    for pagination headroom) asked for. Every search silently had at most 20
+    scored results regardless of how many were fetched/preranked, and
+    pagination's `next_cursor` could never advance past page 1 since the
+    scored pool never exceeded 20. Chunk the pool into <=20-job LLM calls
+    (run concurrently) so `top_n` is actually honored, capped by
+    _RANK_POOL_CEILING to bound worst-case LLM call count per search.
+    """
+    pool = jobs[: min(max(top_n * 2, top_n), _RANK_POOL_CEILING)]
+    if not pool:
+        return []
+
+    chunks = [pool[i:i + _RANK_CHUNK_SIZE] for i in range(0, len(pool), _RANK_CHUNK_SIZE)]
+    scored_chunks = await asyncio.gather(*(_score_rank_chunk(candidate, c, query) for c in chunks))
+    scored_pool = [j for chunk in scored_chunks for j in chunk]
+
+    ranked = []
+    for i, j in enumerate(scored_pool):
         # Hybrid rank fusion (research-backed): blend the LLM semantic score with
-        # the deterministic lexical pre-rank position. Guards against LLM scoring
-        # noise the same way RRF fuses lexical + vector retrieval.
-        lexical_pos_score = 100 * (1 - i / max(len(subset), 1))
+        # the deterministic lexical pre-rank position (i is the job's position
+        # in the full prerank pool, not just within its own chunk — otherwise
+        # every chunk after the first would get an inflated position score).
+        # Guards against LLM scoring noise the same way RRF fuses lexical + vector retrieval.
+        lexical_pos_score = 100 * (1 - i / max(len(scored_pool), 1))
         llm_score = j["match_score"] if j["match_score"] is not None else 50
         j["_fused"] = 0.75 * llm_score + 0.25 * lexical_pos_score
         ranked.append(j)
