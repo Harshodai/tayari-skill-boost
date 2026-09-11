@@ -5836,3 +5836,20 @@ Inserted the card's own full visible text (`textFrom(card)`, already computed el
 
 ### Reusable lesson
 - **A scraping fallback chain that ends at a page-level property (`document.title`, `location.href`) will silently look plausible while being systematically wrong for exactly the DOM shapes least likely to have a clean heading** — image-wrapped or icon-only permalink cards are common on LinkedIn/Instagram-style feeds, and a page-title fallback there doesn't error, it just quietly returns the same wrong string for every such card. Prefer the nearest real content block (even messy/unstructured) over a page-level fallback; reserve the page-level fallback for genuinely contentless cards.
+
+## 2026-09-11 — OmniSave reader UX improved + silent single-URL import failure now logged
+
+### What was done
+Two changes while ruthlessly checking OmniSave's UI:
+
+1. **Reader UX**: `Omnisave.tsx`'s "Open workspace" reading pane was capped at `max-h-[42vh]` with small `text-sm` type — cramped for actually reading a saved article, not just skimming metadata. Widened to `65vh`, bumped to `text-[15px] leading-8`, and added a "N min read / N words" badge (200wpm estimate, the same heuristic Medium and most reading apps use) both on the reader pane and on each library grid card, so read-time is visible before opening a source.
+2. **Silent import failure found via live testing**: importing a real, working public URL (`https://www.lennysnewsletter.com/p/...`) through "Save and enrich" failed with `{"error":"source_unavailable"}`, and `docker logs` showed nothing — not even the `except Exception` warning already in `extract_via_tayari_computer`. Root cause: `executor.browser.navigate()` returns `{"success": False, "error": ...}` on failure (a Playwright `Page.goto` timeout in this case) instead of raising — so the failure never reached the existing `except` block, and the function fell through to a silent `return None` with zero log output. Added an explicit log line for the `not res.get("success")` branch, confirmed live: the exact underlying error (`Page.goto: Timeout 20000ms exceeded`) now surfaces in logs instead of vanishing.
+
+The frontend's own error handling was verified correct in the same pass — `handleIngestUrl`'s `catch` does set a visible `role="alert"` banner ("This link could not be imported...") on any import failure; an earlier read of the page mid-request just caught it before the state update landed.
+
+### Root cause (import silent failure)
+A helper that "always either returns useful data or logs why it couldn't" quietly broke that contract the moment its own dependency (`navigate()`) switched from raising to returning a failure dict — the `except` block became dead code for that failure class, and nobody noticed because the caller degrades gracefully to a generic `source_unavailable` either way. The user-visible symptom (import fails) was correct and already handled; only the operator-visible diagnosis (why) was silently lost.
+
+### Reusable lesson
+- **A `try/except` written around a call that reports failure by return value, not exception, silently stops covering that failure once the callee's contract includes both success-with-data and success-with-failure-dict shapes.** Check what the wrapped call can actually return, not just what it can raise — an `if not result.get("success"): log + return` guard is needed alongside the `except`, not instead of it, whenever the callee mixes both failure-reporting conventions.
+- **"No error in the logs" is not evidence a request succeeded or that nothing is wrong** — it can mean the log call itself was unreachable. When a feature fails with a generic client-facing error and grepping logs turns up nothing at all (not even a warning), suspect a silent-return code path before assuming the request never reached the backend.

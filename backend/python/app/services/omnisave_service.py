@@ -678,6 +678,15 @@ class OmnisaveService:
                 return None
             async with TayariComputerSandboxExecutor() as executor:
                 res = await executor.browser.navigate(url_info["target_url"], headers=url_info["headers"])
+                if not res.get("success"):
+                    # ponytail: navigate() returns a {"success": False, "error": ...}
+                    # dict instead of raising, so this path never hit the except
+                    # block below — every real navigation failure (timeout, DNS,
+                    # bot wall) was silently returned as a bare None with zero log
+                    # line, making "why did this import fail" undiagnosable from
+                    # server logs alone.
+                    logger.warning("[Omnisave] Extraction navigation failed for %s: %s", target_url, res.get("error"))
+                    return None
                 if res.get("success") and executor.browser.page:
                     title = await executor.browser.page.title() or f"{platform.title()} Saved Item"
                     content_eval = await executor.browser.page.evaluate("""() => {
