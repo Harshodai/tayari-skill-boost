@@ -5892,3 +5892,17 @@ Dispatched a subagent to click through every major user flow live (Dashboard, Jo
 ### Reusable lesson
 - **Grep the exact bug pattern across the whole codebase the moment you find one instance** — the `**bold**` literal-asterisk bug existed in three unrelated files (AutoPilot, AgentPanel, InterviewPrep), each presumably written at different times by someone assuming a markdown renderer that was never there. A single `grep -rln '\*\*[A-Za-z].*\*\*' src/pages` after finding the first instance caught all three in one pass instead of three separate discoveries.
 - **An intentional "unlimited/unmetered" sentinel value (999999) is functionally correct but a truthful-product-behavior violation the moment it's rendered as a literal number without a flag distinguishing it from a real balance.** The fix isn't to remove the sentinel (the underlying behavior — skip billing gating when disabled — is right), it's to make the sentinel-ness travel through the API contract as an explicit boolean so every renderer can special-case it, rather than trusting every future display site to independently recognize "oh, 999999 must mean unlimited."
+
+## 2026-09-11 — Settings > Integrations manual config block told users to copy a broken token
+
+### What was done
+Checked the remaining untested Settings tabs (Preferences, Integrations) live. Preferences loads cleanly (Display, Data & Privacy, Standing Job Watches, Career Preferences — all correct empty states, no errors). Integrations surfaced a real instruction-vs-behavior mismatch: the "Manual Config Registration" section's instruction text says "append this block to your local `mcp.json` file," directly above a code block whose `JOBTHEORY_TOKEN` is deliberately truncated (`token.substring(0, 15) + "..."`, `IntegrationsSettings.tsx:252`) for on-screen display safety. A user following the literal instruction would paste a truncated, non-functional token and get a silently broken MCP integration with no error until they tried to use it.
+
+### Root cause
+The page already has the correct mechanism for this — "Download Config" (line 40-66) builds and downloads a real `mcp.json` with the full, working token — but the adjacent illustrative code block's copy said "append this block," implying it was also copy-pasteable, when it was only ever meant to show the shape of the config.
+
+### Fix applied
+Reworded the instruction to explicitly say the shown token is truncated/non-functional and point to "Download Config" for a working file. Kept the token truncated in the on-screen block (no new full-token clipboard/display surface added) — the fix is purely about not misleading the user about what the illustrative block is for, not exposing more of the token.
+
+### Reusable lesson
+- **An illustrative code sample and a functional copy-paste instruction must never share the same block unless the sample is actually complete.** Truncating a secret for safe on-screen display is correct; leaving the surrounding instruction copy written as if it were literally actionable is not — the mismatch is invisible in code review (both pieces look reasonable in isolation) and only surfaces when someone actually follows the instructions as written.

@@ -238,8 +238,9 @@ export const IntegrationsSettings: React.FC = () => {
           <div className="space-y-3">
             <h4 className="font-semibold text-foreground">Manual Config Registration</h4>
             <p className="text-sm text-muted-foreground">
-              To manually integrate Job Tayari with Claude Desktop or Cursor, append this block to your
-              local `mcp.json` file:
+              This shows the shape of the config block — the token below is truncated for display and
+              will not authenticate if pasted as-is. Use "Download Config" above for a ready-to-use
+              `mcp.json` with your real token, then edit the file path to match your local checkout.
             </p>
             <pre className="p-4 rounded-lg bg-zinc-950 text-zinc-200 font-mono text-xs overflow-x-auto border border-border">
 {`{
