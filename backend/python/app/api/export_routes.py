@@ -11,9 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
-from app.schemas import ExportRequest
 from app.auth.dependencies import get_current_user
-from app.export.json_exporter import JSONExporter
 from app.services import docx_builder
 from app.services.llm_service import LLMNotConfiguredError
 
@@ -28,20 +26,6 @@ def _get_llm_json():
         return getattr(main_mod, "llm_json")
     from app.services.llm_service import llm_json
     return llm_json
-
-
-@router.post("/api/v1/export/json")
-async def export_json(
-    payload: ExportRequest,
-    _user_id: str = Depends(get_current_user),
-):
-    """Export resume as JSON."""
-    try:
-        data = JSONExporter.export(payload.resume_json)
-        return {"data": data.decode("utf-8")}
-    except Exception as exc:
-        logger.error("export/json failed: %s", exc)
-        raise HTTPException(status_code=500, detail="JSON export failed") from exc
 
 
 class DocxExportRequest(BaseModel):

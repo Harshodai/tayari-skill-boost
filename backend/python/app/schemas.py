@@ -437,6 +437,13 @@ class InterviewPrepInput(BaseModel):
     resume_text: str = Field("", description="Candidate's resume text")
     job_title: str = Field(..., description="Target job title")
     company_name: Optional[str] = Field(None, description="Optional target company name")
+    # ponytail: this was missing entirely — InterviewPrepGenerator.generate()
+    # genuinely uses job_description for "technical"/"system-design" prep
+    # (passed to _technical/_system_design), and the frontend
+    # (InterviewPrep.tsx) already sends it, but Pydantic silently drops
+    # unknown fields by default, so it was always None server-side. Technical
+    # and system-design interview prep was never actually JD-tailored.
+    job_description: Optional[str] = Field(None, description="Optional target job description for JD-tailored prep")
     interview_type: Literal["behavioral", "technical", "system-design"] = Field(
         "behavioral", description="Type: 'behavioral', 'technical', or 'system-design'"
     )

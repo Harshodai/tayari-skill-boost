@@ -89,7 +89,7 @@ def test_offer_calculator():
 @pytest.mark.asyncio
 async def test_typst_compile_endpoint_base64_encoding(monkeypatch):
     import base64
-    from app.main import typst_compile_endpoint
+    from app.api.export_routes import typst_compile_endpoint
 
     mock_pdf_bytes = b"%PDF-1.4 mock pdf binary header and content"
     monkeypatch.setattr("app.export.typst_exporter.compile_typst_to_pdf", lambda code: mock_pdf_bytes)
@@ -109,7 +109,7 @@ async def test_typst_compile_endpoint_base64_encoding(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_typst_compile_endpoint_empty_bytes_fallback(monkeypatch):
-    from app.main import typst_compile_endpoint
+    from app.api.export_routes import typst_compile_endpoint
 
     # Test empty bytes payload
     monkeypatch.setattr("app.export.typst_exporter.compile_typst_to_pdf", lambda code: b"")

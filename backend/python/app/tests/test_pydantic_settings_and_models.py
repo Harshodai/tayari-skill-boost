@@ -14,10 +14,6 @@ from app.main import (
     AgentReachExtractRequest,
     AgentReachSearchRequest,
     AgentReachTranscribeRequest,
-    CandidateBankMatchRequest,
-    ATSDetectRequest,
-    TruthCheckRequest,
-    RecruiterLookupRequest,
 )
 
 
@@ -98,24 +94,15 @@ def test_endpoint_models_instantiation():
     transcribe_req = AgentReachTranscribeRequest(url="https://example.com/audio.mp3")
     assert transcribe_req.provider == "auto"
 
-    # 7. CandidateBankMatchRequest
-    bank_req = CandidateBankMatchRequest(question_text="Years of experience?")
-    assert bank_req.question_text == "Years of experience?"
-    assert bank_req.custom_qa == {}
-
-    # 8. ATSDetectRequest
-    detect_req = ATSDetectRequest(url="https://boards.greenhouse.io/test/jobs/1")
-    assert detect_req.url == "https://boards.greenhouse.io/test/jobs/1"
-
-    # 9. TruthCheckRequest
-    truth_req = TruthCheckRequest(original_text="Master resume", optimized_text="Tailored resume")
-    assert truth_req.original_text == "Master resume"
-
-    # 10. RecruiterLookupRequest
-    lookup_req = RecruiterLookupRequest(company_name="Google", job_title="Tech Lead")
-    assert lookup_req.company_name == "Google"
-    assert lookup_req.job_title == "Tech Lead"
-    assert lookup_req.user_name == "Candidate"
+    # ponytail: CandidateBankMatchRequest/ATSDetectRequest/TruthCheckRequest/
+    # RecruiterLookupRequest used to be tested here as standalone Pydantic
+    # models. They were main.py's own dead duplicate route definitions,
+    # shadowed by ai_routes.py's (registered first via include_router) —
+    # found and removed by test_no_duplicate_routes.py. The live handlers
+    # for these paths take a plain `payload: dict`, not a named model, so
+    # there's no equivalent class to unit-test anymore; the real behavior
+    # (including for these four paths) is already covered end-to-end by
+    # test_endpoints_via_testclient below, which hits the actual live routes.
 
 
 def test_endpoints_via_testclient(internal_auth_headers):

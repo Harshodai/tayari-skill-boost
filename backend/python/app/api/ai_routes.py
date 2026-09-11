@@ -622,6 +622,7 @@ async def generate_interview_prep_endpoint(payload: InterviewPrepInput, user_id:
             resume_text=payload.resume_text,
             job_title=payload.job_title,
             company_name=payload.company_name,
+            job_description=payload.job_description,
             interview_type=payload.interview_type,
         )
         provenance = await _capture_ai_output(
@@ -733,19 +734,32 @@ async def live_copilot_endpoint(payload: LiveCopilotRequest):
 
 
 @router.post("/api/v1/one-shot/execute")
-async def execute_one_shot_endpoint(payload: dict):
+async def execute_one_shot_endpoint(payload: dict, user_id: str = Depends(get_current_user)):
     """Execute complete 6-stage one-shot application pipeline."""
     from app.services.one_shot_engine import OneShotRequest, execute_one_shot_pipeline
     try:
+        # ponytail: execute_one_shot_pipeline falls back to req.user_id
+        # (client-supplied, from the request body) whenever the explicit
+        # user_id kwarg is omitted, and only rejects "default_user" — this
+        # handler used to omit the kwarg entirely, so the pipeline ran under
+        # whatever user_id the client put in the JSON body, not the
+        # server-verified identity. A real cross-tenant impersonation vector
+        # for an autonomous application-submission pipeline. Overwrite
+        # payload["user_id"] with the authenticated identity before parsing,
+        # rather than trusting anything the client sent for this field.
+        payload = {**payload, "user_id": user_id}
         req = OneShotRequest(**payload)
-        res = await execute_one_shot_pipeline(req)
+        res = await execute_one_shot_pipeline(req, user_id=user_id)
         return res
     except LLMNotConfiguredError as exc:
         logger.error("one-shot/execute: LLM not configured: %s", exc)
         return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
     except Exception as exc:
+        from app.services.answer_bank_store import AnswerBankStoreUnavailable
+        if isinstance(exc, AnswerBankStoreUnavailable):
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         logger.error("one-shot/execute failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="One-shot pipeline execution failed") from exc
 
 
 class VerificationRequest(BaseModel):

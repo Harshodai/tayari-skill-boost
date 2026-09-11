@@ -10,69 +10,24 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.auth.dependencies import get_current_user
-from app.services.communication import CommunicationGenerator
-from app.services.interview_ai import InterviewPrepGenerator
-from app.services.llm_service import LLMNotConfiguredError, interview_questions as _interview_questions_fn
+from app.services.llm_service import interview_questions as _interview_questions_fn
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Interview & Communication"], dependencies=[Depends(get_current_user)])
 
-
-class CommunicationRequest(BaseModel):
-    comm_type: str
-    resume_text: str
-    job_title: str
-    company_name: str
-    recipient_name: Optional[str] = None
-    discussion_points: Optional[list[str]] = None
-    offer_details: Optional[dict] = None
-    days_since: int = 3
-
-
-@router.post("/api/v1/communication/generate")
-async def communication_generate(payload: CommunicationRequest):
-    """Generate AI communication (follow-up, thank-you, negotiation, status-check)."""
-    try:
-        result = await CommunicationGenerator.generate(
-            comm_type=payload.comm_type,
-            resume_text=payload.resume_text,
-            job_title=payload.job_title,
-            company_name=payload.company_name,
-            recipient_name=payload.recipient_name,
-            discussion_points=payload.discussion_points,
-            offer_details=payload.offer_details,
-            days_since=payload.days_since,
-        )
-        return result
-    except Exception as exc:
-        logger.error("communication/generate failed: %s", exc)
-        raise HTTPException(status_code=502, detail="Communication generation failed") from exc
-
-
-class InterviewPrepRequest(BaseModel):
-    resume_text: str
-    job_title: str
-    company_name: Optional[str] = None
-    job_description: Optional[str] = None
-    interview_type: str = "behavioral"
-
-
-@router.post("/api/v1/interview/prep")
-async def interview_prep(payload: InterviewPrepRequest):
-    """Generate resume-aware interview preparation materials."""
-    try:
-        result = await InterviewPrepGenerator.generate(
-            resume_text=payload.resume_text,
-            job_title=payload.job_title,
-            company_name=payload.company_name,
-            job_description=payload.job_description,
-            interview_type=payload.interview_type,
-        )
-        return result
-    except Exception as exc:
-        logger.error("interview/prep failed: %s", exc)
-        raise HTTPException(status_code=502, detail="Interview prep failed") from exc
+# ponytail: this file used to also define communication_generate,
+# interview_prep, offer_calculate_endpoint, and live_copilot_endpoint at
+# /communication/generate, /interview/prep, /offer/calculate, and
+# /interview/copilot — all four collided with duplicate registrations in
+# ai_routes.py, which is include_router'd first in main.py, so all four were
+# dead code here (found by the Python route-collision test). interview_prep's
+# dead version actually had the one real bug: its InterviewPrepRequest had a
+# job_description field that ai_routes.py's live InterviewPrepInput schema
+# was missing entirely (fixed directly in schemas.py + ai_routes.py instead
+# of reviving this copy). Removed all four; /interview/copilot/stream,
+# /negotiation/generate, and /applications/interview-questions below are
+# real, non-colliding routes and stay.
 
 
 class InterviewQuestionsRequest(BaseModel):
@@ -145,27 +100,6 @@ async def negotiation_endpoint(payload: NegotiationRequest):
     except Exception as exc:
         logger.error("negotiation failed: %s", exc)
         raise HTTPException(status_code=500, detail="Negotiation strategy generation failed.") from exc
-
-
-@router.post("/api/v1/offer/calculate")
-async def offer_calculate_endpoint(payload: dict):
-    """Calculate annualized NPV total compensation and COL-adjusted purchasing power."""
-    from app.services.offer_calculator import JobOfferInput, calculate_offer_comp
-    offer_input = JobOfferInput(**payload)
-    res = calculate_offer_comp(offer_input)
-    return res
-
-
-@router.post("/api/v1/interview/copilot")
-async def live_copilot_endpoint(payload: dict):
-    """Generate instant bulleted STAR framework hints and metrics for live interviewer questions."""
-    from app.services.live_interview_copilot import LiveCopilotRequest, generate_live_copilot_hints
-    req = LiveCopilotRequest(**payload)
-    try:
-        return await generate_live_copilot_hints(req)
-    except LLMNotConfiguredError as exc:
-        logger.error("interview/copilot: LLM not configured: %s", exc)
-        raise HTTPException(status_code=503, detail="ai_service_unavailable") from exc
 
 
 @router.post("/api/v1/interview/copilot/stream")

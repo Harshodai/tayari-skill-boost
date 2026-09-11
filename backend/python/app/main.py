@@ -72,7 +72,6 @@ from app.schemas import (
     ExportRequest,
     ExportResponse,
 )
-from app.parsers.document_parser import ResumeParser, ParsedResume
 from app.analysis.similarity import KeywordAnalyzer
 from app.analysis.ngram_analyzer import NGramAnalyzer
 from app.scoring.ats_scorer import ATSScorer
@@ -80,7 +79,7 @@ from app.extraction.entity_extractor import EntityExtractor, KeywordInjector
 from app.ai_proofing.detector import AIProofingDetector
 from app.llm.strategic_analyzer import StrategicAnalyzer
 from app.export.json_exporter import JSONExporter
-from app.services import ats_engine, optimizer, job_agent, docx_builder, automation_engine
+from app.services import ats_engine, job_agent, docx_builder, automation_engine
 try:
     import sentry_sdk
     from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -101,7 +100,6 @@ from app.guardrails import PipelineGate
 from app.telemetry import stage_complete, stage_fail
 from app.telemetry.product_events import ProductEventError, record_product_event
 from app.services.llm_service import active_engine, llm_complete, llm_json, LLMNotConfiguredError
-from app.services.one_shot_engine import OneShotRequest
 from app.services.communication import CommunicationGenerator
 from app.services.interview_ai import InterviewPrepGenerator
 from app.services.knowledge_graph import KnowledgeGraphExtractor
@@ -288,33 +286,7 @@ from app.celery_app import format_prometheus_metrics
 def prometheus_metrics():
     return Response(content=format_prometheus_metrics(), media_type="text/plain")
 
-from app.api.strategic_routes import (
-    router as strategic_router,
-    StrategicInjectRequest,
-    strategic_analyze,
-    strategic_entities,
-    strategic_inject,
-    ai_proof,
-)
-from app.api.export_routes import (
-    router as export_router,
-    DocxExportRequest,
-    TypstExportRequest,
-    GenerateResumePdfRequest,
-    OptimizedProfileExperience,
-    OptimizedProfileEducation,
-    OptimizedProfile,
-    _UI_TEMPLATE_MAP,
-    _TEMPLATE_FALLBACK,
-    _resolve_template,
-    _format_dates,
-    _map_profile_keys,
-    export_json,
-    export_docx,
-    export_typst_pdf_endpoint,
-    generate_resume_pdf_endpoint,
-    typst_compile_endpoint,
-)
+from app.api.export_routes import router as export_router
 from app.api.browser_agent_routes import (
     router as browser_agent_router,
     BROWSER_RUN_TIMEOUT_SECONDS,
@@ -341,22 +313,10 @@ from app.api.privacy_lifecycle_routes import (
 )
 from app.api.interview_coach_routes import (
     router as interview_coach_router,
-    CommunicationRequest,
-    communication_generate,
-    InterviewPrepRequest,
-    interview_prep,
-    InterviewQuestionsRequest,
-    generate_interview_questions,
     VoiceFeedbackRequest,
     process_voice_feedback,
-    NegotiationRequest,
-    negotiation_endpoint,
-    offer_calculate_endpoint,
-    live_copilot_endpoint,
-    live_copilot_stream_endpoint,
 )
 
-app.include_router(strategic_router)
 app.include_router(export_router)
 app.include_router(browser_agent_router)
 app.include_router(privacy_lifecycle_router)
@@ -381,84 +341,6 @@ async def voice_feedback_endpoint(
 # ---------------------------------------------------------------------------
 # Optimizer, Deep ATS, Job Search, Auto-Pilot
 # ---------------------------------------------------------------------------
-
-
-@app.post("/api/v1/optimize/stream")
-async def optimize_resume_stream(
-    resume_file: Optional[UploadFile] = File(None),
-    resume_text: Optional[str] = Form(None),
-    job_description: Optional[str] = Form(None),
-    target_role: Optional[str] = Form(None),
-    custom_instructions: Optional[str] = Form(None),
-):
-    """Stream resume optimization results as Server-Sent Events."""
-    import json as _json
-
-    # Parse resume
-    if resume_file:
-        data = await resume_file.read()
-        parsed = ResumeParser.parse_file(data, resume_file.filename or "resume.pdf")
-        resume_text = parsed.raw_text or ""
-    elif not resume_text:
-        raise HTTPException(400, "Provide resume_text or resume_file")
-    
-    async def event_generator():
-        try:
-            # Yield start event
-            yield f"data: {_json.dumps({'type': 'status', 'message': 'Analyzing resume...'})}\n\n"
-            
-            # Phase 1: Parse and extract
-            yield f"data: {_json.dumps({'type': 'status', 'message': 'Extracting key information...'})}\n\n"
-            
-            # Phase 2: First pass optimization
-            yield f"data: {_json.dumps({'type': 'status', 'message': 'Generating optimized version...'})}\n\n"
-            
-            result = await optimizer.optimize_with_reflection(
-                resume_text=resume_text,
-                job_description=job_description,
-                target_role=target_role,
-                custom_instructions=custom_instructions,
-            )
-            
-            # Stream the optimized text in chunks
-            text = result["optimized_text"]
-            chunk_size = 100
-            for i in range(0, len(text), chunk_size):
-                chunk = text[i:i + chunk_size]
-                yield f"data: {_json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
-                await asyncio.sleep(0.01)
-            
-            # Yield metadata
-            meta_payload = {
-                'type': 'meta',
-                'payload': {
-                    'changes': result.get('changes', []),
-                    'keywords_added': result.get('keywords_added', []),
-                    'estimated_score': result.get('estimated_score'),
-                    'refinement_passes': result.get('refinement_passes', 1),
-                },
-            }
-            yield f"data: {_json.dumps(meta_payload)}\n\n"
-            
-            yield "data: [DONE]\n\n"
-
-        except LLMNotConfiguredError as e:
-            logger.error("Streaming optimization: LLM not configured/available: %s", e)
-            yield f"data: {_json.dumps({'type': 'error', 'error': 'ai_service_unavailable', 'message': 'LLM not configured'})}\n\n"
-        except Exception as e:
-            logger.error("Streaming optimization failed: %s", e)
-            # ponytail: generic message to client; full detail stays server-side via logger.error above
-            yield f"data: {_json.dumps({'type': 'error', 'message': 'Optimization failed'})}\n\n"
-    
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # Disable nginx buffering
-        }
-    )
 
 
 class DeepATSRequest(BaseModel):
@@ -626,21 +508,6 @@ async def linkedin_analyze(payload: LinkedInAnalyzeRequest):
     except Exception as exc:
         logger.error("linkedin/analyze failed: %s", exc)
         raise HTTPException(status_code=502, detail="LinkedIn analysis failed") from exc
-
-
-class KnowledgeGraphRequest(BaseModel):
-    resume_text: str
-
-
-@app.post("/api/v1/resume/knowledge-graph")
-async def resume_knowledge_graph(payload: KnowledgeGraphRequest):
-    """Extract structured knowledge graph from resume text."""
-    try:
-        result = await KnowledgeGraphExtractor.extract(payload.resume_text)
-        return result
-    except Exception as exc:
-        logger.error("resume/knowledge-graph failed: %s", exc)
-        raise HTTPException(status_code=502, detail="Knowledge graph extraction failed") from exc
 
 
 class ProfileImportRequest(BaseModel):
@@ -1194,25 +1061,6 @@ async def agent_question_update_endpoint(
     return updated
 
 
-@app.post("/api/v1/one-shot/execute")
-@app.post("/api/one-shot/execute")
-async def one_shot_execute_endpoint(
-    payload: OneShotRequest,
-    _user_id: str = Depends(get_current_user),
-):
-    """Execute the complete 6-stage one-shot jobseeker application pipeline."""
-    from app.services.one_shot_engine import execute_one_shot_pipeline
-    try:
-        res = await execute_one_shot_pipeline(payload, user_id=_user_id)
-        return res.dict()
-    except Exception as exc:
-        from app.services.answer_bank_store import AnswerBankStoreUnavailable
-        if isinstance(exc, AnswerBankStoreUnavailable):
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        logger.error("one-shot pipeline execution failed: %s", exc)
-        raise HTTPException(status_code=500, detail="One-shot pipeline execution failed") from exc
-
-
 class ATSSimulateRequest(BaseModel):
     resume_text: str = Field(..., description="Plain-text resume to simulate ATS parsing on")
     job_description: Optional[str] = Field("", description="Optional target job description")
@@ -1395,80 +1243,6 @@ async def agent_reach_cookies_endpoint():
     """Inspect local system browser cookie availability."""
     from app.services.agent_reach import extract_browser_cookies
     return {"browsers": extract_browser_cookies()}
-
-
-class CandidateBankMatchRequest(BaseModel):
-    question_text: str = Field("", description="Form question or label text to match against the answer bank")
-    application_id: Optional[str] = Field(None, description="Optional application ID context")
-    custom_qa: dict = Field(default_factory=dict, description="Custom Q&A overrides")
-
-
-@app.post("/api/v1/candidate-bank/match")
-async def match_candidate_bank_endpoint(
-    payload: CandidateBankMatchRequest,
-    user_id: str = Depends(get_current_user),
-):
-    """Match an ATS form label against the caller's persisted answer bank."""
-    from app.services.answer_bank_store import (
-        AnswerBankStoreUnavailable,
-        load_candidate_answer_snapshot,
-    )
-    from app.services.candidate_answer_bank import CandidateAnswers, match_question_to_answer
-
-    question = payload.question_text
-    application_id = payload.application_id
-    custom_qa = payload.custom_qa
-    try:
-        snapshot = await load_candidate_answer_snapshot(user_id, application_id=application_id)
-    except AnswerBankStoreUnavailable as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    bank = CandidateAnswers(**snapshot.answers, custom_qa=custom_qa)
-    return match_question_to_answer(question, bank)
-
-
-class ATSDetectRequest(BaseModel):
-    url: str = Field("", description="Job posting or application URL")
-    html_snippet: str = Field("", description="Optional HTML snippet of application form")
-
-
-@app.post("/api/v1/ats/detect")
-async def detect_ats_endpoint(payload: ATSDetectRequest):
-    """Detect ATS vendor from job post URL or HTML snippet and return tailored formatting rules."""
-    from app.services.ats_detector import detect_ats_from_url
-    return detect_ats_from_url(payload.url, payload.html_snippet)
-
-
-class TruthCheckRequest(BaseModel):
-    original_text: str = Field("", description="Original master resume text")
-    optimized_text: str = Field("", description="Optimized or tailored resume text")
-
-
-@app.post("/api/v1/guardrails/truth-check")
-async def truth_check_endpoint(payload: TruthCheckRequest):
-    """Verify optimized resume against master profile to flag hallucinated titles or metrics."""
-    from app.guardrails.truth_gate import verify_resume_truthfulness
-    return verify_resume_truthfulness(payload.original_text, payload.optimized_text)
-
-
-class RecruiterLookupRequest(BaseModel):
-    company_name: str = Field("Target Company", description="Target company name")
-    job_title: str = Field("Software Engineer", description="Target job title")
-    hiring_manager_name: Optional[str] = Field(None, description="Hiring manager or team lead name if known")
-    user_name: str = Field("Candidate", description="Applicant name")
-    user_skills: list[str] = Field(default_factory=list, description="Applicant skills list")
-
-
-@app.post("/api/v1/recruiter/lookup")
-async def recruiter_lookup_endpoint(payload: RecruiterLookupRequest):
-    """Generate recruiter email candidates, pattern heuristics, and warm referral intro templates."""
-    from app.services.recruiter_intelligence import generate_recruiter_intelligence
-    return generate_recruiter_intelligence(
-        payload.company_name,
-        payload.job_title,
-        payload.hiring_manager_name,
-        payload.user_name,
-        payload.user_skills,
-    )
 
 
 class InternalRuntimePurgeRequest(BaseModel):

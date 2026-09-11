@@ -9,7 +9,7 @@ pytest.importorskip("pydantic")
 
 from fastapi import HTTPException
 
-from app.main import (
+from app.api.export_routes import (
     GenerateResumePdfRequest,
     OptimizedProfile,
     _UI_TEMPLATE_MAP,
