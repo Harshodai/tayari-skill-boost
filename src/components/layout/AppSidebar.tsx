@@ -91,7 +91,6 @@ const moreGroups = (): Group[] => [
       { title: "Skill gaps", url: "/skill-gap-radar", icon: Target, enabled: true, status: "ready" },
       { title: "Career roadmap", url: "/roadmap", icon: Map, enabled: features.careerRoadmap, status: "ready" },
       { title: "Career radar", url: "/career-ops", icon: Terminal, enabled: features.careerOps, status: "ready" },
-      { title: "Knowledge hub", url: "/knowledge-hub", icon: BookOpen, enabled: features.knowledgeHub, status: "ready" },
       { title: "Outcomes", url: "/outcomes", icon: TrendingUp, enabled: true, status: "ready" },
       { title: "Funnel analytics", url: "/analytics-funnel", icon: BarChart3, enabled: true, status: "ready" },
       { title: "Portfolio", url: "/portfolio", icon: Globe, enabled: true, status: "ready" },

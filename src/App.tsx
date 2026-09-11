@@ -58,7 +58,6 @@ const Profile = lazy(() => import('./pages/Profile'));
 const CoverLetter = lazy(() => import('./pages/CoverLetter'));
 const CommunicationHub = lazy(() => import('./pages/CommunicationHub'));
 const InterviewPrep = lazy(() => import('./pages/InterviewPrep'));
-const KnowledgeHub = lazy(() => import('./pages/KnowledgeHub'));
 const ExtensionOnboarding = lazy(() => import('./pages/ExtensionOnboarding'));
 const ReviewQueue = lazy(() => import('./pages/ReviewQueue'));
 const PredictiveAnalytics = lazy(() => import('./pages/PredictiveAnalytics'));
@@ -362,14 +361,16 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/knowledge-hub"
-                element={
-                  <ProtectedRoute>
-                    <KnowledgeHub />
-                  </ProtectedRoute>
-                }
-              />
+              {/* ponytail: Knowledge Hub and OmniSave are the same feature —
+                  same backend (/v1/saves, /v1/saves/import; see dashboard.ts's
+                  own comments), same "save a link, AI tags/summarizes it"
+                  purpose. KnowledgeHub.tsx was a simpler, partially-broken
+                  duplicate frontend (its "note" field is captured in form
+                  state but never sent to the backend) left behind while
+                  OmniSave was built out with the extension, career graph,
+                  and CDC sync this session verified end-to-end. Redirecting
+                  rather than 404ing keeps old bookmarks/links working. */}
+              <Route path="/knowledge-hub" element={<Navigate to="/omnisave" replace />} />
               <Route path="/resume" element={<ResumeUpload />} />
               <Route
                 path="/resume/results"

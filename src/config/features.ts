@@ -102,7 +102,9 @@ const CONFIG = {
     { label: "Answer Bank", href: "/answer-bank", feature: "candidateAnswerBank" },
     { label: "Resume Optimizer", href: "/resume", feature: "resumeOptimizer" },
     { label: "Career Roadmap", href: "/roadmap", feature: "careerRoadmap" },
-    { label: "Knowledge Hub", href: "/knowledge-hub", feature: "knowledgeHub" },
+    // ponytail: was "Knowledge Hub" / "/knowledge-hub" — merged into OmniSave
+    // (same backend, same purpose; /knowledge-hub now redirects here).
+    { label: "OmniSave", href: "/omnisave", feature: "knowledgeHub" },
 
     { label: "Job Search", href: "/jobs", feature: "jobSearch" },
     { label: "AutoPilot", href: "/jobs/autopilot", feature: "jobSearch" },
