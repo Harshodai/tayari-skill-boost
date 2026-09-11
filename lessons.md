@@ -6140,3 +6140,14 @@ Fixed: every fallback now states the absence of data honestly ("No AI-generated 
 
 ### Reusable lesson
 - **A fallback string for missing data is a truth claim, same as the primary value.** `"...verified against..."` / `"...detected"` / `"well-calibrated"` as a *fallback*, shown specifically when there's nothing to verify/detect/calibrate, is exactly the fabricated-confidence pattern this project's own truthful-behavior rule bans — just harder to spot because it hides behind a `||` default instead of a literal placeholder value. Grep for `|| "<confident-sounding sentence>"` patterns feeding into any card described to the user as "verified"/"AI-analyzed"/"detected".
+
+## 2026-09-12 — Notification Settings' 3 of 4 toggles claimed email delivery that doesn't exist
+
+### What was done
+Traced Settings > Notifications' four toggles end to end. `weeklyDigest` is real — it calls `toggleHermesDigest()`, a genuine scheduled-scan feature. The other three (`emailUpdates`, `applicationAlerts`, `marketingEmails`) write only to `localStorage['tayari_notification_preferences']`; grepped the entire backend for those exact keys — zero matches. The live in-app notification path (`notify_user()` in `backend/python/app/services/notifications.py`, called from `app/tasks/automation.py`) writes `in_app` rows unconditionally and never sends email regardless of any preference. The one function shaped to honor an email preference, `process_notification_event()` (checks `email_per_event`, calls `send_email_notification()`), has zero callers anywhere in the codebase — dead code. Net effect: toggling "Email Updates" or "Application Alerts" off does nothing, because nothing was ever reading them to decide whether to send anything, and no code path currently sends resume/application email at all.
+
+Fixed the copy for all three non-wired toggles and the save-toast fallback to say plainly that it's a local preference and that email delivery for that category isn't built yet, instead of implying real delivery ("Receive updates...", "Get notified...", "Your notification settings have been updated").
+
+### Reusable lesson
+- **A settings toggle whose label is a verb ("Receive", "Get notified") is a promise about backend behavior, not just a UI switch** — verify by grepping the backend for the exact preference key before trusting the copy. Here, three toggles read cleanly in the UI, wrote successfully to storage, and toasted a success message, yet had zero effect on anything, because the promise was about a system that was never built. A UI that "works" (no errors, persists, confirms) can still be lying about what it does.
+- **A function that looks like the real integration point (`process_notification_event`, correctly checks quiet hours, dedup, per-event email) can be entirely dead code if nothing calls it** — always check callers, not just plausibility, before trusting that a preference-consuming function is on the live path.

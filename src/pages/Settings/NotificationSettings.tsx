@@ -80,21 +80,30 @@ export const NotificationSettings: React.FC = () => {
       title: "Notification Preferences Saved",
       description: notifications.weeklyDigest
         ? "Weekly Hermes Job Digest is active. You will receive scanned ATS matches every Tuesday."
-        : "Your notification settings have been updated.",
+        : "Preferences saved locally. Email delivery for these categories isn't built yet.",
     });
   };
 
+  // ponytail: only weeklyDigest is wired to a real backend feature
+  // (toggleHermesDigest, a genuine scheduled scan). The other three keys
+  // are stored in localStorage only — no backend code anywhere reads
+  // emailUpdates/applicationAlerts/marketingEmails, and the app's live
+  // notification path (notify_user in notifications.py) writes in-app
+  // rows unconditionally and never sends email; the one function that
+  // would honor an email preference (process_notification_event) has zero
+  // callers. Copy below is worded to not promise email delivery this app
+  // doesn't currently perform for these categories.
   const notificationItems = [
     {
       key: "emailUpdates" as const,
       label: "Email Updates",
-      description: "Receive updates about your resume analysis",
+      description: "Saved as a local preference. Email delivery for resume-analysis updates is not yet built — activity currently only appears in-app.",
       icon: Mail,
     },
     {
       key: "applicationAlerts" as const,
       label: "Application Alerts",
-      description: "Get notified when there's activity on your applications",
+      description: "Saved as a local preference. Email delivery for application activity is not yet built — alerts currently only appear in-app.",
       icon: Bell,
     },
     {
@@ -106,7 +115,7 @@ export const NotificationSettings: React.FC = () => {
     {
       key: "marketingEmails" as const,
       label: "Marketing Emails",
-      description: "Receive tips, news, and special offers",
+      description: "Saved as a local preference. This product does not currently send marketing email.",
       icon: Smartphone,
     },
   ];
