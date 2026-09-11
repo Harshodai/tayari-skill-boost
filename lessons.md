@@ -5961,3 +5961,18 @@ Re-ran the exact same `run_browser_agent` end-to-end test with memory freed: **`
 
 ### Reusable lesson
 - **Before concluding an intermittent infra failure (timeout, OOM, slow launch) is "just how this environment is," check what else is running on the shared host.** `docker ps -a` across *all* projects, not just the one being worked on, would have caught this immediately — a single unrelated project's backend was quietly using more memory than this entire repo's stack combined. The fix was `docker stop`, not a code change or a timeout bump.
+
+## 2026-09-11 — Real end-to-end AutoPilot test against a live employer's application (no submit)
+
+### What was done
+Ran the restored AutoPilot submission engine against a real, live, currently-open job application — Airbnb's "Senior Staff Software Engineer, Guest & Host" posting (`careers.airbnb.com/positions/8017277?gh_jid=8017277`), found via the app's own real job search (`POST /v1/jobs/search`, not a synthetic fixture). Called `run_browser_agent` directly with `allow_submission=False` and placeholder (not real personal) test data, instructed to fill visible fields and explicitly not submit.
+
+**Result: full success.** The agent navigated the real page, clicked the real "Application" tab, correctly identified and reported that the form lives inside an iframe (Airbnb embeds Greenhouse the same way Stripe does — the exact pattern fixed in `BrowserOperator` earlier this session, now confirmed working in the separate `browser-use`-backed engine too), filled the First Name / Last Name / Email fields with the supplied test values, and stopped cleanly without attempting Submit or any file upload. Session torn down cleanly, no errors.
+
+### What this confirms
+- The two fixes from the prior entries (browser-use install, `use_vision=False`) are correct and the engine is genuinely functional, not just import-clean.
+- The memory-pressure diagnosis was right — with `mukthiguru-*` stopped, `run_browser_agent` works reliably against a real, uncontrolled, live third-party site, not just the earlier example.com sanity check.
+- The manual-submit-only safety contract held end-to-end: `allow_submission=False` meant the agent never attempted a submit action, and the code-level guard in `_guard_untrusted_actions` (which raises `PromptInjectionBlocked` on any submit-labeled action when `allow_submission=False`) stood ready regardless. `AUTONOMOUS_SUBMIT_ENABLED` remains unset/false in this environment, so even the `apply_job` path with `allow_submission=True` would be rejected by `verify_guard` before ever reaching the browser.
+
+### Reusable lesson
+- **The right way to test a safety-critical automation path against the real world is to run the real mechanics (navigate, observe, fill) against a real, live, uncontrolled target, while relying on the system's own enforced guard (not just "I won't ask it to") to make the unsafe action structurally impossible.** This is a stronger verification than a synthetic fixture (proves the engine handles real-world DOM/iframe complexity) and stronger than trusting instructions alone (proves the guard, not just the prompt, is what prevented submission).
