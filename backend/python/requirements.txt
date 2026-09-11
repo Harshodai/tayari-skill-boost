@@ -39,11 +39,16 @@ apify-client==1.8.0
 slowapi==0.1.9
 playwright==1.49.1
 instructor==1.3.3
+browser-use==0.13.10
 
-# Optional browser-use and Crawl4AI packages are intentionally not part of the
-# core image. Their current dependency trees introduce unresolved/high-risk
-# transitive advisories. Browser automation fails closed when browser-use is
-# absent, while Crawl4AI is disabled unless ENABLE_CRAWL4AI is explicitly set.
+# Crawl4AI is intentionally not part of the core image (disabled unless
+# ENABLE_CRAWL4AI is explicitly set). browser-use was previously excluded
+# here for the same "unresolved/high-risk transitive advisories" reason —
+# see lessons.md 2026-09-11 for the tradeoff writeup: automation_engine.py's
+# real AutoPilot submission path (browser_library.py -> browser_automation
+# -> run_browser_agent) hard-depends on it and was failing closed on every
+# attempt with no install present. Re-added by explicit decision to restore
+# submission automation; run `pip-audit` after any version bump here.
 
 # OpenTelemetry distributed tracing
 opentelemetry-api>=1.20.0

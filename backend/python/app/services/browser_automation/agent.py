@@ -398,10 +398,21 @@ def _build_agent(Agent, instruction: str, llm, callback, session):
         )
     cdp_url = getattr(session, "cdp_url", None)
 
+    # ponytail: browser-use defaults to use_vision=True (sends a screenshot
+    # every step). This project's configured OPENROUTER_MODEL is chosen for
+    # text tasks elsewhere (resume/JD analysis) and is not guaranteed to be
+    # vision-capable — a text-only model 404s on every single step with
+    # "No endpoints found that support image input", live-confirmed here.
+    # Forcing OPENROUTER_MODEL to a vision model would be a breaking change
+    # to unrelated call sites that share the same env var. use_vision=False
+    # makes this agent rely on the DOM/accessibility-tree extraction instead
+    # of screenshots, matching how BrowserOperator (the other automation
+    # engine in this codebase, already proven on iframe-embedded ATS forms)
+    # already operates without vision.
     if cdp_url:
         for kwarg in ("cdp_url", "browser_session", "wss_url"):
             try:
-                return Agent(task=instruction, llm=llm, register_new_step_callback=callback, **{kwarg: cdp_url})
+                return Agent(task=instruction, llm=llm, use_vision=False, register_new_step_callback=callback, **{kwarg: cdp_url})
             except TypeError:
                 continue
             except Exception:
@@ -410,7 +421,7 @@ def _build_agent(Agent, instruction: str, llm, callback, session):
     # The legacy explicitly selected local provider has no remote endpoint and
     # may construct its local browser. local_bridge is rejected above, so this
     # fallback cannot silently bypass the extension bridge.
-    return Agent(task=instruction, llm=llm, register_new_step_callback=callback)
+    return Agent(task=instruction, llm=llm, use_vision=False, register_new_step_callback=callback)
 
 
 class RunCancelled(Exception):
