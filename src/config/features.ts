@@ -101,7 +101,14 @@ const CONFIG = {
     { label: "Typst Resume Studio", href: "/typst-studio", feature: "typstStudio" },
     { label: "Answer Bank", href: "/answer-bank", feature: "candidateAnswerBank" },
     { label: "Resume Optimizer", href: "/resume", feature: "resumeOptimizer" },
-    { label: "Career Roadmap", href: "/roadmap", feature: "careerRoadmap" },
+    // ponytail: was href "/roadmap" (CareerRoadmap.tsx) — merged into
+    // CareerIntelligence.tsx (see App.tsx's redirect). Kept as its own
+    // primary-nav entry (careerRoadmap is in primaryNavigationKeys) even
+    // though "Career Intelligence" below points at the same href with a
+    // different, non-primary feature key — the merged page now legitimately
+    // serves both a primary "core workflow" role and a secondary "preview"
+    // role depending on which flag gated a user in to it.
+    { label: "Career Roadmap", href: "/career-intelligence", feature: "careerRoadmap" },
     // ponytail: was "Knowledge Hub" / "/knowledge-hub" — merged into OmniSave
     // (same backend, same purpose; /knowledge-hub now redirects here).
     { label: "OmniSave", href: "/omnisave", feature: "knowledgeHub" },

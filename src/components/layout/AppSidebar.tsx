@@ -89,7 +89,11 @@ const moreGroups = (): Group[] => [
       { title: "Company radar", url: "/radar", icon: Radar, enabled: true, status: "ready" },
       { title: "Negotiation", url: "/negotiation", icon: Handshake, enabled: true, status: "ready" },
       { title: "Skill gaps", url: "/skill-gap-radar", icon: Target, enabled: true, status: "ready" },
-      { title: "Career roadmap", url: "/roadmap", icon: Map, enabled: features.careerRoadmap, status: "ready" },
+      /* ponytail: was "Career roadmap" -> /roadmap (CareerRoadmap.tsx,
+         merged into CareerIntelligence.tsx as its "Scenario Planning" tab
+         — see App.tsx's redirect comment). Links straight to the real page
+         now instead of round-tripping through the redirect. */
+      { title: "Career roadmap", url: "/career-intelligence", icon: Map, enabled: features.careerRoadmap, status: "ready" },
       { title: "Career radar", url: "/career-ops", icon: Terminal, enabled: features.careerOps, status: "ready" },
       { title: "Outcomes", url: "/outcomes", icon: TrendingUp, enabled: true, status: "ready" },
       { title: "Funnel analytics", url: "/analytics-funnel", icon: BarChart3, enabled: true, status: "ready" },

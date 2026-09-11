@@ -79,7 +79,7 @@ describe('Feature Flags Configuration', () => {
         expect(primaryLinks.some((l) => l.href === '/jobs')).toBe(true);
         expect(primaryLinks.some((l) => l.href === '/jobs/autopilot')).toBe(true);
         expect(primaryLinks.some((l) => l.href === '/cover-letter')).toBe(true);
-        expect(primaryLinks.some((l) => l.href === '/roadmap')).toBe(true);
+        expect(primaryLinks.some((l) => l.href === '/career-intelligence')).toBe(true);
         expect(primaryLinks.some((l) => l.href === '/tay')).toBe(true);
 
         // Excludes secondary and preview-only feature links
@@ -90,7 +90,10 @@ describe('Feature Flags Configuration', () => {
         expect(primaryLinks.some((l) => l.href === '/knowledge-hub')).toBe(false);
         expect(primaryLinks.some((l) => l.href === '/communication')).toBe(false);
         expect(primaryLinks.some((l) => l.href === '/career-ops')).toBe(false);
-        expect(primaryLinks.some((l) => l.href === '/career-intelligence')).toBe(false);
+        // /career-intelligence is asserted primary above (line 82) via the
+        // "Career Roadmap" entry — CareerRoadmap.tsx merged into this page,
+        // so the same href now legitimately has both a primary (careerRoadmap)
+        // and a secondary (careerOps) entry pointing at it.
         expect(primaryLinks.some((l) => l.href === '/automations')).toBe(false);
     });
 

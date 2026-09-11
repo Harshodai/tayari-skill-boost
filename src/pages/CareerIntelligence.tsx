@@ -48,6 +48,7 @@ import {
   type SalaryBenchmarkResponse,
   type LearningPathResponse,
 } from "@/api/jobs";
+import { ScenarioPlanner } from "@/components/career/ScenarioPlanner";
 
 const PRESET_ROLES = [
   "Senior Full-Stack Engineer",
@@ -328,7 +329,7 @@ export function CareerIntelligence() {
 
         {/* Visualization Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-xl h-10">
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl h-10">
             <TabsTrigger value="all" className="text-xs">
               Overview
             </TabsTrigger>
@@ -340,6 +341,14 @@ export function CareerIntelligence() {
             </TabsTrigger>
             <TabsTrigger value="learning" className="text-xs">
               Learning Timeline
+            </TabsTrigger>
+            {/* ponytail: merged in from the standalone /roadmap page
+                (CareerRoadmap.tsx) — this was the one genuinely unique
+                capability there (a "what if I pivot to scenario X" planner)
+                that this page's skills/salary/learning trio didn't have.
+                Everything else CareerRoadmap.tsx did duplicated this page. */}
+            <TabsTrigger value="scenarios" className="text-xs">
+              Scenario Planning
             </TabsTrigger>
           </TabsList>
 
@@ -700,6 +709,11 @@ export function CareerIntelligence() {
                 ))}
               </div>
             </Card>
+          </TabsContent>
+
+          {/* Tab 5: Scenario Planning (merged in from CareerRoadmap.tsx) */}
+          <TabsContent value="scenarios" className="space-y-6">
+            <ScenarioPlanner />
           </TabsContent>
         </Tabs>
       </div>

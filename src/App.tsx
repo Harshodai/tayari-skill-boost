@@ -38,7 +38,6 @@ const InterviewExperiences = lazy(() => import('./pages/InterviewExperiences'));
 const CodingPractice = lazy(() => import('./pages/CodingPractice'));
 const JobSearch = lazy(() => import('./pages/JobSearch'));
 const AutoPilot = lazy(() => import('./pages/AutoPilot'));
-const CareerRoadmap = lazy(() => import('./pages/CareerRoadmap'));
 const CareerIntelligence = lazy(() => import('./pages/CareerIntelligence'));
 const FAQ = lazy(() => import('./pages/FAQ'));
 const Contact = lazy(() => import('./pages/Contact'));
@@ -209,8 +208,13 @@ const App = () => (
               )}
 
               {/* Conditionally Rendered Routes */}
+              {/* ponytail: CareerRoadmap.tsx duplicated CareerIntelligence.tsx's
+                  skills-gap/salary/learning trio (identical getSkillsGap/
+                  getSalaryBenchmark/getLearningPath calls) — its one unique
+                  feature, ScenarioPlanner, is now a tab on that page instead.
+                  Redirect, not 404, for existing bookmarks/links. */}
               {features.careerRoadmap && (
-                <Route path="/roadmap" element={<CareerRoadmap />} />
+                <Route path="/roadmap" element={<Navigate to="/career-intelligence" replace />} />
               )}
               {features.jobSearch && (
                 <>

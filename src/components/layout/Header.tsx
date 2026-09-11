@@ -289,10 +289,10 @@ export function Header() {
             {/* Career Roadmap Direct Link */}
             {primaryNavigationFeatures.careerRoadmap && (
               <Link
-                to="/roadmap"
+                to="/career-intelligence"
                 className={cn(
                   "inline-flex h-9 w-max items-center justify-center rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  location.pathname === "/roadmap"
+                  location.pathname === "/career-intelligence"
                     ? "text-primary bg-primary/5 font-semibold"
                     : "text-muted-foreground/80 hover:text-foreground hover:bg-muted/50"
                 )}
@@ -581,11 +581,11 @@ export function Header() {
                   )}
                   {primaryNavigationFeatures.careerRoadmap && (
                     <Link
-                      to="/roadmap"
+                      to="/career-intelligence"
                       onClick={() => setMobileMenuOpen(false)}
                       className={cn(
                         "px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2.5",
-                        location.pathname === "/roadmap"
+                        location.pathname === "/career-intelligence"
                           ? "text-primary bg-primary/5 font-semibold"
                           : "text-foreground/90 hover:bg-muted"
                       )}
