@@ -1220,6 +1220,14 @@ const JobSearch = () => {
                     <Button
                       variant="outline"
                       onClick={() => handleSave(selected)}
+                      aria-label={savedDedupeKeys.has(
+                        selected.dedupe_key ||
+                          `${selected.company}-${selected.title}-${selected.location}`
+                      ) ? "Job already saved" : "Save job"}
+                      aria-pressed={savedDedupeKeys.has(
+                        selected.dedupe_key ||
+                          `${selected.company}-${selected.title}-${selected.location}`
+                      )}
                       disabled={savedDedupeKeys.has(
                         selected.dedupe_key ||
                           `${selected.company}-${selected.title}-${selected.location}`

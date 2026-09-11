@@ -5864,3 +5864,19 @@ Added `notifyOmniSaveSyncFailureThrottled()`: on a real thrown error from the sc
 
 ### Reusable lesson
 - **A scheduled/background task's only failure signal must reach the user through a channel they actually look at — a service-worker console log is not one.** `console.warn` inside a `chrome.alarms` handler is effectively write-only; MV3 extensions have `chrome.notifications` for exactly this reason. Any periodic background job (sync, polling, cleanup) should have an explicit, throttled user-facing failure signal, not just a log line, or a real multi-week outage looks identical to "nothing to sync."
+
+## 2026-09-11 — UI/UX audit (subagent) + first fix: icon-only save button had no accessible name
+
+### What was done
+Dispatched a subagent to audit the app's most complex pages for UI/UX quality against a "world-class product" bar. It flagged, most severe first: `ResumeResults.tsx` (1245 lines, single flat JSX return with 15+ stacked content blocks and literal `{/* Flattened ... */}` comments marking prior unresolved refactor debt), `JobSearch.tsx`'s job-detail pane showing the same fit/skill-gap signal through four separate overlapping widgets (`CalibratedFitCard`, `FitMatrixCard`, a "Why this job" grid, and `SkillGapWidget`), a promotional "Weekly Hermes Job Digest" card outranking the actual filter controls in the search sidebar, and an icon-only Save/Bookmark button with no `aria-label` or `aria-pressed`. Full findings kept for a future larger UI pass; only the accessibility fix was scoped in immediately (low-risk, no layout dependency, easy to verify by code review alone).
+
+### Fix applied
+`JobSearch.tsx`'s job-detail Save button now sets `aria-label` ("Save job" / "Job already saved") and `aria-pressed` reflecting the actual saved state, matching the icon it already swaps (`Bookmark`/`BookmarkCheck`) — a screen reader previously announced only "button" with no name or state for this control.
+
+### Not fixed this pass, flagged as real follow-up work
+- `ResumeResults.tsx`'s block extraction (the page needs `OptimizationSummaryCard`/`StarBulletAnalysis`/`KeywordMatrixCard`-style component extraction, following the pattern already partially established by `ScoreBreakdownCard`/`BulletDiffCard`).
+- `JobSearch.tsx`'s four-widget fit-signal redundancy and the promo-card-over-filters sidebar ordering — both real but layout-risky enough to need visual (not just code) verification before touching.
+
+### Reusable lesson
+- **Literal "Flattened" section-header comments in JSX are a searchable marker of unfinished refactor debt** — grep for that kind of self-documenting leftover (`{/* Flattened ... */}`, `// TODO`, `// FIXME`) as a cheap first pass before a UI audit; someone already identified the problem mid-refactor and left a trail.
+- **An icon-only toggle button that swaps its icon to represent state (e.g. `Bookmark` → `BookmarkCheck`) is exactly the pattern most likely to be missing `aria-label`/`aria-pressed`, because the sighted developer's own visual confirmation ("I can see it changed") masks the fact that nothing announces the change to assistive tech.**
