@@ -68,8 +68,16 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 		r.Post("/api/v1/radar/check", s.handleOneStopProxy("/api/v1/radar/check"))
 		r.Post("/api/radar/check", s.handleOneStopProxy("/api/v1/radar/check"))
 
-		r.Post("/api/v1/interview/voice-feedback", s.handleOneStopProxy("/api/v1/interview/voice-feedback"))
-		r.Post("/api/interview/voice-feedback", s.handleOneStopProxy("/api/v1/interview/voice-feedback"))
+		// ponytail: this used to also register a plain, ungated
+		// handleOneStopProxy("/api/v1/interview/voice-feedback") here. It's
+		// registered (via RegisterOneStopRoutes) AFTER routesAIProxy's
+		// feature-gated handleInterviewVoiceFeedback (registerCoreRoutes ->
+		// routesAIProxy, in router.go), so chi's last-registration-wins rule
+		// meant every request silently bypassed the requireFeature(...,
+		// "interview_copilot") entitlement check that handler enforces — a
+		// real access-control bypass, found by TestNoDuplicateRouteRegistrations.
+		// Removed the duplicate so the gated handler in routes_interview.go
+		// is the only one registered for this path.
 
 		r.Post("/api/v1/negotiation/generate", s.handleOneStopProxy("/api/v1/negotiation/generate"))
 		r.Post("/api/negotiation/generate", s.handleOneStopProxy("/api/v1/negotiation/generate"))

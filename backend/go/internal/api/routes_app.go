@@ -94,8 +94,18 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Get("/api/v1/analyze/history", s.handleListAnalysisHistory)
 		s.routesKnowledgeHub(r)
 
-		r.Post("/api/v1/applications/{id}/notes", s.handleAddApplicationNote)
-		r.Post("/api/v1/applications/parse-email", s.handleParseApplicationEmail)
+		// ponytail: applications/{id}/notes and applications/parse-email used
+		// to also be registered here as handleAddApplicationNote (a no-op
+		// stub: always returned {"status":"note_added"} without writing
+		// anything) and handleParseApplicationEmail (hardcoded 501). Both are
+		// shadowed dead code today — routesApplicationsExtra (router.go,
+		// registered after this file) has the real implementations
+		// (handleAddNote actually updates notes_log; handleParseEmail calls
+		// Python's real parser) and wins per chi's last-registration-wins
+		// behavior. Found by TestNoDuplicateRouteRegistrations. Current live
+		// behavior is correct by luck of registration order, not by design —
+		// removed the stubs so a future reordering can't silently revert
+		// real note-saving/email-parsing back to a fake success response.
 
 		// GDPR: account lifecycle
 		r.Delete("/api/v1/account", s.handleDeleteAccount)
@@ -191,7 +201,8 @@ func (s *Server) registerLegacyAliases(r chi.Router) {
 	r.Get("/api/verification/status", s.handleVerificationStatus)
 	r.Get("/api/resumes/{id}/docx", s.handleDownloadResumeDocx)
 	r.Get("/api/resume-versions/{id}/docx", s.handleDownloadVersionDocx)
-	r.Get("/api/v1/resume-versions/{id}/docx", s.handleDownloadVersionDocx)
+	// (the /api/v1/ alias of this route already exists above — this is the
+	// bare-/api/ alias block, a copy-paste duplicate of it was removed here)
 	r.Post("/api/job-descriptions", s.handleCreateJD)
 	r.Post("/api/job-descriptions/import", s.handleImportJobDescription)
 	r.Get("/api/job-descriptions", s.handleListJDs)
@@ -204,6 +215,7 @@ func (s *Server) registerLegacyAliases(r chi.Router) {
 	r.Put("/api/applications/{id}", s.handleUpdateApplication)
 	r.Delete("/api/applications/{id}", s.handleDeleteApplication)
 	r.Get("/api/applications/{id}/resume-docx", s.handleDownloadApplicationResume)
-	r.Post("/api/applications/{id}/notes", s.handleAddApplicationNote)
-	r.Post("/api/applications/parse-email", s.handleParseApplicationEmail)
+	// See the matching comment above (v1 block) — these two are registered
+	// by routesApplicationsExtra with real implementations; the stubs that
+	// used to be registered here too were removed as dead/shadowed code.
 }

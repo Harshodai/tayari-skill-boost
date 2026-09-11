@@ -2467,14 +2467,6 @@ func (s *Server) handleListAnalysisHistory(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (s *Server) handleAddApplicationNote(w http.ResponseWriter, r *http.Request) {
-	s.respondJSON(w, http.StatusOK, map[string]string{"status": "note_added"})
-}
-
-func (s *Server) handleParseApplicationEmail(w http.ResponseWriter, r *http.Request) {
-	s.respondError(w, http.StatusNotImplemented, "Application email parsing is not implemented")
-}
-
 // -------------------------------------------------------------------
 // routesMVP registers all handlers that were previously dead code.
 // Called from router.go s.routes(). Both /api/v1/ and /api/ trees for
@@ -2622,8 +2614,9 @@ func (s *Server) routesMVP(r chi.Router) {
 		// ---- Privacy Ledger & User Data Lifecycle --------------------------
 		r.Get("/api/v1/privacy/check", s.handleOneStopProxyGET("/api/v1/privacy/check"))
 		r.Get("/api/privacy/check", s.handleOneStopProxyGET("/api/v1/privacy/check"))
-		r.Post("/api/v1/privacy/check", s.handleOneStopProxy("/api/v1/privacy/check"))
-		r.Post("/api/privacy/check", s.handleOneStopProxy("/api/v1/privacy/check"))
+		// POST /privacy/check is registered in routes_one_stop.go — was
+		// duplicated here too (identical target, harmless but redundant;
+		// found by TestNoDuplicateRouteRegistrations).
 
 		r.Get("/api/v1/privacy/ledger", s.handleOneStopProxyGET("/api/v1/privacy/ledger"))
 		r.Get("/api/privacy/ledger", s.handleOneStopProxyGET("/api/v1/privacy/ledger"))
