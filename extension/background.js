@@ -397,6 +397,23 @@ async function getOmniSavePreferences() {
   const result = await chrome.storage.local.get([OMNISAVE_SYNC_KEY]);
   return { ...DEFAULT_OMNISAVE_SYNC, ...(result[OMNISAVE_SYNC_KEY] || {}) };
 }
+const OMNISAVE_SYNC_FAILURE_NOTICE_KEY = 'omnisave_last_sync_failure_notice';
+async function notifyOmniSaveSyncFailureThrottled(error) {
+  try {
+    const stored = await chrome.storage.local.get([OMNISAVE_SYNC_FAILURE_NOTICE_KEY]);
+    const lastNoticeAt = Number(stored[OMNISAVE_SYNC_FAILURE_NOTICE_KEY]) || 0;
+    if (Date.now() - lastNoticeAt < 24 * 60 * 60 * 1000) return;
+    await chrome.storage.local.set({ [OMNISAVE_SYNC_FAILURE_NOTICE_KEY]: Date.now() });
+    chrome.notifications.create(`tayari-omnisave-sync-failed-${Date.now()}`, {
+      type: 'basic',
+      iconUrl: 'icons/icon128.png',
+      title: 'OmniSaveAI automatic sync failed',
+      message: String(error?.message || error || 'The background sync could not complete. Open the OmniSaveAI page to check.'),
+    }).catch(() => {});
+  } catch {
+    // Notification is best-effort; never let it break the alarm listener.
+  }
+}
 async function scheduleOmniSaveSync() {
   const preferences = await getOmniSavePreferences();
   await chrome.alarms.clear(OMNISAVE_ALARM);
@@ -1380,7 +1397,16 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       await getProfileData(); // Refresh cache
     }
   } else if (alarm.name === OMNISAVE_ALARM) {
-    try { await collectOmniSaveSources(false); } catch (error) { console.warn('Tayari: OmniSaveAI automatic sync failed', error); }
+    try { await collectOmniSaveSources(false); await chrome.storage.local.remove(OMNISAVE_SYNC_FAILURE_NOTICE_KEY); }
+    catch (error) {
+      console.warn('Tayari: OmniSaveAI automatic sync failed', error);
+      // ponytail: a background alarm's failure is invisible by default —
+      // console.warn never reaches a user who isn't looking at the service
+      // worker console. Surface it once per rolling day (not every 5-60min
+      // tick) so a persistently broken auto-sync doesn't run silently for
+      // weeks while the user believes it's working.
+      void notifyOmniSaveSyncFailureThrottled(error);
+    }
   }
 });
 chrome.runtime.onInstalled.addListener(() => {

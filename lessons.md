@@ -5853,3 +5853,14 @@ A helper that "always either returns useful data or logs why it couldn't" quietl
 ### Reusable lesson
 - **A `try/except` written around a call that reports failure by return value, not exception, silently stops covering that failure once the callee's contract includes both success-with-data and success-with-failure-dict shapes.** Check what the wrapped call can actually return, not just what it can raise — an `if not result.get("success"): log + return` guard is needed alongside the `except`, not instead of it, whenever the callee mixes both failure-reporting conventions.
 - **"No error in the logs" is not evidence a request succeeded or that nothing is wrong** — it can mean the log call itself was unreachable. When a feature fails with a generic client-facing error and grepping logs turns up nothing at all (not even a warning), suspect a silent-return code path before assuming the request never reached the backend.
+
+## 2026-09-11 — Extension auto-sync failures were completely invisible to the user
+
+### What was done
+`extension/background.js`'s alarm-driven OmniSaveAI automatic sync (`chrome.alarms.onAlarm` → `collectOmniSaveSources`) caught real thrown errors with only `console.warn` — invisible unless the user has the service worker's DevTools console open, which normal users never do. A background sync could fail on every single tick for weeks while the user believed it was quietly working (the UI's own "Sync health" panel only updates from an explicit manual sync or a completed automatic run — it has no way to show "the last N scheduled attempts all crashed").
+
+### Fix applied
+Added `notifyOmniSaveSyncFailureThrottled()`: on a real thrown error from the scheduled sync, shows a `chrome.notifications` toast naming the actual error, throttled to once per rolling 24 hours (via a timestamp in `chrome.storage.local`) so a persistently failing sync doesn't spam a notification every 5-60 minutes. The throttle key is cleared on the next successful sync, so a fix is reflected promptly rather than staying silenced for the rest of the throttle window.
+
+### Reusable lesson
+- **A scheduled/background task's only failure signal must reach the user through a channel they actually look at — a service-worker console log is not one.** `console.warn` inside a `chrome.alarms` handler is effectively write-only; MV3 extensions have `chrome.notifications` for exactly this reason. Any periodic background job (sync, polling, cleanup) should have an explicit, throttled user-facing failure signal, not just a log line, or a real multi-week outage looks identical to "nothing to sync."
