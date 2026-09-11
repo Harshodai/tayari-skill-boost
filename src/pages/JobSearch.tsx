@@ -1059,6 +1059,10 @@ const JobSearch = () => {
                     atsProvider={selected.ats_provider}
                     isLiveAtSource={true}
                     transitionType={(profile as any)?.transition_type}
+                    onBoostSkill={(s) => {
+                      toast.info(`Opening the Learning Timeline for "${s}"...`);
+                      navigate("/career-intelligence", { state: { targetSkill: s } });
+                    }}
                   />
 
                   {/* Factorized Fit Matrix (WP-08) */}
@@ -1267,64 +1271,24 @@ const JobSearch = () => {
                     />
                   )}
 
-                  {/* Why this job */}
-                  {(selected.match_reasons?.length || selected.missing_skills?.length) ? (
-                    <div className="grid md:grid-cols-2 gap-3">
-                      {selected.match_reasons && selected.match_reasons.length > 0 && (
-                        <div className="rounded-lg border border-success/20 bg-success/5 p-3">
-                          <div className="text-xs font-semibold text-success mb-2 uppercase tracking-wider">
-                            Why this job
-                          </div>
-                          <ul className="space-y-1 text-sm">
-                            {selected.match_reasons.slice(0, 4).map((r, i) => (
-                              <li key={i} className="flex gap-2">
-                                <span className="text-success">✓</span>
-                                <span className="text-foreground/85">{r}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {selected.missing_skills && selected.missing_skills.length > 0 && (
-                        <div className="rounded-lg border border-border bg-card p-4 col-span-2">
-                          <div className="flex items-center justify-between gap-4 mb-3 pb-2 border-b border-border/50">
-                            <div>
-                              <h4 className="font-semibold text-xs text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                                Skill Gaps to Close ({selected.missing_skills.length})
-                              </h4>
-                              <p className="text-[10px] text-muted-foreground leading-normal">
-                                Missing requirements detected from target job description
-                              </p>
-                            </div>
-                            <Button size="sm" variant="outline" className="h-7 text-xs px-2.5" asChild>
-                              <Link to="/roadmap">
-                                View Learning Roadmap
-                              </Link>
-                            </Button>
-                          </div>
-                          
-                          <div className="text-[10px] font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
-                            Gaps to Close ({selected.missing_skills.length})
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {selected.missing_skills.slice(0, 8).map((s, i) => (
-                              <div key={i} className="flex items-center gap-1.5 bg-warning/5 text-warning border border-warning/20 px-2.5 py-0.5 rounded-full text-xs font-medium hover:bg-warning/10 transition-colors">
-                                <span>{s}</span>
-                                <button
-                                  onClick={() => {
-                                    toast.info(`Opening the Learning Timeline for "${s}"...`);
-                                    navigate("/career-intelligence", { state: { targetSkill: s } });
-                                  }}
-                                  className="hover:bg-warning/20 rounded px-1.5 py-0.5 ml-1 transition-colors text-[9px] font-bold uppercase tracking-wider border border-warning/25 bg-warning/10"
-                                  title={`Boost ${s}`}
-                                >
-                                  Boost
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                  {/* Why this job — reasons only. Missing-skills is intentionally
+                      NOT duplicated here: it already renders once, with the same
+                      Boost action, in the Calibrated Fit Card above (was rendered
+                      a second time here with an identical list — consolidated per
+                      the one-purpose-per-card UX principle). */}
+                  {selected.match_reasons && selected.match_reasons.length > 0 ? (
+                    <div className="rounded-lg border border-success/20 bg-success/5 p-3">
+                      <div className="text-xs font-semibold text-success mb-2 uppercase tracking-wider">
+                        Why this job
+                      </div>
+                      <ul className="space-y-1 text-sm">
+                        {selected.match_reasons.slice(0, 4).map((r, i) => (
+                          <li key={i} className="flex gap-2">
+                            <span className="text-success">✓</span>
+                            <span className="text-foreground/85">{r}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   ) : null}
 

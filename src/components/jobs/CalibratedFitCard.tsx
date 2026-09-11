@@ -13,6 +13,10 @@ export interface CalibratedFitProps {
   isLiveAtSource?: boolean;
   atsProvider?: string | null;
   transitionType?: string | null;
+  /** Per-skill "Boost" action — jumps to the Learning Timeline for that specific skill.
+   *  Consolidated here from a standalone duplicate missing-skills grid that used to
+   *  live below this card and render the exact same list a second time. */
+  onBoostSkill?: (skill: string) => void;
 }
 
 export function getFitBand(score: number | null | undefined): {
@@ -69,6 +73,7 @@ export function CalibratedFitCard({
   isLiveAtSource = true,
   atsProvider,
   transitionType,
+  onBoostSkill,
 }: CalibratedFitProps) {
   const band = getFitBand(score);
 
@@ -137,9 +142,21 @@ export function CalibratedFitCard({
           {missingSkills.length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {missingSkills.map((s, i) => (
-                <Badge key={i} variant="outline" className="text-[10px] bg-amber-500/5 text-amber-700 dark:text-amber-300 border-amber-500/20">
-                  + {s}
-                </Badge>
+                onBoostSkill ? (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => onBoostSkill(s)}
+                    title={`Boost ${s}`}
+                    className="text-[10px] bg-amber-500/5 text-amber-700 dark:text-amber-300 border border-amber-500/20 rounded-full px-2 py-0.5 hover:bg-amber-500/15 transition-colors"
+                  >
+                    + {s}
+                  </button>
+                ) : (
+                  <Badge key={i} variant="outline" className="text-[10px] bg-amber-500/5 text-amber-700 dark:text-amber-300 border-amber-500/20">
+                    + {s}
+                  </Badge>
+                )
               ))}
             </div>
           ) : (
