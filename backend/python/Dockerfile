@@ -31,7 +31,12 @@ RUN TYPST_ARCH=$(if [ "$TARGETARCH" = "arm64" ]; then echo "aarch64"; else echo 
     && rm -rf /tmp/typst*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# ponytail: pip 24.0/setuptools 79.0.1 from the base image carry known CVEs
+# (pip-audit, 2026-09-11) — neither is a runtime dependency of the app, but
+# both run during every build, so upgrading them costs nothing and closes
+# the finding.
+RUN pip install --no-cache-dir --upgrade pip setuptools \
+    && pip install --no-cache-dir -r requirements.txt
 
 # PLAYWRIGHT_BROWSERS_PATH must be set BEFORE `playwright install` runs —
 # `playwright install` downloads browsers to whatever PLAYWRIGHT_BROWSERS_PATH

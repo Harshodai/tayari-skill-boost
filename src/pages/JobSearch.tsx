@@ -1306,8 +1306,8 @@ const JobSearch = () => {
                                 <span>{s}</span>
                                 <button
                                   onClick={() => {
-                                    toast.info(`Pre-filling learning roadmap details for "${s}"...`);
-                                    navigate("/roadmap", { state: { targetSkill: s } });
+                                    toast.info(`Opening the Learning Timeline for "${s}"...`);
+                                    navigate("/career-intelligence", { state: { targetSkill: s } });
                                   }}
                                   className="hover:bg-warning/20 rounded px-1.5 py-0.5 ml-1 transition-colors text-[9px] font-bold uppercase tracking-wider border border-warning/25 bg-warning/10"
                                   title={`Boost ${s}`}

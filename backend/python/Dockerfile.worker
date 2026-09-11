@@ -18,7 +18,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# ponytail: see ../Dockerfile's matching comment — pip/setuptools from the
+# base image carry known CVEs (pip-audit, 2026-09-11), upgraded here too
+# since this Dockerfile builds its own separate image.
+RUN pip install --no-cache-dir --upgrade pip setuptools \
+    && pip install --no-cache-dir -r requirements.txt
 
 # PLAYWRIGHT_BROWSERS_PATH must be set BEFORE `playwright install` runs — see
 # the matching comment in ../Dockerfile for why (installs land in the wrong

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,9 +60,21 @@ const PRESET_ROLES = [
 ];
 
 export function CareerIntelligence() {
+  const routerLocation = useLocation();
   const [targetRole, setTargetRole] = useState("Senior Full-Stack Engineer");
   const [location, setLocation] = useState("San Francisco, CA (Remote)");
   const [activeTab, setActiveTab] = useState("all");
+
+  // ponytail: JobSearch.tsx's "Boost" button on a missing-skill chip
+  // navigates here with { state: { targetSkill } } and tells the user via
+  // toast it's "pre-filling learning roadmap details" — but nothing ever
+  // read this state, so that promise was false. This page has no per-skill
+  // field (only a role/location form), so the closest honest destination is
+  // the Learning Timeline tab, which is literally organized by skill.
+  const targetSkillFromNav = routerLocation.state?.targetSkill as string | undefined;
+  useEffect(() => {
+    if (targetSkillFromNav) setActiveTab("learning");
+  }, [targetSkillFromNav]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -690,11 +703,16 @@ export function CareerIntelligence() {
                 Curated courses and open-source documentation to bridge every identified skill gap.
               </p>
               <div className="grid gap-4 md:grid-cols-2">
-                {(learningData?.recommendations || []).map((item, idx) => (
-                  <div key={idx} className="p-4 rounded-xl border border-border/60 bg-muted/20 space-y-2">
+                {(learningData?.recommendations || []).map((item, idx) => {
+                  const isTargeted = !!targetSkillFromNav && item.skill?.toLowerCase() === targetSkillFromNav.toLowerCase();
+                  return (
+                  <div key={idx} className={cn("p-4 rounded-xl border bg-muted/20 space-y-2", isTargeted ? "border-primary ring-1 ring-primary/40" : "border-border/60")}>
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-sm">{item.skill}</span>
-                      <Badge variant="outline" className="text-xs capitalize">{item.difficulty}</Badge>
+                      <div className="flex items-center gap-1.5">
+                        {isTargeted && <Badge className="text-[10px]">From Job Search</Badge>}
+                        <Badge variant="outline" className="text-xs capitalize">{item.difficulty}</Badge>
+                      </div>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2">{item.title}</p>
                     <div className="flex items-center justify-between pt-2">
@@ -706,7 +724,8 @@ export function CareerIntelligence() {
                       </a>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </Card>
           </TabsContent>
