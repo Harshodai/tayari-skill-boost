@@ -106,3 +106,10 @@ ds-bundle/
 
 # Media scratch outputs
 audio-output/
+
+# Runtime cache/config dirs created by tools running inside backend/python
+# (pip cache, nltk downloads, etc.) — not source, never meant to be tracked
+backend/python/.cache/
+backend/python/.config/
+backend/python/.pki/
+backend/python/nltk_data/
