@@ -590,7 +590,7 @@ export async function listAutomationEvents(runId: string): Promise<{ events: Aut
   return apiFetch<{ events: AutomationEvent[] }>(`/v1/automation-runs/${encodeURIComponent(runId)}/events`);
 }
 export async function listAutomationApprovals(): Promise<{ approvals: AutomationApproval[] }> {
-  return apiFetch<{ approvals: AutomationApproval[] }>("/v1/approvals");
+  return apiFetch<{ approvals: AutomationApproval[] }>("/v1/automation-approvals");
 }
 
 export async function decideAutomationApproval(id: string, decision: "approve" | "deny"): Promise<{ id: string; status: string; decision_channel: string }> {

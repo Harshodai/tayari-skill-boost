@@ -85,8 +85,17 @@ func (s *Server) routesAutomations(r chi.Router) {
 		r.Post("/api/automation-runs/{runID}/cancel", s.handleCancelAutomationRun)
 		r.Post("/api/v1/automation-runs/{runID}/approvals", s.handleCreateAutomationApproval)
 		r.Post("/api/automation-runs/{runID}/approvals", s.handleCreateAutomationApproval)
-		r.Get("/api/v1/approvals", s.handleListAutomationApprovals)
-		r.Get("/api/approvals", s.handleListAutomationApprovals)
+		// ponytail: this used to be registered at bare "/api/v1/approvals",
+		// which collides with routes_agents.go's r.Get("/api/v1/approvals",
+		// s.handleListApprovals) — the agent tool-use approval queue that
+		// ReviewQueue.tsx, AgentPanel.tsx, and src/api/autopilot.ts all
+		// depend on. Chi doesn't error on a duplicate GET pattern; it just
+		// lets the later registration win silently, which shadowed the
+		// agent-approval handler entirely (this file's routesAutomations()
+		// runs after routesAgents() in router.go). Renamed to match the
+		// sibling "automation-runs" naming and stop the collision.
+		r.Get("/api/v1/automation-approvals", s.handleListAutomationApprovals)
+		r.Get("/api/automation-approvals", s.handleListAutomationApprovals)
 		r.Post("/api/v1/approvals/{approvalID}/approve", s.handleApproveAutomationApproval)
 		r.Post("/api/approvals/{approvalID}/approve", s.handleApproveAutomationApproval)
 		r.Post("/api/v1/approvals/{approvalID}/deny", s.handleDenyAutomationApproval)

@@ -191,37 +191,3 @@ export async function executeOneShotPipeline(payload: OneShotExecuteRequest): Pr
   });
 }
 
-export interface ApprovalUpdateRequest {
-  status: "approved" | "rejected";
-  reviewer_comment?: string;
-  form_fields?: Record<string, string>;
-}
-
-export interface PendingApprovalRecord {
-  id: string;
-  action_type: string;
-  action_payload: {
-    company?: string;
-    role?: string;
-    form_fields?: Record<string, string>;
-    keywords?: string[];
-    [key: string]: unknown;
-  };
-  status: string;
-  expires_at: string;
-  [key: string]: unknown;
-}
-
-export async function listPendingApprovals(): Promise<PendingApprovalRecord[]> {
-  return apiFetch<PendingApprovalRecord[]>("/v1/approvals");
-}
-
-export async function updateApproval(
-  approvalId: string,
-  payload: ApprovalUpdateRequest
-): Promise<{ status: string }> {
-  return apiFetch<{ status: string }>(`/v1/approvals/${approvalId}`, {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
-}
