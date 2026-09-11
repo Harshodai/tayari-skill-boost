@@ -577,12 +577,23 @@ export default function Omnisave() {
     finally { setSavingContext(false); }
   };
 
-  const refreshGraph = async () => {
+  const refreshGraph = useCallback(async () => {
     setGraphLoading(true);
     try { setGraph(await fetchCareerContextGraph({ skill: graphSkill, role: graphRole })); }
     catch { setError("The career context graph could not be loaded yet."); }
     finally { setGraphLoading(false); }
-  };
+  }, [graphSkill, graphRole]);
+
+  // ponytail: every other panel on this page (articles, sync state, activity,
+  // brief suggestions) fetches on mount via its own useEffect — this one
+  // didn't, so a real link created in a prior session stayed invisible until
+  // the user manually clicked "Refresh graph" (confirmed via zero network
+  // requests to /context/graph before any click). Mount-only (empty deps):
+  // graphSkill/graphRole are live per-keystroke filter inputs, and refreshGraph
+  // is recreated whenever they change, so depending on it here would refetch
+  // on every keystroke instead of once on load.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void refreshGraph(); }, []);
 
   const handleIngestUrl = async () => {
     if (!urlInput.trim() || backendUnavailable) return;
