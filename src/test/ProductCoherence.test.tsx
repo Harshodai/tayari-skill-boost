@@ -10,14 +10,14 @@ describe("CapabilityStatusBadge Component", () => {
     unmount();
 
     render(<CapabilityStatusBadge status="review_required" />);
-    expect(screen.getByText("Review required")).toBeDefined();
+    expect(screen.getByText("Always reviewed")).toBeDefined();
   });
 
   it("exposes all status labels and configurations", () => {
     expect(CAPABILITY_STATUS_CONFIG.ready.label).toBe("Ready");
     expect(CAPABILITY_STATUS_CONFIG.manual_handoff.label).toBe("Manual handoff");
     expect(CAPABILITY_STATUS_CONFIG.provider_required.label).toBe("Provider required");
-    expect(CAPABILITY_STATUS_CONFIG.review_required.label).toBe("Review required");
+    expect(CAPABILITY_STATUS_CONFIG.review_required.label).toBe("Always reviewed");
   });
 });
 

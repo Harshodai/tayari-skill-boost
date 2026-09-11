@@ -319,11 +319,21 @@ const Dashboard = () => {
                       <ArrowRight className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-primary uppercase tracking-wider">Continue where you left off</p>
+                      <p className="text-xs font-semibold text-primary uppercase tracking-wider">
+                        {runs.length > 0 ? "Continue where you left off" : "Pick up your resume work"}
+                      </p>
                       <p className="text-sm font-medium text-foreground truncate">
                         {runs.length > 0
                           ? `Active run: ${runs[0].title}${runs[0].context ? ` (${runs[0].context})` : ""}`
-                          : `Recent scan: ${analyses[0]?.job_title || analyses[0]?.resume_filename || "Resume"} (${analyses[0]?.overall_score ?? latestScore ?? 0}% match)`}
+                          // ponytail: this card used to say "Continue" and name
+                          // the exact prior scan, but the Continue button can only
+                          // reopen a blank analyzer (ResumeResults reads its data
+                          // from router state set at analysis time, not a
+                          // resume/analysis id, so a past scan can't be reopened
+                          // by link alone). Naming the scan without being able to
+                          // reopen it was overpromising; this states the real score
+                          // as a fact about last time, not a link target.
+                          : `Last scan scored ${analyses[0]?.overall_score ?? latestScore ?? 0}% — start a fresh analysis with your latest resume and a job description.`}
                       </p>
                     </div>
                   </div>
@@ -331,9 +341,9 @@ const Dashboard = () => {
                     <Button asChild size="sm" variant="glow" className="active:scale-[0.98]">
                       <Link
                         to={runs.length > 0 ? "/jobs" : "/resume"}
-                        aria-label="Continue where you left off"
+                        aria-label={runs.length > 0 ? "Continue where you left off" : "Start a new resume analysis"}
                       >
-                        Continue <ArrowRight className="w-4 h-4 ml-1.5" />
+                        {runs.length > 0 ? "Continue" : "Start"} <ArrowRight className="w-4 h-4 ml-1.5" />
                       </Link>
                     </Button>
                     <Button asChild size="sm" variant="outline" className="active:scale-[0.98]">

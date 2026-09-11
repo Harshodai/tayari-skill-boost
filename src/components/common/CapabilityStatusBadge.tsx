@@ -48,11 +48,16 @@ export const CAPABILITY_STATUS_CONFIG: Record<CapabilityStatusType, CapabilitySt
     description: "Functional workflow under active enhancement. User verification recommended.",
   },
   review_required: {
-    label: "Review required",
+    // ponytail: was "Review required" — read like a live pending-count alert
+    // next to an empty queue (confirmed via a real-user pass). This is a
+    // permanent policy label (every submission always needs human review by
+    // design, see CLAUDE.md's manual-submit-only contract), not a count, so
+    // the label now says so directly instead of reading like one.
+    label: "Always reviewed",
     variant: "outline",
     className: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/25",
     icon: AlertCircle,
-    description: "Requires explicit candidate review and approval before any artifact or action is used.",
+    description: "Every submission requires your explicit review and approval before anything is sent — this is a permanent safety policy, not a count of pending items.",
   },
   provider_required: {
     label: "Provider required",

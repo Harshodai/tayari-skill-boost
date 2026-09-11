@@ -42,7 +42,12 @@ export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = React.memo(
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground">
-            Run an ATS analysis or resume optimization to view transparent scoring dimensions.
+            {/* ponytail: this card's breakdown comes specifically from the
+                Optimize step's ATS scorer — the initial "Generate review"
+                analysis (see the Detailed Breakdown section below) doesn't
+                populate it. The old copy implied analysis alone would show
+                this, which isn't true on this page's default flow. */}
+            Run Optimize on your resume to see this deeper, dimension-by-dimension score breakdown. The Detailed Breakdown below already reflects your current analysis.
           </p>
         </CardContent>
       </Card>

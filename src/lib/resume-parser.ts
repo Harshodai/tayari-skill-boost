@@ -82,7 +82,7 @@ async function extractTextFromPDF(file: File): Promise<string> {
     // fake "parsed successfully" preview of garbage — the actual analysis
     // submission re-parses the file server-side with a real PDF library
     // (see uploadResumeMultipart / ParseDocument) and doesn't depend on this.
-    throw new Error('Could not extract text from PDF. Please paste your resume content manually or try a different file format.');
+    throw new Error("Couldn't preview this PDF's text here — that's just a display limitation and won't stop your analysis. Your file is still attached and will be read properly when you click Generate review. (If you'd rather see a live preview, paste the resume text instead.)");
   }
 
   return text;

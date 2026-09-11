@@ -43,6 +43,9 @@ export interface CreditBalance {
   lifetime_purchased: number;
   lifetime_used: number;
   updated_at: string;
+  // True when billing is disabled for this deployment — balance/lifetime_purchased
+  // are a sentinel (999999), not a real count; the UI must show "Unlimited".
+  unlimited?: boolean;
 }
 
 export interface InboxSummary {
@@ -66,6 +69,7 @@ export function useDashboardData(userId?: string) {
         return res.map((item: AnalysisResult) => ({
           id: String(item.id),
           user_id: item.user_id ?? "",
+          resume_id: item.resume_id,
           resume_filename: `Resume #${item.resume_id}`,
           overall_score: item.score ?? 0,
           created_at: item.created_at,
@@ -172,6 +176,7 @@ export function useDashboardData(userId?: string) {
           lifetime_purchased: typeof res?.lifetime_purchased === "number" ? res.lifetime_purchased : 0,
           lifetime_used: typeof res?.lifetime_used === "number" ? res.lifetime_used : 0,
           updated_at: res?.updated_at ?? "",
+          unlimited: res?.unlimited === true,
         } as CreditBalance;
       } catch {
         return null;

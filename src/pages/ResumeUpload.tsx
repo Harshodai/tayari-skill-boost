@@ -379,7 +379,12 @@ const ResumeUpload = () => {
                 maxSize={5 * 1024 * 1024}
               />
               {parsingError && (
-                <Alert variant="destructive" className="mt-4">
+                // ponytail: this is only a client-side preview failure (see
+                // canAnalyze above) — when a file is still attached, submission
+                // isn't blocked, so this shouldn't read as a red "it failed"
+                // alert. Only truly blocking (no file, no text) keeps the
+                // destructive tone.
+                <Alert variant={resumeFile ? "default" : "destructive"} className="mt-4">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-sm">
                     {parsingError}

@@ -107,6 +107,6 @@ describe("ScoreBreakdownCard Component", () => {
   it("renders safe placeholder when breakdown is null", () => {
     render(<ScoreBreakdownCard breakdown={null} />);
     expect(screen.getByText(/Trust-First ATS Score Breakdown/i)).toBeInTheDocument();
-    expect(screen.getByText(/Run an ATS analysis or resume optimization/i)).toBeInTheDocument();
+    expect(screen.getByText(/Run Optimize on your resume/i)).toBeInTheDocument();
   });
 });
