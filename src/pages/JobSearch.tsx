@@ -1066,17 +1066,23 @@ const JobSearch = () => {
                     fitMatrix={{
                       hard_constraints: {
                         pass: !selected.location || !location || selected.location.toLowerCase().includes(location.toLowerCase()) || selected.location.toLowerCase().includes("remote"),
-                        reason: "Location and preference constraints verified against candidate profile.",
+                        reason: (selected.location && location)
+                          ? `Job location "${selected.location}" checked against your preferred "${location}".`
+                          : "No location preference set — constraint check skipped.",
                       },
                       skill_alignment: {
-                        score: selected.match_score ?? selected.score ?? selected.fit_score ?? 70,
+                        score: selected.match_score ?? selected.score ?? selected.fit_score ?? 0,
                         strong_skills: selected.matched_skills || [],
                         missing_skills: selected.missing_skills || [],
-                        evidence: `Matched ${(selected.matched_skills || []).length} key skills from resume context.`,
+                        evidence: (selected.matched_skills || []).length > 0
+                          ? `Matched ${(selected.matched_skills || []).length} key skills from resume context.`
+                          : "No skill overlap detected yet — AI ranking may still be pending.",
                       },
                       experience_relevance: {
-                        score: Math.min(100, (selected.match_score ?? selected.score ?? selected.fit_score ?? 70) + 5),
-                        summary: selected.match_reasons?.[0] || selected.match_reason || "Relevant background alignment detected.",
+                        score: (selected.match_score ?? selected.score ?? selected.fit_score) != null
+                          ? Math.min(100, (selected.match_score ?? selected.score ?? selected.fit_score) + 5)
+                          : 0,
+                        summary: selected.match_reasons?.[0] || selected.match_reason || "Not yet assessed — no AI ranking reason available for this posting.",
                         evidence_links: selected.matched_skills || [],
                       },
                       seniority_alignment: {
@@ -1113,8 +1119,8 @@ const JobSearch = () => {
                       ],
                       recommendation: {
                         action: (selected.match_score ?? selected.score ?? selected.fit_score ?? 0) >= 60 ? "strong_match" : "weak_match",
-                        why: selected.match_reasons?.[0] || "Profile demonstrates strong baseline affinity for this position.",
-                        what_would_change: (selected.missing_skills || []).length > 0 ? `Tailoring resume with ${(selected.missing_skills || []).slice(0, 2).join(", ")} will improve score.` : "Resume is well-calibrated.",
+                        why: selected.match_reasons?.[0] || "No AI-generated reason available for this posting yet.",
+                        what_would_change: (selected.missing_skills || []).length > 0 ? `Tailoring resume with ${(selected.missing_skills || []).slice(0, 2).join(", ")} will improve score.` : "No missing skills detected against this posting.",
                       },
                     }}
                     className="border-primary/20 bg-card/40"
