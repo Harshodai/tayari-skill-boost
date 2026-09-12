@@ -440,6 +440,24 @@ def run_standing_job_watches(self) -> dict:
         return {"status": "failed", "error": str(exc)}
 
 
+@celery_app.task(name="saga.recover_orphaned", bind=True)
+def recover_orphaned_sagas_task(self) -> dict:
+    """Mark saga_journal rows stuck in 'running' as orphaned.
+
+    See app/services/saga.py's module docstring for why this marks-as-failed
+    rather than resumes: the only saga in this codebase operates on a live
+    browser page, which dies with the worker that crashed, so there is
+    nothing left to resume or compensate against.
+    """
+    from app.services.saga import recover_orphaned_sagas
+    try:
+        count = asyncio.run(recover_orphaned_sagas())
+        return {"status": "success", "orphaned_count": count}
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("recover_orphaned_sagas_task failed: %s", exc)
+        return {"status": "failed", "error": str(exc)}
+
+
 @celery_app.task(name="system.nightly_database_backup", bind=True)
 def nightly_database_backup(self) -> dict:
     """Execute nightly Postgres backup script."""

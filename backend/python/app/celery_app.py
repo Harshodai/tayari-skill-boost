@@ -50,6 +50,10 @@ celery_app.conf.update(
             "task": "autopilot.run_standing_job_watches",
             "schedule": 60 * 60,
         },
+        "saga-orphan-sweep": {
+            "task": "saga.recover_orphaned",
+            "schedule": 60 * 5,
+        },
         "nightly-db-backup": {
             "task": "system.nightly_database_backup",
             "schedule": 60 * 60 * 24,

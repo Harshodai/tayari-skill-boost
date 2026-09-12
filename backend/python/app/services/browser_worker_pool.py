@@ -777,7 +777,7 @@ async def execute_application_flow(
         url = str(job_url or (target_worker.target_url if target_worker else "")).strip()
         data = form_data if isinstance(form_data, dict) else {}
 
-    saga = SagaContext(task_id=resolved_task_id, user_id=resolved_user_id)
+    saga = SagaContext(task_id=resolved_task_id, user_id=resolved_user_id, saga_name="application_flow")
 
     # 1. Step: navigate_to_job
     async def _navigate():
