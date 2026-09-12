@@ -59,6 +59,8 @@
     'omnisave_preferences_set',
     'omnisave_sync_now',
     'extension_session_handoff',
+    'set_token',
+    'clear_token',
   ]);
 
   function isExtensionUrl(url, extensionId) {
