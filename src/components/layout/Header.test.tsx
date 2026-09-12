@@ -23,6 +23,11 @@ describe("Header accessibility contract", () => {
     expect(featuresMenuTrigger).toHaveAttribute("aria-haspopup", "menu");
     expect(featuresMenuTrigger).toHaveAttribute("aria-expanded", "false");
 
+    // Radix's DropdownMenuTrigger opens on pointerdown, not click — a plain
+    // fireEvent.click() (no pointerdown before it) silently no-ops in jsdom,
+    // even though a real mouse click in a browser dispatches both. Dispatch
+    // the fuller sequence a real click produces.
+    fireEvent.pointerDown(featuresMenuTrigger, { pointerId: 1, isPrimary: true, button: 0 });
     fireEvent.click(featuresMenuTrigger);
     expect(featuresMenuTrigger).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("menu")).toHaveAttribute("id", "features-menu");
