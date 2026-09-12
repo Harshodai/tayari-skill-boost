@@ -4,11 +4,36 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// setTenantClaim sets the RLS session claim for this transaction and
+// propagates any failure to the caller.
+//
+// ponytail: every call site here used to do `_, _ = tx.ExecContext(...)`,
+// silently discarding the error and letting the transaction proceed either
+// way. Per this project's own documented RLS scope (see CLAUDE.md's "RLS
+// scope" note), the `postgres` role this service connects as has BYPASSRLS,
+// so RLS policies never evaluate for these connections regardless of
+// whether this claim is set correctly — the real, load-bearing tenant
+// isolation here is each query's own `WHERE user_id = $1`, unaffected by
+// this call either way. So propagating the error doesn't newly protect
+// against a cross-tenant leak on its own, but silently swallowing a real
+// database error (a dead connection, a permissions problem) and continuing
+// as if it succeeded is still wrong on general principle — errors should
+// abort the transaction, not be discarded, especially on a call that
+// exists specifically for defense-in-depth if this project ever completes
+// the JWT-claims plumbing needed to make RLS actually apply to this role.
+func setTenantClaim(ctx context.Context, tx *sql.Tx, userID string) error {
+	if _, err := tx.ExecContext(ctx, "SELECT set_config('request.jwt.claim.sub', $1, true)", userID); err != nil {
+		return fmt.Errorf("failed to set tenant RLS claim: %w", err)
+	}
+	return nil
+}
 
 // validateUserID ensures the userID is non-empty and not a synthetic identity.
 func validateUserID(userID string) error {
@@ -208,8 +233,9 @@ func (r *PostgresCoverLetterRepo) Create(ctx context.Context, cl *CoverLetter) (
 	}
 	defer tx.Rollback()
 
-	// Ensure tenant session claim is set for PostgreSQL RLS policies
-	_, _ = tx.ExecContext(ctx, "SELECT set_config('request.jwt.claim.sub', $1, true)", cl.UserID)
+	if err := setTenantClaim(ctx, tx, cl.UserID); err != nil {
+		return "", err
+	}
 
 	var id string
 	var createdAt time.Time
@@ -251,13 +277,21 @@ func (r *PostgresCoverLetterRepo) ListByUser(ctx context.Context, userID string)
 	}
 	defer tx.Rollback()
 
-	_, _ = tx.ExecContext(ctx, "SELECT set_config('request.jwt.claim.sub', $1, true)", userID)
+	if err := setTenantClaim(ctx, tx, userID); err != nil {
+		return nil, err
+	}
 
+	// ponytail: this query had no LIMIT at all — a user (or a script hitting
+	// this endpoint) with enough cover letters could pull an unbounded
+	// result set in one call. The frontend doesn't paginate this list today,
+	// so a hard cap (rather than a breaking cursor/limit API change) closes
+	// the unbounded-fetch risk without touching the response shape.
 	query := `
 		SELECT id, user_id, COALESCE(job_title, ''), COALESCE(company_name, ''), COALESCE(content, ''), created_at
 		FROM cover_letters
 		WHERE user_id = $1
 		ORDER BY created_at DESC
+		LIMIT 200
 	`
 	rows, err := tx.QueryContext(ctx, query, userID)
 	if err != nil {
@@ -303,7 +337,9 @@ func (r *PostgresCoverLetterRepo) Delete(ctx context.Context, userID, id string)
 	}
 	defer tx.Rollback()
 
-	_, _ = tx.ExecContext(ctx, "SELECT set_config('request.jwt.claim.sub', $1, true)", userID)
+	if err := setTenantClaim(ctx, tx, userID); err != nil {
+		return err
+	}
 
 	query := `DELETE FROM cover_letters WHERE id = $1 AND user_id = $2`
 	res, err := tx.ExecContext(ctx, query, id, userID)
@@ -350,7 +386,9 @@ func (r *PostgresAppRepo) Create(ctx context.Context, app *Application) (int64, 
 	}
 	defer tx.Rollback()
 
-	_, _ = tx.ExecContext(ctx, "SELECT set_config('request.jwt.claim.sub', $1, true)", app.UserID)
+	if err := setTenantClaim(ctx, tx, app.UserID); err != nil {
+		return 0, err
+	}
 
 	appUUID := uuid.New().String()
 	query := `
@@ -384,7 +422,9 @@ func (r *PostgresAppRepo) GetByID(ctx context.Context, userID string, id int64) 
 	}
 	defer tx.Rollback()
 
-	_, _ = tx.ExecContext(ctx, "SELECT set_config('request.jwt.claim.sub', $1, true)", userID)
+	if err := setTenantClaim(ctx, tx, userID); err != nil {
+		return nil, err
+	}
 
 	query := `
 		SELECT id, user_id, COALESCE(company, ''), COALESCE(title, ''), COALESCE(NULLIF(job_url, ''), COALESCE(apply_url, '')), COALESCE(NULLIF(stage, ''), COALESCE(status, 'saved')), created_at
@@ -430,7 +470,9 @@ func (r *PostgresAppRepo) ListByUser(ctx context.Context, userID string, limit, 
 	}
 	defer tx.Rollback()
 
-	_, _ = tx.ExecContext(ctx, "SELECT set_config('request.jwt.claim.sub', $1, true)", userID)
+	if err := setTenantClaim(ctx, tx, userID); err != nil {
+		return nil, err
+	}
 
 	query := `
 		SELECT id, user_id, COALESCE(company, ''), COALESCE(title, ''), COALESCE(NULLIF(job_url, ''), COALESCE(apply_url, '')), COALESCE(NULLIF(stage, ''), COALESCE(status, 'saved')), created_at
@@ -484,7 +526,9 @@ func (r *PostgresAppRepo) UpdateStage(ctx context.Context, userID string, id int
 	}
 	defer tx.Rollback()
 
-	_, _ = tx.ExecContext(ctx, "SELECT set_config('request.jwt.claim.sub', $1, true)", userID)
+	if err := setTenantClaim(ctx, tx, userID); err != nil {
+		return err
+	}
 
 	query := `
 		UPDATE applications

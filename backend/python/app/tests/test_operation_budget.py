@@ -110,28 +110,50 @@ def test_public_flood_is_rejected_before_expensive_handler():
 
 
 @pytest.mark.asyncio
-async def test_autopilot_queue_backpressure_rejects_when_capacity_is_full(monkeypatch):
+async def test_autopilot_run_dispatches_to_celery_without_blocking(monkeypatch):
+    """/api/v1/autopilot/run must enqueue via Celery and return immediately,
+    never run the pipeline in-process.
+
+    ponytail: this used to test an in-process asyncio.create_task +
+    semaphore backpressure mechanism (_AUTOPILOT_QUEUE_CAPACITY/
+    _autopilot_active). That mechanism was removed: the endpoint now
+    dispatches to the existing autopilot.run_application_agent Celery task
+    (app/tasks/automation.py) instead of running run_autopilot on the
+    request-serving event loop — see the docstring on autopilot_run for why
+    (heavy pipeline work sharing the API's own loop, and every deploy
+    silently killing in-flight runs). Celery's own broker/worker
+    concurrency is the real backpressure now, not a local semaphore.
+    """
     import app.main as main_module
+    import app.tasks.automation as automation_tasks
 
-    async def blocked_run(*_args):
-        await asyncio.sleep(60)
+    calls = []
 
-    monkeypatch.setattr(main_module.automation_engine, "run_autopilot", blocked_run)
-    monkeypatch.setattr(main_module, "_AUTOPILOT_QUEUE_CAPACITY", 1)
-    monkeypatch.setattr(main_module, "_autopilot_active", 0)
-    payload = main_module.AutopilotRunRequest(run_config={})
+    class FakeDelay:
+        def delay(self, *args):
+            calls.append(args)
 
-    await main_module.autopilot_run(payload, _user_id="user-a")
-    await asyncio.sleep(0)
-    with pytest.raises(HTTPException) as exc:
-        await main_module.autopilot_run(payload, _user_id="user-a")
-    assert exc.value.status_code == 429
+    monkeypatch.setattr(automation_tasks, "run_application_agent", FakeDelay())
 
-    current = asyncio.current_task()
-    pending = [task for task in asyncio.all_tasks() if task is not current and not task.done()]
-    for task in pending:
-        task.cancel()
-    await asyncio.gather(*pending, return_exceptions=True)
+    payload = main_module.AutopilotRunRequest(
+        run_config={"job_titles": ["Engineer"]},
+        profile={"name": "Test"},
+        resume_text="resume text",
+        candidate_name="Test User",
+    )
+
+    result = await main_module.autopilot_run(payload, _user_id="user-a")
+
+    assert result["status"] == "queued"
+    assert "run_id" in result
+    assert calls, "expected run_application_agent.delay to be called"
+    run_id, run_config, profile, resume_text, candidate_name = calls[0]
+    assert run_id == result["run_id"]
+    assert run_config["user_id"] == "user-a"
+    assert run_config["job_titles"] == ["Engineer"]
+    assert profile == {"name": "Test"}
+    assert resume_text == "resume text"
+    assert candidate_name == "Test User"
 
 
 def test_operation_middleware_returns_429_before_handler():

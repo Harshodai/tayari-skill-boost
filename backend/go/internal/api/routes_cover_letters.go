@@ -39,6 +39,7 @@ type CreateCoverLetterRequest struct {
 func (s *Server) routesCoverLetters(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(s.requireAuth)
+		r.Use(s.authRateLimiter.Middleware)
 
 		r.Post("/api/v1/cover-letters", s.handleCreateCoverLetter)
 		r.Get("/api/v1/cover-letters", s.handleListCoverLetters)
@@ -195,6 +196,7 @@ func (s *Server) handleListCoverLetters(w http.ResponseWriter, r *http.Request) 
 			FROM cover_letters
 			WHERE user_id = $1
 			ORDER BY created_at DESC
+			LIMIT 200
 		`
 		rows, err := tx.QueryContext(r.Context(), query, user.ID)
 		if err != nil {

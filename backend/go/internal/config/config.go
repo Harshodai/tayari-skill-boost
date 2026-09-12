@@ -5,6 +5,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -14,6 +15,8 @@ type Config struct {
 	AllowedOrigins         []string
 	CORSAllowedOrigins     []string
 	DatabaseURL            string
+	DBMaxOpenConns         int
+	DBMaxIdleConns         int
 	UseSupabase            bool
 	JWTSecret              string
 	SupabaseURL            string
@@ -50,6 +53,17 @@ func LoadConfig() *Config {
 		AllowedOrigins:     parseAllowedOrigins(getEnv("ALLOWED_ORIGINS", "http://localhost:5173")),
 		CORSAllowedOrigins: parseAllowedOrigins(getEnv("CORS_ALLOWED_ORIGINS", "")),
 		DatabaseURL:        getEnv("DATABASE_URL", ""),
+		// ponytail: hardcoded at 10/5 previously with a comment calling the
+		// Go gateway "a thin auth/routing layer, not a heavy DB consumer" -
+		// no longer true; this service runs dozens of direct SQL handlers
+		// (review queue, applications, resumes, cover letters, saves,
+		// approvals, ...). 15-20 concurrent users hitting a handful of
+		// those at once could exhaust 10 connections and queue every other
+		// request behind them. Raised the defaults and made both
+		// configurable so a real load test can tune them without a code
+		// change.
+		DBMaxOpenConns: getEnvInt("DB_MAX_OPEN_CONNS", 50),
+		DBMaxIdleConns: getEnvInt("DB_MAX_IDLE_CONNS", 25),
 		UseSupabase:        getEnv("USE_SUPABASE", "false") == "true",
 		JWTSecret:          jwtSecret,
 		SupabaseURL:        getEnv("SUPABASE_URL", ""),
@@ -113,6 +127,19 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		log.Printf("config: invalid int for %s=%q, using default %d: %v", key, value, fallback, err)
+		return fallback
+	}
+	return parsed
 }
 
 // getEnvRequired panics if the environment variable is not set

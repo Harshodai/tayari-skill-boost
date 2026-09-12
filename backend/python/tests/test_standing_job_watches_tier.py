@@ -5,6 +5,13 @@ entry), but each job_watches row must only actually dispatch once its own
 schedule_tier interval has elapsed since last_run_at -- not on every hourly tick.
 These tests exercise that gate directly against a fake asyncpg pool/connection,
 with no real Postgres or Celery broker involved.
+
+The task claims all due watches in one short transaction (stamping
+last_run_at as a claim marker via a single batched UPDATE ... WHERE watch_id
+= ANY(...)) before doing any external work; each watch then gets its own
+separate last_match_count UPDATE afterward, outside any transaction/lock.
+So a dispatching run always produces exactly one batched claim UPDATE
+followed by one per-watch match-count UPDATE.
 """
 from __future__ import annotations
 
@@ -93,8 +100,9 @@ def test_tier_interval_gates_dispatch(tier, hours_since_last_run, should_fire, m
     assert fake_delay.called is should_fire
     assert result["watches_triggered"] == (1 if should_fire else 0)
     assert result["watches_skipped"] == (0 if should_fire else 1)
-    # last_run_at must only be touched when the watch actually dispatched.
-    assert len(conn.executed) == (1 if should_fire else 0)
+    # A batched claim UPDATE (last_run_at) plus a per-watch match-count
+    # UPDATE only happen when the watch actually dispatched.
+    assert len(conn.executed) == (2 if should_fire else 0)
 
 
 def test_watch_with_no_last_run_always_fires(monkeypatch):
@@ -105,7 +113,7 @@ def test_watch_with_no_last_run_always_fires(monkeypatch):
 
     assert fake_delay.called is True
     assert result["watches_triggered"] == 1
-    assert len(conn.executed) == 1
+    assert len(conn.executed) == 2
 
 
 def test_unknown_tier_falls_back_to_daily_interval(monkeypatch):
@@ -162,8 +170,13 @@ def test_multiple_watches_mixed_due_states(monkeypatch):
     assert result["watches_triggered"] == 2
     assert result["watches_skipped"] == 1
     assert fake_delay.call_count == 2
-    dispatched_ids = {args[2] for _, args in conn.executed}
-    assert dispatched_ids == {"due-hourly", "never-run"}
+    # executed[0] is the one batched claim UPDATE covering every due watch;
+    # the rest are per-watch last_match_count UPDATEs.
+    claim_query, claim_args = conn.executed[0]
+    assert "last_run_at" in claim_query
+    assert set(claim_args[1]) == {"due-hourly", "never-run"}
+    match_count_ids = {args[1] for _, args in conn.executed[1:]}
+    assert match_count_ids == {"due-hourly", "never-run"}
 
 
 def test_match_count_is_persisted_on_dispatch(monkeypatch):
@@ -173,11 +186,12 @@ def test_match_count_is_persisted_on_dispatch(monkeypatch):
     result, conn, fake_delay = _run_task(rows, monkeypatch, match_count=14)
 
     assert fake_delay.called is True
-    assert len(conn.executed) == 1
-    _, args = conn.executed[0]
-    # UPDATE ... SET last_run_at = $1, last_match_count = $2, ... WHERE watch_id = $3
-    assert args[1] == 14
-    assert args[2] == "w-count"
+    assert len(conn.executed) == 2
+    # executed[0] is the claim UPDATE (last_run_at only); executed[1] is the
+    # per-watch UPDATE ... SET last_match_count = $1, ... WHERE watch_id = $2
+    _, args = conn.executed[1]
+    assert args[0] == 14
+    assert args[1] == "w-count"
 
 
 def test_match_count_failure_does_not_block_dispatch(monkeypatch):
@@ -189,8 +203,8 @@ def test_match_count_failure_does_not_block_dispatch(monkeypatch):
 
     assert fake_delay.called is True
     assert result["watches_triggered"] == 1
-    _, args = conn.executed[0]
-    assert args[1] is None
+    _, args = conn.executed[1]
+    assert args[0] is None
 
 
 def test_count_watch_matches_returns_none_not_zero_on_provider_failure():

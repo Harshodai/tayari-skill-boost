@@ -143,6 +143,49 @@ async def _execute_handler(handler: Callable, msg_id: str, fields: dict) -> None
         await res
 
 
+# How long a message can sit claimed-but-unacked in a consumer group's
+# Pending Entries List before another consumer is allowed to reclaim it.
+# ponytail: consume_events only ever read new (">") messages — if a
+# consumer picked one up and crashed before xack, that message was
+# stranded in the PEL permanently: never retried, never expired, and the
+# PEL itself just grows forever (a second, quieter memory leak on top of
+# the lost event). Standard Redis Streams recovery is XPENDING (find idle
+# entries) + XCLAIM (reassign them to a live consumer) before reading new
+# work, done here rather than left as a documented gap for whoever first
+# wires a real consumer.
+_STALE_CLAIM_MS = int(os.getenv("EVENT_BUS_STALE_CLAIM_MS", "60000"))
+
+
+async def _reclaim_stale_messages(
+    redis_client: Any, stream: str, group: str, consumer: str, max_reclaim: int = 50,
+) -> list[tuple[str, dict]]:
+    """Reclaim PEL entries idle longer than _STALE_CLAIM_MS. Never raises."""
+    try:
+        pending = await redis_client.xpending_range(
+            stream, group, min="-", max="+", count=max_reclaim, idle=_STALE_CLAIM_MS,
+        )
+    except Exception as exc:
+        logger.warning("consume_events: xpending_range failed for stream %s: %s", stream, exc)
+        return []
+    if not pending:
+        return []
+    ids = [p["message_id"] if isinstance(p, dict) else p[0] for p in pending]
+    try:
+        claimed = await redis_client.xclaim(stream, group, consumer, min_idle_time=_STALE_CLAIM_MS, message_ids=ids)
+    except Exception as exc:
+        logger.warning("consume_events: xclaim failed for stream %s: %s", stream, exc)
+        return []
+    result = []
+    for entry in claimed or []:
+        if not entry:
+            continue
+        msg_id, fields = entry[0], entry[1]
+        result.append((msg_id, fields))
+    if result:
+        logger.warning("consume_events: reclaimed %d stale message(s) on stream %s group %s", len(result), stream, group)
+    return result
+
+
 async def consume_events(
     stream: str,
     group: str,
@@ -155,6 +198,10 @@ async def consume_events(
     """Consume events from a Redis Stream using a consumer group.
 
     - Ensures consumer group exists (`xgroup_create` with mkstream=True).
+    - Before reading new messages, reclaims any message that's been pending
+      (delivered but never xack'd) longer than STALE_CLAIM_MS — see
+      `_reclaim_stale_messages` — so a consumer that crashed mid-handler
+      doesn't strand its messages in the group's PEL forever.
     - Reads from group with `xreadgroup`, executes handler, and acknowledges with `xack`.
     - Returns the number of events successfully processed and acknowledged.
     """
@@ -176,6 +223,19 @@ async def consume_events(
                     exc,
                 )
 
+        reclaimed = await _reclaim_stale_messages(redis_client, stream, group, consumer)
+        processed = 0
+        for msg_id, fields in reclaimed:
+            try:
+                await _execute_handler(handler, msg_id, fields)
+                await redis_client.xack(stream, group, msg_id)
+                processed += 1
+            except Exception as handler_err:
+                logger.error(
+                    "consume_events: handler error for reclaimed msg %s on stream %s: %s",
+                    msg_id, stream, handler_err,
+                )
+
         entries = await redis_client.xreadgroup(
             groupname=group,
             consumername=consumer,
@@ -185,9 +245,8 @@ async def consume_events(
         )
 
         if not entries:
-            return 0
+            return processed
 
-        processed = 0
         for stream_entry in entries:
             if not stream_entry or len(stream_entry) < 2:
                 continue

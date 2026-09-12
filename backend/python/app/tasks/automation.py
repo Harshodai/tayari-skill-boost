@@ -319,6 +319,23 @@ def run_standing_job_watches(self) -> dict:
         pool = await get_pool()
         if not pool:
             return {"status": "skipped_no_db"}
+
+        # ponytail: this used to run the external match-count HTTP call (and
+        # event/notification dispatch) for every due watch INSIDE the same
+        # `FOR UPDATE SKIP LOCKED` transaction that claimed the rows. With
+        # 500 users and a 1.5s external check each, that's 12+ minutes
+        # holding open row locks (and the connection itself) on
+        # job_watches, sequentially, blocking every other transaction that
+        # touches that table and eventually starving the pool. Fixed by
+        # claiming due rows in one short transaction (SKIP LOCKED still
+        # prevents two workers from double-claiming), stamping
+        # last_run_at=now_dt immediately as the claim marker so no other
+        # worker re-picks them once the lock releases, then doing all
+        # external work AFTER the transaction has committed and the lock is
+        # gone.
+        now_dt = datetime.now(timezone.utc)
+        due_watches: list[dict] = []
+        skipped = 0
         async with pool.acquire() as conn:
             tx_mgr = conn.transaction() if hasattr(conn, "transaction") else contextlib.nullcontext()
             async with tx_mgr:
@@ -331,9 +348,7 @@ def run_standing_job_watches(self) -> dict:
                     FOR UPDATE SKIP LOCKED
                     """
                 )
-                triggered = 0
-                skipped = 0
-                now_dt = datetime.now(timezone.utc)
+                claimed_ids = []
                 for w in watches:
                     tier = (w.get("schedule_tier") or "daily").lower()
                     interval = _TIER_INTERVALS.get(tier, timedelta(hours=24))
@@ -344,58 +359,79 @@ def run_standing_job_watches(self) -> dict:
                         if now_dt - last_run < interval:
                             skipped += 1
                             continue
+                    due_watches.append(dict(w))
+                    claimed_ids.append(w["watch_id"])
 
-                    user_id = str(w["user_id"])
-                    title = w["query_title"]
-                    loc = w["location"] or "Remote"
-                    config = {
-                        "user_id": user_id,
-                        "job_titles": [title],
-                        "location": loc,
-                        "standing_watch_id": str(w["watch_id"]),
-                    }
-                    run_scheduled.delay(user_id=user_id, config=config)
-
-                    match_count = await _count_watch_matches(title, loc)
+                if claimed_ids:
+                    # Stamp the claim now, while still holding the lock, so
+                    # a concurrent beat tick can't re-select the same rows
+                    # the instant this transaction commits and the lock
+                    # releases, before the external work below finishes.
                     await conn.execute(
                         """
                         UPDATE public.job_watches
-                        SET last_run_at = $1, last_match_count = $2, updated_at = now()
-                        WHERE watch_id = $3
+                        SET last_run_at = $1, updated_at = now()
+                        WHERE watch_id = ANY($2::uuid[])
                         """,
-                        now_dt, match_count, w["watch_id"],
+                        now_dt, claimed_ids,
                     )
-                    triggered += 1
 
-                    if match_count is not None and match_count > 0:
-                        matches = [None] * match_count
-                        try:
-                            from app.services.event_bus import publish_event
-                            await publish_event(
-                                "tayari:events",
-                                "watch.matched",
-                                {"user_id": user_id, "count": len(matches)},
-                            )
-                        except Exception as pub_exc:
-                            logger.warning("run_standing_job_watches: event publish failed for %s: %s", user_id, pub_exc)
+        # Everything from here on runs with no transaction and no row locks
+        # held — external calls can take as long as they need without
+        # blocking other database work.
+        triggered = 0
+        for w in due_watches:
+            user_id = str(w["user_id"])
+            title = w["query_title"]
+            loc = w["location"] or "Remote"
+            config = {
+                "user_id": user_id,
+                "job_titles": [title],
+                "location": loc,
+                "standing_watch_id": str(w["watch_id"]),
+            }
+            run_scheduled.delay(user_id=user_id, config=config)
 
-                        try:
-                            from app.services.notifications import notify_user
-                            await notify_user(
-                                user_id=user_id,
-                                title=f"New matches for '{title}'",
-                                body=f"Found {match_count} new job match{'es' if match_count != 1 else ''} for '{title}' in {loc}.",
-                                channel="in_app",
-                                data={
-                                    "watch_id": str(w["watch_id"]),
-                                    "match_count": match_count,
-                                    "title": title,
-                                    "location": loc,
-                                },
-                            )
-                        except Exception as n_exc:
-                            logger.warning("run_standing_job_watches: notification failed for %s: %s", user_id, n_exc)
-                return {"status": "success", "watches_triggered": triggered, "watches_skipped": skipped}
+            match_count = await _count_watch_matches(title, loc)
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    UPDATE public.job_watches
+                    SET last_match_count = $1, updated_at = now()
+                    WHERE watch_id = $2
+                    """,
+                    match_count, w["watch_id"],
+                )
+            triggered += 1
+
+            if match_count is not None and match_count > 0:
+                try:
+                    from app.services.event_bus import publish_event
+                    await publish_event(
+                        "tayari:events",
+                        "watch.matched",
+                        {"user_id": user_id, "count": match_count},
+                    )
+                except Exception as pub_exc:
+                    logger.warning("run_standing_job_watches: event publish failed for %s: %s", user_id, pub_exc)
+
+                try:
+                    from app.services.notifications import notify_user
+                    await notify_user(
+                        user_id=user_id,
+                        title=f"New matches for '{title}'",
+                        body=f"Found {match_count} new job match{'es' if match_count != 1 else ''} for '{title}' in {loc}.",
+                        channel="in_app",
+                        data={
+                            "watch_id": str(w["watch_id"]),
+                            "match_count": match_count,
+                            "title": title,
+                            "location": loc,
+                        },
+                    )
+                except Exception as n_exc:
+                    logger.warning("run_standing_job_watches: notification failed for %s: %s", user_id, n_exc)
+        return {"status": "success", "watches_triggered": triggered, "watches_skipped": skipped}
 
     try:
         return asyncio.run(_execute())

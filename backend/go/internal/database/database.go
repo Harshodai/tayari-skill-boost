@@ -15,8 +15,10 @@ type DB struct {
 	Conn *sql.DB
 }
 
-// NewDB creates a new database connection
-func NewDB(dsn string) (*DB, error) {
+// NewDB creates a new database connection. maxOpenConns/maxIdleConns of 0 fall
+// back to the package's own conservative defaults (see the call site comment
+// in cmd/server/main.go for why these are configurable rather than fixed).
+func NewDB(dsn string, maxOpenConns, maxIdleConns int) (*DB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
@@ -24,12 +26,15 @@ func NewDB(dsn string) (*DB, error) {
 
 	// database/sql defaults to an unbounded open-connection count (and only 2
 	// idle), so a traffic spike degrades into unbounded Postgres connection
-	// growth instead of requests queuing predictably at a known limit. The Go
-	// gateway is a thin auth/routing layer in front of the Python AI engine,
-	// not a heavy DB consumer, so these are deliberately modest starting
-	// values, not a load-tested ceiling.
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(5)
+	// growth instead of requests queuing predictably at a known limit.
+	if maxOpenConns <= 0 {
+		maxOpenConns = 50
+	}
+	if maxIdleConns <= 0 {
+		maxIdleConns = 25
+	}
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(maxIdleConns)
 	db.SetConnMaxLifetime(30 * time.Minute)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 

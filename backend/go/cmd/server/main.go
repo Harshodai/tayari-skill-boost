@@ -63,7 +63,7 @@ func main() {
 	var err error
 
 	for i := 1; i <= maxDBRetries; i++ {
-		db, err = database.NewDB(cfg.DatabaseURL)
+		db, err = database.NewDB(cfg.DatabaseURL, cfg.DBMaxOpenConns, cfg.DBMaxIdleConns)
 		if err == nil {
 			slog.Info("Successfully connected to database")
 			break

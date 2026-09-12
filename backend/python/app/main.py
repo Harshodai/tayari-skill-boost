@@ -419,45 +419,38 @@ class AutopilotRunRequest(BaseModel):
     candidate_name: Optional[str] = None
 
 
-_AUTOPILOT_QUEUE_CAPACITY = max(
-    1, min(settings.autopilot_queue_capacity, 16)
-)
-_autopilot_active = 0
-_autopilot_active_lock = asyncio.Lock()
-
-
-async def _run_autopilot_with_capacity(*args):
-    global _autopilot_active
-    try:
-        await automation_engine.run_autopilot(*args)
-    finally:
-        async with _autopilot_active_lock:
-            _autopilot_active -= 1
-
-
 @app.post("/api/v1/autopilot/run")
 async def autopilot_run(
     payload: AutopilotRunRequest,
     _user_id: str = Depends(get_current_user),
 ):
-    """Start a user-owned Auto-Pilot background run."""
-    import asyncio
-    run_id = str(__import__("uuid").uuid4())
+    """Start a user-owned Auto-Pilot background run.
+
+    ponytail: this used to run the entire multi-minute pipeline (job search,
+    LLM tailoring, cover letters, browser-automation attempts) via
+    asyncio.create_task on THIS process's own event loop — the same loop
+    serving every other API request. A local semaphore capped concurrent
+    runs at settings.autopilot_queue_capacity, but that only bounded
+    in-process load; it didn't change the fact that heavy CPU/IO work was
+    sharing the request-serving loop, and any deploy/restart silently
+    destroyed every in-flight run with no persistence or resume. A real
+    Celery task for exactly this pipeline (autopilot.run_application_agent
+    in app/tasks/automation.py) already existed and already persists status
+    to agent_runs throughout the run — this endpoint just wasn't calling
+    it. get_run_status()'s cache-then-DB-fallback (automation_engine.py)
+    already handles polling from a different process than the one running
+    the task, so dispatching to Celery here needed no other changes.
+    """
+    run_id = str(uuid.uuid4())
     run_config = dict(payload.run_config or {})
     run_config["user_id"] = _user_id
-    global _autopilot_active
-    async with _autopilot_active_lock:
-        if _autopilot_active >= _AUTOPILOT_QUEUE_CAPACITY:
-            raise HTTPException(status_code=429, detail="autopilot queue is full")
-        _autopilot_active += 1
-    asyncio.create_task(
-        _run_autopilot_with_capacity(
-            run_id,
-            run_config,
-            payload.profile,
-            payload.resume_text,
-            payload.candidate_name,
-        )
+    from app.tasks.automation import run_application_agent
+    run_application_agent.delay(
+        run_id,
+        run_config,
+        payload.profile,
+        payload.resume_text,
+        payload.candidate_name or "Candidate",
     )
     try:
         record_product_event(
