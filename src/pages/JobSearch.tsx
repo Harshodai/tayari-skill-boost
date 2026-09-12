@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/layout";
 import { Seo } from "@/components/seo/Seo";
 import { Link, useNavigate } from "react-router-dom";
@@ -110,6 +110,19 @@ const JobSearch = () => {
   const [heroGap, setHeroGap] = useState<{ gaps: { skill: string }[]; overlap_score: number } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isAgentSearching, setIsAgentSearching] = useState(false);
+  // Guards handleAgentSearch's post-fetch event-by-event animation loop
+  // (a sequence of setTimeout-gated setState calls) from continuing to
+  // touch state after the component unmounts. The search buttons already
+  // disable during isSearching, so a second overlapping search from this
+  // component can't be triggered — this only stops wasted timer/setState
+  // work if the user navigates away mid-animation.
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
   const [hideGhostJobs, setHideGhostJobs] = useState(false);
   const [visibleAgentEvents, setVisibleAgentEvents] = useState<any[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -336,10 +349,12 @@ const JobSearch = () => {
       // Stream events one by one for visual effect
       for (let i = 0; i < events.length; i++) {
         await new Promise((resolve) => setTimeout(resolve, 600));
+        if (!isMountedRef.current) return;
         setVisibleAgentEvents((prev) => [...prev, events[i]]);
       }
 
       await new Promise((resolve) => setTimeout(resolve, 400));
+      if (!isMountedRef.current) return;
       setResults(finalJobs);
       setSelectedIdx(0);
       setCursor(0);
@@ -360,11 +375,15 @@ const JobSearch = () => {
       const msg = isBackendUnavailable(err)
         ? "Agent search is unavailable while the backend is down."
         : (err instanceof Error ? err.message : "Agent search failed");
-      setSearchError(msg);
-      toast.error(msg);
+      if (isMountedRef.current) {
+        setSearchError(msg);
+        toast.error(msg);
+      }
     } finally {
-      setIsSearching(false);
-      setIsAgentSearching(false);
+      if (isMountedRef.current) {
+        setIsSearching(false);
+        setIsAgentSearching(false);
+      }
     }
   };
 
