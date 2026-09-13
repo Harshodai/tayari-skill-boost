@@ -4113,3 +4113,13 @@ source of truth for both paths.
 - Static audits of Supabase calls must be read with BYPASSRLS in mind: RLS-only filtering is correct today but is a single migration away from being a cross-tenant primitive. Always add the owner predicate client-side too.
 - Any endpoint that reads an identity from a request body is guilty until proven internal-token-gated; grep for `req.UserID` / `X-User-Id` as a category, not per-endpoint.
 - Do not let a green unit suite imply integration health: 233 tests passed while four advertised URLs 404'd and an IDOR sat in the gateway.
+
+## 2026-09-13 — Full audit remediation: secret tables, pipeline MCP, Python boundaries, and worker resilience
+
+**What was done.** Restored least-privilege access for password-reset tokens and API keys in a forward migration, corrected both MCP pipeline implementations to use owner-filtered `saved_jobs`, rate-limited the public breached-password check, authenticated Gmail parsing, changed WebSocket/A2A environment checks to explicit development allowlists, capped inbound LLM prompts, attributed anonymous model spend to a bounded bucket, and added global bounded Celery retry settings plus redacted dead-letter audit events. The self-hosted migration was copied into the numbered init sequence and mounted individually.
+
+**Root cause.** A blanket owner-policy migration accidentally made secret-bearing tables writable by authenticated clients; the pipeline MCP referenced a nonexistent `applications` table; several service boundaries treated only named production environments as secure; and retry/cost/input safeguards existed only on selected call paths.
+
+**Fix applied.** Secret creation is server-only; API-key owners retain view/revoke access only. Pipeline reads now include an explicit authenticated-owner predicate. Public proxy traffic is bounded, AI routes fail closed outside explicit local environments, prompts are truncated before provider calls, anonymous spend is tracked, and task failure events retain identifiers without payloads or personal data.
+
+**Reusable lesson.** Security controls must use allowlists, not production-name denylists. Never apply generic CRUD grants to credentials or reset artifacts; validate MCP table names against the live schema; and put cost, size, retry, and ownership controls at shared choke points rather than relying on every caller.
