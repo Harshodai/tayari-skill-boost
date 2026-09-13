@@ -188,15 +188,12 @@ class CoverLetterRequest(BaseModel):
 
 class CoverLetterResponse(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    id: Optional[str] = None
     cover_letter: str
     word_count: int
     bullet_references: List[str] = Field(default_factory=list)
     tone: str = "formal"
     job_title: str
     company_name: str
-    user_id: Optional[str] = None
-    saved: Optional[bool] = None
 
 
 class CommunicationRequest(BaseModel):
@@ -416,10 +413,8 @@ class CoverLetterInput(BaseModel):
     job_description: str = Field(..., description="Target job description")
     company_name: str = Field(..., description="Target company name")
     job_title: str = Field(..., description="Target job title")
-    tone: Literal["formal", "casual", "confident", "technical"] = Field("formal", description="Tone of cover letter: formal, casual, confident, or technical")
+    tone: Literal["formal", "conversational", "confident"] = Field("formal", description="Tone of cover letter")
     personal_notes: str = Field("", description="Optional personal notes or context (e.g. referral, event)")
-    job_url: Optional[str] = Field(None, description="Optional target job URL")
-    resume_id: Optional[str] = Field(None, description="Optional resume UUID")
 
 
 class CommunicationInput(BaseModel):
@@ -437,13 +432,6 @@ class InterviewPrepInput(BaseModel):
     resume_text: str = Field("", description="Candidate's resume text")
     job_title: str = Field(..., description="Target job title")
     company_name: Optional[str] = Field(None, description="Optional target company name")
-    # ponytail: this was missing entirely — InterviewPrepGenerator.generate()
-    # genuinely uses job_description for "technical"/"system-design" prep
-    # (passed to _technical/_system_design), and the frontend
-    # (InterviewPrep.tsx) already sends it, but Pydantic silently drops
-    # unknown fields by default, so it was always None server-side. Technical
-    # and system-design interview prep was never actually JD-tailored.
-    job_description: Optional[str] = Field(None, description="Optional target job description for JD-tailored prep")
     interview_type: Literal["behavioral", "technical", "system-design"] = Field(
         "behavioral", description="Type: 'behavioral', 'technical', or 'system-design'"
     )

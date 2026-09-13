@@ -2,14 +2,13 @@ package api
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -43,53 +42,34 @@ func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delegate token generation to the auth service when it supports it
-	// (LocalAuth owns the password reset flow; Supabase handles it client-side).
-	var token string
-	var err error
-	type resetPassworder interface {
-		ResetPassword(ctx context.Context, email string) (string, error)
-	}
-	if rp, ok := s.Auth.(resetPassworder); ok {
-		token, err = rp.ResetPassword(r.Context(), req.Email)
+	var userID uuid.UUID
+	err := s.DB.Conn.QueryRowContext(r.Context(),
+		`SELECT id FROM auth.users WHERE email=$1`, req.Email).Scan(&userID)
+	if err == nil {
+		tokenBytes := make([]byte, 32)
+		if _, err := rand.Read(tokenBytes); err != nil {
+			log.Printf("handleForgotPassword: failed to generate token: %v", err)
+			s.respondError(w, http.StatusInternalServerError, "Failed to generate reset token")
+			return
+		}
+		token := hex.EncodeToString(tokenBytes)
+		tokenHash := resetTokenHash(token)
+
+		_, err = s.DB.Conn.ExecContext(r.Context(),
+			`INSERT INTO public.password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, NOW() + INTERVAL '1 hour')`,
+			userID, tokenHash)
 		if err != nil {
-			slog.Error("handleForgotPassword: ResetPassword failed", "error", err)
+			log.Printf("handleForgotPassword: failed to store token: %v", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to create reset token")
 			return
 		}
-	} else {
-		// Fallback: direct DB path for SupabaseAuth or other backends
-		var userID uuid.UUID
-		err = s.DB.Conn.QueryRowContext(r.Context(),
-			`SELECT id FROM auth.users WHERE email=$1`, req.Email).Scan(&userID)
-		if err == nil {
-			tokenBytes := make([]byte, 32)
-			if _, err := rand.Read(tokenBytes); err != nil {
-				slog.Error("handleForgotPassword: failed to generate token", "error", err)
-				s.respondError(w, http.StatusInternalServerError, "Failed to generate reset token")
-				return
-			}
-			token = hex.EncodeToString(tokenBytes)
-			tokenHash := resetTokenHash(token)
 
-			_, err = s.DB.Conn.ExecContext(r.Context(),
-				`INSERT INTO public.password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, NOW() + INTERVAL '1 hour')`,
-				userID, tokenHash)
-			if err != nil {
-				slog.Error("handleForgotPassword: failed to store token", "error", err)
-				s.respondError(w, http.StatusInternalServerError, "Failed to create reset token")
-				return
-			}
-		}
-	}
-
-	if token != "" {
 		frontendURL := strings.TrimRight(s.Config.FrontendURL, "/")
 		if err := sendPasswordResetEmail(req.Email, token, frontendURL); err != nil {
-			slog.Error("handleForgotPassword: failed to send email", "error", err)
+			log.Printf("handleForgotPassword: failed to send email: %v", err)
 		}
 	} else {
-		slog.Error("handleForgotPassword: email not found (not revealing)", "email", req.Email)
+		log.Printf("handleForgotPassword: email not found (not revealing): %s", req.Email)
 	}
 
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
@@ -119,14 +99,14 @@ func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		slog.Error("handleResetPassword: bcrypt error", "error", err)
+		log.Printf("handleResetPassword: bcrypt error: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to hash password")
 		return
 	}
 
 	tx, err := s.DB.Conn.BeginTx(r.Context(), nil)
 	if err != nil {
-		slog.Error("handleResetPassword: tx begin", "error", err)
+		log.Printf("handleResetPassword: tx begin: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to reset password")
 		return
 	}
@@ -145,7 +125,7 @@ func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		`UPDATE auth.users SET encrypted_password=$1, updated_at=NOW() WHERE id=$2`,
 		string(hash), userID)
 	if err != nil {
-		slog.Error("handleResetPassword: update password", "error", err)
+		log.Printf("handleResetPassword: update password: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to reset password")
 		return
 	}
@@ -153,13 +133,13 @@ func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	_, err = tx.ExecContext(r.Context(),
 		`UPDATE public.password_reset_tokens SET used=true WHERE id=$1`, tokenID)
 	if err != nil {
-		slog.Error("handleResetPassword: mark token used", "error", err)
+		log.Printf("handleResetPassword: mark token used: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to reset password")
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
-		slog.Error("handleResetPassword: tx commit", "error", err)
+		log.Printf("handleResetPassword: tx commit: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to reset password")
 		return
 	}
@@ -178,7 +158,7 @@ func resetTokenHash(token string) string {
 func sendPasswordResetEmail(email, token, frontendURL string) error {
 	apiKey := os.Getenv("SENDGRID_API_KEY")
 	if apiKey == "" {
-		slog.Info("[sendPasswordResetEmail] SENDGRID_API_KEY not set; password-reset email delivery disabled", "email", email)
+		log.Printf("[sendPasswordResetEmail] SENDGRID_API_KEY not set; would send reset link: %s/reset-password?token=%s", frontendURL, token)
 		return nil
 	}
 

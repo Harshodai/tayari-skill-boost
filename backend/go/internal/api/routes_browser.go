@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,8 +14,6 @@ import (
 	"tayari-backend/internal/models"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
 )
 
 // -------------------------------------------------------------------
@@ -47,50 +45,22 @@ const (
 
 // RegisterBrowserRoutes wires the browser automation proxy routes.
 // NOTE: these must stay inside the authenticated route group.
-//
-// The SSE stream route (POST .../automation/stream) is NOT registered here.
-// It is mounted separately via streamRouter() (see below) and wired as a
-// sibling of s.Router in Handler() (router.go), so it never inherits the
-// blanket 300s middleware.Timeout applied to s.Router — that timeout would
-// truncate a stream this handler deliberately budgets for 20 minutes
-// (browserStreamTimeout).
 func (s *Server) RegisterBrowserRoutes(r chi.Router) {
 	r.Post("/api/v1/browser/automation", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomation))
 	r.Post("/api/browser/automation", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomation))
+	r.Post("/api/v1/browser/automation/stream", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationStream))
+	r.Post("/api/browser/automation/stream", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationStream))
 	r.Post("/api/v1/browser/automation/cancel", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationCancel))
 	r.Post("/api/browser/automation/cancel", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationCancel))
 	r.Get("/api/v1/browser/automation/runs/{runID}/control", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationControl))
 	r.Get("/api/browser/automation/runs/{runID}/control", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationControl))
 }
 
-// streamRouter builds a standalone chi router for the browser-automation SSE
-// stream endpoint, applying the same request-handling middleware s.Router
-// uses (panic recovery, request logging, tenant resolution, CSRF check,
-// CORS, auth, per-user AI rate limiting) but with a route-specific Timeout
-// that matches the handler's real budget (browserStreamTimeout, 20min)
-// instead of the global 300s floor in router.go's routes(). Kept at 25min
-// here — a few minutes above the handler's own 20min context deadline — so
-// this outer timeout is a backstop, not the thing that actually cuts the
-// stream off; the handler's own ctx (browserStreamTimeout) does that.
-func (s *Server) streamRouter() chi.Router {
-	r := chi.NewRouter()
-	r.Use(s.recoverWithSentry)
-	r.Use(s.requestLoggingMiddleware)
-	r.Use(s.tenantMiddleware)
-	r.Use(cors.Handler(s.corsOptions()))
-	r.Use(s.csrfCheck)
-	r.Use(middleware.Timeout(25 * time.Minute))
-	r.Use(s.authMiddleware)
-	r.Use(s.authRateLimiter.Middleware)
-	r.Post("/api/v1/browser/automation/stream", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationStream))
-	r.Post("/api/browser/automation/stream", s.withCapability(capabilities.AutonomousBrowser, s.handleBrowserAutomationStream))
-	return r
-}
-
 // auditBrowser emits a single-line audit record for browser-agent actions.
 // Keep the shape stable — log shippers parse it.
 func auditBrowser(action, userID, runID, outcome string, detail interface{}) {
-	slog.Info("[Audit] browser-agent action", "action", action, "actor", orDash(userID), "run", orDash(runID), "outcome", outcome, "detail", detail)
+	log.Printf("[Audit] component=browser-agent action=%s actor=%s run=%s outcome=%s detail=%v",
+		action, orDash(userID), orDash(runID), outcome, detail)
 }
 
 func orDash(v string) string {
@@ -178,7 +148,7 @@ func (s *Server) handleBrowserAutomationControl(w http.ResponseWriter, r *http.R
 				return
 			}
 		}
-		slog.Error("[BrowserAutomation] Control-state proxy error", "error", err)
+		log.Printf("[BrowserAutomation] Control-state proxy error: %v", err)
 		http.Error(w, "failed to read browser run state", http.StatusBadGateway)
 		return
 	}
@@ -224,7 +194,7 @@ func (s *Server) handleBrowserAutomationCancel(w http.ResponseWriter, r *http.Re
 			s.respondError(w, status, "Run not found for this account")
 			return
 		}
-		slog.Error("[BrowserAutomation] Cancel proxy error", "error", err)
+		log.Printf("[BrowserAutomation] Cancel proxy error: %v", err)
 		http.Error(w, "failed to cancel browser run", http.StatusBadGateway)
 		return
 	}
@@ -256,7 +226,7 @@ func (s *Server) handleBrowserAutomation(w http.ResponseWriter, r *http.Request)
 	result, err := s.AI.PostJSONWithContext(ctx, "/api/v1/browser/automation", payload, headers)
 	if err != nil {
 		auditBrowser("run", userID, runID, "error", err)
-		slog.Error("[BrowserAutomation] Proxy error", "error", err)
+		log.Printf("[BrowserAutomation] Proxy error: %v", err)
 		http.Error(w, "failed to execute browser automation", http.StatusBadGateway)
 		return
 	}
@@ -289,7 +259,7 @@ func (s *Server) handleBrowserAutomationStream(w http.ResponseWriter, r *http.Re
 	upstream, err := s.AI.PostStream(ctx, "/api/v1/browser/automation/stream", body, s.getXUserHeaders(r))
 	if err != nil {
 		auditBrowser("stream", userID, runID, "error", err)
-		slog.Error("handleBrowserAutomationStream: upstream failed", "error", err)
+		log.Printf("handleBrowserAutomationStream: upstream failed: %v", err)
 		if status, ok := extractAIStatus(err); ok {
 			s.respondError(w, status, "Upstream AI service error")
 			return
@@ -320,7 +290,7 @@ func (s *Server) handleBrowserAutomationStream(w http.ResponseWriter, r *http.Re
 		if err != nil {
 			if err != io.EOF {
 				auditBrowser("stream", userID, runID, "error", err)
-				slog.Error("handleBrowserAutomationStream: read error", "error", err)
+				log.Printf("handleBrowserAutomationStream: read error: %v", err)
 			} else {
 				auditBrowser("stream", userID, runID, "ok", nil)
 			}

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
+	"log"
 	"net/http"
 
 	"tayari-backend/internal/ai"
@@ -93,7 +93,7 @@ func (s *Server) handleAgentPythonPost(endpoint string) http.HandlerFunc {
 		}
 		result, err := s.AI.PostJSONWithHeaders(endpoint, json.RawMessage(body), s.getXUserHeaders(r))
 		if err != nil {
-			slog.Error("agent Python POST : AI call failed", "value", endpoint, "error", err)
+			log.Printf("agent Python POST %s: AI call failed: %v", endpoint, err)
 			var apiErr *ai.APIError
 			if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
 				s.respondError(w, apiErr.StatusCode, apiErr.Body)
@@ -110,7 +110,7 @@ func (s *Server) handleAgentPythonGet(endpoint string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		result, err := s.AI.GetJSONWithHeaders(endpoint, s.getXUserHeaders(r))
 		if err != nil {
-			slog.Error("agent Python GET : AI call failed", "value", endpoint, "error", err)
+			log.Printf("agent Python GET %s: AI call failed: %v", endpoint, err)
 			var apiErr *ai.APIError
 			if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
 				s.respondError(w, apiErr.StatusCode, apiErr.Body)
@@ -127,7 +127,7 @@ func (s *Server) handleAgentRuntime(w http.ResponseWriter, r *http.Request) {
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/ai/agent/runtime", headers)
 	if err != nil {
-		slog.Error("agent runtime: AI call failed", "error", err)
+		log.Printf("agent runtime: AI call failed: %v", err)
 		var apiErr *ai.APIError
 		if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
 			s.respondError(w, apiErr.StatusCode, apiErr.Body)
@@ -169,7 +169,7 @@ func (s *Server) handleAgentRunTakeOver(w http.ResponseWriter, r *http.Request) 
 
 	tx, err := s.DB.Conn.BeginTx(r.Context(), nil)
 	if err != nil {
-		slog.Error("handleAgentRunTakeOver: begin tx failed", "error", err)
+		log.Printf("handleAgentRunTakeOver: begin tx failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to start take-over")
 		return
 	}
@@ -186,13 +186,13 @@ func (s *Server) handleAgentRunTakeOver(w http.ResponseWriter, r *http.Request) 
 		WHERE id = $1 AND user_id = $2 AND status IN ('running', 'queued')
 	`, runID, uid)
 	if err != nil {
-		slog.Error("handleAgentRunTakeOver: pause failed", "error", err)
+		log.Printf("handleAgentRunTakeOver: pause failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to pause the run")
 		return
 	}
 	rowsAffected, err := res.RowsAffected()
 	if err != nil {
-		slog.Error("handleAgentRunTakeOver: rows affected failed", "error", err)
+		log.Printf("handleAgentRunTakeOver: rows affected failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to pause the run")
 		return
 	}
@@ -211,7 +211,7 @@ func (s *Server) handleAgentRunTakeOver(w http.ResponseWriter, r *http.Request) 
 		`, uid, runID).Scan(&existingID)
 		if lookupErr == nil && existingID != "" {
 			if err := tx.Commit(); err != nil {
-				slog.Error("handleAgentRunTakeOver: commit (existing) failed", "error", err)
+				log.Printf("handleAgentRunTakeOver: commit (existing) failed: %v", err)
 				s.respondError(w, http.StatusInternalServerError, "Failed to complete take-over")
 				return
 			}
@@ -246,7 +246,7 @@ func (s *Server) handleAgentRunTakeOver(w http.ResponseWriter, r *http.Request) 
 		RETURNING id
 	`, uid, runID).Scan(&questionID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		slog.Error("handleAgentRunTakeOver: enqueue failed", "error", err)
+		log.Printf("handleAgentRunTakeOver: enqueue failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to enqueue the question")
 		return
 	}
@@ -265,7 +265,7 @@ func (s *Server) handleAgentRunTakeOver(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := tx.Commit(); err != nil {
-		slog.Error("handleAgentRunTakeOver: commit failed", "error", err)
+		log.Printf("handleAgentRunTakeOver: commit failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to complete take-over")
 		return
 	}
@@ -310,7 +310,7 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/agents", headers)
 	if err != nil {
-		slog.Error("handleListAgents: AI call failed", "error", err)
+		log.Printf("handleListAgents: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to list agents")
 		return
 	}
@@ -326,7 +326,7 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/agents", json.RawMessage(body), headers)
 	if err != nil {
-		slog.Error("handleCreateAgent: AI call failed", "error", err)
+		log.Printf("handleCreateAgent: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to save agent")
 		return
 	}
@@ -347,7 +347,7 @@ func (s *Server) handleUpdateAgentInstructions(w http.ResponseWriter, r *http.Re
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/agents/"+name+"/instructions", json.RawMessage(body), headers)
 	if err != nil {
-		slog.Error("handleUpdateAgentInstructions: AI call failed", "error", err)
+		log.Printf("handleUpdateAgentInstructions: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to update instructions")
 		return
 	}
@@ -383,7 +383,7 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		slog.Error("handleDeleteAgent: AI call failed", "error", err)
+		log.Printf("handleDeleteAgent: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to delete agent")
 		return
 	}
@@ -407,7 +407,7 @@ func (s *Server) handleListApprovals(w http.ResponseWriter, r *http.Request) {
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/approvals", headers)
 	if err != nil {
-		slog.Error("handleListApprovals: AI call failed", "error", err)
+		log.Printf("handleListApprovals: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to list approvals")
 		return
 	}
@@ -428,7 +428,7 @@ func (s *Server) handleUpdateApproval(w http.ResponseWriter, r *http.Request) {
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/approvals/"+id, json.RawMessage(body), headers)
 	if err != nil {
-		slog.Error("handleUpdateApproval: AI call failed", "error", err)
+		log.Printf("handleUpdateApproval: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to update approval")
 		return
 	}
@@ -439,7 +439,7 @@ func (s *Server) handleGetHermesConfig(w http.ResponseWriter, r *http.Request) {
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/hermes/config", headers)
 	if err != nil {
-		slog.Error("handleGetHermesConfig: AI call failed", "error", err)
+		log.Printf("handleGetHermesConfig: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to fetch Hermes config")
 		return
 	}
@@ -460,7 +460,7 @@ func (s *Server) handleCreateAgentTask(w http.ResponseWriter, r *http.Request) {
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/agents/"+agentID+"/tasks", json.RawMessage(body), headers)
 	if err != nil {
-		slog.Error("handleCreateAgentTask: AI call failed", "error", err)
+		log.Printf("handleCreateAgentTask: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to enqueue task")
 		return
 	}
@@ -476,7 +476,7 @@ func (s *Server) handleListAgentTasks(w http.ResponseWriter, r *http.Request) {
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/agents/"+agentID+"/tasks", headers)
 	if err != nil {
-		slog.Error("handleListAgentTasks: AI call failed", "error", err)
+		log.Printf("handleListAgentTasks: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to list tasks")
 		return
 	}
@@ -492,7 +492,7 @@ func (s *Server) handleGetAgentTaskDetails(w http.ResponseWriter, r *http.Reques
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/agents/tasks/"+taskID, headers)
 	if err != nil {
-		slog.Error("handleGetAgentTaskDetails: AI call failed", "error", err)
+		log.Printf("handleGetAgentTaskDetails: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to get task details")
 		return
 	}
@@ -508,7 +508,7 @@ func (s *Server) handleListAgentTaskEvents(w http.ResponseWriter, r *http.Reques
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/agents/tasks/"+taskID+"/events", headers)
 	if err != nil {
-		slog.Error("handleListAgentTaskEvents: AI call failed", "error", err)
+		log.Printf("handleListAgentTaskEvents: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to list task events")
 		return
 	}
@@ -519,7 +519,7 @@ func (s *Server) handleListAllAgentTasks(w http.ResponseWriter, r *http.Request)
 	headers := s.getXUserHeaders(r)
 	result, err := s.AI.GetJSONWithHeaders("/api/v1/agents/tasks", headers)
 	if err != nil {
-		slog.Error("handleListAllAgentTasks: AI call failed", "error", err)
+		log.Printf("handleListAllAgentTasks: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to list all agent tasks")
 		return
 	}

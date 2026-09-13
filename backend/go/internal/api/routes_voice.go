@@ -2,7 +2,7 @@ package api
 
 import (
 	"io"
-	"log/slog"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -75,7 +75,7 @@ func (s *Server) handleVoiceStream(w http.ResponseWriter, r *http.Request) {
 
 	u, err := url.Parse(s.Config.PythonAIURL)
 	if err != nil {
-		slog.Error("handleVoiceStream: failed to parse Python AI URL actor=", "value", user.ID, "error", err)
+		log.Printf("handleVoiceStream: failed to parse Python AI URL actor=%s: %v", user.ID, err)
 		s.respondError(w, http.StatusInternalServerError, "Internal configuration error")
 		return
 	}
@@ -90,7 +90,7 @@ func (s *Server) handleVoiceStream(w http.ResponseWriter, r *http.Request) {
 
 	backendConn, err := net.DialTimeout("tcp", host, voiceDialTimeout)
 	if err != nil {
-		slog.Error("handleVoiceStream: backend dial failed", "actor", user.ID, "host", host, "error", err)
+		log.Printf("handleVoiceStream: backend dial failed actor=%s host=%s: %v", user.ID, host, err)
 		s.respondError(w, http.StatusBadGateway, "AI service is offline")
 		return
 	}
@@ -98,14 +98,14 @@ func (s *Server) handleVoiceStream(w http.ResponseWriter, r *http.Request) {
 
 	hj, ok := w.(http.Hijacker)
 	if !ok {
-		slog.Info("handleVoiceStream: response writer does not support hijacking actor=", "value", user.ID)
+		log.Printf("handleVoiceStream: response writer does not support hijacking actor=%s", user.ID)
 		s.respondError(w, http.StatusInternalServerError, "Webserver doesn't support hijacking")
 		return
 	}
 
 	clientConn, _, err := hj.Hijack()
 	if err != nil {
-		slog.Error("handleVoiceStream: hijack failed actor=", "value", user.ID, "error", err)
+		log.Printf("handleVoiceStream: hijack failed actor=%s: %v", user.ID, err)
 		return
 	}
 	defer clientConn.Close()
@@ -117,7 +117,7 @@ func (s *Server) handleVoiceStream(w http.ResponseWriter, r *http.Request) {
 	r.URL.Scheme = "ws"
 	r.URL.Host = host
 	if err := r.Write(backendConn); err != nil {
-		slog.Error("handleVoiceStream: backend handshake failed actor=", "value", user.ID, "error", err)
+		log.Printf("handleVoiceStream: backend handshake failed actor=%s: %v", user.ID, err)
 		return
 	}
 	_ = clientConn.SetDeadline(time.Time{})
@@ -138,9 +138,9 @@ func (s *Server) handleVoiceStream(w http.ResponseWriter, r *http.Request) {
 	select {
 	case copyErr := <-errChan:
 		if copyErr != nil {
-			slog.Info("handleVoiceStream: stream ended actor=", "value", user.ID, "error", copyErr)
+			log.Printf("handleVoiceStream: stream ended actor=%s: %v", user.ID, copyErr)
 		}
 	case <-timer.C:
-		slog.Info("handleVoiceStream: maximum duration reached actor=", "value", user.ID)
+		log.Printf("handleVoiceStream: maximum duration reached actor=%s", user.ID)
 	}
 }

@@ -32,8 +32,8 @@ const LinkedInImport = () => {
       });
       setResult(res);
       toast.success("LinkedIn profile analyzed!");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Analysis failed");
+    } catch (err: any) {
+      toast.error(err.message || "Analysis failed");
     } finally {
       setAnalyzing(false);
     }

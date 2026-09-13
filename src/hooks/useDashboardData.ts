@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { USE_SELF_HOSTED, listAnalysisHistory, getFunnelData, listSavedJobs, listApplications, listConversations } from "@/api";
-import type { AnalysisResult, Conversation } from "@/api";
 import { apiFetch } from "@/api/client";
 import type { ResumeAnalysisRecord } from "@/types/resume";
 
@@ -43,9 +42,6 @@ export interface CreditBalance {
   lifetime_purchased: number;
   lifetime_used: number;
   updated_at: string;
-  // True when billing is disabled for this deployment — balance/lifetime_purchased
-  // are a sentinel (999999), not a real count; the UI must show "Unlimited".
-  unlimited?: boolean;
 }
 
 export interface InboxSummary {
@@ -66,10 +62,9 @@ export function useDashboardData(userId?: string) {
     queryFn: async () => {
       if (USE_SELF_HOSTED) {
         const res = await listAnalysisHistory();
-        return res.map((item: AnalysisResult) => ({
+        return res.map((item: any) => ({
           id: String(item.id),
           user_id: item.user_id ?? "",
-          resume_id: item.resume_id,
           resume_filename: `Resume #${item.resume_id}`,
           overall_score: item.score ?? 0,
           created_at: item.created_at,
@@ -176,7 +171,6 @@ export function useDashboardData(userId?: string) {
           lifetime_purchased: typeof res?.lifetime_purchased === "number" ? res.lifetime_purchased : 0,
           lifetime_used: typeof res?.lifetime_used === "number" ? res.lifetime_used : 0,
           updated_at: res?.updated_at ?? "",
-          unlimited: res?.unlimited === true,
         } as CreditBalance;
       } catch {
         return null;
@@ -195,7 +189,7 @@ export function useDashboardData(userId?: string) {
         const total = Array.isArray(conversations) ? conversations.length : 0;
         const unread = Array.isArray(conversations)
           ? conversations.filter(
-              (c: Conversation) =>
+              (c: any) =>
                 !c.is_archived &&
                 (c.unread === true ||
                   c.is_unread === true ||

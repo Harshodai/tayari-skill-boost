@@ -338,7 +338,7 @@ const Auth = () => {
                       <Input
                         id="name"
                         name="name"
-                        placeholder="Full Name"
+                        placeholder="John Doe"
                         className="pl-10"
                         value={formData.name}
                         onChange={handleChange}

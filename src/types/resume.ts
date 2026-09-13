@@ -106,7 +106,6 @@ export interface ProjectEntry {
 export interface ResumeAnalysisRecord {
   id: string;
   user_id: string;
-  resume_id?: number;
   resume_filename: string;
   job_title?: string;
   company_name?: string;

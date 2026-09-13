@@ -20,16 +20,7 @@ from starlette.responses import JSONResponse, Response
 class InternalGatewayMiddleware(BaseHTTPMiddleware):
     """Require the Go-to-Python service token in production."""
 
-    _health_paths = frozenset({
-        "/health",
-        "/api/health",
-        "/api/v1/health",
-        "/healthz",
-        "/readyz",
-        "/metrics",
-        "/metrics/prometheus",
-        "/api/v1/metrics/prometheus",
-    })
+    _health_paths = frozenset({"/health", "/api/health", "/api/v1/health", "/healthz", "/readyz", "/metrics"})
 
     async def dispatch(
         self,

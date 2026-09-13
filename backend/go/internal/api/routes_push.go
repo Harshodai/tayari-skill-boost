@@ -1,7 +1,7 @@
 package api
 
 import (
-	"log/slog"
+	"log"
 	"net/http"
 
 	"tayari-backend/internal/models"
@@ -32,8 +32,8 @@ type PushRegisterRequest struct {
 }
 
 func (s *Server) handlePushRegister(w http.ResponseWriter, r *http.Request) {
-	user, ok := r.Context().Value(contextKeyUser).(*models.User)
-	if !ok || user == nil {
+	user, _ := r.Context().Value(contextKeyUser).(*models.User)
+	if user == nil {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
@@ -57,7 +57,7 @@ func (s *Server) handlePushRegister(w http.ResponseWriter, r *http.Request) {
 	`
 	_, err := s.DB.Conn.ExecContext(r.Context(), query, user.ID, req.Endpoint, req.Keys.P256dh, req.Keys.Auth)
 	if err != nil {
-		slog.Error("handlePushRegister: failed to save subscription", "error", err)
+		log.Printf("handlePushRegister: failed to save subscription: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to register push subscription")
 		return
 	}
@@ -72,8 +72,8 @@ type PushSendRequest struct {
 }
 
 func (s *Server) handlePushSend(w http.ResponseWriter, r *http.Request) {
-	user, ok := r.Context().Value(contextKeyUser).(*models.User)
-	if !ok || user == nil {
+	user, _ := r.Context().Value(contextKeyUser).(*models.User)
+	if user == nil {
 		s.respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
@@ -103,7 +103,7 @@ func (s *Server) handlePushSend(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Conn.QueryContext(r.Context(),
 		"SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1", targetUserID)
 	if err != nil {
-		slog.Error("handlePushSend: query error", "error", err)
+		log.Printf("handlePushSend: query error: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Database query error")
 		return
 	}
@@ -127,7 +127,8 @@ func (s *Server) handlePushSend(w http.ResponseWriter, r *http.Request) {
 	// provides it). This handler therefore cannot deliver anything, and must
 	// not answer "sent" — callers surface that to a user as a delivered alert.
 	// Fail closed with the same shape the AI routes use when unconfigured.
-	slog.Warn("[PUSH-SERVER] Push requested but Web Push delivery not configured", "user_id", targetUserID, "subscriptions", len(subs))
+	log.Printf("[PUSH-SERVER] Push requested for user %s (%d subscriptions) but Web Push delivery is not configured; nothing was sent.",
+		targetUserID, len(subs))
 
 	s.respondJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
 		"error":                 "push_delivery_unconfigured",

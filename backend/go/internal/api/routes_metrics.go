@@ -13,15 +13,3 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	s.metrics.Handler(token).ServeHTTP(w, r)
 }
-
-func (s *Server) handlePrometheusMetrics(w http.ResponseWriter, r *http.Request) {
-	if s.metrics == nil {
-		http.Error(w, "metrics unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	token := ""
-	if s.Config != nil {
-		token = s.Config.MetricsToken
-	}
-	s.metrics.PrometheusHandler(token).ServeHTTP(w, r)
-}

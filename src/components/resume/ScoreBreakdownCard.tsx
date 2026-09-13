@@ -24,7 +24,7 @@ export interface ScoreBreakdownCardProps {
   className?: string;
 }
 
-export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = React.memo(({
+export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
   breakdown,
   className = "",
 }) => {
@@ -42,12 +42,7 @@ export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = React.memo(
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground">
-            {/* ponytail: this card's breakdown comes specifically from the
-                Optimize step's ATS scorer — the initial "Generate review"
-                analysis (see the Detailed Breakdown section below) doesn't
-                populate it. The old copy implied analysis alone would show
-                this, which isn't true on this page's default flow. */}
-            Run Optimize on your resume to see this deeper, dimension-by-dimension score breakdown. The Detailed Breakdown below already reflects your current analysis.
+            Run an ATS analysis or resume optimization to view transparent scoring dimensions.
           </p>
         </CardContent>
       </Card>
@@ -87,7 +82,7 @@ export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = React.memo(
     }
   };
 
-  const getSeniorityBadgeVariant = (alignment: string | number | null | undefined) => {
+  const getSeniorityBadgeVariant = (alignment: string | number) => {
     if (typeof alignment === "number") {
       return alignment >= 75 ? "success" : alignment >= 50 ? "warning" : "destructive";
     }
@@ -103,9 +98,8 @@ export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = React.memo(
     }
   };
 
-  const formatSeniorityText = (alignment: string | number | null | undefined) => {
+  const formatSeniorityText = (alignment: string | number) => {
     if (typeof alignment === "number") return `${alignment}% Match`;
-    if (!alignment) return "Not assessed";
     return alignment.charAt(0).toUpperCase() + alignment.slice(1);
   };
 
@@ -363,4 +357,4 @@ export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = React.memo(
       </Card>
     </TooltipProvider>
   );
-});
+};

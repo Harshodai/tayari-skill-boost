@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
+	"log"
 	"net/http"
 	"time"
 
@@ -160,7 +160,7 @@ func (s *Server) handleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 		id, u.ID,
 	)
 	if err != nil {
-		slog.Error("handleRevokeAPIKey", "error", err)
+		log.Printf("handleRevokeAPIKey: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to revoke API key")
 		return
 	}
@@ -190,7 +190,7 @@ func (s *Server) handleAPIKeyUsage(w http.ResponseWriter, r *http.Request) {
 			s.respondError(w, http.StatusNotFound, "API key not found")
 			return
 		}
-		slog.Error("handleAPIKeyUsage: key lookup error", "error", err)
+		log.Printf("handleAPIKeyUsage: key lookup error: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to look up API key")
 		return
 	}
@@ -211,7 +211,7 @@ func (s *Server) handleAPIKeyUsage(w http.ResponseWriter, r *http.Request) {
 		id,
 	)
 	if err != nil {
-		slog.Error("handleGetAPIKeyUsage", "error", err)
+		log.Printf("handleGetAPIKeyUsage: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to query usage")
 		return
 	}
@@ -221,7 +221,7 @@ func (s *Server) handleAPIKeyUsage(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var u usageRow
 		if err := rows.Scan(&u.Endpoint, &u.StatusCode, &u.ResponseMs, &u.CreatedAt); err != nil {
-			slog.Error("api_keys usage: scan failed", "error", err)
+			log.Printf("api_keys usage: scan failed: %v", err)
 			s.respondError(w, http.StatusInternalServerError, "failed to scan API key usage")
 			return
 		}
@@ -313,12 +313,12 @@ func (s *Server) handlePublicOptimize(w http.ResponseWriter, r *http.Request) {
 		`INSERT INTO api_usage (api_key_id, endpoint, status_code, ip_address, response_ms)
 		 VALUES ($1, $2, $3, $4, $5)`,
 		ak.ID, "/api/v1/public/optimize", statusCode, r.RemoteAddr, elapsed); execErr != nil {
-		slog.Error("api_keys: failed to record api_usage row", "error", execErr)
+		log.Printf("api_keys: failed to record api_usage row: %v", execErr)
 	}
 
 	if _, execErr := s.DB.Conn.ExecContext(r.Context(),
 		`UPDATE api_keys SET last_used_at=now() WHERE id=$1`, ak.ID); execErr != nil {
-		slog.Error("api_keys: failed to update last_used_at", "error", execErr)
+		log.Printf("api_keys: failed to update last_used_at: %v", execErr)
 	}
 
 	if err == nil {

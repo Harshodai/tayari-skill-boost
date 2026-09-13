@@ -1,5 +1,5 @@
 const STORAGE_KEY = "tayari_config";
-const DEFAULT_CONFIG = { apiUrl: "https://api.tayari.app/api", appUrl: "https://tayari.app" };
+const DEFAULT_CONFIG = { apiUrl: "http://localhost:8085/api", appUrl: "http://localhost:8083" };
 const normalizeUrl = (value, fallback) => {
   const trimmed = String(value || "").trim();
   if (!trimmed) {

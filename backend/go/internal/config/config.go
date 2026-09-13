@@ -3,9 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
-	"log/slog"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -15,8 +13,6 @@ type Config struct {
 	AllowedOrigins         []string
 	CORSAllowedOrigins     []string
 	DatabaseURL            string
-	DBMaxOpenConns         int
-	DBMaxIdleConns         int
 	UseSupabase            bool
 	JWTSecret              string
 	SupabaseURL            string
@@ -53,17 +49,6 @@ func LoadConfig() *Config {
 		AllowedOrigins:     parseAllowedOrigins(getEnv("ALLOWED_ORIGINS", "http://localhost:5173")),
 		CORSAllowedOrigins: parseAllowedOrigins(getEnv("CORS_ALLOWED_ORIGINS", "")),
 		DatabaseURL:        getEnv("DATABASE_URL", ""),
-		// ponytail: hardcoded at 10/5 previously with a comment calling the
-		// Go gateway "a thin auth/routing layer, not a heavy DB consumer" -
-		// no longer true; this service runs dozens of direct SQL handlers
-		// (review queue, applications, resumes, cover letters, saves,
-		// approvals, ...). 15-20 concurrent users hitting a handful of
-		// those at once could exhaust 10 connections and queue every other
-		// request behind them. Raised the defaults and made both
-		// configurable so a real load test can tune them without a code
-		// change.
-		DBMaxOpenConns: getEnvInt("DB_MAX_OPEN_CONNS", 50),
-		DBMaxIdleConns: getEnvInt("DB_MAX_IDLE_CONNS", 25),
 		UseSupabase:        getEnv("USE_SUPABASE", "false") == "true",
 		JWTSecret:          jwtSecret,
 		SupabaseURL:        getEnv("SUPABASE_URL", ""),
@@ -75,7 +60,7 @@ func LoadConfig() *Config {
 		// it, deletion falls back to a direct `DELETE FROM auth.users`.
 		SupabaseServiceRoleKey: getEnv("SUPABASE_SERVICE_ROLE_KEY", ""),
 		FrontendURL:            getEnv("FRONTEND_URL", "http://localhost:5173"),
-		PythonAIURL:            getPythonAIURL(),
+		PythonAIURL:            getEnv("PYTHON_AI_URL", getEnv("AI_SERVICE_URL", "http://localhost:8000")),
 		AIInternalToken:        getEnv("AI_INTERNAL_TOKEN", ""),
 		MetricsToken:           getEnv("METRICS_TOKEN", getEnv("AI_INTERNAL_TOKEN", "")),
 		TrustedProxyCIDRs:      getEnv("TRUSTED_PROXY_CIDRS", ""),
@@ -129,19 +114,6 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func getEnvInt(key string, fallback int) int {
-	value, exists := os.LookupEnv(key)
-	if !exists {
-		return fallback
-	}
-	parsed, err := strconv.Atoi(strings.TrimSpace(value))
-	if err != nil {
-		log.Printf("config: invalid int for %s=%q, using default %d: %v", key, value, fallback, err)
-		return fallback
-	}
-	return parsed
-}
-
 // getEnvRequired panics if the environment variable is not set
 // Use for security-critical values like JWT_SECRET
 func getEnvRequired(key string) string {
@@ -161,15 +133,7 @@ func getEnvRequired(key string) string {
 			if appEnv == "production" || appEnv == "staging" || appEnv == "prod" {
 				log.Fatalf("FATAL: Insecure default JWT_SECRET detected in %s environment. Change JWT_SECRET immediately.", appEnv)
 			} else {
-				slog.Warn("SECURITY WARNING: Using insecure default JWT_SECRET. Do not use in production!", "app_env", appEnv)
-			}
-		}
-		if len(value) < 32 {
-			appEnv := strings.ToLower(os.Getenv("APP_ENV"))
-			if appEnv == "production" || appEnv == "staging" || appEnv == "prod" {
-				log.Fatalf("FATAL: JWT_SECRET must be at least 32 characters (128-bit entropy) in %s environment. Current length: %d", appEnv, len(value))
-			} else {
-				slog.Warn("SECURITY WARNING: JWT_SECRET is shorter than 32 characters. Use a stronger secret in production!", "length", len(value))
+				log.Printf("SECURITY WARNING: Using insecure default JWT_SECRET in %s mode. Do not use in production!", appEnv)
 			}
 		}
 	}
@@ -191,16 +155,4 @@ func parseAllowedOrigins(s string) []string {
 		}
 	}
 	return result
-}
-
-// getPythonAIURL returns the configured Python AI service URL.
-// Checks PYTHON_AI_URL first, then AI_SERVICE_URL, and cleanly defaults to http://localhost:8000.
-func getPythonAIURL() string {
-	if url := strings.TrimSpace(os.Getenv("PYTHON_AI_URL")); url != "" {
-		return strings.TrimRight(url, "/")
-	}
-	if url := strings.TrimSpace(os.Getenv("AI_SERVICE_URL")); url != "" {
-		return strings.TrimRight(url, "/")
-	}
-	return "http://localhost:8000"
 }

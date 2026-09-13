@@ -33,7 +33,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { extractTextFromFile } from "@/lib/resume-parser";
 import { toast } from "sonner";
 import { resumeUploadSchema } from "@/lib/schemas";
-import { createResume, createJD, analyzeResume, importJobDescription, uploadResumeMultipart, isBackendUnavailable, type Resume } from "@/api";
+import { createResume, createJD, analyzeResume, importJobDescription, uploadResumeMultipart, isBackendUnavailable } from "@/api";
 import { buildAnalyzePayload, normalizeGoAnalysis } from "@/lib/resumeAnalysis";
 import { Input } from "@/components/ui/input";
 import { ResumeFilePreview } from "@/components/resume/ResumeFilePreview";
@@ -130,7 +130,7 @@ const ResumeUpload = () => {
     try {
       // Phase 1: create/upload resume record
       setAnalysisStep(1);
-      let newResume: Resume;
+      let newResume: any;
       if (resumeFile) {
         newResume = await uploadResumeMultipart(resumeFile);
       } else {
@@ -141,7 +141,7 @@ const ResumeUpload = () => {
           file_type: fileType,
         });
       }
-      const resumeId = newResume.id;
+      const resumeId = newResume.id || newResume.resume_id;
 
       // Phase 2: create job description record
       setAnalysisStep(2);
@@ -192,12 +192,7 @@ const ResumeUpload = () => {
   // relaxing this gate to custom-instructions-only only enabled a guaranteed
   // error toast. Custom-instructions-only optimization lives on the results
   // page, gated by resumeId alone.
-  // parsingError only reflects the client-side text preview (best-effort,
-  // and PDFs commonly fail it — see resume-parser.ts). When a file is
-  // selected, the actual analysis re-parses it server-side via
-  // uploadResumeMultipart and never uses this preview text, so a failed
-  // preview must not block submission as long as a file is present.
-  const canAnalyze = (resumeText || resumeFile) && jobDescription.trim().length > 50 && (!parsingError || !!resumeFile);
+  const canAnalyze = (resumeText || resumeFile) && jobDescription.trim().length > 50 && !parsingError;
 
   const handlePaste = async () => {
     try {
@@ -379,12 +374,7 @@ const ResumeUpload = () => {
                 maxSize={5 * 1024 * 1024}
               />
               {parsingError && (
-                // ponytail: this is only a client-side preview failure (see
-                // canAnalyze above) — when a file is still attached, submission
-                // isn't blocked, so this shouldn't read as a red "it failed"
-                // alert. Only truly blocking (no file, no text) keeps the
-                // destructive tone.
-                <Alert variant={resumeFile ? "default" : "destructive"} className="mt-4">
+                <Alert variant="destructive" className="mt-4">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-sm">
                     {parsingError}

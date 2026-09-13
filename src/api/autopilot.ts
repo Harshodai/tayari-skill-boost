@@ -1,7 +1,7 @@
 import { apiFetch } from "./client";
 import type { AutopilotRun, Application, AutopilotSchedule } from "./types";
 
-export async function startAutopilot(payload: Record<string, unknown>): Promise<{ run_id: string; db_id: number; status: string }> {
+export async function startAutopilot(payload: Record<string, any>): Promise<{ run_id: string; db_id: number; status: string }> {
   return apiFetch<{ run_id: string; db_id: number; status: string }>("/autopilot/start", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -177,7 +177,7 @@ export interface OneShotExecuteResponse {
     company_specific?: { company: string; principles: string[]; sample_questions: string[] } | null;
     [key: string]: unknown;
   };
-  proof_vault?: unknown[];
+  proof_vault?: any[];
   answers_draft?: Record<string, unknown>;
   recruiter_outreach?: { linkedin_message?: string; [key: string]: unknown };
   interview_prep?: { expected_questions?: string[]; [key: string]: unknown };
@@ -191,3 +191,22 @@ export async function executeOneShotPipeline(payload: OneShotExecuteRequest): Pr
   });
 }
 
+export interface ApprovalUpdateRequest {
+  status: "approved" | "rejected";
+  reviewer_comment?: string;
+  form_fields?: Record<string, string>;
+}
+
+export async function listPendingApprovals(): Promise<any[]> {
+  return apiFetch<any[]>("/v1/approvals");
+}
+
+export async function updateApproval(
+  approvalId: string,
+  payload: ApprovalUpdateRequest
+): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`/v1/approvals/${approvalId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}

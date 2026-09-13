@@ -23,40 +23,6 @@
   'use strict';
 
   // ====================================================================
-  // ANTI-DETECTION STEALTH LAYER (E3)
-  // Mask automation properties (navigator.webdriver, plugins, languages)
-  // ====================================================================
-  try {
-    const nav = typeof window !== 'undefined' ? window.navigator : (typeof navigator !== 'undefined' ? navigator : null);
-    if (nav) {
-      if (Object.getOwnPropertyDescriptor(nav, 'webdriver') || 'webdriver' in nav) {
-        Object.defineProperty(nav, 'webdriver', {
-          get: () => undefined,
-          configurable: true,
-        });
-      }
-      if (!nav.plugins || nav.plugins.length === 0) {
-        Object.defineProperty(nav, 'plugins', {
-          get: () => [{ name: 'Chrome PDF Plugin' }, { name: 'Chrome PDF Viewer' }],
-          configurable: true,
-        });
-      }
-      if (!nav.languages || nav.languages.length === 0) {
-        Object.defineProperty(nav, 'languages', {
-          get: () => ['en-US', 'en'],
-          configurable: true,
-        });
-      }
-    }
-  } catch (e) {
-    // Fail open if environment restricts descriptor modification
-  }
-
-  function getHumanJitterDelay(minMs = 25, maxMs = 75) {
-    return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
-  }
-
-  // ====================================================================
   // PLATFORM SELECTORS — Comprehensive job detection across platforms
   // ====================================================================
 
@@ -457,120 +423,6 @@
     return 'generic';
   }
 
-  // Heuristic match for a post-submission confirmation/thank-you page —
-  // used to offer capturing the real receipt URL back to the tracked
-  // application, distinct from the original job-posting URL captured when
-  // the panel was first opened.
-  function detectConfirmationPage() {
-    const url = window.location.href.toLowerCase();
-    const urlPatterns = ['/confirmation', '/thank-you', '/thankyou', '/application-submitted', '/applied', '/success'];
-    if (urlPatterns.some((pattern) => url.includes(pattern))) return true;
-
-    const bodyText = normalizePageText(document.body?.innerText || '', 2000).toLowerCase();
-    const textPatterns = [
-      'application has been submitted',
-      'application has been received',
-      'thank you for applying',
-      'thank you for your application',
-      'your application was submitted',
-      'we have received your application',
-    ];
-    return textPatterns.some((pattern) => bodyText.includes(pattern));
-  }
-
-  // Pending-application marker: set when the candidate clicks Autofill and
-  // fields were actually filled — a real signal of applying intent, not
-  // just page visits. Consumed (or expired after 30 min) when a confirmation
-  // page is later detected, so the receipt banner only offers to capture a
-  // link that plausibly belongs to the application the candidate just filled.
-  const PENDING_APPLICATION_KEY = 'tayariPendingApplication';
-  const PENDING_APPLICATION_TTL_MS = 30 * 60 * 1000;
-
-  function rememberPendingApplication(job) {
-    if (typeof chrome === 'undefined' || !chrome.storage?.local || !job) return;
-    chrome.storage.local.set({
-      [PENDING_APPLICATION_KEY]: {
-        title: job.title || '',
-        company: job.company || '',
-        location: job.location || '',
-        description: job.description || '',
-        platform: job.platform || 'unknown',
-        jobUrl: job.url || window.location.href,
-        startedAt: Date.now(),
-      },
-    });
-  }
-
-  async function getPendingApplication() {
-    if (typeof chrome === 'undefined' || !chrome.storage?.local) return null;
-    const stored = await chrome.storage.local.get(PENDING_APPLICATION_KEY);
-    const pending = stored?.[PENDING_APPLICATION_KEY];
-    if (!pending || Date.now() - pending.startedAt > PENDING_APPLICATION_TTL_MS) return null;
-    return pending;
-  }
-
-  function clearPendingApplication() {
-    if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
-    chrome.storage.local.remove(PENDING_APPLICATION_KEY);
-  }
-
-  async function maybeShowReceiptBanner() {
-    if (document.getElementById('tayari-receipt-banner')) return;
-    if (!detectConfirmationPage()) return;
-    const pending = await getPendingApplication();
-    if (!pending) return;
-
-    const banner = document.createElement('div');
-    banner.id = 'tayari-receipt-banner';
-    banner.className = 'tayari-receipt-banner';
-    banner.innerHTML = `
-      <div class="tayari-receipt-text">
-        <strong>Looks like you just submitted an application${pending.company ? ` to ${escapeHtml(pending.company)}` : ''}.</strong>
-        Save this confirmation link as your application receipt?
-      </div>
-      <div class="tayari-receipt-actions">
-        <button class="tayari-btn tayari-btn-primary" id="tayari-receipt-save">Save receipt</button>
-        <button class="tayari-btn tayari-btn-secondary" id="tayari-receipt-dismiss">Not now</button>
-      </div>
-    `;
-    document.body.appendChild(banner);
-
-    document.getElementById('tayari-receipt-save').addEventListener('click', async () => {
-      const saveBtn = document.getElementById('tayari-receipt-save');
-      saveBtn.textContent = 'Saving…';
-      saveBtn.disabled = true;
-      try {
-        const res = await chrome.runtime.sendMessage({
-          action: 'application_submitted',
-          job: {
-            title: pending.title,
-            company: pending.company,
-            location: pending.location,
-            description: pending.description,
-            url: pending.jobUrl,
-            platform: pending.platform,
-          },
-          receiptUrl: window.location.href,
-        });
-        if (res && res.success) {
-          saveBtn.textContent = '✅ Receipt saved';
-          clearPendingApplication();
-          setTimeout(() => banner.remove(), 2500);
-        } else {
-          throw new Error(res?.error || 'Failed');
-        }
-      } catch (err) {
-        saveBtn.textContent = 'Save receipt';
-        saveBtn.disabled = false;
-        console.error('Tayari: receipt save failed', err);
-      }
-    });
-    document.getElementById('tayari-receipt-dismiss').addEventListener('click', () => {
-      clearPendingApplication();
-      banner.remove();
-    });
-  }
-
   function isJobApplicationPage() {
     const url = window.location.href.toLowerCase();
     const path = window.location.pathname.toLowerCase();
@@ -827,44 +679,28 @@
     if (!element || !value) return false;
     if (element.value && element.value.trim() === value.trim()) return false; // Already filled
 
-    // Focus and click element
-    if (typeof element.focus === 'function') element.focus();
-    if (typeof element.click === 'function') element.click();
-
-    // Use native prototype setters for React / ATS compatibility
-    const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
-    const nativeInputValueSetter = win.HTMLInputElement?.prototype
-      ? Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value')?.set
-      : null;
-    const nativeTextareaValueSetter = win.HTMLTextAreaElement?.prototype
-      ? Object.getOwnPropertyDescriptor(win.HTMLTextAreaElement.prototype, 'value')?.set
-      : null;
-    const setter = (element.tagName === 'TEXTAREA' || element.nodeName === 'TEXTAREA')
-      ? nativeTextareaValueSetter
-      : nativeInputValueSetter;
-
-    if (setter) {
-      setter.call(element, '');
-      setter.call(element, value);
-    } else {
-      element.value = '';
-      element.value = value;
-    }
-
+    // Focus the element
+    element.focus();
+    element.click();
+    
+    // Clear existing value
+    element.value = '';
+    
+    // Set the value
+    element.value = value;
+    
     // Trigger events to ensure form validation picks up the change
     element.dispatchEvent(new Event('input', { bubbles: true }));
     element.dispatchEvent(new Event('change', { bubbles: true }));
     element.dispatchEvent(new Event('blur', { bubbles: true }));
-
+    
     // Visual feedback
-    if (element.style) {
-      element.style.backgroundColor = '#e0f2fe';
-      setTimeout(() => {
-        element.style.backgroundColor = '';
-        element.style.transition = 'background-color 0.5s ease';
-      }, 1000);
-    }
-
+    element.style.backgroundColor = '#e0f2fe';
+    setTimeout(() => {
+      element.style.backgroundColor = '';
+      element.style.transition = 'background-color 0.5s ease';
+    }, 1000);
+    
     return true;
   }
 
@@ -1153,7 +989,6 @@
             ? `${fieldList}\n⚠️ Using your last-known profile — a fresh sync failed. Double-check these fields before submitting.`
             : fieldList;
           status.classList.add('tayari-status-success');
-          rememberPendingApplication(job);
         } else if (lastProfileLoadFailed) {
           btn.innerHTML = '<span class="tayari-icon">❌</span> Autofill Failed';
           status.textContent = 'Could not load your profile data. Check your connection and try again.';
@@ -1248,10 +1083,8 @@
   let panelInjected = false;
 
   function init() {
-    void maybeShowReceiptBanner();
-
     const job = detectJob();
-
+    
     if (job && job.detected) {
       currentJob = job;
       
@@ -1273,120 +1106,83 @@
     }
   }
 
-  if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage?.addListener) {
-    // Listen for messages from popup/background
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.action === 'detect_job') {
-        sendResponse(currentJob || detectJob() || { detected: false });
+  // Listen for messages from popup/background
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'detect_job') {
+      sendResponse(currentJob || detectJob() || { detected: false });
+      return true;
+    }
+    
+    if (request.action === 'execute_authorized_bridge_action') {
+      if (request.bridgeAction !== 'approved_autofill' || request.approved !== true) {
+        sendResponse({ success: false, error: 'Only the reviewed candidate-input bridge action is supported.' });
         return true;
       }
-      
-      if (request.action === 'execute_authorized_bridge_action') {
-        if (request.bridgeAction !== 'approved_autofill' || request.approved !== true) {
-          sendResponse({ success: false, error: 'Only the reviewed candidate-input bridge action is supported.' });
-          return true;
-        }
-        loadProfileData().then(() => {
-          const result = autofillForm();
-          sendResponse({ ...result, execution: 'server_authorized_candidate_input' });
-        });
-        return true;
-      }
+      loadProfileData().then(() => {
+        const result = autofillForm();
+        sendResponse({ ...result, execution: 'server_authorized_candidate_input' });
+      });
+      return true;
+    }
 
-      if (request.action === 'autofill' || request.action === 'autofill_form') {
-        if (request.approved !== true) {
-          sendResponse({ success: false, error: 'Explicit approval is required before filling fields.' });
-          return true;
-        }
-        loadProfileData().then(() => {
-          const result = autofillForm();
-          sendResponse(result);
-        });
+    if (request.action === 'autofill' || request.action === 'autofill_form') {
+      if (request.approved !== true) {
+        sendResponse({ success: false, error: 'Explicit approval is required before filling fields.' });
         return true;
       }
-      
-      if (request.action === 'get_page_context') {
-        sendResponse(getPageContext());
-        return true;
-      }
-      if (request.action === 'get_job_data') {
-        sendResponse(currentJob || { detected: false });
-        return true;
-      }
-      
-      if (request.action === 'ping') {
-        sendResponse({ 
-          pong: true, 
-          platform: detectPlatform(),
-          formDetected: isJobApplicationPage(),
-          detected: !!currentJob?.detected
-        });
-        return true;
-      }
-      
-      return false;
-    });
-  }
+      loadProfileData().then(() => {
+        const result = autofillForm();
+        sendResponse(result);
+      });
+      return true;
+    }
+    
+    if (request.action === 'get_page_context') {
+      sendResponse(getPageContext());
+      return true;
+    }
+    if (request.action === 'get_job_data') {
+      sendResponse(currentJob || { detected: false });
+      return true;
+    }
+    
+    if (request.action === 'ping') {
+      sendResponse({ 
+        pong: true, 
+        platform: detectPlatform(),
+        formDetected: isJobApplicationPage(),
+        detected: !!currentJob?.detected
+      });
+      return true;
+    }
+    
+    return false;
+  });
 
   // Initialize on load
-  if (typeof document !== 'undefined') {
-    if (document.readyState === 'complete') {
+  if (document.readyState === 'complete') {
+    init();
+  } else {
+    window.addEventListener('load', init);
+  }
+
+  // Watch for SPA navigation changes
+  let lastUrl = window.location.href;
+  const observer = new MutationObserver(() => {
+    if (window.location.href !== lastUrl) {
+      lastUrl = window.location.href;
+      panelInjected = false;
+      setTimeout(init, 500); // Delay for SPA to render
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // Also re-check periodically for dynamic content
+  setInterval(() => {
+    if (!document.getElementById('tayari-panel') && detectJob()?.detected) {
+      panelInjected = false;
       init();
-    } else if (typeof window !== 'undefined' && window.addEventListener) {
-      window.addEventListener('load', init);
     }
-
-    // Watch for SPA navigation changes
-    if (typeof MutationObserver !== 'undefined' && document.body && typeof window !== 'undefined' && window.location) {
-      let lastUrl = window.location.href;
-      const observer = new MutationObserver(() => {
-        if (window.location.href !== lastUrl) {
-          lastUrl = window.location.href;
-          panelInjected = false;
-          setTimeout(init, 500); // Delay for SPA to render
-        }
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-    }
-
-    // Also re-check periodically for dynamic content
-    if (typeof setInterval !== 'undefined') {
-      const timer = setInterval(() => {
-        if (document.getElementById && !document.getElementById('tayari-panel') && detectJob()?.detected) {
-          panelInjected = false;
-          init();
-        }
-      }, 3000);
-      if (timer && typeof timer.unref === 'function') {
-        timer.unref();
-      }
-    }
-  }
-
-  // Expose internals on globalThis for companion coordination and test verification
-  if (typeof globalThis !== 'undefined') {
-    globalThis.__TAYARI_CONTENT__ = {
-      fillField,
-      findField,
-      autofillForm,
-      detectJob,
-      detectPlatform,
-      isJobApplicationPage,
-      PLATFORM_SELECTORS,
-      AUTOFILL_FIELD_MAP,
-      detectLinkedInJob,
-      detectIndeedJob,
-      detectGlassdoorJob,
-      detectGreenhouseJob,
-      detectLeverJob,
-      detectWorkdayJob,
-      detectGenericJob,
-      getText,
-      getElement,
-      getPageContext,
-      normalizePageText,
-      getHumanJitterDelay,
-    };
-  }
+  }, 3000);
 
 })();

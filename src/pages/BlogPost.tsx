@@ -87,65 +87,42 @@ function renderMarkdown(content: string): string {
   return sanitize(html);
 }
 
-import { EDUCATIONAL_ARTICLES, getEducationalArticleBySlug } from "@/data/educationalArticles";
-
 const BlogPost = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Fetch post by slug with fallback to educational articles
+  // Fetch post by slug
   const { data: post, isLoading, error, refetch } = useQuery({
     queryKey: ["blog-post", slug],
     queryFn: async () => {
-      if (!slug) {
-        throw new Error("Article not found");
-      }
-      try {
-        const { data, error } = await supabase
-          .from("blog_posts")
-          .select("*")
-          .eq("slug", slug)
-          .single();
+      const { data, error } = await supabase
+        .from("blog_posts")
+        .select("*")
+        .eq("slug", slug)
+        .single();
 
-        if (!error && data) {
-          return data as unknown as BlogPost;
-        }
-      } catch (err) {
-        console.warn("Supabase blog_posts single post query failed, checking educational fallback:", err);
-      }
-
-      const edu = getEducationalArticleBySlug(slug || "");
-      if (edu) {
-        return edu;
-      }
-      throw new Error("Article not found");
+      if (error) throw error;
+      return data as unknown as BlogPost;
     },
     enabled: !!slug,
   });
 
-  // Fetch related posts with fallback
+  // Fetch related posts
   const { data: relatedPosts } = useQuery({
     queryKey: ["related-posts", post?.category, post?.id],
     queryFn: async () => {
-      try {
-        const { data, error } = await supabase
-          .from("blog_posts")
-          .select("*")
-          .eq("category", post!.category)
-          .neq("id", post!.id)
-          .not("published_at", "is", null)
-          .order("published_at", { ascending: false })
-          .limit(3);
+      const { data, error } = await supabase
+        .from("blog_posts")
+        .select("*")
+        .eq("category", post!.category)
+        .neq("id", post!.id)
+        .not("published_at", "is", null)
+        .order("published_at", { ascending: false })
+        .limit(3);
 
-        if (!error && data && data.length > 0) {
-          return data as unknown as BlogPost[];
-        }
-      } catch (err) {
-        console.warn("Supabase related posts query failed, using educational fallback:", err);
-      }
-
-      return EDUCATIONAL_ARTICLES.filter((p) => p.slug !== post?.slug && p.category === post?.category).slice(0, 3);
+      if (error) throw error;
+      return data as unknown as BlogPost[];
     },
     enabled: !!post,
   });

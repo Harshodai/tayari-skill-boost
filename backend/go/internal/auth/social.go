@@ -7,7 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log/slog"
+	"log"
 	"net/http"
 	"net/mail"
 	"os"
@@ -61,7 +61,7 @@ func (a *LocalAuth) SocialLogin(w http.ResponseWriter, r *http.Request) {
 	// Generate and store state token for CSRF protection
 	state, err := generateState()
 	if err != nil {
-		slog.Error("SocialLogin: failed to generate state", "error", err)
+		log.Printf("SocialLogin: failed to generate state: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -121,7 +121,7 @@ func (a *LocalAuth) SocialCallback(w http.ResponseWriter, r *http.Request) {
 	// Complete authentication
 	user, err := gothic.CompleteUserAuth(w, r)
 	if err != nil {
-		slog.Error("SocialCallback: authentication failed", "error", err)
+		log.Printf("SocialCallback: authentication failed: %v", err)
 		http.Error(w, "Authentication failed", http.StatusInternalServerError)
 		return
 	}
@@ -130,7 +130,7 @@ func (a *LocalAuth) SocialCallback(w http.ResponseWriter, r *http.Request) {
 
 func (a *LocalAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request, gothUser goth.User, returnTo string) {
 	if !validateEmail(gothUser.Email) {
-		slog.Info("handleSocialCallback: invalid email from provider", "provider", gothUser.Provider)
+		log.Printf("handleSocialCallback: invalid email from provider: %s", gothUser.Email)
 		http.Error(w, "Invalid email from provider", http.StatusBadRequest)
 		return
 	}
@@ -148,13 +148,13 @@ func (a *LocalAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request,
 	if err == sql.ErrNoRows {
 		newUser, err := a.provisionSocialUser(ctx, gothUser)
 		if err != nil {
-			slog.Error("handleSocialCallback: failed to create user for", "user_id", gothUser.Email, "error", err)
+			log.Printf("handleSocialCallback: failed to create user for %s: %v", gothUser.Email, err)
 			http.Error(w, "Failed to create user", http.StatusInternalServerError)
 			return
 		}
 		dbUser = *newUser
 	} else if err != nil {
-		slog.Error("handleSocialCallback: database error", "error", err)
+		log.Printf("handleSocialCallback: database error: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	} else {
@@ -165,12 +165,12 @@ func (a *LocalAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request,
 			if providerStr == gothUser.Provider && providerUID == gothUser.UserID {
 				// Existing account is the same provider subject; continue.
 			} else {
-				slog.Info("handleSocialCallback: provider collision for existing account (provider: )", "provider", gothUser.Provider)
+				log.Printf("handleSocialCallback: provider collision for existing account (provider: %s)", gothUser.Provider)
 				http.Error(w, "Account already exists; sign in with the original method or explicitly link this provider", http.StatusConflict)
 				return
 			}
 		} else {
-			slog.Info("handleSocialCallback: provider collision for existing account (provider: )", "provider", gothUser.Provider)
+			log.Printf("handleSocialCallback: provider collision for existing account (provider: %s)", gothUser.Provider)
 			http.Error(w, "Account already exists; sign in with the original method or explicitly link this provider", http.StatusConflict)
 			return
 		}
@@ -178,7 +178,7 @@ func (a *LocalAuth) handleSocialCallback(w http.ResponseWriter, r *http.Request,
 
 	token, err := a.generateToken(&dbUser)
 	if err != nil {
-		slog.Error("handleSocialCallback: failed to generate token", "error", err)
+		log.Printf("handleSocialCallback: failed to generate token: %v", err)
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return
 	}

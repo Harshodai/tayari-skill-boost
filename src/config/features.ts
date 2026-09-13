@@ -68,8 +68,6 @@ const CONFIG = {
     knowledgeHub: [true, true],
     // Career operations dashboard
     careerOps: [true, true],
-    // Career intelligence telemetry and skill/salary analysis
-    careerIntelligence: [true, true],
     // One-Shot Autopilot Console
     oneShotPipeline: [true, true],
     // Typst ATS Resume Studio
@@ -82,12 +80,6 @@ const CONFIG = {
     verification: [true, true],
     // Personalized referral-draft engine (Moat-1)
     referralDrafts: [true, true],
-    // Free programmatic SEO tools
-    resumeScore: [true, true],
-    jobMatch: [true, true],
-    rolePages: [true, true],
-    // Competitor comparison engine (Jobscan, Teal, Simplify, Rezi)
-    comparePages: [true, true],
   },
 
 
@@ -101,22 +93,11 @@ const CONFIG = {
     { label: "Typst Resume Studio", href: "/typst-studio", feature: "typstStudio" },
     { label: "Answer Bank", href: "/answer-bank", feature: "candidateAnswerBank" },
     { label: "Resume Optimizer", href: "/resume", feature: "resumeOptimizer" },
-    // ponytail: was href "/roadmap" (CareerRoadmap.tsx) — merged into
-    // CareerIntelligence.tsx (see App.tsx's redirect). Kept as its own
-    // primary-nav entry (careerRoadmap is in primaryNavigationKeys) even
-    // though "Career Intelligence" below points at the same href with a
-    // different, non-primary feature key — the merged page now legitimately
-    // serves both a primary "core workflow" role and a secondary "preview"
-    // role depending on which flag gated a user in to it.
-    { label: "Career Roadmap", href: "/career-intelligence", feature: "careerRoadmap" },
-    // ponytail: was "Knowledge Hub" / "/knowledge-hub" — merged into OmniSave
-    // (same backend, same purpose; /knowledge-hub now redirects here).
-    { label: "OmniSave", href: "/omnisave", feature: "knowledgeHub" },
+    { label: "Career Roadmap", href: "/roadmap", feature: "careerRoadmap" },
+    { label: "Knowledge Hub", href: "/knowledge-hub", feature: "knowledgeHub" },
 
     { label: "Job Search", href: "/jobs", feature: "jobSearch" },
     { label: "AutoPilot", href: "/jobs/autopilot", feature: "jobSearch" },
-    { label: "Role Benchmarks", href: "/roles", feature: "rolePages" },
-    { label: "Compare Tools", href: "/compare", feature: "comparePages" },
     { label: "Cover Letter", href: "/cover-letter", feature: "coverLetter" },
     { label: "Communication", href: "/communication", feature: "communicationHub" },
     { label: "Career-Ops", href: "/career-ops", feature: "careerOps" },
@@ -193,7 +174,7 @@ export const features = Object.keys(CONFIG.features).reduce((acc, key) => {
 // Global UI Settings
 export const settings = {
   showFullProductsSection: features.interviewPrep,
-  showComingSoonBadges: false,
+  showComingSoonBadges: true,
   showFullFooter: true,
   enableAllRoutes: true,
 } as const;

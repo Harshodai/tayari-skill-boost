@@ -237,67 +237,34 @@ export async function deleteCareerOpsPortal(portalId: number): Promise<void> {
   await checkResponse(response);
 }
 
-export interface CareerOpsScannedJob {
-  id?: string | number;
-  title?: string;
-  company?: string;
-  score?: number;
-  description?: string;
-  posted_date?: string;
-  location?: string;
-  url?: string;
-  portal?: string;
-  match_reasons?: string[];
-  [key: string]: unknown;
-}
-
-export interface CareerOpsRecommendation {
-  action: string;
-  impact: string;
-  reasoning: string;
-  [key: string]: unknown;
-}
-
-export interface CareerOpsPatterns {
-  total_analyzed?: number;
-  outcomes?: { positive?: number; [key: string]: unknown };
-  score_averages?: { positive?: number; [key: string]: unknown };
-  recommendations?: CareerOpsRecommendation[];
-  funnel?: Record<string, number>;
-  [key: string]: unknown;
-}
-
-export async function scanCareerOpsPortals(): Promise<{ jobs: CareerOpsScannedJob[] }> {
-  return apiFetch<{ jobs: CareerOpsScannedJob[] }>("/v1/career-ops/scan", {
+export async function scanCareerOpsPortals(): Promise<{ jobs: any[] }> {
+  return apiFetch("/v1/career-ops/scan", {
     method: "POST",
     body: JSON.stringify({}),
   });
 }
 
-export async function getCareerOpsPatterns(): Promise<CareerOpsPatterns> {
-  return apiFetch<CareerOpsPatterns>("/v1/career-ops/patterns");
+export async function getCareerOpsPatterns(): Promise<any> {
+  return apiFetch("/v1/career-ops/patterns");
 }
 
 export async function listCareerOpsFollowups(): Promise<{ followups: CareerOpsFollowup[] }> {
-  return apiFetch<{ followups: CareerOpsFollowup[] }>("/v1/career-ops/followups");
+  return apiFetch("/v1/career-ops/followups");
 }
 
-export async function actionCareerOpsFollowup(applicationId: string, payload: { contact?: string; notes?: string }): Promise<{ success: boolean; [key: string]: unknown }> {
-  const response = await apiFetchResponse(`/v1/career-ops/followups/action`, {
+export async function actionCareerOpsFollowup(applicationId: string, payload: { contact?: string; notes?: string }): Promise<any> {
+  return apiFetch("/v1/career-ops/followups/action", {
     method: "POST",
-    headers: getHeaders(),
     body: JSON.stringify({ application_id: applicationId, ...payload }),
   });
-  await checkResponse(response);
-  return response.json();
 }
 
 export async function getCareerOpsStoryBank(): Promise<{ stories: CareerOpsStory[] }> {
   return apiFetch("/v1/career-ops/story-bank");
 }
 
-export async function saveCareerOpsStoryBank(stories: CareerOpsStory[]): Promise<{ success: boolean; [key: string]: unknown }> {
-  return apiFetch<{ success: boolean; [key: string]: unknown }>("/v1/career-ops/story-bank", {
+export async function saveCareerOpsStoryBank(stories: CareerOpsStory[]): Promise<any> {
+  return apiFetch("/v1/career-ops/story-bank", {
     method: "POST",
     body: JSON.stringify({ stories }),
   });
@@ -362,26 +329,13 @@ export interface SavedPost {
 
 export async function listSaves(category?: string): Promise<SavedPost[]> {
   const query = category ? `?category=${encodeURIComponent(category)}` : "";
-  // The Go route proxies straight through to Python's `/api/v1/saves`,
-  // which returns `{success, sources: [...]}`, not a bare array — unwrap it
-  // here rather than assuming apiFetch's generic type matches the real
-  // upstream shape (it didn't: callers doing `saves.filter(...)` crashed
-  // the whole Knowledge Hub route with "i.filter is not a function").
-  const result = await apiFetch<SavedPost[] | { success?: boolean; sources?: SavedPost[] }>(`/saves${query}`);
-  if (Array.isArray(result)) return result;
-  return result?.sources ?? [];
+  return apiFetch<SavedPost[]>(`/saves${query}`);
 }
 
 export async function createSave(payload: { url: string; note?: string; source?: string }): Promise<SavedPost> {
-  // Split-brain bug: POST /saves hits Go's legacy DB-backed handleCreateSave
-  // (a different, disused table) while listSaves() above reads from
-  // Python's real saved_sources store — anything created here would never
-  // appear in the list. The intended path (per routes_one_stop.go's own
-  // comment: "Omnisave is URL-import-first... no legacy saved_posts table
-  // participates") is Python's /saves/import, which only accepts `url`.
-  return apiFetch<SavedPost>("/saves/import", {
+  return apiFetch<SavedPost>("/saves", {
     method: "POST",
-    body: JSON.stringify({ url: payload.url }),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -590,7 +544,7 @@ export async function listAutomationEvents(runId: string): Promise<{ events: Aut
   return apiFetch<{ events: AutomationEvent[] }>(`/v1/automation-runs/${encodeURIComponent(runId)}/events`);
 }
 export async function listAutomationApprovals(): Promise<{ approvals: AutomationApproval[] }> {
-  return apiFetch<{ approvals: AutomationApproval[] }>("/v1/automation-approvals");
+  return apiFetch<{ approvals: AutomationApproval[] }>("/v1/approvals");
 }
 
 export async function decideAutomationApproval(id: string, decision: "approve" | "deny"): Promise<{ id: string; status: string; decision_channel: string }> {

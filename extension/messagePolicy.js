@@ -5,7 +5,6 @@
     "indeed.com",
     "greenhouse.io",
     "workday.com",
-    "myworkdayjobs.com",
     "lever.co",
     "ashbyhq.com",
   ]);
@@ -15,7 +14,6 @@
     'save_job',
     'quick_ats',
     'track_application',
-    'application_submitted',
     'queue_for_review',
     'open_tayari',
   ]);
@@ -32,15 +30,12 @@
 
   const DEV_LOOPBACK_ORIGINS = [
     'http://localhost:5173',
-    'http://127.0.0.1:5173',
     'http://localhost:8080',
-    'http://127.0.0.1:8080',
     'http://localhost:8081',
     'http://127.0.0.1:8081',
     'http://localhost:8083',
     'http://127.0.0.1:8083',
     'http://localhost:8085',
-    'http://127.0.0.1:8085',
   ];
 
   const isDevBuild = (typeof chrome !== 'undefined' &&
@@ -59,8 +54,6 @@
     'omnisave_preferences_set',
     'omnisave_sync_now',
     'extension_session_handoff',
-    'set_token',
-    'clear_token',
   ]);
 
   function isExtensionUrl(url, extensionId) {

@@ -1,13 +1,4 @@
-interface ChromeResponse {
-  version?: string;
-  [key: string]: unknown;
-}
-
-declare const chrome: {
-  runtime?: {
-    sendMessage: (id: string, msg: unknown, cb?: (res: ChromeResponse | undefined) => void) => void;
-  };
-} | undefined;
+declare const chrome: any;
 declare const process: { env: Record<string, string | undefined> };
 
 import { useEffect, useState } from "react";
@@ -28,11 +19,11 @@ export default function ExtensionOnboarding() {
   const checkExtension = async () => {
     try {
       // Try to communicate with the extension
-      if (typeof chrome !== "undefined" && chrome?.runtime?.sendMessage) {
+      if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
         chrome.runtime.sendMessage(
           "tayari-extension-id", // Will be replaced with actual extension ID
           { action: "get_version" },
-          (response: ChromeResponse | undefined) => {
+          (response) => {
             if (response && response.version) {
               setIsInstalled(true);
             } else {

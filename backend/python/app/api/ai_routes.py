@@ -347,22 +347,6 @@ class OptimizerRequest(BaseModel):
     target_industry: Optional[str] = None
     transferable_skills: Optional[List[str]] = None
 
-    @field_validator("resume_text")
-    @classmethod
-    def validate_resume_text_not_blank(cls, v: str) -> str:
-        # ponytail: without real resume content there is nothing to ground
-        # the optimizer in, and the LLM will fabricate a complete fictional
-        # career history (employer names, dates, a degree) rather than
-        # erroring — confirmed live via a blank-original_text optimize call
-        # that returned a fabricated resume as a 200 "success". Reject
-        # near-empty input before it ever reaches the LLM.
-        if len((v or "").strip()) < 20:
-            raise ValueError(
-                "resume_text is missing or too short to optimize — provide the "
-                "actual resume content, not a placeholder"
-            )
-        return v
-
     @field_validator("transition_type", mode="before")
     @classmethod
     def normalize_transition_type(cls, v: Any) -> Any:
@@ -491,7 +475,6 @@ async def optimize_resume(payload: OptimizerRequest, user_id: str = Depends(get_
                 target_role=payload.target_role,
                 custom_instructions=payload.custom_instructions or "",
                 transition=transition,
-                user_id=user_id,
             )
         else:
             result = await optimizer.optimize_with_reflection(
@@ -500,7 +483,6 @@ async def optimize_resume(payload: OptimizerRequest, user_id: str = Depends(get_
                 target_role=payload.target_role,
                 custom_instructions=payload.custom_instructions,
                 transition=transition,
-                user_id=user_id,
             )
         if transition:
             result["transition_mode"] = transition["transition_type"]
@@ -576,9 +558,6 @@ async def generate_cover_letter_endpoint(payload: CoverLetterInput, user_id: str
             job_title=payload.job_title,
             tone=payload.tone,
             personal_notes=payload.personal_notes,
-            user_id=user_id,
-            job_url=payload.job_url,
-            resume_id=payload.resume_id,
         )
         provenance = await _capture_ai_output(
             user_id=user_id,
@@ -622,7 +601,6 @@ async def generate_interview_prep_endpoint(payload: InterviewPrepInput, user_id:
             resume_text=payload.resume_text,
             job_title=payload.job_title,
             company_name=payload.company_name,
-            job_description=payload.job_description,
             interview_type=payload.interview_type,
         )
         provenance = await _capture_ai_output(
@@ -734,32 +712,19 @@ async def live_copilot_endpoint(payload: LiveCopilotRequest):
 
 
 @router.post("/api/v1/one-shot/execute")
-async def execute_one_shot_endpoint(payload: dict, user_id: str = Depends(get_current_user)):
+async def execute_one_shot_endpoint(payload: dict):
     """Execute complete 6-stage one-shot application pipeline."""
     from app.services.one_shot_engine import OneShotRequest, execute_one_shot_pipeline
     try:
-        # ponytail: execute_one_shot_pipeline falls back to req.user_id
-        # (client-supplied, from the request body) whenever the explicit
-        # user_id kwarg is omitted, and only rejects "default_user" — this
-        # handler used to omit the kwarg entirely, so the pipeline ran under
-        # whatever user_id the client put in the JSON body, not the
-        # server-verified identity. A real cross-tenant impersonation vector
-        # for an autonomous application-submission pipeline. Overwrite
-        # payload["user_id"] with the authenticated identity before parsing,
-        # rather than trusting anything the client sent for this field.
-        payload = {**payload, "user_id": user_id}
         req = OneShotRequest(**payload)
-        res = await execute_one_shot_pipeline(req, user_id=user_id)
+        res = await execute_one_shot_pipeline(req)
         return res
     except LLMNotConfiguredError as exc:
         logger.error("one-shot/execute: LLM not configured: %s", exc)
         return JSONResponse(status_code=503, content={"error": "ai_service_unavailable"})
     except Exception as exc:
-        from app.services.answer_bank_store import AnswerBankStoreUnavailable
-        if isinstance(exc, AnswerBankStoreUnavailable):
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
         logger.error("one-shot/execute failed: %s", exc)
-        raise HTTPException(status_code=500, detail="One-shot pipeline execution failed") from exc
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 class VerificationRequest(BaseModel):

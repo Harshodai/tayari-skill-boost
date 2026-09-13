@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"io"
-	"log/slog"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -98,7 +98,7 @@ func (s *Server) handleHermesRunsActive(w http.ResponseWriter, r *http.Request) 
 	target := "/api/v1/hermes/runs?status=" + activeRunsStatusFilter + "&limit=" + strconv.Itoa(activeRunsLimit)
 	result, err := s.AI.GetJSONWithHeaders(target, s.getXUserHeaders(r))
 	if err != nil {
-		slog.Error("handleHermesRunsActive: AI call failed", "error", err)
+		log.Printf("handleHermesRunsActive: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to fetch active runs")
 		return
 	}
@@ -121,7 +121,7 @@ var activeRunsListFields = []string{"runs", "data", "items", "results"}
 // countListItems best-effort counts the runs in a GetJSON response, which may
 // be either a bare JSON array or an object wrapping the list under one of
 // activeRunsListFields. SRP: isolates shape-tolerance from the handler.
-func countListItems(result interface{}) int {
+func countListItems(result map[string]interface{}) int {
 	b, err := json.Marshal(result)
 	if err != nil {
 		return 0
@@ -164,12 +164,12 @@ func (s *Server) handleHermesScrape(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.Unmarshal(body, &probe) // tolerate non-JSON / extra fields
 	if probe.Sync {
-		slog.Info("handleHermesScrape: sync=true requested; this may exceed the 30s AI client timeout — recommend async")
+		log.Printf("handleHermesScrape: sync=true requested; this may exceed the 30s AI client timeout — recommend async")
 	}
 
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/hermes/scrape", json.RawMessage(body), s.getXUserHeaders(r))
 	if err != nil {
-		slog.Error("handleHermesScrape: AI call failed", "error", err)
+		log.Printf("handleHermesScrape: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Hermes scrape failed")
 		return
 	}
@@ -200,7 +200,7 @@ func (s *Server) handleHermesJobsBoard(w http.ResponseWriter, r *http.Request) {
 	target := "/api/v1/hermes/jobs/" + url.PathEscape(board) + "?limit=" + strconv.Itoa(limit)
 	result, err := s.AI.GetJSONWithHeaders(target, s.getXUserHeaders(r))
 	if err != nil {
-		slog.Error("handleHermesJobsBoard: AI call failed", "error", err)
+		log.Printf("handleHermesJobsBoard: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to fetch cached jobs")
 		return
 	}
@@ -245,7 +245,7 @@ func (s *Server) handleHermesRunsList(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := s.AI.GetJSONWithHeaders(target, s.getXUserHeaders(r))
 	if err != nil {
-		slog.Error("handleHermesRunsList: AI call failed", "error", err)
+		log.Printf("handleHermesRunsList: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to list Hermes runs")
 		return
 	}
@@ -266,7 +266,7 @@ func (s *Server) handleHermesRunDetail(w http.ResponseWriter, r *http.Request) {
 			s.respondError(w, http.StatusNotFound, "Hermes run not found")
 			return
 		}
-		slog.Error("handleHermesRunDetail: AI call failed", "error", err)
+		log.Printf("handleHermesRunDetail: AI call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to fetch Hermes run")
 		return
 	}
@@ -417,7 +417,7 @@ func (s *Server) handleHermesCreateSession(w http.ResponseWriter, r *http.Reques
 		VALUES ($1, $2, $3, $4, 'running', '[]'::jsonb, NOW(), NOW())`,
 		sessionID, user.ID, req.Goal, req.Kind)
 	if err != nil {
-		slog.Error("handleHermesCreateSession: insert failed", "error", err)
+		log.Printf("handleHermesCreateSession: insert failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to create session")
 		return
 	}
@@ -471,7 +471,7 @@ func (s *Server) handleHermesAddEvent(w http.ResponseWriter, r *http.Request) {
 		WHERE id = $2::uuid AND user_id = $3`,
 		string(eventJSON), sessionID, user.ID)
 	if err != nil {
-		slog.Error("handleHermesAddEvent: update failed", "error", err)
+		log.Printf("handleHermesAddEvent: update failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to add event")
 		return
 	}

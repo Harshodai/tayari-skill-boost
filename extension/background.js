@@ -220,11 +220,9 @@ const STORAGE_KEY = 'tayari_config';
 const DEFAULT_CONFIG = { apiUrl: 'https://api.tayari.app/api', appUrl: 'https://tayari.app' };
 const LOCAL_APP_ROUTES = new Map([
   ['http://127.0.0.1:8083', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:8083' }],
-  ['http://127.0.0.1:5173', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:5173' }],
-  ['http://127.0.0.1:8080', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:8080' }],
-  ['http://localhost:8083', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:8083' }],
-  ['http://localhost:5173', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:5173' }],
-  ['http://localhost:8080', { apiUrl: 'http://127.0.0.1:8085/api', appUrl: 'http://127.0.0.1:8080' }],
+  ['http://localhost:8083', { apiUrl: 'http://localhost:8085/api', appUrl: 'http://localhost:8083' }],
+  ['http://localhost:5173', { apiUrl: 'http://localhost:8085/api', appUrl: 'http://localhost:5173' }],
+  ['http://localhost:8080', { apiUrl: 'http://localhost:8085/api', appUrl: 'http://localhost:8080' }],
 ]);
 const PROFILE_CACHE_KEY = 'tayari_profile_cache';
 const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -246,15 +244,12 @@ const BASE_TRUSTED_APP_ORIGINS = [
 
 const DEV_LOOPBACK_ORIGINS = [
   'http://localhost:5173',
-  'http://127.0.0.1:5173',
   'http://localhost:8080',
-  'http://127.0.0.1:8080',
   'http://localhost:8081',
   'http://127.0.0.1:8081',
   'http://localhost:8083',
   'http://127.0.0.1:8083',
   'http://localhost:8085',
-  'http://127.0.0.1:8085',
 ];
 
 const isDevBuild = (typeof chrome !== 'undefined' &&
@@ -396,23 +391,6 @@ async function invalidateProfileCache() {
 async function getOmniSavePreferences() {
   const result = await chrome.storage.local.get([OMNISAVE_SYNC_KEY]);
   return { ...DEFAULT_OMNISAVE_SYNC, ...(result[OMNISAVE_SYNC_KEY] || {}) };
-}
-const OMNISAVE_SYNC_FAILURE_NOTICE_KEY = 'omnisave_last_sync_failure_notice';
-async function notifyOmniSaveSyncFailureThrottled(error) {
-  try {
-    const stored = await chrome.storage.local.get([OMNISAVE_SYNC_FAILURE_NOTICE_KEY]);
-    const lastNoticeAt = Number(stored[OMNISAVE_SYNC_FAILURE_NOTICE_KEY]) || 0;
-    if (Date.now() - lastNoticeAt < 24 * 60 * 60 * 1000) return;
-    await chrome.storage.local.set({ [OMNISAVE_SYNC_FAILURE_NOTICE_KEY]: Date.now() });
-    chrome.notifications.create(`tayari-omnisave-sync-failed-${Date.now()}`, {
-      type: 'basic',
-      iconUrl: 'icons/icon128.png',
-      title: 'OmniSaveAI automatic sync failed',
-      message: String(error?.message || error || 'The background sync could not complete. Open the OmniSaveAI page to check.'),
-    }).catch(() => {});
-  } catch {
-    // Notification is best-effort; never let it break the alarm listener.
-  }
 }
 async function scheduleOmniSaveSync() {
   const preferences = await getOmniSavePreferences();
@@ -591,9 +569,10 @@ async function captureFullHistoryTab(config, tab, firstPage, preferences, trigge
 
 async function handleOmniSaveSync(payload) {
   const config = await getConfig();
-  if (!config.session?.access_token) return { success: false, error: 'Not authenticated. Sign in to sync saved reading.' };
-  const response = await TayariSession.fetchJson(config, 'v1/saves/sync', {
+  if (!config.token) return { success: false, error: 'Not authenticated. Sign in to sync saved reading.' };
+  const response = await fetch(`${config.apiUrl}/v1/saves/sync`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.token}` },
     body: JSON.stringify({
       urls: Array.from(new Set((payload?.urls || []).filter(Boolean))).slice(0, 250),
       items: (payload?.items || []).slice(0, 250),
@@ -608,16 +587,9 @@ function platformForCaptureUrl(value) {
   try {
     const parsed = new URL(String(value || ''));
     const path = parsed.pathname;
-    // ponytail: kept in lockstep with omnisave_capture.js's platformForPage()
-    // — this is a second, independent copy of the same URL-matching contract
-    // used to gate the alarm-driven automatic-capture path (collectOmniSaveSources),
-    // and it had drifted onto the same dead paths that were already fixed
-    // there (medium.com/me/list.../substack.com/home,saved) — the automatic
-    // background sync silently never fired on a real Medium or Substack tab
-    // even after that fix, because this copy never got the same update.
     if (parsed.hostname === 'www.linkedin.com' && /\/my-items\/saved-posts(?:\/|$)/i.test(path)) return 'linkedin';
-    if (parsed.hostname === 'medium.com' && (/\/me\/(?:list|readinglist)/i.test(path) || /^\/@[^/]+\/list\//i.test(path))) return 'medium';
-    if (parsed.hostname === 'substack.com' && /^\/(?:home|saved|inbox)(?:\/|$)/i.test(path)) return 'substack';
+    if (parsed.hostname === 'medium.com' && /\/me\/(?:list|readinglist)/i.test(path)) return 'medium';
+    if (parsed.hostname === 'substack.com' && /^\/(?:home|saved)(?:\/|$)/i.test(path)) return 'substack';
     if (parsed.hostname === 'www.instagram.com' && /\/your_activity\/saved(?:\/|$)/i.test(path)) return 'instagram';
     return null;
   } catch {
@@ -732,13 +704,17 @@ async function collectOmniSaveSources(force = false) {
 
 async function handleSaveJob(job) {
   const config = await getConfig();
-  if (!config.session?.access_token) {
+  if (!config.token) {
     return { success: false, error: 'Not authenticated' };
   }
-
+  
   try {
-    const res = await TayariSession.fetchJson(config, 'v1/extension/capture', {
+    const res = await fetch(`${config.apiUrl}/v1/extension/capture`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.token}`
+      },
       body: JSON.stringify({
         title: job.title,
         company: job.company,
@@ -758,13 +734,17 @@ async function handleSaveJob(job) {
 
 async function handleQuickATS(jd) {
   const config = await getConfig();
-  if (!config.session?.access_token) {
+  if (!config.token) {
     return { success: false, error: 'Not authenticated' };
   }
-
+  
   try {
-    const res = await TayariSession.fetchJson(config, 'v1/extension/quick-ats', {
+    const res = await fetch(`${config.apiUrl}/v1/extension/quick-ats`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.token}`
+      },
       body: JSON.stringify({
         job_description: jd
       })
@@ -784,13 +764,17 @@ async function handleQuickATS(jd) {
 
 async function handleTrackApplication(data) {
   const config = await getConfig();
-  if (!config.session?.access_token) {
+  if (!config.token) {
     return { success: false, error: 'Not authenticated' };
   }
-
+  
   try {
-    const res = await TayariSession.fetchJson(config, 'v1/autopilot/applications', {
+    const res = await fetch(`${config.apiUrl}/v1/autopilot/applications`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.token}`
+      },
       body: JSON.stringify({
         job: {
           title: data.job.title,
@@ -814,54 +798,19 @@ async function handleTrackApplication(data) {
   }
 }
 
-// Records a real application submission using the confirmation/thank-you
-// page's own URL as apply_url — a genuine portal receipt, unlike
-// handleTrackApplication's apply_url (the original job-posting URL, which
-// proves the candidate viewed the listing, not that they submitted it).
-async function handleApplicationSubmitted(data) {
-  const config = await getConfig();
-  if (!config.session?.access_token) {
-    return { success: false, error: 'Not authenticated' };
-  }
-  if (!data.receiptUrl) {
-    return { success: false, error: 'Missing receipt URL' };
-  }
-
-  try {
-    const res = await TayariSession.fetchJson(config, 'v1/autopilot/applications', {
-      method: 'POST',
-      body: JSON.stringify({
-        job: {
-          title: data.job?.title || '',
-          company: data.job?.company || '',
-          location: data.job?.location || '',
-          description: data.job?.description || '',
-          url: data.job?.url || data.receiptUrl,
-          platform: data.job?.platform || 'unknown'
-        },
-        status: 'applied',
-        submission_mode: 'manual_extension_confirmed',
-        apply_url: data.receiptUrl
-      })
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const result = await res.json();
-    return { success: true, application_id: result.application_id };
-  } catch (err) {
-    console.error('Tayari: application_submitted failed', err);
-    return { success: false, error: err.message };
-  }
-}
-
 async function handleQueueForReview(data) {
   const config = await getConfig();
-  if (!config.session?.access_token) {
+  if (!config.token) {
     return { success: false, error: 'Not authenticated' };
   }
-
+  
   try {
-    const res = await TayariSession.fetchJson(config, 'v1/review-queue/queue', {
+    const res = await fetch(`${config.apiUrl}/v1/review-queue/queue`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.token}`
+      },
       body: JSON.stringify({
         job: {
           title: data.job.title,
@@ -943,29 +892,6 @@ async function authorizeComputerBridgeAction(tabId) {
     return { ...execution, authorized: true, action_id: actionId, run_id: bridge.run_id };
   } catch {
     return { success: false, authorized: true, action_id: actionId, run_id: bridge.run_id, error: 'The server authorized the action, but the page did not execute it.' };
-  }
-}
-
-async function handleExtensionSessionHandoff(rawCode) {
-  const code = typeof rawCode === 'string' ? rawCode.trim() : '';
-  if (!/^[a-f0-9]{64}$/i.test(code)) {
-    return { success: false, error: 'Invalid extension handoff code.' };
-  }
-  try {
-    const config = await getConfig();
-    const response = await fetch(`${String(config.apiUrl).replace(/\/$/, '')}/v1/auth/extension/handoff/exchange`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code }),
-    });
-    const session = await response.json().catch(() => ({}));
-    if (!response.ok || !session?.access_token) {
-      return { success: false, error: session?.error || 'Extension handoff failed.' };
-    }
-    const stored = await TayariSession.write(session);
-    return { success: true, expires_at: stored?.expires_at || null, user: stored?.user || null };
-  } catch (error) {
-    return { success: false, error: error?.message || 'Extension handoff failed.' };
   }
 }
 
@@ -1054,14 +980,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
         break;
       }
-      case 'get_version': {
-        sendResponse({ version: '3.2.0', features: ['pkce_auth', 'job_detection', 'approval_gated_autofill', 'native_bridge', 'omnisave_auto_capture', 'omnisave_full_history', 'omnisave_export', 'retry_resume'] });
-        break;
-      }
-      case 'extension_session_handoff': {
-        sendResponse(await handleExtensionSessionHandoff(request.code));
-        break;
-      }
       case 'answer_approved_page': {
         try { sendResponse(await answerApprovedPageTask(request)); } catch (error) { sendResponse({ success: false, error: error.message || 'Read-only answer failed.' }); }
         break;
@@ -1138,13 +1056,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse(result);
         break;
       }
-
-      case 'application_submitted': {
-        const result = await handleApplicationSubmitted(request);
-        sendResponse(result);
-        break;
-      }
-
+      
       case 'queue_for_review': {
         const result = await handleQueueForReview(request);
         sendResponse(result);
@@ -1248,7 +1160,30 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
     return false;
   }
   if (request.action === 'extension_session_handoff') {
-    (async () => sendResponse(await handleExtensionSessionHandoff(request.code)))();
+    const code = typeof request.code === 'string' ? request.code.trim() : '';
+    if (!/^[a-f0-9]{64}$/i.test(code)) {
+      sendResponse({ success: false, error: 'Invalid extension handoff code.' });
+      return false;
+    }
+    (async () => {
+      try {
+        const config = await getConfig();
+        const response = await fetch(`${String(config.apiUrl).replace(/\/$/, '')}/v1/auth/extension/handoff/exchange`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        const session = await response.json().catch(() => ({}));
+        if (!response.ok || !session?.access_token) {
+          sendResponse({ success: false, error: session?.error || 'Extension handoff failed.' });
+          return;
+        }
+        const stored = await TayariSession.write(session);
+        sendResponse({ success: true, expires_at: stored?.expires_at || null, user: stored?.user || null });
+      } catch (error) {
+        sendResponse({ success: false, error: error?.message || 'Extension handoff failed.' });
+      }
+    })();
     return true;
   }
   if (request.action === 'clear_token') {
@@ -1291,7 +1226,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     console.log('Job Tayari extension installed');
     chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
     // Open onboarding page
-    chrome.tabs.create({ url: 'http://127.0.0.1:8083/extension-onboarding' });
+    chrome.tabs.create({ url: 'http://localhost:8083/extension-onboarding' });
   } else if (details.reason === 'update') {
     console.log('Job Tayari extension updated from', details.previousVersion, 'to 3.0.0');
     chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
@@ -1332,7 +1267,8 @@ chrome.runtime.onInstalled.addListener(() => {
       'https://*.greenhouse.io/*',
       'https://*.lever.co/*',
       'https://*.workday.com/*',
-      'https://*.myworkdayjobs.com/*'
+      'https://jobs.*/*',
+      'https://careers.*/*'
     ]
   });
 });
@@ -1397,16 +1333,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       await getProfileData(); // Refresh cache
     }
   } else if (alarm.name === OMNISAVE_ALARM) {
-    try { await collectOmniSaveSources(false); await chrome.storage.local.remove(OMNISAVE_SYNC_FAILURE_NOTICE_KEY); }
-    catch (error) {
-      console.warn('Tayari: OmniSaveAI automatic sync failed', error);
-      // ponytail: a background alarm's failure is invisible by default —
-      // console.warn never reaches a user who isn't looking at the service
-      // worker console. Surface it once per rolling day (not every 5-60min
-      // tick) so a persistently broken auto-sync doesn't run silently for
-      // weeks while the user believes it's working.
-      void notifyOmniSaveSyncFailureThrottled(error);
-    }
+    try { await collectOmniSaveSources(false); } catch (error) { console.warn('Tayari: OmniSaveAI automatic sync failed', error); }
   }
 });
 chrome.runtime.onInstalled.addListener(() => {

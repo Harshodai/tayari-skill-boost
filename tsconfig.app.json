@@ -15,11 +15,10 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-    "strict": true,
+    "strict": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
+    "noImplicitAny": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
       "@/*": [

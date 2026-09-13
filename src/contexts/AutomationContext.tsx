@@ -20,20 +20,11 @@ export interface AutomationRun {
   steps: AutomationStep[];
 }
 
-export interface ChainContext {
-  savedId?: string | number;
-  resumeId?: string | number;
-  optimizedText?: string;
-  coverLetter?: string;
-  applicationId?: string | number;
-  [k: string]: unknown;
-}
-
 /** A single real unit of work in a chain. Throw to fail the step (and stop the chain). */
 export interface ChainStep {
   label: string;
   /** Receives the accumulated context from previous steps; may return a detail string. */
-  run: (ctx: ChainContext) => Promise<string | void>;
+  run: (ctx: Record<string, any>) => Promise<string | void>;
   /** When true, a failure is recorded but the chain continues. */
   optional?: boolean;
 }
@@ -158,7 +149,7 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
       ]);
       setIsOpen(true);
 
-      const ctx: ChainContext = {};
+      const ctx: Record<string, any> = {};
       let ok = true;
 
       for (let i = 0; i < steps.length; i++) {
@@ -168,9 +159,9 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
         try {
           const detail = await step.run(ctx);
           patchStep(runId, stepId, { status: "done", detail: detail || undefined });
-        } catch (err: unknown) {
+        } catch (err: any) {
           const message =
-            (err instanceof Error ? err.message : String(err)).slice(0, 160) || "Request failed. Check your connection.";
+            err?.message?.toString().slice(0, 160) || "Request failed. Check your connection.";
           patchStep(runId, stepId, { status: "failed", detail: message });
           if (!step.optional) {
             ok = false;

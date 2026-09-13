@@ -16,147 +16,6 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from app.services.job_identity import freshness_status, job_identity
-from app.services.skill_taxonomy import (
-    ASYMMETRIC_TRANSFER,
-    TAXONOMY,
-    _SURFACE_TO_CANONICAL,
-    extract_skills,
-)
-from app.services.skill_graph import ADJACENCY
-
-
-_COMPETENCY_CLUSTERS: dict[str, set[str]] = {
-    "analytics_data": {
-        "data analysis", "clinical analytics", "risk analytics", "product analytics",
-        "business analytics", "financial analytics", "analytics", "sql", "bi", "metrics",
-        "reporting", "statistics", "pandas", "data visualization", "quantitative analysis",
-        "data science",
-    },
-    "product_strategy": {
-        "product strategy", "product management", "product discovery", "roadmap",
-        "market research", "feature prioritization", "stakeholder management",
-        "user research", "clinical workflows", "customer journeys",
-    },
-    "engineering_backend": {
-        "backend", "microservices", "python", "go", "golang", "java", "c++", "rust",
-        "c#", "distributed systems", "rest api", "databases", "sql", "postgresql",
-        "mysql", "system design", "scalability", "caching",
-    },
-    "engineering_frontend": {
-        "frontend", "javascript", "typescript", "react", "vue", "angular", "nextjs",
-        "web development", "ui", "ux", "html", "css",
-    },
-    "cloud_infrastructure": {
-        "cloud", "aws", "gcp", "azure", "devops", "docker", "kubernetes", "ci/cd",
-        "terraform", "linux", "monitoring", "sre", "infrastructure",
-    },
-    "ai_ml": {
-        "machine learning", "deep learning", "ai", "llm", "nlp", "computer vision",
-        "data science", "pytorch", "tensorflow",
-    },
-    "leadership_management": {
-        "leadership", "project management", "agile", "scrum", "stakeholder management",
-        "communication", "team lead", "mentoring", "people management", "collaboration",
-    },
-}
-
-_STOPWORDS = {"and", "or", "in", "of", "to", "for", "with", "a", "an", "the", "on", "at", "by", "as"}
-
-
-def _check_resume_evidence(skill: str, r_text: str) -> bool:
-    """Check whether a transferable skill is evidenced in the candidate resume text."""
-    if not skill or not r_text:
-        return False
-    s_norm = skill.strip().lower()
-
-    # 1. Exact phrase / boundary match
-    pattern = r"(?<!\w)" + re.escape(s_norm) + r"(?!\w)"
-    if re.search(pattern, r_text):
-        return True
-
-    # 2. Canonical taxonomy match
-    extracted = extract_skills(r_text)
-    canonical = _SURFACE_TO_CANONICAL.get(s_norm)
-    if canonical and canonical in extracted:
-        return True
-
-    if canonical and canonical in TAXONOMY:
-        synonyms = TAXONOMY[canonical][0]
-        for syn in synonyms:
-            if re.search(r"(?<!\w)" + re.escape(syn) + r"(?!\w)", r_text):
-                return True
-
-    # 3. Token / stem level evidence for multi-word or compound skills
-    tokens = [w for w in re.findall(r"[a-z0-9+#]+", s_norm) if w not in _STOPWORDS and len(w) >= 3]
-    if not tokens:
-        return False
-
-    matched_tokens = 0
-    for tok in tokens:
-        if re.search(r"(?<!\w)" + re.escape(tok) + r"(?!\w)", r_text):
-            matched_tokens += 1
-        elif len(tok) >= 5 and re.search(r"(?<!\w)" + re.escape(tok[:5]) + r"\w*", r_text):
-            matched_tokens += 1
-
-    if len(tokens) == 1:
-        return matched_tokens == 1
-    return matched_tokens >= 1 and (matched_tokens / len(tokens) >= 0.5)
-
-
-def _derive_transferability_score(source_skill: str, target_skill: str) -> float | None:
-    """Derive transferability score based on validated correlation/overlap between skills.
-
-    Returns a score between 0.60 and 0.95 if validated correlation exists, or None.
-    """
-    src_norm = source_skill.strip().lower()
-    tgt_norm = target_skill.strip().lower()
-
-    if src_norm == tgt_norm:
-        return 0.95
-
-    score: float | None = None
-
-    # 1. Direct token match / token overlap
-    src_tokens = set(re.findall(r"[a-z0-9+#]+", src_norm)) - _STOPWORDS
-    tgt_tokens = set(re.findall(r"[a-z0-9+#]+", tgt_norm)) - _STOPWORDS
-    shared_tokens = src_tokens & tgt_tokens
-    if shared_tokens:
-        overlap_ratio = len(shared_tokens) / max(len(src_tokens | tgt_tokens), 1)
-        token_score = round(0.65 + 0.25 * overlap_ratio, 2)
-        score = max(score or 0.0, token_score)
-
-    # 2. Canonical taxonomy / Asymmetric transfer mapping
-    src_c = _SURFACE_TO_CANONICAL.get(src_norm, src_norm)
-    tgt_c = _SURFACE_TO_CANONICAL.get(tgt_norm, tgt_norm)
-    if src_c == tgt_c and src_c:
-        score = max(score or 0.0, 0.95)
-
-    if src_c in ASYMMETRIC_TRANSFER and tgt_c in ASYMMETRIC_TRANSFER[src_c]:
-        weight = ASYMMETRIC_TRANSFER[src_c][tgt_c]
-        score = max(score or 0.0, max(0.60, min(0.95, round(weight, 2))))
-
-    # 3. Adjacency in TAXONOMY or ADJACENCY graph
-    if src_c in TAXONOMY and tgt_c in TAXONOMY[src_c][1]:
-        score = max(score or 0.0, 0.80)
-    elif tgt_c in TAXONOMY and src_c in TAXONOMY[tgt_c][1]:
-        score = max(score or 0.0, 0.75)
-
-    if src_norm in ADJACENCY and tgt_norm in ADJACENCY[src_norm]:
-        score = max(score or 0.0, 0.75)
-    elif src_c in ADJACENCY and tgt_c in ADJACENCY[src_c]:
-        score = max(score or 0.0, 0.75)
-
-    # 4. Shared competency cluster
-    for cluster_skills in _COMPETENCY_CLUSTERS.values():
-        if (src_norm in cluster_skills or src_c in cluster_skills) and (
-            tgt_norm in cluster_skills or tgt_c in cluster_skills
-        ):
-            score = max(score or 0.0, 0.70)
-            break
-
-    if score is not None:
-        return min(0.95, max(0.60, round(score, 2)))
-    return None
 
 
 def analyze_fit_matrix(
@@ -190,11 +49,9 @@ def analyze_fit_matrix(
     # 2. Skill Alignment
     required_skills = job.get("skills") or []
     if not required_skills:
-        # Extract required skills from the actual JD text via the shared taxonomy
-        # (same "extract from source, not a fixed shortlist" pattern used by
-        # skill_gap_radar.py / skill_gap_analyzer.py) instead of a 10-word list
-        # that silently ignored everything else the JD asked for.
-        required_skills = sorted(extract_skills(f"{j_title} {j_desc}"))
+        # Extract potential tech keywords from JD
+        candidates = ["python", "go", "golang", "react", "typescript", "aws", "docker", "kubernetes", "sql", "postgres"]
+        required_skills = [c for c in candidates if c in j_desc or c in j_title]
 
     strong_skills = []
     missing_skills = []
@@ -280,11 +137,6 @@ def analyze_fit_matrix(
                 "why": "No required skills listed — cannot assess skill fit",
                 "what_would_change": "Apply when you can verify direct experience alignment through the full job description.",
             },
-            "transition_fit": {
-                "transition_type": "unknown",
-                "explanation": "No required skills extracted; transition fit cannot be assessed.",
-                "transfer_matrix": [],
-            },
         }
 
     if not hard_pass:
@@ -300,52 +152,6 @@ def analyze_fit_matrix(
         rec_action = "weak_match"
         why = f"Skill gap detected ({len(missing_skills)} missing skills: {', '.join(missing_skills[:3])})."
         what_change = f"Tailor resume to emphasize experience in {', '.join(missing_skills[:2])}."
-
-    # 7. Transition fit and cross-domain skill transfer matrix
-    transferable_skills = (profile_preferences or {}).get("transferable_skills") or []
-    transition_type = (profile_preferences or {}).get("transition_type") or "same_domain"
-    cur_title = (profile_preferences or {}).get("current_title") or ""
-    tgt_level = (profile_preferences or {}).get("target_level") or ""
-    cur_ind = (profile_preferences or {}).get("current_industry") or ""
-    tgt_ind = (profile_preferences or {}).get("target_industry") or ""
-
-    if transition_type == "cross_domain":
-        if cur_ind or tgt_ind:
-            trans_why = f"Cross-domain transition from {cur_ind or 'current sector'} to {tgt_ind or 'target sector'}: leverages {len(transferable_skills)} transferable competencies for {job.get('title', 'target role')}."
-        else:
-            trans_why = f"Cross-domain transition leveraging {len(transferable_skills)} transferable competencies for {job.get('title', 'target role')}."
-    elif cur_title:
-        trans_why = f"Same-domain progression from {cur_title} towards {tgt_level or 'advanced'} responsibilities in {job.get('title', 'this role')}."
-    else:
-        trans_why = f"Alignment based on candidate competencies and target requirements for {job.get('title', 'this role')}."
-
-    transfer_matrix = []
-    for miss in missing_skills:
-        for trans in transferable_skills:
-            has_evidence = _check_resume_evidence(trans, r_text)
-            derived_score = _derive_transferability_score(trans, miss) if has_evidence else None
-
-            if has_evidence and derived_score is not None:
-                transfer_matrix.append({
-                    "source_skill": trans,
-                    "target_skill": miss,
-                    "status": "verified",
-                    "transferability_score": derived_score,
-                    "rationale": f"Candidate competence in '{trans}' translates to domain execution in '{miss}'.",
-                })
-            else:
-                transfer_matrix.append({
-                    "source_skill": trans,
-                    "target_skill": miss,
-                    "status": "unverified",
-                    "transferability_score": None,
-                    "rationale": f"Transfer from '{trans}' to '{miss}' is unverified without resume evidence or verified skill mapping.",
-                })
-
-    transfer_matrix.sort(
-        key=lambda x: (x["status"] == "verified", x.get("transferability_score") or 0.0),
-        reverse=True,
-    )
 
     return {
         "hard_constraints": {
@@ -380,10 +186,5 @@ def analyze_fit_matrix(
             "action": rec_action,
             "why": why,
             "what_would_change": what_change,
-        },
-        "transition_fit": {
-            "transition_type": transition_type,
-            "explanation": trans_why,
-            "transfer_matrix": transfer_matrix[:6],
         },
     }

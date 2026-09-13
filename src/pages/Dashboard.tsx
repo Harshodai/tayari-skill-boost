@@ -38,11 +38,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { JobMatchScore } from "@/components/ui/job-match-score";
 import { StatsCard, StatsGrid } from "@/components/ui/stats-card";
 import type { ResumeAnalysisRecord } from "@/types/resume";
-import { USE_SELF_HOSTED, listAnalysisHistory, getFunnelData, getProfile } from "@/api";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { USE_SELF_HOSTED, listAnalysisHistory, getFunnelData } from "@/api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { deleteSavedJob } from "@/api";
 import { useAutomation } from "@/contexts/AutomationContext";
-import { TargetRoleReadinessCard } from "@/components/career/TargetRoleReadinessCard";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ApplicationPipeline } from "@/components/pipeline/ApplicationPipeline";
@@ -59,18 +58,6 @@ import { toast } from "sonner";
 import { WelcomeTour } from "@/components/onboarding/WelcomeTour";
 import { TASK_RECIPES } from "@/lib/agent/taskRecipes";
 
-
-interface SavedJobItem {
-  id: string | number;
-  saved_id?: number;
-  title?: string;
-  company?: string;
-  location?: string | null;
-  url?: string | null;
-  saved_at?: string;
-  dedupe_key?: string;
-  [key: string]: unknown;
-}
 
 const COMMAND_CENTER_TOOLS = [
   { title: "Company Radar", desc: "Review company signals", icon: Radar, to: "/radar" },
@@ -93,28 +80,6 @@ const Dashboard = () => {
   const { analyses = [], savedJobs = [], roadmap = [], interviews = [], funnel = { saved: 0, applied: 0, interview: 0, offer: 0 }, credits, inbox = { total: 0, unread: 0, pending_followup: 0 }, isLoading, isError, refetch } = useDashboardData(userId);
   const { unavailable: backendUnavailable } = useBackendHealth();
   const queryClient = useQueryClient();
-
-  const { data: profile } = useQuery({
-    queryKey: ["profile", userId],
-    queryFn: () => getProfile(),
-    enabled: !!userId,
-    retry: 2,
-  });
-
-  const userSkills = useMemo(() => {
-    const set = new Set<string>();
-    const addStrings = (arr: unknown) => {
-      if (Array.isArray(arr)) arr.forEach((s) => { if (typeof s === "string" && s) set.add(s); });
-    };
-    addStrings(profile?.skills);
-    addStrings((profile as { transferable_skills?: unknown })?.transferable_skills);
-    analyses.forEach((a) => {
-      addStrings(a.parsed_resume?.skills);
-      addStrings(a.analysis_data?.matchedKeywords);
-    });
-    return Array.from(set);
-  }, [profile, analyses]);
-
   const [unsaveError, setUnsaveError] = useState<string | null>(null);
   // ponytail: optimistic unsave — remove locally, rollback on apiFetch error
   // with a visible error state; keeps existing structure, no refactor.
@@ -126,17 +91,17 @@ const Dashboard = () => {
         queryClient.cancelQueries({ queryKey: ["saved-jobs", userId] }),
         queryClient.cancelQueries({ queryKey: ["saved-jobs"] }),
       ]);
-      const prevScoped = queryClient.getQueryData<SavedJobItem[]>(["saved-jobs", userId]);
-      const prevFlat = queryClient.getQueryData<SavedJobItem[]>(["saved-jobs"]);
-      const drop = (old: SavedJobItem[] = []) => old.filter((j) => j.id !== id && j.saved_id !== id);
-      queryClient.setQueryData<SavedJobItem[]>(["saved-jobs", userId], (old = []) => drop(old));
-      queryClient.setQueryData<SavedJobItem[]>(["saved-jobs"], (old = []) => drop(old));
+      const prevScoped = queryClient.getQueryData<any[]>(["saved-jobs", userId]);
+      const prevFlat = queryClient.getQueryData<any[]>(["saved-jobs"]);
+      const drop = (old: any[] = []) => old.filter((j) => j.id !== id && (j as any).saved_id !== id);
+      queryClient.setQueryData<any[]>(["saved-jobs", userId], (old = []) => drop(old));
+      queryClient.setQueryData<any[]>(["saved-jobs"], (old = []) => drop(old));
       return { prevScoped, prevFlat };
     },
-    onError: (err: Error | { message?: string }, _id, ctx) => {
+    onError: (err: any, _id, ctx) => {
       if (ctx?.prevScoped) queryClient.setQueryData(["saved-jobs", userId], ctx.prevScoped);
       if (ctx?.prevFlat) queryClient.setQueryData(["saved-jobs"], ctx.prevFlat);
-      const msg = (err as Error)?.message || "Failed to remove saved job";
+      const msg = err?.message || "Failed to remove saved job";
       setUnsaveError(msg);
       toast.error(msg);
     },
@@ -319,21 +284,11 @@ const Dashboard = () => {
                       <ArrowRight className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-primary uppercase tracking-wider">
-                        {runs.length > 0 ? "Continue where you left off" : "Pick up your resume work"}
-                      </p>
+                      <p className="text-xs font-semibold text-primary uppercase tracking-wider">Continue where you left off</p>
                       <p className="text-sm font-medium text-foreground truncate">
                         {runs.length > 0
                           ? `Active run: ${runs[0].title}${runs[0].context ? ` (${runs[0].context})` : ""}`
-                          // ponytail: this card used to say "Continue" and name
-                          // the exact prior scan, but the Continue button can only
-                          // reopen a blank analyzer (ResumeResults reads its data
-                          // from router state set at analysis time, not a
-                          // resume/analysis id, so a past scan can't be reopened
-                          // by link alone). Naming the scan without being able to
-                          // reopen it was overpromising; this states the real score
-                          // as a fact about last time, not a link target.
-                          : `Last scan scored ${analyses[0]?.overall_score ?? latestScore ?? 0}% — start a fresh analysis with your latest resume and a job description.`}
+                          : `Recent scan: ${analyses[0]?.job_title || analyses[0]?.resume_filename || "Resume"} (${analyses[0]?.overall_score ?? latestScore ?? 0}% match)`}
                       </p>
                     </div>
                   </div>
@@ -341,9 +296,9 @@ const Dashboard = () => {
                     <Button asChild size="sm" variant="glow" className="active:scale-[0.98]">
                       <Link
                         to={runs.length > 0 ? "/jobs" : "/resume"}
-                        aria-label={runs.length > 0 ? "Continue where you left off" : "Start a new resume analysis"}
+                        aria-label="Continue where you left off"
                       >
-                        {runs.length > 0 ? "Continue" : "Start"} <ArrowRight className="w-4 h-4 ml-1.5" />
+                        Continue <ArrowRight className="w-4 h-4 ml-1.5" />
                       </Link>
                     </Button>
                     <Button asChild size="sm" variant="outline" className="active:scale-[0.98]">
@@ -379,13 +334,6 @@ const Dashboard = () => {
                 </Button>
               </CardContent>
             </Card>
-
-            {/* Target Role Career Readiness & Loss-Aversion Tracker */}
-            <TargetRoleReadinessCard
-              userSkills={userSkills}
-              initialRoleSlug={profile?.desired_roles?.[0]}
-              className="mb-6 animate-fade-in-up"
-            />
 
             {/* Ruthless Automation Center */}
             <Card className="mb-6 border-primary/25 bg-gradient-to-r from-primary/8 via-card to-card shadow-sm">
@@ -469,11 +417,11 @@ const Dashboard = () => {
                       {credits ? (
                         <>
                           <p className="text-2xl font-extrabold tabular-nums text-foreground font-mono">
-                            {credits.unlimited ? "Unlimited" : credits.balance}
+                            {credits.balance}
                             <span className="text-sm font-normal text-muted-foreground ml-1.5">available</span>
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {credits.unlimited ? "Billing disabled for this deployment" : credits.lifetime_used > 0 ? `${credits.lifetime_used} used · ${credits.lifetime_purchased} purchased lifetime` : "Buy a pack to start verified applications"}
+                            {credits.lifetime_used > 0 ? `${credits.lifetime_used} used · ${credits.lifetime_purchased} purchased lifetime` : "Buy a pack to start verified applications"}
                           </p>
                         </>
                       ) : (
@@ -485,7 +433,7 @@ const Dashboard = () => {
                     </div>
                     <div className="shrink-0">
                       <Badge variant="outline" className="text-xs text-primary border-primary/30 bg-primary/5 group-hover:bg-primary/10">
-                        {!credits ? "Check Balance" : credits.unlimited ? "Unmetered" : credits.balance === 0 ? "Buy Credits" : "Top Up"}
+                        {!credits ? "Check Balance" : credits.balance === 0 ? "Buy Credits" : "Top Up"}
                       </Badge>
                     </div>
                   </CardContent>
@@ -735,8 +683,8 @@ const Dashboard = () => {
                       <p role="alert" className="mt-2 text-xs text-destructive">{unsaveError}</p>
                     )}
                     <ul className="mt-3 space-y-1">
-                      {savedJobs.slice(0, 5).map((j) => (
-                        <li key={String(j.id ?? (j as { dedupe_key?: string }).dedupe_key)} className="flex items-center justify-between gap-2 text-xs">
+                      {savedJobs.slice(0, 5).map((j: any) => (
+                        <li key={String(j.id ?? j.dedupe_key)} className="flex items-center justify-between gap-2 text-xs">
                           <span className="truncate text-muted-foreground">{j.title} · {j.company}</span>
                           <Button
                             variant="ghost"

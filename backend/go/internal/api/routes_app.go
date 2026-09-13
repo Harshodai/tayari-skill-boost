@@ -24,10 +24,6 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Post("/api/auth/register", s.handleRegister)
 		r.Post("/api/v1/auth/login", s.handleLogin)
 		r.Post("/api/auth/login", s.handleLogin)
-		r.Post("/api/v1/auth/verify-email", s.handleVerifyEmail)
-		r.Post("/api/auth/verify-email", s.handleVerifyEmail)
-		r.Post("/api/v1/auth/resend-verification", s.handleResendVerificationEmail)
-		r.Post("/api/auth/resend-verification", s.handleResendVerificationEmail)
 	})
 
 	// Public Health & Info
@@ -88,24 +84,12 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 
 		r.Get("/api/v1/profile", s.handleGetProfile)
 		r.Put("/api/v1/profile", s.handleUpdateProfile)
-		r.Patch("/api/v1/account/password", s.handleChangePassword)
-		r.Patch("/api/account/password", s.handleChangePassword)
 
 		r.Get("/api/v1/analyze/history", s.handleListAnalysisHistory)
 		s.routesKnowledgeHub(r)
 
-		// ponytail: applications/{id}/notes and applications/parse-email used
-		// to also be registered here as handleAddApplicationNote (a no-op
-		// stub: always returned {"status":"note_added"} without writing
-		// anything) and handleParseApplicationEmail (hardcoded 501). Both are
-		// shadowed dead code today — routesApplicationsExtra (router.go,
-		// registered after this file) has the real implementations
-		// (handleAddNote actually updates notes_log; handleParseEmail calls
-		// Python's real parser) and wins per chi's last-registration-wins
-		// behavior. Found by TestNoDuplicateRouteRegistrations. Current live
-		// behavior is correct by luck of registration order, not by design —
-		// removed the stubs so a future reordering can't silently revert
-		// real note-saving/email-parsing back to a fake success response.
+		r.Post("/api/v1/applications/{id}/notes", s.handleAddApplicationNote)
+		r.Post("/api/v1/applications/parse-email", s.handleParseApplicationEmail)
 
 		// GDPR: account lifecycle
 		r.Delete("/api/v1/account", s.handleDeleteAccount)
@@ -117,7 +101,6 @@ func (s *Server) registerCoreRoutes(r chi.Router) {
 		r.Post("/api/v1/resumes/upload", s.handleUploadResumeMultipart)
 		r.Get("/api/v1/resumes", s.handleListResumes)
 		r.Get("/api/v1/resumes/{id}", s.handleGetResume)
-		r.Put("/api/v1/resumes/{id}", s.handleUpdateResume)
 		r.Delete("/api/v1/resumes/{id}", s.handleDeleteResume)
 		r.Post("/api/v1/resumes/{id}/export", s.handleExportResume)
 		r.Post("/api/v1/resumes/generate-pdf", s.handleGenerateResumePdf)
@@ -191,7 +174,6 @@ func (s *Server) registerLegacyAliases(r chi.Router) {
 	r.Get("/api/resumes", s.handleListResumes)
 	r.Post("/api/resumes", s.handleCreateResume)
 	r.Get("/api/resumes/{id}", s.handleGetResume)
-	r.Put("/api/resumes/{id}", s.handleUpdateResume)
 	r.Delete("/api/resumes/{id}", s.handleDeleteResume)
 	// ponytail: /api twins for analyze/optimize/verification/referral/
 	// interview live in routesAIProxy so both prefixes share the per-user
@@ -201,8 +183,7 @@ func (s *Server) registerLegacyAliases(r chi.Router) {
 	r.Get("/api/verification/status", s.handleVerificationStatus)
 	r.Get("/api/resumes/{id}/docx", s.handleDownloadResumeDocx)
 	r.Get("/api/resume-versions/{id}/docx", s.handleDownloadVersionDocx)
-	// (the /api/v1/ alias of this route already exists above — this is the
-	// bare-/api/ alias block, a copy-paste duplicate of it was removed here)
+	r.Get("/api/v1/resume-versions/{id}/docx", s.handleDownloadVersionDocx)
 	r.Post("/api/job-descriptions", s.handleCreateJD)
 	r.Post("/api/job-descriptions/import", s.handleImportJobDescription)
 	r.Get("/api/job-descriptions", s.handleListJDs)
@@ -214,8 +195,6 @@ func (s *Server) registerLegacyAliases(r chi.Router) {
 	r.Get("/api/applications/{id}", s.handleGetApplication)
 	r.Put("/api/applications/{id}", s.handleUpdateApplication)
 	r.Delete("/api/applications/{id}", s.handleDeleteApplication)
-	r.Get("/api/applications/{id}/resume-docx", s.handleDownloadApplicationResume)
-	// See the matching comment above (v1 block) — these two are registered
-	// by routesApplicationsExtra with real implementations; the stubs that
-	// used to be registered here too were removed as dead/shadowed code.
+	r.Post("/api/applications/{id}/notes", s.handleAddApplicationNote)
+	r.Post("/api/applications/parse-email", s.handleParseApplicationEmail)
 }

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -96,13 +95,6 @@ export function ApplicationAnalytics() {
           </div>
           <p className="text-muted-foreground text-sm">
             Track recruiter response rates, interview conversion ratios, and closed-loop ATS match outcomes.
-          </p>
-          <p className="text-muted-foreground text-xs">
-            Looking for receipt-backed, verified-submission stats instead?{" "}
-            <Link to="/outcomes" className="underline hover:text-foreground">
-              See Outcomes &amp; Receipts
-            </Link>
-            .
           </p>
         </div>
 

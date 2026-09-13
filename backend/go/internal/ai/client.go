@@ -12,9 +12,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/propagation"
 )
 
 // APIError preserves the Python service's real HTTP status code and response
@@ -51,7 +48,6 @@ func NewClient(baseURL string) *Client {
 // service token. User identity headers remain caller-specific and are applied
 // after this helper, while the internal token cannot be overridden by callers.
 func NewClientWithToken(baseURL, internalToken string) *Client {
-	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
 		baseURL = "http://localhost:8000"
 	}
@@ -59,21 +55,14 @@ func NewClientWithToken(baseURL, internalToken string) *Client {
 		BaseURL:       baseURL,
 		internalToken: internalToken,
 		client: http.Client{
-			// 300s: the resume optimizer runs a 2-call reflection loop
+			// 240s: the resume optimizer runs a 2-call reflection loop
 			// (optimize + re-prompt) against whatever LLM is configured —
 			// a free-tier/shared-capacity model can push past 120s total,
 			// which was silently 502ing every optimize call under that
 			// condition (verified live: OpenRouter free-tier google/gemma
 			// completions, 2m0s "context deadline exceeded" in go-backend
-			// logs while python-ai was still working). Raised from 240s to
-			// 300s: http.Client.Timeout is an absolute wall-clock cap that
-			// applies on top of any per-call context deadline (effective
-			// timeout is min(ctx deadline, client.Timeout)) — so even
-			// though handleBrowserAutomation (routes_browser.go) opens its
-			// own 300s context for a blocking browser automation run, this
-			// field was silently re-capping it to 240s. Must stay >= the
-			// longest PostJSONWithContext deadline used by any caller.
-			Timeout: 300 * time.Second,
+			// logs while python-ai was still working).
+			Timeout: 240 * time.Second,
 		},
 		// ponytail: http.Client.Timeout covers full body reads, so the
 		// 240s client kills SSE streams at 4min despite a 20min ctx and
@@ -132,16 +121,10 @@ func (c *Client) setHeaders(req *http.Request, headers map[string]string) {
 	if req.Header.Get("X-Request-ID") == "" {
 		req.Header.Set("X-Request-ID", fmt.Sprintf("req-%d", time.Now().UnixNano()))
 	}
-	if req.Context() != nil {
-		otel.GetTextMapPropagator().Inject(req.Context(), propagation.HeaderCarrier(req.Header))
-	}
 }
 
-// ParseDocument sends a file to the Python service for parsing. headers must
-// carry the caller's X-User-Id (see getXUserHeaders) — the Python endpoint
-// requires get_current_user, which fails closed on an internal-token request
-// with no forwarded user identity.
-func (c *Client) ParseDocument(fileData []byte, fileType string, headers map[string]string) (map[string]interface{}, error) {
+// ParseDocument sends a file to the Python service for parsing.
+func (c *Client) ParseDocument(fileData []byte, fileType string) (map[string]interface{}, error) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	part, err := w.CreateFormFile("resume_file", "resume."+fileType)
@@ -156,7 +139,7 @@ func (c *Client) ParseDocument(fileData []byte, fileType string, headers map[str
 		return nil, err
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
-	c.setHeaders(req, headers)
+	c.setHeaders(req, nil)
 	if c.blocked() {
 		return nil, ErrCircuitOpen
 	}
@@ -330,22 +313,11 @@ func (c *Client) PatchJSONWithHeaders(endpoint string, payload interface{}, head
 	return result, nil
 }
 
-// GetJSON always expects a JSON object response (callers index it by key) —
-// unlike GetJSONWithHeaders, which is used as a generic proxy and must also
-// accept array-shaped upstream responses.
 func (c *Client) GetJSON(endpoint string) (map[string]interface{}, error) {
-	result, err := c.GetJSONWithHeaders(endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	obj, ok := result.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("GetJSON %s: expected a JSON object, got %T", endpoint, result)
-	}
-	return obj, nil
+	return c.GetJSONWithHeaders(endpoint, nil)
 }
 
-func (c *Client) GetJSONWithHeaders(endpoint string, headers map[string]string) (interface{}, error) {
+func (c *Client) GetJSONWithHeaders(endpoint string, headers map[string]string) (map[string]interface{}, error) {
 	req, err := http.NewRequest(http.MethodGet, c.BaseURL+endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -366,10 +338,7 @@ func (c *Client) GetJSONWithHeaders(endpoint string, headers map[string]string) 
 		c.record(apiErr)
 		return nil, apiErr
 	}
-	// The upstream Python endpoint may return a JSON object or a JSON array
-	// (e.g. GET /api/v1/conversations returns a list) — decode into `any` so
-	// this proxy doesn't fail on shapes other than a bare object.
-	var result interface{}
+	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		// ponytail: corrupt payload after HTTP 200 proves reachability — skip breaker record either way.
 		return nil, err

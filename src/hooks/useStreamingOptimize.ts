@@ -100,12 +100,11 @@ export function useStreamingOptimize() {
           }
         }
       }
-    } catch (err: unknown) {
-      const errObj = err as { name?: string; message?: string } | null;
-      if (errObj?.name === 'AbortError') return;
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
       setState(prev => ({
         ...prev,
-        error: errObj?.message || 'Optimization failed',
+        error: err.message || 'Optimization failed',
         isStreaming: false,
       }));
     }

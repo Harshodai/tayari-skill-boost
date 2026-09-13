@@ -42,7 +42,6 @@ from app.parsers.document_parser import ResumeParser
 from app.scoring.ats_scorer import ATSScorer
 from app.analysis.similarity import KeywordAnalyzer
 from app.analysis.ngram_analyzer import NGramAnalyzer
-from app.services.style_delta_logger import StyleDeltaLogger
 
 logger = logging.getLogger(__name__)
 
@@ -456,210 +455,6 @@ def _transition_directives(transition: dict | None) -> tuple[str, str]:
     return "", ""
 
 
-def _build_instruction_ledger(
-    custom_instructions: str | None,
-    optimized_text: str,
-    original_text: str,
-    pre_rejected: set[str] | None = None,
-) -> list[dict[str, str]]:
-    """Audit and classify candidate custom instructions for transparent provenance.
-
-    Args:
-        pre_rejected: Set of raw instruction strings already classified as
-            rejected before the LLM call (e.g. prompt-injection, fabricated
-            credentials). When provided, those entries are force-labelled
-            ``rejected`` regardless of token-match scoring so the ledger
-            reflects what was actually excluded from the model context.
-    """
-    if not custom_instructions or not custom_instructions.strip():
-        return []
-    lines = [
-        line.strip(" -*•\t")
-        for line in custom_instructions.strip().splitlines()
-        if line.strip(" -*•\t")
-    ]
-    if not lines and custom_instructions.strip():
-        lines = [custom_instructions.strip()]
-
-    ledger: list[dict[str, str]] = []
-    opt_lower = optimized_text.lower()
-    orig_lower = original_text.lower()
-
-    malicious_markers = ["ignore previous", "system prompt", "jailbreak", "set score", "developer mode", "bypass"]
-    cred_markers = [
-        "phd", "master", "bachelor", "degree", "certified", "aws certified", "pmp",
-        "worked at", "ex-google", "ex-meta", "ex-apple", "ex-amazon", "ex-netflix",
-        "employed at", "employed by", "interned at",
-    ]
-
-    # Phrasing patterns for unsupported employer, title, and employment-history requests
-    employer_phrasings = [
-        r"\b(?:add|adding|include|insert|list|state|claim)\s+(?:an?\s+)?(?:previous\s+|new\s+|past\s+)?(?:employer|company|job|role|title|position|employment\s+history|work\s+history)\b",
-        r"\b(?:add|adding|include|insert)\s+(?:experience|work|employment)\s+at\b",
-        r"\b(?:worked\s+at|employed\s+at|employed\s+by|interned\s+at|role\s+at)\b",
-        r"\b(?:add|adding|include)\s+([A-Za-z0-9&.\s]{2,40}?)\s+as\s+(?:an?\s+)?(?:employer|company|previous\s+company|past\s+company)\b",
-        r"\b(?:add|adding|include)\s+([A-Za-z0-9&.\s]{2,40}?)\s+as\s+(?:an?\s+)?title\b",
-    ]
-
-    def _is_unsupported_history_or_cred(text: str, resume_lower: str) -> tuple[bool, str]:
-        t_lower = text.lower()
-
-        # 1. Credential / employer markers with full specific credential verification
-        for cm in cred_markers:
-            pat = r"\b" + re.escape(cm) + r"\b"
-            if re.search(pat, t_lower):
-                # If marker itself is not in resume_lower, reject immediately
-                if not re.search(pat, resume_lower):
-                    return True, "Violates truthfulness guardrail: credential or employer not evidenced in original resume"
-                # When provider/category marker exists in resume, extract and normalize the
-                # specifically requested credential entity without trailing instruction words.
-                cred_match = re.search(
-                    r"\b" + re.escape(cm)
-                    + r"((?:\s+(?!and\b|with\b|while\b|please\b|mention\b|highlight\b|emphasize\b|focus\b|also\b|or\b|for\b|to\b)[\w+-]+){0,6})",
-                    t_lower,
-                )
-                if cred_match:
-                    cred_phrase = (cm + cred_match.group(1)).strip()
-                    generic_cred_words = {
-                        "phd", "master", "masters", "bachelor", "bachelors", "degree",
-                        "certified", "certification", "aws", "ex", "worked", "at",
-                        "employed", "by", "interned", "and", "or", "in", "of", "to",
-                        "for", "with", "a", "an", "the",
-                    }
-                    spec_tokens = [
-                        w for w in re.findall(r"\b[a-zA-Z0-9]{3,}\b", cred_phrase)
-                        if w not in STOPWORDS and w not in generic_cred_words
-                    ]
-                    if spec_tokens:
-                        unsupported_spec = [st for st in spec_tokens if not re.search(r"\b" + re.escape(st) + r"\b", resume_lower)]
-                        if unsupported_spec:
-                            return True, f"Violates truthfulness guardrail: specifically requested credential ('{cred_phrase}') not evidenced in original resume"
-
-        # 2. Specifically requested titles: require contiguous phrase in source resume
-        title_as_match = re.search(r"\b(?:add|adding|include)\s+([A-Za-z0-9&./\s]{2,40}?)\s+as\s+(?:an?\s+)?title\b", t_lower)
-        if title_as_match:
-            raw_title = title_as_match.group(1).strip()
-            norm_title = re.sub(r"\s+", " ", raw_title)
-            # Require the normalized requested title as a contiguous phrase in source resume
-            if norm_title and not re.search(r"\b" + re.escape(norm_title) + r"\b", resume_lower):
-                return True, f"Violates truthfulness guardrail: requested title ('{norm_title}') not evidenced in original resume"
-
-        # 3. Employer / title / history phrasing
-        for ep in employer_phrasings:
-            m = re.search(ep, t_lower)
-            if m:
-                # Extract candidate entity tokens (excluding grammatical command words)
-                ignore_tokens = {
-                    "add", "adding", "employer", "company", "title", "previous", "work",
-                    "history", "experience", "worked", "employed", "interned", "include",
-                    "insert", "position", "past", "new", "role", "claim", "list", "state",
-                    "and", "the", "for", "with", "please", "as",
-                }
-                tokens = [
-                    w for w in re.findall(r"\b[a-zA-Z0-9]{3,}\b", t_lower)
-                    if w not in STOPWORDS and w not in ignore_tokens
-                ]
-                if not tokens:
-                    return True, "Violates truthfulness guardrail: unsupported employer or employment-history request not evidenced in original resume"
-                unsupported_tokens = [tok for tok in tokens if tok not in resume_lower]
-                if unsupported_tokens:
-                    return True, f"Violates truthfulness guardrail: unsupported employer or title ('{unsupported_tokens[0]}') not evidenced in original resume"
-
-        return False, ""
-
-    for raw in lines:
-        lower = raw.lower()
-        # Honour pre-classification: if this instruction was already marked
-        # rejected before the LLM call, propagate the label without re-checking.
-        if pre_rejected and raw in pre_rejected:
-            is_unsupported, reason = _is_unsupported_history_or_cred(raw, orig_lower)
-            if not is_unsupported:
-                reason = "Flagged as unsafe prompt injection directive"
-            ledger.append({"instruction": raw, "status": "rejected", "reason": reason})
-            continue
-
-        if any(marker in lower for marker in malicious_markers):
-            ledger.append({
-                "instruction": raw,
-                "status": "rejected",
-                "reason": "Flagged as unsafe prompt injection directive",
-            })
-            continue
-
-        is_unsupported, reason = _is_unsupported_history_or_cred(raw, orig_lower)
-        if is_unsupported:
-            ledger.append({
-                "instruction": raw,
-                "status": "rejected",
-                "reason": reason,
-            })
-            continue
-
-        tokens = [t for t in re.findall(r"\b[a-zA-Z]{3,}\b", lower) if t not in STOPWORDS]
-        matched_tokens = [t for t in tokens if re.search(r"\b" + re.escape(t) + r"\b", opt_lower)]
-        if len(tokens) == 0:
-            applied = True
-        elif len(tokens) == 1:
-            applied = len(matched_tokens) == 1
-        else:
-            applied = len(matched_tokens) >= 2 and len(matched_tokens) / len(tokens) >= 0.5
-        if applied:
-            ledger.append({
-                "instruction": raw,
-                "status": "applied",
-                "reason": "Successfully incorporated into tailored artifact",
-            })
-        else:
-            ledger.append({
-                "instruction": raw,
-                "status": "ignored",
-                "reason": "Could not be applied without exceeding brevity or relevance bounds",
-            })
-
-    return ledger
-
-
-def _compute_bullet_diffs(original_text: str, optimized_text: str) -> list[dict[str, str]]:
-    """Produce structured before/after bullet point diffs with status tags."""
-    import difflib
-    orig_bullets = [
-        b.strip(" -*•□■\t")
-        for b in original_text.splitlines()
-        if b.strip().startswith(("-", "*", "•", "□", "■"))
-    ]
-    opt_bullets = [
-        b.strip(" -*•□■\t")
-        for b in optimized_text.splitlines()
-        if b.strip().startswith(("-", "*", "•", "□", "■"))
-    ]
-    diffs = []
-    matcher = difflib.SequenceMatcher(a=orig_bullets, b=opt_bullets, autojunk=False)
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == "equal":
-            for k in range(i2 - i1):
-                diffs.append({"original": orig_bullets[i1 + k], "optimized": opt_bullets[j1 + k], "status": "unchanged"})
-        elif tag == "replace":
-            for k in range(max(i2 - i1, j2 - j1)):
-                orig = orig_bullets[i1 + k] if i1 + k < i2 else ""
-                opt = opt_bullets[j1 + k] if j1 + k < j2 else ""
-                if orig and opt:
-                    status = "unchanged" if orig.strip() == opt.strip() else "modified"
-                elif opt and not orig:
-                    status = "added"
-                else:
-                    status = "removed"
-                diffs.append({"original": orig, "optimized": opt, "status": status})
-        elif tag == "delete":
-            for k in range(i1, i2):
-                diffs.append({"original": orig_bullets[k], "optimized": "", "status": "removed"})
-        elif tag == "insert":
-            for k in range(j1, j2):
-                diffs.append({"original": "", "optimized": opt_bullets[k], "status": "added"})
-        if len(diffs) >= 20:
-            break
-    return diffs[:20]
-
-
 async def optimize_with_reflection(
     resume_text: str,
     job_description: str | None = None,
@@ -667,8 +462,6 @@ async def optimize_with_reflection(
     job_label: str | None = None,
     custom_instructions: str | None = None,
     transition: dict | None = None,
-    user_id: str | None = None,
-    resume_id: str | None = None,
 ) -> dict:
 
     """
@@ -703,41 +496,10 @@ async def optimize_with_reflection(
         _hit = None
     if isinstance(_hit, dict) and _hit:
         await _close_client(_redis)
-        try:
-            from app.services.event_bus import publish_event
-            rid = resume_id or _hit.get("resume_id") or str(uuid.uuid4())
-            await publish_event(
-                "tayari:events",
-                "resume.optimized",
-                {"user_id": user_id or "anonymous", "resume_id": rid},
-            )
-        except Exception as exc:
-            logger.warning("Failed to publish resume.optimized event: %s", exc)
         return _hit
     # ponytail: release the lookup connection before the long LLM calls; a fresh client is used for the store.
     await _close_client(_redis)
     _redis = None
-    # ---- Classify custom instructions before context build ---------------
-    # Rejected instructions (prompt injection, fabricated credentials) must
-    # never reach the LLM. We classify upfront using the ledger logic so
-    # _build_instruction_ledger in Phase 5 can reuse the result verbatim.
-    # Note: at this stage optimized_text is not yet available for the
-    # "applied/ignored" tokens check, so we pass an empty string; the Phase 5
-    # call will redo the applied/ignored split against the real output.
-    _pre_ledger = _build_instruction_ledger(custom_instructions, "", resume_text)
-    _rejected_instructions = {
-        entry["instruction"] for entry in _pre_ledger if entry["status"] == "rejected"
-    }
-
-    # Build a sanitized version of custom_instructions excluding rejected lines
-    _safe_instructions: str | None = None
-    if custom_instructions and custom_instructions.strip():
-        _safe_lines = [
-            line for line in custom_instructions.strip().splitlines()
-            if line.strip(" -*•\t") not in _rejected_instructions
-        ]
-        _safe_instructions = "\n".join(_safe_lines).strip() or None
-
     context = ""
     if jd:
         # ponytail: chunked via long_context (spec 2026-08-02) — JD condenses
@@ -754,9 +516,8 @@ async def optimize_with_reflection(
     # ponytail: custom_instructions are prompt guidance ONLY — they must never
     # be appended to job_description, or ATS/keyword/semantic scoring would
     # score against user instructions instead of the real job posting.
-    # Only safe (non-rejected) instructions are injected into the model context.
-    if _safe_instructions:
-        context += f"\n\nUSER CUSTOM INSTRUCTIONS:\n{_untrusted(_safe_instructions)}"
+    if custom_instructions:
+        context += f"\n\nUSER CUSTOM INSTRUCTIONS:\n{_untrusted(custom_instructions)}"
 
 
     # --- Phase 1: Baseline -----------------------------------------------
@@ -913,36 +674,7 @@ async def optimize_with_reflection(
     # ---- Phase 4b: Humanization pass ------------------------------------
     optimized = await _humanize_pass(optimized)
 
-    # ---- Guardrail: Revert output if unsupported employer or credential was fabricated ---
-    orig_lower = resume_text.lower()
-    opt_lower = optimized.lower()
-    fabrication_detected = False
-    if _rejected_instructions:
-        for rej_raw in _rejected_instructions:
-            rej_tokens = [
-                w for w in re.findall(r"\b[a-zA-Z0-9]{3,}\b", rej_raw.lower())
-                if w not in STOPWORDS and w not in {
-                    "add", "adding", "employer", "company", "title", "previous", "work",
-                    "history", "experience", "worked", "employed", "interned", "include",
-                    "insert", "position", "past", "new", "role", "claim", "list", "state",
-                    "and", "the", "for", "with", "please", "as",
-                }
-            ]
-            for tok in rej_tokens:
-                if re.search(r"\b" + re.escape(tok) + r"\b", opt_lower) and not re.search(r"\b" + re.escape(tok) + r"\b", orig_lower):
-                    fabrication_detected = True
-                    break
-            if fabrication_detected:
-                break
-
-    if fabrication_detected:
-        logger.warning("optimizer_reverted_fabricated_output", extra={"rejected": list(_rejected_instructions)})
-        optimized = resume_text
-        meta["changes"] = []
-        meta["keywords_added"] = []
-        removed_ai_phrases = []
-
-    # ---- Recalculate on final cleaned (and possibly restored) text ------
+    # ---- Recalculate on final cleaned text ------------------------------
     heuristic = semantic_ats_score(optimized, jd)
     alignment_report = validate_master_alignment(optimized, resume_text)
     critic_report = _audit_draft(optimized, resume_text)
@@ -978,26 +710,12 @@ async def optimize_with_reflection(
     )
 
     # ---- Phase 5: Consolidate final output ------------------------------
-    initial_style = StyleDeltaLogger.compute_style_metrics(resume_text)
-    optimized_style = StyleDeltaLogger.compute_style_metrics(optimized)
-    style_delta = StyleDeltaLogger.compute_delta(initial_style, optimized_style)
-
     result = {
         # Core output
         "optimized_text": optimized,
         "score_breakdown": score_breakdown,
-        "style_metrics": {
-            "initial": initial_style,
-            "optimized": optimized_style,
-            "delta": style_delta,
-        },
         "changes": meta.get("changes", []),
         "keywords_added": meta.get("keywords_added", []),
-        "instruction_ledger": _build_instruction_ledger(
-            custom_instructions, optimized, resume_text,
-            pre_rejected=_rejected_instructions,
-        )[:10],
-        "bullet_diffs": _compute_bullet_diffs(resume_text, optimized),
         # ponytail: estimated_score is reported to callers (including the
         # public API-key endpoint) as a trust signal, so it must not be the
         # LLM's raw self-reported number from OPTIMIZE_SYSTEM's JSON output —
@@ -1034,8 +752,6 @@ async def optimize_with_reflection(
             "avg_star_score": round(avg_star, 1),
             "buzzwords_cleaned": len(removed_ai_phrases),
             "refinement_passes": passes,
-            "action_verb_ratio_delta": style_delta.get("action_verb_ratio_delta"),
-            "improved_action_density": style_delta.get("improved_action_density"),
         },
     }
 
@@ -1066,18 +782,6 @@ async def optimize_with_reflection(
         await _close_client(_store)
     except Exception:
         pass
-
-    try:
-        from app.services.event_bus import publish_event
-        rid = resume_id or result.get("resume_id") or str(uuid.uuid4())
-        await publish_event(
-            "tayari:events",
-            "resume.optimized",
-            {"user_id": user_id or "anonymous", "resume_id": rid},
-        )
-    except Exception as exc:
-        logger.warning("Failed to publish resume.optimized event: %s", exc)
-
     return result
 
 
@@ -1133,8 +837,6 @@ async def optimize_resume_with_options(
     target_role: str = "",
     custom_instructions: str = "",
     transition: dict | None = None,
-    user_id: str | None = None,
-    resume_id: str | None = None,
 ) -> dict:
 
     """Reflective Resume Optimizer supporting file upload parsing, raw text input,
@@ -1173,8 +875,6 @@ async def optimize_resume_with_options(
         target_role=target_role or None,
         custom_instructions=custom_instructions or None,
         transition=transition,
-        user_id=user_id,
-        resume_id=resume_id,
     )
 
 

@@ -41,7 +41,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ActivityButton } from "@/components/automation/ActivityButton";
-import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 
 function ListItem({ 
   to, 
@@ -57,35 +56,31 @@ function ListItem({
   onClick?: () => void;
 }) {
   return (
-    <DropdownMenuItem
-      asChild
-      className="block select-none rounded-lg p-2.5 leading-none no-underline outline-none transition-all duration-200 hover:bg-muted/80 focus:bg-muted/80 data-[highlighted]:bg-muted/80 group/item cursor-pointer"
+    <Link
+      to={to}
+      role="menuitem"
+      onClick={onClick}
+      className="block select-none rounded-lg p-2.5 leading-none no-underline outline-none transition-all duration-200 hover:bg-muted/80 focus:bg-muted/80 group/item"
     >
-      <Link
-        to={to}
-        onClick={onClick}
-      >
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-primary/10 bg-primary/5 text-primary group-hover/item:border-primary/25 group-hover/item:bg-primary/10 group-data-[highlighted]/item:border-primary/25 group-data-[highlighted]/item:bg-primary/10 transition-colors">
-            <Icon className="h-4 w-4" />
-          </div>
-          <div className="text-sm font-semibold text-foreground group-hover/item:text-primary group-data-[highlighted]/item:text-primary transition-colors leading-tight">
-            {title}
-          </div>
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-primary/10 bg-primary/5 text-primary group-hover/item:border-primary/25 group-hover/item:bg-primary/10 transition-colors">
+          <Icon className="h-4 w-4" />
         </div>
-        <p className="mt-1 text-xs text-muted-foreground/80 line-clamp-2 pl-[38px] leading-normal font-normal">
-          {children}
-        </p>
-      </Link>
-    </DropdownMenuItem>
+        <div className="text-sm font-semibold text-foreground group-hover/item:text-primary transition-colors leading-tight">
+          {title}
+        </div>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground/80 line-clamp-2 pl-[38px] leading-normal font-normal">
+        {children}
+      </p>
+    </Link>
   );
 }
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [featuresOpen, setFeaturesOpen] = useState(false);
-  const [resourcesOpen, setResourcesOpen] = useState(false);
+  const [activeMenu, setActiveMenu] = useState<"features" | "resources" | null>(null);
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -116,20 +111,38 @@ export function Header() {
 
   const handleMouseEnter = (menu: "features" | "resources") => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (menu === "features") {
-      setFeaturesOpen(true);
-      setResourcesOpen(false);
-    } else {
-      setResourcesOpen(true);
-      setFeaturesOpen(false);
-    }
+    setActiveMenu(menu);
   };
 
   const handleMouseLeave = () => {
     timeoutRef.current = setTimeout(() => {
-      setFeaturesOpen(false);
-      setResourcesOpen(false);
+      setActiveMenu(null);
     }, 150);
+  };
+
+  const handleToggleClick = (menu: "features" | "resources", e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActiveMenu(activeMenu === menu ? null : menu);
+  };
+
+  const closeMenuAndRestoreFocus = (menu: "features" | "resources") => {
+    setActiveMenu(null);
+    requestAnimationFrame(() => document.getElementById(`${menu}-trigger`)?.focus());
+  };
+
+  const handleMenuTriggerKeyDown = (menu: "features" | "resources", e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeMenuAndRestoreFocus(menu);
+      return;
+    }
+
+    if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      setActiveMenu(menu);
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`#${menu}-menu [role="menuitem"]`)?.focus());
+    }
   };
 
   const handleMobileMenuToggleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -139,10 +152,9 @@ export function Header() {
     }
   };
 
-  // Close dropdowns on navigation
+  // Close dropdown on navigation
   useEffect(() => {
-    setFeaturesOpen(false);
-    setResourcesOpen(false);
+    setActiveMenu(null);
   }, [location.pathname]);
 
   const handleSignOut = async () => {
@@ -181,40 +193,37 @@ export function Header() {
           {/* Column 2: Centered Desktop Navigation */}
           <nav aria-label="Primary navigation" className="hidden lg:flex items-center justify-center flex-1 mx-6 gap-1.5">
             {/* Features Dropdown */}
-            <DropdownMenu open={featuresOpen} onOpenChange={setFeaturesOpen} modal={false}>
-              <div
-                className="relative"
-                onMouseEnter={() => handleMouseEnter("features")}
-                onMouseLeave={handleMouseLeave}
+            <div 
+              className="relative"
+              onMouseEnter={() => handleMouseEnter("features")}
+              onMouseLeave={handleMouseLeave}
+            >
+              <button
+                type="button"
+                id="features-trigger"
+                aria-haspopup="menu"
+                aria-expanded={activeMenu === "features"}
+                aria-controls="features-menu"
+                onClick={(e) => handleToggleClick("features", e)}
+                onKeyDown={(e) => handleMenuTriggerKeyDown("features", e)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 bg-transparent hover:bg-muted/50 rounded-full h-9 px-3.5 text-sm font-medium transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  activeMenu === "features" || 
+                  location.pathname.startsWith("/resume") || 
+                  location.pathname.startsWith("/interview") || 
+                  location.pathname.startsWith("/cover-letter") || 
+                  location.pathname.startsWith("/communication")
+                    ? "text-primary bg-primary/5 font-semibold"
+                    : "text-muted-foreground/80 hover:text-foreground"
+                )}
               >
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    id="features-trigger"
-                    className={cn(
-                      "inline-flex items-center gap-1.5 bg-transparent hover:bg-muted/50 rounded-full h-9 px-3.5 text-sm font-medium transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                      featuresOpen ||
-                      location.pathname.startsWith("/resume") ||
-                      location.pathname.startsWith("/interview") ||
-                      location.pathname.startsWith("/cover-letter") ||
-                      location.pathname.startsWith("/communication")
-                        ? "text-primary bg-primary/5 font-semibold"
-                        : "text-muted-foreground/80 hover:text-foreground"
-                    )}
-                  >
-                    <span>Features</span>
-                    <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground/80 transition-transform duration-200", featuresOpen && "rotate-180")} />
-                  </button>
-                </DropdownMenuTrigger>
+                <span>Features</span>
+                <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground/80 transition-transform duration-200", activeMenu === "features" && "rotate-180")} />
+              </button>
 
-                <DropdownMenuContent
-                  id="features-menu"
-                  align="center"
-                  sideOffset={8}
-                  onMouseEnter={() => handleMouseEnter("features")}
-                  onMouseLeave={handleMouseLeave}
-                  className="w-[550px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-4 z-50"
-                >
+              {/* Features Dropdown Card */}
+              {activeMenu === "features" && (
+                <div id="features-menu" role="menu" onKeyDown={(e) => e.key === "Escape" && closeMenuAndRestoreFocus("features")} className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[550px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-4 z-50 animate-fade-in">
                   <div className="grid grid-cols-2 gap-3">
                     {primaryNavigationFeatures.resumeOptimizer && (
                       <ListItem to="/resume" title="Resume Optimizer" icon={FileText}>
@@ -267,9 +276,9 @@ export function Header() {
                       </ListItem>
                     )}
                   </div>
-                </DropdownMenuContent>
-              </div>
-            </DropdownMenu>
+                </div>
+              )}
+            </div>
 
             {/* Job Search Direct Link */}
             {primaryNavigationFeatures.jobSearch && (
@@ -289,10 +298,10 @@ export function Header() {
             {/* Career Roadmap Direct Link */}
             {primaryNavigationFeatures.careerRoadmap && (
               <Link
-                to="/career-intelligence"
+                to="/roadmap"
                 className={cn(
                   "inline-flex h-9 w-max items-center justify-center rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  location.pathname === "/career-intelligence"
+                  location.pathname === "/roadmap"
                     ? "text-primary bg-primary/5 font-semibold"
                     : "text-muted-foreground/80 hover:text-foreground hover:bg-muted/50"
                 )}
@@ -302,39 +311,36 @@ export function Header() {
             )}
 
             {/* Resources Dropdown */}
-            <DropdownMenu open={resourcesOpen} onOpenChange={setResourcesOpen} modal={false}>
-              <div
-                className="relative"
-                onMouseEnter={() => handleMouseEnter("resources")}
-                onMouseLeave={handleMouseLeave}
+            <div 
+              className="relative"
+              onMouseEnter={() => handleMouseEnter("resources")}
+              onMouseLeave={handleMouseLeave}
+            >
+              <button
+                type="button"
+                id="resources-trigger"
+                aria-haspopup="menu"
+                aria-expanded={activeMenu === "resources"}
+                aria-controls="resources-menu"
+                onClick={(e) => handleToggleClick("resources", e)}
+                onKeyDown={(e) => handleMenuTriggerKeyDown("resources", e)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 bg-transparent hover:bg-muted/50 rounded-full h-9 px-3.5 text-sm font-medium transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  activeMenu === "resources" || 
+                  location.pathname.startsWith("/blog") || 
+                  location.pathname.startsWith("/faq") || 
+                  location.pathname.startsWith("/contact")
+                    ? "text-primary bg-primary/5 font-semibold"
+                    : "text-muted-foreground/80 hover:text-foreground"
+                )}
               >
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    id="resources-trigger"
-                    className={cn(
-                      "inline-flex items-center gap-1.5 bg-transparent hover:bg-muted/50 rounded-full h-9 px-3.5 text-sm font-medium transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                      resourcesOpen ||
-                      location.pathname.startsWith("/blog") ||
-                      location.pathname.startsWith("/faq") ||
-                      location.pathname.startsWith("/contact")
-                        ? "text-primary bg-primary/5 font-semibold"
-                        : "text-muted-foreground/80 hover:text-foreground"
-                    )}
-                  >
-                    <span>Resources</span>
-                    <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground/80 transition-transform duration-200", resourcesOpen && "rotate-180")} />
-                  </button>
-                </DropdownMenuTrigger>
+                <span>Resources</span>
+                <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground/80 transition-transform duration-200", activeMenu === "resources" && "rotate-180")} />
+              </button>
 
-                <DropdownMenuContent
-                  id="resources-menu"
-                  align="center"
-                  sideOffset={8}
-                  onMouseEnter={() => handleMouseEnter("resources")}
-                  onMouseLeave={handleMouseLeave}
-                  className="w-[280px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-3 z-50"
-                >
+              {/* Resources Dropdown Card */}
+              {activeMenu === "resources" && (
+                <div id="resources-menu" role="menu" onKeyDown={(e) => e.key === "Escape" && closeMenuAndRestoreFocus("resources")} className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[280px] bg-gradient-to-br from-card via-card to-primary/[0.03] backdrop-blur-lg border border-border/45 rounded-xl shadow-xl p-3 z-50 animate-fade-in">
                   <div className="flex flex-col gap-2">
                     {primaryNavigationFeatures.blog && (
                       <ListItem to="/blog" title="Career Blog" icon={BookOpen}>
@@ -348,9 +354,9 @@ export function Header() {
                       Get in touch with our team.
                     </ListItem>
                   </div>
-                </DropdownMenuContent>
-              </div>
-            </DropdownMenu>
+                </div>
+              )}
+            </div>
           </nav>
 
           {/* Column 3: Actions */}
@@ -369,7 +375,6 @@ export function Header() {
             </button>
             <ThemeToggle />
             {user && <ActivityButton />}
-            {user && <NotificationsBell />}
             {user && (
               <div className="h-4 w-[1px] bg-border/40" aria-hidden="true" />
             )}
@@ -437,7 +442,6 @@ export function Header() {
           {/* Mobile Menu Toggle */}
           <div className="lg:hidden flex items-center gap-1.5">
             <ThemeToggle />
-            {user && <NotificationsBell />}
             <button
               className={cn(
                 "p-2 rounded-full text-foreground transition-colors",
@@ -581,11 +585,11 @@ export function Header() {
                   )}
                   {primaryNavigationFeatures.careerRoadmap && (
                     <Link
-                      to="/career-intelligence"
+                      to="/roadmap"
                       onClick={() => setMobileMenuOpen(false)}
                       className={cn(
                         "px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2.5",
-                        location.pathname === "/career-intelligence"
+                        location.pathname === "/roadmap"
                           ? "text-primary bg-primary/5 font-semibold"
                           : "text-foreground/90 hover:bg-muted"
                       )}

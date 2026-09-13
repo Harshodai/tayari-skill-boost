@@ -803,6 +803,7 @@ export type Database = {
           screenshot_path: string | null
           submitted_at: string | null
           submitted_resume_sha256: string | null
+          submitted_resume_text: string | null
           updated_at: string
           user_id: string
           verified: boolean
@@ -823,6 +824,7 @@ export type Database = {
           screenshot_path?: string | null
           submitted_at?: string | null
           submitted_resume_sha256?: string | null
+          submitted_resume_text?: string | null
           updated_at?: string
           user_id: string
           verified?: boolean
@@ -843,6 +845,7 @@ export type Database = {
           screenshot_path?: string | null
           submitted_at?: string | null
           submitted_resume_sha256?: string | null
+          submitted_resume_text?: string | null
           updated_at?: string
           user_id?: string
           verified?: boolean

@@ -71,12 +71,11 @@ export function AgentLiveView({ runId, browserInstruction }: { runId: string; br
         25,
         runId
       );
-    } catch (err: unknown) {
-      const errObj = err as { name?: string; message?: string } | null;
-      if (errObj?.name === "AbortError") return;
+    } catch (err: any) {
+      if (err?.name === "AbortError") return;
       setFeedEvents((prev) => [
         ...prev,
-        { type: "error", error: "browser_feed_failed", message: errObj?.message || "Feed failed" },
+        { type: "error", error: "browser_feed_failed", message: err?.message || "Feed failed" },
       ]);
     } finally {
       setIsFeeding(false);

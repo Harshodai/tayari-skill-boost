@@ -32,7 +32,6 @@ import json
 import logging
 import os
 import uuid
-from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
@@ -177,35 +176,9 @@ LETTER_SYSTEM = (
     "Respond with the letter text only."
 )
 
-_AUTOPILOT_STORE_MAX_RUNS = int(os.getenv("AUTOPILOT_STORE_MAX_RUNS", "500"))
-
-
-class _BoundedRunStore(OrderedDict):
-    """Read-through cache for autopilot runs, capped at a max size.
-
-    ponytail: this used to be a plain, permanently-growing dict — every run
-    ever started added a key that was never evicted, deleted, or expired.
-    Memory grows monotonically until the process hits its OOM ceiling or
-    Celery's worker_max_memory_per_child limit and gets SIGKILLed mid-run.
-    Since this is documented as a read-through cache with a DB fallback
-    (get_run_status() reads agent_runs on a cache miss and repopulates),
-    evicting an entry is always safe — worst case is one extra DB read on
-    the next poll, never data loss. Evicting the oldest entry (by insertion/
-    last-write order, via OrderedDict.move_to_end on every write) once the
-    cap is exceeded is standard LRU behavior and needs no per-run TTL logic.
-    """
-
-    def __setitem__(self, key, value):
-        if key in self:
-            self.move_to_end(key)
-        super().__setitem__(key, value)
-        while len(self) > _AUTOPILOT_STORE_MAX_RUNS:
-            self.popitem(last=False)
-
-
 # In-memory read‑through store for autopilot runs (Go backend polls these).
 # Cache‑first; on miss we read from agent_runs and repopulate.
-_autopilot_store: dict = _BoundedRunStore()
+_autopilot_store: dict = {}
 
 # Run ids that already have an agent_runs row inserted (so subsequent updates
 # use UPDATE rather than INSERT). Cleared on process restart; safe because
@@ -244,30 +217,19 @@ def _log(run_id: str, step: str, message: str):
     _schedule_db_flush(lambda: _db_append_log(run_id, step, message, entry["at"]))
 
 
-# Tasks scheduled by _schedule_db_flush that haven't completed yet.
-# run_autopilot() awaits everything left in here before it returns, so
-# asyncio.run() (in the Celery task driving it) never closes the loop out
-# from under a still-pending flush. See run_autopilot's docstring.
-_pending_flush_tasks: set = set()
-
-
 def _schedule_db_flush(coro_factory) -> None:
     """Schedule an async DB flush on the running loop; no‑op if none running.
 
     Takes a zero‑arg factory so the coroutine is only created when it will
     actually be awaited (avoids leaking un‑awaited coroutines in sync callers).
-    Fire‑and‑forget from the caller's perspective — the cache is already
-    updated synchronously — but tracked in _pending_flush_tasks so
-    run_autopilot can drain outstanding flushes before its coroutine (and
-    the event loop running it) closes.
+    Fire‑and‑forget: the cache is already updated synchronously, so a dropped
+    flush only means the DB row lags behind.
     """
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return  # sync caller, no loop – cache‑only; DB updated on next flush
-    task = loop.create_task(coro_factory())
-    _pending_flush_tasks.add(task)
-    task.add_done_callback(_pending_flush_tasks.discard)
+    loop.create_task(coro_factory())
 
 
 async def _persist_run(run_id: str, **fields) -> None:
@@ -384,36 +346,6 @@ async def run_autopilot(
     resume_text: str,
     candidate_name: str | None = None,
 ) -> None:
-    """Run the pipeline, then wait for every scheduled DB flush before returning.
-
-    ponytail: _schedule_db_flush() is fire-and-forget (loop.create_task,
-    never awaited) by design — the in-memory cache updates synchronously and
-    a dropped flush was only meant to mean "the DB lags behind briefly."
-    But run_application_agent (app/tasks/automation.py) drives this via
-    asyncio.run(run_autopilot(...)), and asyncio.run() closes the event
-    loop the instant this coroutine returns — cancelling any flush task
-    still pending at that moment. In practice this meant the FINAL status
-    update (and any flush scheduled late in APPLY) had a real chance of
-    never reaching Postgres: the run would show 90%-complete or missing its
-    last artifacts forever, since nothing else ever re-flushes a finished
-    run. Draining _pending_flush_tasks here, after the real pipeline
-    returns but before this coroutine does, guarantees every flush
-    scheduled during the run actually lands before the loop closes.
-    """
-    try:
-        await _run_autopilot_pipeline(run_id, config, profile, resume_text, candidate_name)
-    finally:
-        if _pending_flush_tasks:
-            await asyncio.gather(*list(_pending_flush_tasks), return_exceptions=True)
-
-
-async def _run_autopilot_pipeline(
-    run_id: str,
-    config: dict,
-    profile: dict | None,
-    resume_text: str,
-    candidate_name: str | None = None,
-) -> None:
     """Main background pipeline. State mirrored to in‑memory cache + agent_runs."""
     config = config or {}
     user_id = config.get("user_id")
@@ -500,8 +432,7 @@ async def _run_autopilot_pipeline(
                 _update_run(run_id, status="cancelled", current_step="CANCELLED")
                 return
             try:
-                batch_raw = await search_jobs(company, location, limit=15, cursor=None, return_dict=False)
-                batch = batch_raw.get("results", []) if isinstance(batch_raw, dict) else batch_raw
+                batch = await search_jobs(company, location, limit=15)
                 hits = [j for j in batch if _is_dream_company(j["company"], [company])]
                 added = 0
                 for j in hits:
@@ -945,13 +876,6 @@ async def _run_autopilot_pipeline(
                                 f"Submission CONFIRMED for {job['title']} @ {job['company']}"
                                 + (f" (ref {receipt['confirmation_number']})" if receipt["confirmation_number"] else ""),
                             )
-                            try:
-                                from app.services.event_bus import publish_event
-                                user_id = config.get("user_id")
-                                job_url = job.get("url") or job.get("job_url") or ""
-                                await publish_event("tayari:events", "application.submitted", {"user_id": user_id, "job_url": job_url})
-                            except Exception as pub_exc:
-                                logger.warning("Failed to publish application.submitted event: %s", pub_exc)
                         elif evidence.get("success"):
                             application["status"] = "submitted_unverified"
                             _log(
@@ -960,13 +884,6 @@ async def _run_autopilot_pipeline(
                                 f"Agent finished {job['title']} @ {job['company']} but the site showed no "
                                 f"confirmation — marked unverified so you can check it yourself.",
                             )
-                            try:
-                                from app.services.event_bus import publish_event
-                                user_id = config.get("user_id")
-                                job_url = job.get("url") or job.get("job_url") or ""
-                                await publish_event("tayari:events", "application.submitted", {"user_id": user_id, "job_url": job_url})
-                            except Exception as pub_exc:
-                                logger.warning("Failed to publish application.submitted event: %s", pub_exc)
                         else:
                             _set_application_lifecycle(application, _LIFECYCLE_FAILED)
                             application["status"] = "apply_failed"
@@ -1178,13 +1095,3 @@ async def _consume_token_budget(user_id: str, estimated_tokens: int) -> bool:
     # Development fallback uses the same bounded process-local lock and is
     # intentionally not accepted as production evidence.
     return check_daily_llm_budget(user_id, estimated_tokens)
-
-
-async def record_application_submitted(user_id: str | None, job_url: str) -> None:
-    """Record that an application was submitted and publish application.submitted event."""
-    try:
-        from app.services.event_bus import publish_event
-        await publish_event("tayari:events", "application.submitted", {"user_id": user_id, "job_url": job_url})
-    except Exception as exc:
-        logger.warning("Failed to publish application.submitted event: %s", exc)
-

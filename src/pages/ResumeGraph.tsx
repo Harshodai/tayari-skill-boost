@@ -78,7 +78,7 @@ const ResumeGraph = () => {
       return;
     }
     setLoading(true);
-    apiFetch<GraphData>(`/v1/resume-graph/${runId}?format=raw`)
+    apiFetch(`/v1/resume-graph/${runId}?format=raw`)
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));

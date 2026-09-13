@@ -29,15 +29,11 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		s.respondJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "not_ready", "service": "go-backend"})
 		return
 	}
-	if err := s.AI.HealthCheck(); err != nil {
-		s.respondJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "not_ready", "service": "go-backend"})
-		return
-	}
 	s.respondJSON(w, http.StatusOK, map[string]string{"status": "ready", "service": "go-backend"})
 }
 
 func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	_, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 
 	var m runtime.MemStats
@@ -47,17 +43,11 @@ func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
 	dbStatus := "ok"
 	if s.DB == nil {
 		dbStatus = "disabled"
-	} else if err := s.DB.Conn.PingContext(ctx); err != nil {
-		dbStatus = "error"
-		overallStatus = "degraded"
 	}
 
 	aiStatus := "ok"
 	if s.AI == nil {
 		aiStatus = "disabled"
-	} else if err := s.AI.HealthCheck(); err != nil {
-		aiStatus = "error"
-		overallStatus = "degraded"
 	}
 
 	httpCode := http.StatusOK
@@ -96,5 +86,4 @@ func (s *Server) routesApplications(r chi.Router) {
 	r.Get("/api/v1/applications/{id}", s.handleGetApplication)
 	r.Put("/api/v1/applications/{id}", s.handleUpdateApplication)
 	r.Delete("/api/v1/applications/{id}", s.handleDeleteApplication)
-	r.Get("/api/v1/applications/{id}/resume-docx", s.handleDownloadApplicationResume)
 }

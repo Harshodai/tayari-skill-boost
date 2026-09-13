@@ -9,7 +9,6 @@ from app.services.question_queue import (
     classify_fields,
     enqueue_questions,
     is_sensitive_field,
-    ANSWERABLE_ROLES,
     QuestionQueueUnavailable,
     pending_answers,  # compatibility export; sensitive values are never auto-filled
 )
@@ -46,22 +45,19 @@ def _resolve_and_validate_url(url: str) -> Optional[Dict[str, Any]]:
                 return None
 
         pinned_ip = ip_list[0][4][0]
-        # ponytail: navigate with the original hostname, not a rewritten
-        # pinned-IP netloc — rewriting broke TLS SNI/Host on every HTTPS
-        # navigation (Chromium sends the IP as SNI, most hosts reject that),
-        # so no HTTPS URL ever loaded through this path. BrowserOperator.navigate()
-        # pins DNS resolution to `pinned_ip` via a launch-time
-        # `--host-resolver-rules=MAP <hostname> <ip>` flag instead, so Chromium
-        # connects to the exact IP validated here while still using the real
-        # hostname for SNI/Host — that's what closes the DNS-rebinding TOCTOU
-        # gap; the per-request SSRF interceptor (_is_safe_url on every request,
-        # including redirects/subresources) is defense-in-depth on top of it.
+        # ponytail: reuse the already-parsed URL (validated above) instead of
+        # re-parsing; IPv6 literals must be bracketed in a netloc, IPv4 must not.
+        if ":" in pinned_ip:
+            netloc = f"[{pinned_ip}]:{port}"
+        else:
+            netloc = f"{pinned_ip}:{port}"
+        target_url = parsed._replace(netloc=netloc).geturl()
         return {
             "original_url": url,
             "original_hostname": hostname,
             "pinned_ip": pinned_ip,
-            "target_url": url,
-            "headers": {}
+            "target_url": target_url,
+            "headers": {"Host": hostname}
         }
     except Exception:
         return None
@@ -216,11 +212,7 @@ class FormFiller:
 
             # Never guess a legal/compensation/self-identification field, even
             # when the profile happens to contain something that looks right.
-            # Restricted to actual form-input roles — a nav link or heading
-            # whose visible text happens to match a sensitive pattern (e.g.
-            # a real "Authorization Boost" product-name link on Stripe's own
-            # careers page) is not a question and must never be escalated.
-            if role in ANSWERABLE_ROLES and is_sensitive_field(label):
+            if is_sensitive_field(label):
                 actions.append(f"Escalated '{label}' to you — the agent never auto-fills sensitive fields")
                 continue
 

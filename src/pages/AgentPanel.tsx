@@ -614,7 +614,7 @@ export default function AgentPanel() {
                 <div className="space-y-3">
                   <h3 className="font-semibold text-sm">How it works</h3>
                   <ol className="list-decimal pl-5 space-y-2 text-sm text-muted-foreground">
-                    <li>Download and install the native <strong className="font-semibold text-foreground">Job Tayari Desktop Agent</strong> or install the CLI (<code>npm install -g @jobtayari/desktop-agent</code>).</li>
+                    <li>Download and install the native **Job Tayari Desktop Agent** or install the CLI (`npm install -g @jobtayari/desktop-agent`).</li>
                     <li>Synchronize settings by placing the configuration block below in your local agent settings file.</li>
                     <li>Every time you trigger autonomous agent workflows locally, they will securely check for job matches, apply constraints, and request human-in-the-loop approvals on your Job Tayari dashboard.</li>
                   </ol>
@@ -783,10 +783,10 @@ export default function AgentPanel() {
                       <div>
                         <h4 className="font-semibold text-sm text-foreground">Critical Tool Approval Required</h4>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Agent requires your explicit permission to execute the following tool: <span className="font-mono text-amber-600 font-bold bg-amber-500/10 px-1 rounded">{String(latestWait.payload_json?.tool_name ?? "")}</span>.
+                          Agent requires your explicit permission to execute the following tool: <span className="font-mono text-amber-600 font-bold bg-amber-500/10 px-1 rounded">{String(latestWait.payload_json.tool_name ?? "")}</span>.
                         </p>
                         <div className="mt-2 text-xs font-mono bg-zinc-950 text-zinc-300 p-2.5 rounded border border-zinc-800">
-                          {String(latestWait.payload_json?.content_preview ?? "")}
+                          {String(latestWait.payload_json.content_preview ?? "")}
                         </div>
                       </div>
                     </div>

@@ -115,10 +115,10 @@ export default function OneShotPipeline() {
         title: "⚡ One-Shot Pipeline Executed!",
         description: "All 6 stages generated successfully. Review your tailored assets below."
       });
-    } catch (err: unknown) {
+    } catch (err: any) {
       toast({
         title: "Execution Error",
-        description: err instanceof Error ? err.message : "Failed to execute pipeline",
+        description: err.message || "Failed to execute pipeline",
         variant: "destructive"
       });
     } finally {

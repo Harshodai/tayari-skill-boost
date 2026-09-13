@@ -1,10 +1,8 @@
 package api
 
 import (
-	"database/sql"
-	"errors"
 	"fmt"
-	"log/slog"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -83,7 +81,7 @@ func (s *Server) handleListReviewQueue(w http.ResponseWriter, r *http.Request) {
 	`
 	rows, err := s.DB.Conn.QueryContext(r.Context(), query, user.ID, statusFilter, limit)
 	if err != nil {
-		slog.Error("handleListReviewQueue: query failed", "error", err)
+		log.Printf("handleListReviewQueue: query failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to fetch review queue")
 		return
 	}
@@ -94,28 +92,16 @@ func (s *Server) handleListReviewQueue(w http.ResponseWriter, r *http.Request) {
 		var a models.Application
 		var runID, reviewedAt, queuedAt, aiSuggestion, reviewNotes interface{}
 		var dreamScore, aiConfidence interface{}
-		// tailored_resume_text/cover_letter are NULL for any queued
-		// application not yet tailored — models.Application declares both as
-		// plain string, which database/sql refuses to Scan a NULL into, so
-		// this used to 500 the entire review queue the moment a single
-		// untailored application reached it (see the matching fix + comment
-		// in routes_mvp.go's handleListApplications for the full story).
-		var tailoredResumeText, coverLetter, submissionMode, applyURL sql.NullString
 		if err := rows.Scan(
-			&a.ID, &a.ApplicationID, &runID, &a.Job, &tailoredResumeText, &coverLetter,
+			&a.ID, &a.ApplicationID, &runID, &a.Job, &a.TailoredResumeText, &a.CoverLetter,
 			&a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter,
-			&a.IsDreamCompany, &dreamScore, &a.Status, &submissionMode, &applyURL,
+			&a.IsDreamCompany, &dreamScore, &a.Status, &a.SubmissionMode, &a.ApplyURL,
 			&aiSuggestion, &aiConfidence, &reviewNotes, &queuedAt, &reviewedAt,
 			&a.CreatedAt, &a.UpdatedAt,
 		); err != nil {
-			slog.Error("handleListReviewQueue: row scan failed", "error", err)
 			s.respondError(w, http.StatusInternalServerError, "Failed to scan review queue item")
 			return
 		}
-		a.TailoredResumeText = tailoredResumeText.String
-		a.CoverLetter = coverLetter.String
-		a.SubmissionMode = submissionMode.String
-		a.ApplyURL = applyURL.String
 		appMap := map[string]interface{}{
 			"id":                   a.ID,
 			"application_id":       a.ApplicationID,
@@ -158,7 +144,7 @@ func (s *Server) handleListReviewQueue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rows.Err(); err != nil {
-		slog.Error("handleListReviewQueue: rows iteration error", "error", err)
+		log.Printf("handleListReviewQueue: rows iteration error: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Database iteration error")
 		return
 	}
@@ -185,29 +171,17 @@ func (s *Server) handleGetReviewQueueItem(w http.ResponseWriter, r *http.Request
 	var a models.Application
 	var runID, reviewedAt, queuedAt, aiSuggestion, reviewNotes interface{}
 	var dreamScore, aiConfidence interface{}
-	var tailoredResumeText, coverLetter, submissionMode, applyURL sql.NullString
 	err := s.DB.Conn.QueryRowContext(r.Context(), query, appIDStr, user.ID).Scan(
-		&a.ID, &a.ApplicationID, &runID, &a.Job, &tailoredResumeText, &coverLetter,
+		&a.ID, &a.ApplicationID, &runID, &a.Job, &a.TailoredResumeText, &a.CoverLetter,
 		&a.Changes, &a.KeywordsAdded, &a.ATSScoreBefore, &a.ATSScoreAfter,
-		&a.IsDreamCompany, &dreamScore, &a.Status, &submissionMode, &applyURL,
+		&a.IsDreamCompany, &dreamScore, &a.Status, &a.SubmissionMode, &a.ApplyURL,
 		&aiSuggestion, &aiConfidence, &reviewNotes, &queuedAt, &reviewedAt,
 		&a.CreatedAt, &a.UpdatedAt,
 	)
 	if err != nil {
-		// A NULL tailored_resume_text/cover_letter/submission_mode/apply_url
-		// used to fail this Scan outright, misreporting a real queued item
-		// as "not found" — see handleListReviewQueue above for the full
-		// root cause.
-		if !errors.Is(err, sql.ErrNoRows) {
-			slog.Error("handleGetReviewQueueItem: query/scan failed", "error", err)
-		}
 		s.respondError(w, http.StatusNotFound, "Review queue item not found")
 		return
 	}
-	a.TailoredResumeText = tailoredResumeText.String
-	a.CoverLetter = coverLetter.String
-	a.SubmissionMode = submissionMode.String
-	a.ApplyURL = applyURL.String
 
 	appMap := map[string]interface{}{
 		"id":                   a.ID,
@@ -363,7 +337,7 @@ func (s *Server) handleModifyReviewQueueItem(w http.ResponseWriter, r *http.Requ
 		WHERE application_id=$6 AND user_id=$7
 	`, req.TailoredResumeText, req.CoverLetter, req.Notes, req.Status, changesJSON, appIDStr, user.ID)
 	if err != nil {
-		slog.Error("handleModifyReviewQueueItem: update failed", "error", err)
+		log.Printf("handleModifyReviewQueueItem: update failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to modify application")
 		return
 	}
@@ -504,7 +478,7 @@ func (s *Server) handleReviewQueueHistory(w http.ResponseWriter, r *http.Request
 		ORDER BY created_at DESC
 	`, appIDStr, user.ID)
 	if err != nil {
-		slog.Error("handleReviewQueueHistory: query failed", "error", err)
+		log.Printf("handleReviewQueueHistory: query failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to fetch review history")
 		return
 	}
@@ -583,7 +557,7 @@ func (s *Server) handleQueueApplicationForReview(w http.ResponseWriter, r *http.
 		req.DreamScore, req.AISuggestion, req.AIConfidence, req.ApplyURL, req.Notes,
 	).Scan(&id)
 	if err != nil {
-		slog.Error("handleQueueApplicationForReview: insert failed", "error", err)
+		log.Printf("handleQueueApplicationForReview: insert failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to queue application for review")
 		return
 	}

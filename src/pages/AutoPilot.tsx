@@ -170,8 +170,8 @@ const AutoPilot = () => {
       toast.success("Application approved and moved to saved jobs!");
       queryClient.invalidateQueries({ queryKey: ["applications", activeRunId] });
       queryClient.invalidateQueries({ queryKey: ["autopilot-runs"] });
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to approve application");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to approve application");
     }
   };
 
@@ -184,8 +184,8 @@ const AutoPilot = () => {
       toast.success("Application rejected");
       queryClient.invalidateQueries({ queryKey: ["applications", activeRunId] });
       queryClient.invalidateQueries({ queryKey: ["autopilot-runs"] });
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to reject application");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reject application");
     }
   };
 
@@ -208,7 +208,7 @@ const AutoPilot = () => {
             AutoPilot Agent
           </h1>
           <p className="text-muted-foreground text-lg">
-            Configure search criteria to let AI scan roles, optimize your resume, and draft tailored cover letters. <strong className="font-semibold text-foreground">Submissions are gated inside the Review Queue for your safety.</strong>
+            Configure search criteria to let AI scan roles, optimize your resume, and draft tailored cover letters. **Submissions are gated inside the Review Queue for your safety.**
           </p>
         </div>
 
@@ -550,7 +550,7 @@ const AutoPilot = () => {
                               a.download = `resume-${app.application_id}.docx`;
                               a.click();
                               window.URL.revokeObjectURL(url);
-                            }).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Download failed"));
+                            }).catch((err: any) => toast.error(err.message));
                           }}
                         >
                           <Download className="w-3 h-3 mr-1" />
@@ -563,7 +563,7 @@ const AutoPilot = () => {
                             deleteApplication(app.application_id).then(() => {
                               toast.success("Deleted");
                               queryClient.invalidateQueries({ queryKey: ["applications", activeRunId] });
-                            }).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Delete failed"));
+                            }).catch((err: any) => toast.error(err.message));
                           }}
                         >
                           <Trash2 className="w-4 h-4 text-destructive" />

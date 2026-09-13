@@ -154,7 +154,7 @@ export function ContactSection() {
                       <Input
                         id="name"
                         name="name"
-                        placeholder="Your Name"
+                        placeholder="John Doe"
                         value={formData.name}
                         onChange={handleChange}
                         required

@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -158,7 +158,7 @@ func (s *Server) handleGmailLogin(w http.ResponseWriter, r *http.Request) {
 		`INSERT INTO oauth_states (id, user_id, tenant_id, provider, state, created_at) VALUES ($1,$2,$3,$4,$5,NOW())`,
 		uuid.New(), user.ID, tenantID, "gmail", state)
 	if err != nil {
-		slog.Error("handleGmailLogin: failed to store state", "error", err)
+		log.Printf("handleGmailLogin: failed to store state: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to initiate OAuth")
 		return
 	}
@@ -195,8 +195,8 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 	frontendURL := gmailFrontendURL()
 
 	if errParam != "" || code == "" {
-		slog.Error("handleGmailCallback: OAuth denied or code missing (error=)", "error", errParam)
-		http.Redirect(w, r, frontendURL+"/settings?tab=integrations&gmail=denied", http.StatusFound)
+		log.Printf("handleGmailCallback: OAuth denied or code missing (error=%s)", errParam)
+		http.Redirect(w, r, frontendURL+"/interview-board?gmail=denied", http.StatusFound)
 		return
 	}
 
@@ -210,16 +210,16 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 		err = sql.ErrNoRows
 	}
 	if err != nil {
-		slog.Error("handleGmailCallback: invalid or expired state", "error", err)
-		http.Redirect(w, r, frontendURL+"/settings?tab=integrations&gmail=error", http.StatusFound)
+		log.Printf("handleGmailCallback: invalid or expired state: %v", err)
+		http.Redirect(w, r, frontendURL+"/interview-board?gmail=error", http.StatusFound)
 		return
 	}
 
 	// Exchange code for tokens
 	tokenData, err := gmailExchangeCode(r.Context(), code)
 	if err != nil {
-		slog.Error("handleGmailCallback: token exchange failed", "error", err)
-		http.Redirect(w, r, frontendURL+"/settings?tab=integrations&gmail=error", http.StatusFound)
+		log.Printf("handleGmailCallback: token exchange failed: %v", err)
+		http.Redirect(w, r, frontendURL+"/interview-board?gmail=error", http.StatusFound)
 		return
 	}
 
@@ -233,8 +233,8 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 		    expiry=$6, scope=$7, updated_at=NOW()`,
 		uuid.New(), userID, tenantID, tokenData.AccessToken, tokenData.RefreshToken, expiry, tokenData.Scope)
 	if err != nil {
-		slog.Error("handleGmailCallback: failed to store tokens", "error", err)
-		http.Redirect(w, r, frontendURL+"/settings?tab=integrations&gmail=error", http.StatusFound)
+		log.Printf("handleGmailCallback: failed to store tokens: %v", err)
+		http.Redirect(w, r, frontendURL+"/interview-board?gmail=error", http.StatusFound)
 		return
 	}
 
@@ -242,7 +242,7 @@ func (s *Server) handleGmailCallback(w http.ResponseWriter, r *http.Request) {
 	_, _ = s.DB.Conn.ExecContext(r.Context(),
 		`DELETE FROM oauth_states WHERE user_id=$1 AND tenant_id=$2 AND provider=$3`, userID, tenantID, "gmail")
 
-	http.Redirect(w, r, frontendURL+"/settings?tab=integrations&gmail=connected", http.StatusFound)
+	http.Redirect(w, r, frontendURL+"/interview-board?gmail=connected", http.StatusFound)
 }
 
 // -------------------------------------------------------------------
@@ -283,7 +283,7 @@ func (s *Server) handleGmailSync(w http.ResponseWriter, r *http.Request) {
 	if time.Now().After(expiry.Add(-5 * time.Minute)) {
 		newToken, err := gmailRefreshToken(r.Context(), refreshToken)
 		if err != nil {
-			slog.Error("handleGmailSync: token refresh failed", "error", err)
+			log.Printf("handleGmailSync: token refresh failed: %v", err)
 			s.respondError(w, http.StatusUnauthorized, "Gmail token expired. Please reconnect.")
 			return
 		}
@@ -316,7 +316,7 @@ func (s *Server) handleGmailSync(w http.ResponseWriter, r *http.Request) {
 	}
 	messages, err := gmailFetchMessages(r.Context(), accessToken, maxResults, query)
 	if err != nil {
-		slog.Error("handleGmailSync: Gmail API call failed", "error", err)
+		log.Printf("handleGmailSync: Gmail API call failed: %v", err)
 		s.respondError(w, http.StatusBadGateway, "Failed to fetch Gmail messages")
 		return
 	}
@@ -345,46 +345,18 @@ func (s *Server) handleGmailSync(w http.ResponseWriter, r *http.Request) {
 
 		company, _ := aiResult["company"].(string)
 		title, _ := aiResult["title"].(string)
-		if strings.TrimSpace(title) == "" && strings.TrimSpace(company) == "" {
-			// LLM flagged the email job-related but couldn't extract either
-			// field — importing it would only produce an "Untitled Role" /
-			// "Unknown" junk card, so treat it the same as not job-related.
-			skipped++
-			continue
-		}
 		stage, _ := aiResult["stage"].(string)
 		if stage == "" {
 			stage = "applied"
 		}
-		// Real dedup check: `ON CONFLICT DO NOTHING` below is a no-op —
-		// application_id is a fresh UUID every call and there is no unique
-		// constraint on (user_id, title, company), so it never actually
-		// conflicted. Every "Sync now" click re-imported the same emails as
-		// new duplicate cards. Skip explicitly if a matching application
-		// (case-insensitive title+company) already exists for this user.
-		var dupCount int
-		if err := s.DB.Conn.QueryRowContext(r.Context(), `
-			SELECT COUNT(*) FROM applications
-			WHERE user_id=$1
-			  AND lower(job->>'title')=lower($2)
-			  AND lower(job->>'company')=lower($3)`,
-			user.ID, title, company).Scan(&dupCount); err == nil && dupCount > 0 {
-			skipped++
-			continue
-		}
-		// `job` jsonb is the field every read path (list/board) actually
-		// renders from — the plain title/company columns are legacy and
-		// unread, so both must be populated or imported cards show as
-		// "Untitled Role"/"Unknown".
-		jobJSON, _ := json.Marshal(map[string]interface{}{"title": title, "company": company})
+		// Upsert application (dedupe by company+title)
 		_, _ = s.DB.Conn.ExecContext(r.Context(), `
 			INSERT INTO applications
 			  (application_id, user_id, title, company, stage, status, notes, job, created_at, updated_at)
-			VALUES ($1,$2,$3,$4,$5,$5,$6,$7,NOW(),NOW())
+			VALUES ($1,$2,$3,$4,$5,$5,$6,'{}',NOW(),NOW())
 			ON CONFLICT DO NOTHING`,
 			uuid.New(), user.ID, title, company, stage,
-			fmt.Sprintf("Imported from Gmail (read-only): %s | provenance=google_gmail_readonly", msg.Subject),
-			jobJSON)
+			fmt.Sprintf("Imported from Gmail (read-only): %s | provenance=google_gmail_readonly", msg.Subject))
 		parsed++
 	}
 
@@ -512,7 +484,7 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.verifyPubSubPush(r) {
-		slog.Info("[GmailWebhook] Rejected unverified push delivery")
+		log.Printf("[GmailWebhook] Rejected unverified push delivery")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -544,7 +516,7 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 	var gmailData pubSubGmailData
 	_ = json.Unmarshal(dataBytes, &gmailData)
 
-	slog.Info("[GmailWebhook] Received notification", "email", redactEmail(gmailData.EmailAddress), "history_id", gmailData.HistoryID)
+	log.Printf("[GmailWebhook] Received notification for %s (HistoryId: %d)", redactEmail(gmailData.EmailAddress), gmailData.HistoryID)
 
 	go func(email string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -566,7 +538,7 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 		// the next webhook with a real email lands in the right account.
 		var err error
 		if email == "" {
-			slog.Info("[GmailWebhook] No notified address in message — refusing to attribute to a tenant")
+			log.Printf("[GmailWebhook] No notified address in message — refusing to attribute to a tenant")
 			return
 		}
 		err = s.DB.Conn.QueryRowContext(ctx,
@@ -576,14 +548,14 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 
 			if errors.Is(err, sql.ErrNoRows) {
-				slog.Info("[GmailWebhook] No matching token/account for email", "email", redactEmail(email))
+				log.Printf("[GmailWebhook] No matching token/account for email %s", redactEmail(email))
 			} else {
-				slog.Error("[GmailWebhook] Token lookup failed for email", "email", redactEmail(email), "error", err)
+				log.Printf("[GmailWebhook] Token lookup failed for email %s: %v", redactEmail(email), err)
 			}
 			return
 		}
 		if tokenCount != 1 || tenantID == uuid.Nil {
-			slog.Info("[GmailWebhook] Ambiguous or missing tenant token for email — refusing attribution", "email", redactEmail(email))
+			log.Printf("[GmailWebhook] Ambiguous or missing tenant token for email %s — refusing attribution", redactEmail(email))
 			return
 		}
 
@@ -600,7 +572,7 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 
 		messages, err := gmailFetchMessages(ctx, accessToken, 10, defaultGmailSearchQuery)
 		if err != nil {
-			slog.Error("[GmailWebhook] Failed fetching messages", "error", err)
+			log.Printf("[GmailWebhook] Failed fetching messages: %v", err)
 			return
 		}
 
@@ -622,32 +594,18 @@ func (s *Server) handleGmailWebhook(w http.ResponseWriter, r *http.Request) {
 
 			company, _ := aiResult["company"].(string)
 			title, _ := aiResult["title"].(string)
-			if strings.TrimSpace(title) == "" && strings.TrimSpace(company) == "" {
-				continue
-			}
 			stage, _ := aiResult["stage"].(string)
 			if stage == "" {
 				stage = "applied"
 			}
 
-			var webhookDupCount int
-			if err := s.DB.Conn.QueryRowContext(ctx, `
-				SELECT COUNT(*) FROM applications
-				WHERE user_id=$1
-				  AND lower(job->>'title')=lower($2)
-				  AND lower(job->>'company')=lower($3)`,
-				userID, title, company).Scan(&webhookDupCount); err == nil && webhookDupCount > 0 {
-				continue
-			}
-			webhookJobJSON, _ := json.Marshal(map[string]interface{}{"title": title, "company": company})
 			_, _ = s.DB.Conn.ExecContext(ctx, `
 				INSERT INTO applications
 				  (application_id, user_id, title, company, stage, status, notes, job, created_at, updated_at)
-				VALUES ($1,$2,$3,$4,$5,$5,$6,$7,NOW(),NOW())
+				VALUES ($1,$2,$3,$4,$5,$5,$6,'{}',NOW(),NOW())
 				ON CONFLICT DO NOTHING`,
 				uuid.New(), userID, title, company, stage,
-				fmt.Sprintf("Imported via Gmail Webhook (read-only): %s | provenance=google_gmail_readonly", msg.Subject),
-				webhookJobJSON)
+				fmt.Sprintf("Imported via Gmail Webhook (read-only): %s | provenance=google_gmail_readonly", msg.Subject))
 		}
 	}(gmailData.EmailAddress)
 
@@ -674,15 +632,7 @@ type gmailMessage struct {
 }
 
 const (
-	// Cast a wide net here — this only decides which messages the Gmail API
-	// returns for local LLM classification (is_job_related), which is the
-	// real filter. Restricting to subject-only text with a handful of exact
-	// words misses common real-world phrasing ("thanks for applying",
-	// "we've received your application", "next steps", a recruiter's name
-	// with no job keyword at all) — searching subject OR body with a wider
-	// vocabulary trades a few more (cheap, LLM-filtered) false positives for
-	// far fewer missed real applications.
-	defaultGmailSearchQuery = "(offer OR interview OR application OR applying OR applied OR candidacy OR candidate OR recruiter OR recruiting OR hiring OR shortlisted OR screening OR \"next steps\" OR position OR role OR reject OR rejection OR declined)"
+	defaultGmailSearchQuery = "subject:(offer OR interview OR application OR applied OR reject)"
 	maxGmailSyncResults     = 50
 	maxGmailWindowDays      = 90
 )
@@ -825,7 +775,7 @@ func gmailFetchMessages(ctx context.Context, accessToken string, maxResults int,
 	for _, m := range listResp.Messages {
 		detail, err := gmailGetMessage(ctx, accessToken, m.ID)
 		if err != nil {
-			slog.Error("gmailFetchMessages: failed to get message", "value", m.ID, "error", err)
+			log.Printf("gmailFetchMessages: failed to get message %s: %v", m.ID, err)
 			continue
 		}
 		msgs = append(msgs, *detail)

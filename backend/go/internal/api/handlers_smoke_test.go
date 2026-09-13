@@ -51,17 +51,7 @@ func fakeDB() *sql.DB {
 // handler-level DB calls then return errors, exercising their error paths.
 func newSmokeServer(t *testing.T) *Server {
 	t.Helper()
-	srv := NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: fakeDB()})
-	if srv.AI != nil {
-		srv.AI.SetTransport(roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Header:     http.Header{"Content-Type": []string{"application/json"}},
-				Body:       io.NopCloser(strings.NewReader(`{"status":"ok"}`)),
-			}, nil
-		}))
-	}
-	return srv
+	return NewServer(&hermesMockAuth{}, &config.Config{}, &database.DB{Conn: fakeDB()})
 }
 
 // TestSmoke_Health verifies the public health endpoints respond 200 with a

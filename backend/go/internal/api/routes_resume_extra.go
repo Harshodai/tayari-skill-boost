@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -72,7 +72,7 @@ func (s *Server) handleAnalyzeText(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/resumes/analyze-text", req, s.getXUserHeaders(r))
 	if err != nil || result == nil {
-		slog.Error("handleAnalyzeText: AI call failed", "error", err)
+		log.Printf("handleAnalyzeText: AI call failed: %v", err)
 		s.respondAIGatewayError(w, err, "ai_service_unavailable")
 		return
 	}
@@ -134,12 +134,12 @@ func (s *Server) handleImportJobDescription(w http.ResponseWriter, r *http.Reque
 				status = upstreamStatus
 			}
 		}
-		slog.Error("handleImportJobDescription: AI call failed", "error", err)
+		log.Printf("handleImportJobDescription: AI call failed: %v", err)
 		s.respondError(w, status, "job description import failed")
 		return
 	}
 	if result == nil {
-		slog.Info("handleImportJobDescription: AI call returned nil result")
+		log.Printf("handleImportJobDescription: AI call returned nil result")
 		s.respondError(w, http.StatusBadGateway, "job description import failed")
 		return
 	}
@@ -160,7 +160,7 @@ func (s *Server) handleAnalyzeResume(w http.ResponseWriter, r *http.Request) {
 	}
 	var resumeText string
 	if s.DB == nil || s.DB.Conn == nil {
-		slog.Info("handleAnalyzeResume: DB unavailable for resume lookup")
+		log.Printf("handleAnalyzeResume: DB unavailable for resume lookup")
 		s.respondError(w, http.StatusServiceUnavailable, "resume lookup unavailable")
 		return
 	}
@@ -175,11 +175,11 @@ func (s *Server) handleAnalyzeResume(w http.ResponseWriter, r *http.Request) {
 		// upstream database or network is temporarily down. Keep unexpected
 		// lookup errors on 500.
 		if errors.Is(err, sql.ErrConnDone) || errors.Is(err, context.DeadlineExceeded) {
-			slog.Error("handleAnalyzeResume: resume lookup unavailable", "error", err)
+			log.Printf("handleAnalyzeResume: resume lookup unavailable: %v", err)
 			s.respondError(w, http.StatusServiceUnavailable, "resume lookup unavailable")
 			return
 		}
-		slog.Error("handleAnalyzeResume: resume lookup failed", "error", err)
+		log.Printf("handleAnalyzeResume: resume lookup failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "resume lookup failed")
 		return
 	}
@@ -199,7 +199,7 @@ func (s *Server) handleAnalyzeResume(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.AI.PostJSONWithHeaders("/api/v1/resumes/analyze-text", aiReq, s.getXUserHeaders(r))
 	if err != nil || result == nil {
-		slog.Error("handleAnalyzeResume: AI call failed", "error", err)
+		log.Printf("handleAnalyzeResume: AI call failed: %v", err)
 		s.respondAIGatewayError(w, err, "ai_service_unavailable")
 		return
 	}
@@ -238,7 +238,7 @@ func (s *Server) handleCreateJD(w http.ResponseWriter, r *http.Request) {
 	).Scan(&jd.ID, &jd.CreatedAt)
 
 	if err != nil {
-		slog.Error("handleCreateJD insert failed", "error", err)
+		log.Printf("handleCreateJD insert failed: %v", err)
 		s.respondError(w, http.StatusInternalServerError, "Failed to create job description")
 		return
 	}

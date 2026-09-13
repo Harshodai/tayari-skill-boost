@@ -2,54 +2,12 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
-	"log/slog"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-
-	"tayari-backend/internal/ai"
 )
-
-// writeOneStopProxyError forwards the real upstream 4xx status/body when the
-// Python call failed with a genuine application error (bad input, not-found,
-// validation) instead of collapsing every failure into a generic 502
-// "ai_service_unavailable" — the two used to be indistinguishable to the
-// caller, so a 422 "bad URL" looked identical to Python being completely
-// down. 5xx and non-HTTP errors (connection refused, timeout) still map to
-// 502, since those really are "the service is unavailable".
-func (s *Server) writeOneStopProxyError(w http.ResponseWriter, logPrefix, endpoint string, err error) {
-	slog.Error(logPrefix, "endpoint", endpoint, "error", err)
-	var apiErr *ai.APIError
-	if errors.As(err, &apiErr) && apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
-		s.respondError(w, apiErr.StatusCode, extractUpstreamErrorMessage(apiErr.Body))
-		return
-	}
-	s.respondJSON(w, http.StatusBadGateway, map[string]string{"error": "ai_service_unavailable"})
-}
-
-// extractUpstreamErrorMessage unwraps Python's JSON error body (typically
-// {"detail": "..."} from a FastAPI HTTPException) into a plain string.
-// Passing apiErr.Body straight into respondError double-JSON-encodes it —
-// the frontend then shows the user a raw '{"detail":"source_unavailable"}'
-// blob instead of a readable message. Falls back to the raw body verbatim
-// when it isn't JSON or has no detail/error field, so nothing is ever lost.
-func extractUpstreamErrorMessage(body string) string {
-	var parsed struct {
-		Detail string `json:"detail"`
-		Error  string `json:"error"`
-	}
-	if err := json.Unmarshal([]byte(body), &parsed); err == nil {
-		if parsed.Detail != "" {
-			return parsed.Detail
-		}
-		if parsed.Error != "" {
-			return parsed.Error
-		}
-	}
-	return body
-}
 
 // -------------------------------------------------------------------
 // One-Stop Jobseeker Proxy Routes (Typst PDF, Radar, Voice Coach, Negotiation)
@@ -68,16 +26,8 @@ func (s *Server) RegisterOneStopRoutes(r chi.Router) {
 		r.Post("/api/v1/radar/check", s.handleOneStopProxy("/api/v1/radar/check"))
 		r.Post("/api/radar/check", s.handleOneStopProxy("/api/v1/radar/check"))
 
-		// ponytail: this used to also register a plain, ungated
-		// handleOneStopProxy("/api/v1/interview/voice-feedback") here. It's
-		// registered (via RegisterOneStopRoutes) AFTER routesAIProxy's
-		// feature-gated handleInterviewVoiceFeedback (registerCoreRoutes ->
-		// routesAIProxy, in router.go), so chi's last-registration-wins rule
-		// meant every request silently bypassed the requireFeature(...,
-		// "interview_copilot") entitlement check that handler enforces — a
-		// real access-control bypass, found by TestNoDuplicateRouteRegistrations.
-		// Removed the duplicate so the gated handler in routes_interview.go
-		// is the only one registered for this path.
+		r.Post("/api/v1/interview/voice-feedback", s.handleOneStopProxy("/api/v1/interview/voice-feedback"))
+		r.Post("/api/interview/voice-feedback", s.handleOneStopProxy("/api/v1/interview/voice-feedback"))
 
 		r.Post("/api/v1/negotiation/generate", s.handleOneStopProxy("/api/v1/negotiation/generate"))
 		r.Post("/api/negotiation/generate", s.handleOneStopProxy("/api/v1/negotiation/generate"))
@@ -182,7 +132,8 @@ func (s *Server) handleOneStopProxyDELETEPath(prefix, parameter string) http.Han
 		headers := s.getXUserHeaders(r)
 		result, err := s.AI.DeleteJSONWithHeaders(prefix+value, headers)
 		if err != nil {
-			s.writeOneStopProxyError(w, "[OneStopProxy] DELETE failed", prefix+value, err)
+			log.Printf("[OneStopProxy] DELETE %s failed: %v", prefix+value, err)
+			http.Error(w, "knowledge source deletion failed", http.StatusBadGateway)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -204,7 +155,8 @@ func (s *Server) handleTypstExport(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := s.AI.PostJSONWithHeaders("/api/v1/export/typst-pdf", json.RawMessage(body), headers)
 	if err != nil {
-		s.writeOneStopProxyError(w, "[TypstExport] Proxy error", "/api/v1/export/typst-pdf", err)
+		log.Printf("[TypstExport] Proxy error: %v", err)
+		http.Error(w, "failed to export typst pdf", http.StatusBadGateway)
 		return
 	}
 
@@ -221,7 +173,7 @@ func (s *Server) handleOneStopProxyGET(endpoint string) http.HandlerFunc {
 		}
 		result, err := s.AI.GetJSONWithHeaders(endpoint, headers)
 		if err != nil {
-			s.writeOneStopProxyError(w, "[OneStopProxyGET] AI service error", endpoint, err)
+			s.respondJSON(w, http.StatusBadGateway, map[string]string{"error": "ai_service_unavailable"})
 			return
 		}
 
@@ -238,7 +190,10 @@ func (s *Server) handleOneStopProxyPUT(endpoint string) http.HandlerFunc {
 		}
 		result, err := s.AI.PutJSONWithHeaders(endpoint, payload, s.getXUserHeaders(r))
 		if err != nil {
-			s.writeOneStopProxyError(w, "[OneStopProxyPUT] AI service error", endpoint, err)
+			log.Printf("[OneStopProxyPUT] AI service error for %s: %v", endpoint, err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -254,10 +209,12 @@ func (s *Server) handleRunActionGET(prefix string, action string) http.HandlerFu
 			http.Error(w, "missing run identifier", http.StatusBadRequest)
 			return
 		}
-		endpoint := prefix + runID + "/" + action
-		result, err := s.AI.GetJSONWithHeaders(endpoint, s.getXUserHeaders(r))
+		result, err := s.AI.GetJSONWithHeaders(prefix+runID+"/"+action, s.getXUserHeaders(r))
 		if err != nil {
-			s.writeOneStopProxyError(w, "[RunActionGET] AI service error", endpoint, err)
+			log.Printf("[RunActionGET] AI service error: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -278,10 +235,12 @@ func (s *Server) handleRunActionPOST(prefix string, action string) http.HandlerF
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		endpoint := prefix + runID + "/" + action
-		result, err := s.AI.PostJSONWithHeaders(endpoint, payload, s.getXUserHeaders(r))
+		result, err := s.AI.PostJSONWithHeaders(prefix+runID+"/"+action, payload, s.getXUserHeaders(r))
 		if err != nil {
-			s.writeOneStopProxyError(w, "[RunActionProxy] AI service error", endpoint, err)
+			log.Printf("[RunActionProxy] AI service error: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -305,10 +264,12 @@ func (s *Server) handleQuestionProxyPATCH(prefix string) http.HandlerFunc {
 		defer r.Body.Close()
 		headers := s.getXUserHeaders(r)
 		headers["Content-Type"] = "application/json"
-		endpoint := prefix + questionID
-		result, err := s.AI.PatchJSONWithHeaders(endpoint, json.RawMessage(body), headers)
+		result, err := s.AI.PatchJSONWithHeaders(prefix+questionID, json.RawMessage(body), headers)
 		if err != nil {
-			s.writeOneStopProxyError(w, "[QuestionProxy] AI service error", endpoint, err)
+			log.Printf("[QuestionProxy] AI service error: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "ai_service_unavailable"})
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -327,7 +288,7 @@ func (s *Server) handleOneStopProxy(endpoint string) http.HandlerFunc {
 		headers := s.getXUserHeaders(r)
 		result, err := s.AI.PostJSONWithHeaders(endpoint, payload, headers)
 		if err != nil {
-			s.writeOneStopProxyError(w, "[OneStopProxy] AI service error", endpoint, err)
+			s.respondJSON(w, http.StatusBadGateway, map[string]string{"error": "ai_service_unavailable"})
 			return
 		}
 

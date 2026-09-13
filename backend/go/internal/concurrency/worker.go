@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"log/slog"
+	"log"
 	"sync"
 	"time"
 
@@ -94,7 +94,7 @@ func (w *AuditWorker) workerLoop(id int) {
 				// Hash email for privacy in logs
 				emailHash := sha256.Sum256([]byte(job.Email))
 				emailHashStr := hex.EncodeToString(emailHash[:])
-				slog.Error("Failed to process audit log", "worker_id", id, "email_hash", emailHashStr, "error", err)
+				log.Printf("[Worker %d] Failed to process audit log for hash:%s: %v", id, emailHashStr, err)
 			}
 		}()
 	}

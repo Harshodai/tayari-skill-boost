@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
+	"log"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // Import pgx driver
@@ -15,10 +15,8 @@ type DB struct {
 	Conn *sql.DB
 }
 
-// NewDB creates a new database connection. maxOpenConns/maxIdleConns of 0 fall
-// back to the package's own conservative defaults (see the call site comment
-// in cmd/server/main.go for why these are configurable rather than fixed).
-func NewDB(dsn string, maxOpenConns, maxIdleConns int) (*DB, error) {
+// NewDB creates a new database connection
+func NewDB(dsn string) (*DB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
@@ -26,17 +24,13 @@ func NewDB(dsn string, maxOpenConns, maxIdleConns int) (*DB, error) {
 
 	// database/sql defaults to an unbounded open-connection count (and only 2
 	// idle), so a traffic spike degrades into unbounded Postgres connection
-	// growth instead of requests queuing predictably at a known limit.
-	if maxOpenConns <= 0 {
-		maxOpenConns = 50
-	}
-	if maxIdleConns <= 0 {
-		maxIdleConns = 25
-	}
-	db.SetMaxOpenConns(maxOpenConns)
-	db.SetMaxIdleConns(maxIdleConns)
+	// growth instead of requests queuing predictably at a known limit. The Go
+	// gateway is a thin auth/routing layer in front of the Python AI engine,
+	// not a heavy DB consumer, so these are deliberately modest starting
+	// values, not a load-tested ceiling.
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(30 * time.Minute)
-	db.SetConnMaxIdleTime(5 * time.Minute)
 
 	// Wait for DB to be ready
 	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -46,7 +40,7 @@ func NewDB(dsn string, maxOpenConns, maxIdleConns int) (*DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	slog.Info("Connected to PostgreSQL successfully")
+	log.Println("Connected to PostgreSQL successfully")
 	dbInst := &DB{Conn: db}
 	migCtx, migCancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer migCancel()

@@ -124,7 +124,7 @@ function CompanyLogo({
 }
 
 /* ── Main Card ────────────────────────────────────────────── */
-function JobCardInner({
+function JobCard({
   job,
   variant = "default",
   isLoading,
@@ -342,5 +342,4 @@ function JobCardGrid({
   );
 }
 
-export const JobCard = React.memo(JobCardInner);
-export { JobCardGrid, CompanyLogo };
+export { JobCard, JobCardGrid, CompanyLogo };

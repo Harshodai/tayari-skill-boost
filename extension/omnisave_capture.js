@@ -13,8 +13,8 @@
   const platformForPage = () => {
     const host = window.location.hostname.toLowerCase();
     if (host === 'www.linkedin.com' && /my-items\/saved-posts/i.test(window.location.pathname)) return 'linkedin';
-    if (host === 'medium.com' && (/\/me\/(list|readinglist)/i.test(window.location.pathname) || /^\/@[^/]+\/list\//i.test(window.location.pathname))) return 'medium';
-    if (host === 'substack.com' && /^\/(?:home|saved|inbox)(?:\/|$)/i.test(window.location.pathname)) return 'substack';
+    if (host === 'medium.com' && /\/me\/(list|readinglist)/i.test(window.location.pathname)) return 'medium';
+    if (host === 'substack.com' && /^\/(?:home|saved)(?:\/|$)/i.test(window.location.pathname)) return 'substack';
     if (host === 'www.instagram.com' && /your_activity\/saved/i.test(window.location.pathname)) return 'instagram';
     return null;
   };
@@ -24,14 +24,7 @@
       const parsed = new URL(url);
       const path = parsed.pathname;
       if (platform === 'linkedin') return (parsed.hostname === 'linkedin.com' || parsed.hostname.endsWith('.linkedin.com')) && (/\/posts\//i.test(path) || /\/feed\/update\//i.test(path));
-      if (platform === 'medium') {
-        if (parsed.hostname !== 'medium.com') return false;
-        if (/^\/p\//i.test(path) || /^\/@[^/]+\/[^/]+/i.test(path)) return true;
-        // Publication-hosted articles: /<publication-slug>/<title-slug>-<hex-id>, e.g.
-        // /gitconnected/context-engineering-the-missing-piece-e2bbb8012e4e
-        if (/^\/(me|search|new-story|sitemap|tag|topic|plans|about|jobs-at-medium)(\/|$)/i.test(path)) return false;
-        return /^\/[^/]+\/[^/]+-[0-9a-f]{6,}$/i.test(path);
-      }
+      if (platform === 'medium') return parsed.hostname === 'medium.com' && (/^\/p\//i.test(path) || /^\/@[^/]+\/[^/]+/i.test(path));
       if (platform === 'substack') {
         const isSubstackHost = parsed.hostname === 'substack.com' || parsed.hostname.endsWith('.substack.com');
         if (!isSubstackHost) return false;
@@ -56,14 +49,7 @@
   const titleFor = (anchor, platform) => {
     const card = anchor.closest('article, li, [role="article"], [data-testid*="card"], .post, .item') || anchor.parentElement;
     const heading = card?.querySelector('h1, h2, h3, h4, [role="heading"]');
-    const cardBody = textFrom(card);
-    // LinkedIn/other card layouts often wrap the permalink around an image
-    // with no heading and no anchor text — falling back to document.title
-    // here previously produced the literal generic page title (e.g.
-    // "Saved Posts", the LinkedIn saved-items tab title) instead of the
-    // post's own content. Prefer the card's own visible text before ever
-    // touching document.title, which describes the listing page, not the item.
-    const title = textFrom(heading) || textFrom(anchor) || cardBody;
+    const title = textFrom(heading) || textFrom(anchor);
     if (title) return title.slice(0, 240);
     if (platform === 'instagram') return 'Instagram saved post';
     return document.title.replace(/\s*[|·-].*$/, '').trim().slice(0, 240) || 'Saved source';

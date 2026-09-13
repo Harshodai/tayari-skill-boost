@@ -162,31 +162,22 @@ def _preparation_material(job: dict, role_meta: dict) -> dict:
     }
 
 
-def _candidate_tokens(profile: dict | None, resume_text: str | None, query: str | None = None) -> set:
+def _candidate_tokens(profile: dict | None, resume_text: str | None) -> set:
     parts = []
     if profile:
         parts += profile.get("skills", []) + profile.get("desired_roles", [])
         parts.append(profile.get("headline", ""))
     if resume_text:
         parts.append(resume_text[:3000])
-    if query:
-        parts.append(query)
     text = " ".join(parts).lower()
     return {t for t in re.findall(r"[a-z][a-z+#.\-]{2,}", text)}
 
 
-def lexical_prerank(jobs: list, profile: dict | None, resume_text: str | None,
-                     query: str | None = None) -> list:
+def lexical_prerank(jobs: list, profile: dict | None, resume_text: str | None) -> list:
     """Stage-1 ranking (cheap, deterministic): skill/keyword overlap + recency boost.
     Ensures the LLM (stage 2) spends its context on the most promising jobs
-    instead of an arbitrary first-N slice.
-
-    `query` (the role the candidate actually searched for) is folded into the
-    same token set as their profile/resume — without it, prerank matches
-    postings purely against stored profile data and can rank an unrelated job
-    highly for any search string when the profile is thin or generic.
-    """
-    cand = _candidate_tokens(profile, resume_text, query)
+    instead of an arbitrary first-N slice."""
+    cand = _candidate_tokens(profile, resume_text)
     if not cand:
         return jobs
     now = datetime.now(timezone.utc)
@@ -210,7 +201,7 @@ def lexical_prerank(jobs: list, profile: dict | None, resume_text: str | None,
     return [j for _, j in scored]
 
 
-def _candidate_text(profile: dict | None, resume_text: str | None, query: str | None = None) -> str:
+def _candidate_text(profile: dict | None, resume_text: str | None) -> str:
     parts = []
     if profile:
         parts += profile.get("skills", []) + profile.get("desired_roles", [])
@@ -218,36 +209,23 @@ def _candidate_text(profile: dict | None, resume_text: str | None, query: str | 
         parts.append((profile.get("summary") or "")[:400])
     if resume_text:
         parts.append(resume_text[:2500])
-    if query:
-        # The role actually searched for — weighted in by repetition so it
-        # isn't drowned out by a long resume excerpt in taxonomy/embedding
-        # similarity, which otherwise ignore the query entirely.
-        parts.append(f"{query}. {query}.")
     return " ".join(p for p in parts if p)
 
 
 async def hybrid_prerank(jobs: list, profile: dict | None,
-                         resume_text: str | None, query: str | None = None) -> tuple:
+                         resume_text: str | None) -> tuple:
     """World-class hybrid retrieval (research-backed): three independent rankers -
       1. lexical (keyword overlap + recency)
       2. skill-taxonomy (canonical skills + adjacency, ESCO/O*NET-style)
       3. semantic embeddings (local open-source BGE model)
     fused with Reciprocal Rank Fusion. Degrades gracefully if embeddings unavailable.
-
-    `query` is the role text the candidate actually searched for. Every
-    ranker here previously scored purely against the candidate's stored
-    profile/resume, never the search query itself — a job unrelated to what
-    was typed could still rank #1 whenever the profile was thin, generic, or
-    just happened to share incidental tokens. Folding query into the
-    candidate text/tokens makes "what you searched for" a first-class signal
-    alongside "who you are", which is what a hybrid search is supposed to do.
     Returns (ranked_jobs, method_description)."""
     if len(jobs) <= 1:
         return jobs, "none"
-    cand_text = _candidate_text(profile, resume_text, query)
+    cand_text = _candidate_text(profile, resume_text)
 
     # Ranker 1: lexical
-    lex_sorted = lexical_prerank(list(jobs), profile, resume_text, query)
+    lex_sorted = lexical_prerank(list(jobs), profile, resume_text)
     lex_rank = {j["job_id"]: r for r, j in enumerate(lex_sorted)}
 
     # Ranker 2: skill taxonomy with adjacency
@@ -286,21 +264,18 @@ async def hybrid_prerank(jobs: list, profile: dict | None,
     return ranked, method
 
 
-_RANK_CHUNK_SIZE = 20
-_RANK_POOL_CEILING = 60  # bounds worst-case concurrent LLM calls per search
-
-
-async def _score_rank_chunk(candidate: str, chunk: list, query: str | None) -> list:
-    """Score one <=20-job chunk with a single LLM call. Mutates and returns `chunk`."""
+async def rank_jobs(candidate: str, jobs: list, top_n: int = 12) -> list:
+    """Agent RANK step - one batched LLM call scoring all jobs."""
+    subset = jobs[:top_n * 2][:20]
+    if not subset:
+        return []
     lines = []
-    for i, j in enumerate(chunk):
+    for i, j in enumerate(subset):
         lines.append(
             f"[{i}] {j['title']} @ {j['company']} | {j['location']} | "
             f"tags: {', '.join(j['tags'][:8])} | {j['description'][:280]}")
-    query_line = f"\n\nSEARCHED ROLE: \"{query}\" — weigh fit against this role first; " \
-                 "the candidate profile is secondary context, not the target." if query else ""
     user_msg = (
-        f"CANDIDATE:\n{candidate}{query_line}\n\nJOBS:\n" + "\n".join(lines) +
+        f"CANDIDATE:\n{candidate}\n\nJOBS:\n" + "\n".join(lines) +
         "\n\nScore every job for this candidate. Respond with a JSON array, one item "
         "per job: {\"index\": <int>, \"match_score\": <0-100 int>, "
         "\"matched_skills\": [<=5 strings], \"missing_skills\": [<=4 strings], "
@@ -310,65 +285,32 @@ async def _score_rank_chunk(candidate: str, chunk: list, query: str | None) -> l
         scores = extract_json(raw)
     except Exception as exc:
         logger.error("Job ranking LLM failed: %s", exc)
-        for j in chunk:
+        # graceful degradation: return unranked jobs
+        for j in subset:
             j["match_score"] = None
             j["match_reason"] = "AI ranking unavailable"
             j["matched_skills"] = []
             j["missing_skills"] = []
-        return chunk
+        return subset[:top_n]
 
     by_index = {s.get("index"): s for s in scores if isinstance(s, dict)}
-    for i, j in enumerate(chunk):
+    ranked = []
+    for i, j in enumerate(subset):
         s = by_index.get(i, {})
         j["match_score"] = s.get("match_score")
         j["matched_skills"] = s.get("matched_skills", [])[:5]
         j["missing_skills"] = s.get("missing_skills", [])[:4]
         j["match_reason"] = s.get("reason", "")
-    return chunk
-
-
-async def rank_jobs(candidate: str, jobs: list, top_n: int = 12, query: str | None = None) -> list:
-    """Agent RANK step - LLM scoring, chunked at 20 jobs/call.
-
-    Previously this hardcoded `jobs[:top_n * 2][:20]` — a single LLM call
-    scoring at most 20 jobs no matter what `top_n` (the caller's actual
-    target, e.g. smart_search's `rank_target = max(top_n, cursor+limit, 40)`
-    for pagination headroom) asked for. Every search silently had at most 20
-    scored results regardless of how many were fetched/preranked, and
-    pagination's `next_cursor` could never advance past page 1 since the
-    scored pool never exceeded 20. Chunk the pool into <=20-job LLM calls
-    (run concurrently) so `top_n` is actually honored, capped by
-    _RANK_POOL_CEILING to bound worst-case LLM call count per search.
-    """
-    pool = jobs[: min(max(top_n * 2, top_n), _RANK_POOL_CEILING)]
-    if not pool:
-        return []
-
-    chunks = [pool[i:i + _RANK_CHUNK_SIZE] for i in range(0, len(pool), _RANK_CHUNK_SIZE)]
-    scored_chunks = await asyncio.gather(*(_score_rank_chunk(candidate, c, query) for c in chunks))
-    scored_pool = [j for chunk in scored_chunks for j in chunk]
-
-    ranked = []
-    for i, j in enumerate(scored_pool):
         # Hybrid rank fusion (research-backed): blend the LLM semantic score with
-        # the deterministic lexical pre-rank position (i is the job's position
-        # in the full prerank pool, not just within its own chunk — otherwise
-        # every chunk after the first would get an inflated position score).
-        # Guards against LLM scoring noise the same way RRF fuses lexical + vector retrieval.
-        lexical_pos_score = 100 * (1 - i / max(len(scored_pool), 1))
+        # the deterministic lexical pre-rank position. Guards against LLM scoring
+        # noise the same way RRF fuses lexical + vector retrieval.
+        lexical_pos_score = 100 * (1 - i / max(len(subset), 1))
         llm_score = j["match_score"] if j["match_score"] is not None else 50
         j["_fused"] = 0.75 * llm_score + 0.25 * lexical_pos_score
         ranked.append(j)
     ranked.sort(key=lambda x: (x["match_score"] is None, -x["_fused"]))
     for j in ranked:
-        # The displayed match_score must reflect the value results are
-        # actually sorted by — otherwise the list shows a non-monotonic
-        # percentage column (e.g. 60%, 50%, 40%, 20%, 30%...) even though
-        # rows are correctly ordered by the fused score underneath it.
-        if j.get("match_score") is not None:
-            j["match_score"] = max(0, min(100, int(round(j.pop("_fused")))))
-        else:
-            j.pop("_fused", None)
+        j.pop("_fused", None)
     return ranked[:top_n]
 
 
@@ -377,9 +319,7 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
                        scrape_enrich: bool = True,
                        target_board: dict | None = None,
                        user_id: str | None = None,
-                       conversation_id: str | None = None,
-                       cursor: int = 0,
-                       limit: int | None = None) -> dict:
+                       conversation_id: str | None = None) -> dict:
     trace = []
 
     def log_step(step, detail):
@@ -441,8 +381,7 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
     jobs = []
     seen = set()
     for q in queries:
-        batch_raw = await search_jobs(q, location, cursor=None, return_dict=False)
-        batch = batch_raw.get("results", []) if isinstance(batch_raw, dict) else batch_raw
+        batch = await search_jobs(q, location)
         for j in batch:
             key = (j["title"].lower(), j["company"].lower())
             if key not in seen:
@@ -462,13 +401,11 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
                        + (f" + Hermes" if hermes_added else ""))
 
     # Stage-1 hybrid retrieval: lexical + taxonomy + embeddings, RRF-fused
-    jobs, method = await hybrid_prerank(jobs, profile, resume_text, effective_query)
+    jobs, method = await hybrid_prerank(jobs, profile, resume_text)
     log_step("PRERANK", f"Hybrid retrieval ranking ({method}) before AI scoring")
 
     candidate = _candidate_summary(profile, resume_text)
-    effective_limit = limit or top_n or 20
-    rank_target = max(top_n, (cursor or 0) + effective_limit, 40)
-    ranked = await rank_jobs(candidate, jobs, top_n=rank_target, query=effective_query)
+    ranked = await rank_jobs(candidate, jobs, top_n=top_n)
     
     # 4. RANK (with personal preference boost)
     if preferences:
@@ -577,21 +514,13 @@ async def smart_search(query: str | None, location: str, profile: dict | None,
         job["preparation_material"] = _preparation_material(job, role_meta)
     log_step("REPORT", f"Returning top {len(annotated)} matches sorted by fit with role-bound preparation material")
 
-    cur = cursor or 0
-    paginated_results = annotated[cur : cur + effective_limit]
-    next_cursor = cur + effective_limit if len(annotated) > cur + effective_limit else None
-
     return {
         "query": effective_query,
         "location": location,
         "total_found": len(jobs),
-        "total": len(annotated),
         "engine": active_engine(),
         "role_intelligence": role_meta,
-        "results": paginated_results,
-        "jobs": paginated_results,
-        "cursor": cur,
-        "next_cursor": next_cursor,
+        "results": annotated,
         "agent_trace": trace,
         "memory_used": bool(memory_context),
         "memory_tiers_used": list(memory_snapshot.tiers_used) if memory_snapshot else [],

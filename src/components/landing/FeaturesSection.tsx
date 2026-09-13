@@ -385,30 +385,28 @@ export function FeaturesSection() {
           )}
 
           {/* Card 2: AI Interview Coach (1-column span) */}
-          {featureFlags.interviewPrep && (
-            <SpotlightCard className="bg-card/60 border-border/60 flex flex-col justify-between p-6 backdrop-blur-md">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-                    <Brain className="w-6 h-6" />
-                  </div>
-                  <Badge variant="secondary" className="font-mono text-xs">STAR Prep</Badge>
+          <SpotlightCard className="bg-card/60 border-border/60 flex flex-col justify-between p-6 backdrop-blur-md">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                  <Brain className="w-6 h-6" />
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold mb-2 font-display text-foreground">Interview Coach</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">
-                    Practice structured behavioral and system architecture answers with real-time feedback on impact quantification.
-                  </p>
-                </div>
+                <Badge variant="secondary" className="font-mono text-xs">STAR Prep</Badge>
               </div>
-              <div className="mt-6 space-y-4">
-                <InteractiveCoachMockup />
-                <Button size="sm" variant="outline" asChild className="w-full font-semibold active:scale-[0.98]">
-                  <Link to="/interview/prep">Start practice session</Link>
-                </Button>
+              <div>
+                <h3 className="text-xl font-bold mb-2 font-display text-foreground">Interview Coach</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  Practice structured behavioral and system architecture answers with real-time feedback on impact quantification.
+                </p>
               </div>
-            </SpotlightCard>
-          )}
+            </div>
+            <div className="mt-6 space-y-4">
+              <InteractiveCoachMockup />
+              <Button size="sm" variant="outline" asChild className="w-full font-semibold active:scale-[0.98]">
+                <Link to="/interview/prep">Start practice session</Link>
+              </Button>
+            </div>
+          </SpotlightCard>
 
           {/* Card 3: Smart Job Matcher */}
           {featureFlags.jobSearch && (

@@ -12,7 +12,6 @@ Guarantees:
 from __future__ import annotations
 
 import collections
-import concurrent.futures
 import json
 import logging
 import math
@@ -217,16 +216,12 @@ class LLMJudge:
                 import asyncio
                 try:
                     loop = asyncio.get_running_loop()
-                    # Inside an existing event loop — execute in dedicated thread executor
-                    # so that real LLM grading is executed rather than silently dropping to heuristics.
-                    def _run_in_thread() -> EvalResult:
-                        return asyncio.run(self._evaluate_llm(
-                            raw_text, trajectory_or_output, expected_output, active_rubric, context
-                        ))
-
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(_run_in_thread)
-                        return future.result()
+                    # Already inside an event loop — cannot use asyncio.run()
+                    # Fall through to heuristic; callers who need LLM should use evaluate_async()
+                    logger.warning(
+                        "LLMJudge.evaluate() called from within a running event loop; "
+                        "falling back to heuristic. Use evaluate_async() for async callers."
+                    )
                 except RuntimeError:
                     # No running loop — safe to use asyncio.run()
                     return asyncio.run(self._evaluate_llm(

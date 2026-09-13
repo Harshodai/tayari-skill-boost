@@ -266,7 +266,7 @@ function formatSavedSource(source: SavedSourceResponse): SavedArticleItem {
   const formatted: SavedArticleItem = {
     id: source.id || stableHash(source.canonical_url || source.title || "unknown"),
     title: source.title || "Saved Source",
-    author: source.author || "",
+    author: source.author || "Unknown",
     platform: source.source_platform || "custom_url",
     category: nlp.category,
     summary: source.summary_bullets || (nlp.summary ? [nlp.summary] : []),
@@ -523,13 +523,7 @@ export async function fetchCareerContextGraph(filters: { skill?: string; role?: 
   if (filters.skill?.trim()) params.set("skill", filters.skill.trim());
   if (filters.role?.trim()) params.set("role", filters.role.trim());
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  // ponytail: no Cache-Control header on this response, so the browser's
-  // default HTTP heuristic caching can serve a stale body for an identical
-  // URL+query (e.g. the graph fetched before the candidate's first
-  // evidence/context link existed) even after "Refresh graph" is clicked
-  // again — the graph then looks permanently empty despite the backend
-  // genuinely having real nodes. no-store forces a real round-trip.
-  return apiFetch<CareerContextGraph>(`/v1/context/graph${suffix}`, { cache: "no-store" });
+  return apiFetch<CareerContextGraph>(`/v1/context/graph${suffix}`);
 }
 
 
@@ -694,33 +688,6 @@ export async function fetchOmniSaveActivity(limit = 50): Promise<OmniSaveActivit
 export async function fetchOmniSaveExport(): Promise<OmniSaveExportBundle> {
   const response = await apiFetch<{ success: boolean; bundle: OmniSaveExportBundle }>("/v1/saves/export");
   return response.bundle;
-}
-
-export interface SubstackWatch {
-  id: string;
-  publication_url: string;
-  last_polled_at: string | null;
-  last_poll_status: string | null;
-  last_poll_error?: string | null;
-  last_ingested_count: number;
-  created_at: string | null;
-}
-
-export async function listSubstackWatches(): Promise<SubstackWatch[]> {
-  const response = await apiFetch<{ watches: SubstackWatch[] }>("/v1/saves/substack-watches");
-  return response.watches || [];
-}
-
-export async function addSubstackWatch(publicationUrl: string): Promise<SubstackWatch> {
-  const response = await apiFetch<{ success: boolean; watch: SubstackWatch }>("/v1/saves/substack-watches", {
-    method: "POST",
-    body: JSON.stringify({ publication_url: publicationUrl }),
-  });
-  return response.watch;
-}
-
-export async function removeSubstackWatch(watchId: string): Promise<void> {
-  await apiFetch(`/v1/saves/substack-watches/${watchId}`, { method: "DELETE" });
 }
 
 

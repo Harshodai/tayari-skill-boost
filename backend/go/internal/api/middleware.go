@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -60,9 +61,7 @@ func (s *Server) requestLoggingMiddleware(next http.Handler) http.Handler {
 		traceID := requestTraceID(r)
 		w.Header().Set("X-Request-ID", traceID)
 		r.Header.Set("X-Request-ID", traceID)
-		identityBox := &requestIdentityBox{}
 		ctx := context.WithValue(r.Context(), contextKeyTraceID, traceID)
-		ctx = context.WithValue(ctx, contextKeyRequestIdentity, identityBox)
 		r = r.WithContext(ctx)
 		rr := &responseRecorder{ResponseWriter: w}
 		next.ServeHTTP(rr, r)
@@ -72,21 +71,13 @@ func (s *Server) requestLoggingMiddleware(next http.Handler) http.Handler {
 			status = http.StatusOK
 		}
 
-		// authMiddleware runs downstream of this middleware and derives its
-		// own *http.Request via r.WithContext(), which this outer `r` never
-		// sees — read the identity back out of the shared box instead of
-		// r.Context() directly (see requestIdentityBox's doc comment).
 		userID := "anonymous"
-		if identityBox.userID != "" {
-			userID = identityBox.userID
-		} else if user, ok := r.Context().Value(contextKeyUser).(*models.User); ok && user != nil {
+		if user, ok := r.Context().Value(contextKeyUser).(*models.User); ok && user != nil {
 			userID = user.ID.String()
 		}
-		tenantID := identityBox.tenantID
-		if tenantID == "" {
-			if tenant, ok := r.Context().Value(contextKeyTenant).(*models.Tenant); ok && tenant != nil {
-				tenantID = tenant.ID.String()
-			}
+		tenantID := ""
+		if tenant, ok := r.Context().Value(contextKeyTenant).(*models.Tenant); ok && tenant != nil {
+			tenantID = tenant.ID.String()
 		}
 		if s.metrics != nil {
 			s.metrics.ObserveRequest(r.Method, r.URL.Path, status, duration)
@@ -192,7 +183,7 @@ func (rl *rateLimiter) Middleware(next http.Handler) http.Handler {
 			if client.strikes > 5 {
 				penaltyDuration := time.Duration(client.strikes) * time.Minute
 				client.penaltyEnd = now.Add(penaltyDuration)
-				slog.Info("[RATE LIMIT] Penalty applied", "client_id", clientID, "penalty_duration", penaltyDuration)
+				log.Printf("[RATE LIMIT] Penalty applied to %s for %v", clientID, penaltyDuration)
 			}
 			rl.mu.Unlock()
 
@@ -264,7 +255,7 @@ func (s *Server) tenantMiddleware(next http.Handler) http.Handler {
 			ctx := context.WithValue(r.Context(), contextKeyTenant, &tenant)
 			r = r.WithContext(ctx)
 		} else if domain != "localhost" && domain != "127.0.0.1" && domain != "" {
-			slog.Warn("[TENANT] Could not resolve tenant", "domain", domain, "subdomain", subdomain, "error", err)
+			log.Printf("[TENANT] Could not resolve tenant for domain '%s' (subdomain '%s'): %v", domain, subdomain, err)
 		}
 
 		next.ServeHTTP(w, r)

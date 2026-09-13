@@ -38,6 +38,7 @@ const InterviewExperiences = lazy(() => import('./pages/InterviewExperiences'));
 const CodingPractice = lazy(() => import('./pages/CodingPractice'));
 const JobSearch = lazy(() => import('./pages/JobSearch'));
 const AutoPilot = lazy(() => import('./pages/AutoPilot'));
+const CareerRoadmap = lazy(() => import('./pages/CareerRoadmap'));
 const CareerIntelligence = lazy(() => import('./pages/CareerIntelligence'));
 const FAQ = lazy(() => import('./pages/FAQ'));
 const Contact = lazy(() => import('./pages/Contact'));
@@ -57,6 +58,7 @@ const Profile = lazy(() => import('./pages/Profile'));
 const CoverLetter = lazy(() => import('./pages/CoverLetter'));
 const CommunicationHub = lazy(() => import('./pages/CommunicationHub'));
 const InterviewPrep = lazy(() => import('./pages/InterviewPrep'));
+const KnowledgeHub = lazy(() => import('./pages/KnowledgeHub'));
 const ExtensionOnboarding = lazy(() => import('./pages/ExtensionOnboarding'));
 const ReviewQueue = lazy(() => import('./pages/ReviewQueue'));
 const PredictiveAnalytics = lazy(() => import('./pages/PredictiveAnalytics'));
@@ -66,10 +68,6 @@ const APIKeys = lazy(() => import('./pages/APIKeys'));
 const ResumeGraph = lazy(() => import('./pages/ResumeGraph'));
 const OAuthConsent = lazy(() => import('./pages/OAuthConsent'));
 const FreeAtsScan = lazy(() => import('./pages/FreeAtsScan'));
-const ResumeScore = lazy(() => import('./pages/ResumeScore'));
-const JobMatch = lazy(() => import('./pages/JobMatch'));
-const RoleLanding = lazy(() => import('./pages/RoleLanding'));
-const CompareTool = lazy(() => import('./pages/CompareTool'));
 
 const CareerOpsDashboard = lazy(() => import('./pages/CareerOpsDashboard'));
 const LinkedInImport = lazy(() => import('./pages/LinkedInImport'));
@@ -173,14 +171,9 @@ const App = () => (
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/free-scan" element={<FreeAtsScan />} />
               <Route path="/free-ats-scan" element={<Navigate to="/free-scan" replace />} />
-              <Route path="/resume-score" element={<ResumeScore />} />
-              <Route path="/job-match" element={<JobMatch />} />
-              <Route path="/roles" element={<RoleLanding />} />
-              <Route path="/roles/:slug" element={<RoleLanding />} />
-              <Route path="/compare" element={<CompareTool />} />
-              <Route path="/compare/:tool" element={<CompareTool />} />
               {/* Legacy / commonly guessed URLs that used to 404 */}
               <Route path="/resume-optimizer" element={<Navigate to="/resume" replace />} />
+              <Route path="/career-roadmap" element={<Navigate to="/roadmap" replace />} />
               <Route path="/interview-prep" element={<Navigate to="/interview/prep" replace />} />
               <Route path="/job-search-autopilot" element={<Navigate to="/jobs/autopilot" replace />} />
               <Route path="/faq" element={<FAQ />} />
@@ -208,13 +201,8 @@ const App = () => (
               )}
 
               {/* Conditionally Rendered Routes */}
-              {/* ponytail: CareerRoadmap.tsx duplicated CareerIntelligence.tsx's
-                  skills-gap/salary/learning trio (identical getSkillsGap/
-                  getSalaryBenchmark/getLearningPath calls) — its one unique
-                  feature, ScenarioPlanner, is now a tab on that page instead.
-                  Redirect, not 404, for existing bookmarks/links. */}
               {features.careerRoadmap && (
-                <Route path="/roadmap" element={<Navigate to="/career-intelligence" replace />} />
+                <Route path="/roadmap" element={<CareerRoadmap />} />
               )}
               {features.jobSearch && (
                 <>
@@ -231,11 +219,8 @@ const App = () => (
               {features.careers && (
                 <Route path="/careers" element={<Careers />} />
               )}
-              {(features.careerIntelligence || features.careerOps) && (
-                <>
-                  <Route path="/career-intelligence" element={<ProtectedRoute><CareerIntelligence /></ProtectedRoute>} />
-                  <Route path="/career-roadmap" element={<ProtectedRoute><CareerIntelligence /></ProtectedRoute>} />
-                </>
+              {features.careerOps && (
+                <Route path="/career-intelligence" element={<ProtectedRoute><CareerIntelligence /></ProtectedRoute>} />
               )}
               {features.blog && (
                 <>
@@ -365,16 +350,14 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              {/* ponytail: Knowledge Hub and OmniSave are the same feature —
-                  same backend (/v1/saves, /v1/saves/import; see dashboard.ts's
-                  own comments), same "save a link, AI tags/summarizes it"
-                  purpose. KnowledgeHub.tsx was a simpler, partially-broken
-                  duplicate frontend (its "note" field is captured in form
-                  state but never sent to the backend) left behind while
-                  OmniSave was built out with the extension, career graph,
-                  and CDC sync this session verified end-to-end. Redirecting
-                  rather than 404ing keeps old bookmarks/links working. */}
-              <Route path="/knowledge-hub" element={<Navigate to="/omnisave" replace />} />
+              <Route
+                path="/knowledge-hub"
+                element={
+                  <ProtectedRoute>
+                    <KnowledgeHub />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/resume" element={<ResumeUpload />} />
               <Route
                 path="/resume/results"

@@ -15,14 +15,13 @@ from app.telemetry import metrics
 
 logger = logging.getLogger("tayari.celery")
 
-from app.config import settings
-REDIS_URL = settings.redis_url
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
 celery_app = Celery(
     "tayari",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["app.tasks.scraping", "app.tasks.external_research", "app.tasks.automation", "app.tasks.agent_automation", "app.tasks.automation_events", "app.tasks.learning", "app.tasks.delivery", "app.tasks.task_control", "app.tasks.omnisave_rss"],
+    include=["app.tasks.scraping", "app.tasks.external_research", "app.tasks.automation", "app.tasks.agent_automation", "app.tasks.automation_events", "app.tasks.learning", "app.tasks.delivery", "app.tasks.task_control"],
 )
 
 celery_app.conf.update(
@@ -36,8 +35,6 @@ celery_app.conf.update(
     task_track_started=True,
     task_default_queue="tayari",
     worker_prefetch_multiplier=1,
-    worker_concurrency=min(os.cpu_count() or 2, 4),
-    worker_max_memory_per_child=512_000,
     task_time_limit=900,
     task_soft_time_limit=720,
     result_expires=86400,
@@ -49,10 +46,6 @@ celery_app.conf.update(
         "standing-job-watches-hourly": {
             "task": "autopilot.run_standing_job_watches",
             "schedule": 60 * 60,
-        },
-        "saga-orphan-sweep": {
-            "task": "saga.recover_orphaned",
-            "schedule": 60 * 5,
         },
         "nightly-db-backup": {
             "task": "system.nightly_database_backup",
@@ -78,15 +71,8 @@ celery_app.conf.update(
             "task": "task_control.dispatch_checkpoints",
             "schedule": 15,
         },
-        "omnisave-substack-watch-poll": {
-            "task": "omnisave.poll_substack_watches",
-            "schedule": 60 * 15,
-        },
     },
 )
-
-celery_app.conf.worker_concurrency = min(os.cpu_count() or 2, 4)  # Cap at 4 for Chromium memory
-celery_app.conf.worker_max_memory_per_child = 512_000  # 512MB, restart worker if exceeded
 
 # Bounded retries for EVERY task, not just delivery.dispatch_pending_messages.
 # Without this a permanently failing ("poison") task can be redelivered
@@ -102,7 +88,7 @@ celery_app.conf.task_annotations = {
 }
 # Exhausted or unhandled failures are parked on a dedicated queue for operator
 # triage instead of silently disappearing into worker logs.
-DEAD_LETTER_QUEUE = settings.celery_dead_letter_queue
+DEAD_LETTER_QUEUE = os.environ.get("CELERY_DEAD_LETTER_QUEUE", "tayari_dead_letter")
 
 _task_started: dict[str, tuple[float, float]] = {}
 _task_lock = threading.Lock()
@@ -218,34 +204,4 @@ def _record_task_failure(
     )
 
 
-def get_celery_queue_depth(queue_name: str = "tayari") -> int:
-    """Inspect and return the depth of the celery redis queue."""
-    try:
-        import redis
-        client = redis.Redis.from_url(REDIS_URL)
-        depth = client.llen(queue_name)
-        return int(depth)
-    except Exception as exc:
-        logger.debug("Failed to fetch queue depth for %s: %s", queue_name, exc)
-        return 0
-
-
-def format_prometheus_metrics() -> str:
-    lines = []
-    lines.append("# HELP celery_queue_depth Number of tasks in Celery queue")
-    lines.append("# TYPE celery_queue_depth gauge")
-    lines.append(f'celery_queue_depth{{queue="tayari"}} {get_celery_queue_depth("tayari")}')
-    return "\n".join(lines) + "\n"
-
-
-export_celery_queue_metrics = format_prometheus_metrics
-
-
-__all__ = [
-    "celery_app",
-    "REDIS_URL",
-    "DEAD_LETTER_QUEUE",
-    "get_celery_queue_depth",
-    "format_prometheus_metrics",
-    "export_celery_queue_metrics",
-]
+__all__ = ["celery_app", "REDIS_URL", "DEAD_LETTER_QUEUE"]

@@ -33,29 +33,18 @@ class BrowserOperator:
         # navigation and after any mutating action.
         self._refs: Dict[str, Any] = {}
 
-    async def initialize(self, pin_hostname: Optional[str] = None, pin_ip: Optional[str] = None):
-        """Initialize Playwright chromium instance.
-
-        ``pin_hostname``/``pin_ip`` add a ``MAP <hostname> <ip>`` host-resolver
-        rule so Chromium's actual connection targets the exact IP that was
-        DNS-rebinding-checked at navigate() time, while still using the real
-        hostname for TLS SNI and the Host header (an IP-rewritten netloc
-        breaks SNI on every HTTPS site). Re-resolving and trusting a second,
-        later OS-level DNS lookup would reopen the TOCTOU gap this closes.
-        """
+    async def initialize(self):
+        """Initialize Playwright chromium instance."""
         try:
             from playwright.async_api import async_playwright
             self.playwright = await async_playwright().start()
-            resolver_rules = ["MAP 169.254.169.254 ~NOTFOUND", "MAP 127.0.0.1 ~NOTFOUND", "MAP ::1 ~NOTFOUND"]
-            if pin_hostname and pin_ip:
-                resolver_rules.insert(0, f"MAP {pin_hostname} {pin_ip}")
             self.browser = await self.playwright.chromium.launch(
                 headless=self.headless,
                 args=[
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
                     "--disable-dev-shm-usage",
-                    f"--host-resolver-rules={', '.join(resolver_rules)}",
+                    "--host-resolver-rules=MAP 169.254.169.254 ~NOTFOUND, MAP 127.0.0.1 ~NOTFOUND, MAP ::1 ~NOTFOUND",
                     "--block-insecure-private-network-requests",
                 ],
             )
@@ -132,14 +121,7 @@ class BrowserOperator:
             await await_backoff(url)
 
         if not self.page:
-            # Resolve+pin before the browser process even exists so the
-            # launch-time host-resolver-rules MAP targets the same IP this
-            # check validated — no window between check and connect.
-            from app.agent.agent_engine import _resolve_and_validate_url
-            url_info = _resolve_and_validate_url(url)
-            if not url_info:
-                return {"success": False, "error": f"Rejected URL '{url}': unsafe scheme or non-public address."}
-            init_ok = await self.initialize(pin_hostname=url_info["original_hostname"], pin_ip=url_info["pinned_ip"])
+            init_ok = await self.initialize()
             if not init_ok or not self.page:
                 return {"success": False, "error": "Browser engine not initialized (Playwright missing or restricted)."}
 
@@ -306,35 +288,6 @@ class BrowserOperator:
             )
             self._refs[ref] = locator
             elements.append({"ref": ref, "role": role, "name": name})
-
-        # Many real ATS integrations (this project has live-confirmed
-        # Greenhouse's own embed mode on a company's own careers domain, e.g.
-        # stripe.com embedding job-boards.greenhouse.io/embed/job_app in an
-        # <iframe>) put the entire application form in a same-origin-scoped
-        # child frame that page.locator("body") never reaches — the main
-        # frame's snapshot looks like a normal marketing page with zero
-        # inputs. Walk every child frame and merge in whatever it will let us
-        # read; a frame that throws (cross-origin, about:blank, a third-party
-        # widget like reCAPTCHA) is skipped rather than failing the whole
-        # observation — losing one frame's fields is not losing the form.
-        for frame in self.page.frames:
-            if frame == self.page.main_frame:
-                continue
-            try:
-                frame_tree = await frame.locator("body").aria_snapshot()
-            except Exception as frame_exc:
-                logger.debug("Skipping unreadable frame %s: %s", frame.url, frame_exc)
-                continue
-            for parsed in self._parse_accessibility_tree(frame_tree):
-                role, name, index = parsed["role"], parsed["name"], parsed["index"]
-                ref = f"ref_{len(elements) + 1}"
-                locator = (
-                    frame.get_by_role(role, name=name, exact=True).nth(index)
-                    if name
-                    else frame.get_by_role(role).nth(index)
-                )
-                self._refs[ref] = locator
-                elements.append({"ref": ref, "role": role, "name": name})
 
         return {"success": True, "url": self.page.url, "elements": elements}
 
