@@ -318,6 +318,7 @@ services:
       - ./volumes/db/init/65-20260903_agent_run_steps_self_hosted.sql:/docker-entrypoint-initdb.d/migrations/zz-65-20260903_agent_run_steps_self_hosted.sql:Z
       - ./volumes/db/init/66-20260903_run_checkpoints.sql:/docker-entrypoint-initdb.d/migrations/zz-66-20260903_run_checkpoints.sql:Z
       - ./volumes/db/init/67-20260907_secret_tables_service_role_only.sql:/docker-entrypoint-initdb.d/migrations/zz-67-20260907_secret_tables_service_role_only.sql:Z
+      - ./volumes/db/init/68-20260913_reconcile_billing_receipt_schema.sql:/docker-entrypoint-initdb.d/migrations/zz-68-20260913_reconcile_billing_receipt_schema.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test:

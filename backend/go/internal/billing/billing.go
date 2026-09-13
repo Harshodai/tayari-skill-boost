@@ -636,7 +636,7 @@ func (b *BillingService) ProcessStripeCreditPackPayment(eventID, eventType, cust
 		_, err = tx.Exec(`
 			INSERT INTO public.credit_ledger (id, user_id, amount, type, description, reference_id, created_at)
 			VALUES ($1, $2::uuid, $3, 'purchase', $4, $5, NOW())
-			ON CONFLICT (user_id, reference_id, type) WHERE reference_id IS NOT NULL DO NOTHING
+			ON CONFLICT (user_id, reference_id) WHERE reference_id IS NOT NULL DO NOTHING
 		`, ledgerID, userID, pack.Credits, fmt.Sprintf("Purchased %s Pack (%d credits for $%.2f)", pack.Name, pack.Credits, pack.PriceUSD), sessionID)
 		if err != nil {
 			if strings.Contains(strings.ToLower(err.Error()), "duplicate key") || strings.Contains(strings.ToLower(err.Error()), "unique constraint") {
