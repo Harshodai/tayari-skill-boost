@@ -14,7 +14,7 @@ export default defineTool({
   title: "Get application pipeline",
   description: "List all job applications in the user's pipeline, optionally filtered by stage.",
   inputSchema: {
-    stage: z.enum(["saved","applied","screening","interview","offer","rejected","accepted"]).optional(),
+    stage: z.enum(["saved", "applied", "interview", "offer", "rejected"]).optional(),
     limit: z.number().int().min(1).max(100).optional(),
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },

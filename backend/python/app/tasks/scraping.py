@@ -28,7 +28,7 @@ def _run_scrape(query: str, location: str, board: dict | None, limit: int) -> li
     return asyncio.run(_scrape())
 
 
-@celery_app.task(name="hermes.scrape_job_board", bind=True)
+@celery_app.task(name="hermes.scrape_job_board", bind=True, autoretry_for=(Exception,))
 def scrape_job_board(self, query: str, location: str = "", board: dict | None = None,
                      limit: int = 40, user_id: str | None = None) -> dict:
     """Scrape a job board via Hermes and cache the results.

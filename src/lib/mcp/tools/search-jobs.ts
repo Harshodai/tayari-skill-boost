@@ -32,7 +32,7 @@ export default defineTool({
     const client = sb(ctx);
     const { data, error } = await client
       .from("saved_jobs")
-      .select("id,title,company,location,url,status,created_at")
+      .select("id,title,company,location,url,stage,created_at")
       .eq("user_id", ctx.getUserId())
       .or(`title.ilike.%${sanitizedQuery}%,company.ilike.%${sanitizedQuery}%`)
       .limit(limit ?? 20);

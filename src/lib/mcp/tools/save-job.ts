@@ -19,13 +19,13 @@ export default defineTool({
     company: z.string().trim().min(1),
     location: z.string().optional(),
     url: z.string().url().optional(),
-    description: z.string().optional(),
-    status: z
-      .enum(["saved", "applied", "phone_screen", "interview", "offer", "rejected"])
+    notes: z.string().optional(),
+    stage: z
+      .enum(["saved", "applied", "interview", "offer", "rejected"])
       .optional(),
   },
   annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-  handler: async ({ title, company, location, url, description, status }, ctx) => {
+  handler: async ({ title, company, location, url, notes, stage }, ctx) => {
     const gate = requireMcpWriteTool(ctx, "save_job");
     if (gate) return gate;
     if (!ctx.isAuthenticated()) {
@@ -39,10 +39,10 @@ export default defineTool({
         company,
         location: location ?? null,
         url: url ?? null,
-        description: description ?? null,
-        status: status ?? "saved",
+        notes: notes ?? null,
+        stage: stage ?? "saved",
       })
-      .select("id, title, company, location, url, status, created_at")
+      .select("id, title, company, location, url, notes, stage, created_at")
       .single();
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {

@@ -4123,3 +4123,13 @@ source of truth for both paths.
 **Fix applied.** Secret creation is server-only; API-key owners retain view/revoke access only. Pipeline reads now include an explicit authenticated-owner predicate. Public proxy traffic is bounded, AI routes fail closed outside explicit local environments, prompts are truncated before provider calls, anonymous spend is tracked, and task failure events retain identifiers without payloads or personal data.
 
 **Reusable lesson.** Security controls must use allowlists, not production-name denylists. Never apply generic CRUD grants to credentials or reset artifacts; validate MCP table names against the live schema; and put cost, size, retry, and ownership controls at shared choke points rather than relying on every caller.
+
+## 2026-09-14 — Billing schema reconciliation, MCP schema parity, and durable worker retries
+
+**What was done.** Reconciled credit ledger and verified-receipt fields across Cloud, Go, and self-hosted migrations; aligned every saved-job MCP tool with the real `saved_jobs.stage` enum and `notes` column; added explicit bounded automatic retries to internal Celery work; and published redacted terminal-failure envelopes to a dedicated broker dead-letter queue.
+
+**Root cause.** Go generated opaque text ledger IDs while one database path still expected UUIDs; MCP tools carried historical `status`, `description`, `phone_screen`, and `accepted` names absent from the live schema; and Celery annotations configured retry values without activating retries. Several tasks also swallowed exceptions, making failed work look successful and bypassing failure signals.
+
+**Fix applied.** Credit IDs are text everywhere, receipt evidence has a compatible text field and partial idempotency index, MCP inputs now exactly match the five-value pipeline enum, and retryable internal tasks both declare `autoretry_for` and re-raise after safe logging. Terminal failure telemetry contains identifiers and exception types only—never task arguments or candidate data.
+
+**Reusable lesson.** Configuration values do not create control flow: Celery retry limits are inert until a task calls `retry` or enables `autoretry_for`. Validate integration schemas against the live database, and never swallow an infrastructure exception when the queue is responsible for retry and dead-letter handling.

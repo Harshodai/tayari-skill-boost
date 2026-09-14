@@ -202,6 +202,25 @@ def _record_task_failure(
         task_name=getattr(task, "name", "unknown"),
         exception_type=type(exception).__name__ if exception else "unknown",
     )
+    # Persist a redacted envelope in a broker queue for operator replay. The
+    # dead-letter queue has no worker route, so recording cannot execute code
+    # or repeat an external side effect.
+    try:
+        celery_app.send_task(
+            "system.dead_letter_record",
+            kwargs={
+                "task_id": identifier,
+                "task_name": getattr(task, "name", "unknown"),
+                "exception_type": type(exception).__name__ if exception else "unknown",
+            },
+            queue=DEAD_LETTER_QUEUE,
+        )
+    except Exception as exc:  # noqa: BLE001 - telemetry must not mask failure
+        logger.error(
+            "celery dead-letter publish failed task_id=%s error_type=%s",
+            identifier,
+            type(exc).__name__,
+        )
 
 
 __all__ = ["celery_app", "REDIS_URL", "DEAD_LETTER_QUEUE"]

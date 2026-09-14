@@ -18,7 +18,12 @@ from app.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="learning.run_preference_learning_task", bind=True, queue="tayari")
+@celery_app.task(
+    name="learning.run_preference_learning_task",
+    bind=True,
+    queue="tayari",
+    autoretry_for=(Exception,),
+)
 def run_preference_learning_task(self, user_id: str) -> dict:
     """Compute + persist one user's preference profile."""
     try:
@@ -26,10 +31,14 @@ def run_preference_learning_task(self, user_id: str) -> dict:
         return _safe_async(run_preference_learning(user_id))
     except Exception as exc:  # noqa: BLE001
         logger.warning("learning.run_preference_learning_task failed (%s): %s", user_id, exc)
-        return {"user_id": user_id, "error": str(exc)}
+        raise
 
 
-@celery_app.task(name="learning.run_preference_learning_all", queue="tayari")
+@celery_app.task(
+    name="learning.run_preference_learning_all",
+    queue="tayari",
+    autoretry_for=(Exception,),
+)
 def run_preference_learning_all() -> dict:
     """Fan out preference learning to every user with feedback rows."""
     async def _go() -> dict:
@@ -42,9 +51,9 @@ def run_preference_learning_all() -> dict:
                 rows = await conn.fetch(
                     "SELECT DISTINCT user_id::text AS uid FROM user_job_feedback"
                 )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("learning.run_preference_learning_all fetch failed: %s", exc)
-            return {"enqueued": 0, "error": str(exc)}
+        except Exception:  # noqa: BLE001
+            logger.exception("learning.run_preference_learning_all fetch failed")
+            raise
 
         user_ids = [r["uid"] for r in rows if r["uid"]]
         for uid in user_ids:
@@ -55,17 +64,13 @@ def run_preference_learning_all() -> dict:
         return _safe_async(_go())
     except Exception as exc:  # noqa: BLE001
         logger.warning("learning.run_preference_learning_all failed: %s", exc)
-        return {"enqueued": 0, "error": str(exc)}
+        raise
 
 
 def _safe_async(coro) -> dict:
-    """Run an async coroutine to completion under a fresh loop; return dict."""
+    """Run an async coroutine under a fresh loop and preserve task failures."""
+    loop = asyncio.new_event_loop()
     try:
-        loop = asyncio.new_event_loop()
-        try:
-            return loop.run_until_complete(coro)
-        finally:
-            loop.close()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("learning._safe_async failed: %s", exc)
-        return {"error": str(exc)}
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()

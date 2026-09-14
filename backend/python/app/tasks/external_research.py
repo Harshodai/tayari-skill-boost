@@ -114,7 +114,7 @@ async def _execute(job_id: str, task_id: str | None) -> dict[str, Any]:
         await heartbeat_task
 
 
-@celery_app.task(name="external_research.run_apify", bind=True)
+@celery_app.task(name="external_research.run_apify", bind=True, autoretry_for=(Exception,))
 def run_apify_research(self, job_id: str) -> dict[str, Any]:
     """Execute one durable, owner-scoped Apify research run."""
     return asyncio.run(_execute(job_id, getattr(self.request, "id", None)))

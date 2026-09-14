@@ -403,7 +403,7 @@ async def _dispatch(worker_id: str) -> dict[str, Any]:
     return {"status": "ok", "claimed": len(tasks), "completed": completed, "failed": failed}
 
 
-@celery_app.task(name="task_control.dispatch_checkpoints", bind=True)
+@celery_app.task(name="task_control.dispatch_checkpoints", bind=True, autoretry_for=(Exception,))
 def dispatch_checkpoints(self) -> dict[str, Any]:
     """Claim approved Tay tasks and produce reviewable draft results."""
     try:
@@ -411,4 +411,4 @@ def dispatch_checkpoints(self) -> dict[str, Any]:
         return asyncio.run(_dispatch(worker_id))
     except Exception as exc:  # noqa: BLE001 - worker must report a truthful failure
         logger.exception("Tay task-control dispatch failed")
-        return {"status": "failed", "claimed": 0, "completed": 0, "failed": 0, "error": str(exc)}
+        raise
