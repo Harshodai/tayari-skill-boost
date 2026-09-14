@@ -62,7 +62,7 @@ def run_application_agent(self, run_id: str, config: dict, profile: dict | None,
     return {"run_id": run_id, "status": status}
 
 
-@celery_app.task(name="autopilot.run_scheduled", bind=True)
+@celery_app.task(name="autopilot.run_scheduled", bind=True, autoretry_for=(Exception,))
 def run_scheduled(self, user_id: str, config: dict | None = None) -> dict:
     """Load profile+resume for ``user_id`` and enqueue an application run.
 
@@ -88,7 +88,7 @@ def run_scheduled(self, user_id: str, config: dict | None = None) -> dict:
     return {"run_id": run_id, "task_id": task.id}
 
 
-@celery_app.task(name="autopilot.run_scheduled_autopilot", bind=True)
+@celery_app.task(name="autopilot.run_scheduled_autopilot", bind=True, autoretry_for=(Exception,))
 def run_scheduled_autopilot(self, schedule_id: str, user_id: str,
                             config: dict | None = None) -> dict:
     """Enqueue an application-agent run for a due schedule.
@@ -305,7 +305,7 @@ _TIER_INTERVALS = {
 }
 
 
-@celery_app.task(name="autopilot.run_standing_job_watches", bind=True)
+@celery_app.task(name="autopilot.run_standing_job_watches", bind=True, autoretry_for=(Exception,))
 def run_standing_job_watches(self) -> dict:
     """Query active job_watches from Postgres and trigger scheduled autopilot runs.
 
@@ -370,10 +370,10 @@ def run_standing_job_watches(self) -> dict:
         return asyncio.run(_execute())
     except Exception as exc:  # noqa: BLE001
         logger.exception("run_standing_job_watches failed: %s", exc)
-        return {"status": "failed", "error": str(exc)}
+        raise
 
 
-@celery_app.task(name="system.nightly_database_backup", bind=True)
+@celery_app.task(name="system.nightly_database_backup", bind=True, autoretry_for=(Exception,))
 def nightly_database_backup(self) -> dict:
     """Execute nightly Postgres backup script."""
     import os
@@ -383,7 +383,9 @@ def nightly_database_backup(self) -> dict:
         script_path = "/app/scripts/backup.sh"
     try:
         res = subprocess.run(["bash", script_path], capture_output=True, text=True, timeout=300)
-        return {"status": "success" if res.returncode == 0 else "failed", "output": res.stdout, "error": res.stderr}
+        if res.returncode != 0:
+            raise RuntimeError(f"backup process exited with status {res.returncode}")
+        return {"status": "success", "output": res.stdout}
     except Exception as exc:  # noqa: BLE001
         logger.exception("nightly_database_backup failed: %s", exc)
-        return {"status": "failed", "error": str(exc)}
+        raise

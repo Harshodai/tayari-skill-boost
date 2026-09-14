@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 from app.celery_app import celery_app
+from app.tasks.automation import nightly_database_backup, run_standing_job_watches
+from app.tasks.automation_events import dispatch_events, emit_scheduled
 from app.tasks.delivery import dispatch_pending_messages
+from app.tasks.learning import run_preference_learning_all, run_preference_learning_task
 
 
 REQUIRED_BEAT_TASKS = {
@@ -26,6 +29,21 @@ def test_delivery_dispatch_has_bounded_automatic_retries() -> None:
     assert dispatch_pending_messages.autoretry_for == (Exception,)
     assert dispatch_pending_messages.retry_backoff is True
     assert dispatch_pending_messages.retry_kwargs["max_retries"] == 3
+
+
+def test_internal_worker_tasks_have_bounded_automatic_retries() -> None:
+    """Infrastructure tasks must raise into Celery's shared retry policy."""
+    tasks = (
+        dispatch_events,
+        emit_scheduled,
+        run_preference_learning_task,
+        run_preference_learning_all,
+        run_standing_job_watches,
+        nightly_database_backup,
+    )
+    for task in tasks:
+        assert task.autoretry_for == (Exception,)
+        assert task.max_retries == 3
 
 
 def test_required_beat_schedule_is_complete_and_valid() -> None:
