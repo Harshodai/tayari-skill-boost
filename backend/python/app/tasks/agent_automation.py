@@ -289,11 +289,11 @@ async def _dispatch() -> dict[str, Any]:
     return {"status": "ok", "expired": expired, "reclaimed": len(reclaimed), "claimed": len(claimed)}
 
 
-@celery_app.task(name="automation.dispatch_checkpoints", bind=True)
+@celery_app.task(name="automation.dispatch_checkpoints", bind=True, autoretry_for=(Exception,))
 def dispatch_checkpoints(self) -> dict[str, Any]:
     """Claim and checkpoint durable automation runs; never bypass approval."""
     try:
         return __import__("asyncio").run(_dispatch())
     except Exception as exc:  # noqa: BLE001 - worker must report a truthful failure
         logger.exception("automation checkpoint dispatch failed")
-        return {"status": "failed", "error": str(exc), "expired": 0, "reclaimed": 0, "claimed": 0}
+        raise

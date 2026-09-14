@@ -64,7 +64,7 @@ var search_jobs_default = defineTool2({
       };
     }
     const client = sb2(ctx);
-    const { data, error } = await client.from("saved_jobs").select("id,title,company,location,url,status,created_at").eq("user_id", ctx.getUserId()).or(`title.ilike.%${sanitizedQuery}%,company.ilike.%${sanitizedQuery}%`).limit(limit ?? 20);
+    const { data, error } = await client.from("saved_jobs").select("id,title,company,location,url,stage,created_at").eq("user_id", ctx.getUserId()).or(`title.ilike.%${sanitizedQuery}%,company.ilike.%${sanitizedQuery}%`).limit(limit ?? 20);
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {
       content: [{ type: "text", text: JSON.stringify(data ?? []) }],
@@ -88,7 +88,7 @@ var list_applications_default = defineTool3({
   title: "List applications",
   description: "List the signed-in user's job applications on the Interview Board, optionally filtered by stage.",
   inputSchema: {
-    stage: z2.enum(["saved", "applied", "phone_screen", "interview", "offer", "rejected"]).optional().describe("Filter by pipeline stage"),
+    stage: z2.enum(["saved", "applied", "interview", "offer", "rejected"]).optional().describe("Filter by pipeline stage"),
     limit: z2.number().int().min(1).max(100).optional()
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
@@ -96,8 +96,8 @@ var list_applications_default = defineTool3({
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
-    let q = sb3(ctx).from("saved_jobs").select("id,title,company,location,url,status,created_at,updated_at").eq("user_id", ctx.getUserId()).order("updated_at", { ascending: false }).limit(limit ?? 50);
-    if (stage) q = q.eq("status", stage);
+    let q = sb3(ctx).from("saved_jobs").select("id,title,company,location,url,stage,created_at,updated_at").eq("user_id", ctx.getUserId()).order("updated_at", { ascending: false }).limit(limit ?? 50);
+    if (stage) q = q.eq("stage", stage);
     const { data, error } = await q;
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {
@@ -196,11 +196,11 @@ var save_job_default = defineTool4({
     company: z3.string().trim().min(1),
     location: z3.string().optional(),
     url: z3.string().url().optional(),
-    description: z3.string().optional(),
-    status: z3.enum(["saved", "applied", "phone_screen", "interview", "offer", "rejected"]).optional()
+    notes: z3.string().optional(),
+    stage: z3.enum(["saved", "applied", "interview", "offer", "rejected"]).optional()
   },
   annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-  handler: async ({ title, company, location, url, description, status }, ctx) => {
+  handler: async ({ title, company, location, url, notes, stage }, ctx) => {
     const gate = requireMcpWriteTool(ctx, "save_job");
     if (gate) return gate;
     if (!ctx.isAuthenticated()) {
@@ -212,9 +212,9 @@ var save_job_default = defineTool4({
       company,
       location: location ?? null,
       url: url ?? null,
-      description: description ?? null,
-      status: status ?? "saved"
-    }).select("id, title, company, location, url, status, created_at").single();
+      notes: notes ?? null,
+      stage: stage ?? "saved"
+    }).select("id, title, company, location, url, notes, stage, created_at").single();
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {
       content: [{ type: "text", text: `Saved ${title} at ${company}` }],
@@ -320,7 +320,7 @@ var get_pipeline_default = defineTool8({
   title: "Get application pipeline",
   description: "List all job applications in the user's pipeline, optionally filtered by stage.",
   inputSchema: {
-    stage: z7.enum(["saved", "applied", "screening", "interview", "offer", "rejected", "accepted"]).optional(),
+    stage: z7.enum(["saved", "applied", "interview", "offer", "rejected"]).optional(),
     limit: z7.number().int().min(1).max(100).optional()
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },

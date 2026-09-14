@@ -40,21 +40,21 @@ async def _emit_scheduled() -> dict[str, Any]:
     return {"status": "ok", **result}
 
 
-@celery_app.task(name="automation.emit_scheduled_events", bind=True)
+@celery_app.task(name="automation.emit_scheduled_events", bind=True, autoretry_for=(Exception,))
 def emit_scheduled(self) -> dict[str, Any]:
     """Emit deterministic recurring events for active tenant automations."""
     try:
         return asyncio.run(_emit_scheduled())
     except Exception as exc:  # noqa: BLE001 - scheduler must report failure
         logger.exception("scheduled automation event emission failed")
-        return {"status": "failed", "error": str(exc), "tenants": 0, "emitted": 0, "duplicates": 0}
+        raise
 
 
-@celery_app.task(name="automation.dispatch_events", bind=True)
+@celery_app.task(name="automation.dispatch_events", bind=True, autoretry_for=(Exception,))
 def dispatch_events(self) -> dict[str, Any]:
     """Route durable event envelopes to active automation definitions."""
     try:
         return asyncio.run(_dispatch())
     except Exception as exc:  # noqa: BLE001 - worker must report a durable failure
         logger.exception("automation event dispatch failed")
-        return {"status": "failed", "error": str(exc), "claimed": 0, "dispatched": 0, "failed": 1, "matched": 0}
+        raise
