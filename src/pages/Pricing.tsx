@@ -272,7 +272,7 @@ const Pricing = () => {
     {
       question: "Can I get a refund for unused credits?",
       answer:
-        "Yes. Unused credits are refundable within 7 days of purchase. Used credits correspond to completed, receipt-verified submissions and cannot be refunded.",
+        "Contact support within 7 days of purchase to request a review of unused credits. Eligibility and payment-provider processing are confirmed before any refund is promised. Used credits correspond to receipt-verified submissions and are not eligible.",
     },
     {
       question: "What payment methods do you accept?",
@@ -552,7 +552,7 @@ const Pricing = () => {
                 <ShieldCheck className="w-5 h-5 text-success" /> 7-Day Refund on Unused Credits
               </h3>
               <p className="text-xs text-muted-foreground max-w-xl">
-                Unused credits are 100% refundable within 7 days. Verified submissions with generated receipts are final.
+                Refund requests for unused credits can be reviewed within 7 days. Verified submissions with generated receipts are final.
               </p>
             </div>
             <div className="space-y-1 md:text-right">

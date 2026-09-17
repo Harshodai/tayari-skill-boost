@@ -21,7 +21,7 @@ celery_app = Celery(
     "tayari",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["app.tasks.scraping", "app.tasks.external_research", "app.tasks.automation", "app.tasks.agent_automation", "app.tasks.automation_events", "app.tasks.learning", "app.tasks.delivery", "app.tasks.task_control"],
+    include=["app.tasks.scraping", "app.tasks.external_research", "app.tasks.automation", "app.tasks.agent_automation", "app.tasks.automation_events", "app.tasks.learning", "app.tasks.delivery", "app.tasks.task_control", "app.tasks.billing"],
 )
 
 celery_app.conf.update(

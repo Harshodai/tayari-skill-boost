@@ -834,106 +834,33 @@ async def run_autopilot(
                         )
                         applications.append(application)
                         continue
-                    try:
-                        # WS-02: run the agent for its *evidence*, not a
-                        # boolean. The status we write is derived from what the
-                        # ATS actually printed — an unconfirmed run stays
-                        # "submitted_unverified" instead of quietly becoming
-                        # "applied". Self-reported success is the lie this
-                        # whole product exists to stop telling.
-                        _set_application_lifecycle(application, _LIFECYCLE_APPROVED)
-                        _set_application_lifecycle(application, _LIFECYCLE_ATTEMPTED)
-                        evidence = Browser.apply_job_with_evidence(
-                            job,
-                            tailored_text,
-                            cover,
-                            form_fields=form_fields,
-                            submission_guard=guard,
-                        )
-                        receipt = build_receipt(
-                            run_id=run_id,
-                            user_id=config.get("user_id"),
-                            job=job,
-                            resume_text=tailored_text,
-                            agent_summary=evidence.get("summary"),
-                            agent_actions=evidence.get("actions"),
-                            final_url=evidence.get("final_url"),
-                            screenshot_b64=evidence.get("screenshot_b64"),
-                        )
-                        await _safe_save_receipt(receipt)
-                        application["receipt"] = {
-                            "verified": receipt["verified"],
-                            "confirmation_number": receipt["confirmation_number"],
-                            "confirmation_text": receipt["confirmation_text"],
-                            "ats_vendor": receipt["ats_vendor"],
-                        }
-                        if receipt["verified"]:
-                            _set_application_lifecycle(application, _LIFECYCLE_RECEIPT_CONFIRMED)
-                            application["status"] = "applied"
-                            _log(
-                                run_id,
-                                "APPLY",
-                                f"Submission CONFIRMED for {job['title']} @ {job['company']}"
-                                + (f" (ref {receipt['confirmation_number']})" if receipt["confirmation_number"] else ""),
-                            )
-                        elif evidence.get("success"):
-                            application["status"] = "submitted_unverified"
-                            _log(
-                                run_id,
-                                "APPLY",
-                                f"Agent finished {job['title']} @ {job['company']} but the site showed no "
-                                f"confirmation — marked unverified so you can check it yourself.",
-                            )
-                        else:
-                            _set_application_lifecycle(application, _LIFECYCLE_FAILED)
-                            application["status"] = "apply_failed"
-                            # WS-02: a failed run still gets a receipt row so
-                            # the UI can render the distinct "Submission failed"
-                            # badge — without this a missing receipt is visually
-                            # indistinguishable from a pending one.
-                            failed_receipt = build_failed_receipt(
-                                run_id=run_id,
-                                user_id=config.get("user_id"),
-                                job=job,
-                                resume_text=tailored_text,
-                                agent_summary=evidence.get("summary"),
-                                error=evidence.get("error"),
-                                screenshot_b64=evidence.get("screenshot_b64"),
-                            )
-                            await _safe_save_receipt(failed_receipt)
-                            application["receipt"] = {
-                                "verified": False,
-                                "failed": True,
-                                "confirmation_number": None,
-                                "confirmation_text": None,
-                                "ats_vendor": failed_receipt["ats_vendor"],
-                            }
-                            _log(
-                                run_id,
-                                "APPLY",
-                                f"Could not complete the application for {job['company']}: "
-                                f"{evidence.get('error') or 'the agent did not reach a submit step'}",
-                            )
-                    except Exception as exc:
-                        logger.error("Auto‑apply failed for %s: %s", job.get("company"), exc)
-                        _set_application_lifecycle(application, _LIFECYCLE_FAILED)
-                        application["status"] = "apply_failed"
-                        failed_receipt = build_failed_receipt(
-                            run_id=run_id,
-                            user_id=config.get("user_id"),
-                            job=job,
-                            resume_text=tailored_text,
-                            agent_summary=str(exc),
-                            error=str(exc),
-                        )
-                        await _safe_save_receipt(failed_receipt)
-                        application["receipt"] = {
-                            "verified": False,
-                            "failed": True,
-                            "confirmation_number": None,
-                            "confirmation_text": None,
-                            "ats_vendor": failed_receipt["ats_vendor"],
-                        }
+                    from app.services.action_policy import require_manual_submission
+
+                    submission_decision = require_manual_submission(str(job.get("url") or ""))
+                    if submission_decision.allowed:
+                        raise RuntimeError("manual-submit policy unexpectedly allowed final submission")
+                    _set_application_lifecycle(application, _LIFECYCLE_APPROVED)
+                    prepared_receipt = build_prepared_receipt(
+                        run_id=run_id,
+                        user_id=config.get("user_id"),
+                        job=job,
+                        resume_text=tailored_text,
+                    )
+                    await _safe_save_receipt(prepared_receipt)
+                    application["status"] = "awaiting_manual_submission"
+                    application["receipt"] = {
+                        "verified": False,
+                        "prepared": True,
+                        "confirmation_number": None,
+                        "confirmation_text": None,
+                        "ats_vendor": prepared_receipt["ats_vendor"],
+                    }
+                    _log(
+                        run_id,
+                        "HANDOFF",
+                        f"Application package ready for {job['title']} @ {job['company']}. "
+                        "The candidate must complete protected fields and submit it manually.",
+                    )
                         _log(run_id, "APPLY", f"Failed to auto‑apply to {job['company']}: {exc}")
 
 

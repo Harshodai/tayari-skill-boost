@@ -61,3 +61,18 @@ def evaluate_action(action: str, payload: dict | None = None, page_url: str = ''
             return PolicyDecision(True, False, RiskTier.DRAFT, 'Explicit candidate approval recorded.')
         return PolicyDecision(False, True, RiskTier.EXTERNAL_WRITE, 'Browser writes require explicit candidate approval.')
     return PolicyDecision(False, True, RiskTier.EXTERNAL_WRITE, 'Unknown browser action is denied by default.')
+
+
+def require_manual_submission(page_url: str) -> PolicyDecision:
+    """Return the canonical decision for the final application action.
+
+    All orchestration paths call this helper before reaching browser code. An
+    approval authorizes preparation and handoff only; it never authorizes the
+    agent to click an employer's final submit control.
+    """
+    return evaluate_action(
+        'submit_application',
+        {'url': page_url},
+        page_url,
+        explicit_approval=True,
+    )

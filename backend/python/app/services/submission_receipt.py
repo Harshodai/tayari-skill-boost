@@ -411,6 +411,27 @@ async def debit_submission_credit(
         return {"status": "client_error", "charged": 0, "error": str(exc), "verified": True}
 
 
+def queue_debit_reconciliation(receipt: dict[str, Any]) -> str | None:
+    """Persist a redacted, owner-scoped debit retry on the durable worker queue."""
+    user_id = str(receipt.get("user_id") or "")
+    reference_id = str(receipt.get("run_id") or "")
+    if not user_id or not reference_id:
+        return None
+    from app.tasks.billing import reconcile_verified_receipt_debit
+
+    task = reconcile_verified_receipt_debit.apply_async(
+        kwargs={
+            "user_id": user_id,
+            "reference_id": reference_id,
+            "job_title": receipt.get("job_title"),
+            "company": receipt.get("company"),
+        },
+        queue="tayari",
+        countdown=30,
+    )
+    return str(task.id)
+
+
 async def save_receipt(receipt: dict[str, Any]) -> bool:
     """Persist evidence before charging, then expose debit reconciliation state.
 
@@ -507,9 +528,11 @@ async def save_receipt(receipt: dict[str, Any]) -> bool:
                         "submission_receipt: durable verified receipt needs billing reconciliation: %s",
                         billing_result.get("status"),
                     )
+                    receipt["_billing_reconciliation_task_id"] = queue_debit_reconciliation(receipt)
             except Exception as exc:
                 logger.exception("submission_receipt: post-persistence billing debit failed: %s", exc)
                 receipt["_billing_result"] = {"status": "reconciliation_required", "charged": 0}
+                receipt["_billing_reconciliation_task_id"] = queue_debit_reconciliation(receipt)
         return True
     except Exception as exc:  # noqa: BLE001 — persistence must never break a run
         logger.warning("submission_receipt: save failed (%s)", exc)
