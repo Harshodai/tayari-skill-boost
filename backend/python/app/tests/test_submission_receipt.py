@@ -444,10 +444,20 @@ async def test_save_receipt_marks_post_persistence_debit_for_reconciliation():
         "outcome": "submitted",
     }
     with mock.patch("app.services.submission_receipt.get_pool", new=mock.AsyncMock(return_value=pool)), \
-         mock.patch("app.services.submission_receipt.debit_submission_credit", new_callable=mock.AsyncMock) as mock_debit:
+         mock.patch("app.services.submission_receipt.debit_submission_credit", new_callable=mock.AsyncMock) as mock_debit, \
+         mock.patch("app.services.submission_receipt.queue_debit_reconciliation", return_value="task-1") as mock_queue:
         mock_debit.return_value = {"status": "debit_failed", "charged": 0}
         saved = await sr.save_receipt(verified_receipt)
 
     assert saved is True
     assert verified_receipt["_billing_result"]["status"] == "debit_failed"
+    assert verified_receipt["_billing_reconciliation_task_id"] == "task-1"
     mock_debit.assert_awaited_once()
+    mock_queue.assert_called_once_with(verified_receipt)
+
+
+def test_credit_debit_reference_is_stable_and_unique_per_job():
+    base = {"user_id": "u1", "run_id": "r1", "job_url": "https://jobs.example/1"}
+    assert sr.credit_debit_reference(base) == sr.credit_debit_reference(dict(base))
+    assert sr.credit_debit_reference(base) != sr.credit_debit_reference({**base, "job_url": "https://jobs.example/2"})
+    assert sr.credit_debit_reference({**base, "user_id": "u2"}) != sr.credit_debit_reference(base)

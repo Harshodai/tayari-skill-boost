@@ -123,11 +123,23 @@ class Browser:
         Never raises: a failed run is reported as ``success=False`` with the
         error attached, because the caller's job is to record what happened.
         """
+        from app.services.action_policy import require_manual_submission
+
         title = job.get("title", "Position")
         company = job.get("company", "Company")
         url = job.get("url", "")
         run_id = str((submission_guard or {}).get("run_id") or "") or None
         owner_id = str((submission_guard or {}).get("user_id") or "") or None
+
+        submission_decision = require_manual_submission(str(url))
+        if not submission_decision.allowed:
+            logger.info("[Browser] Final submission requires candidate handoff for %s at %s", title, url)
+            return {
+                "success": False,
+                "error": "manual_submission_required",
+                "summary": submission_decision.reason,
+                "actions": [],
+            }
 
         if not verify_guard(
             submission_guard,

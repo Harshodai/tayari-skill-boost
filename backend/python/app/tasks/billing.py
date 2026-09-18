@@ -20,12 +20,13 @@ def reconcile_verified_receipt_debit(
     *,
     user_id: str,
     reference_id: str,
+    run_id: str,
     job_title: str | None = None,
     company: str | None = None,
 ) -> dict:
     """Retry one idempotent debit without carrying resume or application data."""
-    if not user_id or not reference_id:
-        raise ValueError("user_id and reference_id are required")
+    if not user_id or not reference_id or not run_id:
+        raise ValueError("user_id, reference_id, and run_id are required")
 
     from app.services.submission_receipt import debit_submission_credit
 
@@ -33,7 +34,7 @@ def reconcile_verified_receipt_debit(
         debit_submission_credit(
             user_id=user_id,
             receipt_id=reference_id,
-            run_id=reference_id,
+            run_id=run_id,
             job_title=job_title,
             company=company,
             verified=True,

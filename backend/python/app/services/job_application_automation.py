@@ -1,5 +1,5 @@
 import logging
-from .browser_library import Browser
+from .action_policy import require_manual_submission
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -22,15 +22,16 @@ class JobApplicationInput(BaseModel):
 
 
 def apply_job(job: dict, resume_text: str, cover_letter: str) -> str:
-    """Apply to a job using the Browser stub with validated input.
+    """Validate an application package and enforce the manual-submit boundary.
 
     Args:
         job: Dictionary with job details (title, company, url, etc.).
         resume_text: Tailored resume text.
         cover_letter: Generated cover letter.
 
-    Returns:
-        str: The literal string ``'applied'`` on success.
+    This legacy entry point remains for compatibility, but it never starts a
+    browser or reports an external submission. Callers must create a durable
+    candidate handoff instead.
     """
     # Validate job dict against immutable Pydantic model
     try:
@@ -39,18 +40,8 @@ def apply_job(job: dict, resume_text: str, cover_letter: str) -> str:
         logger.error("Invalid job data: %s", exc)
         raise
 
-    try:
-        success = Browser.apply_job(validated_job.model_dump(), resume_text, cover_letter)
-        if success:
-            logger.info("Job applied successfully: %s at %s", validated_job.title, validated_job.company)
-            return "applied"
-        else:
-            raise RuntimeError("Browser.apply_job returned False")
-    except Exception as exc:
-        logger.error(
-            "Failed to apply job %s at %s: %s",
-            validated_job.title,
-            validated_job.company,
-            exc,
-        )
-        raise
+    decision = require_manual_submission(validated_job.url)
+    if not decision.allowed:
+        logger.info("Manual submission required: %s at %s", validated_job.title, validated_job.company)
+        return "awaiting_manual_submission"
+    raise RuntimeError("manual-submit policy unexpectedly allowed final submission")

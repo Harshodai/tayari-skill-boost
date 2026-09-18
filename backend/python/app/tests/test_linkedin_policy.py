@@ -308,12 +308,9 @@ async def test_automation_engine_skips_linkedin_job(monkeypatch: pytest.MonkeyPa
             f"LinkedIn job should be skipped, got {linkedin_app['status']!r}"
         )
 
-        # The greenhouse job was actually submitted.
+        # The Greenhouse package is ready, but final submission stays manual.
         greenhouse_app = by_url[greenhouse_job["url"]]
-        assert greenhouse_app["status"] == "applied"
+        assert greenhouse_app["status"] == "awaiting_manual_submission"
 
-    # Browser was called exactly once (for the non-LinkedIn job only) —
-    # the LinkedIn URL never reached the browser.
-    assert browser_spy.apply_job_with_evidence.call_count == 1
-    called_job = browser_spy.apply_job_with_evidence.call_args[0][0]
-    assert called_job["url"] == greenhouse_job["url"]
+    # Neither URL reaches the final-submit browser path.
+    assert browser_spy.apply_job_with_evidence.call_count == 0
