@@ -411,25 +411,41 @@ async def debit_submission_credit(
         return {"status": "client_error", "charged": 0, "error": str(exc), "verified": True}
 
 
+def credit_debit_reference(receipt: dict[str, Any]) -> str | None:
+    """Return a stable per-owner, per-run, per-job idempotency reference."""
+    user_id = str(receipt.get("user_id") or "")
+    run_id = str(receipt.get("run_id") or "")
+    job_url = str(receipt.get("job_url") or "")
+    if not user_id or not run_id or not job_url:
+        return None
+    digest = hashlib.sha256(f"{user_id}\n{run_id}\n{job_url}".encode("utf-8")).hexdigest()
+    return f"submission_receipt:{digest}"
+
+
 def queue_debit_reconciliation(receipt: dict[str, Any]) -> str | None:
     """Persist a redacted, owner-scoped debit retry on the durable worker queue."""
     user_id = str(receipt.get("user_id") or "")
-    reference_id = str(receipt.get("run_id") or "")
+    reference_id = credit_debit_reference(receipt)
     if not user_id or not reference_id:
         return None
-    from app.tasks.billing import reconcile_verified_receipt_debit
+    try:
+        from app.tasks.billing import reconcile_verified_receipt_debit
 
-    task = reconcile_verified_receipt_debit.apply_async(
-        kwargs={
-            "user_id": user_id,
-            "reference_id": reference_id,
-            "job_title": receipt.get("job_title"),
-            "company": receipt.get("company"),
-        },
-        queue="tayari",
-        countdown=30,
-    )
-    return str(task.id)
+        task = reconcile_verified_receipt_debit.apply_async(
+            kwargs={
+                "user_id": user_id,
+                "reference_id": reference_id,
+                "run_id": str(receipt.get("run_id") or ""),
+                "job_title": receipt.get("job_title"),
+                "company": receipt.get("company"),
+            },
+            queue="tayari",
+            countdown=30,
+        )
+        return str(task.id)
+    except Exception as exc:
+        logger.error("submission_receipt: unable to queue debit reconciliation: %s", exc)
+        return None
 
 
 async def save_receipt(receipt: dict[str, Any]) -> bool:
@@ -514,9 +530,12 @@ async def save_receipt(receipt: dict[str, Any]) -> bool:
             )
         if receipt.get("verified") and receipt.get("user_id"):
             try:
+                debit_reference = credit_debit_reference(receipt)
+                if not debit_reference:
+                    raise ValueError("verified receipt lacks a stable debit reference")
                 billing_result = await debit_submission_credit(
                     user_id=receipt["user_id"],
-                    receipt_id=receipt.get("run_id"),
+                    receipt_id=debit_reference,
                     run_id=receipt.get("run_id"),
                     job_title=receipt.get("job_title"),
                     company=receipt.get("company"),
