@@ -861,7 +861,6 @@ async def run_autopilot(
                         f"Application package ready for {job['title']} @ {job['company']}. "
                         "The candidate must complete protected fields and submit it manually.",
                     )
-                        _log(run_id, "APPLY", f"Failed to auto‑apply to {job['company']}: {exc}")
 
 
                 applications.append(application)
