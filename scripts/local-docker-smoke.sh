@@ -19,8 +19,8 @@ MODE="${1:-up}"
 
 if [[ "$MODE" == "--down" || "$MODE" == "down" ]]; then
   echo "Stopping all local Docker containers..."
-  docker compose --profile dev down -v --remove-orphans
-  echo "Local containers stopped."
+  docker compose --profile dev down --remove-orphans
+  echo "Local containers stopped. Database data was preserved."
   exit 0
 fi
 
@@ -35,31 +35,30 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 # 2. Check environment configuration
-if [[ ! -f ".env" ]]; then
-  echo "Notice: .env not found. Creating from .env.example..."
-  cp .env.example .env
-fi
-
-if [[ ! -f "supabase-local/.env" ]]; then
-  echo "Notice: supabase-local/.env not found. Creating from supabase-local/.env.example..."
-  cp supabase-local/.env.example supabase-local/.env
+if [[ ! -f ".env" || ! -f "supabase-local/.env" ]]; then
+  echo "ERROR: create both .env files from their examples and set matching secrets before startup." >&2
+  exit 1
 fi
 
 # Ensure POSTGRES_PASSWORD and JWT_SECRET match between root .env and supabase-local/.env
 ROOT_JWT="$(grep '^JWT_SECRET=' .env 2>/dev/null | cut -d= -f2- || true)"
 SUPA_JWT="$(grep '^JWT_SECRET=' supabase-local/.env 2>/dev/null | cut -d= -f2- || true)"
 
-if [[ -n "$ROOT_JWT" && -n "$SUPA_JWT" && "$ROOT_JWT" != "$SUPA_JWT" ]]; then
-  echo "Warning: JWT_SECRET in .env and supabase-local/.env differed. Syncing to match..."
-  sed -i.bak "s|^JWT_SECRET=.*|JWT_SECRET=${SUPA_JWT}|" .env && rm -f .env.bak
+if [[ -z "$ROOT_JWT" || -z "$SUPA_JWT" || "$ROOT_JWT" != "$SUPA_JWT" ]]; then
+  echo "ERROR: JWT_SECRET must be non-empty and identical in both .env files." >&2
+  exit 1
 fi
 
 ROOT_PG_PASS="$(grep '^POSTGRES_PASSWORD=' .env 2>/dev/null | cut -d= -f2- || true)"
 SUPA_PG_PASS="$(grep '^POSTGRES_PASSWORD=' supabase-local/.env 2>/dev/null | cut -d= -f2- || true)"
 
-if [[ -n "$ROOT_PG_PASS" && -n "$SUPA_PG_PASS" && "$ROOT_PG_PASS" != "$SUPA_PG_PASS" ]]; then
-  echo "Warning: POSTGRES_PASSWORD in .env and supabase-local/.env differed. Syncing to match..."
-  sed -i.bak "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${SUPA_PG_PASS}|" .env && rm -f .env.bak
+if [[ -z "$ROOT_PG_PASS" || -z "$SUPA_PG_PASS" || "$ROOT_PG_PASS" != "$SUPA_PG_PASS" ]]; then
+  echo "ERROR: POSTGRES_PASSWORD must be non-empty and identical in both .env files." >&2
+  exit 1
+fi
+if [[ "$(grep '^ENABLE_EMAIL_AUTOCONFIRM=' supabase-local/.env | cut -d= -f2- || true)" != "true" ]]; then
+  echo "ERROR: ENABLE_EMAIL_AUTOCONFIRM must be true because the local stack has no mail service." >&2
+  exit 1
 fi
 # Derive the host gateway from the included Supabase Compose env so custom local ports remain testable.
 SUPABASE_GATEWAY_PORT="$(grep "^KONG_HTTP_PORT=" supabase-local/.env | cut -d= -f2- || true)"

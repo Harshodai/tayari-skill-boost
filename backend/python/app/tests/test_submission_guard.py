@@ -77,7 +77,7 @@ def test_browser_submission_requires_guard_and_does_not_start_agent(monkeypatch)
 
     monkeypatch.setattr(Browser, "_run_agent", staticmethod(fake_agent))
     rejected = Browser.apply_job_with_evidence(JOB, RESUME, COVER, form_fields=FIELDS)
-    assert rejected["error"] == "submission_guard_rejected"
+    assert rejected["error"] == "manual_submission_required"
     assert started["count"] == 0
 
 
@@ -105,7 +105,7 @@ def test_autonomous_submission_is_disabled_by_default(monkeypatch):
     ) is False
 
 
-def test_browser_submission_rejects_cross_origin_evidence(monkeypatch):
+def test_browser_submission_never_starts_even_with_valid_guard(monkeypatch):
     monkeypatch.setenv("APPROVAL_SIGNING_KEY", "test-approval-key")
     monkeypatch.setenv("AUTONOMOUS_SUBMIT_ENABLED", "true")
     monkeypatch.setenv("CAPABILITY_AUTONOMOUS_ATS_SUBMIT", "true")
@@ -139,5 +139,5 @@ def test_browser_submission_rejects_cross_origin_evidence(monkeypatch):
         form_fields=FIELDS,
         submission_guard=guard,
     )
-    assert result["error"] == "final_origin_mismatch"
+    assert result["error"] == "manual_submission_required"
     assert result["success"] is False
