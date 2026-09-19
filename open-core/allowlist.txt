@@ -1,0 +1,16 @@
+LICENSE
+README.md
+.env.example
+docker-compose.yml
+package.json
+bun.lockb
+src/
+public/
+backend/go/
+backend/python/app/
+backend/python/requirements.txt
+backend/db/
+supabase-local/
+integrations/jobtheory_mcp/
+packages/tayari-protocol/
+scripts/local-docker-smoke.sh

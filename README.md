@@ -14,7 +14,7 @@ Tayari Skill Boost is an event-driven career operations platform. Microservices 
 4. **Knowledge graph extraction** (`backend/python/app/services/knowledge_graph.py`) — auto-extracts achievements, skills, and timeline; surfaces skill gaps and links them to a career roadmap.
 5. **Evidence-backed workflow foundation** — the repository also contains internal evaluation surfaces for Typst export, company radar, interview coaching, negotiation, skill gaps, portfolio generation, outreach, and funnel analytics. These are not part of the current public release promise until their operational evidence is complete.
 
-Plus: pipeline **guardrails** (`app/guardrails/` — keyword-stuffing detector, PII redaction, truthfulness gate, `PipelineGate`) that run before every application is submitted, and a **durable Celery/Redis autopilot** with run state queryable in Postgres.
+Plus: pipeline **guardrails** (`app/guardrails/` — keyword-stuffing detector, PII redaction, truthfulness gate, `PipelineGate`) that run before each application package reaches candidate review, and a **durable Celery/Redis preparation workflow** with run state queryable in Postgres.
 
 ---
 
@@ -28,7 +28,7 @@ Plus: pipeline **guardrails** (`app/guardrails/` — keyword-stuffing detector, 
 | Job Queue | Celery + Redis | `backend/python/` |
 | Database | Self-hosted Supabase (Postgres + GoTrue auth + PostgREST + Kong + Realtime + Storage + Studio) | `supabase-local/`, schema in `backend/db/` |
 | LLM | OpenRouter / Ollama / any OpenAI-compatible | env-driven |
-| Browser Agent | browser-use + Playwright | `backend/python/` |
+| Browser Assistant | browser-use + Playwright, restricted to candidate-controlled preparation and handoff | `backend/python/` |
 
 ---
 
@@ -127,8 +127,8 @@ JWT validation, CRUD, reverse proxy AI calls to Python at `/api/v1/ai/...`.
 ### AI Engine (Python/FastAPI)
 - Resume optimizer — PDF ingestion, OCR, LLM semantic matching vs job descriptions
 - Hermes pipeline — job scraper, structures data, maps to user skill vectors  
-- Browser Automation Agent — `browser-use` + Playwright for autonomous form submissions
-- AutoPilot — cover letter generation, automated email drafting
+- Browser Assistant — `browser-use` + Playwright for candidate-controlled preparation; final submission remains manual
+- AutoPilot — job research, application-package preparation, and email drafting
 
 ### Async Queue (Celery + Redis)
 Long-running LLM inference and batch scraping pushed to Redis, picked up by Celery workers, results written to Postgres. Monitor at `http://localhost:5555`.
