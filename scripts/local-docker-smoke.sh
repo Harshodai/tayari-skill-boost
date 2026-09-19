@@ -110,6 +110,10 @@ wait_for_health() {
 wait_for_health "db" 45
 wait_for_health "kong" 30
 wait_for_health "auth" 30
+wait_for_health "redis" 30
+wait_for_health "python-ai" 60
+wait_for_health "go-backend" 60
+wait_for_health "celery-worker" 60
 # 5. Verify HTTP Endpoints
  echo "Verifying HTTP service endpoints..."
  ANON_KEY="$(grep '^ANON_KEY=' supabase-local/.env | cut -d= -f2-)"
@@ -124,6 +128,8 @@ wait_for_health "auth" 30
  curl -fsS -o /dev/null -w "%{http_code}" "http://127.0.0.1:3001" | grep -q "200\|307\|308" && echo "  ✓ Supabase Studio Web UI (port 3001) is responding"
  # Check Go Backend Gateway
  curl -fsS "http://127.0.0.1:8085/api/health" | grep -q "healthy" && echo "  ✓ Go API Gateway (port 8085) is responding"
+ # Check the private AI service through its local diagnostic port.
+ curl -fsS "http://127.0.0.1:8002/health" | grep -q '"status"' && echo "  ✓ Python AI Engine (port 8002) is responding"
  # Check Frontend SPA
  curl -fsS -o /dev/null -w "%{http_code}" "http://127.0.0.1:8083" | grep -q "200" && echo "  ✓ Frontend React App (port 8083) is responding"
 
